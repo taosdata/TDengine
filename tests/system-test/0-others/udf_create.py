@@ -54,13 +54,14 @@ class TDTestCase:
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1_dup.so',projPath+"\\debug\\build\\lib\\")
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf2.so',projPath+"\\debug\\build\\lib\\")
                 self.libudf1 = self.libudf1.replace('udf1.dll','libudf1.so')
-                self.libudf1 = self.libudf1.replace('udf1.dll','libudf1_dup.so')
+                self.libudf1_dup = self.libudf1_dup.replace('udf1_dup.dll','libudf1_dup.so')
                 self.libudf2 = self.libudf2.replace('udf2.dll','libudf2.so')
         else:
             self.libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             self.libudf1_dup = subprocess.Popen('find %s -name "libudf1_dup.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             self.libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
         self.libudf1 = self.libudf1.replace('\r','').replace('\n','')
+        self.libudf1_dup = self.libudf1_dup.replace('\r','').replace('\n','')
         self.libudf2 = self.libudf2.replace('\r','').replace('\n','')
 
 

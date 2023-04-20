@@ -10,11 +10,11 @@
 #include "taosudf.h"
 
 
-DLL_EXPORT int32_t udf1_init() { return 0; }
+DLL_EXPORT int32_t udf1_dup_init() { return 0; }
 
-DLL_EXPORT int32_t udf1_destroy() { return 0; }
+DLL_EXPORT int32_t udf1_dup_destroy() { return 0; }
 
-DLL_EXPORT int32_t udf1(SUdfDataBlock *block, SUdfColumn *resultCol) {
+DLL_EXPORT int32_t udf1_dup(SUdfDataBlock *block, SUdfColumn *resultCol) {
   SUdfColumnData *resultData = &resultCol->colData;
   for (int32_t i = 0; i < block->numOfRows; ++i) {
     int j = 0;
