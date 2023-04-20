@@ -89,6 +89,8 @@ int32_t doCreateReqsByScanWal(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetS
   tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
   SArray* pTaskIdList = extractTaskIdList(pStreamMeta, numOfTasks);
 
+  // update the new task number
+  numOfTasks = taosArrayGetSize(pTaskIdList);
   for (int32_t i = 0; i < numOfTasks; ++i) {
     int32_t*     pTaskId = taosArrayGet(pTaskIdList, i);
     SStreamTask* pTask = streamMetaAcquireTask(pStreamMeta, *pTaskId);
