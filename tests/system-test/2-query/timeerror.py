@@ -55,11 +55,17 @@ class TDTestCase:
             tdSql.execute(
                 f"insert into {dbname}.t3 values ({qts}, null , {-3.4*10**38}, null , {-1.7*10**308}, null , null)"
             )
-        
+
             tdLog.printNoPrefix("==========step3:query timestamp type")
             tdSql.query(f"select ts from {dbname}.t3 limit 1")
             tdSql.checkData(0,0,qtime)
             tdSql.checkData(0,0,qts)
+
+            tdLog.printNoPrefix("==========step4:query invalid time duration")
+            tdSql.error(f"select * from {dbname}.t3 where ts > now + 1y")
+            tdSql.error(f"select * from {dbname}.t3 where ts > now - 1y")
+            tdSql.error(f"select * from {dbname}.t3 where ts > now + 1n")
+            tdSql.error(f"select * from {dbname}.t3 where ts > now - 1n")
 
     def stop(self):
         tdSql.close()
