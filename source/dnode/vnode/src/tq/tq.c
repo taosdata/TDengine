@@ -97,6 +97,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     return NULL;
   }
 
+  pTq->closing = false;
   pTq->path = taosStrdup(path);
   pTq->pVnode = pVnode;
   pTq->walLogLastVer = pVnode->pWal->vers.lastVer;
@@ -152,6 +153,28 @@ void tqClose(STQ* pTq) {
   tqMetaClose(pTq);
   streamMetaClose(pTq->pStreamMeta);
   taosMemoryFree(pTq);
+}
+
+void tqNotifyClose(STQ* pTq) {
+  if (pTq != NULL) {
+    pTq->closing = true;
+    taosWLockLatch(&pTq->pStreamMeta->lock);
+
+    void* pIter = NULL;
+    while (1) {
+      pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
+      if (pIter == NULL) {
+        break;
+      }
+
+      SStreamTask* pTask = *(SStreamTask**)pIter;
+      tqDebug("vgId:%d s-task:%s set dropping flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
+      pTask->status.taskStatus = TASK_STATUS__DROPPING;
+      qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+    }
+
+    taosWUnLockLatch(&pTq->pStreamMeta->lock);
+  }
 }
 
 static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch,

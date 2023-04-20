@@ -121,6 +121,7 @@ struct STQ {
   TTB*            pExecStore;
   TTB*            pCheckStore;
   SStreamMeta*    pStreamMeta;
+  bool            closing;
 };
 
 typedef struct {
