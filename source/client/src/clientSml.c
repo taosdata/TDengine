@@ -1167,6 +1167,7 @@ static int32_t smlPushCols(SArray *colsArray, SArray *cols) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
     taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
     if (terrno == TSDB_CODE_DUP_KEY) {
+      taosHashCleanup(kvHash);
       return terrno;
     }
   }
@@ -1240,12 +1241,12 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
       uDebug("SML:0x%" PRIx64 " smlParseLineBottom add meta, format:%d, linenum:%d", info->id, info->dataFormat,
              info->lineNum);
       SSmlSTableMeta *meta = smlBuildSTableMeta(info->dataFormat);
+      taosHashPut(info->superTables, elements->measure, elements->measureLen, &meta, POINTER_BYTES);
       smlInsertMeta(meta->tagHash, meta->tags, tinfo->tags);
       if (terrno == TSDB_CODE_DUP_KEY) {
         return terrno;
       }
       smlInsertMeta(meta->colHash, meta->cols, elements->colArray);
-      taosHashPut(info->superTables, elements->measure, elements->measureLen, &meta, POINTER_BYTES);
     }
   }
   uDebug("SML:0x%" PRIx64 " smlParseLineBottom end, format:%d, linenum:%d", info->id, info->dataFormat, info->lineNum);
