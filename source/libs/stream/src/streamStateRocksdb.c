@@ -352,8 +352,8 @@ const char* comparePartagKeyName(void* name) { return ginitDict[6].key; }
 
 int streamInitBackend(SStreamState* pState, char* path) {
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
-  rocksdb_env_set_low_priority_background_threads(env, 15);
-  rocksdb_env_set_high_priority_background_threads(env, 5);
+  rocksdb_env_set_low_priority_background_threads(env, 4);
+  rocksdb_env_set_high_priority_background_threads(env, 2);
 
   rocksdb_options_t* opts = rocksdb_options_create();
   rocksdb_options_set_env(opts, env);
