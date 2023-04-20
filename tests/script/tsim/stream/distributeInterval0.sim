@@ -76,7 +76,7 @@ if $rows != 1 then
 endi
 
 if $data01 != 8 then
-  print =====data01=$data01
+  print =1====data01=$data01
   goto loop0
 endi
 
@@ -97,7 +97,7 @@ if $loop_count == 30 then
   return -1
 endi
 
-sleep 20000
+sleep 1000
 print 2 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -107,7 +107,7 @@ if $rows != 4 then
 endi
 
 if $data01 != 8 then
-  print =====data01=$data01
+  print =2====data01=$data01
   goto loop01
 endi
 
@@ -136,7 +136,7 @@ if $loop_count == 30 then
   return -1
 endi
 
-sleep 2000
+sleep 1000
 print 3 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -146,7 +146,7 @@ if $rows != 4 then
 endi
 
 if $data01 != 8 then
-  print =====data01=$data01
+  print =3====data01=$data01
   goto loop011
 endi
 
@@ -175,7 +175,7 @@ if $loop_count == 30 then
   return -1
 endi
 
-sleep 2000
+sleep 1000
 print 4 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -185,7 +185,7 @@ if $rows != 4 then
 endi
 
 if $data01 != 8 then
-  print =====data01=$data01
+  print =4====data01=$data01
   goto loop02
 endi
 
@@ -215,7 +215,7 @@ if $loop_count == 30 then
   return -1
 endi
 
-sleep 2000
+sleep 1000
 print 5 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -225,7 +225,7 @@ if $rows != 4 then
 endi
 
 if $data01 != 8 then
-  print =====data01=$data01
+  print =5====data01=$data01
   goto loop03
 endi
 
@@ -262,7 +262,7 @@ if $loop_count == 30 then
   return -1
 endi
 
-sleep 2000
+sleep 1000
 print 6 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -272,7 +272,7 @@ if $rows != 4 then
 endi
 
 if $data01 != 8 then
-  print =====data01=$data01
+  print =6====data01=$data01
   goto loop04
 endi
 
@@ -296,7 +296,7 @@ sql insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) 
 
 $loop_count = 0
 loop1:
-sleep 2000
+sleep 1000
 sql select * from streamtST1;
 
 $loop_count = $loop_count + 1
@@ -306,7 +306,7 @@ endi
 
 # row 0
 if $data01 != 8 then
-  print =====data01=$data01
+  print =7====data01=$data01
   goto loop1
 endi
 
@@ -427,7 +427,7 @@ $loop_count = 0
 loop2:
 sql select * from streamtST1;
 
-sleep 2000
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 30 then
   return -1
@@ -435,7 +435,7 @@ endi
 
 # row 0
 if $data01 != 2 then
-  print =====data01=$data01
+  print =8====data01=$data01
   goto loop2
 endi
 
@@ -466,7 +466,7 @@ $loop_count = 0
 loop3:
 sql select * from streamtST3;
 
-sleep 2000
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 30 then
   return -1
@@ -483,6 +483,8 @@ if $data12 != 2 then
   print =====data12=$data12
   goto loop3
 endi
+
+return 1
 
 print ===== step3
 
@@ -532,7 +534,7 @@ sql insert into ddd values(1648791226003,2,2,"/a6/aa/aa");
 $loop_count = 0
 
 loop4:
-sleep 2000
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -550,7 +552,7 @@ sql delete  from aaa where ts = 1648791223003 ;
 $loop_count = 0
 
 loop5:
-sleep 2000
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -569,7 +571,7 @@ sql delete  from ccc;
 $loop_count = 0
 
 loop6:
-sleep 20000
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -587,7 +589,7 @@ sql delete  from ddd;
 $loop_count = 0
 
 loop7:
-sleep 20000
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then

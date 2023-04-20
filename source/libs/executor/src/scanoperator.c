@@ -2056,10 +2056,10 @@ FETCH_NEXT_BLOCK:
           doClearBufferedBlocks(pInfo);
           qDebug("stream scan return empty, consume block %d", totBlockNum);
           void* buff = NULL;
-          int32_t len = streamScanOperatorEncode(pInfo, &buff);
-          if (len > 0) {
-            streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), buff, len);
-          }
+          // int32_t len = streamScanOperatorEncode(pInfo, &buff);
+          // if (len > 0) {
+          //   streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), buff, len);
+          // }
           taosMemoryFreeClear(buff);
           return NULL;
         }
