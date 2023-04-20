@@ -257,7 +257,7 @@ class TDTestCase:
 
 
         # aggregate functions
-        tdSql.query("select udf2(num1) ,udf2_dup(num2) from tb")
+        tdSql.query("select udf2(num1) ,udf2_dup(num1) from tb")
         val = tdSql.queryResult[0][0] + 100
         tdSql.checkData(0,1,val)
         
