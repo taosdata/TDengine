@@ -452,25 +452,27 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
+    SSmlKv  kv = {.key = key, .keyLen = keyLen, .value = value, .length = valueLen};
+    int32_t ret = smlParseValue(&kv, &info->msgBuf);
+    if (ret != TSDB_CODE_SUCCESS) {
+      smlBuildInvalidDataMsg(&info->msgBuf, "smlParseValue error", value);
+      return ret;
+    }
+
     if (keyEscaped){
       char *tmp = (char*)taosMemoryMalloc(keyLen);
       memcpy(tmp, key, keyLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, keyLen);
-      key = tmp;
-    }
-    if (valueEscaped){
-      char *tmp = (char*)taosMemoryMalloc(valueLen);
-      memcpy(tmp, value, valueLen);
-      PROCESS_SLASH_IN_FIELD_VALUE(tmp, valueLen);
-      value = tmp;
+      kv.key = tmp;
+      kv.keyEscaped = keyEscaped;
     }
 
-    SSmlKv  kv = {.key = key, .keyLen = keyLen, .value = value, .length = valueLen, .keyEscaped = keyEscaped, .valueEscaped = valueEscaped};
-    int32_t ret = smlParseValue(&kv, &info->msgBuf);
-    if (ret != TSDB_CODE_SUCCESS) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "smlParseValue error", value);
-      freeSSmlKv(&kv);
-      return ret;
+    if (valueEscaped){
+      char *tmp = (char*)taosMemoryMalloc(kv.length);
+      memcpy(tmp, kv.value, kv.length);
+      PROCESS_SLASH_IN_FIELD_VALUE(tmp, kv.length);
+      kv.value = tmp;
+      kv.valueEscaped = valueEscaped;
     }
 
     if (info->dataFormat) {
