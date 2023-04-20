@@ -97,7 +97,6 @@ int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
 int32_t vnodeShouldCommit(SVnode* pVnode, bool atExit);
-void    vnodeUpdCommitSched(SVnode* pVnode);
 void    vnodeRollback(SVnode* pVnode);
 int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int32_t vnodeCommitInfo(const char* dir);

@@ -459,12 +459,17 @@ TO_JSON(str_literal)
 #### TO_UNIXTIMESTAMP
 
 ```sql
-TO_UNIXTIMESTAMP(expr)
+TO_UNIXTIMESTAMP(expr [, return_timestamp])
+
+return_timestamp: {
+    0
+  | 1
+}
 ```
 
 **功能说明**：将日期时间格式的字符串转换成为 UNIX 时间戳。
 
-**返回结果数据类型**：BIGINT。
+**返回结果数据类型**：BIGINT, TIMESTAMP。
 
 **应用字段**：VARCHAR, NCHAR。
 
@@ -476,6 +481,7 @@ TO_UNIXTIMESTAMP(expr)
 
 - 输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 NULL。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- return_timestamp 指定函数返回值是否为时间戳类型，设置为1时返回 TIMESTAMP 类型，设置为0时返回 BIGINT 类型。如不指定缺省返回 BIGINT 类型。
 
 
 ### 时间和日期函数
