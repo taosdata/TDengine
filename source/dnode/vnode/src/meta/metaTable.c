@@ -2065,40 +2065,52 @@ _exit:
 }
 
 int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
+  int32_t code = 0;
+  int32_t line = 0;
   metaWLock(pMeta);
 
   // save to table.db
-  if (metaSaveToTbDb(pMeta, pME) < 0) goto _err;
+  code = metaSaveToTbDb(pMeta, pME);
+  VND_CHECK_CODE(code, line, _err);
 
   // update uid.idx
-  if (metaUpdateUidIdx(pMeta, pME) < 0) goto _err;
+  code = metaUpdateUidIdx(pMeta, pME);
+  VND_CHECK_CODE(code, line, _err);
 
   // update name.idx
-  if (metaUpdateNameIdx(pMeta, pME) < 0) goto _err;
+  code = metaUpdateNameIdx(pMeta, pME);
+  VND_CHECK_CODE(code, line, _err);
 
   if (pME->type == TSDB_CHILD_TABLE) {
     // update ctb.idx
-    if (metaUpdateCtbIdx(pMeta, pME) < 0) goto _err;
+    code = metaUpdateCtbIdx(pMeta, pME);
+    VND_CHECK_CODE(code, line, _err);
 
     // update tag.idx
-    if (metaUpdateTagIdx(pMeta, pME) < 0) goto _err;
+    code = metaUpdateTagIdx(pMeta, pME);
+    VND_CHECK_CODE(code, line, _err);
   } else {
     // update schema.db
-    if (metaSaveToSkmDb(pMeta, pME) < 0) goto _err;
+    code = metaSaveToSkmDb(pMeta, pME);
+    VND_CHECK_CODE(code, line, _err);
 
     if (pME->type == TSDB_SUPER_TABLE) {
-      if (metaUpdateSuidIdx(pMeta, pME) < 0) goto _err;
+      code = metaUpdateSuidIdx(pMeta, pME);
+      VND_CHECK_CODE(code, line, _err);
     }
   }
 
-  if (metaUpdateCtimeIdx(pMeta, pME) < 0) goto _err;
+  code = metaUpdateCtimeIdx(pMeta, pME);
+  VND_CHECK_CODE(code, line, _err);
 
   if (pME->type == TSDB_NORMAL_TABLE) {
-    if (metaUpdateNcolIdx(pMeta, pME) < 0) goto _err;
+    code = metaUpdateNcolIdx(pMeta, pME);
+    VND_CHECK_CODE(code, line, _err);
   }
 
   if (pME->type != TSDB_SUPER_TABLE) {
-    if (metaUpdateTtlIdx(pMeta, pME) < 0) goto _err;
+    code = metaUpdateTtlIdx(pMeta, pME);
+    VND_CHECK_CODE(code, line, _err);
   }
 
   metaULock(pMeta);
@@ -2106,8 +2118,11 @@ int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
 
 _err:
   metaULock(pMeta);
+  metaError("vgId:%d, failed to handle meta entry since %s at line:%d, ver:%" PRId64 ", uid:%" PRId64,
+            TD_VID(pMeta->pVnode), terrstr(), line, pME->version, pME->uid);
   return -1;
 }
+
 // refactor later
 void *metaGetIdx(SMeta *pMeta) { return pMeta->pTagIdx; }
 void *metaGetIvtIdx(SMeta *pMeta) { return pMeta->pTagIvtIdx; }
