@@ -97,7 +97,6 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     return NULL;
   }
 
-  pTq->closing = false;
   pTq->path = taosStrdup(path);
   pTq->pVnode = pVnode;
   pTq->walLogLastVer = pVnode->pWal->vers.lastVer;
@@ -157,7 +156,6 @@ void tqClose(STQ* pTq) {
 
 void tqNotifyClose(STQ* pTq) {
   if (pTq != NULL) {
-    pTq->closing = true;
     taosWLockLatch(&pTq->pStreamMeta->lock);
 
     void* pIter = NULL;
@@ -169,8 +167,12 @@ void tqNotifyClose(STQ* pTq) {
 
       SStreamTask* pTask = *(SStreamTask**)pIter;
       tqDebug("vgId:%d s-task:%s set dropping flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
-      pTask->status.taskStatus = TASK_STATUS__DROPPING;
+      pTask->status.taskStatus = TASK_STATUS__STOP;
+
+      int64_t st = taosGetTimestampMs();
       qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+      int64_t el = taosGetTimestampMs() - st;
+      tqDebug("vgId:%d s-task:%s is closed in %" PRId64 "ms", pTq->pStreamMeta->vgId, pTask->id.idStr, el);
     }
 
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
@@ -596,6 +598,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->pMsgCb = &pTq->pVnode->msgCb;
   pTask->pMeta = pTq->pStreamMeta;
   pTask->chkInfo.version = ver;
+  pTask->chkInfo.currentVer = ver;
 
   // expand executor
   if (pTask->fillHistory) {
@@ -989,14 +992,21 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   int32_t* pRef = taosMemoryMalloc(sizeof(int32_t));
   *pRef = 1;
 
+  taosWLockLatch(&pTq->pStreamMeta->lock);
+
   void* pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) break;
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) continue;
+    if (pIter == NULL) {
+      break;
+    }
 
-    qDebug("delete req enqueue stream task: %d, ver: %" PRId64, pTask->id.taskId, ver);
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
+      continue;
+    }
+
+    qDebug("s-task:%s delete req enqueue, ver: %" PRId64, pTask->id.idStr, ver);
 
     if (!failed) {
       SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
@@ -1006,7 +1016,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
       atomic_add_fetch_32(pRefBlock->dataRef, 1);
 
       if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pRefBlock) < 0) {
-        qError("stream task input del failed, task id %d", pTask->id.taskId);
+        qError("s-task:%s stream task input del failed", pTask->id.idStr);
 
         atomic_sub_fetch_32(pRef, 1);
         taosFreeQitem(pRefBlock);
@@ -1014,7 +1024,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
       }
 
       if (streamSchedExec(pTask) < 0) {
-        qError("stream task launch failed, task id %d", pTask->id.taskId);
+        qError("s-task:%s stream task launch failed", pTask->id.idStr);
         continue;
       }
 
@@ -1023,8 +1033,9 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     }
   }
 
+  taosWUnLockLatch(&pTq->pStreamMeta->lock);
+
   int32_t ref = atomic_sub_fetch_32(pRef, 1);
-  /*A(ref >= 0);*/
   if (ref == 0) {
     blockDataDestroy(pDelBlock);
     taosMemoryFree(pRef);
@@ -1055,21 +1066,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   }
   blockDataDestroy(pDelBlock);
 #endif
-
   return 0;
-}
-
-static int32_t addSubmitBlockNLaunchTask(STqOffsetStore* pOffsetStore, SStreamTask* pTask, SStreamDataSubmit2* pSubmit,
-                                         const char* key, int64_t ver) {
-  doSaveTaskOffset(pOffsetStore, key, ver);
-  int32_t code = tqAddInputBlockNLaunchTask(pTask, (SStreamQueueItem*)pSubmit, ver);
-
-  // remove the offset, if all functions are completed successfully.
-  if (code == TSDB_CODE_SUCCESS) {
-    tqOffsetDelete(pOffsetStore, key);
-  }
-
-  return code;
 }
 
 int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
@@ -1333,8 +1330,6 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   }
 
   tqDebug("vgId:%d start wal scan stream tasks, tasks:%d", vgId, numOfTasks);
-  initOffsetForAllRestoreTasks(pTq);
-
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
   pRunReq->taskId = WAL_READ_TASKS_ID;

@@ -191,10 +191,12 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
   taosRLockLatch(&pMeta->lock);
 
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
-  if (ppTask != NULL && (atomic_load_8(&((*ppTask)->status.taskStatus)) != TASK_STATUS__DROPPING)) {
-    atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
-    taosRUnLockLatch(&pMeta->lock);
-    return *ppTask;
+  if (ppTask != NULL) {
+    if (streamTaskShouldStop(&(*ppTask)->status)) {
+      atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
+      taosRUnLockLatch(&pMeta->lock);
+      return *ppTask;
+    }
   }
 
   taosRUnLockLatch(&pMeta->lock);
@@ -205,7 +207,7 @@ void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   int32_t left = atomic_sub_fetch_32(&pTask->refCnt, 1);
   ASSERT(left >= 0);
   if (left == 0) {
-    ASSERT(atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING);
+    ASSERT(streamTaskShouldStop(&pTask->status));
     tFreeStreamTask(pTask);
   }
 }
@@ -216,11 +218,8 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
     SStreamTask* pTask = *ppTask;
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
-    /*if (pTask->timer) {
-     * taosTmrStop(pTask->timer);*/
-    /*pTask->timer = NULL;*/
-    /*}*/
-    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
+
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__STOP);
 
     taosWLockLatch(&pMeta->lock);
     streamMetaReleaseTask(pMeta, pTask);
