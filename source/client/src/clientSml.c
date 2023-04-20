@@ -1316,9 +1316,15 @@ static int32_t smlInsertData(SSmlHandle *info) {
     uDebug("SML:0x%" PRIx64 " smlInsertData table:%s, uid:%" PRIu64 ", format:%d", info->id, pName.tname,
            tableData->uid, info->dataFormat);
 
+    int   measureLen = tableData->sTableNameLen;
+    char* measure = (char*)taosMemoryMalloc(tableData->sTableNameLen);
+    memcpy(measure, tableData->sTableName, tableData->sTableNameLen);
+    PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
+
     code = smlBindData(info->pQuery, info->dataFormat, tableData->tags, (*pMeta)->cols, tableData->cols,
-                       (*pMeta)->tableMeta, tableData->childTableName, tableData->sTableName, tableData->sTableNameLen,
+                       (*pMeta)->tableMeta, tableData->childTableName, measure, measureLen,
                        info->ttl, info->msgBuf.buf, info->msgBuf.len);
+    taosMemoryFree(measure);
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlBindData failed", info->id);
       return code;

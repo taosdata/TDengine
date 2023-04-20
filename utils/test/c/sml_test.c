@@ -906,7 +906,7 @@ int sml_escape_Test() {
 
   const char *sql[] = {
       "d\\,i=\\ s\\k\",dev\"i\\,\\=\\ ce=s\"i\\,\\=\\ dc inode\"i\\,\\=\\ s_used=176059i,total=1076048383523889174i 1661943960000000000",
-      "d\\,i=\\ s\\k\",dev\"i\\,\\=\\ ce=s\"i\\,\\=\\ dc inode\"i\\,\\=\\ s_free=\"\\\"id,= ei\\\\\\f\" 1661943960000000000",
+      "d\\,i=\\ s\\k\",dev\"i\\,\\=\\ ce=s\"i\\,\\=\\ dc inode\"i\\,\\=\\ s_f\\\\ree=\"\\\"id,= ei\\\\\\f\" 1661943960000000000",
   };
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
   printf("%s result:%s, rows:%d\n", __FUNCTION__, taos_errstr(pRes), taos_affected_rows(pRes));
@@ -924,6 +924,9 @@ int sml_escape_Test() {
   int         numFields = taos_num_fields(pRes);
   TAOS_FIELD *fields = taos_fetch_fields(pRes);
   ASSERT(numFields == 5);
+  ASSERT(strcmp(fields[1].name, "inode\"i,= s_used") == 0);
+  ASSERT(strcmp(fields[2].name, "total") == 0);
+  ASSERT(strcmp(fields[3].name, "inode\"i,= s_f\\\\ree") == 0);
   ASSERT(strcmp(fields[4].name, "dev\"i,= ce") == 0);
 
   TAOS_ROW row = NULL;
@@ -932,13 +935,12 @@ int sml_escape_Test() {
     int64_t ts = *(int64_t *)row[0];
     int64_t used = *(int64_t *)row[1];
     int64_t total = *(int64_t *)row[2];
-    int64_t freed = *(int64_t *)row[3];
 
     if (rowIndex == 0) {
       ASSERT(ts == 1661943960000);
       ASSERT(used == 176059);
       ASSERT(total == 1076048383523889174);
-      ASSERT(freed == 66932805);
+      ASSERT(strcmp(row[3], "\"id,= ei\\\\f") == 0);
       ASSERT(strcmp(row[4], "s\"i,= dc") == 0);
 
     }
@@ -1300,6 +1302,7 @@ int main(int argc, char *argv[]) {
 
   int ret = 0;
   ret = sml_escape_Test();
+  ASSERT(!ret);
   ret = sml_ts3116_Test();
   ASSERT(!ret);
   ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file

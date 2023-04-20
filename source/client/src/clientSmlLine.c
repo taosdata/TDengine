@@ -155,7 +155,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         char* measure = currElement->measure;
         int   measureLen = currElement->measureLen;
         if(currElement->measureEscaped){
-          measure = taosMemoryMalloc(currElement->measureLen);
+          measure = (char*)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
         }
@@ -230,7 +230,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         return TSDB_CODE_SML_INVALID_DATA;
       }
 
-      if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(value)) {
+      if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
         valueLenEscaped++;
         valueEscaped = true;
       }
@@ -349,7 +349,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         char* measure = currElement->measure;
         int   measureLen = currElement->measureLen;
         if(currElement->measureEscaped){
-          measure = taosMemoryMalloc(currElement->measureLen);
+          measure = (char*)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
         }
@@ -460,9 +460,9 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     }
 
     if (keyEscaped){
-      char *tmp = (char*)taosMemoryMalloc(keyLen);
-      memcpy(tmp, key, keyLen);
-      PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, keyLen);
+      char *tmp = (char*)taosMemoryMalloc(kv.keyLen);
+      memcpy(tmp, key, kv.keyLen);
+      PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, kv.keyLen);
       kv.key = tmp;
       kv.keyEscaped = keyEscaped;
     }
