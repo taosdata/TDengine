@@ -149,6 +149,12 @@ typedef struct SStateSessionKey {
   int64_t     opNum;
 } SStateSessionKey;
 
+typedef struct streamValue {
+  int64_t unixTimestamp;
+  int32_t len;
+  char    data[0];
+} streamValue;
+
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
 int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
 int stateSessionKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2);
