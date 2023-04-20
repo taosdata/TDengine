@@ -368,7 +368,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
     qDebug("s-task:%s exec completed", pTask->id.idStr);
 
-    if (!taosQueueEmpty(pTask->inputQueue->queue)) {
+    if (!taosQueueEmpty(pTask->inputQueue->queue) && (pTask->status.taskStatus != TASK_STATUS__DROPPING)) {
       streamSchedExec(pTask);
     }
   }

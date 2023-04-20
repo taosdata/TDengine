@@ -96,7 +96,7 @@ int32_t doCreateReqsByScanWal(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetS
       continue;
     }
 
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
+    if ((pTask->taskLevel != TASK_LEVEL__SOURCE) || (pTask->status.taskStatus == TASK_STATUS__DROPPING)) {
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
