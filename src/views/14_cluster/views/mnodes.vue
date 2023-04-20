@@ -132,7 +132,7 @@ export default {
     del(data) {
       this.$confirm(
         this.$t('isDel').replace('{isDelName}',data.endpoint),
-        "Warning",
+        this.$t('wraning'),
         {
           confirmButtonText: this.$t('confirm'),
           cancelButtonText: this.$t('cancel'),

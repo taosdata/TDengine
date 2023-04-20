@@ -196,7 +196,7 @@ export default {
             `grant subscribe on ${this.topicId}.* to ${this.ruleForm.user_name};`
           ).then((res) => {
             if (res.rows) {
-              Message.success("Opeartion Successfully");
+              Message.success(this.$t("operateSucc"));
               // this.getData();
               this.getUserData()
             }
@@ -224,21 +224,20 @@ export default {
     del() {},
     handlePageChange() {},
     changeState(data) {
-      let str = "disable";
+      let title = this.$t('isDisable').replace('{isDisableName}', data.name);
       let state = 0;
       if (data.enable == 0) {
-        str = "enable";
+        title = this.$t('isEnable').replace('{isDisableName}', data.name);
         state = 1;
       }
-      let title = this.$t('isDisable').replace('{isDisable}',str).replace('{isDisableName}', data.name)
-      this.$confirm(title, "Warning", {
+      this.$confirm(title, this.$t('wraning'), {
         confirmButtonText: this.$t('confirm'),
         cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
         sendSQLReq(`alter user ${data.name} enable ${state}`).then(res => {
           if (res.code == 0) {
-            Message.success('Operation Successfully!')
+            Message.success(this.$t("operateSucc"))
             this.getUserData()
           }
         })

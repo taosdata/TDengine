@@ -327,7 +327,7 @@ export default {
                 });
               }
             }
-            Message.success("Create user successfully");
+            Message.success(this.$t("operateSucc"));
             this.$emit("close")
           } catch (error) {
             console.log(error);
