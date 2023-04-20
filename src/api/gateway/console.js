@@ -7,7 +7,7 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
     baseURL: '',
     url: '/rest/sql',
     method: 'post',
-    timeout: 120000,
+    // timeout: 120000,
     headers: {
       "Content-Type": "text/plain"
     },
