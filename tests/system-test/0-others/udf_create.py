@@ -47,14 +47,18 @@ class TDTestCase:
 
         if platform.system().lower() == 'windows':
             self.libudf1 = subprocess.Popen('(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf1_dup = subprocess.Popen('(for /r %s %%i in ("udf1_dup.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             self.libudf2 = subprocess.Popen('(for /r %s %%i in ("udf2.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             if (not tdDnodes.dnodes[0].remoteIP == ""):
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1.so',projPath+"\\debug\\build\\lib\\")
+                tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1_dup.so',projPath+"\\debug\\build\\lib\\")
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf2.so',projPath+"\\debug\\build\\lib\\")
                 self.libudf1 = self.libudf1.replace('udf1.dll','libudf1.so')
+                self.libudf1 = self.libudf1.replace('udf1.dll','libudf1_dup.so')
                 self.libudf2 = self.libudf2.replace('udf2.dll','libudf2.so')
         else:
             self.libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf1_dup = subprocess.Popen('find %s -name "libudf1_dup.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             self.libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
         self.libudf1 = self.libudf1.replace('\r','').replace('\n','')
         self.libudf2 = self.libudf2.replace('\r','').replace('\n','')
@@ -174,6 +178,7 @@ class TDTestCase:
 
         # create  scalar functions
         tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
+        tdSql.execute("create function udf1_dup as '%s' outputtype int;"%self.libudf1_dup)
 
         # create aggregate functions
 
@@ -187,6 +192,13 @@ class TDTestCase:
     def basic_udf_query(self):
 
         # scalar functions
+
+        # udf1_dup
+        tdSql.query("select num1 , udf1(num1) ,udf1_dup(num1) from tb")
+        tdSql.checkData(1,0,1)
+        tdSql.checkData(1,1,2)
+        tdSql.checkData(2,0,1)
+        tdSql.checkData(2,1,2)
 
         tdSql.execute("use db ")
         tdSql.query("select num1 , udf1(num1) ,num2 ,udf1(num2),num3 ,udf1(num3),num4 ,udf1(num4) from tb")

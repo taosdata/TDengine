@@ -79,6 +79,26 @@ ENDIF ()
 target_link_libraries(
     udf1 PUBLIC os ${LINK_JEMALLOC})
 
+
+add_library(udf1_dup STATIC MODULE test/udf1_dup.c)
+target_include_directories(
+        udf1_dup
+        PUBLIC
+            "${TD_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/client"
+            "${TD_SOURCE_DIR}/include/os"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+)
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(udf1_dup jemalloc)
+ENDIF ()
+
+target_link_libraries(
+    udf1_dup PUBLIC os ${LINK_JEMALLOC})
+
 add_library(udf2 STATIC MODULE test/udf2.c)
 target_include_directories(
         udf2
