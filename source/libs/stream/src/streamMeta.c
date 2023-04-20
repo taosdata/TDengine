@@ -84,11 +84,6 @@ void streamMetaClose(SStreamMeta* pMeta) {
   tdbClose(pMeta->db);
 
   void* pIter = NULL;
-//  while(pMeta->walScan) {
-//    qDebug("wait stream daemon quit");
-//    taosMsleep(100);
-//  }
-
   while (1) {
     pIter = taosHashIterate(pMeta->pTasks, pIter);
     if (pIter == NULL) {
@@ -102,7 +97,6 @@ void streamMetaClose(SStreamMeta* pMeta) {
     }
 
     tFreeStreamTask(pTask);
-    /*streamMetaReleaseTask(pMeta, pTask);*/
   }
 
   taosHashCleanup(pMeta->pTasks);
