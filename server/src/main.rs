@@ -3,7 +3,7 @@ use awc::error::JsonPayloadError;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
 use log::LevelFilter;
-use std::{fmt::Display, fs::File, io::Read, path::PathBuf};
+use std::{fmt::Display, fs::File, io::Read, path::PathBuf, time::Duration};
 use taos::*;
 use tracing::{info, instrument, Level};
 use tracing_actix_web::{RequestId, TracingLogger};
@@ -159,7 +159,8 @@ async fn rest_proxy(
     let x = args.profile.cluster.as_deref().unwrap();
     let url = format!("{x}/rest/{url}");
     let method = req.method();
-    let mut builder = client.request(method.clone(), url);
+    let builder = client.request(method.clone(), url);
+    let mut builder = builder.timeout(Duration::from_secs(std::u64::MAX));
     *builder.headers_mut() = req.headers().clone();
     Ok(HttpResponse::Ok().body(builder.send_stream(body).await?.body().await?))
 }
