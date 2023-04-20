@@ -78,10 +78,10 @@ if(${BUILD_WITH_LEVELDB})
 endif(${BUILD_WITH_LEVELDB})
 
 # rocksdb
-if(${BUILD_WITH_ROCKSDB})
+#if(${BUILD_WITH_ROCKSDB})
     cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_ROCKSDB)
-endif(${BUILD_WITH_ROCKSDB})
+#endif(${BUILD_WITH_ROCKSDB})
 
 # canonical-raft
 if(${BUILD_WITH_CRAFT})
