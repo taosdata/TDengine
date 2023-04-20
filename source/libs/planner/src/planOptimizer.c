@@ -2530,7 +2530,9 @@ static bool tbCntScanOptIsEligibleAggFuncs(SNodeList* pAggFuncs) {
 }
 
 static bool tbCntScanOptIsEligibleAgg(SAggLogicNode* pAgg) {
-  return tbCntScanOptIsEligibleGroupKeys(pAgg->pGroupKeys) && tbCntScanOptIsEligibleAggFuncs(pAgg->pAggFuncs);
+  return tbCntScanOptIsEligibleGroupKeys(pAgg->pGroupKeys) &&
+         (NULL != pAgg->pAggFuncs) && 
+         tbCntScanOptIsEligibleAggFuncs(pAgg->pAggFuncs);
 }
 
 static bool tbCntScanOptGetColValFromCond(SOperatorNode* pOper, SColumnNode** pCol, SValueNode** pVal) {
