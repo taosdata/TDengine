@@ -79,6 +79,7 @@ ELSE ()
     SET(TD_TAOS_TOOLS TRUE)
 ENDIF ()
 
+SET(JEMALLOC_ENABLED OFF)
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
     SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
