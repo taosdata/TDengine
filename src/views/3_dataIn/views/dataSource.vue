@@ -255,14 +255,6 @@ export default {
             ? data.to_expand.subject
             : "";
         this.$parent.uidata = editDdata;
-        console.log(
-          this.ruleForm,
-          data,
-          data.from_detail.id,
-          dbname,
-          this.tagName,
-          "编辑"
-        );
         this.$parent.toggleComponent(
           this.ruleForm.type,
           data.from_detail.id,
@@ -277,7 +269,6 @@ export default {
     },
     handleAdd() {
       localStorage.setItem("datainName", this.ruleForm.name);
-      console.log(this.ruleForm.type,'this.ruleForm.type');
       this.$parent.toggleComponent(this.ruleForm.type, "", "");
     },
     async getList() {
@@ -388,7 +379,6 @@ export default {
     },
   },
   mounted() {
-    console.log('初始化task',this.$parent.$parent.$parent);
     if(this.$parent.$parent.$parent.currentName=='datasource'){
       this.refresh()
     }

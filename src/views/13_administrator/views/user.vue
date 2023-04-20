@@ -155,7 +155,6 @@ export default {
      getCurrentUser() {
        this.$store.dispatch("app/getUserInfo").then((res) => {
          this.currentUser = res;
-         console.log(res,'用户===');
        });
     },
     closeDialog() {

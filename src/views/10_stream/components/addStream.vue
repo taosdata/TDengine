@@ -351,11 +351,6 @@ export default {
       );
     },
   },
-  watch: {},
-  created() {},
-  mounted() {
-    console.log(this.info, "初始化定义info");
-  },
   methods: {
     async handlecreateStream() {
       this.errorText = "";
@@ -367,7 +362,6 @@ export default {
         sql = this.sqlStr;
       }
       this.requestIng = true;
-      console.log(this.info,'全局---sql');
       createStream(sql)
         .then(() => {
           this.$refs.form.resetFields();
@@ -396,7 +390,6 @@ export default {
           if (valid) {
             try {
               const subquery = this.$refs.subquery.getResultSet() || "";
-              console.log(subquery,'subquery');
               let previewSql =
                 this.sqlPrefix +
                 "`" +
@@ -425,7 +418,6 @@ export default {
                 previewSql += ` SUBTABLE(CONCAT('${this.info.subtale}',tbname))`;
               }
               previewSql += " AS " + subquery;
-              console.log(subquery, "subquerysubquerysubquery");
               if (this.info.parttionSet) {
                 previewSql += " PARTITION BY " + this.info.parttionSet;
               }
@@ -451,7 +443,6 @@ export default {
                     break;
                 }
               }
-              console.log(this.info, "生成的info");
               this.previewSql = previewSql;
               if (show) this.dialog = true;
               resolve(previewSql);

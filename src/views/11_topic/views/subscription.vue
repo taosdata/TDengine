@@ -142,7 +142,6 @@ export default {
               })
             );
           });
-          console.log(this.subscriptionList, "查询消费用户");
         });
       } catch (error) {
         console.log(error);
@@ -162,13 +161,11 @@ export default {
                 );
               })
               .filter((val) => val.name != "root");
-            console.log(this.userList, "---");
           })
           .catch((err) => {
             return Promise.reject(err);
           });
       } catch (error) {
-        console.log(error);
         Message.error(error.desc);
       }
     },

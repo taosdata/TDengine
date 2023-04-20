@@ -531,7 +531,6 @@ export default {
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        console.log(this.protocol,'协议---');
         let piParams = {
           from:
             "opc" +this.protocol+
@@ -550,7 +549,6 @@ export default {
         };
         if (this.isEditable) {
           await EditSource(piParams, this.editId).then(() => {
-            console.log('编辑',this.protocol);
             this.$parent.toggleComponent("opctable",this.protocol);
           });
         } else {

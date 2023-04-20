@@ -425,31 +425,42 @@ export const $bus = mitt();
 
 export const CustomShellContent = ["Welcome to TDengine "];
 
+export const IntegerType=['int','int unsinged','bigint','bigint unsinged','float','double','smallint',
+'smallint unsigned','tinyint','tinyint unsinged']
+export const StringType=['varchar','nchar','binary']
 // 数学函数
 export const NumbericFn = [
   {
     label: "ABS",
+    supportDatatype:IntegerType
   },
   {
     label: "ACOS",
+    supportDatatype:IntegerType
   },
   {
     label: "ASIN",
+    supportDatatype:IntegerType
   },
   {
     label: "ATAN",
+    supportDatatype:IntegerType
   },
   {
     label: "CEIL",
+    supportDatatype:IntegerType
   },
   {
     label: "COS",
+    supportDatatype:IntegerType
   },
   {
     label: "FLOOR",
+    supportDatatype:IntegerType
   },
   {
     label: "LOG",
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "select",
@@ -465,6 +476,7 @@ export const NumbericFn = [
   },
   {
     label: "POW",
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "select",
@@ -480,24 +492,30 @@ export const NumbericFn = [
   },
   {
     label: "ROUND",
+    supportDatatype:IntegerType
   },
   {
     label: "SIN",
+    supportDatatype:IntegerType
   },
   {
     label: "SQRT",
+    supportDatatype:IntegerType
   },
   {
     label: "TAN",
+    supportDatatype:IntegerType
   },
 ];
 // 字符串函数
 export const StringFn = [
   {
     label: "CHAR_LENGTH",
+    supportDatatype:StringType
   },
   {
     label: "CONCAT",
+    supportDatatype:StringType,
     filters: [
       {
         type: "select",
@@ -514,6 +532,7 @@ export const StringFn = [
   },
   {
     label: "CONCAT_WS",
+    supportDatatype:StringType,
     filters: [
       {
         type: "input",
@@ -537,18 +556,23 @@ export const StringFn = [
   },
   {
     label: "LENGTH",
+    supportDatatype:StringType
   },
   {
     label: "LOWER",
+    supportDatatype:StringType
   },
   {
     label: "LTRIM",
+    supportDatatype:StringType
   },
   {
     label: "RTRIM",
+    supportDatatype:StringType
   },
   {
     label: "SUBSTR",
+    supportDatatype:StringType,
     filters: [
       {
         type: "number",
@@ -568,6 +592,7 @@ export const StringFn = [
   },
   {
     label: "UPPER",
+    supportDatatype:StringType
   },
 ];
 
@@ -575,24 +600,30 @@ export const StringFn = [
 export const CoversionFn = [
   {
     label: "CAST",
+    supportDatatype:StringType.concat(IntegerType)
   },
   {
     label: "TO_ISO0861",
+    supportDatatype:['int','timestamp']
   },
   {
     label: "TO_JSON",
+    supportDatatype:['json']
   },
   {
     label: "TO_UNIXTIMESTAMP",
+    supportDatatype:['varchar','nchar']
   }
 ];
 // 时间和日期函数
 export const DatetimeFN = [
   {
     label: "NOW",
+    supportDatatype:['timestamp']
   },
   {
     label: "TIMEDIFF",
+    supportDatatype:['timestamp'],
     filters: [
       {
         type: 'string',
@@ -638,6 +669,7 @@ export const DatetimeFN = [
   },
   {
     label: "TIMETRUNCATE",
+    supportDatatype:['timestamp'],
     filters: [
       {
         type: 'string',
@@ -690,9 +722,11 @@ export const DatetimeFN = [
   },
   {
     label: "TIMEZONE",
+    supportDatatype:['timestamp']
   },
   {
-    label: "TODAY"
+    label: "TODAY",
+    supportDatatype:['timestamp']
   }
 ];
 // 聚合函数
@@ -700,6 +734,7 @@ export const AggregationFn = [
   {
     label: "APERCENTILE",
     supportTopic:false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -732,15 +767,18 @@ export const AggregationFn = [
   {
     label: "AVG",
     supportTopic:false,
+    supportDatatype:IntegerType,
   },
   {
     label: "COUNT",
     supportTopic:false,
+    supportDatatype:['all'],
   },
   {
     label: "ELAPSED",
     supportTopic:false,
     supportStream: false,
+    supportDatatype:['timestamp'],
     include: ["TIMESTAMP"],
     filters: [
       {
@@ -790,6 +828,7 @@ export const AggregationFn = [
     label: "LEASTSQUARES",
     supportStream: false,
     supportTopic:false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -812,32 +851,39 @@ export const AggregationFn = [
   {
     label: "MODE",
     supportTopic:false,
-    supportStream: false
+    supportStream: false,
+    supportDatatype:['all']
   },
   {
     label: "SPREAD",
     supportTopic:false,
+    supportDatatype:['int','timestamp']
   },
   {
     label: "STDDEV",
     supportTopic:false,
+    supportDatatype:IntegerType
   },
   {
     label: "SUM",
     supportTopic:false,
+    supportDatatype:IntegerType
   },
   {
     label: "HYPERLOGLOG",
     supportTopic:false,
+    supportDatatype:['all']
   },
   {
     label: "HIPERLOGLOG",
     supportTopic:false,
+    supportDatatype:['all']
   },
   {
     label: "HISTOGRAM",
     supportTopic:false,
     supportStream: false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "select",
@@ -873,6 +919,7 @@ export const AggregationFn = [
     label: "PERCENTILE",
     supportTopic:false,
     supportStream: false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -892,6 +939,7 @@ export const SelectorFn = [
     label: 'BOTTOM',
     supportStream: false,
     supportTopic:false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -907,37 +955,45 @@ export const SelectorFn = [
   {
     label: 'FIRST',
     supportTopic:false,
+    supportDatatype:['all']
 
   },
   {
     label: 'INTERP',
     supportTopic:false,
-    supportStream: false
+    supportStream: false,
+    supportDatatype:IntegerType
   },
   {
     label: "LAST",
     supportTopic:false,
+    supportDatatype:['all']
   },
   {
     label: "LAST_ROW",
     supportTopic:false,
+    supportDatatype:['all']
   },
   {
     label: "MAX",
     supportTopic:false,
+    supportDatatype:IntegerType
   },
   {
     label: "MIN",
     supportTopic:false,
+    supportDatatype:IntegerType
   },
   {
     label: "MODE",
     supportTopic:false,
+    supportDatatype:['all']
   },
   {
     label: "SAMPLE",
     supportTopic:false,
     supportStream: false,
+    supportDatatype:['all'],
     filters: [
       {
         type: "number",
@@ -954,6 +1010,7 @@ export const SelectorFn = [
     label: "TAIL",
     supportStream: false,
     supportTopic:false,
+    supportDatatype:IntegerType.concat(StringType),
     filters: [
       {
         type: "number",
@@ -979,6 +1036,7 @@ export const SelectorFn = [
     label: "TOP",
     supportStream: false,
     supportTopic:false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -994,7 +1052,8 @@ export const SelectorFn = [
   {
     label: "UNIQUE",
     supportTopic:false,
-    supportStream: false
+    supportStream: false,
+    supportDatatype:IntegerType.concat(StringType),
   }
 
 
@@ -1010,11 +1069,13 @@ export const SelectorFn = [
 export const SeriesSpecificFn = [
   {
     label: "CSUM",
-    supportStream: false
+    supportStream: false,
+    supportDatatype:IntegerType
   },
   {
     label: "DERIVATIVE",
     supportStream: false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -1046,6 +1107,7 @@ export const SeriesSpecificFn = [
   {
     label: "DIFF",
     supportStream: false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "select",
@@ -1068,11 +1130,13 @@ export const SeriesSpecificFn = [
   },
   {
     label: "IRATE",
-    supportStream: false
+    supportStream: false,
+    supportDatatype:IntegerType
   },
   {
     label: "MAVG",
     supportStream: false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -1088,6 +1152,7 @@ export const SeriesSpecificFn = [
   {
     label: "STATECOUNT",
     supportStream: false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -1134,6 +1199,7 @@ export const SeriesSpecificFn = [
   {
     label: "STATEDURATION",
     supportStream: false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -1219,22 +1285,27 @@ export const SeriesSpecificFn = [
   },
   {
     label: "TWA",
-    supportStream: false
+    supportStream: false,
+    supportDatatype:IntegerType
   }
 ];
 // 系统信息函数
 export const SystemFn = [
   {
     label: "DATABASE",
+    supportDatatype:['system']
   },
   {
     label: "CLIENT_VERSION",
+    supportDatatype:['system']
   },
   {
     label: "SERVER_VERSION",
+    supportDatatype:['system']
   },
   {
-    label: "SERVER_STATUS"
+    label: "SERVER_STATUS",
+    supportDatatype:['system']
   }
 ];
 

@@ -11,8 +11,9 @@
         :label="group.label"
         >
         <el-option v-for="item in group.options" :key="item.label" :label="item.label" :value="item.label"
-        :disabled="(parentName=='Stream'&&item.hasOwnProperty('supportStream'))||(parentName=='Topic'&&item.hasOwnProperty('supportTopic'))" 
-        ></el-option>
+        :disabled="(parentName=='Stream'&&(item.hasOwnProperty('supportStream')||item.selectDisable))||(parentName=='Topic'&&(item.hasOwnProperty('supportTopic')||item.selectDisable))" 
+        >
+        </el-option>
         </el-option-group>
       </el-select>
     </el-form-item>
@@ -57,7 +58,6 @@
     },
     computed: {
       currentFn() {
-        console.log(this.fnList,this.result.fn,'获取当前选中函数');
         // if (this.fnList[0]?.label) {
         //   return this.fnList.find(item => item.label == this.result.fn);
         // }
@@ -72,9 +72,6 @@
     },
     watch: {},
     created() {},
-    mounted() {
-      console.log(this.fnList,this.parentName,'函数列表',this.field,this.result,this.fieldList);
-    },
     methods: {
       getOptions(item) {
         let options = item.options;

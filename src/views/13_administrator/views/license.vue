@@ -161,7 +161,6 @@ export default {
   },
   created() {
     this.getData();
-    console.log("初始化license");
   },
   methods: {
     handlePageChange() {},
@@ -207,12 +206,10 @@ export default {
           //   return data;
           // });
           // this.tableData = tableData;
-          console.log(this.licenseList, "licesne---");
         });
         this.loading = false;
       } catch (error) {
         this.loading = false;
-        console.log();
       }
     },
   },

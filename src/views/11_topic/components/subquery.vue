@@ -116,6 +116,7 @@
     components: { ResultSet, WindowClause },
     data() {
       return {
+        systemFns:['DATABASE','CLIENT_VERSION','SERVER_VERSION','SERVER_STATUS'],
         stableList: [],
         tableList: [],
         dbList: [],
@@ -161,7 +162,6 @@
       this.getDBList();
     },
     mounted() {
-      console.log(this.info,'info-----props');
     },
     methods: {
       getDBList() {
@@ -232,7 +232,6 @@
                 .filter(key => result.params[key] && currentFn.some(ite => ite.field == key))
                 .reduce((pre, cur) => {
                   const value = result.params[cur];
-                  console.log(value,'---mmm---');
                   if (value) {
                     if (isArray(value)) {
                       pre.push(...(value.map(val=>`\`${val}\``)));
@@ -245,11 +244,11 @@
                 .join(",");
               otherParmas = "," + otherParmas;
             }
-            console.log(otherParmas,'sql拼接---');
-            resultSet.push(`${result.fn}(${item.field}${otherParmas})`);
-
-
-        console.log(resultSet,'resultSet',`${result.fn}(${item.field}${otherParmas})`);
+            if(this.systemFns.includes(result.fn)){
+              resultSet.push(`${result.fn}()`);
+            }else{
+              resultSet.push(`${result.fn}(${item.field}${otherParmas})`);
+            }
           } else {
             if (!this.avgFn) {
               resultSet.push(item.field);

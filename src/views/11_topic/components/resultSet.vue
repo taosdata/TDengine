@@ -110,16 +110,16 @@ const fnMap = {
   SERIES: SeriesSpecificFn,
   SYSTEM: SystemFn,
 };
-const fnMapName=new Map([
-  ['NUMBER','NumbericFn'],
-  ['STRING','StringFn'],
-  ['COVERSION','CoversionFn'],
-  ['DATETIME','DatetimeFN'],
-  ['AVGFN','AggregationFn'],
-  ['SELECTION','SelectorFn'],
-  ['SERIES','SeriesSpecificFn'],
-  ['SYSTEM','SystemFn']
-])
+const fnMapName = new Map([
+  ["NUMBER", "NumbericFn"],
+  ["STRING", "StringFn"],
+  ["COVERSION", "CoversionFn"],
+  ["DATETIME", "DatetimeFN"],
+  ["AVGFN", "AggregationFn"],
+  ["SELECTION", "SelectorFn"],
+  ["SERIES", "SeriesSpecificFn"],
+  ["SYSTEM", "SystemFn"],
+]);
 const getGeneralFn = (type) => {
   return GeneralOperator.filter(
     (item) => !item.include || !item.include.includes(type)
@@ -211,7 +211,6 @@ export default {
           }
           this.$emit("update:tags", data.tags || []);
           const result = [];
-          console.log(this.avgFn, fields, "是否聚合函数");
           if (this.avgFn) {
             result.push({
               field: "*",
@@ -247,8 +246,6 @@ export default {
                 conditionList: conditionMap[this.getType(item.type)],
               });
             });
-            console.log("执行try");
-            
           } catch (error) {
             console.log(error);
           }
@@ -268,7 +265,6 @@ export default {
           });
         }
       });
-      console.log(result, "select---result");
       return result;
     },
     handleDisabled(row) {
@@ -286,12 +282,34 @@ export default {
       this.dialog = true;
       this.currentRowIndex = index;
       this.dialogType = type;
-      this.dialogParams = deepClone(row);
-      console.log(this.dialogParams,'this.dialogParams');
+      row.fnList
+        .map((item) => item.options)
+        .flat(1)
+        .map((val) => {
+          row.type = row.type.toLowerCase().includes("varchar")
+            ? "varchar"
+            : row.type.toLowerCase().includes("nchar")
+            ? "nchar"
+            : row.type;
+          if (!val.supportDatatype.includes(row.type.toLowerCase())) {
+            if (
+              val.supportDatatype[0] == "all" ||
+              val.supportDatatype[0] == "system"
+            ) {
+              val["selectDisable"] = false;
+            } else {
+              val["selectDisable"] = true;
+            }
+          } else {
+            val["selectDisable"] = false;
+          }
+        });
+
+      let result = deepClone(row);
+      this.dialogParams = result;
     },
 
     confirm() {
-      console.log('函数选择完后的确定',this.dialogType,this.dialogParams,this.value,this.params);
       switch (this.dialogType) {
         case 0:
           this.value[this.currentRowIndex].result = this.dialogParams.result;
@@ -314,9 +332,7 @@ export default {
           options: fnMap[key],
         };
       });
-
-      console.log(result, "整合所有函数");
-      return result
+      return result;
     },
   },
 };

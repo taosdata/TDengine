@@ -122,7 +122,6 @@
           item.value = data[item.name];
           return item;
         });
-        console.log(this.tags,'kkkk',tags);
       },
     },
   };

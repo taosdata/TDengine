@@ -326,10 +326,10 @@ export default {
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
-            this.$router.push({
-              path: "/explorer"
-            });
-            // this.getUserAuthority();
+            // this.$router.push({
+            //   path: "/explorer"
+            // });
+            this.getUserAuthority();
           } else {
             console.log();
           }
@@ -408,7 +408,7 @@ export default {
       ) {
         let dynamic = document.querySelector(".dynamic-title");
         dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
-        console.log(dynamic, "---", process.env.VUE_APP_CUS_NAME);
+        
       }
     });
   },

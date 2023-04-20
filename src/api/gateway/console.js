@@ -4,7 +4,7 @@ import { compHeadAndData } from "@/utils";
 import { Message } from "element-ui";
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
-    baseURL:'http://39.107.123.129:6060',
+    baseURL:'',
     url: '/rest/sql',
     method: 'post',
     timeout: 120000,
@@ -23,7 +23,7 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
 
 export function executeDBOperations(sql, appId = store.getters.appId) {
   return request({
-    baseURL:'http://39.107.123.129:6060',
+    baseURL:'',
     url: '/rest/sql',
     method: "post",
     headers: {
@@ -71,7 +71,7 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
 // 通过token执行sql
 export function executeSQLByToken(sql, token) {
   return request({
-    baseURL:'http://39.107.123.129:6060',
+    baseURL:'',
     url: `/rest/sql/token/${token}`,
     method: "post",
     headers: {
@@ -96,7 +96,7 @@ export function executeSQLByToken(sql, token) {
 // 获取个人收藏列表
 export function getFavorites(sql) {
   return request({
-    baseURL:'http://39.107.123.129:6060',
+    baseURL:'',
     url: '/rest/sql',
     method: 'post',
     headers: {
@@ -129,7 +129,7 @@ export function delFavorite(id) {
 // 获取共享收藏列表
 export function getSharedFavorites(sql) {
   return request({
-    baseURL:'http://39.107.123.129:6060',
+    baseURL:'',
     url: '/rest/sql',
     headers: {
       "Content-Type": "text/plain"
