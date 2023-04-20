@@ -191,14 +191,14 @@ export default {
 
     handlePageChange() { },
     del(data) {
-      this.$confirm(this.$t('isDel').replace('{isDelName}', data.name), "Warning", {
+      this.$confirm(this.$t('isDel').replace('{isDelName}', data.name), this.$t('wraning'), {
         confirmButtonText: this.$t('confirm'),
         cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
         sendSQLReq(`drop user ${data.name}`).then(res => {
           if (res.code == 0) {
-            Message.success('Deleted Successfully!')
+            Message.success(this.$t('delSucc'))
             this.getUserData()
           }
         })
@@ -210,13 +210,12 @@ export default {
       this.editDialog = true
     },
     changeState(data) {
-      let str = "disable";
+      let title = this.$t('isDisable').replace('{isDisableName}', data.name);
       let state = 0;
       if (data.enable == 0) {
-        str = "enable";
+        title = this.$t('isEnable').replace('{isDisableName}', data.name);
         state = 1;
       }
-      let title = this.$t('isDisable').replace('{isDisable}',str).replace('{isDisableName}', data.name)
       this.$confirm(title, {
         confirmButtonText: this.$t('confirm'),
         cancelButtonText: this.$t('cancel'),
@@ -224,7 +223,7 @@ export default {
       }).then(() => {
         sendSQLReq(`alter user ${data.name} enable ${state}`).then(res => {
           if (res.code == 0) {
-            Message.success('Operation Successfully!')
+            Message.success(this.$t('operateSucc'))
             this.getUserData()
           }
         })
@@ -262,10 +261,10 @@ export default {
                 if (user.privilege === undefined) {
                   user.privilege = {};
                 }
-                if (user.privilege[data.object_name] === undefined) {
-                  user.privilege[data.object_name] = [data.privilege];
+                if (user.privilege[data.db_name] === undefined) {
+                  user.privilege[data.db_name] = [data.privilege];
                 } else {
-                  user.privilege[data.object_name].push(data.privilege);
+                  user.privilege[data.db_name].push(data.privilege);
                 }
               }
             });
