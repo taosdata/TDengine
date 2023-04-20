@@ -76,7 +76,7 @@ static void destroyTqHandle(void* data) {
 static void tqPushEntryFree(void* data) {
   STqPushEntry* p = *(void**)data;
   if (p->pDataRsp->head.mqMsgType == TMQ_MSG_TYPE__POLL_RSP) {
-    tDeleteSMqDataRsp(p->pDataRsp);
+    tDeleteMqDataRsp(p->pDataRsp);
   } else if (p->pDataRsp->head.mqMsgType == TMQ_MSG_TYPE__TAOSX_RSP) {
     tDeleteSTaosxRsp((STaosxRsp*)p->pDataRsp);
   }
@@ -154,71 +154,30 @@ void tqClose(STQ* pTq) {
   taosMemoryFree(pTq);
 }
 
-static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch,
-                             int64_t consumerId, int32_t type) {
-  int32_t len = 0;
-  int32_t code = 0;
-
-  if (type == TMQ_MSG_TYPE__POLL_RSP) {
-    tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
-  } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
-    tEncodeSize(tEncodeSTaosxRsp, (STaosxRsp*)pRsp, len, code);
-  }
-
-  if (code < 0) {
-    return -1;
-  }
-
-  int32_t tlen = sizeof(SMqRspHead) + len;
-  void*   buf = rpcMallocCont(tlen);
-  if (buf == NULL) {
-    return -1;
-  }
-
-  ((SMqRspHead*)buf)->mqMsgType = type;
-  ((SMqRspHead*)buf)->epoch = epoch;
-  ((SMqRspHead*)buf)->consumerId = consumerId;
-
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, abuf, len);
-
-  if (type == TMQ_MSG_TYPE__POLL_RSP) {
-    tEncodeSMqDataRsp(&encoder, pRsp);
-  } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
-    tEncodeSTaosxRsp(&encoder, (STaosxRsp*)pRsp);
-  }
-
-  tEncoderClear(&encoder);
-
-  SRpcMsg rsp = {
-      .info = *pRpcHandleInfo,
-      .pCont = buf,
-      .contLen = tlen,
-      .code = 0,
-  };
-
-  tmsgSendRsp(&rsp);
-  return 0;
-}
-
-int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
+int32_t tqPushDataRsp(STqPushEntry* pPushEntry, int32_t vgId) {
   SMqDataRsp* pRsp = pPushEntry->pDataRsp;
   SMqRspHead* pHeader = &pPushEntry->pDataRsp->head;
-  doSendDataRsp(&pPushEntry->info, pRsp, pHeader->epoch, pHeader->consumerId, pHeader->mqMsgType);
+
+  int64_t sver = 0, ever = 0;
+  walReaderValidVersionRange(pPushEntry->pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
+
+  tqDoSendDataRsp(&pPushEntry->info, pRsp, pHeader->epoch, pHeader->consumerId, pHeader->mqMsgType, sver, ever);
 
   char buf1[80] = {0};
   char buf2[80] = {0};
   tFormatOffset(buf1, tListLen(buf1), &pRsp->reqOffset);
   tFormatOffset(buf2, tListLen(buf2), &pRsp->rspOffset);
   tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s",
-          TD_VID(pTq->pVnode), pRsp->head.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
+          vgId, pRsp->head.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
   return 0;
 }
 
-int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type) {
-  doSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type);
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
+                      int32_t type, int32_t vgId) {
+  int64_t sver = 0, ever = 0;
+  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
+
+  tqDoSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type, sver, ever);
 
   char buf1[80] = {0};
   char buf2[80] = {0};
@@ -226,7 +185,7 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
 
   tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, reqId:0x%" PRIx64,
-          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
+          vgId, pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
 
   return 0;
 }
@@ -259,6 +218,8 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
 
   STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, offset.subKey);
   if (pSavedOffset != NULL && tqOffsetLessOrEqual(&offset, pSavedOffset)) {
+    tqDebug("not update the offset, vgId:%d sub:%s since committed:%" PRId64 " less than/equal to existed:%" PRId64,
+            vgId, offset.subKey, offset.val.version, pSavedOffset->val.version);
     return 0;  // no need to update the offset value
   }
 
@@ -272,6 +233,57 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     if (pHandle && (walRefVer(pHandle->pRef, offset.val.version) < 0)) {
       return -1;
     }
+  }
+
+  return 0;
+}
+
+int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
+  STqOffset offset = {0};
+  int32_t   vgId = TD_VID(pTq->pVnode);
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
+  if (tDecodeSTqOffset(&decoder, &offset) < 0) {
+    return -1;
+  }
+
+  tDecoderClear(&decoder);
+
+  if (offset.val.type != TMQ_OFFSET__LOG) {
+    tqError("vgId:%d, subKey:%s invalid seek offset type:%d", vgId, offset.subKey, offset.val.type);
+    return -1;
+  }
+
+  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, offset.subKey);
+  if (pSavedOffset != NULL && pSavedOffset->val.type != TMQ_OFFSET__LOG) {
+    tqError("invalid saved offset type, vgId:%d sub:%s", vgId, offset.subKey);
+    return 0;  // no need to update the offset value
+  }
+
+  if (pSavedOffset->val.version == offset.val.version) {
+    tqDebug("vgId:%d subKey:%s no need to seek to %" PRId64 " prev offset:%" PRId64, vgId, offset.subKey, offset.val.version,
+            pSavedOffset->val.version);
+    return 0;
+  }
+
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, offset.subKey, strlen(offset.subKey));
+
+  int64_t sver = 0, ever = 0;
+  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
+  if (offset.val.version < sver) {
+    offset.val.version = sver;
+  } else if (offset.val.version > ever) {
+    offset.val.version = ever;
+  }
+
+  // save the new offset value
+  tqDebug("vgId:%d sub:%s seek to %" PRId64 " prev offset:%" PRId64, vgId, offset.subKey, offset.val.version,
+          pSavedOffset->val.version);
+
+  if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
+    tqError("failed to save offset, vgId:%d sub:%s seek to %" PRId64, vgId, offset.subKey, offset.val.version);
+    return -1;
   }
 
   return 0;

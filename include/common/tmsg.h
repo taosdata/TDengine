@@ -3101,6 +3101,8 @@ typedef struct {
   int32_t code;
   int32_t epoch;
   int64_t consumerId;
+  int64_t walsver;
+  int64_t walever;
 } SMqRspHead;
 
 typedef struct {
@@ -3147,43 +3149,9 @@ typedef struct {
   SSchemaWrapper schema;
 } SMqSubTopicEp;
 
-static FORCE_INLINE int32_t tEncodeSMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp) {
-  int32_t tlen = 0;
-  tlen += taosEncodeString(buf, pTopicEp->topic);
-  tlen += taosEncodeString(buf, pTopicEp->db);
-  int32_t sz = taosArrayGetSize(pTopicEp->vgs);
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    SMqSubVgEp* pVgEp = (SMqSubVgEp*)taosArrayGet(pTopicEp->vgs, i);
-    tlen += tEncodeSMqSubVgEp(buf, pVgEp);
-  }
-  tlen += taosEncodeSSchemaWrapper(buf, &pTopicEp->schema);
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicEp) {
-  buf = taosDecodeStringTo(buf, pTopicEp->topic);
-  buf = taosDecodeStringTo(buf, pTopicEp->db);
-  int32_t sz;
-  buf = taosDecodeFixedI32(buf, &sz);
-  pTopicEp->vgs = taosArrayInit(sz, sizeof(SMqSubVgEp));
-  if (pTopicEp->vgs == NULL) {
-    return NULL;
-  }
-  for (int32_t i = 0; i < sz; i++) {
-    SMqSubVgEp vgEp;
-    buf = tDecodeSMqSubVgEp(buf, &vgEp);
-    taosArrayPush(pTopicEp->vgs, &vgEp);
-  }
-  buf = taosDecodeSSchemaWrapper(buf, &pTopicEp->schema);
-  return buf;
-}
-
-static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) {
-  taosMemoryFreeClear(pSubTopicEp->schema.pSchema);
-  pSubTopicEp->schema.nCols = 0;
-  taosArrayDestroy(pSubTopicEp->vgs);
-}
+int32_t tEncodeMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp);
+void*   tDecodeMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicEp);
+void    tDeleteMqSubTopicEp(SMqSubTopicEp* pSubTopicEp);
 
 typedef struct {
   SMqRspHead   head;
@@ -3193,8 +3161,8 @@ typedef struct {
   void*        metaRsp;
 } SMqMetaRsp;
 
-int32_t tEncodeSMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
-int32_t tDecodeSMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
+int32_t tEncodeMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
+int32_t tDecodeMqMetaRsp(SDecoder* pDecoder, SMqMetaRsp* pRsp);
 
 typedef struct {
   SMqRspHead   head;
@@ -3209,9 +3177,9 @@ typedef struct {
   SArray*      blockSchema;
 } SMqDataRsp;
 
-int32_t tEncodeSMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
-int32_t tDecodeSMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
-void    tDeleteSMqDataRsp(SMqDataRsp* pRsp);
+int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
+int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
 
 typedef struct {
   SMqRspHead   head;
@@ -3247,7 +3215,7 @@ static FORCE_INLINE int32_t tEncodeSMqAskEpRsp(void** buf, const SMqAskEpRsp* pR
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
     SMqSubTopicEp* pVgEp = (SMqSubTopicEp*)taosArrayGet(pRsp->topics, i);
-    tlen += tEncodeSMqSubTopicEp(buf, pVgEp);
+    tlen += tEncodeMqSubTopicEp(buf, pVgEp);
   }
   return tlen;
 }
@@ -3262,14 +3230,14 @@ static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
   }
   for (int32_t i = 0; i < sz; i++) {
     SMqSubTopicEp topicEp;
-    buf = tDecodeSMqSubTopicEp(buf, &topicEp);
+    buf = tDecodeMqSubTopicEp(buf, &topicEp);
     taosArrayPush(pRsp->topics, &topicEp);
   }
   return buf;
 }
 
 static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
-  taosArrayDestroyEx(pRsp->topics, (FDelete)tDeleteSMqSubTopicEp);
+  taosArrayDestroyEx(pRsp->topics, (FDelete)tDeleteMqSubTopicEp);
 }
 
 #define TD_AUTO_CREATE_TABLE 0x1

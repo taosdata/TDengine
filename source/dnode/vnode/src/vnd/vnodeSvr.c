@@ -389,6 +389,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
       break;
+    case TDMT_VND_TMQ_SEEK_TO_OFFSET:
+      if (tqProcessSeekReq(pVnode->pTq, version, pReq, pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        goto _err;
+      }
+      break;
     case TDMT_VND_TMQ_ADD_CHECKINFO:
       if (tqProcessAddCheckInfoReq(pVnode->pTq, version, pReq, len) < 0) {
         goto _err;
