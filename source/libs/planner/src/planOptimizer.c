@@ -2526,13 +2526,11 @@ static bool tbCntScanOptIsEligibleAggFuncs(SNodeList* pAggFuncs) {
       return false;
     }
   }
-  return true;
+  return LIST_LENGTH(pAggFuncs) > 0;
 }
 
 static bool tbCntScanOptIsEligibleAgg(SAggLogicNode* pAgg) {
-  return tbCntScanOptIsEligibleGroupKeys(pAgg->pGroupKeys) &&
-         (NULL != pAgg->pAggFuncs) && 
-         tbCntScanOptIsEligibleAggFuncs(pAgg->pAggFuncs);
+  return tbCntScanOptIsEligibleGroupKeys(pAgg->pGroupKeys) && tbCntScanOptIsEligibleAggFuncs(pAgg->pAggFuncs);
 }
 
 static bool tbCntScanOptGetColValFromCond(SOperatorNode* pOper, SColumnNode** pCol, SValueNode** pVal) {
