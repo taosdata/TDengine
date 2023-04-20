@@ -449,6 +449,9 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       char const* lstring = pr->type & CACHESCAN_RETRIEVE_LAST ? "last" : "last_row";
       tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, &pRow, pr, lstring);
+      if (TARRAY_SIZE(pRow) <= 0) {
+        continue;
+      }
 
       saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
       taosArrayDestroy(pRow);

@@ -130,6 +130,10 @@ static void tsdbCloseRocksCache(STsdb *pTsdb) {
 }
 
 SLastCol *tsdbCacheDeserialize(char const *value) {
+  if (!value) {
+    return NULL;
+  }
+
   SLastCol *pLastCol = (SLastCol *)value;
   SColVal  *pColVal = &pLastCol->colVal;
   if (IS_VAR_DATA_TYPE(pColVal->type)) {
@@ -236,10 +240,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
   for (int i = 0; i < num_keys; ++i) {
     SColVal *pColVal = (SColVal *)taosArrayGet(aColVal, i);
     if (COL_VAL_IS_VALUE(pColVal)) {
-      SLastCol *pLastCol = NULL;
-      if (NULL != values_list[i]) {
-        pLastCol = tsdbCacheDeserialize(values_list[i]);
-      }
+      SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
 
       if (NULL == pLastCol || pLastCol->ts <= keyTs) {
         char  *value = NULL;
