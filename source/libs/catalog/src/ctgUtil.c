@@ -486,6 +486,18 @@ void ctgFreeBatchHash(void* hash) {
   taosMemoryFreeClear(pRes->pRes);
 }
 
+void ctgFreeJsonTagVal(void *val) {
+  if (NULL == val) {
+    return;
+  }
+
+  STagVal *pVal = (STagVal *)val;
+
+  if (TSDB_DATA_TYPE_JSON == pVal->type) {
+    taosMemoryFree(pVal->pData);
+  }
+}
+
 void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
   switch (type) {
     case CTG_TASK_GET_QNODE:
@@ -525,6 +537,14 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_TB_META: {
       taosMemoryFreeClear(*pRes);
       break;
+    }
+    case CTG_TASK_GET_TB_TAG: {
+      if (1 == taosArrayGetSize(*pRes)) {
+        taosArrayDestroyEx(*pRes, ctgFreeJsonTagVal);
+      } else {
+        taosArrayDestroy(*pRes);
+      }
+      *pRes = NULL;
     }
     case CTG_TASK_GET_TB_META_BATCH: {
       SArray* pArray = (SArray*)*pRes;
@@ -677,6 +697,12 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosMemoryFreeClear(taskCtx->pName);
       taosMemoryFreeClear(taskCtx->pVgInfo);
       taosMemoryFreeClear(pTask->taskCtx);
+      break;
+    }
+    case CTG_TASK_GET_TB_TAG: {
+      SCtgTbTagCtx* taskCtx = (SCtgTbTagCtx*)pTask->taskCtx;
+      taosMemoryFreeClear(taskCtx->pName);
+      taosMemoryFreeClear(taskCtx->pVgInfo);
       break;
     }
     case CTG_TASK_GET_DB_VGROUP:
@@ -1336,53 +1362,68 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   STableMeta*      pMeta = NULL;
   SGetUserAuthRsp* pInfo = &req->authInfo;
   SHashObj*        pTbs = (AUTH_TYPE_READ == req->singleType) ? pInfo->readTbs : pInfo->writeTbs;
+  char*            stbName = NULL;
+  
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  char dbFName[TSDB_DB_FNAME_LEN];
+  tNameExtractFullName(&req->pRawReq->tbName, tbFName);
+  tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
 
-  char tbFullName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(&req->pRawReq->tbName, tbFullName);
-  char* pCond = taosHashGet(pTbs, tbFullName, strlen(tbFullName));
-  if (pCond) {
-    if (strlen(pCond) > 1) {
-      CTG_ERR_RET(nodesStringToNode(pCond, &res->pRawRes->pCond));
+  while (true) {
+    char* pCond = taosHashGet(pTbs, tbFName, strlen(tbFName));
+    if (pCond) {
+      if (strlen(pCond) > 1) {
+        CTG_ERR_RET(nodesStringToNode(pCond, &res->pRawRes->pCond));
+      }
+
+      res->pRawRes->pass = true;
+      return TSDB_CODE_SUCCESS;
     }
 
-    res->pRawRes->pass = true;
-    return TSDB_CODE_SUCCESS;
+    if (stbName) {
+      res->pRawRes->pass = false;
+      goto _return;
+    }
+
+    CTG_ERR_RET(catalogGetCachedTableMeta(pCtg, &req->pRawReq->tbName, &pMeta));
+    if (NULL == pMeta) {
+      if (req->onlyCache) {
+        res->metaNotExists = true;
+        ctgDebug("db %s tb %s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      SCtgTbMetaCtx ctx = {0};
+      ctx.pName = (SName*)&req->pRawReq->tbName;
+      ctx.flag = CTG_FLAG_UNKNOWN_STB | CTG_FLAG_SYNC_OP;
+      
+      CTG_ERR_RET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
+    }
+
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
+      res->pRawRes->pass = false;
+      goto _return;
+    }
+
+    if (TSDB_CHILD_TABLE == pMeta->tableType) {
+      CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
+      if (NULL == stbName) {
+        if (req->onlyCache) {
+          res->metaNotExists = true;
+          ctgDebug("suid %" PRIu64 " name not in cache for auth", pMeta->suid);
+          return TSDB_CODE_SUCCESS;
+        }
+
+        continue;
+      }
+
+      sprintf(tbFName, "%s.%s", dbFName, stbName);
+      continue;
+    }
+
+    ctgError("Invalid table type %d for %s", pMeta->tableType, tbFName);
+    CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
   }
-
-  res->pRawRes->pass = false;
-
-  // CTG_ERR_RET(catalogGetCachedTableMeta(pCtg, &req->pRawReq->tbName, &pMeta));
-  // if (NULL == pMeta) {
-  //   if (req->onlyCache) {
-  //     res->metaNotExists = true;
-  //     ctgDebug("db %s tb %s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
-  //     return TSDB_CODE_SUCCESS;
-  //   }
-
-  //   CTG_ERR_RET(catalogGetTableMeta(pCtg, req->pConn, &req->pRawReq->tbName, &pMeta));
-  // }
-
-  // if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
-  //   res->pRawRes->pass = false;
-  //   goto _return;
-  // }
-
-  // if (TSDB_CHILD_TABLE == pMeta->tableType) {
-  //   res->pRawRes->pass = true;
-
-  //   /*
-  //       char stbName[TSDB_TABLE_NAME_LEN] = {0};
-  //       CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, pMeta->suid, stbName));
-  //       if (0 == stbName[0]) {
-  //         if (req->onlyCache) {
-  //           res->notExists = true;
-  //           return TSDB_CODE_SUCCESS;
-  //         }
-
-  //         CTG_ERR_RET(catalogRefreshTableMeta(pCtg, req->pConn, &req->pRawReq->tbName, 0));
-  //       }
-  //   */
-  // }
 
 _return:
 
@@ -1423,7 +1464,7 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       if (pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
         req->singleType = AUTH_TYPE_READ;
         CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
-        if (pRes->pass) {
+        if (pRes->pass || res->metaNotExists) {
           return TSDB_CODE_SUCCESS;
         }
       }
@@ -1439,7 +1480,7 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       if (pInfo->writeTbs && taosHashGetSize(pInfo->writeTbs) > 0) {
         req->singleType = AUTH_TYPE_WRITE;
         CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
-        if (pRes->pass) {
+        if (pRes->pass || res->metaNotExists) {
           return TSDB_CODE_SUCCESS;
         }
       }

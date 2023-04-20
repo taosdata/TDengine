@@ -154,6 +154,11 @@ typedef struct SCtgTbCacheInfo {
   int32_t  tbType;
 } SCtgTbCacheInfo;
 
+typedef struct SCtgTbMetaParam {
+  SName*  pName;
+  int32_t flag;
+} SCtgTbMetaParam;
+
 typedef struct SCtgTbMetaCtx {
   SCtgTbCacheInfo tbInfo;
   int32_t         vgId;
@@ -631,6 +636,7 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_FLAG_SYS_DB       0x8
 #define CTG_FLAG_FORCE_UPDATE 0x10
 #define CTG_FLAG_ONLY_CACHE   0x20
+#define CTG_FLAG_SYNC_OP      0x40
 
 #define CTG_FLAG_SET(_flag, _v) ((_flag) |= (_v))
 
@@ -933,6 +939,10 @@ void    ctgReleaseVgMetaToCache(SCatalog* pCtg, SCtgDBCache* dbCache, SCtgTbCach
 void    ctgReleaseTbMetaToCache(SCatalog* pCtg, SCtgDBCache* dbCache, SCtgTbCache* pCache);
 void    ctgGetGlobalCacheStat(SCtgCacheStat* pStat);
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res);
+int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
+int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char **stbName);
+int32_t ctgGetTbTagCb(SCtgTask* pTask);
+int32_t ctgGetUserCb(SCtgTask* pTask);
 
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;

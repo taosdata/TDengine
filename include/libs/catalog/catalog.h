@@ -106,6 +106,7 @@ typedef struct SMetaData {
   SArray*   pUser;        // pRes = SUserAuthRes*
   SArray*   pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
   SArray*   pTableCfg;    // pRes = STableCfg*
+  SArray*   pTableTag;    // pRes = SArray<STagVal>*
   SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;

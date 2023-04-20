@@ -703,6 +703,29 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char **stbName) {
+  *stbName = NULL;
+
+  SCtgDBCache *dbCache = NULL;
+  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  if (NULL == dbCache) {
+    ctgDebug("db %s not in cache", dbFName);
+    return TSDB_CODE_SUCCESS;
+  }  
+  
+  char *stb = taosHashAcquire(dbCache->stbCache, &suid, sizeof(suid));
+  if (NULL == stb) {
+    ctgDebug("stb 0x%" PRIx64 " not in cache, dbFName:%s", suid, dbFName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *stbName = taosStrdup(stb);
+
+  taosHashRelease(dbCache->stbCache, stb);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool *inCache, SCtgAuthRsp *pRes) {
   if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
     *inCache = true;
