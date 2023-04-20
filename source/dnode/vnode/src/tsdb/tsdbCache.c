@@ -194,7 +194,6 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
   tsdbRowClose(&iter);
 
   // 3, build keys & multi get from rocks
-  int     max_key_len = 0;
   int     num_keys = TARRAY_SIZE(aColVal);
   char  **keys_list = taosMemoryCalloc(num_keys * 2, sizeof(char *));
   size_t *keys_list_sizes = taosMemoryCalloc(num_keys * 2, sizeof(size_t));
@@ -283,11 +282,49 @@ _exit:
   return code;
 }
 
-int32_t tsdbCacheGetLast(STsdb *pTsdb, tb_uid_t uid, SArray **ppLastArray, SCacheRowsReader *pr) {
+int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray **ppLastArray, SCacheRowsReader *pr, char const *lstring) {
   int32_t code = 0;
 
   SArray *pCidList = pr->pCidList;
+  int     num_keys = TARRAY_SIZE(pCidList);
+  char  **keys_list = taosMemoryCalloc(num_keys, sizeof(char *));
+  size_t *keys_list_sizes = taosMemoryCalloc(num_keys, sizeof(size_t));
+  for (int i = 0; i < num_keys; ++i) {
+    int16_t cid = *(int16_t *)taosArrayGet(pCidList, i);
 
+    char *keys = taosMemoryCalloc(2, ROCKS_KEY_LEN);
+    int   last_key_len = snprintf(keys, ROCKS_KEY_LEN, "%" PRIi64 ":%" PRIi16 ":%s", uid, cid, lstring);
+    if (last_key_len >= ROCKS_KEY_LEN) {
+      tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
+    }
+
+    keys_list[i] = keys;
+    keys_list_sizes[i] = last_key_len;
+  }
+  char  **values_list = taosMemoryCalloc(num_keys, sizeof(char *));
+  size_t *values_list_sizes = taosMemoryCalloc(num_keys, sizeof(size_t));
+  char  **errs = taosMemoryCalloc(num_keys, sizeof(char *));
+  rocksdb_multi_get(pTsdb->rCache.db, pTsdb->rCache.readoptions, num_keys, (const char *const *)keys_list,
+                    keys_list_sizes, values_list, values_list_sizes, errs);
+  for (int i = 0; i < num_keys; ++i) {
+    taosMemoryFree(keys_list[i]);
+  }
+  taosMemoryFree(keys_list);
+  taosMemoryFree(keys_list_sizes);
+  taosMemoryFree(errs);
+
+  SArray *pLastArray = taosArrayInit(num_keys, sizeof(SLastCol));
+  for (int i = 0; i < num_keys; ++i) {
+    SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
+
+    taosArrayPush(pLastArray, pLastCol);
+
+    taosMemoryFree(values_list[i]);
+  }
+  taosMemoryFree(values_list);
+  taosMemoryFree(values_list_sizes);
+
+  *ppLastArray = pLastArray;
   return code;
 }
 

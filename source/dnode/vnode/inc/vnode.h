@@ -195,7 +195,8 @@ uint64_t     getReaderMaxVersion(STsdbReader *pReader);
 
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray *pCidList, uint64_t suid, void **pReader, const char *idstr);
-int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
+int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
+                              SArray *pTableUids);
 void   *tsdbCacherowsReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
 
