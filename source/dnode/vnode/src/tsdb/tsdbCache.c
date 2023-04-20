@@ -35,7 +35,11 @@ _err:
 static void tsdbCloseBICache(STsdb *pTsdb) {
   SLRUCache *pCache = pTsdb->biCache;
   if (pCache) {
+    int32_t elems = taosLRUCacheGetElems(pCache);
+    tsdbTrace("vgId:%d, elems: %d", TD_VID(pTsdb->pVnode), elems);
     taosLRUCacheEraseUnrefEntries(pCache);
+    elems = taosLRUCacheGetElems(pCache);
+    tsdbTrace("vgId:%d, elems: %d", TD_VID(pTsdb->pVnode), elems);
 
     taosLRUCacheCleanup(pCache);
 
@@ -1112,7 +1116,12 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
        * &state->blockIdx);
        */
       state->pBlockIdx = taosArraySearch(state->aBlockIdx, state->pBlockIdxExp, tCmprBlockIdx, TD_EQ);
-      if (!state->pBlockIdx) { /*
+      if (!state->pBlockIdx) {
+        tsdbBICacheRelease(state->pTsdb->biCache, state->aBlockIdxHandle);
+
+        state->aBlockIdxHandle = NULL;
+        state->aBlockIdx = NULL;
+        /*
          tsdbDataFReaderClose(state->pDataFReader);
          *state->pDataFReader = NULL;
          resetLastBlockLoadInfo(state->pLoadInfo);*/
@@ -1761,11 +1770,14 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
 
     hasRow = true;
 
-    code = updateTSchema(TSDBROW_SVERSION(pRow), pr, uid);
-    if (TSDB_CODE_SUCCESS != code) {
-      goto _err;
+    int32_t sversion = TSDBROW_SVERSION(pRow);
+    if (sversion != -1) {
+      code = updateTSchema(sversion, pr, uid);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _err;
+      }
+      pTSchema = pr->pCurrSchema;
     }
-    pTSchema = pr->pCurrSchema;
     int16_t nCol = pTSchema->numOfCols;
 
     TSKEY rowTs = TSDBROW_TS(pRow);
@@ -1915,11 +1927,14 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
 
     hasRow = true;
 
-    code = updateTSchema(TSDBROW_SVERSION(pRow), pr, uid);
-    if (TSDB_CODE_SUCCESS != code) {
-      goto _err;
+    int32_t sversion = TSDBROW_SVERSION(pRow);
+    if (sversion != -1) {
+      code = updateTSchema(sversion, pr, uid);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _err;
+      }
+      pTSchema = pr->pCurrSchema;
     }
-    pTSchema = pr->pCurrSchema;
     int16_t nCol = pTSchema->numOfCols;
 
     TSKEY rowTs = TSDBROW_TS(pRow);
@@ -2223,6 +2238,7 @@ int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHa
     taosThreadMutexUnlock(&pTsdb->biMutex);
   }
 
+  tsdbTrace("bi cache:%p, ref", pCache);
   *handle = h;
 
   return code;
@@ -2232,6 +2248,7 @@ int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h) {
   int32_t code = 0;
 
   taosLRUCacheRelease(pCache, h, false);
+  tsdbTrace("bi cache:%p, release", pCache);
 
   return code;
 }

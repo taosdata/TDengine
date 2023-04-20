@@ -591,7 +591,7 @@ SUdf *udfdNewUdf(const char *udfName) {
 SUdf *udfdGetOrCreateUdf(const char *udfName) {
   uv_mutex_lock(&global.udfsMutex);
   SUdf  **pUdfHash = taosHashGet(global.udfsHash, udfName, strlen(udfName));
-  int64_t currTime = taosGetTimestampSec();
+  int64_t currTime = taosGetTimestampMs();
   bool    expired = false;
   if (pUdfHash) {
     expired = currTime - (*pUdfHash)->lastFetchTime > 10 * 1000;  // 10s
@@ -688,6 +688,8 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       output.colMeta.type = udf->outputType;
       output.colMeta.precision = 0;
       output.colMeta.scale = 0;
+      udfColEnsureCapacity(&output, call->block.info.rows);
+
       SUdfDataBlock input = {0};
       convertDataBlockToUdfDataBlock(&call->block, &input);
       code = udf->scriptPlugin->udfScalarProcFunc(&input, &output, udf->scriptUdfCtx);

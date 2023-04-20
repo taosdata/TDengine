@@ -367,15 +367,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               p->ts = pCol->ts;
               p->colVal = pCol->colVal;
               singleTableLastTs = pCol->ts;
-
-              // only set value for last row query
-              if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
-                if (taosArrayGetSize(pTableUidList) == 0) {
-                  taosArrayPush(pTableUidList, &pKeyInfo->uid);
-                } else {
-                  taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
-                }
-              }
             }
           } else {
             SLastCol* p = taosArrayGet(pLastCols, slotId);
@@ -420,6 +411,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
             pr->lastTs = totalLastTs;
           }
         }
+      }
+
+      if (taosArrayGetSize(pTableUidList) == 0) {
+        taosArrayPush(pTableUidList, &pKeyInfo->uid);
+      } else {
+        taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
       }
 
       tsdbCacheRelease(lruCache, h);

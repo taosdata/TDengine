@@ -1095,7 +1095,7 @@ static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool group
     *pNotOptimize = false;
     return TSDB_CODE_SUCCESS;
   }
-  
+
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pScan = (SScanLogicNode*)pNode;
@@ -2139,7 +2139,7 @@ typedef struct SLastRowScanOptLastParaCkCxt {
   bool hasCol;
 } SLastRowScanOptLastParaCkCxt;
 
-static EDealRes lastRowScanOptLastParaCheckImpl(SNode* pNode, void* pContext) {
+static EDealRes lastRowScanOptLastParaIsTagImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SLastRowScanOptLastParaCkCxt* pCxt = pContext;
     if (COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType || COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
@@ -2152,10 +2152,10 @@ static EDealRes lastRowScanOptLastParaCheckImpl(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool lastRowScanOptLastParaCheck(SNode* pExpr) {
+static bool lastRowScanOptLastParaIsTag(SNode* pExpr) {
   SLastRowScanOptLastParaCkCxt cxt = {.hasTag = false, .hasCol = false};
-  nodesWalkExpr(pExpr, lastRowScanOptLastParaCheckImpl, &cxt);
-  return !cxt.hasTag && cxt.hasCol;
+  nodesWalkExpr(pExpr, lastRowScanOptLastParaIsTagImpl, &cxt);
+  return cxt.hasTag && !cxt.hasCol;
 }
 
 static bool hasSuitableCache(int8_t cacheLastMode, bool hasLastRow, bool hasLast) {
@@ -2195,15 +2195,19 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
     SFunctionNode* pAggFunc = (SFunctionNode*)pFunc;
     if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
-      if (hasSelectFunc || !lastRowScanOptLastParaCheck(nodesListGetNode(pAggFunc->pParameterList, 0))) {
+      if (hasSelectFunc || QUERY_NODE_VALUE == nodeType(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         return false;
       }
       hasLastFunc = true;
-    } else if (FUNCTION_TYPE_SELECT_VALUE == pAggFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType) {
+    } else if (FUNCTION_TYPE_SELECT_VALUE == pAggFunc->funcType) {
       if (hasLastFunc) {
         return false;
       }
       hasSelectFunc = true;
+    } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType) {
+      if (!lastRowScanOptLastParaIsTag(nodesListGetNode(pAggFunc->pParameterList, 0))) {
+        return false;
+      }
     } else if (FUNCTION_TYPE_LAST_ROW != pAggFunc->funcType) {
       return false;
     }
@@ -2237,7 +2241,7 @@ static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols) {
+static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols, bool erase) {
   SNode* pTarget = NULL;
   WHERE_EACH(pTarget, pTargets) {
     bool   found = false;
@@ -2249,7 +2253,7 @@ static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCo
         break;
       }
     }
-    if (!found) {
+    if (!found && erase) {
       ERASE_NODE(pTargets);
       continue;
     }
@@ -2290,9 +2294,8 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   pScan->igLastNull = pAgg->hasLast ? true : false;
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
-    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols);
-    NODES_DESTORY_LIST(pScan->pScanPseudoCols);
-    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols);
+    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, true);
+    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, false);
     nodesClearList(cxt.pLastCols);
   }
   pAgg->hasLastRow = false;
