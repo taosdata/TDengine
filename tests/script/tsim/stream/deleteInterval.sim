@@ -29,7 +29,7 @@ sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -47,7 +47,7 @@ sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -76,7 +76,7 @@ sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -102,7 +102,7 @@ sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -122,7 +122,7 @@ sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -160,7 +160,7 @@ sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -205,7 +205,7 @@ sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -226,7 +226,7 @@ sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -260,7 +260,7 @@ sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -295,7 +295,7 @@ sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -334,7 +334,7 @@ sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -384,7 +384,7 @@ sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -433,7 +433,7 @@ sleep 1000
 sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -451,7 +451,7 @@ sleep 1000
 sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -469,7 +469,7 @@ sleep 1000
 sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
