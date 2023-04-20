@@ -1309,7 +1309,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
     return -1;
   }
 
-  tqInfo("vgId:%d start wal scan stream tasks, tasks:%d", vgId, numOfTasks);
+  tqDebug("vgId:%d start wal scan stream tasks, tasks:%d", vgId, numOfTasks);
   initOffsetForAllRestoreTasks(pTq);
 
   pRunReq->head.vgId = vgId;
