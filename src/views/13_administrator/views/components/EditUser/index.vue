@@ -146,7 +146,6 @@ export default {
           `show topics;`
         )
           .then((res) => {
-            console.log(res)
             let topicList = res.data.map((data) => {
               return Object.fromEntries(
                 res.column_meta.map((item, index) => {
@@ -158,7 +157,6 @@ export default {
               this.topicList.push(item.topic_name);
               this.$set(this.selectedTopicPrivileges, item.topic_name, []);
             });
-            console.log(this.topicList);
           })
           .catch((err) => {
             this.$emit("close")
@@ -333,7 +331,6 @@ export default {
             console.log(error);
           }
         } else {
-          console.log('error submit!!');
           return false;
         }
       });

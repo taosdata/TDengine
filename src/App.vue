@@ -14,11 +14,6 @@ export default {
     }
   },
   mounted() {
-    console.log(
-      "app",
-      process.env.VUE_APP_CUS_NAME,
-      !process.env.VUE_APP_CUS_NAME
-    );
 
     this.$nextTick(() => {
       if (

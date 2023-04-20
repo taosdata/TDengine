@@ -49,7 +49,6 @@ export default {
         });
         this.$parent.$parent.$parent.sourceDisabled = false;
       } catch (error) {
-        console.log(error, "报错信息");
         if (error.response.status == 404) {
           this.$parent.$parent.$parent.sourceDisabled = true;
         }
@@ -117,7 +116,6 @@ export default {
             this.tagName = "pi";
             break;
         }
-        console.log(id, "编辑", this.currentName);
         this.isEditable = true;
         this.editId = editid;
         this.dbName = dbname;

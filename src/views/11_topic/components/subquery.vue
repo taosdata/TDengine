@@ -116,6 +116,7 @@
     components: { ResultSet, WindowClause },
     data() {
       return {
+        systemFns:['DATABASE','CLIENT_VERSION','SERVER_VERSION','SERVER_STATUS'],
         stableList: [],
         tableList: [],
         dbList: [],
@@ -160,7 +161,8 @@
     created() {
       this.getDBList();
     },
-    mounted() {},
+    mounted() {
+    },
     methods: {
       getDBList() {
         getDBListReq().then(data => {
@@ -221,9 +223,10 @@
           const condition = item.condition.filter(ite => ite.operator && ite.value);
           if (result.fn) {
             isResultSet = true;
-            const fnList = item.fnList || [];
+            const fnList = item.fnList.map(item=>item.options).flat(1) || [];
             const currentFn = fnList.find(ite => ite.label == result.fn)?.filters || [];
             let otherParmas = "";
+            debugger
             if (currentFn.length) {
               otherParmas = Object.keys(result.params || {})
                 .filter(key => result.params[key] && currentFn.some(ite => ite.field == key))
@@ -231,9 +234,9 @@
                   const value = result.params[cur];
                   if (value) {
                     if (isArray(value)) {
-                      pre.push(...value);
+                      pre.push(...(value.map(val=>`\`${val}\``)));
                     } else {
-                      pre.push(value);
+                      pre.push(`\`${value}\``);
                     }
                   }
                   return pre;
@@ -241,7 +244,11 @@
                 .join(",");
               otherParmas = "," + otherParmas;
             }
-            resultSet.push(`${result.fn}(${item.field}${otherParmas})`);
+            if(this.systemFns.includes(result.fn)){
+              resultSet.push(`${result.fn}()`);
+            }else{
+              resultSet.push(`${result.fn}(${item.field}${otherParmas})`);
+            }
           } else {
             if (!this.avgFn) {
               resultSet.push(item.field);

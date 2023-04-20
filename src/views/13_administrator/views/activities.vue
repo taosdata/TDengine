@@ -71,7 +71,6 @@ export default {
       });
     },
     refresh(){
-        console.log('刷新activities')
     }
   },
 };

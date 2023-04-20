@@ -240,7 +240,6 @@ export default {
       this.$store.commit("console/CHANGE_TREE_KEY");
     },
     async clickAdd(data, all) {
-      console.log(data, all, "普通表的查询测试");
       if (all) {
         let columns = [];
         let db = "";
@@ -283,7 +282,6 @@ export default {
           "." +
           `\`${data.name}\` limit 200;`;
         this.$store.state.console.sqlStr += this.$store.state.console.addSql;
-        console.log(this.$store.state.console.sqlStr, "最终sql", columns);
       } else {
         let code = data.parent
           ? `\`${data.parent.split(".")[0]}\`.\`${data.name}\``
@@ -503,7 +501,6 @@ export default {
       this.$store.state.console.partActive = "detail";
     },
     async view(data) {
-      console.log(data,'view');
       await this.handleVar(data);
       this.$store.state.console.currentInfoType = data.typeName;
       this.$store.commit("console/SET_CURRENT_INFO_DATA", data);

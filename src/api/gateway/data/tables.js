@@ -68,7 +68,7 @@ export function changeTableStruct(data, tableName) {
 // 获取表的tag value
 export function getTagValue(tags, database, stable_name, table_name) {
   if (!tags.length) return Promise.resolve({});
-  console.log(`SELECT DISTINCT tbname,${tags.map(item => `\`${item.field}\``).join(",")} from \`${database}\``+'.'+`\`${stable_name}\` where tbname=\`${table_name}\`;`);
+ 
   return sendSQLReq(
     `SELECT DISTINCT tbname,${tags.map(item => `\`${item.field}\``).join(",")} from \`${database}\``+'.'+`\`${stable_name}\` where tbname=\`${table_name}\`;`,
     true
@@ -128,7 +128,6 @@ export function getTableStructReq(payload) {
       let tags = [];
       for (let i = 1; i < list.length; i++) {
         const item = list[i];
-        console.log(item,'普通表结构');
         if (item.note == "TAG") {
           tags.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         } else {

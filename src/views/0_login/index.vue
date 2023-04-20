@@ -409,7 +409,7 @@ export default {
       ) {
         let dynamic = document.querySelector(".dynamic-title");
         dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
-        console.log(dynamic, "---", process.env.VUE_APP_CUS_NAME);
+        
       }
     });
   },

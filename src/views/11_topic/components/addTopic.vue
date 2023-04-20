@@ -256,7 +256,6 @@ export default {
         params=sqlobj.topic_sql
       }
       this.requestIng = true;
-      console.log(params,'topic参数==',this.model);
       createTopic(params)
         .then(() => {
           this.$refs.form.resetFields();
@@ -288,7 +287,6 @@ export default {
       let database_id = database
         ? this?.dbList.find((item) => item.name === database)?.name
         : "";
-        console.log(database,database_id,this.dbList,'===[[');
       if (!database_id) {
         this.errorText = this.$t("dbNotExists").replace(
           "{dbname}",
