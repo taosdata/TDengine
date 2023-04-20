@@ -13,8 +13,15 @@
     <el-table style="margin-top: 20px" size="mini" :data="subscriptionList">
       <el-table-column
         :label="$t('topic.user_name')"
-        prop="user_name"
+        prop="name"
       ></el-table-column>
+      <el-table-column :label="$t('taosuser.action')" width="150">
+        <template slot-scope="scope">
+          <el-switch :value="scope.row.enable == 1" :disabled="scope.row.super === 1 || !currentUser.super"
+            @change="changeState(scope.row)" active-color="#13ce66" inactive-color="#6D7074">
+          </el-switch>         
+        </template>
+      </el-table-column>
       <!-- <el-table-column label="Token" prop="id"></el-table-column>
       <el-table-column :label="$t('topic.topic')" prop="id"></el-table-column>
       <el-table-column :label="$t('createTime')" prop="id"></el-table-column>
@@ -115,25 +122,34 @@ export default {
         user_name: "",
         expire_time: "",
       },
+      currentUser: {}
     };
   },
   mounted() {
-    this.getData();
+    // this.getData();
+    this.getUserData()
+    this.getCurrentUser();
     this.getUserList();
   },
   watch: {
     topicId: {
       deep: true,
       handler(val) {
-        this.getData();
+        // this.getData();
+        this.getUserData()
       },
     },
   },
   methods: {
+    getCurrentUser() {
+       this.$store.dispatch("app/getUserInfo").then((res) => {
+         this.currentUser = res;
+       });
+    },
     async getData() {
       try {
         await sendSQLReq(
-          `select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and object_name in ('${this.topicId}', 'all');`
+          `select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and db_name in ('${this.topicId}', 'all');`
         ).then((res) => {
           this.subscriptionList = res.data.map((data) => {
             return Object.fromEntries(
@@ -177,8 +193,9 @@ export default {
             `grant subscribe on ${this.topicId}.* to ${this.ruleForm.user_name};`
           ).then((res) => {
             if (res.rows) {
-              Message.success("Opeartion Successfully");
-              this.getData();
+              Message.success(this.$t("operateSucc"));
+              // this.getData();
+              this.getUserData()
             }
           });
         } else {
@@ -203,6 +220,79 @@ export default {
     },
     del() {},
     handlePageChange() {},
+    changeState(data) {
+      let title = this.$t('isDisable').replace('{isDisableName}', data.name);
+      let state = 0;
+      if (data.enable == 0) {
+        title = this.$t('isEnable').replace('{isDisableName}', data.name);
+        state = 1;
+      }
+      this.$confirm(title, this.$t('wraning'), {
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText: this.$t('cancel'),
+        type: "warning",
+      }).then(() => {
+        sendSQLReq(`alter user ${data.name} enable ${state}`).then(res => {
+          if (res.code == 0) {
+            Message.success(this.$t("operateSucc"))
+            this.getUserData()
+          }
+        })
+      });
+    },
+    async getUserData() {
+      try {
+        let permissionMap = await sendSQLReq(`select * from information_schema.ins_users;`)
+          .then((res) => {
+            return res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+        await sendSQLReq(`select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and db_name in ('${this.topicId}', 'all');`)
+          .then((res) => {
+            let privilegeMap = res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
+
+            privilegeMap.forEach((data) => {
+              let user = permissionMap.find((item) => item.name === data.user_name);
+
+              if (user) {
+                if (user.privilege === undefined) {
+                  user.privilege = {};
+                }
+                if (user.privilege[data.db_name] === undefined) {
+                  user.privilege[data.db_name] = [data.privilege];
+                } else {
+                  user.privilege[data.db_name].push(data.privilege);
+                }
+              }
+            });
+            let rootUserIndex = permissionMap.findIndex((item, k) => item.name === 'root');
+            let rooUser = permissionMap[rootUserIndex];
+            rooUser.name = "*" + rooUser.name;
+            permissionMap.unshift(rooUser);
+            permissionMap.splice(++rootUserIndex, 1);
+            this.subscriptionList = permissionMap;
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        console.log(error);
+      }
+    },
   },
 };
 </script>

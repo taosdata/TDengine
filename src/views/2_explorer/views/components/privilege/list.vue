@@ -199,7 +199,7 @@ export default {
   methods: {
     async getData(){
       try {
-        await sendSQLReq(`select user_name, privilege from information_schema.ins_user_privileges where privilege in ('all', 'read', 'write') and object_name in ('${this.currentDB}', 'all');`).then(res=>{
+        await sendSQLReq(`select user_name, privilege from information_schema.ins_user_privileges where privilege in ('all', 'read', 'write') and db_name in ('${this.currentDB}', 'all');`).then(res=>{
           this.list= res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
