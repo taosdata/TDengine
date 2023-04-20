@@ -39,7 +39,7 @@ loop2:
 sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -88,7 +88,7 @@ loop3:
 sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -135,7 +135,7 @@ loop4:
 sleep 1000
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
