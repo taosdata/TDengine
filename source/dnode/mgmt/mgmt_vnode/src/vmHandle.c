@@ -201,6 +201,11 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
+  if(req.learnerReplica == 0)
+  {
+    req.learnerSelfIndex = -1;
+  }
+
   dInfo("vgId:%d, vnode management handle msgType:%s, start to create vnode, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
         ", cacheLast:%d cacheLastSize:%d sstTrigger:%d tsdbPageSize:%d %d dbname:%s dbId:%" PRId64
         ", days:%d keep0:%d keep1:%d keep2:%d tsma:%d precision:%d compression:%d minRows:%d maxRows:%d"
@@ -320,6 +325,10 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (tDeserializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
+  }
+
+  if(req.learnerReplicas == 0){
+    req.learnerSelfIndex = -1;
   }
 
   dInfo("vgId:%d, vnode management handle msgType:%s, start to process alter-node-type-request", 
@@ -507,6 +516,10 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (tDeserializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
+  }
+
+  if(alterReq.learnerReplica == 0){
+    alterReq.learnerSelfIndex = -1;
   }
 
   int32_t vgId = alterReq.vgId;
