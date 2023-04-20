@@ -7,7 +7,6 @@ ExternalProject_Add(rocksdb
 	CMAKE_ARGS 
         -DPORTABLE=1
         -DWITH_GFLAGS=0 
-        -DWITH_JEMALLOC=0
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
