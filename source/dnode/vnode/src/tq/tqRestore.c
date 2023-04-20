@@ -96,15 +96,14 @@ int32_t doCreateReqsByScanWal(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetS
       continue;
     }
 
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
+    int32_t status = pTask->status.taskStatus;
+    if ((pTask->taskLevel != TASK_LEVEL__SOURCE) || (status == TASK_STATUS__DROPPING)) {
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 
-    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE ||
-        pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("s-task:%s skip push data, not ready for processing, status %d", pTask->id.idStr,
-              pTask->status.taskStatus);
+    if (status == TASK_STATUS__RECOVER_PREPARE || status == TASK_STATUS__WAIT_DOWNSTREAM) {
+      tqDebug("s-task:%s skip push data, not ready for processing, status %d", pTask->id.idStr, status);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
