@@ -119,6 +119,26 @@ target_link_libraries(
     udf2 PUBLIC os ${LINK_JEMALLOC}
 )
 
+add_library(udf2_dup STATIC MODULE test/udf2_dup.c)
+target_include_directories(
+        udf2_dup
+        PUBLIC
+            "${TD_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/client"
+            "${TD_SOURCE_DIR}/include/os"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+)
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(udf2_dup jemalloc)
+ENDIF ()
+
+target_link_libraries(
+    udf2_dup PUBLIC os ${LINK_JEMALLOC}
+)
+
 #SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
 add_executable(udfd src/udfd.c)
 target_include_directories(

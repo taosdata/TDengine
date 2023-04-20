@@ -49,20 +49,25 @@ class TDTestCase:
             self.libudf1 = subprocess.Popen('(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             self.libudf1_dup = subprocess.Popen('(for /r %s %%i in ("udf1_dup.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             self.libudf2 = subprocess.Popen('(for /r %s %%i in ("udf2.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf2_dup = subprocess.Popen('(for /r %s %%i in ("udf2_dup.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             if (not tdDnodes.dnodes[0].remoteIP == ""):
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1.so',projPath+"\\debug\\build\\lib\\")
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1_dup.so',projPath+"\\debug\\build\\lib\\")
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf2.so',projPath+"\\debug\\build\\lib\\")
+                tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf2_dup.so',projPath+"\\debug\\build\\lib\\")
                 self.libudf1 = self.libudf1.replace('udf1.dll','libudf1.so')
                 self.libudf1_dup = self.libudf1_dup.replace('udf1_dup.dll','libudf1_dup.so')
                 self.libudf2 = self.libudf2.replace('udf2.dll','libudf2.so')
+                self.libudf2_dup = self.libudf2_dup.replace('udf2_dup.dll','libudf2_dup.so')
         else:
             self.libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             self.libudf1_dup = subprocess.Popen('find %s -name "libudf1_dup.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
             self.libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf2_dup = subprocess.Popen('find %s -name "libudf2_dup.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
         self.libudf1 = self.libudf1.replace('\r','').replace('\n','')
         self.libudf1_dup = self.libudf1_dup.replace('\r','').replace('\n','')
         self.libudf2 = self.libudf2.replace('\r','').replace('\n','')
+        self.libudf2_dup = self.libudf2_dup.replace('\r','').replace('\n','')
 
 
     def prepare_data(self):
@@ -184,6 +189,7 @@ class TDTestCase:
         # create aggregate functions
 
         tdSql.execute("create aggregate function udf2 as '%s' outputtype double bufSize 8;"%self.libudf2)
+        tdSql.execute("create aggregate function udf2_dup as '%s' outputtype double bufSize 8;"%self.libudf2_dup)
 
         functions = tdSql.getResult("show functions")
         function_nums = len(functions)
@@ -251,6 +257,10 @@ class TDTestCase:
 
 
         # aggregate functions
+        tdSql.query("select udf2(num1) ,udf2_dup(num2) from tb")
+        val = tdSql.queryResult[0][0] + 100
+        tdSql.checkData(0,1,val)
+        
         tdSql.query("select udf2(num1) ,udf2(num2), udf2(num3) from tb")
         tdSql.checkData(0,0,15.362291496)
         tdSql.checkData(0,1,10000949.553189287)
