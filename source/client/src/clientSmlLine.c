@@ -465,7 +465,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       value = tmp;
     }
 
-    SSmlKv  kv = {.key = key, .keyLen = keyLen, .value = value, .length = valueLen};
+    SSmlKv  kv = {.key = key, .keyLen = keyLen, .value = value, .length = valueLen, .keyEscaped = keyEscaped, .valueEscaped = valueEscaped};
     int32_t ret = smlParseValue(&kv, &info->msgBuf);
     if (ret != TSDB_CODE_SUCCESS) {
       smlBuildInvalidDataMsg(&info->msgBuf, "smlParseValue error", value);
