@@ -1016,7 +1016,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
       atomic_add_fetch_32(pRefBlock->dataRef, 1);
 
       if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pRefBlock) < 0) {
-        qError("s-task:%s stream task input del failed", pTask->id.idStr);
+        qError("s-task:%s stream task append submit into input queue failed", pTask->id.idStr);
 
         atomic_sub_fetch_32(pRef, 1);
         taosFreeQitem(pRefBlock);
