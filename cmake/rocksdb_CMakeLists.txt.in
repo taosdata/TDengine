@@ -6,6 +6,7 @@ ExternalProject_Add(rocksdb
         SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
 	CMAKE_ARGS 
         -DPORTABLE=1
+	-DWITH_JEMALLOC=0
         -DWITH_GFLAGS=0 
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
