@@ -4,7 +4,7 @@ looptest:
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-sleep 50
+sleep 1000
 sql connect
 
 sql drop stream if exists streams0;
@@ -24,7 +24,7 @@ sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 $loop_count = 0
 
 loop0:
-sleep 50
+sleep 1000
 sql select * from streamt order by c1, c4, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -48,7 +48,7 @@ sql insert into t1 values(1648791213000,1,2,3,1.0);
 $loop_count = 0
 
 loop1:
-sleep 50
+sleep 1000
 sql select * from streamt order by c1, c4, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -71,7 +71,7 @@ sql insert into t1 values(1648791213000,2,2,3,1.0);
 $loop_count = 0
 
 loop2:
-sleep 50
+sleep 1000
 sql select * from streamt order by c1, c4, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -97,7 +97,7 @@ sql insert into t1 values(1648791213002,1,2,3,1.0);
 $loop_count = 0
 
 loop3:
-sleep 50
+sleep 1000
 sql select * from streamt order by c1, c4, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -134,7 +134,7 @@ sql insert into t1 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (16
 $loop_count = 0
 
 loop4:
-sleep 50
+sleep 1000
 sql select * from streamt order by c1, c4, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -207,7 +207,7 @@ sql insert into t1 values(1648791213001,1,2,3,2.0);
 $loop_count = 0
 
 loop5:
-sleep 50
+sleep 1000
 sql select * from streamt1 order by c1, c4, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -228,7 +228,7 @@ sql insert into t1 values(1648791213001,1,1,6,2.0) (1648791223002,1,1,7,2.0);
 $loop_count = 0
 
 loop6:
-sleep 50
+sleep 1000
 sql select * from streamt1 order by c1, c4, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -292,7 +292,7 @@ sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
 $loop_count = 0
 
 loop7:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -316,7 +316,7 @@ sql insert into t2 values(1648791213000,1,2,3,1.0);
 $loop_count = 0
 
 loop8:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -340,7 +340,7 @@ sql insert into t2 values(1648791213000,2,2,3,1.0);
 $loop_count = 0
 
 loop9:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -370,7 +370,7 @@ sql insert into t2 values(1648791213002,1,2,3,1.0);
 $loop_count = 0
 
 loop10:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -412,7 +412,7 @@ sql insert into t2 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (16
 $loop_count = 0
 
 loop11:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -489,7 +489,7 @@ sql insert into t4 values(1648791213000,1,2,3,1.0);
 $loop_count = 0
 
 loop13:
-sleep 50
+sleep 1000
 sql select * from test.streamt4 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -531,7 +531,7 @@ sql insert into t1 values(1648791213000,1,2,3,1.0);
 $loop_count = 0
 
 loop14:
-sleep 50
+sleep 1000
 sql select * from test.streamt4 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
