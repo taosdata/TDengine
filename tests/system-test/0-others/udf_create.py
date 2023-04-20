@@ -195,7 +195,7 @@ class TDTestCase:
         # scalar functions
 
         # udf1_dup
-        tdSql.query("select num1 , udf1(num1) ,udf1_dup(num1) from tb")
+        tdSql.query("select udf1(num1) ,udf1_dup(num1) from tb")
         tdSql.checkData(1,0,1)
         tdSql.checkData(1,1,2)
         tdSql.checkData(2,0,1)
