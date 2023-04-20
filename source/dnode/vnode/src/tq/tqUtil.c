@@ -66,11 +66,12 @@ void initOffsetForAllRestoreTasks(STQ* pTq) {
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
+      tqDebug("s-task:%s not source task, not register offset", pTask->id.idStr);
       continue;
     }
 
     if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("s-task:%s skip push data, since not ready, status %d", pTask->id.idStr, pTask->status.taskStatus);
+      tqDebug("s-task:%s no need to record the offset, status %d", pTask->id.idStr, pTask->status.taskStatus);
       continue;
     }
 
