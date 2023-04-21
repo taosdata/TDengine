@@ -2542,6 +2542,16 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
 
   while (1) {
     if (isTaskKilled(pTaskInfo)) {
+
+      if (pInfo->pUpdated != NULL) {
+        pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
+      }
+
+      if (pInfo->pUpdatedMap != NULL) {
+        tSimpleHashCleanup(pInfo->pUpdatedMap);
+        pInfo->pUpdatedMap = NULL;
+      }
+
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
