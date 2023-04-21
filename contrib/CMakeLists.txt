@@ -224,7 +224,7 @@ endif(${BUILD_WITH_LEVELDB})
 # To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
 if(${BUILD_WITH_ROCKSDB})
     if(${TD_LINUX})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=unused-function -Wno-errno=unused-private-field -Wno-error=unused-result")
     endif(${TD_LINUX})
 
     if(${TD_DARWIN})
@@ -235,13 +235,24 @@ if(${BUILD_WITH_ROCKSDB})
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819")  
     endif(${TD_WINDOWS})
 
+
+    if(${TD_DARWIN} OR ${TD_WINDOWS})
+        option(HAVE_THREAD_LOCAL "" OFF)
+        option(WITH_IOSTATS_CONTEXT "" OFF)
+        option(WITH_PERF_CONTEXT "" OFF)
+    endif(${TD_DARWIN})
+    
+    option(WITH_JEMALLOC "" OFF)
+    option(WITH_GFLAGS "" OFF)
+    option(PORTABLE "" ON)
+    option(WITH_LIBURING "" OFF)
+    option(FAIL_ON_WARNINGS OFF)
+
     option(WITH_TESTS "" OFF)
     option(WITH_BENCHMARK_TOOLS "" OFF)
     option(WITH_TOOLS "" OFF)
-    option(WITH_JEMALLOC "" OFF)
-    option (WITH_GFLAGS "" OFF)
-    option (PORTABLE "" on)
     option(WITH_LIBURING "" OFF)
+
     option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
     add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
     target_include_directories(
