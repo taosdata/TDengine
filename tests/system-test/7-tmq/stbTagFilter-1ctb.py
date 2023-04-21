@@ -148,7 +148,7 @@ class TDTestCase:
 
         tmqCom.checkFileContent(consumerId, queryString)
 
-        tdSql.query("drop topic %s"%topicFromStb1)
+        tdSql.query("drop topic `%s`"%topicFromStb1)
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def tmqCase2(self):
@@ -242,7 +242,7 @@ class TDTestCase:
 
         # tmqCom.checkFileContent(consumerId, queryString)
 
-        tdSql.query("drop topic %s"%topicFromStb1)
+        tdSql.query("drop topic `%s`"%topicFromStb1)
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 

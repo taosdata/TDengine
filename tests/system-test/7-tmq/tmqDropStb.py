@@ -113,7 +113,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error!")
 
         time.sleep(10)
-        tdSql.query("drop topic %s"%topicName1)
+        tdSql.query("drop topic `%s`"%topicName1)
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
