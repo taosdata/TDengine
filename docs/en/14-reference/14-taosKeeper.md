@@ -108,7 +108,7 @@ The following `launchctl` commands can help you manage taoskeeper service:
 
 #### Launch With Configuration File
 
-You can quickly launch taosKeeper with the following commands. If you do not specify a configuration file, `/etc/taos/keeper.toml` is used by default. If this file does not specify configurations, the default values are used.
+You can quickly launch taosKeeper with the following commands. If you do not specify a configuration file, `/etc/taos/taoskeeper.toml` is used by default. If this file does not specify configurations, the default values are used.
 
 ```shell
 $ taoskeeper -c <keeper config file>
@@ -153,6 +153,10 @@ database = "log"
 
 # standard tables to monitor
 tables = ["normal_table"]
+
+# database options for db storing metrics data
+[metrics.databaseoptions]
+cachemodel = "none"
 ```
 
 ### Obtain Monitoring Metrics
@@ -203,7 +207,7 @@ taos_cluster_info_dnodes_total{cluster_id="5981392874047724755"} 1
 taos_cluster_info_first_ep{cluster_id="5981392874047724755",value="hlb:6030"} 1
 ```
 
-### check_health 
+### check\_health 
 
 ```
 $ curl -i http://127.0.0.1:6043/check_health
