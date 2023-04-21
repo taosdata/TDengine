@@ -13,7 +13,7 @@
     <el-table style="margin-top: 20px" size="mini" :data="subscriptionList">
       <el-table-column
         :label="$t('topic.user_name')"
-        prop="name"
+        prop="user_name"
       ></el-table-column>
       <el-table-column :label="$t('taosuser.action')" width="150">
         <template slot-scope="scope">
@@ -73,14 +73,14 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('topic.expire_time')" prop="expire_time">
+        <!-- <el-form-item :label="$t('topic.expire_time')" prop="expire_time">
           <el-date-picker
             v-model="ruleForm.expire_time"
             style="width: 100%"
             :picker-options="expireTimeOPtion"
             type="datetime"
           ></el-date-picker>
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item>
           <el-button
             type="primary"
@@ -221,18 +221,18 @@ export default {
     del() {},
     handlePageChange() {},
     changeState(data) {
-      let title = this.$t('isDisable').replace('{isDisableName}', data.name);
+      let title = this.$t('isDisable').replace('{isDisableName}', data.user_name);
       let state = 0;
       if (data.enable == 0) {
-        title = this.$t('isEnable').replace('{isDisableName}', data.name);
+        title = this.$t('isEnable').replace('{isDisableName}', data.user_name);
         state = 1;
       }
       this.$confirm(title, this.$t('wraning'), {
         confirmButtonText: this.$t('confirm'),
         cancelButtonText: this.$t('cancel'),
         type: "warning",
-      }).then(() => {
-        sendSQLReq(`alter user ${data.name} enable ${state}`).then(res => {
+      }).then(() => {       
+        sendSQLReq(`revoke subscribe on ${this.topicId}.* from ${data.user_name}`).then(res => {
           if (res.code == 0) {
             Message.success(this.$t("operateSucc"))
             this.getUserData()
@@ -242,53 +242,34 @@ export default {
     },
     async getUserData() {
       try {
-        let permissionMap = await sendSQLReq(`select * from information_schema.ins_users;`)
-          .then((res) => {
-            return res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
-          })
-          .catch((err) => {
-            return Promise.reject(err);
-          });
-        await sendSQLReq(`select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and db_name in ('${this.topicId}', 'all');`)
-          .then((res) => {
-            let privilegeMap = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            });
-
-            privilegeMap.forEach((data) => {
-              let user = permissionMap.find((item) => item.name === data.user_name);
-
-              if (user) {
-                if (user.privilege === undefined) {
-                  user.privilege = {};
-                }
-                if (user.privilege[data.db_name] === undefined) {
-                  user.privilege[data.db_name] = [data.privilege];
-                } else {
-                  user.privilege[data.db_name].push(data.privilege);
-                }
-              }
-            });
-            let rootUserIndex = permissionMap.findIndex((item, k) => item.name === 'root');
-            let rooUser = permissionMap[rootUserIndex];
-            rooUser.name = "*" + rooUser.name;
-            permissionMap.unshift(rooUser);
-            permissionMap.splice(++rootUserIndex, 1);
-            this.subscriptionList = permissionMap;
-          })
-          .catch((err) => {
-            return Promise.reject(err);
-          });
+        let usersRes = await sendSQLReq(`select * from information_schema.ins_users;`)
+        let usersMap = usersRes.data.map((data) => {
+          return Object.fromEntries(
+            usersRes.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
+        });
+        let res = await sendSQLReq(`select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and db_name in ('${this.topicId}', 'all');`)
+        let privilegeMap = res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
+        }); 
+        let permissionMap = privilegeMap.map((item) => {
+          let user = usersMap.find((data) => data.name === item.user_name );
+          item.enable = 1
+          item.super = user.super
+          return item
+        })
+        let rootUserIndex = permissionMap.findIndex((item, k) => item.user_name === 'root');
+        let rooUser = permissionMap[rootUserIndex];
+        rooUser.user_name = "*" + rooUser.user_name;
+        permissionMap.unshift(rooUser);
+        permissionMap.splice(++rootUserIndex, 1);  
+        this.subscriptionList = permissionMap;         
       } catch (error) {
         console.log(error);
       }
