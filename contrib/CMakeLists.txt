@@ -223,7 +223,9 @@ endif(${BUILD_WITH_LEVELDB})
 # rocksdb
 # To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
 if(${BUILD_WITH_ROCKSDB})
-    #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+    if(${TD_LINUX} OR ${TD_DARWIN})
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+    endif(${TD_LINUX})
     option(WITH_TESTS "" OFF)
     option(WITH_BENCHMARK_TOOLS "" OFF)
     option(WITH_TOOLS "" OFF)
