@@ -129,7 +129,7 @@ sudo cp $communityDir/tools/taos-tools/example/* /opt/tdengine/examples/taosbenc
 
 sudo cp -f $taoskeeper_binary /opt/tdengine/bin/
 sudo cp -f $(dirname $taoskeeper_binary)/taoskeeper.service /opt/tdengine/cfg/
-sudo cp -f $(dirname $taoskeeper_binary)/config/keeper.toml /opt/tdengine/cfg/
+sudo cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml /opt/tdengine/cfg/
 sudo chmod ugo+w /opt/tdengine/bin/remove.sh
 sudo cat $scriptDir/remove_taoskeeper.sh >> /opt/tdengine/bin/remove.sh
 
