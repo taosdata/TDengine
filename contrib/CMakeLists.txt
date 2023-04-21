@@ -224,14 +224,14 @@ endif(${BUILD_WITH_LEVELDB})
 # To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
 if(${BUILD_WITH_ROCKSDB})
     if(${TD_LINUX})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized -Wno-error=unused-command-line-argument -Wno-error=warnings-are-errors")
     endif(${TD_LINUX})
 
     if(${TD_DARWIN})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized -Wno-error=unused-command-line-argument -Wno-error=warnings-are-errors")
     endif(${TD_DARWIN})
     if (${TD_WINDOWS})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4267 /wd4800 /wd4996 /wd4018 /wd4146 /wd4245 /wd4305 /wd4309 /wd4310 /wd4311 /wd4312 /wd4319 /wd4324 /wd4350 /wd4351 /wd4355 /wd4389 /wd4456 /wd4457 /wd4458 /wd4459 /wd4503 /wd4505 /wd4510 /wd4512 /wd4514 /wd4548 /wd4571 /wd4623 /wd4625 /wd4626 /wd4628 /wd4668 /wd4710 /wd4711 /wd4774 /wd4820 /wd5026 /wd5027 /wd5039 /wd5045 /wd26812 /wd26495")  
     endif(${TD_WINDOWS})
 
     option(WITH_TESTS "" OFF)
