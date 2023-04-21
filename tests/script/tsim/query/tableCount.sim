@@ -104,4 +104,9 @@ if $data62 != 5 then
   return -1
 endi
 
+sql select distinct db_name from information_schema.ins_tables;
+print $rows
+if $rows != 4 then
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
