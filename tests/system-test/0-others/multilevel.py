@@ -194,7 +194,7 @@ class TDTestCase:
         tdSql.taosdStatus(0)
         tdDnodes.stop(1)
         # Test2 2 dataDir
-        cfg={
+        cfg = {
             '/mnt/data1 0 1' : 'dataDir',
             '/mnt/data1 2 0' : 'dataDir'
         }
@@ -204,6 +204,45 @@ class TDTestCase:
         tdDnodes.startWithoutSleep(1)
         
         tdSql.taosdStatus(0)
+
+    def trim_database(self):
+        tdLog.info("============== trim_database test ===============")
+        tdDnodes.stop(1)
+        cfg = {
+            '/mnt/data1 0 1' : 'dataDir'
+            
+        }
+        tdSql.createDir('/mnt/data1')
+        tdDnodes.deploy(1,cfg)
+        tdDnodes.start(1)
+
+        tdSql.execute('create database dbtest')
+        tdSql.execute('use dbtest')
+        tdSql.execute('create table stb (ts timestamp,c0 int) tags(t0 int)')
+        tdSql.execute('create table tb1 using stb tags(1)')
+        for i in range(10,30):
+            tdSql.execute(f'insert into tb1 values(now-{i}d,10)')
+        tdSql.execute('flush database dbtest')
+        tdSql.haveFile('/mnt/data1/',1)
+        tdDnodes.stop(1)
+        cfg={
+            '/mnt/data1 0 1' : 'dataDir',
+            '/mnt/data2 1 0' : 'dataDir',
+            '/mnt/data3 2 0' : 'dataDir',        
+        }
+        tdSql.createDir('/mnt/data2')
+        tdSql.createDir('/mnt/data3')
+        tdDnodes.deploy(1,cfg)
+        tdDnodes.start(1)
+        tdSql.haveFile('/mnt/data1/',1)
+        tdSql.haveFile('/mnt/data2/',0)
+        tdSql.haveFile('/mnt/data3/',0)
+        tdSql.execute('alter database dbtest keep 10d,365d,3650d')
+        tdSql.execute('trim database dbtest')
+        time.sleep(3)
+        tdSql.haveFile('/mnt/data1/',1)
+        tdSql.haveFile('/mnt/data2/',1)
+
     def run(self):
         self.basic()
         self.dir_not_exist()
@@ -212,7 +251,7 @@ class TDTestCase:
         self.three_level_basic()
         self.more_than_16_disks()
         self.missing_middle_level()
-
+        self.trim_database()
 
 
     def stop(self):
