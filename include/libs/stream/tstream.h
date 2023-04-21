@@ -273,6 +273,7 @@ typedef struct SStreamId {
 typedef struct SCheckpointInfo {
   int64_t id;
   int64_t version;   // offset in WAL
+  int64_t currentVer;// current offset in WAL, not serialize it
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -537,6 +538,7 @@ void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
 int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock);
+bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
