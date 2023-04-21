@@ -111,7 +111,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
       continue;
     }
 
-    qDebug("task %d(child %d) executed and get block", pTask->id.taskId, pTask->selfChildId);
+    qDebug("s-task:%s (child %d) executed and get block", pTask->id.idStr, pTask->selfChildId);
 
     SSDataBlock block = {0};
     assignOneDataBlock(&block, output);
@@ -306,7 +306,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
              ", checkPoint id:%" PRId64 " -> %" PRId64,
              pTask->id.idStr, pTask->chkInfo.version, dataVer, pTask->chkInfo.id, ckId);
 
-      pTask->chkInfo = (SCheckpointInfo) {.version = dataVer, .id = ckId};
+      pTask->chkInfo = (SCheckpointInfo) {.version = dataVer, .id = ckId, .currentVer = pTask->chkInfo.currentVer};
 
       taosWLockLatch(&pTask->pMeta->lock);
       streamMetaSaveTask(pTask->pMeta, pTask);

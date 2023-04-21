@@ -128,7 +128,7 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     // append the data for the stream
-    tqDebug("vgId:%d wal reader seek to ver:%" PRId64 " %s", vgId, pTask->chkInfo.currentVer, pTask->id.idStr);
+    tqDebug("vgId:%d s-task:%s wal reader seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.currentVer);
 
     SPackedData packData = {0};
     code = extractSubmitMsgFromWal(pTask->exec.pWalReader, &packData);
@@ -147,14 +147,13 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     noNewDataInWal = false;
 
-    tqDebug("s-task:%s submit data extracted from WAL", pTask->id.idStr);
     code = tqAddInputBlockNLaunchTask(pTask, (SStreamQueueItem*)p, packData.ver);
     if (code == TSDB_CODE_SUCCESS) {
       pTask->chkInfo.currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
       tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr,
               pTask->chkInfo.currentVer);
     } else {
-      // do nothing
+      tqError("s-task:%s append input queue failed, ver:%"PRId64, pTask->id.idStr, pTask->chkInfo.currentVer);
     }
 
     streamDataSubmitDestroy(p);
