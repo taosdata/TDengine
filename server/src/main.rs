@@ -154,7 +154,7 @@ async fn rest_proxy(
     path: web::Path<(String,)>,
     req: HttpRequest,
     body: web::Payload,
-) -> Result<HttpResponse, Error> {
+) -> impl Responder {
     let (url,) = path.into_inner();
     let x = args.profile.cluster.as_deref().unwrap();
     let url = format!("{x}/rest/{url}");
@@ -162,7 +162,24 @@ async fn rest_proxy(
     let builder = client.request(method.clone(), url);
     let mut builder = builder.timeout(Duration::from_secs(std::u64::MAX));
     *builder.headers_mut() = req.headers().clone();
-    Ok(HttpResponse::Ok().body(builder.send_stream(body).await?.body().await?))
+    match builder.send_stream(body).await {
+        Ok(mut ok) => match ok.body().limit(1024 * 1024 * 1024).await {
+            Ok(ok) => HttpResponse::Ok().body(ok),
+            Err(err) => {
+                HttpResponse::InternalServerError().json(
+                    RestErrResponse {
+                        code: Code::Failed,
+                        desc: err.to_string(),
+                })
+            }
+        }
+        Err(err) => HttpResponse::InternalServerError().json(
+            RestErrResponse {
+                code: Code::Failed,
+                desc: err.to_string(),
+            }
+        )
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
