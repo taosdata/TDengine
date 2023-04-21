@@ -111,7 +111,7 @@ Active: inactive (dead)
 
 #### 配置文件启动
 
-执行以下命令即可快速体验 taosKeeper。当不指定 taosKeeper 配置文件时，优先使用 `/etc/taos/keeper.toml` 配置，否则将使用默认配置。
+执行以下命令即可快速体验 taosKeeper。当不指定 taosKeeper 配置文件时，优先使用 `/etc/taos/taoskeeper.toml` 配置，否则将使用默认配置。
 
 ```shell
 $ taoskeeper -c <keeper config file>
@@ -156,6 +156,10 @@ database = "log"
 
 # 指定需要监控的普通表
 tables = []
+
+# database options for db storing metrics data
+[metrics.databaseoptions]
+cachemodel = "none"
 ```
 
 ### 获取监控指标
@@ -206,7 +210,7 @@ taos_cluster_info_dnodes_total{cluster_id="5981392874047724755"} 1
 taos_cluster_info_first_ep{cluster_id="5981392874047724755",value="hlb:6030"} 1
 ```
 
-### check_health 
+### check\_health 
 
 ```
 $ curl -i http://127.0.0.1:6043/check_health
