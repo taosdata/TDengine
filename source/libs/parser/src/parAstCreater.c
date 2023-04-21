@@ -1032,6 +1032,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
         snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table_prefix data type");
         pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;        
       }
+      nodesDestroyNode((SNode*)pNode);
       break;
     }
     case DB_OPTION_TABLE_SUFFIX:{
@@ -1042,6 +1043,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
         snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table_suffix data type");
         pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;        
       }
+      nodesDestroyNode((SNode*)pNode);
       break;
     }
     default:
