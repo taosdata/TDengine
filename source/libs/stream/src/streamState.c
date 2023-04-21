@@ -14,7 +14,6 @@
  */
 
 #include "streamState.h"
-#include <bits/stdint-uintn.h>
 #include <string.h>
 #include "executor.h"
 #include "osMemory.h"
@@ -26,7 +25,7 @@
 #include "tcompare.h"
 #include "ttimer.h"
 
-#define MAX_TABLE_NAME_NUM  100000
+#define MAX_TABLE_NAME_NUM 100000
 
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {
@@ -323,7 +322,7 @@ int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, in
 }
 
 bool streamStateCheck(SStreamState* pState, const SWinKey* key) {
-  #ifdef USE_ROCKSDB
+#ifdef USE_ROCKSDB
   return hasRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey));
 #else
   SStateKey sKey = {.key = *key, .opNum = pState->number};
@@ -401,7 +400,7 @@ void streamStateSetNumber(SStreamState* pState, int32_t number) { pState->number
 int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen) {
 #ifdef USE_ROCKSDB
   int32_t code = 0;
-  void* batch = streamStateCreateBatch();
+  void*   batch = streamStateCreateBatch();
   code = streamStatePutBatch(pState, "default", batch, pKey, pVal, vLen);
   if (code != 0) {
     return code;
@@ -410,17 +409,17 @@ int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, vo
   streamStateDestroyBatch(batch);
   return code;
 #else
- return 0;
+  return 0;
 #endif
 }
 
 int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen) {
 #ifdef USE_ROCKSDB
- int32_t code = 0;
- code = streamDefaultGet_rocksdb(pState, pKey, pVal, pLen);
- return code;
+  int32_t code = 0;
+  code = streamDefaultGet_rocksdb(pState, pKey, pVal, pLen);
+  return code;
 #else
- return 0;
+  return 0;
 #endif
 }
 
