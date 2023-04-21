@@ -1,8 +1,20 @@
 <template>
   <el-form style="text-align: left" size="mini" label-width="140px" label-position="left">
     <el-form-item :label="$t('topic.function')">
-      <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini">
+      <!-- <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini">
         <el-option v-for="item in fnList" :key="item.lable" :value="item.label"></el-option>
+      </el-select> -->
+      <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini">
+        <el-option-group
+        v-for="group in fnList"
+        :key="group.label"
+        :label="group.label"
+        >
+        <el-option v-for="item in group.options" :key="item.label" :label="item.label" :value="item.label"
+        :disabled="(parentName=='Stream'&&(item.hasOwnProperty('supportStream')||item.selectDisable))||(parentName=='Topic'&&(item.hasOwnProperty('supportTopic')||item.selectDisable))" 
+        >
+        </el-option>
+        </el-option-group>
       </el-select>
     </el-form-item>
     <template v-if="currentFn && currentFn.filters">
@@ -39,24 +51,27 @@
         default: "",
       },
     },
+    inject:['parentName'],
     components: {},
     data() {
       return {};
     },
     computed: {
       currentFn() {
-        if (this.fnList[0]?.label) {
-          return this.fnList.find(item => item.label == this.result.fn);
+        // if (this.fnList[0]?.label) {
+        //   return this.fnList.find(item => item.label == this.result.fn);
+        // }
+        if(this.fnList.length>0){
+          return this.fnList.map(fn=>fn.options).flat(1).find(item => item.label == this.result.fn)
         }
         return null;
       },
       options() {
-        return this.fieldList.filter(item => item.filed != this.field);
+        return this.fieldList.filter(item => item.field != this.field);
       },
     },
     watch: {},
     created() {},
-    mounted() {},
     methods: {
       getOptions(item) {
         let options = item.options;

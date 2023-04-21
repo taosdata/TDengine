@@ -146,7 +146,6 @@ export default {
           `show topics;`
         )
           .then((res) => {
-            console.log(res)
             let topicList = res.data.map((data) => {
               return Object.fromEntries(
                 res.column_meta.map((item, index) => {
@@ -158,7 +157,6 @@ export default {
               this.topicList.push(item.topic_name);
               this.$set(this.selectedTopicPrivileges, item.topic_name, []);
             });
-            console.log(this.topicList);
           })
           .catch((err) => {
             this.$emit("close")
@@ -217,7 +215,7 @@ export default {
     },
     async grantPrivilege(privileges, dbName) {
       return await sendSQLReq(
-        `GRANT ${privileges} ON ${dbName}.*  to ${this.user}`
+        `GRANT ${privileges} ON \`${dbName}\`.*  to \`${this.user}\``
       ).then((res) => {
         console.log(res)
         return Promise.resolve(res);
@@ -229,7 +227,7 @@ export default {
     },
     async grantTopic(topicName, userName) {
       return await sendSQLReq(
-        `GRANT subscribe ON ${topicName} to ${userName}`
+        `GRANT subscribe ON \`${topicName}\` to \`${userName}\``
       ).then((res) => {
         console.log(res)
         return Promise.resolve(res);
@@ -254,7 +252,7 @@ export default {
     },
     async cancelPrivilege(privilege, dbName) {
       return await sendSQLReq(
-        `REVOKE ${privilege} ON ${dbName}.* FROM ${this.user};`
+        `REVOKE ${privilege} ON \`${dbName}\`.* FROM \`${this.user}\`;`
       )
         .then((res) => {
           console.log(res)
@@ -267,7 +265,7 @@ export default {
     },
     async cancelTopic(topicName) {
       return await sendSQLReq(
-        `REVOKE subscribe ON ${topicName} FROM ${this.user};`
+        `REVOKE subscribe ON \`${topicName}\` FROM \`${this.user}\`;`
       )
         .then((res) => {
           console.log(res)
@@ -333,7 +331,6 @@ export default {
             console.log(error);
           }
         } else {
-          console.log('error submit!!');
           return false;
         }
       });

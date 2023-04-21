@@ -87,8 +87,14 @@
     components: {
       AddForm,
     },
+    provide(){
+      return {
+        parentName:this.name
+      }
+    },
     data() {
       return {
+        name:'Stream',
         isOEM:
         process.env.VUE_APP_CUS_NAME &&
         process.env.VUE_APP_CUS_NAME !== "TDengine",

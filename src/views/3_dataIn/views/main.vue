@@ -52,7 +52,7 @@ export default {
     clickTab(){
       this.$refs.dbsource.currentName='dbsource'
       if(this.active=='datasource'){
-        // this.$refs.dbsource.getData()
+        this.$refs.dbsource.getData()
         this.$refs.dbsource.reloadTable()
       }
     }

@@ -248,6 +248,7 @@ export default {
     cluster: 'Cluster'
   },
   login: {
+    versiontip:'Only enterprise edition is supported!',
     signin: 'Sign In',
     taosxtip: `Please configure Taosx in /etc/${taosname}/explorer.toml first`,
     loginTitle: 'Log in Explorer',
@@ -1590,6 +1591,39 @@ export default {
       step6desc: "The following are full sample codes about how to consume the shared topic `{0}`:",
       enddesc: "For more details about data subscription, please refer to",
       enddesc1: ".",
+    },
+    dashboard:{
+      dashboarddesc:`We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here。You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>  to install <a href='https://grafana.com/'>Grafana</a>。`,
+      step1:'Installing Grafana',
+      step2:'Install the TDengine data source plugin',
+      step3:'Start the Grafana service',
+      step4:'Logging into Grafana',
+      step5:'Adding a TDengine Data Source',
+      step6:'Importing dashboards',
+      tab1:'Installing Grafana on Debian or Ubuntu',
+      tab2:'Install Grafana on CentOS / RHEL',
+      tab2sub:'Or install it with RPM package.',
+      pluginname1:'Set up TDinsight manually',
+      pluginname2:'Automated deployment of TDinsight',
+      plugin1:'Install the latest version of the TDengine Data Source plugin from GitHub.',
+      plugin2:`We provide an installation script <code>TDinsight.sh</code> to allow users to configure the installation automatically and quickly.<br/>
+
+      You can download the script via wget or other tools:`,
+      pluginsub2:`This script will automatically download the latest <a href='https://github.com/taosdata/grafanaplugin/releases/tag/v3.3.2'>Grafana TDengine data source plugin</a> and <a href='https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json'>TDinsight dashboard</a> with configurable parameters for command-line options to the <a href='https://grafana.com/docs/grafana/latest/administration/provisioning/'>Grafana Provisioning</a> configuration file to automate deployment and updates, etc.With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.`,
+      
+      logingrafana:`Open the default Grafana URL in a web browser:<code>http://localhost:3000</code>. The default username/password is  <code>admin</code>.Grafana will require a password change after the first login.`,
+     
+      nav:`Point to the <strong>Configurations -> Data Sources</strong> menu, and click the <strong>Add data source</strong> button.`,
+      subsearch:'Search for and select<strong> TDengine</strong>。',
+      settingtd:'Configure the TDengine datasource.',
+      savetest:"Save and test. It will report 'TDengine Data source is working' under normal circumstances.",
+      
+      import:`In the page of configuring data source, click<strong> Dashboards</strong> tab.`,
+      cont1:'Choose <code>TDengine for 3.x</code>and click <code>import</code>.',
+      cont2:`After the importing is done, <code>TDinsight for 3.x</code> dashboard is available on the page of <code>search dashboards by name</code>.`,
+      cont3:'In the <code>TDinsight for 3.x</code> dashboard, choose the database used by taosKeeper to store monitoring data. ',
+      cont4:'You can see the monitoring result.'
+      
     }
   },
   component: {
@@ -1775,5 +1809,15 @@ export default {
   taosx500: 'The Taosx API cannot be accessed. Please check the Taosx service status',
   header: {
     version: `${oem} Server Version`
+  },
+  explorerfns:{
+    NumbericFn:'Mathematical Functions',
+    StringFn:'Concatenation Functions',
+    CoversionFn:'Conversion Functions',
+    DatetimeFN:'Time and Date Functions',
+    AggregationFn:'Aggregate Functions',
+    SelectorFn:'Selection Functions',
+    SeriesSpecificFn:'Time-Series Extensions',
+    SystemFn:'System Information Functions'
   }
 };

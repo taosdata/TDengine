@@ -26,7 +26,7 @@
       <el-form-item :label="$t('topic.topicName')" required prop="topic_name">
         <el-input v-model="info.topic_name"> </el-input>
       </el-form-item>
-      <SQuery
+      <!-- <SQuery
         ref="subquery"
         :dbList.sync="dbList"
         :fieldSet="fieldSet"
@@ -63,7 +63,24 @@
             </el-radio-group>
           </el-form-item>
         </template>
-      </SQuery>
+      </SQuery> -->
+       <Subquery ref="subquery" :dbList.sync="dbList" :fieldSet="fieldSet" :level="subqueryLevel" :info="info">
+        <template #db-bottom>
+          <el-form-item :label="$t('type')" prop="topic_type" required>
+            <el-radio-group size="small" v-model="info.topic_type">
+              <el-radio-button label="DATABASE">{{ $t("stream.databaseUpper") }}</el-radio-button>
+              <el-radio-button label="STABLE">{{ $t("stream.stableUpper") }}</el-radio-button>
+              <el-radio-button label="SUBQUERY">{{ $t("stream.subqueryUpper") }}</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item v-if="info.topic_type == 'SUBQUERY'" :label="$t('stream.tableType')" prop="table_type" required>
+            <el-radio-group size="small" v-model="info.table_type">
+              <el-radio-button label="STABLE">{{ $t("stream.stableUpper") }}</el-radio-button>
+              <el-radio-button label="TABLE">{{ $t("stream.tableUpper") }}</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+        </template>
+      </Subquery>
       <!-- <el-form-item :label="$t('topic.conditionSet')"></el-form-item> -->
     </template>
     <p v-if="errorText" class="errorText">{{ errorText }}</p>
@@ -113,6 +130,7 @@
 
 <script>
 import SQuery from "./subscribeQuery.vue";
+import Subquery from "./subquery.vue";
 import SQLEditor from "./sqlEditor.vue";
 import { createTopic } from "@/api/topic";
 // const infoValidaterField = ["topic_name", "topic_type", "db_name"];
@@ -123,7 +141,7 @@ export default {
       default: () => [],
     },
   },
-  components: { SQLEditor, SQuery },
+  components: { SQLEditor, SQuery,Subquery },
   data() {
     const validateTopicName = (_, val, callback) => {
       if (!val) {
@@ -234,7 +252,8 @@ export default {
         // };
         params=this.previewSql
       } else {
-        params = this.handleSQLParams();
+        let sqlobj = this.handleSQLParams();
+        params=sqlobj.topic_sql
       }
       this.requestIng = true;
       createTopic(params)
@@ -266,7 +285,7 @@ export default {
         topic_type = "SUBQUERY";
       }
       let database_id = database
-        ? this?.dbList.find((item) => item.name === database)?.databaseId
+        ? this?.dbList.find((item) => item.name === database)?.name
         : "";
       if (!database_id) {
         this.errorText = this.$t("dbNotExists").replace(
@@ -291,19 +310,19 @@ export default {
             if (this.info.topic_type == "DATABASE") {
               this.previewSql =
                 this.sqlPrefix +
-                this.info.topic_name +
-                "  with meta AS DATABASE `" +
+               "`"+this.info.topic_name +"`"+
+                "  WITH META AS DATABASE `" +
                 dbname +
                 "`";
             } else if (this.info.topic_type == "STABLE") {
               this.previewSql =
                 this.sqlPrefix +
-                this.info.topic_name +
+                "`"+this.info.topic_name +"`"+
                 ` with meta AS STABLE \`${dbname}\`.\`${this.info.stbName}\``;
             } else {
               const subquery = this.$refs.subquery.getResultSet() || "";
               this.previewSql =
-                this.sqlPrefix + this.info.topic_name + " AS " + subquery;
+                this.sqlPrefix + "`"+this.info.topic_name+"`" + " AS " + subquery;
             }
             if (show) this.dialog = true;
             resolve(this.previewSql);

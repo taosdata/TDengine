@@ -313,7 +313,6 @@ export default {
   created() {
     this.getDatabases();
     this.getReplication();
-    console.log('初始化replication');
   },
 };
 </script>

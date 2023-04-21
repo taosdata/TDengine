@@ -3,7 +3,7 @@
 node_modules
 dist/
 *.zip
-
+.env.dev
 # local env files
 *.local
 

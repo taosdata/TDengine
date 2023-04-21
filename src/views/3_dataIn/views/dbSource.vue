@@ -7,7 +7,7 @@
       :editId="editId"
       :dbName="dbName"
       :tagName="tagName"
-      :protocol='protocol'
+      :protocol="protocol"
       :isEditable="isEditable"
       ref="table"
     ></component>
@@ -28,7 +28,7 @@ export default {
   },
   data() {
     return {
-      protocol:'ua',//只针对opc的ua/da
+      protocol: "ua", //只针对opc的ua/da
       tagName: "datasource",
       currentName: "",
       sourceList: [],
@@ -45,11 +45,10 @@ export default {
     async getData() {
       try {
         await getUIData().then((result) => {
-          this.sourceList =  result;
+          this.sourceList = result;
         });
         this.$parent.$parent.$parent.sourceDisabled = false;
       } catch (error) {
-        console.log(error,'报错信息');
         if (error.response.status == 404) {
           this.$parent.$parent.$parent.sourceDisabled = true;
         }
@@ -58,14 +57,14 @@ export default {
         }
       }
     },
-    toggleComponent(type, id,editid, dbname) {
+    toggleComponent(type, id, editid, dbname) {
       // this.currentName = name;
 
       if (type) {
         //新增
-        
+
         let data = this.sourceList.filter((item) => item.id === type);
-        this.uidata = type=='opc'?data: this.deepClone(data);
+        this.uidata = type == "opc" ? data : this.deepClone(data);
         this.isEditable = false;
         switch (type) {
           case "tmq":
@@ -74,26 +73,26 @@ export default {
             break;
           case "opcua":
             this.currentName = "opcui";
-            this.protocol='ua'
+            this.protocol = "ua";
             break;
           case "opcda":
             this.currentName = "opcui";
-            this.protocol='da'
+            this.protocol = "da";
             break;
           case "pi":
             this.currentName = "ui";
             this.tagName = "pi";
             break;
-          case 'pitable':
-            this.currentName='dbsource'
+          case "pitable":
+            this.currentName = "dbsource";
             this.tagName = "pi";
             break;
-          case 'tmqtable':
-            this.currentName='dbsource'
+          case "tmqtable":
+            this.currentName = "dbsource";
             this.tagName = "datasource";
             break;
-          case 'opctable':
-            this.currentName='dbsource'
+          case "opctable":
+            this.currentName = "dbsource";
             this.tagName = "opc";
         }
       } else {
@@ -104,20 +103,19 @@ export default {
             break;
           case "opcua":
             this.currentName = "opcui";
-            this.tagName='opc'
-            this.protocol='ua'
+            this.tagName = "opc";
+            this.protocol = "ua";
             break;
           case "opcda":
             this.currentName = "opcui";
-            this.tagName='opc'
-            this.protocol='da'
+            this.tagName = "opc";
+            this.protocol = "da";
             break;
           case "pi":
             this.currentName = "ui";
             this.tagName = "pi";
             break;
         }
-        console.log(id,'编辑',this.currentName);
         this.isEditable = true;
         this.editId = editid;
         this.dbName = dbname;
@@ -164,11 +162,13 @@ export default {
       });
       return targetObj;
     },
-    reloadTable(){
-      if(this.currentName=='dbsource'&&this.$refs.table){
-        this.$refs.table.refresh()
+    reloadTable() {
+      if (this.currentName == "dbsource" && this.$refs.table) {
+        this.$nextTick(() => {
+          this.$refs.table.refresh();
+        });
       }
-    }
+    },
   },
 };
 </script>

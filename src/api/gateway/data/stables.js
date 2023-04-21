@@ -20,7 +20,7 @@ export function getStableListReq(params, dbName) {
 
 export function deleteStableReq(payload) {
   let { selected_db, stableName } = payload;
-  return sendSQLReq(`DROP STABLE ${selected_db}.${stableName};`).catch(err => {
+  return sendSQLReq(`DROP STABLE \`${selected_db}\``+'.'+`\`${stableName}\`;`).catch(err => {
     
     return Promise.reject(err);
   });
@@ -28,7 +28,7 @@ export function deleteStableReq(payload) {
 
 export function getStableStructReq(payload) {
   let { selected_db, stableName } = payload;
-  return sendSQLReq(`DESCRIBE ${selected_db}.${stableName};`, true)
+  return sendSQLReq(`DESCRIBE  \`${selected_db}\`` +'.'+`\`${stableName}\`;`, true)
     .then(list => {
       let ts_field_name = list[0]?.field;
       let columns = [];
@@ -81,7 +81,7 @@ export function createStableReq(payload) {
 export function changeStableStruct(data, stableName) {
   let { operation, first_field = "", second_field = "" } = data;
   let sql = "";
-  sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field};`;
+  sql = `ALTER STABLE  \`${stableName}\` ${operation} \`${first_field}\` ${second_field};`;
   return sendSQLReq(sql).catch(err => {
     return Promise.reject(err);
   });

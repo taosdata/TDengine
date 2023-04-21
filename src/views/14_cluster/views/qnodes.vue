@@ -1,7 +1,7 @@
 <template>
   <div class="qnode-block">
     <div class="flexEnd">
-      <el-button plain @click="add" size="small" icon="el-icon-plus">{{
+      <el-button plain @click="add" size="small" icon="el-icon-plus" :disabled='!isDisable'>{{
         $t("add")
       }}</el-button>
     </div>
@@ -22,6 +22,7 @@
             size="small"
             @click="del(scope.row)"
             icon="el-icon-delete"
+            :disabled='!isDisable'
           ></el-button>
         </template>
       </el-table-column>
@@ -107,6 +108,7 @@ export default {
   data() {
     return {
       qnodesList: [],
+      isDisable:localStorage.getItem('username')==='root',
     };
   },
   computed: {

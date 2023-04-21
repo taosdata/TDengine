@@ -214,7 +214,7 @@ export default {
       // if (await isStableExist(val, this.info.target_db)) {
       //   callback(new Error(this.$t("stream.stableExist")));
       // } else {
-        callback();
+      callback();
       // }
     };
     return {
@@ -351,9 +351,6 @@ export default {
       );
     },
   },
-  watch: {},
-  created() {},
-  mounted() {},
   methods: {
     async handlecreateStream() {
       this.errorText = "";
@@ -393,7 +390,14 @@ export default {
           if (valid) {
             try {
               const subquery = this.$refs.subquery.getResultSet() || "";
-              let previewSql = this.sqlPrefix + "`" + this.info.stream_name + "`" + " TRIGGER " + this.info.trigger + " ";
+              let previewSql =
+                this.sqlPrefix +
+                "`" +
+                this.info.stream_name +
+                "`" +
+                " TRIGGER " +
+                this.info.trigger +
+                " ";
               if (this.info.trigger === "MAX_DELAY") {
                 previewSql +=
                   this.info.max_delay_time + this.info.max_delay_unit;
@@ -414,7 +418,6 @@ export default {
                 previewSql += ` SUBTABLE(CONCAT('${this.info.subtale}',tbname))`;
               }
               previewSql += " AS " + subquery;
-              console.log(subquery,'subquerysubquerysubquery');
               if (this.info.parttionSet) {
                 previewSql += " PARTITION BY " + this.info.parttionSet;
               }
@@ -481,14 +484,14 @@ export default {
   }
 }
 :deep {
-    .el-input-number__increase,
-    .el-input-number__decrease {
-      height: 30px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
+  .el-input-number__increase,
+  .el-input-number__decrease {
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
+}
 </style>
 <style>
 .show-topic-sql .pre-code {
@@ -498,4 +501,11 @@ export default {
   white-space: break-spaces;
 }
 
+.el-input-number__increase,
+.el-input-number__decrease {
+  height: 26px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 </style>

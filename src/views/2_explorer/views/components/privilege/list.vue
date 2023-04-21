@@ -245,7 +245,7 @@ export default {
         }
       ).then(async () => {
         this.requesting = true;
-        sendSQLReq(`REVOKE ${data.privilege} ON ${this.$store.state.dbs.selected_db} FROM ${data.user_name}`).then(res=>{
+        sendSQLReq(`REVOKE ${data.privilege} ON \`${this.$store.state.dbs.selected_db}\` FROM \`${data.user_name}\``).then(res=>{
           
           if(res&&res.rows==1){
             Message.success('Opeartion Successfully')

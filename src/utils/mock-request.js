@@ -2,7 +2,6 @@ import axios from "axios";
 import store from "../store";
 const request = axios.create({
   baseURL: process.env.VUE_APP_MOCK_URL,
-  timeout: 10000,
   headers: {
     "Accept-Language": "q=0.8, " + store?.getters?.language,
     "Content-Type": "application/json",

@@ -186,6 +186,7 @@ export default {
     replication: "数据复制",
   },
   login: {
+    versiontip:'仅支持企业版本!',
     signin:'登录',
     taosxtip:`请先在 /etc/${taosname}/explorer.toml 中配置Taosx`,
     username:'用户名',
@@ -1304,7 +1305,27 @@ export default {
       tab1:'基于 Debian 或 Ubuntu 系统',
       tab2:'基于 CentOS / RHEL 系统',
       tab2sub:'或者用 RPM 安装',
-      tab3:'安装 TDengine 数据源插件'
+      pluginname1:'手动设置 TDinsight',
+      pluginname2:'自动部署 TDinsight',
+      plugin1:'从 GitHub 安装 TDengine 最新版数据源插件。',
+      plugin2:`我们提供了一个自动化安装脚本 TDinsight.sh 脚本以便用户快速进行安装配置。<br/>
+
+      您可以通过 wget 或其他工具下载该脚本：`,
+      pluginsub2:`这个脚本会自动下载最新的<a href='https://github.com/taosdata/grafanaplugin/releases/tag/v3.3.2'>Grafana TDengine 数据源插件</a> 和 <a href='https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json'>TDinsight 仪表盘</a> ，将命令行选项中的可配置参数转为 <a href='https://grafana.com/docs/grafana/latest/administration/provisioning/'>Grafana Provisioning</a> 配置文件，以进行自动化部署及更新等操作。利用该脚本提供的告警设置选项，你还可以获得内置的阿里云短信告警通知支持。`,
+      
+      logingrafana:`在 Web 浏览器中打开默认的 Grafana 网址：<code>http://localhost:3000</code>。 默认用户名/密码都是 <code>admin</code>。Grafana 会要求在首次登录后更改密码。`,
+     
+      nav:`指向 <strong>Configurations -> Data Sources</strong> 菜单，然后点击 <strong>Add data source</strong> 按钮。`,
+      subsearch:'搜索并选择<strong>TDengine</strong>。',
+      settingtd:'配置 TDengine 数据源。',
+      savetest:"保存并测试，正常情况下会报告 'TDengine Data source is working'。",
+      
+      import:`在配置 TDengine 数据源界面，点击 <strong>Dashboards</strong> tab。`,
+      cont1:'选择 <code>TDengine for 3.x</code>，并点击 <code>import</code>。',
+      cont2:`导入完成后，在搜索界面已经出现了 <strong>TDinsight for 3.x</strong> dashboard。`,
+      cont3:'进入 TDinsight for 3.x dashboard 后，选择 taosKeeper 中设置的记录监控指标的数据库。',
+      cont4:'然后可以看到监控结果。'
+      
     }
   },
   health: {
@@ -1501,5 +1522,15 @@ export default {
   taosx500:'TaosX API 无法访问，请检查 taosx 服务状态',
   header:{
     version:`${oem}服务版本`
+  },
+  explorerfns:{
+    NumbericFn:'数学函数',
+    StringFn:'字符串函数',
+    CoversionFn:'转换函数',
+    DatetimeFN:'时间和日期函数',
+    AggregationFn:'聚合函数',
+    SelectorFn:'选择函数',
+    SeriesSpecificFn:'时序数据特有函数',
+    SystemFn:'系统信息函数'
   }
 };

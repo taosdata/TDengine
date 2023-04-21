@@ -26,7 +26,7 @@ export function searchTable(prefix, dbname) {
 
 export function deleteTableReq(payload) {
   let { selected_db, tableName } = payload;
-  return sendSQLReq(`DROP TABLE ${selected_db}.${tableName};`).catch(err => {
+  return sendSQLReq(`DROP TABLE \`${selected_db}\``+'.'+`\`${tableName}\`;`).catch(err => {
    
     return Promise.reject(err);
   });
@@ -38,14 +38,14 @@ export function createTableReq(payload) {
   // 以超级表为模版创建表
   if (tags && tags.length > 0) { //创建超级表的子表
     return sendSQLReq(
-      `CREATE TABLE ${selected_db}.${name} USING ${selected_db}.${stbTmpl} (${tags.map(item => `\`${item.field}\``).join(",")}) TAGS (${tags
+      `CREATE TABLE \`${selected_db}\``+'.'+`\`${name}\` USING \`${selected_db}\``+'.'+`\`${stbTmpl}\` (${tags.map(item => `\`${item.field}\``).join(",")}) TAGS (${tags
         .map(item => handleStringTagValue(item))
         .join(",")});`
     ).catch(err => {
       return Promise.reject(err);
     });
   } else {
-    return sendSQLReq(`CREATE TABLE ${selected_db}.${name} (${columns.map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
+    return sendSQLReq(`CREATE TABLE \`${selected_db}\``+'.'+`\`${name}\` (${columns.map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
     'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")});`).catch(err => {
       
       return Promise.reject(err);
@@ -59,7 +59,7 @@ export function createTableReq(payload) {
 export function changeTableStruct(data, tableName) {
   let { operation, first_field = "", second_field = "" } = data;
   let sql = "";
-  sql = `ALTER TABLE  ${tableName} ${operation} ${first_field} ${second_field};`;
+  sql = `ALTER TABLE   \`${tableName}\` ${operation} ${first_field} ${second_field};`;
   return sendSQLReq(sql).catch(err => {
     return Promise.reject(err);
   });
@@ -68,8 +68,9 @@ export function changeTableStruct(data, tableName) {
 // 获取表的tag value
 export function getTagValue(tags, database, stable_name, table_name) {
   if (!tags.length) return Promise.resolve({});
+ 
   return sendSQLReq(
-    `SELECT DISTINCT tbname,${tags.map(item => `\`${item.field}\``).join(",")} from ${database}.${stable_name} where tbname='${table_name}';`,
+    `SELECT DISTINCT tbname,${tags.map(item => `\`${item.field}\``).join(",")} from \`${database}\``+'.'+`\`${stable_name}\` where tbname=\`${table_name}\`;`,
     true
   )
     .then(data => {
@@ -86,7 +87,7 @@ export function getTagValue(tags, database, stable_name, table_name) {
 
 export function getMatrixStructReq(payload) {
   let { selected_db, selected_tb } = payload;
-  return sendSQLReq(`DESCRIBE ${selected_db}.${selected_tb};`, true)
+  return sendSQLReq(`DESCRIBE \`${selected_db}\``+'.'+`\`${selected_tb}\`;`, true)
     .then(res => handleColumnData(res, "tag"))
     .catch(() => []);
 }
@@ -120,14 +121,13 @@ function handleStringTagValue(tag) {
 
 export function getTableStructReq(payload) {
   let { selected_db, tableName } = payload;
-  return sendSQLReq(`DESCRIBE ${selected_db}.${tableName};`, true)
+  return sendSQLReq(`DESCRIBE \`${selected_db}\``+'.'+`\`${tableName}\`;`, true)
     .then(list => {
       let ts_field_name = list[0]?.field;
       let columns = [];
       let tags = [];
       for (let i = 1; i < list.length; i++) {
         const item = list[i];
-        console.log(item,'普通表结构');
         if (item.note == "TAG") {
           tags.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
         } else {

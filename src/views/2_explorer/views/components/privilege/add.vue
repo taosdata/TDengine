@@ -88,7 +88,6 @@ export default {
       }
     },
     add() {
-      console.log("增加权限", this.checkList, this.$store.state);
       try {
         this.$refs.form.validate(async (valid) => {
           if (valid) {
@@ -99,12 +98,6 @@ export default {
             let grantStr = grantArr.includes("ALL")
               ? "ALL"
               : grantArr.filter((val) => val !== "ALL").join(",");
-            console.log(
-              this.grantMap.get("Database Admin"),
-              "map",
-              grantStr,
-              grantArr
-            );
             let sql = `grant ${grantStr}  ON ${this.$store.state.dbs.selected_db}.* TO ${this.info.user_name};`;
             await sendSQLReq(sql).then((res) => {
               if (res && res.rows == 1) {

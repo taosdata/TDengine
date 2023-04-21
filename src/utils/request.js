@@ -94,7 +94,6 @@ request.interceptors.response.use(
       }
     }
 
-    console.log(error.config, error.response, '监控taosx');
     return Promise.reject(error);
   }
 );

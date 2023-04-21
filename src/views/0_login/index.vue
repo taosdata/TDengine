@@ -387,12 +387,12 @@ export default {
                 path: "/explorer",
               });
             } else {
-              Message.error("Only enterprise edition is supported!");
+              Message.error(this.$t('login.versiontip'));
             }
           }
         });
       } catch (err) {
-        Message.error("Only enterprise edition is supported");
+        Message.error(this.$t('login.versiontip'));
       }
     },
   },
@@ -409,7 +409,7 @@ export default {
       ) {
         let dynamic = document.querySelector(".dynamic-title");
         dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
-        console.log(dynamic, "---", process.env.VUE_APP_CUS_NAME);
+        
       }
     });
   },

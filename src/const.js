@@ -362,11 +362,11 @@ export const AppIDKey = "AppID";
 export const TokenKey = "TDengine-Token";
 export const BusinessEmail = "business@tdengine.com";
 
-export const StreamDocsUrl =navigator.language.includes('en')? "https://docs.tdengine.com/develop/stream/":'https://docs.taosdata.com/develop/stream/';
+export const StreamDocsUrl = navigator.language.includes('en') ? "https://docs.tdengine.com/develop/stream/" : 'https://docs.taosdata.com/develop/stream/';
 export const DocsUrl = "https://docs.tdengine.com"
 
 export const TdengineVersion = "3.0.3.2";
-export const SubscriptionDocsUrl =navigator.language.includes('en')? "https://docs.tdengine.com/taos-sql/tmq/#create-a-topic":'https://docs.taosdata.com/taos-sql/tmq/#create-a-topic';
+export const SubscriptionDocsUrl = navigator.language.includes('en') ? "https://docs.tdengine.com/taos-sql/tmq/#create-a-topic" : 'https://docs.taosdata.com/taos-sql/tmq/#create-a-topic';
 export const TDengineTimeUnit = [
   {
     label: "nanosecond",
@@ -425,37 +425,48 @@ export const $bus = mitt();
 
 export const CustomShellContent = ["Welcome to TDengine "];
 
+export const IntegerType=['int','int unsinged','bigint','bigint unsinged','float','double','smallint',
+'smallint unsigned','tinyint','tinyint unsinged']
+export const StringType=['varchar','nchar','binary']
 // 数学函数
 export const NumbericFn = [
   {
     label: "ABS",
+    supportDatatype:IntegerType
   },
   {
     label: "ACOS",
+    supportDatatype:IntegerType
   },
   {
     label: "ASIN",
+    supportDatatype:IntegerType
   },
   {
     label: "ATAN",
+    supportDatatype:IntegerType
   },
   {
     label: "CEIL",
+    supportDatatype:IntegerType
   },
   {
     label: "COS",
+    supportDatatype:IntegerType
   },
   {
     label: "FLOOR",
+    supportDatatype:IntegerType
   },
   {
     label: "LOG",
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "select",
         label: "Log Filed",
         options() {
-          return this.fieldList.filter(item => item.filed != this.field);
+          return this.fieldList.filter(item => item.field != this.field);
         },
         placeholder: "Select Filed",
         field: "logFiled",
@@ -465,12 +476,13 @@ export const NumbericFn = [
   },
   {
     label: "POW",
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "select",
         label: "Pow Filed",
         options() {
-          return this.fieldList.filter(item => item.filed != this.field);
+          return this.fieldList.filter(item => item.field != this.field);
         },
         placeholder: "Select Filed",
         field: "powFiled",
@@ -480,33 +492,39 @@ export const NumbericFn = [
   },
   {
     label: "ROUND",
+    supportDatatype:IntegerType
   },
   {
     label: "SIN",
+    supportDatatype:IntegerType
   },
   {
     label: "SQRT",
+    supportDatatype:IntegerType
   },
   {
     label: "TAN",
+    supportDatatype:IntegerType
   },
 ];
 // 字符串函数
 export const StringFn = [
   {
     label: "CHAR_LENGTH",
+    supportDatatype:StringType
   },
   {
     label: "CONCAT",
+    supportDatatype:StringType,
     filters: [
       {
         type: "select",
-        label: "Concat Fileds",
+        label: "Concat Fields",
         multiple: true,
         options() {
-          return this.fieldList.filter(item => item.filed != this.field).map(item => ({ label: item.filed, value: item.filed }));
+          return this.fieldList.filter(item => item.field != this.field).map(item => ({ label: item.field, value: item.field }));
         },
-        placeholder: "Select Fileds",
+        placeholder: "Select Fields",
         field: "concatFields",
         defaultValue: [],
       },
@@ -514,22 +532,23 @@ export const StringFn = [
   },
   {
     label: "CONCAT_WS",
+    supportDatatype:StringType,
     filters: [
       {
         type: "input",
-        label: "Separator",
-        placeholder: "Separator_expr",
-        field: "separator",
+        label: "Separator Fields",
+        placeholder: "Separator Fields",
+        field: "separatorFields",
         defaultValue: "",
       },
       {
         type: "select",
-        label: "Concat Fileds",
+        label: "Concat Fields",
         multiple: true,
         options() {
-          return this.fieldList.filter(item => item.filed != this.field).map(item => ({ label: item.filed, value: item.filed }));
+          return this.fieldList.filter(item => item.field != this.field).map(item => ({ label: item.field, value: item.field }));
         },
-        placeholder: "Select Fileds",
+        placeholder: "Select Fields",
         field: "concatFields",
         defaultValue: [],
       },
@@ -537,24 +556,29 @@ export const StringFn = [
   },
   {
     label: "LENGTH",
+    supportDatatype:StringType
   },
   {
     label: "LOWER",
+    supportDatatype:StringType
   },
   {
     label: "LTRIM",
+    supportDatatype:StringType
   },
   {
     label: "RTRIM",
+    supportDatatype:StringType
   },
   {
     label: "SUBSTR",
+    supportDatatype:StringType,
     filters: [
       {
         type: "number",
-        label: "position",
-        placeholder: "Separator_expr",
-        field: "pos",
+        label: "Position Fields",
+        placeholder: "Position Fields",
+        field: "posFields",
         defaultValue: "",
       },
       {
@@ -568,64 +592,44 @@ export const StringFn = [
   },
   {
     label: "UPPER",
+    supportDatatype:StringType
   },
 ];
 
 // 转换函数
 export const CoversionFn = [
-  // "CAST",
-  "TO_ISO0861",
-  "TO_JSON",
-  "TO_UNIXTIMESTAMP",
+  {
+    label: "CAST",
+    supportDatatype:StringType.concat(IntegerType)
+  },
+  {
+    label: "TO_ISO0861",
+    supportDatatype:['int','timestamp']
+  },
+  {
+    label: "TO_JSON",
+    supportDatatype:['json']
+  },
+  {
+    label: "TO_UNIXTIMESTAMP",
+    supportDatatype:['varchar','nchar']
+  }
 ];
 // 时间和日期函数
-export const DatetimeFN = ["NOW", "TIMEDIFF", "TIMETRUNCATE", "TIMEZONE", "TODAY"];
-// 聚合函数
-export const AggregationFn = [
+export const DatetimeFN = [
   {
-    label: "APERCENTILE",
+    label: "NOW",
+    supportDatatype:['timestamp']
+  },
+  {
+    label: "TIMEDIFF",
+    supportDatatype:['timestamp'],
     filters: [
       {
-        type: "number",
-        label: "p",
-        placeholder: "p",
-        min: 0,
-        max: 100,
-        field: "p",
-        defaultValue: 0,
-      },
-      {
-        type: "select",
-        label: "algo_type",
-        options: [
-          {
-            label: "default",
-            value: "default",
-          },
-          {
-            label: "t-digest",
-            value: "t-digest",
-          },
-        ],
-        placeholder: "algo_type",
-        field: "algo_type",
-        defaultValue: "default",
-      },
-    ],
-  },
-  {
-    label: "AVG",
-  },
-  {
-    label: "COUNT",
-  },
-  {
-    label: "ELAPSED",
-    include: ["TIMESTAMP"],
-    filters: [
-      {
-        type: "select",
-        label: "time_unit",
+        type: 'string',
+        label: 'TimeUnit Fields',
+        placeholder: 'TimeUnit Fields',
+        field: 'timeunitFields',
         options: [
           {
             label: "nanosecond",
@@ -660,57 +664,230 @@ export const AggregationFn = [
             value: "1w",
           },
         ],
-        placeholder: "time_unit",
-        field: "time_unit",
+      }
+    ]
+  },
+  {
+    label: "TIMETRUNCATE",
+    supportDatatype:['timestamp'],
+    filters: [
+      {
+        type: 'string',
+        label: 'TimeUnit Fields',
+        placeholder: 'TimeUnit Fields',
+        field: 'timeunitFields',
+        options: [
+          {
+            label: "nanosecond",
+            value: "1b",
+          },
+          {
+            label: "microsecond",
+            value: "1u",
+          },
+          {
+            label: "millsecond",
+            value: "1a",
+          },
+          {
+            label: "second",
+            value: "1s",
+          },
+          {
+            label: "minute",
+            value: "1m",
+          },
+          {
+            label: "hour",
+            value: "1h",
+          },
+          {
+            label: "day",
+            value: "1d",
+          },
+          {
+            label: "week",
+            value: "1w",
+          },
+        ],
+      },
+      {
+        type: 'number',
+        label: 'ignore_timezone',
+        placeholder: 'ignore_timezone',
+        defaultValue: 1,
+        field: 'ignore_timezone'
+      }
+    ]
+  },
+  {
+    label: "TIMEZONE",
+    supportDatatype:['timestamp']
+  },
+  {
+    label: "TODAY",
+    supportDatatype:['timestamp']
+  }
+];
+// 聚合函数
+export const AggregationFn = [
+  {
+    label: "APERCENTILE",
+    supportTopic:false,
+    supportDatatype:IntegerType,
+    filters: [
+      {
+        type: "number",
+        label: "p",
+        placeholder: "p",
+        min: 0,
+        max: 100,
+        field: "p",
+        defaultValue: 0,
+      },
+      {
+        type: "select",
+        label: "algo_type",
+        options: [
+          {
+            label: "default",
+            value: "default",
+          },
+          {
+            label: "t-digest",
+            value: "t-digest",
+          },
+        ],
+        placeholder: "algo_type",
+        field: "algo_type",
+        defaultValue: "default",
+      },
+    ],
+  },
+  {
+    label: "AVG",
+    supportTopic:false,
+    supportDatatype:IntegerType,
+  },
+  {
+    label: "COUNT",
+    supportTopic:false,
+    supportDatatype:['all'],
+  },
+  {
+    label: "ELAPSED",
+    supportTopic:false,
+    supportStream: false,
+    supportDatatype:['timestamp'],
+    include: ["TIMESTAMP"],
+    filters: [
+      {
+        type: "select",
+        label: "TimeUnit Fields",
+        options: [
+          {
+            label: "nanosecond",
+            value: "1b",
+          },
+          {
+            label: "microsecond",
+            value: "1u",
+          },
+          {
+            label: "millsecond",
+            value: "1a",
+          },
+          {
+            label: "second",
+            value: "1s",
+          },
+          {
+            label: "minute",
+            value: "1m",
+          },
+          {
+            label: "hour",
+            value: "1h",
+          },
+          {
+            label: "day",
+            value: "1d",
+          },
+          {
+            label: "week",
+            value: "1w",
+          },
+        ],
+        placeholder: "TimeUnit Fields",
+        field: "timeunitFields",
         defaultValue: "",
       },
     ],
   },
   {
     label: "LEASTSQUARES",
+    supportStream: false,
+    supportTopic:false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
-        label: "start_val",
-        placeholder: "start_val",
+        label: "Start Fields",
+        placeholder: "Start Fields",
         min: 0,
-        field: "start_val",
+        field: "startFields",
         defaultValue: 0,
       },
       {
         type: "number",
-        label: "step_val",
-        placeholder: "step_val",
+        label: "Step Fields",
+        placeholder: "Step Fields",
         min: 0,
-        field: "step_val",
+        field: "stepFields",
         defaultValue: 0,
       },
     ],
   },
   {
     label: "MODE",
+    supportTopic:false,
+    supportStream: false,
+    supportDatatype:['all']
   },
   {
     label: "SPREAD",
+    supportTopic:false,
+    supportDatatype:['int','timestamp']
   },
   {
     label: "STDDEV",
+    supportTopic:false,
+    supportDatatype:IntegerType
   },
   {
     label: "SUM",
+    supportTopic:false,
+    supportDatatype:IntegerType
   },
   {
     label: "HYPERLOGLOG",
+    supportTopic:false,
+    supportDatatype:['all']
   },
   {
     label: "HIPERLOGLOG",
+    supportTopic:false,
+    supportDatatype:['all']
   },
   {
     label: "HISTOGRAM",
+    supportTopic:false,
+    supportStream: false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "select",
-        label: "bin_type",
+        label: "BinType Fields",
         options: [
           {
             label: "user_input",
@@ -725,21 +902,24 @@ export const AggregationFn = [
             value: "log_bin",
           },
         ],
-        placeholder: "bin_type",
-        field: "bin_type",
+        placeholder: "BinType Fields",
+        field: "bintypeFields",
         defaultValue: "",
       },
       {
         type: "input",
-        label: "bin_description",
-        placeholder: "bin_description",
-        field: "bin_description",
+        label: "Description Fields",
+        placeholder: "Description Fields",
+        field: "descriptionFields",
         defaultValue: "",
       },
     ],
   },
   {
     label: "PERCENTILE",
+    supportTopic:false,
+    supportStream: false,
+    supportDatatype:IntegerType,
     filters: [
       {
         type: "number",
@@ -755,23 +935,379 @@ export const AggregationFn = [
 ];
 // 选择函数
 export const SelectorFn = [
-  // "APERCENTILE",
-  "BOTTOM",
-  "FIRST",
-  "INTERP",
-  "LAST",
-  "LAST_ROW",
-  "MAX",
-  "MIN",
-  "PERCENTILE",
-  // "TAIL",
-  "TOP",
-  "UNIQUE",
+  {
+    label: 'BOTTOM',
+    supportStream: false,
+    supportTopic:false,
+    supportDatatype:IntegerType,
+    filters: [
+      {
+        type: "number",
+        label: "k",
+        placeholder: "k",
+        min: 1,
+        max: 100,
+        field: "k",
+        defaultValue: 1,
+      }
+    ]
+  },
+  {
+    label: 'FIRST',
+    supportTopic:false,
+    supportDatatype:['all']
+
+  },
+  {
+    label: 'INTERP',
+    supportTopic:false,
+    supportStream: false,
+    supportDatatype:IntegerType
+  },
+  {
+    label: "LAST",
+    supportTopic:false,
+    supportDatatype:['all']
+  },
+  {
+    label: "LAST_ROW",
+    supportTopic:false,
+    supportDatatype:['all']
+  },
+  {
+    label: "MAX",
+    supportTopic:false,
+    supportDatatype:IntegerType
+  },
+  {
+    label: "MIN",
+    supportTopic:false,
+    supportDatatype:IntegerType
+  },
+  {
+    label: "MODE",
+    supportTopic:false,
+    supportDatatype:['all']
+  },
+  {
+    label: "SAMPLE",
+    supportTopic:false,
+    supportStream: false,
+    supportDatatype:['all'],
+    filters: [
+      {
+        type: "number",
+        label: "k",
+        placeholder: "k",
+        min: 1,
+        max: 100,
+        field: "k",
+        defaultValue: 1,
+      }
+    ]
+  },
+  {
+    label: "TAIL",
+    supportStream: false,
+    supportTopic:false,
+    supportDatatype:IntegerType.concat(StringType),
+    filters: [
+      {
+        type: "number",
+        label: "k",
+        placeholder: "k",
+        min: 1,
+        max: 100,
+        field: "k",
+        defaultValue: 1,
+      },
+      {
+        type: "number",
+        label: "offset_rows",
+        placeholder: "offset_rows",
+        min: 0,
+        max: 100,
+        field: "offset_rows",
+        defaultValue: 0,
+      }
+    ]
+  },
+  {
+    label: "TOP",
+    supportStream: false,
+    supportTopic:false,
+    supportDatatype:IntegerType,
+    filters: [
+      {
+        type: "number",
+        label: "k",
+        placeholder: "k",
+        min: 1,
+        max: 100,
+        field: "k",
+        defaultValue: 1,
+      }
+    ]
+  },
+  {
+    label: "UNIQUE",
+    supportTopic:false,
+    supportStream: false,
+    supportDatatype:IntegerType.concat(StringType),
+  }
+
+
+
+
+
+
+
+
+
 ];
 // 时序数据特有函数
-export const SeriesSpecificFn = ["CSUM", "DERIVATIVE", "DIFF", "IRATE", "MAVG", "SAMPLE", "STATECOUNT", "STATEDURATION", "STATEMENT"];
+export const SeriesSpecificFn = [
+  {
+    label: "CSUM",
+    supportStream: false,
+    supportDatatype:IntegerType
+  },
+  {
+    label: "DERIVATIVE",
+    supportStream: false,
+    supportDatatype:IntegerType,
+    filters: [
+      {
+        type: "number",
+        label: "Interval Fields",
+        placeholder: "Interval Fields",
+        min: 1,
+        field: "intervalFields",
+        defaultValue: 1,
+      },
+      {
+        type: "select",
+        label: "Ignore Negative Fields",
+        placeholder: "Ignore Negative Fields",
+        field: "ignorenegative",
+        defaultValue: 1,
+        options: [
+          {
+            label: 'normal',////////需要指定名称？？？
+            value: 0
+          },
+          {
+            label: 'negative',
+            value: 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    label: "DIFF",
+    supportStream: false,
+    supportDatatype:IntegerType,
+    filters: [
+      {
+        type: "select",
+        label: "Negative Fields",
+        placeholder: "Negative Fields",
+        field: "negativeFields",
+        defaultValue: 0,
+        options: [
+          {
+            label: 'normal',////////需要指定名称？？？
+            value: 0
+          },
+          {
+            label: 'negative',
+            value: 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    label: "IRATE",
+    supportStream: false,
+    supportDatatype:IntegerType
+  },
+  {
+    label: "MAVG",
+    supportStream: false,
+    supportDatatype:IntegerType,
+    filters: [
+      {
+        type: "number",
+        label: "k",
+        placeholder: "k",
+        min: 1,
+        max: 1000,
+        field: "k",
+        defaultValue: 1,
+      }
+    ]
+  },
+  {
+    label: "STATECOUNT",
+    supportStream: false,
+    supportDatatype:IntegerType,
+    filters: [
+      {
+        type: "number",
+        label: "Value Fields",
+        placeholder: "Value Fields",
+        field: "valueFields",
+        defaultValue: 1,
+      },
+      {
+        type: 'select',
+        label: 'Operation Fields',
+        placeholder: 'Operation Fields',
+        field: 'operationFields',
+        options: [
+          {
+            label: 'LT',
+            value: 'LT'
+          },
+          {
+            label: 'GT',
+            value: 'GT'
+          },
+          {
+            label: 'LE',
+            value: "LE"
+          },
+          {
+            label: 'GE',
+            value: 'GE'
+          },
+          {
+            label: 'NE',
+            value: 'NE'
+          },
+          {
+            label: 'EQ',
+            value: 'EQ'
+          }
+        ]
+      },
+
+    ]
+  },
+  {
+    label: "STATEDURATION",
+    supportStream: false,
+    supportDatatype:IntegerType,
+    filters: [
+      {
+        type: "number",
+        label: "Value Fields",
+        placeholder: "Value Fields",
+        field: "valueFields",
+        defaultValue: 1,
+      },
+      {
+        type: 'select',
+        label: 'Operation Fields',
+        placeholder: 'oper',
+        field: 'oper',
+        options: [
+          {
+            label: 'LT',
+            value: "'LT'"
+          },
+          {
+            label: 'GT',
+            value: "'GT'"
+          },
+          {
+            label: 'LE',
+            value: "'LE'"
+          },
+          {
+            label: 'GE',
+            value: "'GE'"
+          },
+          {
+            label: 'NE',
+            value: "'NE'"
+          },
+          {
+            label: 'EQ',
+            value: "'EQ'"
+          }
+        ]
+      },
+      {
+        type: "select",
+        label: "unit",
+        options: [
+          {
+            label: "nanosecond",
+            value: "1b",
+          },
+          {
+            label: "microsecond",
+            value: "1u",
+          },
+          {
+            label: "millsecond",
+            value: "1a",
+          },
+          {
+            label: "second",
+            value: "1s",
+          },
+          {
+            label: "minute",
+            value: "1m",
+          },
+          {
+            label: "hour",
+            value: "1h",
+          },
+          {
+            label: "day",
+            value: "1d",
+          },
+          {
+            label: "week",
+            value: "1w",
+          },
+        ],
+        placeholder: "unit",
+        field: "unit",
+        defaultValue: "",
+      }
+    ]
+  },
+  {
+    label: "TWA",
+    supportStream: false,
+    supportDatatype:IntegerType
+  }
+];
 // 系统信息函数
-export const SystemFn = ["DATABASE", "CLIENT_VERSION", "SERVER_VERSION", "SERVER_STATUS", "CURRENT_USER", "USER"];
+export const SystemFn = [
+  {
+    label: "DATABASE",
+    supportDatatype:['system']
+  },
+  {
+    label: "CLIENT_VERSION",
+    supportDatatype:['system']
+  },
+  {
+    label: "SERVER_VERSION",
+    supportDatatype:['system']
+  },
+  {
+    label: "SERVER_STATUS",
+    supportDatatype:['system']
+  }
+];
 
 
 export const TDengineStringType = ["VARCHAR", "BINARY", "NCHAR"];
@@ -815,4 +1351,4 @@ export const GeneralOperator = [
     label: "ISNULL",
   },
 ];
-// 聚合函数
+

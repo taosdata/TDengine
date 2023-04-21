@@ -23,6 +23,7 @@ export default {
   provide() {
     return {
       tabs: this.tabs,
+      parentName:this.name
     };
   },
   components: {
@@ -31,6 +32,7 @@ export default {
   },
   data() {
     return {
+      name:'Topic',
       isOEM:
         process.env.VUE_APP_CUS_NAME &&
         process.env.VUE_APP_CUS_NAME !== "TDengine",
