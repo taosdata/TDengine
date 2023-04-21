@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-#define TSDB_STT_FILE_LEVEL_MAX 3
+typedef struct SSttLevel SSttLevel;
 
 typedef enum {
   TSDB_FOP_EXTEND = -2,
@@ -39,6 +39,13 @@ struct SFileOp {
   struct STFile nState;  // new file state
 };
 
+struct SSttLevel {
+  int32_t        level;
+  int32_t        nStt;
+  SSttLevel     *pNext;
+  struct STFile *fSttList;
+};
+
 struct SFileSet {
   int32_t        fid;
   int64_t        nextid;
@@ -46,11 +53,7 @@ struct SFileSet {
   struct STFile *fData;  // .data
   struct STFile *fSma;   // .sma
   struct STFile *fTomb;  // .tomb
-  struct {
-    int32_t        level;
-    int32_t        nFile;
-    struct STFile *fStt;
-  } lStt[TSDB_STT_FILE_LEVEL_MAX];
+  SSttLevel     *sttLevelList;
 };
 
 int32_t tsdbFileSetCreate(int32_t fid, struct SFileSet **ppSet);
