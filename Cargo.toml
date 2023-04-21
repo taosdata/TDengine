@@ -105,7 +105,7 @@ winapi = { version = "0.3", features = ["processthreadsapi"] }
 libc = "0.2"
 
 [build-dependencies]
-sqlx = { version = "0.6", features = ["sqlite", "chrono", "runtime-tokio-rustls"] }
+sqlx = { version = "0.6", features = ["sqlite", "chrono"] }
 dotenv = "0.15.0"
 shadow-rs = "0.21.0"
 
