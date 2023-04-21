@@ -2526,7 +2526,7 @@ static bool tbCntScanOptIsEligibleAggFuncs(SNodeList* pAggFuncs) {
       return false;
     }
   }
-  return true;
+  return LIST_LENGTH(pAggFuncs) > 0;
 }
 
 static bool tbCntScanOptIsEligibleAgg(SAggLogicNode* pAgg) {

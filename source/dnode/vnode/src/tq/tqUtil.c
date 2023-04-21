@@ -25,21 +25,6 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
   return taosStrdup(buf);
 }
 
-// stream_task:stream_id:task_id
-void createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId) {
-  int32_t n = 12;
-  char* p = dst;
-
-  memcpy(p, "stream_task:", n);
-  p += n;
-
-  int32_t inc = tintToHex(streamId, p);
-  p += inc;
-
-  *(p++) = ':';
-  tintToHex(taskId, p);
-}
-
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver) {
   int32_t code = tAppendDataToInputQueue(pTask, pQueueItem);
   if (code < 0) {
@@ -53,75 +38,6 @@ int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueI
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-void initOffsetForAllRestoreTasks(STQ* pTq) {
-  void* pIter = NULL;
-
-  while(1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
-      continue;
-    }
-
-    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("s-task:%s skip push data, since not ready, status %d", pTask->id.idStr, pTask->status.taskStatus);
-      continue;
-    }
-
-    char key[128] = {0};
-    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
-
-    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
-    if (pOffset == NULL) {
-      doSaveTaskOffset(pTq->pOffsetStore, key, pTask->chkInfo.version);
-    }
-  }
-}
-
-void saveOffsetForAllTasks(STQ* pTq, int64_t ver) {
-  void* pIter = NULL;
-
-  while(1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
-      continue;
-    }
-
-    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("s-task:%s skip push data, not ready for processing, status %d", pTask->id.idStr,
-              pTask->status.taskStatus);
-      continue;
-    }
-
-    char key[128] = {0};
-    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
-
-    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
-    if (pOffset == NULL) {
-      doSaveTaskOffset(pTq->pOffsetStore, key, ver);
-    }
-  }
-}
-
-void doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver) {
-  STqOffset offset = {0};
-  tqOffsetResetToLog(&offset.val, ver);
-
-  tstrncpy(offset.subKey, pKey, tListLen(offset.subKey));
-
-  // keep the offset info in the offset store
-  tqOffsetWrite(pOffsetStore, &offset);
 }
 
 static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t subType) {
