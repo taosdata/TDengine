@@ -1482,11 +1482,7 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
           pInfo->pIdx->init = 1;
           SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator);
           return blk;
-        } else if (flt == -2) {
-          qDebug("%s failed to get sys table info by idx, empty result", GET_TASKID(pTaskInfo));
-          return NULL;
-        } else if (flt == -1) {
-          // not idx
+        } else if ((flt == -2) || (flt == -1)) {
           qDebug("%s failed to get sys table info by idx, scan sys table one by one", GET_TASKID(pTaskInfo));
         }
       } else if (pCondition != NULL && (pInfo->pIdx != NULL && pInfo->pIdx->init == 1)) {
