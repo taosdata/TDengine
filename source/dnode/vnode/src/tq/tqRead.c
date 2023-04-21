@@ -113,7 +113,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     }
 
     SMetaReader mr = {0};
-    metaReaderInit(&mr, pHandle->execHandle.pExecReader->pVnodeMeta, 0);
+    metaReaderInit(&mr, pHandle->execHandle.pTqReader->pVnodeMeta, 0);
 
     if (metaGetTableEntryByName(&mr, req.tbName) < 0) {
       metaReaderClear(&mr);
@@ -262,8 +262,6 @@ STqReader* tqOpenReader(SVnode* pVnode) {
   }
 
   pReader->pVnodeMeta = pVnode->pMeta;
-  /*pReader->pMsg = NULL;*/
-//  pReader->ver = -1;
   pReader->pColIdList = NULL;
   pReader->cachedSchemaVer = 0;
   pReader->cachedSchemaSuid = 0;
@@ -298,7 +296,29 @@ int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
   if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
     return -1;
   }
-  tqDebug("tmq poll: wal reader seek to ver success ver:%"PRId64" %s", ver, id);
+  tqDebug("wal reader seek to ver:%"PRId64" %s", ver, id);
+  return 0;
+}
+
+int32_t extractSubmitMsgFromWal(SWalReader* pReader, SPackedData* pPackedData) {
+  if (walNextValidMsg(pReader) < 0) {
+    return -1;
+  }
+
+  void*   pBody = POINTER_SHIFT(pReader->pHead->head.body, sizeof(SSubmitReq2Msg));
+  int32_t len = pReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
+  int64_t ver = pReader->pHead->head.version;
+
+  void* data = taosMemoryMalloc(len);
+  if (data == NULL) {
+    // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then retry
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", 0);
+    return -1;
+  }
+
+  memcpy(data, pBody, len);
+  *pPackedData = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
   return 0;
 }
 
@@ -309,26 +329,28 @@ void tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         ret->fetchType = FETCH_TYPE__NONE;
         return;
       }
-      void*   body = POINTER_SHIFT(pReader->pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
+
+      void*   pBody = POINTER_SHIFT(pReader->pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
       int32_t bodyLen = pReader->pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
       int64_t ver = pReader->pWalReader->pHead->head.version;
 
-      tqReaderSetSubmitReq2(pReader, body, bodyLen, ver);
+      tqReaderSetSubmitMsg(pReader, pBody, bodyLen, ver);
     }
 
-    while (tqNextDataBlock2(pReader)) {
+    while (tqNextDataBlock(pReader)) {
       memset(&ret->data, 0, sizeof(SSDataBlock));
       int32_t code = tqRetrieveDataBlock2(&ret->data, pReader, NULL);
       if (code != 0 || ret->data.info.rows == 0) {
         continue;
       }
+
       ret->fetchType = FETCH_TYPE__DATA;
       return;
     }
   }
 }
 
-int32_t tqReaderSetSubmitReq2(STqReader* pReader, void* msgStr, int32_t msgLen, int64_t ver) {
+int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, int64_t ver) {
   pReader->msg2.msgStr = msgStr;
   pReader->msg2.msgLen = msgLen;
   pReader->msg2.ver = ver;
@@ -345,7 +367,7 @@ int32_t tqReaderSetSubmitReq2(STqReader* pReader, void* msgStr, int32_t msgLen, 
   return 0;
 }
 
-bool tqNextDataBlock2(STqReader* pReader) {
+bool tqNextDataBlock(STqReader* pReader) {
   if (pReader->msg2.msgStr == NULL) {
     return false;
   }
@@ -354,13 +376,20 @@ bool tqNextDataBlock2(STqReader* pReader) {
   while (pReader->nextBlk < blockSz) {
     tqDebug("tq reader next data block %p, %d %" PRId64 " %d", pReader->msg2.msgStr, pReader->msg2.msgLen,
             pReader->msg2.ver, pReader->nextBlk);
+
     SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
-    if (pReader->tbIdHash == NULL) return true;
+    if (pReader->tbIdHash == NULL) {
+      return true;
+    }
 
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     if (ret != NULL) {
+      tqDebug("tq reader block found, ver:%"PRId64", uid:%"PRId64, pReader->msg2.ver, pSubmitTbData->uid);
       return true;
+    } else {
+      tqDebug("tq reader discard block, uid:%"PRId64", continue", pSubmitTbData->uid);
     }
+
     pReader->nextBlk++;
   }
 
@@ -427,7 +456,10 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
   pReader->nextBlk++;
 
-  if (pSubmitTbDataRet) *pSubmitTbDataRet = pSubmitTbData;
+  if (pSubmitTbDataRet) {
+    *pSubmitTbDataRet = pSubmitTbData;
+  }
+
   int32_t sversion = pSubmitTbData->sver;
   int64_t suid = pSubmitTbData->suid;
   int64_t uid = pSubmitTbData->uid;
@@ -900,7 +932,7 @@ int tqReaderSetTbUidList(STqReader* pReader, const SArray* tbUidList) {
   return 0;
 }
 
-int tqReaderAddTbUidList(STqReader* pReader, const SArray* tbUidList) {
+int tqReaderAddTbUidList(STqReader* pReader, const SArray* pTableUidList) {
   if (pReader->tbIdHash == NULL) {
     pReader->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
     if (pReader->tbIdHash == NULL) {
@@ -909,8 +941,9 @@ int tqReaderAddTbUidList(STqReader* pReader, const SArray* tbUidList) {
     }
   }
 
-  for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
-    int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
+  int32_t numOfTables = taosArrayGetSize(pTableUidList);
+  for (int i = 0; i < numOfTables; i++) {
+    int64_t* pKey = (int64_t*)taosArrayGet(pTableUidList, i);
     taosHashPut(pReader->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
   }
 
@@ -926,30 +959,34 @@ int tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
   return 0;
 }
 
+// todo update the table list in wal reader
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
-  void* pIter = NULL;
+  void*   pIter = NULL;
+  int32_t vgId = TD_VID(pTq->pVnode);
+
+  // update the table list for each consumer handle
   while (1) {
     pIter = taosHashIterate(pTq->pHandle, pIter);
     if (pIter == NULL) {
       break;
     }
 
-    STqHandle* pExec = (STqHandle*)pIter;
-    if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      int32_t code = qUpdateQualifiedTableId(pExec->execHandle.task, tbUidList, isAdd);
+    STqHandle* pTqHandle = (STqHandle*)pIter;
+    if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      int32_t code = qUpdateTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList, isAdd);
       if (code != 0) {
-        tqError("update qualified table error for %s", pExec->subKey);
+        tqError("update qualified table error for %s", pTqHandle->subKey);
         continue;
       }
-    } else if (pExec->execHandle.subType == TOPIC_SUB_TYPE__DB) {
+    } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
       if (!isAdd) {
         int32_t sz = taosArrayGetSize(tbUidList);
         for (int32_t i = 0; i < sz; i++) {
           int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
-          taosHashPut(pExec->execHandle.execDb.pFilterOutTbUid, &tbUid, sizeof(int64_t), NULL, 0);
+          taosHashPut(pTqHandle->execHandle.execDb.pFilterOutTbUid, &tbUid, sizeof(int64_t), NULL, 0);
         }
       }
-    } else if (pExec->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
+    } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       if (isAdd) {
         SArray*     qa = taosArrayInit(4, sizeof(tb_uid_t));
         SMetaReader mr = {0};
@@ -964,35 +1001,46 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
           }
 
           tDecoderClear(&mr.coder);
-
-          if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pExec->execHandle.execTb.suid) {
+          if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pTqHandle->execHandle.execTb.suid) {
             tqDebug("table uid %" PRId64 " does not add to tq handle", *id);
             continue;
           }
+
           tqDebug("table uid %" PRId64 " add to tq handle", *id);
           taosArrayPush(qa, id);
         }
+
         metaReaderClear(&mr);
         if (taosArrayGetSize(qa) > 0) {
-          tqReaderAddTbUidList(pExec->execHandle.pExecReader, qa);
+          tqReaderAddTbUidList(pTqHandle->execHandle.pTqReader, qa);
         }
+
         taosArrayDestroy(qa);
       } else {
-        tqReaderRemoveTbUidList(pExec->execHandle.pExecReader, tbUidList);
+        tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
       }
     }
   }
+
+  // update the table list handle for each stream scanner/wal reader
+  taosWLockLatch(&pTq->pStreamMeta->lock);
   while (1) {
     pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) break;
+    if (pIter == NULL) {
+      break;
+    }
+
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-      int32_t code = qUpdateQualifiedTableId(pTask->exec.executor, tbUidList, isAdd);
+      int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
       if (code != 0) {
-        tqError("update qualified table error for stream task %d", pTask->taskId);
+        tqError("vgId:%d, s-task:%s update qualified table error for stream task", vgId, pTask->id.idStr);
         continue;
       }
     }
   }
+
+  taosWUnLockLatch(&pTq->pStreamMeta->lock);
+
   return 0;
 }

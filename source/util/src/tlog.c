@@ -17,7 +17,6 @@
 #include "tlog.h"
 #include "os.h"
 #include "tconfig.h"
-#include "tutil.h"
 #include "tjson.h"
 #include "tglobal.h"
 
@@ -122,7 +121,7 @@ static FORCE_INLINE void taosUpdateDaylight() {
   struct timeval timeSecs;
   taosGetTimeOfDay(&timeSecs);
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTime(&curTime, &Tm);
+  ptm = taosLocalTime(&curTime, &Tm, NULL);
   tsDaylightActive = ptm->tm_isdst;
 }
 static FORCE_INLINE int32_t taosGetDaylight() { return tsDaylightActive; }
@@ -438,7 +437,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 
   taosGetTimeOfDay(&timeSecs);
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTime(&curTime, &Tm);
+  ptm = taosLocalTime(&curTime, &Tm, NULL);
 
   return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                  ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), flags);
@@ -784,65 +783,6 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, const char 
 
   return true;
 }
-
-int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
-  SJson* pJson = tjsonCreateObject();
-  if (pJson == NULL) return -1;
-  char tmp[4096] = {0};
-
-  tjsonAddDoubleToObject(pJson, "reportVersion", 1);
-
-  tjsonAddIntegerToObject(pJson, "clusterId", clusterId);
-  tjsonAddIntegerToObject(pJson, "startTime", startTime);
-
-  taosGetFqdn(tmp);  
-  tjsonAddStringToObject(pJson, "fqdn", tmp);
-  
-  tjsonAddIntegerToObject(pJson, "pid", taosGetPId());
-
-  taosGetAppName(tmp, NULL);
-  tjsonAddStringToObject(pJson, "appName", tmp);  
-
-  if (taosGetOsReleaseName(tmp, sizeof(tmp)) == 0) {
-    tjsonAddStringToObject(pJson, "os", tmp);
-  }
-
-  float numOfCores = 0;
-  if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
-    tjsonAddStringToObject(pJson, "cpuModel", tmp);
-    tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
-  } else {
-    tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores);
-  }
-
-  snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
-  tjsonAddStringToObject(pJson, "memory", tmp);
-
-  tjsonAddStringToObject(pJson, "version", version);
-  tjsonAddStringToObject(pJson, "buildInfo", buildinfo);
-  tjsonAddStringToObject(pJson, "gitInfo", gitinfo);
-
-  tjsonAddIntegerToObject(pJson, "crashSig", signum);
-  tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs());
-
-#ifdef _TD_DARWIN_64
-  taosLogTraceToBuf(tmp, sizeof(tmp), 4);
-#elif !defined(WINDOWS)
-  taosLogTraceToBuf(tmp, sizeof(tmp), 3);
-#else
-  taosLogTraceToBuf(tmp, sizeof(tmp), 8);
-#endif
-
-  tjsonAddStringToObject(pJson, "stackInfo", tmp);
-  
-  char* pCont = tjsonToString(pJson);
-  tjsonDelete(pJson);
-
-  *pMsg = pCont;
-
-  return TSDB_CODE_SUCCESS;
-}
-
 
 void taosLogCrashInfo(char* nodeType, char* pMsg, int64_t msgLen, int signum, void *sigInfo) {
   const char *flags = "UTL FATAL ";

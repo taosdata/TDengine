@@ -31,15 +31,17 @@ select max(current) from meters partition by location interval(10m)
 
 ## 窗口切分查询
 
-TDengine 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）三种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。窗口切分查询语法如下：
+TDengine 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）、条件窗口（event window）四种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
+
+窗口子句语法如下：
 
 ```sql
-SELECT select_list FROM tb_name
-  [WHERE where_condition]
-  [SESSION(ts_col, tol_val)]
-  [STATE_WINDOW(col)]
-  [INTERVAL(interval [, offset]) [SLIDING sliding]]
-  [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
+window_clause: {
+    SESSION(ts_col, tol_val)
+  | STATE_WINDOW(col)
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+}
 ```
 
 在上述语法中的具体限制如下
@@ -66,6 +68,16 @@ FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填
 4. NULL 填充：使用 NULL 填充数据。例如：FILL(NULL)。
 5. LINEAR 填充：根据前后距离最近的非 NULL 值做线性插值填充。例如：FILL(LINEAR)。
 6. NEXT 填充：使用下一个非 NULL 值填充数据。例如：FILL(NEXT)。
+
+以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。而对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，从 3.0.3.0 版本开始，增加了两种新的填充模式：
+
+7. NULL_F: 强制填充 NULL 值 
+8. VALUE_F: 强制填充 VALUE 值
+
+NULL, NULL_F, VALUE, VALUE_F 这几种填充模式针对不同场景区别如下：
+- INTERVAL 子句： NULL_F, VALUE_F 为强制填充模式；NULL, VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
+- 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
+- INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
 
 :::info
 
@@ -137,6 +149,24 @@ SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 
 
 SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ```
+
+### 事件窗口
+
+事件窗口根据开始条件和结束条件来划定窗口，当start_trigger_condition满足时则窗口开始，直到end_trigger_condition满足时窗口关闭。start_trigger_condition和end_trigger_condition可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+
+事件窗口可以仅包含一条数据。即当一条数据同时满足start_trigger_condition和end_trigger_condition，且当前不在一个窗口内时，这条数据自己构成了一个窗口。
+
+事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足start_trigger_condition，此时窗口打开，但后续数据都不能满足end_trigger_condition，这个窗口无法被关闭，这部分数据不够成一个窗口，不会被输出。
+
+如果直接在超级表上进行事件窗口查询，TDengine 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。
+如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
+
+以下面的 SQL 语句为例，事件窗口切分如图所示：
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
+```
+
+![TDengine Database 事件窗口示意图](./event_window.webp)
 
 ### 时间戳伪列
 

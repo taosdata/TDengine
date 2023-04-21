@@ -845,7 +845,12 @@ static void hbStopThread() {
     return;
   }
 
-  taosThreadJoin(clientHbMgr.thread, NULL);
+  // thread quit mode kill or inner exit from self-thread
+  if (clientHbMgr.quitByKill) {
+    taosThreadKill(clientHbMgr.thread, 0);
+  } else {
+    taosThreadJoin(clientHbMgr.thread, NULL);
+  }
 
   tscDebug("hb thread stopped");
 }
@@ -1036,4 +1041,9 @@ void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {
   }
 
   atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
+}
+
+// set heart beat thread quit mode , if quicByKill 1 then kill thread else quit from inner
+void taos_set_hb_quit(int8_t quitByKill) {
+  clientHbMgr.quitByKill = quitByKill;
 }

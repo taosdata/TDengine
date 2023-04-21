@@ -292,9 +292,9 @@ class TDTestCase:
         maxQnode=tdSql.getData(0,0)
         tdSql.query("select min(c1) from stb11;")
         minQnode=tdSql.getData(0,0)
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         unionQnode=tdSql.queryResult
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         unionallQnode=tdSql.queryResult
 
         # tdSql.query("select * from information_schema.ins_qnodes;")
@@ -306,10 +306,10 @@ class TDTestCase:
         tdSql.checkData(0, 0, "%s"%maxQnode)
         tdSql.query("select min(c1) from stb11;")
         tdSql.checkData(0, 0, "%s"%minQnode)
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         unionVnode=tdSql.queryResult
         assert unionQnode == unionVnode
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         unionallVnode=tdSql.queryResult
         assert unionallQnode == unionallVnode
 
@@ -340,9 +340,9 @@ class TDTestCase:
         assert maxQnode==tdSql.getData(0,0)
         tdSql.query("select min(c1) from stb11;")
         assert minQnode==tdSql.getData(0,0)
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         assert unionQnode==tdSql.queryResult
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         assert unionallQnode==tdSql.queryResult
 
         # tdSql.query("select * from information_schema.ins_qnodes;")
@@ -354,8 +354,8 @@ class TDTestCase:
         assert maxQnode==tdSql.getData(0,0)
         tdSql.query("select min(c1) from stb11;")
         assert minQnode==tdSql.getData(0,0)
-        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
-        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.error("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
+        tdSql.error("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
 
         # tdSql.execute("create qnode on dnode %s"%dnodeId)
 
@@ -387,9 +387,9 @@ class TDTestCase:
         assert maxQnode==tdSql.getData(0,0)
         tdSql.query("select min(c1) from stb11;")
         assert minQnode==tdSql.getData(0,0)
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         assert unionQnode==tdSql.queryResult
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         assert unionallQnode==tdSql.queryResult
 
         queryPolicy=1
@@ -412,9 +412,9 @@ class TDTestCase:
         assert maxQnode==tdSql.getData(0,0)
         tdSql.query("select min(c1) from stb11;")
         assert minQnode==tdSql.getData(0,0)
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         assert unionQnode==tdSql.queryResult
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         assert unionallQnode==tdSql.queryResult
 
     # test case : queryPolicy = 2
@@ -443,8 +443,8 @@ class TDTestCase:
         tdSql.execute("use db1;")
         tdSql.error("select max(c1) from stb10;")
         tdSql.error("select min(c1) from stb11;")
-        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
-        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.error("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
+        tdSql.error("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
 
         tdSql.query("select max(c1) from stb10_0;")
         tdSql.query("select min(c1) from stb11_0;")
@@ -464,9 +464,9 @@ class TDTestCase:
         maxQnode=tdSql.getData(0,0)
         tdSql.query("select min(c1) from stb11;")
         minQnode=tdSql.getData(0,0)
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         unionQnode=tdSql.queryResult
-        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.query("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
         unionallQnode=tdSql.queryResult
 
         # tdSql.query("select * from information_schema.ins_qnodes;")
@@ -478,8 +478,8 @@ class TDTestCase:
 
         tdSql.error("select max(c1) from stb10;")
         tdSql.error("select min(c1) from stb11;")
-        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
-        tdSql.error("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        tdSql.error("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
+        tdSql.error("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
 
     # run case
     def run(self):

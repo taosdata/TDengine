@@ -36,28 +36,17 @@ public class DataBaseMonitor {
         stmt.execute("CREATE STABLE test.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)");
     }
 
-    public Long count() throws SQLException {
-        if (!stmt.isClosed()) {
-            ResultSet result = stmt.executeQuery("SELECT count(*) from test.meters");
+    public long count() throws SQLException {
+        try (ResultSet result = stmt.executeQuery("SELECT count(*) from test.meters")) {
             result.next();
             return result.getLong(1);
         }
-        return null;
     }
 
-    /**
-     * show test.stables;
-     *
-     *               name              |      created_time       | columns |  tags  |   tables    |
-     * ============================================================================================
-     *  meters                         | 2022-07-20 08:39:30.902 |       4 |      2 |      620000 |
-     */
-    public  Long getTableCount() throws SQLException {
-        if (!stmt.isClosed()) {
-            ResultSet result = stmt.executeQuery("show test.stables");
+    public long getTableCount() throws SQLException {
+        try (ResultSet result = stmt.executeQuery("select count(*) from information_schema.ins_tables where db_name = 'test';")) {
             result.next();
-            return result.getLong(5);
+            return result.getLong(1);
         }
-        return null;
     }
 }

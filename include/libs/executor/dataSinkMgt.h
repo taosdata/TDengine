@@ -29,7 +29,6 @@ extern "C" {
 #define DS_BUF_FULL  2
 #define DS_BUF_EMPTY 3
 
-struct SDataSink;
 struct SSDataBlock;
 
 typedef struct SDeleterRes {

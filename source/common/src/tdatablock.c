@@ -221,6 +221,7 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
   }
 
   uint8_t* p = (uint8_t*)pSource->nullbitmap;
+  pColumnInfoData->nullbitmap[BitmapLen(numOfRow1) - 1] &= (0B11111111 << shiftBits);  // clear remind bits
   pColumnInfoData->nullbitmap[BitmapLen(numOfRow1) - 1] |= (p[0] >> remindBits);  // copy remind bits
 
   if (BitmapLen(numOfRow1) == BitmapLen(total)) {
@@ -232,6 +233,7 @@ static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, c
 
   uint8_t* start = (uint8_t*)&pColumnInfoData->nullbitmap[BitmapLen(numOfRow1)];
   int32_t  overCount = BitmapLen(total) - BitmapLen(numOfRow1);
+  memset(start, 0, overCount);
   while (i < len) {  // size limit of pSource->nullbitmap
     if (i >= 1) {
       start[i - 1] |= (p[i] >> remindBits);  // copy remind bits
@@ -309,9 +311,11 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
       pColumnInfoData->pData = tmp;
       if (BitmapLen(numOfRow1) < BitmapLen(finalNumOfRows)) {
         char*    btmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(finalNumOfRows));
+        if (btmp == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         uint32_t extend = BitmapLen(finalNumOfRows) - BitmapLen(numOfRow1);
         memset(btmp + BitmapLen(numOfRow1), 0, extend);
-
         pColumnInfoData->nullbitmap = btmp;
       }
 
@@ -1837,7 +1841,9 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     }
   }
   struct tm ptm = {0};
-  taosLocalTime(&tt, &ptm);
+  if (taosLocalTime(&tt, &ptm, buf) == NULL) {
+    return buf;
+  }
   size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {

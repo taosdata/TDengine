@@ -37,7 +37,7 @@ if $loop_count == 20 then
 endi
 
 if $rows != 4 then
-  print =====rows=$rows
+  print =====rows=$rows  expect 4
   goto loop0
 endi
 
@@ -53,7 +53,7 @@ if $data02 != 2 then
 endi
 
 if $data03 != 5 then
-  print =====data03=$data03
+  print =====data03=$data03,  expect:5
   goto loop0
 endi
 

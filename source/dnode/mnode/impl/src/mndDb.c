@@ -275,6 +275,8 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.daysToKeep2 = pNew->cfg.daysToKeep2;
   pOld->cfg.walFsyncPeriod = pNew->cfg.walFsyncPeriod;
   pOld->cfg.walLevel = pNew->cfg.walLevel;
+  pOld->cfg.walRetentionPeriod = pNew->cfg.walRetentionPeriod;
+  pOld->cfg.walRetentionSize = pNew->cfg.walRetentionSize;
   pOld->cfg.strict = pNew->cfg.strict;
   pOld->cfg.cacheLast = pNew->cfg.cacheLast;
   pOld->cfg.replications = pNew->cfg.replications;
@@ -734,6 +736,20 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
+  if (pAlter->walRetentionPeriod > TSDB_DB_MIN_WAL_RETENTION_PERIOD &&
+      pAlter->walRetentionPeriod != pDb->cfg.walRetentionPeriod) {
+    pDb->cfg.walRetentionPeriod = pAlter->walRetentionPeriod;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
+  if (pAlter->walRetentionSize > TSDB_DB_MIN_WAL_RETENTION_SIZE &&
+      pAlter->walRetentionSize != pDb->cfg.walRetentionSize) {
+    pDb->cfg.walRetentionSize = pAlter->walRetentionSize;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
   return terrno;
 }
 
@@ -827,6 +843,18 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb) != 0) {
+    goto _OVER;
+  }
+
+  int32_t numOfTopics = 0;
+  if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
+    goto _OVER;
+  }
+
+  if (numOfTopics != 0 && alterReq.walRetentionPeriod == 0) {
+    terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
+    mError("db:%s, not allowed to set WAL_RETENTION_PERIOD 0 when there are topics defined. numOfTopics:%d", pDb->name,
+           numOfTopics);
     goto _OVER;
   }
 

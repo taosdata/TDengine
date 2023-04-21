@@ -400,7 +400,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       }
       break;
     case TDMT_STREAM_TASK_DEPLOY: {
-      if (tqProcessTaskDeployReq(pVnode->pTq, version, pReq, len) < 0) {
+      if (pVnode->restored && tqProcessTaskDeployReq(pVnode->pTq, version, pReq, len) < 0) {
         goto _err;
       }
     } break;
@@ -447,13 +447,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 
   walApplyVer(pVnode->pWal, version);
 
-  /*vInfo("vgId:%d, push msg begin", pVnode->config.vgId);*/
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     /*vInfo("vgId:%d, push msg end", pVnode->config.vgId);*/
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
-  /*vInfo("vgId:%d, push msg end", pVnode->config.vgId);*/
 
   // commit if need
   if (needCommit) {
@@ -541,13 +539,10 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetBatchMeta(pVnode, pMsg);
     case TDMT_VND_TMQ_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
-
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
-#if 1
     case TDMT_STREAM_TASK_DISPATCH:
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
-#endif
     case TDMT_STREAM_TASK_CHECK:
       return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
@@ -1472,10 +1467,11 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
   }
 
   vInfo("vgId:%d, start to alter vnode config, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
-        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d fsync:%d level:%d",
+        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d fsync:%d level:%d walRetentionPeriod:%d "
+        "walRetentionSize:%d",
         TD_VID(pVnode), req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
         req.cacheLast, req.cacheLastSize, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
-        req.walFsyncPeriod, req.walLevel);
+        req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize);
 
   if (pVnode->config.cacheLastSize != req.cacheLastSize) {
     pVnode->config.cacheLastSize = req.cacheLastSize;
@@ -1505,13 +1501,21 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
 
   if (pVnode->config.walCfg.fsyncPeriod != req.walFsyncPeriod) {
     pVnode->config.walCfg.fsyncPeriod = req.walFsyncPeriod;
-
     walChanged = true;
   }
 
   if (pVnode->config.walCfg.level != req.walLevel) {
     pVnode->config.walCfg.level = req.walLevel;
+    walChanged = true;
+  }
 
+  if (pVnode->config.walCfg.retentionPeriod != req.walRetentionPeriod) {
+    pVnode->config.walCfg.retentionPeriod = req.walRetentionPeriod;
+    walChanged = true;
+  }
+
+  if (pVnode->config.walCfg.retentionSize != req.walRetentionSize) {
+    pVnode->config.walCfg.retentionSize = req.walRetentionSize;
     walChanged = true;
   }
 

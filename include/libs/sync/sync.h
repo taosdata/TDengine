@@ -246,6 +246,7 @@ bool    syncIsReadyForRead(int64_t rid);
 bool    syncSnapshotSending(int64_t rid);
 bool    syncSnapshotRecving(int64_t rid);
 int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq);
+int32_t syncForceBecomeFollower(SSyncNode* ths, const SRpcMsg* pRpcMsg);
 
 SSyncState  syncGetState(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);

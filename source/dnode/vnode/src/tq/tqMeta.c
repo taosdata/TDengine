@@ -269,7 +269,7 @@ int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
 }
 
 int32_t tqMetaRestoreHandle(STQ* pTq) {
-  int code = 0;
+  int  code = 0;
   TBC* pCur = NULL;
   if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
     return -1;
@@ -320,15 +320,15 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
         code = -1;
         goto end;
       }
-      handle.execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
-      if (handle.execHandle.pExecReader == NULL) {
+      handle.execHandle.pTqReader = qExtractReaderFromStreamScanner(scanner);
+      if (handle.execHandle.pTqReader == NULL) {
         tqError("cannot extract exec reader for %s", handle.subKey);
         code = -1;
         goto end;
       }
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__DB) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
-      handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);
+      handle.execHandle.pTqReader = tqOpenReader(pTq->pVnode);
 
       buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta,
                        (SSnapContext**)(&reader.sContext));
@@ -343,8 +343,8 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
         int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
         tqDebug("vgId:%d, idx %d, uid:%" PRId64, vgId, i, tbUid);
       }
-      handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);
-      tqReaderSetTbUidList(handle.execHandle.pExecReader, tbUidList);
+      handle.execHandle.pTqReader = tqOpenReader(pTq->pVnode);
+      tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
 
       buildSnapContext(reader.meta, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,
