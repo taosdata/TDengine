@@ -4,10 +4,6 @@ ExternalProject_Add(rocksdb
         GIT_REPOSITORY https://github.com/taosdata-contrib/rocksdb.git
         GIT_TAG v6.23.3
         SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
-	CMAKE_ARGS 
-        -DPORTABLE=1
-	-DWITH_JEMALLOC=0
-        -DWITH_GFLAGS=0 
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
