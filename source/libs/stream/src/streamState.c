@@ -14,7 +14,6 @@
  */
 
 #include "streamState.h"
-#include <string.h>
 #include "executor.h"
 #include "osMemory.h"
 #include "rocksdb/c.h"
