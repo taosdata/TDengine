@@ -145,7 +145,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     tstrncpy(tmp, db, sizeof(tmp));
 
     stringProcess(tmp, (int32_t)strlen(tmp));
-    tstrncpy(pObj->db, tmp, sizeof(tmp));
+    tstrncpy(pObj->db, tmp, sizeof(pObj->db));
   }
 
   pthread_mutex_init(&pObj->mutex, NULL);
