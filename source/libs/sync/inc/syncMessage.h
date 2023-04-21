@@ -237,6 +237,7 @@ typedef struct SyncLeaderTransfer {
 typedef enum {
   SYNC_LOCAL_CMD_STEP_DOWN = 100,
   SYNC_LOCAL_CMD_FOLLOWER_CMT,
+  SYNC_LOCAL_CMD_LEARNER_CMT,
 } ESyncLocalCmd;
 
 typedef struct SyncLocalCmd {

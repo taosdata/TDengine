@@ -192,9 +192,10 @@ void tqCleanUp();
 STQ* tqOpen(const char* path, SVnode* pVnode);
 void tqClose(STQ*);
 int  tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
-int  tqRegisterPushEntry(STQ* pTq, void* pHandle, const SMqPollReq* pRequest, SRpcMsg* pRpcMsg, SMqDataRsp* pDataRsp,
+int  tqRegisterPushHandle(STQ* pTq, void* pHandle, const SMqPollReq* pRequest, SRpcMsg* pRpcMsg, SMqDataRsp* pDataRsp,
                          int32_t type);
-int  tqUnregisterPushEntry(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t consumerId, bool rspConsumer);
+int  tqUnregisterPushHandle(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t consumerId, bool rspConsumer);
+int  tqStartStreamTasks(STQ* pTq);    // restore all stream tasks after vnode launching completed.
 
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
@@ -377,7 +378,6 @@ struct SVnode {
   STQ*          pTq;
   SSink*        pSink;
   tsem_t        canCommit;
-  SVCommitSched commitSched;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
@@ -386,9 +386,6 @@ struct SVnode {
   int32_t       blockSec;
   int64_t       blockSeq;
   SQHandle*     pQuery;
-#if 0
-  SRpcHandleInfo blockInfo;
-#endif
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
