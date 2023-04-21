@@ -241,6 +241,11 @@ if(${BUILD_WITH_ROCKSDB})
         option(WITH_IOSTATS_CONTEXT "" OFF)
         option(WITH_PERF_CONTEXT "" OFF)
     endif(${TD_DARWIN})
+
+    if(${TD_WINDOWS})
+        option(WITH_JNI "" ON)
+    endif(${TD_WINDOWS})
+    
     
     option(WITH_JEMALLOC "" OFF)
     option(WITH_GFLAGS "" OFF)

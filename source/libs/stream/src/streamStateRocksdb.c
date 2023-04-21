@@ -840,7 +840,7 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
   }
 
   char* err = NULL;
-  rocksdb_delete_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, pState->pTdbState->pHandle[0],
+  rocksdb_delete_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, pState->pTdbState->pHandle[1],
                           sKeyStr, sLen, eKeyStr, eLen, &err);
   // rocksdb_compact_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->pHandle[0], sKeyStr, sLen, eKeyStr, eLen);
   if (err != NULL) {
