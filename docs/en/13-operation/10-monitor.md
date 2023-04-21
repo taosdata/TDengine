@@ -111,7 +111,7 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |cpu\_system|FLOAT||cpu usage of server. read from `/proc/stat`|
 |cpu\_cores|FLOAT||cpu cores of server|
 |mem\_engine|INT||memory usage of tdengine. read from `/proc/<taosd_pid>/status`|
-|mem\_system|INT||memory usage of server|
+|mem\_system|INT||available memory on the server|
 |mem\_total|INT||total memory of server in `KB`|
 |disk\_engine|INT|||
 |disk\_used|BIGINT||usage of data dir in `bytes`|
