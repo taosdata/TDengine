@@ -199,30 +199,7 @@ void* tsdbCacherowsReaderClose(void* pReader) {
   taosMemoryFree(pReader);
   return NULL;
 }
-/*
-static int32_t doExtractCacheRow(SCacheRowsReader* pr, SLRUCache* lruCache, uint64_t uid, SArray** pRow,
-                                 LRUHandle** h) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  *pRow = NULL;
 
-  if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
-    code = tsdbCacheGetLastrowH(lruCache, uid, pr, h);
-  } else {
-    code = tsdbCacheGetLastH(lruCache, uid, pr, h);
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  // no data in the table of Uid
-  if (*h != NULL) {
-    *pRow = (SArray*)taosLRUCacheValue(lruCache, *h);
-  }
-
-  return code;
-}
-*/
 static void freeItem(void* pItem) {
   SLastCol* pCol = (SLastCol*)pItem;
   if (IS_VAR_DATA_TYPE(pCol->colVal.type)) {
