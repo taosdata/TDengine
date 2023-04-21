@@ -670,6 +670,7 @@ export default {
     learnMoreTip: "要了解更多关于流计算的信息，请查看<a target='_blank' href=\"docsUrl\">文档</a>",
   },
   topic: {
+    agent:'代理',
     conditionSet: "条件集",
     resultSet:'结果集',
     function:'函数',

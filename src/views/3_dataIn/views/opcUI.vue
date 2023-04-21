@@ -173,11 +173,10 @@
           <div class="authen-details">
             <template
               v-if="
-                dbsource[0].authentication.value == 'plain' ||
-                dbsource[0].authentication.value == 'anonymous'
+                dbsource[0].authentication.value == 'plain'
               "
             >
-              <!-- <div class="plain">
+              <div class="plain">
                 <div class="plain-item">
                   <span class="label">{{
                     dbsource[0].authentication.alternatives[1].username.display
@@ -223,9 +222,9 @@
                     ></p>
                   </div>
                 </div>
-              </div> -->
+              </div>
             </template>
-            <template v-else>
+            <template v-if="dbsource[0].authentication.value == 'certificates'">
               <div
                 v-for="al in dbsource[0].authentication.alternatives.slice(2)"
                 :key="al.name"
@@ -483,21 +482,28 @@ export default {
           }
         }
         this.decryptPwd = decrypt(localStorage.getItem("pwd"));
-        // dns += `://${sessionStorage.getItem("username")}:${this.decryptPwd}@${
-        //   data.options.host.value ? data.options.host.value : ""
-        // }
-        // `;
-
+         if(data.authentication.value=='plain'){
+          if(data.authentication.alternatives[1].username.value){
+            dns += `://${data.authentication.alternatives[1].username.value}`
+          }
+          if(data.authentication.alternatives[1].password.value){
+            dns += `:${data.authentication.alternatives[1].password.value}`
+          }
+          dns +=`@`
+         }else{
+          dns +=`://`
+         }
         if (
           data.options.endpoint &&
           JSON.stringify(data.options.endpoint) !== "{}"
         ) {
-          dns += `://${
+          dns += `${
             data.options.endpoint.value ? data.options.endpoint.value : "/"
           }`;
-        } else {
-          dns += `:///`;
         }
+        //  else {
+        //   dns += `:///`;
+        // }
         // dns += data.options.subject.value
         //   ? "/" + data.options.subject.value
         //   : "";
@@ -530,7 +536,12 @@ export default {
           //   }
         }
 
-        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        if(data.authentication.value=='certificates'){
+          data.authentication.alternatives[2].params.forEach(val=>{
+            querystr += val.value?`${val.name}=${val.value}&`:''
+          })
+         }
+         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         let piParams = {
           from:
             "opc" +this.protocol+

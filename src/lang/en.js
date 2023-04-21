@@ -883,6 +883,7 @@ export default {
     learnMoreTip: `To learn more about stream processing, please check <a target='_blank' href="docsUrl">documentation</a>`,
   },
   topic: {
+    agent:'Agent',
     function:'Function',
     accounts: 'Accounts',
     connections: 'Connections',

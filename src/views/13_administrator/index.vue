@@ -18,6 +18,9 @@
         <el-tab-pane name="license" :label="$t('topic.license')" >
           <License></License>
         </el-tab-pane>
+        <!-- <el-tab-pane name="agent" :label="$t('topic.agent')" >
+          <Agent></Agent>
+        </el-tab-pane> -->
       </el-tabs>
     </div>
   </div>
@@ -26,14 +29,14 @@
 import MgUser from './views/user.vue'
 import AdBackup from './views/backup.vue'
 import AdReplication from './views/replication.vue'
-// import MgQnodes from '../14_cluster/views/qnodes.vue'
+import Agent from './views/agents.vue'
 import License from './views/license.vue'
 import Activities from './views/activities.vue'
 import Cluster from '@/views/14_cluster/index.vue'
 export default {
   name: "Admin",
   components:{
-    MgUser,AdBackup,AdReplication,License,Activities,Cluster
+    MgUser,AdBackup,AdReplication,License,Activities,Cluster,Agent
   },
   data() {
     return {
