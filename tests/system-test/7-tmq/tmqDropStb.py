@@ -82,7 +82,7 @@ class TDTestCase:
 
         tdLog.info("create topics from db")
         topicName1 = 'UpperCasetopic_%s'%(self.paraDict['dbName'])
-        tdSql.execute("create topic %s as database %s" %(topicName1, self.paraDict['dbName']))
+        tdSql.execute("create topic `%s` as database %s" %(topicName1, self.paraDict['dbName']))
 
         topicList = topicName1 + ',' +topicName1
         keyList = '%s,%s,%s,%s'%(self.groupId,self.autoCommit,self.autoCommitInterval,self.autoOffset)
