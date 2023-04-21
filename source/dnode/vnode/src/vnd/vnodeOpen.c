@@ -286,8 +286,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
-  vnodeUpdCommitSched(pVnode);
-
   int8_t rollback = vnodeShouldRollback(pVnode);
 
   // open buffer pool
