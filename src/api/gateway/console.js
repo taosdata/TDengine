@@ -1,7 +1,6 @@
 import { request } from "@/utils/request";
 import store from "@/store";
 import { compHeadAndData } from "@/utils";
-import { Message } from "element-ui";
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
     baseURL:'',

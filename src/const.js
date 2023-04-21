@@ -848,12 +848,12 @@ export const AggregationFn = [
       },
     ],
   },
-  {
-    label: "MODE",
-    supportTopic:false,
-    supportStream: false,
-    supportDatatype:['all']
-  },
+  // {
+  //   label: "MODE",
+  //   supportTopic:false,
+  //   supportStream: false,
+  //   supportDatatype:['all']
+  // },
   {
     label: "SPREAD",
     supportTopic:false,

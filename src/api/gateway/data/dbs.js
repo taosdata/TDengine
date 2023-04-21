@@ -1,5 +1,4 @@
 import { sendSQLReq } from "@/api/gateway/console";
-import { Message } from "element-ui";
 import { DBFILED, HIDEDB } from "@/const";
 import { request } from "@/utils/request";
 import store from "@/store";
