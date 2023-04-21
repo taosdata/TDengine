@@ -373,6 +373,9 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
   if (src == NULL || src[0] == 0) return -1;
   char* topic = taosStrdup(src);
+  if (topic[0] != '`') {
+    strtolower(topic, src);
+  }
   if (taosArrayPush(container, &topic) == NULL) return -1;
   return 0;
 }
