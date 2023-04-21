@@ -187,8 +187,6 @@ echo "=======================new version number: ${verNumber}, compatible versio
 
 build_time=$(date +"%F %R")
 
-# get commint id from git
-gitinfo=$(git rev-parse --verify HEAD)
 
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   enterprise_dir="${top_dir}/enterprise"
@@ -196,6 +194,15 @@ if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   gitinfoOfInternal=$(git rev-parse --verify HEAD)
 else
   gitinfoOfInternal=NULL
+fi
+
+# get TDengine commint id from git
+if [ -d ${top_dir}/community ]; then
+  cd ${top_dir}/community
+  gitinfo=$(git rev-parse --verify HEAD)
+else
+  echo "can not find TDengine source code"
+  exit 1
 fi
 
 cd "${curr_dir}"
