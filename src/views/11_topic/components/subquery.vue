@@ -226,7 +226,7 @@
             const fnList = item.fnList.map(item=>item.options).flat(1) || [];
             const currentFn = fnList.find(ite => ite.label == result.fn)?.filters || [];
             let otherParmas = "";
-            debugger
+            
             if (currentFn.length) {
               otherParmas = Object.keys(result.params || {})
                 .filter(key => result.params[key] && currentFn.some(ite => ite.field == key))

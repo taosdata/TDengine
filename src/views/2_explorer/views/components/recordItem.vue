@@ -40,7 +40,7 @@
         const newline = this.$store.state.console.sqlStr ? "\n" : "";
         this.$store.commit("console/ADD_SQLSTR", newline + this.record.sql);
       },
-    },
+    }
   };
 </script>
 

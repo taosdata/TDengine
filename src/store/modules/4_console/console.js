@@ -137,7 +137,7 @@ function handleFail(res, state, commit, rootState, sql, startTime) {
     sql: sql,
     type: 0,
     rows: 0,
-    message: res.desc,
+    message: res.response.status==500?res.response.data:res.desc,
     appId: rootState.current_cluster?.id,
   });
   commit("SET_ACTIVE_TAB", "log");
