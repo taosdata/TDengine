@@ -172,7 +172,7 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### temp\_dir 表
+### temp\_dir table
 
 `temp_dir` table contains temp dir information records.
 
