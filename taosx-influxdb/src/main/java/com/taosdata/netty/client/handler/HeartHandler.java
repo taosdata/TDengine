@@ -73,6 +73,7 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
             super.userEventTriggered(channelHandlerContext, event);
         }
         */
+        super.userEventTriggered(channelHandlerContext, event);
     }
 
     /**
@@ -84,13 +85,13 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext channelHandlerContext) throws Exception {
         // 清除Netty连接信息
-        /*
         StatusCache.forgetNetty(channelHandlerContext.channel().id().asShortText());
+        /*
         logger.error("检测到心跳服务断开，将在5秒后进行重连");
         final EventLoop eventLoop = channelHandlerContext.channel().eventLoop();
         eventLoop.schedule(() -> this.nettyClient.connect(new Bootstrap(), eventLoop), 5L, TimeUnit.SECONDS);
-        super.channelInactive(channelHandlerContext);
         */
+        super.channelInactive(channelHandlerContext);
     }
 
     @Override
@@ -111,8 +112,8 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
                 logger.info("客户端与服务端的PING时间为" + delay + "毫秒");
             }
         }
-        super.channelRead(channelHandlerContext, msg);
         */
+        super.channelRead(channelHandlerContext, msg);
     }
 
     /**

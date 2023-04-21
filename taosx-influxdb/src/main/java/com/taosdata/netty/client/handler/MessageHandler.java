@@ -37,6 +37,7 @@ public class MessageHandler extends ChannelInboundHandlerAdapter {
         }
         super.channelRead(channelHandlerContext, msg);
         */
+        super.channelRead(channelHandlerContext, msg);
     }
 
     @Override

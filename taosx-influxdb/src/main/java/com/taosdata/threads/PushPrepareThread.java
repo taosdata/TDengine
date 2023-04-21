@@ -72,7 +72,7 @@ public class PushPrepareThread implements Runnable {
                 bucketDataEmptyKeySet.stream().forEach(key -> {
                     // 断开Socket连接
                     if (StringUtils.isNotEmpty(key) && BucketDataCache.socketMap.containsKey(key)) {
-                        ChannelFuture channelFuture = BucketDataCache.socketMap.get(key).closeFuture();
+                        ChannelFuture channelFuture = BucketDataCache.socketMap.get(key).close();
                         channelFuture.addListener((ChannelFutureListener) future -> BucketDataCache.socketMap.remove(key));
                     }
                     // 从BucketDataCache中删除

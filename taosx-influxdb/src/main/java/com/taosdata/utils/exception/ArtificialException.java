@@ -33,6 +33,6 @@ public class ArtificialException extends Exception {
 
     @Override
     public String getMessage() {
-        return this.e.getMessage();
+        return String.format("{code: %s, msg: %s, e: %s}", this.code, this.msg, this.e.getMessage());
     }
 }

@@ -19,7 +19,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -37,11 +36,17 @@ public class PushThread implements Runnable {
     private String name;
 
     /**
+     * 数据源Bucket,Measurement,Table
+     */
+    private String dataSourceKey;
+
+    /**
      * Socket通道
      */
     private Channel channel;
 
-    public PushThread(Channel channel) {
+    public PushThread(String dataSourceKey, Channel channel) {
+        this.dataSourceKey = dataSourceKey;
         this.channel = channel;
     }
 
@@ -49,6 +54,16 @@ public class PushThread implements Runnable {
      * 性能配置
      */
     private PerformanceConfig performanceConfig = ApplicationContextProvider.getBean(PerformanceConfig.class);
+
+    /**
+     * 批次首条
+     */
+    private boolean first = true;
+
+    /**
+     * 当前线程/schema的arrow工具类
+     */
+    private ArrowUtils arrowUtils = null;
 
     @Override
     public void run() {
@@ -61,25 +76,19 @@ public class PushThread implements Runnable {
                 }
                 logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 读取内存中的数据
-                List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(performanceConfig.getThread().getReadBucketDataBatch());
+                List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(this.dataSourceKey, this.performanceConfig.getLimitBatch());
                 // 判断是否读到数据
                 if (influxdbBucketDataEntityList == null || influxdbBucketDataEntityList.size() == 0) {
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getPushEmptyInterval(), start, StatusEnums.NORMAL);
                     continue;
                 }
-                // 筛选相同measurement的数据
-                List<InfluxdbBucketDataEntity> filteredList = filter(influxdbBucketDataEntityList);
                 // 速度控制
-                FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).cycleCheck(filteredList.size(), performanceConfig.getLimitSpeed());
+                FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), this.performanceConfig.getLimitSpeed());
                 // 推送数据
-                push(filteredList);
-                // 线程结束，判断是否读满
-                if (influxdbBucketDataEntityList.size() < performanceConfig.getThread().getReadBucketDataBatch()) {
-                    sleep(this.performanceConfig.getThread().getPushNotFullInterval(), start, StatusEnums.NORMAL);
-                } else {
-                    sleep(this.performanceConfig.getThread().getPushInterval(), start, StatusEnums.NORMAL);
-                }
+                push(influxdbBucketDataEntityList);
+                // 线程结束
+                sleep(this.performanceConfig.getThread().getPushInterval(), start, StatusEnums.NORMAL);
             } catch (InterruptedException e) {
                 exception(start, StatusEnums.EXCEPTION, e);
                 break;
@@ -88,7 +97,7 @@ public class PushThread implements Runnable {
                 try {
                     Thread.sleep(1000L);
                 } catch (InterruptedException e1) {
-                    logger.error(this.name + "#线程睡眠异常#" + e.getMessage(), e);
+                    this.logger.error(this.name + "#线程睡眠异常#" + e.getMessage(), e);
                 }
             }
         }
@@ -106,7 +115,7 @@ public class PushThread implements Runnable {
     private void sleep(long interval, long start, StatusEnums statusEnums) throws InterruptedException {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.debug(this.name + "#线程运行结束（耗时" + (end - start) + "ms）#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        this.logger.debug(this.name + "#线程运行结束（耗时" + (end - start) + "ms）#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc());
         // 睡眠
@@ -122,7 +131,7 @@ public class PushThread implements Runnable {
     private void exception(long start, StatusEnums statusEnums, Exception e) {
         // 线程结束
         long end = System.currentTimeMillis();
-        logger.error(this.name + "#线程运行异常（耗时" + (end - start) + "ms）#" + e.getMessage(), e);
+        this.logger.error(this.name + "#线程运行异常（耗时" + (end - start) + "ms）#" + e.getMessage(), e);
         // 记录线程信息
         StatusCache.noteThread(this.name, start, end, statusEnums.getCode(), statusEnums.getDesc() + ": " + e.getMessage());
     }
@@ -132,35 +141,9 @@ public class PushThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        this.logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
         StatusCache.forgetThread(this.name);
-    }
-
-    /**
-     * 根据列表中第一条数据进行过滤，仅保留相同measurement数据
-     *
-     * @param influxdbBucketDataEntityList
-     * @return
-     */
-    private List<InfluxdbBucketDataEntity> filter(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) {
-        if (influxdbBucketDataEntityList == null || influxdbBucketDataEntityList.size() == 0) {
-            return new ArrayList<>();
-        }
-        // 返回结果
-        List<InfluxdbBucketDataEntity> filteredList = new ArrayList<>();
-        // 获取第一条数据的measurement
-        String measurement = influxdbBucketDataEntityList.get(0).getMeasurement();
-        // 遍历过滤
-        influxdbBucketDataEntityList.forEach(influxdbBucketDataEntity -> {
-            if (measurement.equals(influxdbBucketDataEntity.getMeasurement())) {
-                filteredList.add(influxdbBucketDataEntity);
-            } else {
-                // 写回队列
-                BucketDataCache.addBucketData(influxdbBucketDataEntity);
-            }
-        });
-        return filteredList;
     }
 
     /**
@@ -171,15 +154,26 @@ public class PushThread implements Runnable {
     private void push(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) {
         // TODO 获取并判断响应
         try {
+            // 根据Measurement获取arrow初始化信息
+            if (this.first || this.arrowUtils == null) {
+                // 判断数据非空且首条数据包含Measurement信息
+                if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0 && influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity() != null) {
+                    this.arrowUtils = new ArrowUtils(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity());
+                } else {
+                    return;
+                }
+            }
             MessageDto messageDto = new MessageDto();
             messageDto.setVersion(NettyConsts.VERSION);
             messageDto.setMsgType(MessageTypeEnums.MSG_REQ.getValue());
-            messageDto.setBody(ArrowUtils.transform(influxdbBucketDataEntityList));
+            messageDto.setBody(this.arrowUtils.transform(influxdbBucketDataEntityList, this.first));
             this.channel.writeAndFlush(messageDto);
+            // 修改当前线程/schema的首条标记
+            this.first = false;
             // 记录统计信息
             StatisticCache.totalPush.addAndGet(influxdbBucketDataEntityList.size());
         } catch (Exception e) {
-            logger.error("推送数据失败，重新写回内存队列", e);
+            this.logger.error("推送数据失败，重新写回内存队列", e);
             // 写回
             BucketDataCache.addBucketData(influxdbBucketDataEntityList);
         }

@@ -8,46 +8,67 @@ import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.dictionary.DictionaryProvider;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
+import org.apache.arrow.vector.ipc.WriteChannel;
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
+import org.apache.arrow.vector.ipc.message.IpcOption;
+import org.apache.arrow.vector.ipc.message.MessageSerializer;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
+import java.io.IOException;
+import java.nio.channels.Channels;
 import java.util.*;
 
+/**
+ * arrow工具类
+ *
+ * @author ZYP
+ */
 public class ArrowUtils {
 
+    protected Logger logger = LoggerFactory.getLogger(getClass());
+
     /**
-     * 将实体类转换为apache-arrow的字节流
-     *
-     * @param influxdbBucketDataEntity
-     * @return
+     * arrow数据结构信息
      */
-    public static byte[] transform(InfluxdbBucketDataEntity influxdbBucketDataEntity) {
-        List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
-        influxdbBucketDataEntityList.add(influxdbBucketDataEntity);
-        return transform(influxdbBucketDataEntityList);
+    private Schema schema;
+
+    /**
+     * 构造时初始化schema信息
+     *
+     * @param influxdbMeasurementEntity
+     * @throws Exception
+     */
+    public ArrowUtils(InfluxdbMeasurementEntity influxdbMeasurementEntity) throws Exception {
+        // 根据Measurement获取arrow初始化信息
+        ArrowInitDto arrowInitDto = getArrowInit(influxdbMeasurementEntity);
+        // 封装meta信息
+        Map<String, String> metaData = generateMeta(arrowInitDto);
+        // 封装fields信息
+        List<Field> fieldList = generateFieldList(arrowInitDto);
+        // 生成schema信息
+        this.schema = new Schema(fieldList, metaData);
+        // 判断数据完整性
+        if (arrowInitDto == null || metaData.size() == 0 || fieldList.size() == 0) {
+            throw new Exception("数据异常，生成schema错误，Measurement=" + influxdbMeasurementEntity.toString());
+        }
     }
 
     /**
-     * 将实体类列表转换为apache-arrow的字节流
+     * 根据Measurement获取arrow初始化信息
      *
-     * @param influxdbBucketDataEntityList
+     * @param influxdbMeasurementEntity
      * @return
      */
-    public static byte[] transform(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) {
-        /* 超级表表结构信息 */
-        // 实体类列表不存在则返回空数组
-        if (influxdbBucketDataEntityList == null || influxdbBucketDataEntityList.size() == 0) {
-            return new byte[0];
-        }
+    private ArrowInitDto getArrowInit(InfluxdbMeasurementEntity influxdbMeasurementEntity) {
         ArrowInitDto arrowInitDto = new ArrowInitDto();
-        // 使用第一条数据的measurement信息进行构建
-        InfluxdbMeasurementEntity influxdbMeasurementEntity = influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity();
         // name
         arrowInitDto.setName(influxdbMeasurementEntity.getMeasurement());
         // columns
@@ -64,41 +85,42 @@ public class ArrowUtils {
             tags.add(arrowInitDto.new Tag(tag, "string"));
         });
         arrowInitDto.setTags(tags);
-
-        /* 转换实体类并返回字节流 */
-        // 定义字节流用于接收转换的数据
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        // 转换arrow格式
-        transform(arrowInitDto, influxdbBucketDataEntityList, outputStream);
-        // 返回字节流
-        return outputStream.toByteArray();
+        // 返回实体类
+        return arrowInitDto;
     }
 
     /**
-     * 将实体类列表转换为apache-arrow的字节流
+     * 生成meta信息
      *
      * @param arrowInitDto
-     * @param influxdbBucketDataEntityList
-     * @param out
+     * @return
      */
-    private static void transform(ArrowInitDto arrowInitDto, List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList, OutputStream out) {
-        /* 封装meta信息 */
-        Map<String, String> metaData = new HashMap<>();
-        metaData.put("ack", "none");
-        metaData.put("stream", "lush");
-        metaData.put("version", "1.0");
-        metaData.put("init", arrowInitDto.toString());
+    private static Map<String, String> generateMeta(ArrowInitDto arrowInitDto) {
+        // TODO 目前不要响应，如果需要可以将none改为code/lush
+        return new HashMap<String, String>() {{
+            put("ack", "none");
+            put("stream", "lush");
+            put("version", "1.0");
+            put("init", arrowInitDto.toString());
+        }};
+    }
 
-        /* 封装fields信息 */
+    /**
+     * 生成值域列表
+     *
+     * @param arrowInitDto
+     * @return
+     */
+    private List<Field> generateFieldList(ArrowInitDto arrowInitDto) {
         // tag fields
         List<Field> tagFieldList = new ArrayList<>();
         for (ArrowInitDto.Tag tag : arrowInitDto.getTags()) {
-            tagFieldList.add(new Field(tag.getName(), FieldType.notNullable(getArrowType(tag.getType())), null));
+            tagFieldList.add(new Field(tag.getName(), FieldType.nullable(getArrowType(tag.getType())), null));
         }
         // column fields
         List<Field> columnFieldList = new ArrayList<>();
         for (ArrowInitDto.Column column : arrowInitDto.getColumns()) {
-            columnFieldList.add(new Field(column.getName(), FieldType.notNullable(getArrowType(column.getType())), null));
+            columnFieldList.add(new Field(column.getName(), FieldType.nullable(getArrowType(column.getType())), null));
         }
         // __type__
         Field typeField = new Field("__type__", FieldType.notNullable(new ArrowType.Int(8, false)), null);
@@ -116,91 +138,130 @@ public class ArrowUtils {
         attrFieldChildrenList.addAll(tagFieldList);
         Field attrField = new Field("__attrs__", FieldType.nullable(new ArrowType.Struct()), attrFieldChildrenList);
         // __records__
-        columnFieldList.add(new Field("__table_name__", FieldType.nullable(new ArrowType.Binary()), null));
         List<Field> recordFieldChildrenList = new ArrayList<>();
         recordFieldChildrenList.add(new Field("item", FieldType.nullable(new ArrowType.Struct()), columnFieldList));
         Field recordField = new Field("__records__", FieldType.nullable(new ArrowType.List()), recordFieldChildrenList);
         // field list
-        List<Field> fieldList = new ArrayList<>();
-        fieldList.add(typeField);
-        fieldList.add(tableField);
-        fieldList.add(attrField);
-        fieldList.add(recordField);
-        /* 填充表数据 */
-        Schema schema = new Schema(fieldList, metaData);
-        RootAllocator rootAllocator = new RootAllocator(Integer.MAX_VALUE);
-        VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(schema, rootAllocator);
+        return new ArrayList<Field>() {{
+            add(typeField);
+            add(tableField);
+            add(attrField);
+            add(recordField);
+        }};
+    }
+
+    /**
+     * 将实体类列表转换为apache-arrow的字节流
+     *
+     * @param influxdbBucketDataEntityList
+     * @param first
+     * @return
+     * @throws IOException
+     */
+    public byte[] transform(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList, boolean first) throws IOException {
+        // 分配1G内存
+        RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
+        // 创建arrow数据结构体
+        VectorSchemaRoot vectorSchemaRoot = VectorSchemaRoot.create(this.schema, rootAllocator);
+        // 输出字节流，完整结构体的字节流
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try {
+            // 创建字典
             DictionaryProvider.MapDictionaryProvider dictProvider = new DictionaryProvider.MapDictionaryProvider();
-            ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, dictProvider, out);
+            // 用于将数据写入Arrow格式的二进制流中，它接受一个VectorSchemaRoot对象作为输入，该对象包含要写入流中的Schema和矢量数据。在向这些矢量添加数据后，可以调用ArrowStreamWriter的writeBatch方法来刷新数据到输出流中
+            ArrowStreamWriter writer = new ArrowStreamWriter(vectorSchemaRoot, dictProvider, outputStream);
+            // 开始写入
             writer.start();
-            // 初始化
+            // 获取各值域
             UInt1Vector typeVector = (UInt1Vector) vectorSchemaRoot.getVector("__type__");
             ListVector tableVector = (ListVector) vectorSchemaRoot.getVector("__tables__");
             StructVector attrVector = (StructVector) vectorSchemaRoot.getVector("__attrs__");
             ListVector recordVector = (ListVector) vectorSchemaRoot.getVector("__records__");
+            // 如果首次提交，需要写Tables数据与Insert数据，其后只写Insert数据
+            if (first) {
+                // 第一阶段提交type=2与tableVector数据
+                typeVector.reset();
+                tableVector.reset();
+                attrVector.reset();
+                recordVector.reset();
+                /* __type__ */
+                typeVector.setSafe(0, 2);
+                // 设置tableVector写数据开始
+                tableVector.startNewValue(0);
+                // 遍历数据
+                for (int i = 0; i < influxdbBucketDataEntityList.size(); i++) {
+                    InfluxdbBucketDataEntity influxdbBucketDataEntity = influxdbBucketDataEntityList.get(i);
+                    /* __tables__ */
+                    StructVector tableDataVector = (StructVector) tableVector.getChildrenFromFields().get(0);
+                    // 2023.04.17 使用setIndexDefined解决了StructVector=null的问题！！！
+                    tableDataVector.setIndexDefined(i);
+                    setData(tableDataVector, "__table_name__", influxdbBucketDataEntity.getTable(), "string", i);
+                    for (String tagName : influxdbBucketDataEntity.getTags().keySet()) {
+                        setData(tableDataVector, tagName, influxdbBucketDataEntity.getTags().get(tagName), "string", i);
+                    }
+                }
+                // 设置tableVector写数据结束
+                tableVector.endValue(0, influxdbBucketDataEntityList.size());
+                // 这里固定传1
+                vectorSchemaRoot.setRowCount(1);
+                writer.writeBatch();
+            }
+            // 第二阶段提交type=3与attrVector&recordVector数据
             typeVector.reset();
             tableVector.reset();
             attrVector.reset();
             recordVector.reset();
-            // 第一阶段提交type=2与tableVector数据
             /* __type__ */
-            typeVector.setSafe(0, 2);
+            typeVector.setSafe(0, 3);
+            // 2023.04.04 使用startNewValue与endValue解决了valueCount=0的问题！！！
+            // 2023.04.20 将startNewValue放到循环外解决了批量的问题！！！
+            // 设置recordVector写数据开始
+            recordVector.startNewValue(0);
             // 遍历数据
             for (int i = 0; i < influxdbBucketDataEntityList.size(); i++) {
                 InfluxdbBucketDataEntity influxdbBucketDataEntity = influxdbBucketDataEntityList.get(i);
-                /* __tables__ */
-                tableVector.startNewValue(i);
-                StructVector tableDataVector = (StructVector) tableVector.getChildrenFromFields().get(0);
-                setData(tableDataVector, "__table_name__", influxdbBucketDataEntity.getTable(), "string", i);
-                for (String tagName : influxdbBucketDataEntity.getTags().keySet()) {
-                    setData(tableDataVector, tagName, influxdbBucketDataEntity.getTags().get(tagName), "string", i);
-                }
-                tableVector.endValue(i, 1);
                 /* __attrs__ */
+                /* 暂时没有用到
+                attrVector.setIndexDefined(i);
                 setData(attrVector, "__table_name__", influxdbBucketDataEntity.getTable(), "string", i);
                 for (String tagName : influxdbBucketDataEntity.getTags().keySet()) {
                     setData(attrVector, tagName, influxdbBucketDataEntity.getTags().get(tagName), "string", i);
                 }
-            }
-            writer.writeBatch();
-            // 第二阶段提交type=3与attrVector&recordVector数据
-            /* __type__ */
-            typeVector.setSafe(0, 3);
-            // 遍历数据
-            for (int i = 0; i < influxdbBucketDataEntityList.size(); i++) {
-                InfluxdbBucketDataEntity influxdbBucketDataEntity = influxdbBucketDataEntityList.get(i);
-
-                /* __tables__ */
-//                tableVector.startNewValue(i);
-//                StructVector tableDataVector = (StructVector) tableVector.getChildrenFromFields().get(0);
-//                setData(tableDataVector, "__table_name__", influxdbBucketDataEntity.getTable(), "string", i);
-//                for (String tagName : influxdbBucketDataEntity.getTags().keySet()) {
-//                    setData(tableDataVector, tagName, influxdbBucketDataEntity.getTags().get(tagName), "string", i);
-//                }
-//                tableVector.endValue(i, 1);
-                /* __attrs__ */
-//                setData(attrVector, "__table_name__", influxdbBucketDataEntity.getTable(), "string", i);
-//                for (String tagName : influxdbBucketDataEntity.getTags().keySet()) {
-//                    setData(attrVector, tagName, influxdbBucketDataEntity.getTags().get(tagName), "string", i);
-//                }
+                */
                 /* __records__ */
-                // 2023.04.04 使用startNewValue与endValue解决了valueCount=0的问题！！！
-                recordVector.startNewValue(i);
                 StructVector recordDataVector = (StructVector) recordVector.getChildrenFromFields().get(0);
+                recordDataVector.setIndexDefined(i);
                 setData(recordDataVector, "__table_name__", influxdbBucketDataEntity.getTable(), "string", i);
                 setData(recordDataVector, "time", influxdbBucketDataEntity.getTime(), "timestamp", i);
                 setData(recordDataVector, influxdbBucketDataEntity.getField(), influxdbBucketDataEntity.getValue(), influxdbBucketDataEntity.getInfluxdbMeasurementEntity().getFieldMap().get(influxdbBucketDataEntity.getField()), i);
-                recordVector.endValue(i, 1);
             }
+            // 设置recordVector写数据结束
+            recordVector.endValue(0, influxdbBucketDataEntityList.size());
             // 这里固定传1
             vectorSchemaRoot.setRowCount(1);
-            vectorSchemaRoot.getVector(3).setValueCount(influxdbBucketDataEntityList.size());
             writer.writeBatch();
-            writer.end();
+            // 为了连续发送，此处不写结束信号
+            // writer.end();
+            // 如果首次提交，返回完整字节流，其后只提交RecordBatch
+            if (first) {
+                return outputStream.toByteArray();
+            } else {
+                // 2023.04.21 使用ArrowRecordBatch解决了后续数据无法传输的问题！！！
+                // 创建新的输出流
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                // 获取RecordBatch
+                ArrowRecordBatch arrowRecordBatch = new VectorUnloader(vectorSchemaRoot).getRecordBatch();
+                // 序列化到输出流中
+                MessageSerializer.serialize(new WriteChannel(Channels.newChannel(out)), arrowRecordBatch, IpcOption.DEFAULT);
+                // 关闭RecordBatch，否则执行rootAllocator.close()时会内存溢出
+                arrowRecordBatch.close();
+                // 返回字节流
+                return out.toByteArray();
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            throw e;
         } finally {
+            outputStream.close();
             vectorSchemaRoot.close();
             rootAllocator.close();
         }
@@ -212,7 +273,7 @@ public class ArrowUtils {
      * @param type
      * @return
      */
-    private static ArrowType getArrowType(String type) {
+    private ArrowType getArrowType(String type) {
         switch (type) {
             case "boolean":
             case "bool":
@@ -246,7 +307,7 @@ public class ArrowUtils {
      * @param dataValue
      * @param index
      */
-    private static void setData(StructVector structVector, String dataName, Object dataValue, String dataType, int index) {
+    private void setData(StructVector structVector, String dataName, Object dataValue, String dataType, int index) {
         // 根据不同数据类型进行响应的赋值操作
         switch (dataType) {
             case "boolean":
