@@ -107,7 +107,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |cpu\_system|FLOAT||服务器 cpu 使用率，从 `/proc/stat` 读取|
 |cpu\_cores|FLOAT||服务器 cpu 核数|
 |mem\_engine|INT||taosd 内存使用率，从 `/proc/<taosd_pid>/status` 读取|
-|mem\_system|INT||服务器内存使用率|
+|mem\_system|INT||服务器可用内存|
 |mem\_total|INT||服务器内存总量，单位 KB|
 |disk\_engine|INT|||
 |disk\_used|BIGINT||data dir 挂载的磁盘使用量，单位 bytes|
