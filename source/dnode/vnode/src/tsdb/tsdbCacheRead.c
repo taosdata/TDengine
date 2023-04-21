@@ -30,27 +30,8 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
       SFirstLastRes*   p = (SFirstLastRes*)varDataVal(pRes[dstSlotIds[i]]);
-      /*
-      if (slotIds[i] == -1) {  // the primary timestamp
-        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
-        p->ts = pColVal->ts;
-        p->bytes = TSDB_KEYSIZE;
-        *(int64_t*)p->buf = pColVal->ts;
-        allNullRow = false;
-      } else {
-      */
-      int32_t slotId = slotIds[i];
-      // add check for null value, caused by the modification of table schema (new column added).
-      /*
-      if (slotId >= taosArrayGetSize(pRow)) {
-        p->ts = 0;
-        p->isNull = true;
-        colDataSetNULL(pColInfoData, numOfRows);
-        continue;
-      }
-      */
-      // SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
-      SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
+      int32_t          slotId = slotIds[i];
+      SLastCol*        pColVal = (SLastCol*)taosArrayGet(pRow, i);
 
       p->ts = pColVal->ts;
       p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
@@ -66,7 +47,6 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
           p->bytes = pReader->pSchema->columns[slotId].bytes;
         }
       }
-      //}
 
       // pColInfoData->info.bytes includes the VARSTR_HEADER_SIZE, need to substruct it
       p->hasResult = true;
@@ -77,32 +57,22 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
     pBlock->info.rows += allNullRow ? 0 : 1;
   } else if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
 
-      if (slotIds[i] == -1) {
-        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
-        colDataSetVal(pColInfoData, numOfRows, (const char*)&pColVal->ts, false);
-      } else {
-        int32_t slotId = slotIds[i];
-        // add check for null value, caused by the modification of table schema (new column added).
-        if (slotId >= taosArrayGetSize(pRow)) {
+      int32_t   slotId = slotIds[i];
+      SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
+      SColVal*  pVal = &pColVal->colVal;
+
+      if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
+        if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
           colDataSetNULL(pColInfoData, numOfRows);
-          continue;
-        }
-        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
-        SColVal*  pVal = &pColVal->colVal;
-
-        if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
-          if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
-            colDataSetNULL(pColInfoData, numOfRows);
-          } else {
-            varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
-            memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
-            colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
-          }
         } else {
-          colDataSetVal(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
+          varDataSetLen(pReader->transferBuf[dstSlotIds[i]], pVal->value.nData);
+          memcpy(varDataVal(pReader->transferBuf[dstSlotIds[i]]), pVal->value.pData, pVal->value.nData);
+          colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[dstSlotIds[i]], false);
         }
+      } else {
+        colDataSetVal(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
       }
     }
 

@@ -79,8 +79,8 @@ endif(${BUILD_WITH_LEVELDB})
 
 # rocksdb
 #if(${BUILD_WITH_ROCKSDB})
-    cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    add_definitions(-DUSE_ROCKSDB)
+cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+add_definitions(-DUSE_ROCKSDB)
 #endif(${BUILD_WITH_ROCKSDB})
 
 # canonical-raft
@@ -222,7 +222,7 @@ endif(${BUILD_WITH_LEVELDB})
 
 # rocksdb
 # To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
-if(${BUILD_WITH_ROCKSDB})
+#if(${BUILD_WITH_ROCKSDB})
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
     option(WITH_TESTS "" OFF)
     option(WITH_BENCHMARK_TOOLS "" OFF)
@@ -234,7 +234,7 @@ if(${BUILD_WITH_ROCKSDB})
         rocksdb
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
     )
-endif(${BUILD_WITH_ROCKSDB})
+#endif(${BUILD_WITH_ROCKSDB})
 
 # lucene
 # To support build on ubuntu: sudo apt-get install libboost-all-dev
