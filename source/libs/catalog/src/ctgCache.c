@@ -716,7 +716,7 @@ int32_t ctgReadDBCfgFromCache(SCatalog *pCtg, const char* dbFName, SDbCfgInfo* p
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
     pDbCfg->cfgVersion = -1;
-    CTG_CACHE_STAT_INC(numOfCfgMiss, 1);
+    CTG_CACHE_NHIT_INC(CTG_CI_DB_CFG, 1);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -730,10 +730,10 @@ int32_t ctgReadDBCfgFromCache(SCatalog *pCtg, const char* dbFName, SDbCfgInfo* p
     
     memcpy(pDbCfg, pInfo, sizeof(*pInfo));
     taosMemoryFree(pInfo);
-    CTG_CACHE_STAT_INC(numOfCfgHit, 1);
+    CTG_CACHE_HIT_INC(CTG_CI_DB_CFG, 1);
   } else {
     pDbCfg->cfgVersion = -1;
-    CTG_CACHE_STAT_INC(numOfCfgMiss, 1);
+    CTG_CACHE_NHIT_INC(CTG_CI_DB_CFG, 1);
   }
 
 _return:
