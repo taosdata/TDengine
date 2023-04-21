@@ -166,6 +166,28 @@ impl Definitions {
     }
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
+pub struct DatasetParam {
+    pub category: String,
+    pub display: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conflilcts_with: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target: Option<Target>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<Param>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
+pub struct Target {
+    pub name: String,
+    pub description: Option<String>,
+    pub required: bool,
+    pub multiple: bool,
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode)]
 pub struct DataSourceDefinition {
     /// Data source driver id
@@ -210,6 +232,9 @@ pub struct DataSourceDefinition {
     /// Schema definitions, not used currently.
     #[serde(skip_serializing_if = "Definitions::is_none", default)]
     pub definitions: Definitions,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub datasets: Option<Vec<DatasetParam>>,
 }
 
 impl DataSourceDefinition {

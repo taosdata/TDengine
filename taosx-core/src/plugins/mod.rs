@@ -6,6 +6,7 @@ mod transform;
 
 mod runners;
 
+use actix_web::web::Json;
 use anyhow::bail;
 use futures::TryStreamExt;
 pub use runners::opc::opc_to_taos;
@@ -14,6 +15,7 @@ pub use runners::pi::pi_to_taos;
 pub use runners::mqtt::mqtt_to_taos;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
+use utoipa::ToSchema;
 
 use crate::plugins::runners::pi::pi_datasets;
 
@@ -28,8 +30,18 @@ pub struct DataSet {
     r#type: Option<String>,
 }
 
-pub async fn list_datasets_from(from: impl IntoDsn) -> anyhow::Result<Vec<DataSet>> {
-    let from = from.into_dsn()?;
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct DataSetsReq {
+    from: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pattern: Option<String>,
+    categories: Vec<String>,
+    offset: usize,
+    limit: usize,
+}
+
+pub async fn list_datasets_from(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet>> {
+    let from = data.from.clone().into_dsn()?;
     match from.driver.as_str() {
         "tmq" => {
             // get tmq list
@@ -64,7 +76,7 @@ pub async fn list_datasets_from(from: impl IntoDsn) -> anyhow::Result<Vec<DataSe
         }
         "pi" => {
             // pi
-            return pi_datasets(&from).await;
+            return pi_datasets(data).await;
         }
         "opc" => {
             // opc

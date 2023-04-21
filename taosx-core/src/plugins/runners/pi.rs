@@ -1,20 +1,20 @@
 use std::{
     io::prelude::*,
     num::ParseIntError,
-    path::{Path, PathBuf},
     time::Duration,
 };
 
+use actix_web::web::Json;
 use anyhow::Context;
 use itertools::Itertools;
 use serde_json::Value;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder, IntoDsn};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     plugins::{service::spawn_rest_service, sink},
     utils::{port_pool::PortPool, stop_thread},
-    Action, DataSet,
+    Action, DataSet, DataSetsReq,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -56,11 +56,9 @@ struct PiConfig {
     #[serde(rename = "TemplateForAFElement")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     template_for_af_element: Vec<String>,
-    #[serde(rename = "Points")]
+    #[serde(rename = "PointList")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    points: Option<PathBuf>,
-    #[serde(skip)]
-    point_filter: Option<String>,
+    point_list: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -71,6 +69,10 @@ pub enum PiError {
     DatabaseIsRequired(Dsn),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
+    #[error("config value {0} error, the value needs between {1} and {2}")]
+    ValueConfigError(&'static str, &'static str, &'static str,),
+    #[error("parse key {0} value error cause {1}")]
+    ParseKeyValueError(&'static str, String),
 }
 
 impl PiConfig {
@@ -101,7 +103,17 @@ impl PiConfig {
         let pi_data_pipes_instances = parse_int_at!("PIDataPipesInstances");
         let af_data_pipes_instances = parse_int_at!("AFDataPipesInstances");
         let max_wait_len = parse_int_at!("MaxWaitLen");
+        if let Some(mwl) = max_wait_len {
+            if mwl < 1 || mwl > 10000 {
+                return Err(PiError::ValueConfigError("MaxWaitLen", "1", "10000"));
+            }
+        }
         let update_interval = parse_int_at!("UpdateInterval");
+        if let Some(ui) = update_interval {
+            if ui < 100 || ui > 60000 {
+                return Err(PiError::ValueConfigError("MaxWaitLen", "100", "60000"));
+            }
+        }
         let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
 
         let template_for_pi_point = dsn
@@ -120,12 +132,13 @@ impl PiConfig {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect_vec();
-        let points = dsn.remove("Points").map(|s| Path::new(&s).to_path_buf());
+        // let point_list = dsn.remove("Points").map(|s| Path::new(&s).to_path_buf());
+        let point_list = super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(",")).map_err(|err| PiError::ParseKeyValueError("PointList", err))?;
 
         let ipc_stream = format!("127.0.0.1:{ipc}");
         let sql_api = format!("http://127.0.0.1:{sql}");
 
-        let point_filter = dsn.remove("PointFilter");
+        // let point_list
 
         // dsn.addresses
         Ok(Self {
@@ -142,8 +155,7 @@ impl PiConfig {
             td_database,
             template_for_pi_point,
             template_for_af_element,
-            points,
-            point_filter,
+            point_list,
         })
     }
 }
@@ -284,15 +296,14 @@ fn terminate_child_process(id: u32) -> anyhow::Result<()> {
     Ok(())
 }
 
-
-pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
+pub async fn pi_datasets(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet>> {
     println!("# loading plugin: PI");
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("PI connector support only windows platform");
     }
 
-    let config = PiConfig::new(from.clone(), String::new(), 0, 0)?;
+    let config = PiConfig::new(data.from.clone().into_dsn()?, String::new(), 0, 0)?;
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -304,7 +315,7 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
 
     let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
 
-    let point_filter = if let Some(pf) = config.point_filter {
+    let point_filter = if let Some(pf) = data.pattern {
         pf
     } else {
         String::from("*")
@@ -324,7 +335,6 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     log::info!("PI Connector exit with status {}", output.status);
 
     let json: Value = serde_json::from_slice(&output.stdout)?;
-    // let json: Value = serde_json::from_str(std::str::from_utf8(&output.stdout).unwrap()).unwrap();
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
     let mut point_names = map
@@ -340,7 +350,7 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
             r#type: None,
         })
         .collect_vec();
-    dataset.append(&mut point_names);
+    extend_data_set(&mut dataset, &point_names, data.offset, data.limit);
     let mut template_names = map
         .get("templateName")
         .unwrap()
@@ -354,7 +364,18 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
             r#type: None,
         })
         .collect_vec();
-    dataset.append(&mut template_names);
+    // dataset.append(&mut template_names);
+    extend_data_set(&mut dataset, &template_names, data.offset, data.limit);
     temp_path.close()?;
     Ok(dataset)
+}
+
+fn extend_data_set(dataset: &mut Vec<DataSet>, extended_vec: &Vec<DataSet>, offset: usize, limit: usize) {
+    let page_index = (offset - 1) * limit;
+    let len = extended_vec.len();
+    if len >= page_index + limit {
+        dataset.extend_from_slice(&extended_vec[page_index..page_index + limit]);
+    } else if len > page_index && len < page_index + limit {
+        dataset.extend_from_slice(&extended_vec[page_index..]);
+    } 
 }

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use actix_web::{get, http::header::ContentType, post, web::Json, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 
-use taosx_core::list_datasets_from;
+use taosx_core::{list_datasets_from, DataSetsReq};
 use utoipa::*;
 
 mod definition;
@@ -107,10 +107,7 @@ pub(super) struct DataSets {
     r#type: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub(super) struct DataSetsReq {
-    from: String,
-}
+
 
 // impl DataSetsReq {
 //     pub fn datasets(&self) -> anyhow::Result<Vec<DataSets>> {
@@ -125,7 +122,7 @@ pub(super) struct DataSetsReq {
 )]
 #[post("/ds/in/sets")]
 pub(super) async fn data_source_collection(data: Json<DataSetsReq>) -> impl Responder {
-    match list_datasets_from(&data.from).await {
+    match list_datasets_from(&data).await {
         Ok(data) => HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(&data),
