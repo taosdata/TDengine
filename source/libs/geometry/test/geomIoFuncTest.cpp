@@ -116,7 +116,7 @@ void callMakePointAndCompareResult(int32_t type1, void *valueArray1, TDRowValT v
 #define MAKE_POINT_SECOND_COLUMN_VALUES {5, -6, -7}
 
 TEST(GeomIoFuncTest, makePointFunctionTwoColumns) {
-  int32_t rowNum = 3;
+  const int32_t rowNum = 3;
   SScalarParam *pExpectedResult;
   TDRowValT valTypeArray[rowNum] = {TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM};
 
@@ -152,7 +152,7 @@ TEST(GeomIoFuncTest, makePointFunctionTwoColumns) {
 }
 
 TEST(GeomIoFuncTest, makePointFunctionConstant) {
-  int32_t rowNum = 3;
+  const int32_t rowNum = 3;
   SScalarParam *pExpectedResult;
   TDRowValT valTypeArray[rowNum] = {TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM};
 
@@ -189,7 +189,7 @@ TEST(GeomIoFuncTest, makePointFunctionConstant) {
 }
 
 TEST(GeomIoFuncTest, makePointFunctionWithNull) {
-  int32_t rowNum = 3;
+  const int32_t rowNum = 3;
   SScalarParam *pExpectedResult;
   TDRowValT valTypeNormArray[rowNum] = {TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM};
 
@@ -245,7 +245,7 @@ TEST(GeomIoFuncTest, makePointFunctionWithNull) {
 }
 
 TEST(GeomIoFuncTest, geomFromTextFunction) {
-  int32_t rowNum = 4;
+  const int32_t rowNum = 4;
   char strArray[rowNum][TSDB_MAX_BINARY_LEN];
   TDRowValT valTypeNormArray[rowNum] = {TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM, TD_VTYPE_NORM};
 

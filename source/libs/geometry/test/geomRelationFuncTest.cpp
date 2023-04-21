@@ -60,7 +60,7 @@ SELECT 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g1, 'POLYGON(
 SELECT ST_Intersects(g1, g2), ST_Equals(g1, g2), ST_Touches(g1, g2), ST_Covers(g1, g2), ST_Contains(g1, g2), ST_ContainsProperly(g1, g2) FROM geom_str
 */
 void geomRelationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResults[6][6]) {
-  int32_t rowNum = 6;
+  const int32_t rowNum = 6;
 
   char strArray1[rowNum][TSDB_MAX_BINARY_LEN];
   STR_TO_VARSTR(strArray1[0], "POINT(3.5 7.0)");
