@@ -25,21 +25,6 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
   return taosStrdup(buf);
 }
 
-// stream_task:stream_id:task_id
-void createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId) {
-  int32_t n = 12;
-  char* p = dst;
-
-  memcpy(p, "stream_task:", n);
-  p += n;
-
-  int32_t inc = tintToHex(streamId, p);
-  p += inc;
-
-  *(p++) = ':';
-  tintToHex(taskId, p);
-}
-
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver) {
   int32_t code = tAppendDataToInputQueue(pTask, pQueueItem);
   if (code < 0) {

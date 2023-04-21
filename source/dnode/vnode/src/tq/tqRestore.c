@@ -112,10 +112,6 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    // check if offset value exists
-    char key[128] = {0};
-    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
-
     if (tInputQueueIsFull(pTask)) {
       tqDebug("vgId:%d s-task:%s input queue is full, do nothing", vgId, pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);
