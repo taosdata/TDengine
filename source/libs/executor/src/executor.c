@@ -1108,6 +1108,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pScanBaseInfo->dataReader = NULL;
 
       // let's seek to the next version in wal file
+      int64_t firstVer = walGetFirstVer(pInfo->tqReader->pWalReader->pWal);
+      if (pOffset->version + 1 < firstVer){
+        pOffset->version = firstVer - 1;
+      }
+
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, id) < 0) {
         qError("tqSeekVer failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
         return -1;
