@@ -535,7 +535,7 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
   if (index) {
     if (colField[*index].type != kv->type) {
       uError("SML:0x%" PRIx64 " point type and db type mismatch. point type: %d, db type: %d, key: %s", info->id, colField[*index].type, kv->type, kv->key);
-      return TSDB_CODE_TSC_INVALID_VALUE;
+      return TSDB_CODE_SML_INVALID_DATA;
     }
 
     if ((colField[*index].type == TSDB_DATA_TYPE_VARCHAR &&
@@ -1494,8 +1494,8 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
 
   do {
     code = smlModifyDBSchemas(info);
-    if (code == 0) break;
-    taosMsleep(500);
+    if (code == 0 || code == TSDB_CODE_SML_INVALID_DATA) break;
+    taosMsleep(100);
     uInfo("SML:0x%" PRIx64 " smlModifyDBSchemas retry code:%s, times:%d", info->id, tstrerror(code), retryNum);
   } while (retryNum++ < taosHashGetSize(info->superTables) * MAX_RETRY_TIMES);
 
