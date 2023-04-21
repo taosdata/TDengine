@@ -275,7 +275,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
     }
 
     rocksdb_free(values_list[i]);
-    rocksdb_free(values_list[i + ROCKS_KEY_LEN]);
+    rocksdb_free(values_list[i + num_keys]);
   }
   taosMemoryFree(values_list);
   taosMemoryFree(values_list_sizes);
