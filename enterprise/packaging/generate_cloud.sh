@@ -61,7 +61,7 @@ tar axf $server_tar
 tar axf $prefix/package.tar.gz -C $prefix/taos/
 cp -f $taoskeeper_binary $prefix/taos/bin/
 cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
-cp -f $(dirname $taoskeeper_binary)/config/keeper.toml $prefix/taos/cfg/
+cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml $prefix/taos/cfg/
 cat $scriptDir/remove_taoskeeper.sh >> $prefix/taos/bin/remove.sh
 cat $scriptDir/install_taoskeeper.sh >> $prefix/install.sh
 cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../

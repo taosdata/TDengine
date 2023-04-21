@@ -99,7 +99,7 @@ parameters:
     - &libtaos  buildDir/lib/libtaos.so.
     - &libtaows buildDir/lib/libtaosws.so
   configs:
-    - &keeper releaseDir/build-taoskeeper/config/keeper.toml
+    - &keeper releaseDir/build-taoskeeper/config/taoskeeper.toml
     - &keeper_serice releaseDir/build-taoskeeper/taoskeeper.service
     - &taosadapter_service compileDir/test/cfg/taosadapter.service
     - &taosAdapter_toml compileDir/test/cfg/taosadapter.toml
