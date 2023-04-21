@@ -4213,7 +4213,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   for (int32_t i = 0; i < 8; ++i) {
     if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
   }
-  if (tDecodeIsEnd(&decoder)) {
+  if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI8(&decoder, &pReq->learnerReplica) < 0) return -1;
     if (tDecodeI8(&decoder, &pReq->learnerSelfIndex) < 0) return -1;
     for (int32_t i = 0; i < TSDB_MAX_LEARNER_REPLICA; ++i) {
@@ -4476,7 +4476,7 @@ int32_t tDeserializeSAlterVnodeReplicaReq(void *buf, int32_t bufLen, SAlterVnode
   for (int32_t i = 0; i < 8; ++i) {
     if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
   }
-  if (tDecodeIsEnd(&decoder)) {
+  if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI8(&decoder, &pReq->learnerSelfIndex) < 0) return -1;
     if (tDecodeI8(&decoder, &pReq->learnerReplica) < 0) return -1;
     for (int32_t i = 0; i < TSDB_MAX_LEARNER_REPLICA; ++i) {
@@ -4818,7 +4818,7 @@ int32_t tDeserializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq
     SReplica *pReplica = &pReq->replicas[i];
     if (tDecodeSReplica(&decoder, pReplica) < 0) return -1;
   }
-  if (tDecodeIsEnd(&decoder)) {
+  if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI8(&decoder, &pReq->learnerReplica) < 0) return -1;
     for (int32_t i = 0; i < TSDB_MAX_LEARNER_REPLICA; ++i) {
       SReplica *pReplica = &pReq->learnerReplicas[i];
