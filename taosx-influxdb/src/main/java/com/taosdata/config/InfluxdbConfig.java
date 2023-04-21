@@ -1,36 +1,24 @@
 package com.taosdata.config;
 
 import lombok.Data;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 
 /**
  * 源数据库（influxdb）默认配置
  *
  * @author ZYP
  */
-@Configuration
+@Component
+@ConfigurationProperties(prefix = "influx", ignoreInvalidFields = true)
 @Data
 public class InfluxdbConfig {
 
-    @Value("${influx.url}")
     private String url;
-
-    @Value("${influx.token}")
     private String token;
-
-    @Value("${influx.orgId}")
     private String orgId;
-
-    @Value("${influx.maxTotal}")
-    private int maxTotal;
-
-    @Value("${influx.maxIdle}")
-    private int maxIdle;
-
-    @Value("${influx.minIdle}")
-    private int minIdle;
-
-    @Value("${influx.initialSize}")
-    private int initialSize;
+    private int maxTotal = 20;
+    private int maxIdle = 10;
+    private int minIdle = 5;
+    private int initialSize = 5;
 }

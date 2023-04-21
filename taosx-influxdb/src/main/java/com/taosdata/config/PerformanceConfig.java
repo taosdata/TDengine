@@ -11,18 +11,18 @@ import org.springframework.stereotype.Component;
  * @author ZYP
  */
 @Component
-@ConfigurationProperties(prefix = "performance")
+@ConfigurationProperties(prefix = "performance", ignoreInvalidFields = true)
 @Data
 public class PerformanceConfig {
 
-    private int limitConnect;
-    private int limitBatch;
-    private int limitSpeed;
-    private int retryTimes;
-    private long retryInterval;
-    private String readWindow;
-    private int maxThread;
-    private long queueSizeT;
-    private long queueSizeD;
+    private int limitConnect = 1;
+    private int limitBatch = 500;
+    private int limitSpeed = 50000;
+    private int retryTimes = 3;
+    private long retryInterval = 200;
+    private String readWindow = "M";
+    private int maxThread = 50;
+    private long queueSizeT = 1000;
+    private long queueSizeD = 200000;
     private ThreadConfig thread;
 }

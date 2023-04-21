@@ -8,16 +8,12 @@ import com.taosdata.netty.consts.NettyConsts;
 import com.taosdata.netty.model.dto.MessageDto;
 import com.taosdata.netty.model.enums.MessageTypeEnums;
 import com.taosdata.utils.IdUtils;
-import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.EventLoop;
-import io.netty.handler.timeout.IdleStateEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Date;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Netty客户端消息处理器
@@ -60,6 +56,7 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
     public void userEventTriggered(ChannelHandlerContext channelHandlerContext, Object event) throws Exception {
         logger.info("Receive event: {}", event.toString());
         // 连接空闲
+        /*
         if (event instanceof IdleStateEvent) {
             // 记录Netty连接信息
             StatusCache.noteNetty(channelHandlerContext.channel().id().asShortText(), StatusEnums.FAILED);
@@ -75,6 +72,7 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
         } else {
             super.userEventTriggered(channelHandlerContext, event);
         }
+        */
     }
 
     /**
@@ -86,17 +84,20 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext channelHandlerContext) throws Exception {
         // 清除Netty连接信息
+        /*
         StatusCache.forgetNetty(channelHandlerContext.channel().id().asShortText());
         logger.error("检测到心跳服务断开，将在5秒后进行重连");
         final EventLoop eventLoop = channelHandlerContext.channel().eventLoop();
         eventLoop.schedule(() -> this.nettyClient.connect(new Bootstrap(), eventLoop), 5L, TimeUnit.SECONDS);
         super.channelInactive(channelHandlerContext);
+        */
     }
 
     @Override
     public void channelRead(ChannelHandlerContext channelHandlerContext, Object msg) throws Exception {
         // 记录Netty连接信息
         StatusCache.noteNetty(channelHandlerContext.channel().id().asShortText(), StatusEnums.NORMAL, new Date());
+        /*
         // 对象类型正确则处理
         if (msg instanceof MessageDto) {
             MessageDto messageDto = (MessageDto) msg;
@@ -111,6 +112,7 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
             }
         }
         super.channelRead(channelHandlerContext, msg);
+        */
     }
 
     /**

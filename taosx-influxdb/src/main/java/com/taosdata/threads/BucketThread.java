@@ -208,7 +208,7 @@ public class BucketThread implements Runnable {
         long begin = beginTime.getTime() + index * 24 * 60 * 60 * 1000;
         long end = begin + 24 * 60 * 60 * 1000;
         // 判断是否超过指定时间范围
-        if (begin > endTime.getTime()) {
+        if (begin >= endTime.getTime()) {
             return null;
         }
         // 调整结束时间
@@ -231,7 +231,7 @@ public class BucketThread implements Runnable {
         long begin = beginTime.getTime() + index * 60 * 60 * 1000;
         long end = begin + 60 * 60 * 1000;
         // 判断是否超过指定时间范围
-        if (begin > endTime.getTime()) {
+        if (begin >= endTime.getTime()) {
             return null;
         }
         // 调整结束时间
@@ -254,7 +254,7 @@ public class BucketThread implements Runnable {
         long begin = beginTime.getTime() + index * 60 * 1000;
         long end = begin + 60 * 1000;
         // 判断是否超过指定时间范围
-        if (begin > endTime.getTime()) {
+        if (begin >= endTime.getTime()) {
             return null;
         }
         // 调整结束时间

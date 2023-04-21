@@ -13,10 +13,7 @@ import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.client.NettyClient;
 import com.taosdata.netty.client.config.NettyClientConfig;
 import com.taosdata.service.InfluxdbService;
-import com.taosdata.threads.BucketThread;
-import com.taosdata.threads.MessageThread;
-import com.taosdata.threads.MonitorThread;
-import com.taosdata.threads.ScheduleThread;
+import com.taosdata.threads.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,10 +87,11 @@ public class PreLoading implements CommandLineRunner {
             initInfluxdb();
             // 记录Netty连接信息
             StatusCache.noteNetty(this.nettyClientConfig.getHost(), this.nettyClientConfig.getPort());
-            // 启动客户端
-            for (int i = 0; i < performanceConfig.getLimitConnect(); i++) {
-                nettyClient.run();
-            }
+            // 增加退出信号处理方法
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                // 处理退出信号
+                processShutdown();
+            }));
             // 状态默认正常，线程内部会再次更新
             StatusCache.setStatus(StatusEnums.NORMAL.getCode());
             StatusCache.setDescription(StatusEnums.NORMAL.getDesc());
@@ -166,8 +164,27 @@ public class PreLoading implements CommandLineRunner {
             threadInfo.setStatus(StatusEnums.LOADING.getCode());
             threadInfo.setDescription(StatusEnums.LOADING.getDesc());
             StatusCache.noteThread(threadInfo);
+            // 启动PushPrepareThread
+            PushPrepareThread pushPrepare = new PushPrepareThread();
+            Thread pushPrepareThread = new Thread(pushPrepare);
+            pushPrepareThread.setName("PushPrepareThread");
+            pushPrepareThread.start();
+            threadInfo = new ThreadInfo();
+            threadInfo.setName("PushPrepareThread");
+            threadInfo.setStartTime(new Date());
+            threadInfo.setStatus(StatusEnums.LOADING.getCode());
+            threadInfo.setDescription(StatusEnums.LOADING.getDesc());
+            StatusCache.noteThread(threadInfo);
         } catch (Exception e) {
             logger.error("初始化influxdb及相关线程过程中发生异常", e);
         }
+    }
+
+    /**
+     * 处理退出信号
+     */
+    private void processShutdown() {
+        // TODO
+        logger.info("系统已执行安全退出。");
     }
 }

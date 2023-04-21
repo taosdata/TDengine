@@ -1,5 +1,6 @@
 package com.taosdata.netty.client;
 
+import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.model.dto.bum.ThreadInfo;
 import com.taosdata.model.enums.StatusEnums;
@@ -38,7 +39,7 @@ public class NettyClient {
     @Resource
     private ClientChannelInitializer clientChannelInitializer;
 
-    public void run() {
+    public void run(String dataSourceKey) {
         // 异步线程
         Thread waitThread = new Thread(() -> {
             // 创建配置参数
@@ -46,7 +47,7 @@ public class NettyClient {
             // 创建workGroup用于接收消息数据
             EventLoopGroup workGroup = new NioEventLoopGroup();
             // 建立连接
-            connect(bootstrap, workGroup);
+            connect(bootstrap, workGroup, dataSourceKey);
         });
         waitThread.start();
     }
@@ -57,7 +58,7 @@ public class NettyClient {
      * @param bootstrap
      * @param workGroup
      */
-    public void connect(Bootstrap bootstrap, EventLoopGroup workGroup) {
+    public void connect(Bootstrap bootstrap, EventLoopGroup workGroup, String dataSourceKey) {
         try {
             // 传入当前客户端
             this.clientChannelInitializer.setNettyClient(NettyClient.this);
@@ -85,10 +86,12 @@ public class NettyClient {
                 if (listener.isSuccess()) {
                     // 记录Netty连接信息
                     StatusCache.noteNetty(clientId);
+                    // 将Socket连接记录到推送数据缓存信息中
+                    BucketDataCache.socketMap.put(dataSourceKey, listener.channel());
                     // 线程名
                     String threadName = "PushThread-" + clientId;
                     // 启动线程PushThread
-                    PushThread push = new PushThread(listener.channel());
+                    PushThread push = new PushThread(dataSourceKey, listener.channel());
                     Thread pushThread = new Thread(push);
                     pushThread.setName(threadName);
                     pushThread.start();
@@ -103,7 +106,7 @@ public class NettyClient {
                     // 记录Netty连接信息
                     StatusCache.noteNetty(clientId, StatusEnums.FAILED);
                     logger.error("建立连接失败，将在5秒后进行重连");
-                    listener.channel().eventLoop().schedule(() -> connect(new Bootstrap(), eventLoop), 5, TimeUnit.SECONDS);
+                    listener.channel().eventLoop().schedule(() -> connect(new Bootstrap(), eventLoop, dataSourceKey), 5, TimeUnit.SECONDS);
                 }
             });
             // 监听到结束信号后关闭

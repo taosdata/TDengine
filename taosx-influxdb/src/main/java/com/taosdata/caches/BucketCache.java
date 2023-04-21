@@ -14,10 +14,19 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class BucketCache {
 
+    /**
+     * BucketName-Entity
+     */
     public static LinkedHashMap<String, InfluxdbBucketEntity> bucketMap = new LinkedHashMap<>();
 
+    /**
+     * MeasurementName-Entity
+     */
     public static Map<String, InfluxdbMeasurementEntity> measurementMap = new HashMap<>();
 
+    /**
+     * BucketName-读取数据任务队列
+     */
     private static ConcurrentHashMap<String, Queue<BucketDataThread>> bucketDataThreadQueueMap = new ConcurrentHashMap<>();
 
     /**

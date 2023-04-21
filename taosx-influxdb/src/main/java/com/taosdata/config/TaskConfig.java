@@ -13,12 +13,12 @@ import java.util.List;
  * @author ZYP
  */
 @Component
-@ConfigurationProperties(prefix = "task")
+@ConfigurationProperties(prefix = "task", ignoreInvalidFields = true)
 @Data
 public class TaskConfig {
 
     private List<BucketConfig> buckets;
     private String beginTime;
     private String endTime;
-    private int assignmentType;
+    private int assignmentType = 1;
 }

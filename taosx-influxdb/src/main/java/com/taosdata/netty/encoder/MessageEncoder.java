@@ -4,6 +4,10 @@ import com.taosdata.netty.model.dto.MessageDto;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Arrays;
 
 /**
  * Netty客户端消息编码器
@@ -12,19 +16,13 @@ import io.netty.handler.codec.MessageToByteEncoder;
  */
 public class MessageEncoder extends MessageToByteEncoder<MessageDto> {
 
+    protected Logger logger = LoggerFactory.getLogger(getClass());
+
     @Override
     protected void encode(ChannelHandlerContext channelHandlerContext, MessageDto messageDto, ByteBuf out) throws Exception {
-//        ByteBufOutputStream byteBufOutputStream = new ByteBufOutputStream(out);
-//        byteBufOutputStream.writeInt(NettyConsts.MAGIC);
-//        byteBufOutputStream.writeByte(messageDto.getVersion());
-//        byteBufOutputStream.writeByte(messageDto.getMsgType());
-//        byteBufOutputStream.writeLong(messageDto.getSeq());
-//        if (messageDto.getBody() == null || messageDto.getBody().length == 0) {
-//            byteBufOutputStream.writeInt(0);
-//        } else {
-//            byteBufOutputStream.writeInt(messageDto.getBody().length);
-//            byteBufOutputStream.write(messageDto.getBody());
-//        }
+        // TODO 目前仅发送apache arrow字节流
         out.writeBytes(messageDto.getBody());
+        // 将字节流输出到log文件
+        logger.info("push byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(messageDto.getBody()));
     }
 }

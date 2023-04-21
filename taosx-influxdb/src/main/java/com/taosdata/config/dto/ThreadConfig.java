@@ -13,37 +13,41 @@ public class ThreadConfig {
     /**
      * MessageThread线程
      */
-    private long processMessageInterval;
-    private long processMessageEmptyInterval;
+    private long processMessageInterval = 1;
+    private long processMessageEmptyInterval = 10;
+
+    /**
+     * PushPrepareThread线程
+     */
+    private long readBucketDataBatch = 1000;
+    private long pushPrepareInterval = 10;
 
     /**
      * PushThread线程
      */
-    private long readBucketDataBatch;
-    private long pushInterval;
-    private long pushEmptyInterval;
-    private long pushNotFullInterval;
+    private long pushInterval = 0;
+    private long pushEmptyInterval = 10;
 
     /**
      * BucketThread线程
      */
-    private long createBucketInterval;
-    private long createBucketFullInterval;
+    private long createBucketInterval = 5;
+    private long createBucketFullInterval = 200;
 
     /**
      * BucketDataThread线程
      */
-    private long readBucketBatch;
-    private long readBucketInterval;
-    private long readBucketFullInterval;
+    private long readBucketBatch = 1000;
+    private long readBucketInterval = 1;
+    private long readBucketFullInterval = 200;
 
     /**
      * ScheduleThread线程
      */
-    private long scheduleInterval;
+    private long scheduleInterval = 5;
 
     /**
      * MonitorThread线程
      */
-    private long monitorInterval;
+    private long monitorInterval = 200;
 }

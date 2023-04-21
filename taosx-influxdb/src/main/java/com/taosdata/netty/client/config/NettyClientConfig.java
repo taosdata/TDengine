@@ -10,16 +10,16 @@ import org.springframework.stereotype.Component;
  * @author ZYP
  */
 @Component
-@ConfigurationProperties(prefix = "taosx")
+@ConfigurationProperties(prefix = "taosx", ignoreInvalidFields = true)
 @Data
 public class NettyClientConfig {
 
     private String host;
     private int port;
-    private boolean soKeepalive;
-    private boolean tcpNoDelay;
-    private int idleReader;
-    private int idleWriter;
-    private int idleAll;
-    private int unPongRetryTimes;
+    private boolean soKeepalive = true;
+    private boolean tcpNoDelay = true;
+    private int idleReader = 10;
+    private int idleWriter = 0;
+    private int idleAll = 0;
+    private int unPongRetryTimes = 3;
 }
