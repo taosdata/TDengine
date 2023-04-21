@@ -1447,7 +1447,8 @@ int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen) {
 }
 
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  vInfo("vgId:%d, alter replica confim msg is processed", TD_VID(pVnode));
+  vInfo("vgId:%d, vnode management handle msgType:alter-confirm, alter replica confim msg is processed", 
+          TD_VID(pVnode));
   pRsp->msgType = TDMT_VND_ALTER_CONFIRM_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;

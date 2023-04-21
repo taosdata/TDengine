@@ -379,7 +379,6 @@ struct SVnode {
   STQ*          pTq;
   SSink*        pSink;
   tsem_t        canCommit;
-  SVCommitSched commitSched;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
@@ -388,9 +387,6 @@ struct SVnode {
   int32_t       blockSec;
   int64_t       blockSeq;
   SQHandle*     pQuery;
-#if 0
-  SRpcHandleInfo blockInfo;
-#endif
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
