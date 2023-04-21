@@ -77,7 +77,7 @@ static inline bool tmsgIsValid(tmsg_t type) {
 }
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
-         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM);
+         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM) || (type == TDMT_VND_COMMIT);
 }
 
 static inline bool syncUtilUserCommit(tmsg_t msgType) {
@@ -1286,6 +1286,9 @@ typedef struct {
   int16_t  hashSuffix;
   int32_t  tsdbPageSize;
   int64_t  reserved[8];
+  int8_t   learnerReplica;
+  int8_t   learnerSelfIndex;
+  SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1357,7 +1360,10 @@ typedef struct {
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
   int64_t  reserved[8];
-} SAlterVnodeReplicaReq;
+  int8_t   learnerSelfIndex;
+  int8_t   learnerReplica;
+  SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
+} SAlterVnodeReplicaReq, SAlterVnodeTypeReq;
 
 int32_t tSerializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeReplicaReq* pReq);
 int32_t tDeserializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeReplicaReq* pReq);
@@ -1629,7 +1635,10 @@ int32_t tDeserializeSCreateDropMQSNodeReq(void* buf, int32_t bufLen, SMCreateQno
 typedef struct {
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
-} SDCreateMnodeReq, SDAlterMnodeReq;
+  int8_t   learnerReplica;
+  SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
+  int64_t  lastIndex;
+} SDCreateMnodeReq, SDAlterMnodeReq, SDAlterMnodeTypeReq;
 
 int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
