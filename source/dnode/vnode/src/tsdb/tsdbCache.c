@@ -181,6 +181,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
   tsdbRowIterOpen(&iter, pRow, pTSchema);
 
   for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal; pColVal = tsdbRowIterNext(&iter)) {
+    /*
     if (IS_VAR_DATA_TYPE(pColVal->type)) {
       uint8_t *pVal = pColVal->value.pData;
 
@@ -195,7 +196,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
         memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
       }
     }
-
+    */
     taosArrayPush(aColVal, pColVal);
   }
 
@@ -230,6 +231,9 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
                     keys_list_sizes, values_list, values_list_sizes, errs);
   for (int i = 0; i < num_keys; ++i) {
     taosMemoryFree(keys_list[i]);
+  }
+  for (int i = 0; i < num_keys * 2; ++i) {
+    rocksdb_free(errs[i]);
   }
   taosMemoryFree(keys_list);
   taosMemoryFree(keys_list_sizes);
@@ -313,6 +317,7 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray **ppLastArray, SCacheRow
                     keys_list_sizes, values_list, values_list_sizes, errs);
   for (int i = 0; i < num_keys; ++i) {
     taosMemoryFree(keys_list[i]);
+    rocksdb_free(errs[i]);
   }
   taosMemoryFree(keys_list);
   taosMemoryFree(keys_list_sizes);
