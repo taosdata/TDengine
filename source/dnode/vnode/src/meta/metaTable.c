@@ -1029,7 +1029,7 @@ int metaUpdateCtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
   metaTrace("vgId:%d, start to save version:%" PRId64 " uid:%" PRId64 " ctime:%" PRId64, TD_VID(pMeta->pVnode),
             pME->version, pME->uid, ctimeKey.ctime);
 
-  return tdbTbInsert(pMeta->pCtimeIdx, &ctimeKey, sizeof(ctimeKey), NULL, 0, pMeta->txn);
+  return tdbTbUpsert(pMeta->pCtimeIdx, &ctimeKey, sizeof(ctimeKey), NULL, 0, pMeta->txn);
 }
 
 int metaDeleteCtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
@@ -1044,7 +1044,7 @@ int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
   if (metaBuildNColIdxKey(&ncolKey, pME) < 0) {
     return 0;
   }
-  return tdbTbInsert(pMeta->pNcolIdx, &ncolKey, sizeof(ncolKey), NULL, 0, pMeta->txn);
+  return tdbTbUpsert(pMeta->pNcolIdx, &ncolKey, sizeof(ncolKey), NULL, 0, pMeta->txn);
 }
 
 int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
@@ -1878,24 +1878,24 @@ static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
 }
 
 static int metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbTbInsert(pMeta->pSuidIdx, &pME->uid, sizeof(tb_uid_t), NULL, 0, pMeta->txn);
+  return tdbTbUpsert(pMeta->pSuidIdx, &pME->uid, sizeof(tb_uid_t), NULL, 0, pMeta->txn);
 }
 
 static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbTbInsert(pMeta->pNameIdx, pME->name, strlen(pME->name) + 1, &pME->uid, sizeof(tb_uid_t), pMeta->txn);
+  return tdbTbUpsert(pMeta->pNameIdx, pME->name, strlen(pME->name) + 1, &pME->uid, sizeof(tb_uid_t), pMeta->txn);
 }
 
 static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME) {
   STtlIdxKey ttlKey = {0};
   metaBuildTtlIdxKey(&ttlKey, pME);
   if (ttlKey.dtime == 0) return 0;
-  return tdbTbInsert(pMeta->pTtlIdx, &ttlKey, sizeof(ttlKey), NULL, 0, pMeta->txn);
+  return tdbTbUpsert(pMeta->pTtlIdx, &ttlKey, sizeof(ttlKey), NULL, 0, pMeta->txn);
 }
 
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SCtbIdxKey ctbIdxKey = {.suid = pME->ctbEntry.suid, .uid = pME->uid};
 
-  return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), pME->ctbEntry.pTags,
+  return tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), pME->ctbEntry.pTags,
                      ((STag *)(pME->ctbEntry.pTags))->len, pMeta->txn);
 }
 
@@ -2114,12 +2114,14 @@ int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
   }
 
   metaULock(pMeta);
+  metaDebug("vgId:%d, handle meta entry, ver:%" PRId64 ", uid:%" PRId64 ", name:%s", TD_VID(pMeta->pVnode),
+            pME->version, pME->uid, pME->name);
   return 0;
 
 _err:
   metaULock(pMeta);
-  metaError("vgId:%d, failed to handle meta entry since %s at line:%d, ver:%" PRId64 ", uid:%" PRId64,
-            TD_VID(pMeta->pVnode), terrstr(), line, pME->version, pME->uid);
+  metaError("vgId:%d, failed to handle meta entry since %s at line:%d, ver:%" PRId64 ", uid:%" PRId64 ", name:%s",
+            TD_VID(pMeta->pVnode), terrstr(), line, pME->version, pME->uid, pME->name);
   return -1;
 }
 
