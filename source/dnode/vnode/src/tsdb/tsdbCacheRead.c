@@ -258,13 +258,10 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   SCacheRowsReader* pr = pReader;
-
-  int32_t    code = TSDB_CODE_SUCCESS;
-  SLRUCache* lruCache = pr->pVnode->pTsdb->lruCache;
-  LRUHandle* h = NULL;
-  SArray*    pRow = NULL;
-  bool       hasRes = false;
-  SArray*    pLastCols = NULL;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  SArray*           pRow = taosArrayInit(TARRAY_SIZE(pr->pCidList), sizeof(SLastCol));
+  bool              hasRes = false;
+  SArray*           pLastCols = NULL;
 
   void** pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
   if (pRes == NULL) {
@@ -312,7 +309,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
-      tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, &pRow, pr, lstring);
+      tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, lstring);
       if (TARRAY_SIZE(pRow) <= 0) {
         taosArrayDestroy(pRow);
         continue;
@@ -371,7 +368,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
       }
 
-      taosArrayDestroy(pRow);
+      taosArrayClear(pRow);
     }
 
     if (hasRes) {
@@ -381,14 +378,14 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
-      tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, &pRow, pr, lstring);
+      tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, lstring);
       if (TARRAY_SIZE(pRow) <= 0) {
         taosArrayDestroy(pRow);
         continue;
       }
 
       saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
-      taosArrayDestroy(pRow);
+      taosArrayClear(pRow);
 
       taosArrayPush(pTableUidList, &pKeyInfo->uid);
 
@@ -416,6 +413,7 @@ _end:
   }
 
   taosMemoryFree(pRes);
+  taosArrayDestroy(pRow);
   taosArrayDestroyEx(pLastCols, freeItem);
   return code;
 }

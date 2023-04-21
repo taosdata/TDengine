@@ -294,7 +294,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray **ppLastArray, SCacheRowsReader *pr, char const *lstring) {
+int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, char const *lstring) {
   int32_t code = 0;
 
   SArray *pCidList = pr->pCidList;
@@ -326,7 +326,6 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray **ppLastArray, SCacheRow
   taosMemoryFree(keys_list_sizes);
   taosMemoryFree(errs);
 
-  SArray *pLastArray = taosArrayInit(num_keys, sizeof(SLastCol));
   for (int i = 0; i < num_keys; ++i) {
     SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
 
@@ -337,7 +336,6 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray **ppLastArray, SCacheRow
   taosMemoryFree(values_list);
   taosMemoryFree(values_list_sizes);
 
-  *ppLastArray = pLastArray;
   return code;
 }
 
