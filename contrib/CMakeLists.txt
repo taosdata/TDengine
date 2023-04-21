@@ -232,7 +232,7 @@ if(${BUILD_WITH_ROCKSDB})
     endif(${TD_DARWIN})
 
     if (${TD_WINDOWS})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244")  
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819")  
     endif(${TD_WINDOWS})
 
     option(WITH_TESTS "" OFF)
