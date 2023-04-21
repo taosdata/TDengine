@@ -15,7 +15,7 @@
 
 #include "tq.h"
 
-static int32_t doCreateReqsByScanWal(SStreamMeta* pStreamMeta, bool* pScanIdle);
+static int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle);
 
 // this function should be executed by stream threads.
 // there is a case that the WAL increases more fast than the restore procedure, and this restore procedure
@@ -31,7 +31,7 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
 
     // check all restore tasks
     bool shouldIdle = true;
-    doCreateReqsByScanWal(pTq->pStreamMeta, &shouldIdle);
+    createStreamRunReq(pTq->pStreamMeta, &shouldIdle);
 
     int32_t times = 0;
 
@@ -76,7 +76,7 @@ static SArray* extractTaskIdList(SStreamMeta* pStreamMeta, int32_t numOfTasks) {
   return pTaskIdList;
 }
 
-int32_t doCreateReqsByScanWal(SStreamMeta* pStreamMeta, bool* pScanIdle) {
+int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   *pScanIdle = true;
   bool    noNewDataInWal = true;
   int32_t vgId = pStreamMeta->vgId;

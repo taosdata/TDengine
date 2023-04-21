@@ -192,7 +192,7 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
 
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask != NULL) {
-    if (streamTaskShouldStop(&(*ppTask)->status)) {
+    if (!streamTaskShouldStop(&(*ppTask)->status)) {
       atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
       taosRUnLockLatch(&pMeta->lock);
       return *ppTask;
