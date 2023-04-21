@@ -33,12 +33,24 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     return -1;
   }
 
-  SMnodeOpt option = {.deploy = true, .numOfReplicas = createReq.replica, .selfIndex = -1};
+  SMnodeOpt option = {.deploy = true, .numOfReplicas = createReq.replica, 
+                      .numOfTotalReplicas = createReq.replica + createReq.learnerReplica, 
+                      .selfIndex = -1, .lastIndex = createReq.lastIndex};
+  
   memcpy(option.replicas, createReq.replicas, sizeof(createReq.replicas));
-  for (int32_t i = 0; i < option.numOfReplicas; ++i) {
+  for (int32_t i = 0; i < createReq.replica; ++i) {
     if (createReq.replicas[i].id == pInput->pData->dnodeId) {
       option.selfIndex = i;
     }
+    option.nodeRoles[i] = TAOS_SYNC_ROLE_VOTER;
+  }
+
+  memcpy(&(option.replicas[createReq.replica]), createReq.learnerReplicas, sizeof(createReq.learnerReplicas));
+  for (int32_t i = 0; i < createReq.learnerReplica; ++i) {
+    if (createReq.learnerReplicas[i].id == pInput->pData->dnodeId) {
+      option.selfIndex = createReq.replica + i;
+    }
+    option.nodeRoles[createReq.replica + i] = TAOS_SYNC_ROLE_LEARNER;
   }
 
   if (option.selfIndex == -1) {
@@ -92,6 +104,8 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_VNODE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_VNODE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE_RSP, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE_RSP, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE_RSP, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_MND_CONNECT, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_CREATE_ACCT, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
