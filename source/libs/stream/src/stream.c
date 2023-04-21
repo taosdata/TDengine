@@ -16,7 +16,7 @@
 #include "streamInc.h"
 #include "ttimer.h"
 
-#define STREAM_TASK_INPUT_QUEUEU_CAPACITY 2000
+#define STREAM_TASK_INPUT_QUEUEU_CAPACITY 100000
 
 int32_t streamInit() {
   int8_t old;
@@ -352,4 +352,8 @@ void* streamQueueNextItem(SStreamQueue* queue) {
     }
     return streamQueueCurItem(queue);
   }
+}
+
+void streamTaskInputFail(SStreamTask* pTask) {
+  atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
 }

@@ -189,7 +189,10 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       qDebug("task %d scan exec dispatch block num %d", pTask->id.taskId, batchCnt);
       streamDispatch(pTask);
     }
-    if (finished) break;
+
+    if (finished) {
+      break;
+    }
   }
   return 0;
 }

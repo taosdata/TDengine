@@ -27,18 +27,21 @@ int tqStreamTasksScanWal(STQ* pTq) {
   int64_t st = taosGetTimestampMs();
 
   while (1) {
-    tqInfo("vgId:%d continue check if data in wal are available", vgId);
+    int32_t scan = pMeta->walScan;
+    tqDebug("vgId:%d continue check if data in wal are available, scan:%d", vgId, scan);
 
     // check all restore tasks
-    bool allFull = true;
-    streamTaskReplayWal(pTq->pStreamMeta, pTq->pOffsetStore, &allFull);
+    bool shouldIdle = true;
+    streamTaskReplayWal(pTq->pStreamMeta, pTq->pOffsetStore, &shouldIdle);
 
     int32_t times = 0;
 
-    if (allFull) {
+    if (shouldIdle) {
       taosWLockLatch(&pMeta->lock);
       pMeta->walScan -= 1;
       times = pMeta->walScan;
+
+      ASSERT(pMeta->walScan >= 0);
 
       if (pMeta->walScan <= 0) {
         taosWUnLockLatch(&pMeta->lock);
@@ -46,12 +49,12 @@ int tqStreamTasksScanWal(STQ* pTq) {
       }
 
       taosWUnLockLatch(&pMeta->lock);
-      tqInfo("vgId:%d scan wal for stream tasks for %d times", vgId, times);
+      tqDebug("vgId:%d scan wal for stream tasks for %d times", vgId, times);
     }
   }
 
-  double el = (taosGetTimestampMs() - st) / 1000.0;
-  tqInfo("vgId:%d scan wal for stream tasks completed, elapsed time:%.2f sec", vgId, el);
+  int64_t el = (taosGetTimestampMs() - st);
+  tqDebug("vgId:%d scan wal for stream tasks completed, elapsed time:%"PRId64" ms", vgId, el);
 
   // restore wal scan flag
 //  atomic_store_8(&pTq->pStreamMeta->walScan, 0);

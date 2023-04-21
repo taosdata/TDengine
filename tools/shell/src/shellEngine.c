@@ -58,7 +58,6 @@ int32_t shellRunSingleCommand(char *command) {
   }
 
   if (shellRegexMatch(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
-    shellWriteHistory();
     return -1;
   }
 
@@ -887,7 +886,6 @@ void shellWriteHistory() {
     }
     i = (i + 1) % SHELL_MAX_HISTORY_SIZE;
   }
-  taosFsyncFile(pFile);
   taosCloseFile(&pFile);
 }
 

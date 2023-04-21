@@ -20,6 +20,8 @@
 // 2: wait to be inited or cleaup
 #define WAL_READ_TASKS_ID       (-1)
 
+static int32_t tqInitialize(STQ* pTq);
+
 int32_t tqInit() {
   int8_t old;
   while (1) {
@@ -109,25 +111,32 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   pTq->pCheckInfo = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
+  tqInitialize(pTq);
+  return pTq;
+}
+
+int32_t tqInitialize(STQ* pTq) {
   if (tqMetaOpen(pTq) < 0) {
-    return NULL;
+    return -1;
   }
 
   pTq->pOffsetStore = tqOffsetOpen(pTq);
   if (pTq->pOffsetStore == NULL) {
-    return NULL;
+    return -1;
   }
 
-  pTq->pStreamMeta = streamMetaOpen(path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId);
+  pTq->pStreamMeta = streamMetaOpen(pTq->path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId);
   if (pTq->pStreamMeta == NULL) {
-    return NULL;
+    return -1;
   }
 
-  if (streamLoadTasks(pTq->pStreamMeta, walGetCommittedVer(pVnode->pWal)) < 0) {
-    return NULL;
+  // the version is kept in task's meta data
+  // todo check if this version is required or not
+  if (streamLoadTasks(pTq->pStreamMeta, walGetCommittedVer(pTq->pVnode->pWal)) < 0) {
+    return -1;
   }
 
-  return pTq;
+  return 0;
 }
 
 void tqClose(STQ* pTq) {
@@ -548,12 +557,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 }
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
-  // todo extract method
-  char buf[128] = {0};
-  sprintf(buf, "0x%"PRIx64"-%d", pTask->id.streamId, pTask->id.taskId);
-
   int32_t vgId = TD_VID(pTq->pVnode);
-  pTask->id.idStr = taosStrdup(buf);
+  pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
   pTask->refCnt = 1;
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->inputQueue = streamQueueOpen();
@@ -633,8 +638,11 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   }
 
   streamSetupTrigger(pTask);
-  tqInfo("vgId:%d expand stream task, s-task:%s, ver:%" PRId64 " child id:%d, level:%d", vgId, pTask->id.idStr,
+  tqInfo("vgId:%d expand stream task, s-task:%s, checkpoint ver:%" PRId64 " child id:%d, level:%d", vgId, pTask->id.idStr,
          pTask->chkInfo.version, pTask->selfChildId, pTask->taskLevel);
+
+  // next valid version will add one
+  pTask->chkInfo.version += 1;
   return 0;
 }
 
@@ -750,7 +758,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
   tDecoderClear(&decoder);
 
-  // 2.save task
+  // 2.save task, use the newest commit version as the initial start version of stream task.
   code = streamMetaAddDeployedTask(pTq->pStreamMeta, sversion, pTask);
   if (code < 0) {
     tqError("vgId:%d failed to add s-task:%s, total:%d", TD_VID(pTq->pVnode), pTask->id.idStr,
@@ -1278,6 +1286,13 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
   SStreamMeta* pMeta = pTq->pStreamMeta;
   taosWLockLatch(&pMeta->lock);
+  int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pTasks);
+  if (numOfTasks == 0) {
+    tqInfo("vgId:%d no stream tasks exists", vgId);
+    taosWUnLockLatch(&pTq->pStreamMeta->lock);
+    return 0;
+  }
+
   pMeta->walScan += 1;
 
   if (pMeta->walScan > 1) {
@@ -1293,8 +1308,6 @@ int32_t tqStartStreamTasks(STQ* pTq) {
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
     return -1;
   }
-
-  int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pTasks);
 
   tqInfo("vgId:%d start wal scan stream tasks, tasks:%d", vgId, numOfTasks);
   initOffsetForAllRestoreTasks(pTq);

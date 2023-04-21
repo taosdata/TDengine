@@ -80,6 +80,7 @@ typedef struct {
   int64_t appId;
   // ctl
   int8_t        threadStop;
+  int8_t        quitByKill;
   TdThread      thread;
   TdThreadMutex lock;  // used when app init and cleanup
   SHashObj*     appSummary;

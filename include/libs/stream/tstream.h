@@ -335,18 +335,17 @@ struct SStreamTask {
 
 // meta
 typedef struct SStreamMeta {
-    char*        path;
-    TDB*         db;
-    TTB*         pTaskDb;
-    TTB*         pCheckpointDb;
-    SHashObj*    pTasks;
-    void*        ahandle;
-    TXN*         txn;
-    FTaskExpand* expandFunc;
-    int32_t      vgId;
-    SRWLatch     lock;
-    int8_t       walScan;
-    bool         quit;
+  char*        path;
+  TDB*         db;
+  TTB*         pTaskDb;
+  TTB*         pCheckpointDb;
+  SHashObj*    pTasks;
+  void*        ahandle;
+  TXN*         txn;
+  FTaskExpand* expandFunc;
+  int32_t      vgId;
+  SRWLatch     lock;
+  int32_t      walScan;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -358,10 +357,6 @@ int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeStreamTask(SStreamTask* pTask);
 int32_t      tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem);
 bool         tInputQueueIsFull(const SStreamTask* pTask);
-
-static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
-  atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
-}
 
 typedef struct {
   SMsgHead head;
@@ -538,6 +533,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
 // int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 
+void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
 int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock);
