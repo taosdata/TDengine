@@ -188,6 +188,7 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                       int32_t type, int64_t sver, int64_t ever);
 
+int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq);
 void    doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver);
 void    saveOffsetForAllTasks(STQ* pTq, int64_t ver);
 void    initOffsetForAllRestoreTasks(STQ* pTq);

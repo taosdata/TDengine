@@ -365,6 +365,81 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   return tqExtractDataForMq(pTq, pHandle, &req, pMsg);
 }
 
+int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
+  SMqPollReq req = {0};
+  if (tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
+    tqError("tDeserializeSMqPollReq %d failed", pMsg->contLen);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int64_t      consumerId = req.consumerId;
+  STqOffsetVal reqOffset = req.reqOffset;
+  int32_t      vgId = TD_VID(pTq->pVnode);
+
+  // 1. find handle
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
+  if (pHandle == NULL) {
+    tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s not found", consumerId, vgId, req.subKey);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  // 2. check re-balance status
+  taosRLockLatch(&pTq->lock);
+  if (pHandle->consumerId != consumerId) {
+    tqDebug("ERROR consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+            consumerId, vgId, req.subKey, pHandle->consumerId);
+    terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+    taosRUnLockLatch(&pTq->lock);
+    return -1;
+  }
+  taosRUnLockLatch(&pTq->lock);
+
+  int64_t sver = 0, ever = 0;
+  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
+
+  SMqDataRsp dataRsp = {0};
+  tqInitDataRsp(&dataRsp, &req);
+
+  STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, req.subKey);
+  if (pOffset != NULL) {
+    if (pOffset->val.type != TMQ_OFFSET__LOG) {
+      tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s use snapshot, no valid wal info", consumerId, vgId, req.subKey);
+      terrno = TSDB_CODE_INVALID_PARA;
+      tDeleteMqDataRsp(&dataRsp);
+      return -1;
+    }
+
+    dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
+    dataRsp.rspOffset.version = pOffset->val.version;
+  } else {
+    if (req.useSnapshot == true) {
+      tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s snapshot not support wal info", consumerId, vgId, req.subKey);
+      terrno = TSDB_CODE_INVALID_PARA;
+      tDeleteMqDataRsp(&dataRsp);
+      return -1;
+    }
+
+    dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
+
+    if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
+      dataRsp.rspOffset.version = sver;
+    } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
+      dataRsp.rspOffset.version = ever;
+    } else {
+      tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s invalid offset type:%d", consumerId, vgId, req.subKey,
+              reqOffset.type);
+      terrno = TSDB_CODE_INVALID_PARA;
+      tDeleteMqDataRsp(&dataRsp);
+      return -1;
+    }
+  }
+
+  tqDoSendDataRsp(&pMsg->info, &dataRsp, req.epoch, req.consumerId, TMQ_MSG_TYPE__WALINFO_RSP, sver, ever);
+  return 0;
+}
+
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
 

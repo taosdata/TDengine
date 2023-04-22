@@ -1113,7 +1113,7 @@ TEST(clientCase, sub_tb_test) {
   tmq_topic_assignment* pAssign = NULL;
   int32_t numOfAssign = 0;
 
-  TAOS_RES* p = tmq_consumer_poll(tmq, timeout);
+//  TAOS_RES* p = tmq_consumer_poll(tmq, timeout);
   int32_t code = tmq_get_topic_assignment(tmq, "topic_t1", &pAssign, &numOfAssign);
 
   while (1) {

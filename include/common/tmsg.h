@@ -3106,15 +3106,14 @@ typedef struct {
 } SMqRspHead;
 
 typedef struct {
-  SMsgHead head;
-  char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int8_t   withTbName;
-  int8_t   useSnapshot;
-  int32_t  epoch;
-  uint64_t reqId;
-  int64_t  consumerId;
-  int64_t  timeout;
-  // int64_t      currentOffset;
+  SMsgHead     head;
+  char         subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int8_t       withTbName;
+  int8_t       useSnapshot;
+  int32_t      epoch;
+  uint64_t     reqId;
+  int64_t      consumerId;
+  int64_t      timeout;
   STqOffsetVal reqOffset;
 } SMqPollReq;
 

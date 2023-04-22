@@ -124,7 +124,7 @@ void doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ve
   tqOffsetWrite(pOffsetStore, &offset);
 }
 
-static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t subType) {
+int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq) {
   pRsp->reqOffset = pReq->reqOffset;
 
   pRsp->blockData = taosArrayInit(0, sizeof(void*));
@@ -214,7 +214,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
     } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
       if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
         SMqDataRsp dataRsp = {0};
-        tqInitDataRsp(&dataRsp, pRequest, pHandle->execHandle.subType);
+        tqInitDataRsp(&dataRsp, pRequest);
 
         tqOffsetResetToLog(&dataRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
         tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, (latest) offset reset to %" PRId64, consumerId,
@@ -252,7 +252,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   int32_t  vgId = TD_VID(pTq->pVnode);
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, pRequest, pHandle->execHandle.subType);
+  tqInitDataRsp(&dataRsp, pRequest);
 
   // lock
   taosWLockLatch(&pTq->lock);
@@ -489,7 +489,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   int32_t len = 0;
   int32_t code = 0;
 
-  if (type == TMQ_MSG_TYPE__POLL_RSP) {
+  if (type == TMQ_MSG_TYPE__POLL_RSP || type == TMQ_MSG_TYPE__WALINFO_RSP) {
     tEncodeSize(tEncodeMqDataRsp, pRsp, len, code);
   } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
     tEncodeSize(tEncodeSTaosxRsp, (STaosxRsp*)pRsp, len, code);
@@ -513,7 +513,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, abuf, len);
 
-  if (type == TMQ_MSG_TYPE__POLL_RSP) {
+  if (type == TMQ_MSG_TYPE__POLL_RSP || type == TMQ_MSG_TYPE__WALINFO_RSP) {
     tEncodeMqDataRsp(&encoder, pRsp);
   } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
     tEncodeSTaosxRsp(&encoder, (STaosxRsp*)pRsp);
