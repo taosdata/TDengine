@@ -42,18 +42,15 @@ struct SFileOp {
 struct SSttLvl {
   int32_t        level;
   int32_t        nStt;
-  SSttLvl       *pNext;
   struct STFile *fSttList;
+  LISTD(SSttLvl) listNode;
 };
 
 struct SFileSet {
   int32_t        fid;
   int64_t        nextid;
-  struct STFile *fHead;  // .head
-  struct STFile *fData;  // .data
-  struct STFile *fSma;   // .sma
-  struct STFile *fTomb;  // .tomb
-  SSttLvl       *sttLevelList;
+  struct STFile *farr[TSDB_FTYPE_MAX];
+  SSttLvl        lvl0;  // level 0 of .stt
 };
 
 int32_t tsdbFileSetCreate(int32_t fid, struct SFileSet **ppSet);
