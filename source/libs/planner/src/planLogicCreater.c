@@ -1442,8 +1442,12 @@ static int32_t createDeleteRootLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
 }
 
 static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDelete, SLogicNode** pLogicNode) {
+  if (isSystemDb(((SRealTableNode*)pDelete->pFromTable)->table.dbName)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   SScanLogicNode* pScan = NULL;
-  int32_t         code = makeScanLogicNode(pCxt, (SRealTableNode*)pDelete->pFromTable, false, (SLogicNode**)&pScan);
+  int32_t code = makeScanLogicNode(pCxt, (SRealTableNode*)pDelete->pFromTable, false, (SLogicNode**)&pScan);
 
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
