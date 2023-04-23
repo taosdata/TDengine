@@ -4,13 +4,7 @@ sidebar_label: Prometheus
 description: This document describes how to integrate TDengine with Prometheus.
 ---
 
-import Prometheus from "../14-reference/_prometheus.mdx"
-
 Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.
-
-Prometheus provides `remote_write` and `remote_read` interfaces to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine's efficient writing and querying, TDengine also provides support for these two interfaces.
-
-Prometheus data can be stored in TDengine via the `remote_write` interface with proper configuration. Data stored in TDengine can be queried via the `remote_read` interface, taking full advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
 ## Prerequisites
 
@@ -19,9 +13,43 @@ To write Prometheus data to TDengine requires the following preparations.
 - taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
 - Prometheus has been installed. Please refer to the [official documentation](https://prometheus.io/docs/prometheus/latest/installation/) for installing Prometheus
 
-## Configuration steps
+## Use TDengine as Prometheus's storage engine
 
-<Prometheus />
+Prometheus provides `remote_write` and `remote_read` interfaces to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine's efficient writing and querying, TDengine also provides support for these two interfaces.
+
+Prometheus data can be stored in TDengine via the `remote_write` interface with proper configuration. Data stored in TDengine can be queried via the `remote_read` interface, taking full advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
+
+Configuring Prometheus is done by editing the Prometheus configuration file prometheus.yml (default location `/etc/prometheus/prometheus.yml`).
+
+### Configuring third-party database addresses
+
+Point the `remote_read url` and `remote_write url` to the domain name or IP address of the server running the taosAdapter service, the REST service port (taosAdapter uses 6041 by default), and the name of the database you want to write to TDengine, and ensure that the corresponding URL form as follows.
+
+- remote_read url : `http://<taosAdapter's host>:<REST service port>/prometheus/v1/remote_read/<database name>`
+- remote_write url : `http://<taosAdapter's host>:<REST service port>/prometheus/v1/remote_write/<database name>`
+
+### Configure Basic authentication
+
+- username: <TDengine's username>
+- password: <TDengine's password>
+
+### Example configuration of remote_write and remote_read related sections in prometheus.yml file
+
+```yaml
+remote_write:
+  - url: "http://localhost:6041/prometheus/v1/remote_write/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
+
+remote_read:
+  - url: "http://localhost:6041/prometheus/v1/remote_read/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
+    remote_timeout: 10s
+    read_recent: true
+```
 
 ## Verification method
 
@@ -93,3 +121,30 @@ VALUE    TIMESTAMP
 
 - TDengine will automatically create unique IDs for sub-table names by the rule.
 :::
+
+## prometheus with taoskeeper
+
+There is `/metrics` api in taoskeeper provide TDengine metric data for Prometheus. 
+
+### scrape config
+
+Scrape config in Prometheus specifies a set of targets and parameters describing how to scrape metric data from endpoint. For more information, please reference to [Prometheus documents](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config).
+
+```
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  - job_name: "taoskeeper"
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+      - targets: ["localhost:6043"]
+```
+
+### dashboard
+
+There is a dashboard named `TaosKeeper Prometheus Dashboard for 3.x`, which provides a monitoring dashboard similar to TInsight.
+
+In Grafana, click the Dashboard menu and click `import`, enter the dashboard ID `18587` and click the `Load` button. Then finished importing `TaosKeeper Prometheus Dashboard for 3.x` dashboard.
