@@ -101,7 +101,7 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     return code;
   }
-
+  
   vgInfo->vgVersion = rsp->vgVersion;
   vgInfo->stateTs = rsp->stateTs;
   vgInfo->hashMethod = rsp->hashMethod;
@@ -114,7 +114,7 @@ static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }
-
+  
   for (int32_t j = 0; j < rsp->vgNum; ++j) {
     SVgroupInfo *pInfo = taosArrayGet(rsp->pVgroupInfos, j);
     if (taosHashPut(vgInfo->vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
@@ -717,7 +717,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 
   hbGetQueryBasicInfo(connKey, req);
 
-  if (cb) hbGetUserBasicInfo(connKey, req);
+  if (cb > 0) hbGetUserBasicInfo(connKey, req);
 
   code = hbGetExpiredUserInfo(connKey, pCatalog, req);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1128,7 +1128,7 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
   }
 }
 
-void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *cb) {
+void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *connFp) {
   SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   if (pReq) {
     tFreeClientHbReq(pReq);
@@ -1141,7 +1141,7 @@ void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *cb) {
   }
 
   atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
-  if (cb) {
+  if (connFp) {
     atomic_sub_fetch_32(&pAppHbMgr->nPassVerCb, 1);
   }
 }

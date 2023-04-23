@@ -361,7 +361,7 @@ void       stopAllRequests(SHashObj* pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
-void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* cb);
+void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* connFp);
 
 typedef struct SSqlCallbackWrapper {
   SParseContext* pParseCtx;
