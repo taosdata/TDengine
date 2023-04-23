@@ -384,11 +384,11 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     SIF_ERR_JRET(sifInitParam(node->pLeft, &paramList[0], ctx));
 
     if (nParam > 1) {
-      if (sifNeedConvertCond(node->pLeft, node->pRight)) {
-        SIF_ERR_JRET(sifInitParamValByCol(node->pLeft, node->pRight, &paramList[1], ctx));
-      } else {
-        SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
-      }
+      // if (sifNeedConvertCond(node->pLeft, node->pRight)) {
+      // SIF_ERR_JRET(sifInitParamValByCol(node->pLeft, node->pRight, &paramList[1], ctx));
+      // } else {
+      SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
+      // }
       // if (paramList[0].colValType == TSDB_DATA_TYPE_JSON &&
       //    ((SOperatorNode *)(node))->opType == OP_TYPE_JSON_CONTAINS) {
       //  return TSDB_CODE_OUT_OF_MEMORY;
@@ -474,65 +474,144 @@ static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reve
   }
   return NULL;
 }
-
-static void sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typedata, SMetaFltParam *param) {
-  int8_t ltype = left->colValType, rtype = right->colValType;
-  if (!IS_VAR_DATA_TYPE(ltype) && IS_VAR_DATA_TYPE(rtype)) {
-  } else if (IS_VAR_DATA_TYPE(ltype) && !IS_VAR_DATA_TYPE(rtype)) {
-    return;
-  } else if (!IS_VAR_DATA_TYPE(ltype) && !IS_VAR_DATA_TYPE(rtype)) {
-    if (ltype == TSDB_DATA_TYPE_FLOAT) {
-      float f = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, f);
-      typedata->f = f;
-      param->val = &typedata->f;
-    } else if (ltype == TSDB_DATA_TYPE_DOUBLE) {
-      double d = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, d);
-      typedata->d = d;
-      param->val = &typedata->d;
-    } else if (ltype == TSDB_DATA_TYPE_BIGINT) {
-      int64_t i64 = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, i64);
-      typedata->i64 = i64;
-      param->val = &typedata->i64;
-    } else if (ltype == TSDB_DATA_TYPE_INT) {
-      int32_t i32 = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, i32);
-      typedata->i32 = i32;
-      param->val = &typedata->i32;
-    } else if (ltype == TSDB_DATA_TYPE_SMALLINT) {
-      int16_t i16 = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, i16);
-      typedata->i16 = i16;
-      param->val = &typedata->i16;
-    } else if (ltype == TSDB_DATA_TYPE_TINYINT) {
-      int8_t i8 = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, i8)
-      typedata->i8 = i8;
-      param->val = &typedata->i8;
-    } else if (ltype == TSDB_DATA_TYPE_UBIGINT) {
-      uint64_t u64 = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, u64);
-      typedata->u64 = u64;
-      param->val = &typedata->u64;
-    } else if (ltype == TSDB_DATA_TYPE_UINT) {
-      uint32_t u32 = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, u32);
-      typedata->u32 = u32;
-      param->val = &typedata->u32;
-    } else if (ltype == TSDB_DATA_TYPE_USMALLINT) {
-      uint16_t u16 = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, u16);
-      typedata->u16 = u16;
-      param->val = &typedata->u16;
-    } else if (ltype == TSDB_DATA_TYPE_UTINYINT) {
-      uint8_t u8 = 0;
-      SIF_DATA_CONVERT(rtype, right->condValue, u8);
-      typedata->u8 = u8;
-      param->val = &typedata->u8;
-    }
+int32_t sifStr2num(char *buf, int8_t type, void *val) {
+  if (type == TSDB_DATA_TYPE_TINYINT) {
+    int8_t v = 0;
+    if (1 != sscanf(buf, "%hhd", &v)) return -1;
+    *(int8_t *)val = v;
+  } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+    int16_t v = 0;
+    if (1 != sscanf(buf, "%hd", &v)) return -1;
+    *(int16_t *)val = v;
+  } else if (type == TSDB_DATA_TYPE_INT) {
+    int32_t v = 0;
+    if (1 != sscanf(buf, "%d", &v)) return -1;
+    *(int32_t *)val = v;
+  } else if (type == TSDB_DATA_TYPE_BIGINT) {
+    int64_t v = 0;
+    if (1 != sscanf(buf, "%" PRId64 "", &v)) return -1;
+    *(int64_t *)val = v;
+  } else if (type == TSDB_DATA_TYPE_FLOAT) {
+    float v = 0;
+    if (1 != sscanf(buf, "%f", &v)) return -1;
+    *(float *)val = v;
+  } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+    double v = 0;
+    if (1 != sscanf(buf, "%lf", &v)) return -1;
+    *(double *)val = v;
+  } else if (type == TSDB_DATA_TYPE_UBIGINT) {
+    uint64_t v = 0;
+    if (1 != sscanf(buf, "%" PRIu64 "", &v)) return -1;
+    *(uint64_t *)val = v;
+  } else if (type == TSDB_DATA_TYPE_UINT || type == TSDB_DATA_TYPE_UTINYINT || type == TSDB_DATA_TYPE_USMALLINT) {
+    uint32_t v = 0;
+    if (1 != sscanf(buf, "%u", &v)) return -1;
+    *(uint32_t *)val = v;
+  } else {
+    return -1;
   }
+  return 0;
+}
+
+static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typedata, SMetaFltParam *param) {
+  int32_t code = 0;
+  int8_t  ltype = left->colValType, rtype = right->colValType;
+  if (!IS_NUMERIC_TYPE(ltype) || !((IS_NUMERIC_TYPE(rtype)) || rtype == TSDB_DATA_TYPE_VARCHAR)) {
+    return -1;
+  }
+  if (ltype == TSDB_DATA_TYPE_FLOAT) {
+    float f = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, f);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_FLOAT, &f));
+    }
+    typedata->f = f;
+    param->val = &typedata->f;
+  } else if (ltype == TSDB_DATA_TYPE_DOUBLE) {
+    double d = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, d);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_DOUBLE, &d));
+    }
+    typedata->d = d;
+    param->val = &typedata->d;
+  } else if (ltype == TSDB_DATA_TYPE_BIGINT) {
+    int64_t i64 = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, i64);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_BIGINT, &i64));
+    }
+    typedata->i64 = i64;
+    param->val = &typedata->i64;
+  } else if (ltype == TSDB_DATA_TYPE_INT) {
+    int32_t i32 = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, i32);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_INT, &i32));
+    }
+    typedata->i32 = i32;
+    param->val = &typedata->i32;
+  } else if (ltype == TSDB_DATA_TYPE_SMALLINT) {
+    int16_t i16 = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, i16);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_SMALLINT, &i16));
+    }
+
+    typedata->i16 = i16;
+    param->val = &typedata->i16;
+  } else if (ltype == TSDB_DATA_TYPE_TINYINT) {
+    int8_t i8 = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, i8);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_TINYINT, &i8));
+    }
+    typedata->i8 = i8;
+    param->val = &typedata->i8;
+  } else if (ltype == TSDB_DATA_TYPE_UBIGINT) {
+    uint64_t u64 = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, u64);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_UBIGINT, &u64));
+    }
+    typedata->u64 = u64;
+    param->val = &typedata->u64;
+  } else if (ltype == TSDB_DATA_TYPE_UINT) {
+    uint32_t u32 = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, u32);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_UINT, &u32));
+    }
+    typedata->u32 = u32;
+    param->val = &typedata->u32;
+  } else if (ltype == TSDB_DATA_TYPE_USMALLINT) {
+    uint16_t u16 = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, u16);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_USMALLINT, &u16));
+    }
+    typedata->u16 = u16;
+    param->val = &typedata->u16;
+  } else if (ltype == TSDB_DATA_TYPE_UTINYINT) {
+    uint8_t u8 = 0;
+    if (IS_NUMERIC_TYPE(rtype)) {
+      SIF_DATA_CONVERT(rtype, right->condValue, u8);
+    } else {
+      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_UTINYINT, &u8));
+    }
+    typedata->u8 = u8;
+    param->val = &typedata->u8;
+  }
+  return 0;
 }
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
   int             ret = 0;
@@ -573,7 +652,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
         param.val = buf;
       }
     } else {
-      sifSetFltParam(left, right, &typedata, &param);
+      if (sifSetFltParam(left, right, &typedata, &param) != 0) return -1;
     }
     ret = metaFilterTableIds(arg->metaEx, &param, output->result);
   }
