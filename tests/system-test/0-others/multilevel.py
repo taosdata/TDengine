@@ -251,7 +251,7 @@ class TDTestCase:
         self.three_level_basic()
         self.more_than_16_disks()
         self.trim_database()
-        # self.missing_middle_level()
+        self.missing_middle_level()
         
 
 
