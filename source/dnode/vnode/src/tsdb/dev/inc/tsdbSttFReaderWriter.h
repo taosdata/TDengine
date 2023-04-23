@@ -16,7 +16,7 @@
 #ifndef _TSDB_STT_FILE_WRITER_H
 #define _TSDB_STT_FILE_WRITER_H
 
-#include "tsdbFile.h"
+#include "tsdbDef.h"
 
 #ifdef __cplusplus
 extern "C" {

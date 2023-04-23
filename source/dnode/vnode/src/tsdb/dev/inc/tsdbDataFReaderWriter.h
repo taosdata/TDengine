@@ -13,23 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbSttFReader.h"
-#include "dev.h"
+#include "tsdbDef.h"
 
-struct SSttFReader {
-  STsdb      *pTsdb;
-  SFSttFooter footer;
-  const void *bloomFilter;
-};
+#ifndef _TD_TSDB_DATA_F_READER_WRITER_H_
+#define _TD_TSDB_DATA_F_READER_WRITER_H_
 
-int32_t tsdbSttFReaderOpen(const struct SSttFReaderConf *pConf, struct SSttFReader **ppReader) {
-  int32_t code = 0;
-  // TODO
-  return code;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Exposed Handle */
+typedef struct SDataFReader SDataFReader;
+typedef struct SDataFWriter SDataFWriter;
+
+/* Exposed APIs */
+
+/* Exposed Structs */
+
+#ifdef __cplusplus
 }
+#endif
 
-int32_t tsdbSttFReaderClose(struct SSttFReader *pReader) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
+#endif /*_TD_TSDB_DATA_F_READER_WRITER_H_*/

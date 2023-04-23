@@ -13,29 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TSDB_DEV_H
-#define _TSDB_DEV_H
+#ifndef _TD_TSDB_DEF_H_
+#define _TD_TSDB_DEF_H_
 
 #include "tsdb.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+typedef struct SFDataPtr {
+  int64_t offset;
+  int64_t size;
+} SFDataPtr;
 
-#include "inc/tsdbUtil.h"
-
-#include "inc/tsdbFile.h"
-
-#include "inc/tsdbFSet.h"
-
-#include "inc/tsdbFS.h"
-
-#include "inc/tsdbSttFReaderWriter.h"
-
-#include "inc/tsdbDataFReaderWriter.h"
+typedef struct {
+  int64_t   prevFooter;
+  SFDataPtr dict[4];  // 0:bloom filter, 1:SSttBlk, 2:STbStatisBlk, 3:SDelBlk
+  uint8_t   reserved[24];
+} SFSttFooter;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TSDB_DEV_H*/
+#endif /*_TD_TSDB_DEF_H_*/
