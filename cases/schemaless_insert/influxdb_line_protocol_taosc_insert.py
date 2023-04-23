@@ -19,6 +19,7 @@ import datetime
 import sys
 from taostest.util.remote import Remote
 import threading
+import time
 class TestInfluxdbLineTaoscInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
@@ -1089,8 +1090,23 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.query("select * from  hvlgpibybg")
         self.tdSql.checkEqual(self.tdSql.query_row, len(line_list)-1)
 
+    def ts_3262(self):
+        start_time = time.time()
+        self.tdCom.cleanTb(dbname=self.dbname)
+        line_list = ['hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=1i32,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=8u64 1626006833669000000',
+                     'hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=9u64']
+        self.tdSql._conn.schemaless_insert([line_list[0]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
+        try:
+            self.tdSql._conn.schemaless_insert([line_list[1]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
+        except SchemalessError:
+            pass
+        self.tdSql.query("select * from  hvlgpibybg")
+        self.tdSql.checkEqual(self.tdSql.query_row, len(line_list)-1)
+        end_time = time.time()
+        self.tdSql.checkEqual(int(end_time-start_time)<2, True)
+
     def test(self):
-        # self.ts_3264()
+        self.ts_3262()
         # self.tdSql.query(f'select * from xx')
         # print("query_res -----", self.tdSql.query_data)
         # input_sql = 'reported_j1WhBe0W78Edj6hK,realm_device_id=test_device_id_001 Ia=10.01f32,P=1.32012f32,Ib=9.0100001f32,Ia_source_time=1677834213374i64,P_source_time=1677834213374i64,Ib_source_time=1677834213374i64 1677834213374'
@@ -1181,6 +1197,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.ts_3146()
             self.ts_3116()
             self.ts_3264()
+            self.ts_3262()
 
     def cleanup(self):
         pass
