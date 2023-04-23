@@ -24,7 +24,14 @@ static SClientHbMgr clientHbMgr = {0};
 static int32_t hbCreateThread();
 static void    hbStopThread();
 
-static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req, int32_t cb) { return 0; }
+typedef struct {
+  union {
+    int64_t clusterId;
+    int32_t passKeyCnt;
+  };
+} SHbParam;
+
+static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
 
 static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { return 0; }
 
@@ -704,21 +711,23 @@ int32_t hbGetAppInfo(int64_t clusterId, SClientHbReq *req) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req, int32_t cb) {
-  int64_t         *clusterId = (int64_t *)param;
+int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) {
+  SHbParam        *hbParam = (SHbParam *)param;
   struct SCatalog *pCatalog = NULL;
 
-  int32_t code = catalogGetHandle(*clusterId, &pCatalog);
+  int32_t code = catalogGetHandle(hbParam->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", *clusterId, tstrerror(code));
+    tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
     return code;
   }
 
-  hbGetAppInfo(*clusterId, req);
+  hbGetAppInfo(hbParam->clusterId, req);
 
   hbGetQueryBasicInfo(connKey, req);
 
-  if (cb > 0) hbGetUserBasicInfo(connKey, req);
+  if (hbParam->passKeyCnt > 0) {
+    hbGetUserBasicInfo(connKey, req);
+  }
 
   code = hbGetExpiredUserInfo(connKey, pCatalog, req);
   if (TSDB_CODE_SUCCESS != code) {
@@ -771,11 +780,19 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     return NULL;
   }
 
-  int32_t passKeyCnt = atomic_load_32(&pAppHbMgr->passKeyCnt);
   while (pIter != NULL) {
     pOneReq = taosArrayPush(pBatchReq->reqs, pOneReq);
-    code = (*clientHbMgr.reqHandle[pOneReq->connKey.connType])(&pOneReq->connKey, &pOneReq->clusterId, pOneReq,
-                                                               passKeyCnt);
+    SHbParam param;
+    switch (pOneReq->connKey.connType) {
+      case CONN_TYPE__QUERY: {
+        param.clusterId = pOneReq->clusterId;
+        param.passKeyCnt = atomic_load_32(&pAppHbMgr->passKeyCnt);
+        break;
+      }
+      default:
+        break;
+    }
+    code = (*clientHbMgr.reqHandle[pOneReq->connKey.connType])(&pOneReq->connKey, &param, pOneReq);
     break;
 
 #if 0

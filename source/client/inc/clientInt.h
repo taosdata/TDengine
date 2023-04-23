@@ -74,7 +74,7 @@ typedef struct {
 
 typedef int32_t (*FHbRspHandle)(SAppHbMgr* pAppHbMgr, SClientHbRsp* pRsp);
 
-typedef int32_t (*FHbReqHandle)(SClientHbKey* connKey, void* param, SClientHbReq* req, int32_t cb);
+typedef int32_t (*FHbReqHandle)(SClientHbKey* connKey, void* param, SClientHbReq* req);
 
 typedef struct {
   int8_t  inited;
