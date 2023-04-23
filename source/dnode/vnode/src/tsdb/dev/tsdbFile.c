@@ -51,16 +51,16 @@ int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile) {
   STfs   *pTfs = pVnode->pTfs;
 
   if (pTfs) {
-    snprintf(pFile->fname,                         //
-             TSDB_FILENAME_LEN,                    //
-             "%s%s%s%sv%df%dver%" PRId64 "%s",     //
-             tfsGetDiskPath(pTfs, pFile->diskId),  //
-             TD_DIRSEP,                            //
-             pTsdb->path,                          //
-             TD_DIRSEP,                            //
-             TD_VID(pVnode),                       //
-             pFile->fid,                           //
-             pFile->cid,                           //
+    snprintf(pFile->fname,                      //
+             TSDB_FILENAME_LEN,                 //
+             "%s%s%s%sv%df%dver%" PRId64 "%s",  //
+             tfsGetDiskPath(pTfs, pFile->did),  //
+             TD_DIRSEP,                         //
+             pTsdb->path,                       //
+             TD_DIRSEP,                         //
+             TD_VID(pVnode),                    //
+             pFile->fid,                        //
+             pFile->cid,                        //
              tsdb_ftype_suffix[pFile->type]);
   } else {
     snprintf(pFile->fname,                  //

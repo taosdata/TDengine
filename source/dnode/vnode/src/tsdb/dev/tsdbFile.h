@@ -22,6 +22,8 @@
 extern "C" {
 #endif
 
+typedef struct STFile STFile;
+
 typedef enum {
   TSDB_FTYPE_HEAD = 0,  // .head
   TSDB_FTYPE_DATA,      // .data
@@ -31,20 +33,41 @@ typedef enum {
   TSDB_FTYPE_STT,       // .stt
 } tsdb_ftype_t;
 
-struct STFile {
-  char         fname[TSDB_FILENAME_LEN];
-  int32_t      ref;
-  tsdb_ftype_t type;
-  SDiskID      diskId;
-  int64_t      size;
-  int64_t      cid;
-  int32_t      fid;
-};
-
 int32_t tsdbTFileCreate(const struct STFile *config, struct STFile **ppFile);
 int32_t tsdbTFileDestroy(struct STFile *pFile);
 int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile);
 int32_t tsdbTFileClear(struct STFile *pFile);
+
+struct STFile {
+  char         fname[TSDB_FILENAME_LEN];
+  int32_t      ref;
+  int32_t      state;
+  tsdb_ftype_t type;
+  SDiskID      did;
+  int64_t      size;
+  int64_t      cid;
+  int32_t      fid;
+  union {
+    struct {
+      int32_t level;  // level of .stt
+      int32_t nSeg;   // number of segments in .stt
+    } stt;
+    struct {
+      // TODO
+    } head;
+    struct {
+      // TODO
+    } data;
+    struct {
+      // TODO
+    } sma;
+    struct {
+      // TODO
+    } tomb;
+  };
+
+  LISTD(struct STFile) listNode;
+};
 
 #ifdef __cplusplus
 }

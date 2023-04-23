@@ -49,8 +49,8 @@ struct SSttLvl {
 struct SFileSet {
   int32_t        fid;
   int64_t        nextid;
-  struct STFile *farr[TSDB_FTYPE_MAX];
-  SSttLvl        lvl0;  // level 0 of .stt
+  struct STFile *farr[TSDB_FTYPE_MAX];  // file array
+  SSttLvl        lvl0;                  // level 0 of .stt
 };
 
 int32_t tsdbFileSetCreate(int32_t fid, struct SFileSet **ppSet);

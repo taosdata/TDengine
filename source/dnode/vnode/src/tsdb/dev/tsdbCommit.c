@@ -59,7 +59,7 @@ static int32_t open_committer_writer(SCommitter *pCommitter) {
   } else {
     conf.file.type = TSDB_FTYPE_STT;
 
-    if (tfsAllocDisk(pTsdb->pVnode->pTfs, pCommitter->expLevel, &conf.file.diskId) < 0) {
+    if (tfsAllocDisk(pTsdb->pVnode->pTfs, pCommitter->expLevel, &conf.file.did) < 0) {
       code = TSDB_CODE_FS_NO_VALID_DISK;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
