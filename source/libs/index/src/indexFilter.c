@@ -221,6 +221,71 @@ static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCt
   param->status = SFLT_COARSE_INDEX;
   return 0;
 }
+static int32_t sifNeedConvertCond(SNode *l, SNode *r) {
+  if (nodeType(l) != QUERY_NODE_COLUMN || nodeType(r) != QUERY_NODE_VALUE) {
+    return 0;
+  }
+  SColumnNode *c = (SColumnNode *)l;
+  SValueNode  *v = (SValueNode *)r;
+  int32_t      ctype = c->node.resType.type;
+  int32_t      vtype = v->node.resType.type;
+  if (!IS_VAR_DATA_TYPE(ctype) && IS_VAR_DATA_TYPE(vtype)) {
+    return 1;
+  }
+  return 0;
+}
+static int32_t sifInitParamValByCol(SNode *r, SNode *l, SIFParam *param, SIFCtx *ctx) {
+  param->status = SFLT_COARSE_INDEX;
+  SColumnNode *cn = (SColumnNode *)r;
+  SValueNode  *vn = (SValueNode *)l;
+  if (vn->typeData == TSDB_DATA_TYPE_NULL && (vn->literal == NULL || strlen(vn->literal) == 0)) {
+    param->status = SFLT_NOT_INDEX;
+    return 0;
+  }
+  SDataType *pType = &cn->node.resType;
+  int32_t    type = pType->type;
+
+  SDataType *pVType = &vn->node.resType;
+  int32_t    vtype = pVType->type;
+  char      *pData = nodesGetValueFromNode(vn);
+  int32_t    valLen = 0;
+  char     **value = &param->condValue;
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    int32_t dataLen = varDataTLen(pData);
+    if (type == TSDB_DATA_TYPE_JSON) {
+      if (*pData == TSDB_DATA_TYPE_NULL) {
+        dataLen = 0;
+      } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
+        dataLen = varDataTLen(pData);
+      } else if (*pData == TSDB_DATA_TYPE_DOUBLE) {
+        dataLen = LONG_BYTES;
+      } else if (*pData == TSDB_DATA_TYPE_BOOL) {
+        dataLen = CHAR_BYTES;
+      }
+      dataLen += CHAR_BYTES;
+    }
+    valLen = dataLen;
+  } else {
+    valLen = pType->bytes;
+  }
+  char *tv = taosMemoryCalloc(1, valLen + 1);
+  if (tv == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  memcpy(tv, pData, valLen);
+  *value = tv;
+
+  param->colId = -1;
+  param->colValType = (uint8_t)(vn->node.resType.type);
+  if (vn->literal != NULL && strlen(vn->literal) <= sizeof(param->colName)) {
+    memcpy(param->colName, vn->literal, strlen(vn->literal));
+  } else {
+    param->status = SFLT_NOT_INDEX;
+  }
+  return 0;
+}
 static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->status = SFLT_COARSE_INDEX;
   switch (nodeType(node)) {
@@ -317,8 +382,13 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     return TSDB_CODE_SUCCESS;
   } else {
     SIF_ERR_JRET(sifInitParam(node->pLeft, &paramList[0], ctx));
+
     if (nParam > 1) {
-      SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
+      if (sifNeedConvertCond(node->pLeft, node->pRight)) {
+        SIF_ERR_JRET(sifInitParamValByCol(node->pLeft, node->pRight, &paramList[1], ctx));
+      } else {
+        SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
+      }
       // if (paramList[0].colValType == TSDB_DATA_TYPE_JSON &&
       //    ((SOperatorNode *)(node))->opType == OP_TYPE_JSON_CONTAINS) {
       //  return TSDB_CODE_OUT_OF_MEMORY;
