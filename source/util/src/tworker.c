@@ -217,8 +217,8 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
 
   int32_t queueNum = taosGetQueueNumber(pool->qset);
   int32_t curWorkerNum = taosArrayGetSize(pool->workers);
-  int32_t dstWorkerNum = ceil(queueNum * pool->ratio);
-  if (dstWorkerNum < 2) dstWorkerNum = 2;
+  int32_t dstWorkerNum = ceilf(queueNum * pool->ratio);
+  if (dstWorkerNum < 1) dstWorkerNum = 1;
 
   // spawn a thread to process queue
   while (curWorkerNum < dstWorkerNum) {

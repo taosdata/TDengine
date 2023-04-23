@@ -240,6 +240,7 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
 
   SDataDeleterHandle* deleter = taosMemoryCalloc(1, sizeof(SDataDeleterHandle));
   if (NULL == deleter) {
+    taosMemoryFree(pParam);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }

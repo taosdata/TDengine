@@ -17,6 +17,11 @@
 
 #define STREAM_EXEC_MAX_BATCH_NUM 1024
 
+bool streamTaskShouldStop(const SStreamStatus* pStatus) {
+  int32_t status = atomic_load_8((int8_t*) &pStatus->taskStatus);
+  return (status == TASK_STATUS__STOP) || (status == TASK_STATUS__DROPPING);
+}
+
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pExecutor = pTask->exec.pExecutor;
@@ -66,7 +71,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
 
   // pExecutor
   while (1) {
-    if (pTask->status.taskStatus == TASK_STATUS__DROPPING) {
+    if (streamTaskShouldStop(&pTask->status)) {
       return 0;
     }
 
@@ -106,7 +111,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
       continue;
     }
 
-    qDebug("task %d(child %d) executed and get block", pTask->id.taskId, pTask->selfChildId);
+    qDebug("s-task:%s (child %d) executed and get block", pTask->id.idStr, pTask->selfChildId);
 
     SSDataBlock block = {0};
     assignOneDataBlock(&block, output);
@@ -136,7 +141,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     int32_t batchCnt = 0;
     while (1) {
-      if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
+      if (streamTaskShouldStop(&pTask->status)) {
         taosArrayDestroy(pRes);
         return 0;
       }
@@ -195,7 +200,10 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       qDebug("task %d scan exec dispatch block num %d", pTask->id.taskId, batchCnt);
       streamDispatch(pTask);
     }
-    if (finished) break;
+
+    if (finished) {
+      break;
+    }
   }
   return 0;
 }
@@ -274,7 +282,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       }
     }
 
-    if (pTask->status.taskStatus == TASK_STATUS__DROPPING) {
+    if (streamTaskShouldStop(&pTask->status)) {
       if (pInput) {
         streamFreeQitem(pInput);
       }
@@ -305,7 +313,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
              ", checkPoint id:%" PRId64 " -> %" PRId64,
              pTask->id.idStr, pTask->chkInfo.version, dataVer, pTask->chkInfo.id, ckId);
 
-      pTask->chkInfo = (SCheckpointInfo) {.version = dataVer, .id = ckId};
+      pTask->chkInfo = (SCheckpointInfo) {.version = dataVer, .id = ckId, .currentVer = pTask->chkInfo.currentVer};
 
       taosWLockLatch(&pTask->pMeta->lock);
       streamMetaSaveTask(pTask->pMeta, pTask);
@@ -374,7 +382,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
     qDebug("s-task:%s exec completed", pTask->id.idStr);
 
-    if (!taosQueueEmpty(pTask->inputQueue->queue)) {
+    if (!taosQueueEmpty(pTask->inputQueue->queue) && (!streamTaskShouldStop(&pTask->status))) {
       streamSchedExec(pTask);
     }
   }

@@ -19,19 +19,10 @@
 
 static int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqMetaRsp* pRsp);
 
-// stream_task:stream_id:task_id
-void createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId) {
-  int32_t n = 12;
-  char* p = dst;
-
-  memcpy(p, "stream_task:", n);
-  p += n;
-
-  int32_t inc = tintToHex(streamId, p);
-  p += inc;
-
-  *(p++) = ':';
-  tintToHex(taskId, p);
+char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
+  char buf[128] = {0};
+  sprintf(buf, "0x%" PRIx64 "-%d", streamId, taskId);
+  return taosStrdup(buf);
 }
 
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver) {
@@ -47,75 +38,6 @@ int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueI
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-void initOffsetForAllRestoreTasks(STQ* pTq) {
-  void* pIter = NULL;
-
-  while(1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
-      continue;
-    }
-
-    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("s-task:%s skip push data, since not ready, status %d", pTask->id.idStr, pTask->status.taskStatus);
-      continue;
-    }
-
-    char key[128] = {0};
-    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
-
-    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
-    if (pOffset == NULL) {
-      doSaveTaskOffset(pTq->pOffsetStore, key, pTask->chkInfo.version);
-    }
-  }
-}
-
-void saveOffsetForAllTasks(STQ* pTq, int64_t ver) {
-  void* pIter = NULL;
-
-  while(1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
-      continue;
-    }
-
-    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("s-task:%s skip push data, not ready for processing, status %d", pTask->id.idStr,
-              pTask->status.taskStatus);
-      continue;
-    }
-
-    char key[128] = {0};
-    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
-
-    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
-    if (pOffset == NULL) {
-      doSaveTaskOffset(pTq->pOffsetStore, key, ver);
-    }
-  }
-}
-
-void doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver) {
-  STqOffset offset = {0};
-  tqOffsetResetToLog(&offset.val, ver);
-
-  tstrncpy(offset.subKey, pKey, tListLen(offset.subKey));
-
-  // keep the offset info in the offset store
-  tqOffsetWrite(pOffsetStore, &offset);
 }
 
 static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t subType) {
@@ -144,6 +66,21 @@ static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, const SMqPollReq* pReq) {
   pRsp->blockSchema = taosArrayInit(0, sizeof(void*));
 
   if (pRsp->blockData == NULL || pRsp->blockDataLen == NULL || pRsp->blockTbName == NULL || pRsp->blockSchema == NULL) {
+    if (pRsp->blockData != NULL) {
+      pRsp->blockData = taosArrayDestroy(pRsp->blockData);
+    }
+
+    if (pRsp->blockDataLen != NULL) {
+      pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
+    }
+
+    if (pRsp->blockTbName != NULL) {
+      pRsp->blockTbName = taosArrayDestroy(pRsp->blockTbName);
+    }
+
+    if (pRsp->blockSchema != NULL) {
+      pRsp->blockSchema = taosArrayDestroy(pRsp->blockSchema);
+    }
     return -1;
   }
 
@@ -277,6 +214,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
+      tDeleteSTaosxRsp(&taosxRsp);
       return -1;
     }
 
@@ -352,6 +290,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           tDeleteSTaosxRsp(&taosxRsp);
           return code;
         }
+
         code = 0;
         taosMemoryFreeClear(pCkHead);
         tDeleteSTaosxRsp(&taosxRsp);

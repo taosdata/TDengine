@@ -429,7 +429,6 @@ typedef struct STimeWindowAggSupp {
 } STimeWindowAggSupp;
 
 typedef struct SStreamScanInfo {
-  uint64_t      tableUid;  // queried super table uid
   SExprInfo*    pPseudoExpr;
   int32_t       numOfPseudoExpr;
   SExprSupp     tbnameCalSup;

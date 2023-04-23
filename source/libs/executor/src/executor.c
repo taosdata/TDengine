@@ -14,6 +14,7 @@
  */
 
 #include "executor.h"
+#include <vnode.h>
 #include "executorimpl.h"
 #include "planner.h"
 #include "tdatablock.h"
@@ -327,6 +328,13 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     return qa;
   }
 
+  STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
+
+  uint64_t suid = 0;
+  uint64_t uid = 0;
+  int32_t type = 0;
+  tableListGetSourceTableInfo(pTableScanInfo->base.pTableListInfo, &suid, &uid, &type);
+
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
   metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
@@ -341,9 +349,21 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
     tDecoderClear(&mr.coder);
 
-    // TODO handle ntb case
-    if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pScanInfo->tableUid) {
+    if (mr.me.type == TSDB_SUPER_TABLE) {
       continue;
+    } else {
+      if (type == TSDB_SUPER_TABLE) {
+        // this new created child table does not belong to the scanned super table.
+        if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != suid) {
+          continue;
+        }
+      } else {  // ordinary table
+        // In case that the scanned target table is an ordinary table. When replay the WAL during restore the vnode, we
+        // should check all newly created ordinary table to make sure that this table isn't the destination table.
+        if (mr.me.uid != uid) {
+          continue;
+        }
+      }
     }
 
     if (pScanInfo->pTagCond != NULL) {
@@ -382,7 +402,7 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   SStreamScanInfo* pScanInfo = pInfo->info;
 
   if (isAdd) {  // add new table id
-    SArray* qa = filterUnqualifiedTables(pScanInfo, tableIdList, GET_TASKID(pTaskInfo));
+    SArray* qa = filterUnqualifiedTables(pScanInfo, tableIdList, id);
     int32_t numOfQualifiedTables = taosArrayGetSize(qa);
     qDebug("%d qualified child tables added into stream scanner, %s", numOfQualifiedTables, id);
     code = tqReaderAddTbUidList(pScanInfo->tqReader, qa);
@@ -497,10 +517,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
       goto _error;
     }
 
+    // pSinkParam has been freed during create sinker.
     code = dsCreateDataSinker(pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosMemoryFreeClear(pSinkParam);
-    }
   }
 
   qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
@@ -1090,6 +1108,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pScanBaseInfo->dataReader = NULL;
 
       // let's seek to the next version in wal file
+      int64_t firstVer = walGetFirstVer(pInfo->tqReader->pWalReader->pWal);
+      if (pOffset->version + 1 < firstVer){
+        pOffset->version = firstVer - 1;
+      }
+
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, id) < 0) {
         qError("tqSeekVer failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
         return -1;

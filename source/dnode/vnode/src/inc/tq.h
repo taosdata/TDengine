@@ -179,15 +179,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqStreamTasksScanWal(STQ* pTq);
 
 // tq util
-void    createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId);
+char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver);
-int32_t launchTaskForWalBlock(SStreamTask* pTask, SFetchRet* pRet, STqOffset* pOffset);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
-
-void    doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver);
-void    saveOffsetForAllTasks(STQ* pTq, int64_t ver);
-void    initOffsetForAllRestoreTasks(STQ* pTq);
-int32_t transferToWalReadTask(SStreamMeta* pStreamMeta, SArray* pTaskList);
 
 #ifdef __cplusplus
 }

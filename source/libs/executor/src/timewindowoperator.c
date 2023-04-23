@@ -2529,6 +2529,20 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   }
 
   while (1) {
+    if (isTaskKilled(pTaskInfo)) {
+
+      if (pInfo->pUpdated != NULL) {
+        pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
+      }
+
+      if (pInfo->pUpdatedMap != NULL) {
+        tSimpleHashCleanup(pInfo->pUpdatedMap);
+        pInfo->pUpdatedMap = NULL;
+      }
+
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
       pOperator->status = OP_RES_TO_RETURN;
@@ -2605,6 +2619,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   while ((pIte = tSimpleHashIterate(pInfo->pUpdatedMap, pIte, &iter)) != NULL) {
     taosArrayPush(pInfo->pUpdated, pIte);
   }
+
   tSimpleHashCleanup(pInfo->pUpdatedMap);
   pInfo->pUpdatedMap = NULL;
   taosArraySort(pInfo->pUpdated, winPosCmprImpl);
