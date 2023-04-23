@@ -63,6 +63,7 @@ typedef struct {
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
+  int32_t nPassVerCb;
   int64_t reportBytes;  // not implemented
   int64_t startTime;
   // ctl
@@ -73,7 +74,7 @@ typedef struct {
 
 typedef int32_t (*FHbRspHandle)(SAppHbMgr* pAppHbMgr, SClientHbRsp* pRsp);
 
-typedef int32_t (*FHbReqHandle)(SClientHbKey* connKey, void* param, SClientHbReq* req);
+typedef int32_t (*FHbReqHandle)(SClientHbKey* connKey, void* param, SClientHbReq* req, int32_t cb);
 
 typedef struct {
   int8_t  inited;
@@ -360,7 +361,7 @@ void       stopAllRequests(SHashObj* pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
-void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
+void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* cb);
 
 typedef struct SSqlCallbackWrapper {
   SParseContext* pParseCtx;

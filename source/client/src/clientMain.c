@@ -136,6 +136,9 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
     case TAOS_NOTIFY_PASSVER: {
       pObj->passInfo.fp = fp;
       pObj->passInfo.param = param;
+      if (fp) {
+        atomic_add_fetch_32(&pObj->pAppInfo->pAppHbMgr->nPassVerCb, 1);
+      }
       break;
     }
     default: {
