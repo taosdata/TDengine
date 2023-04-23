@@ -215,6 +215,8 @@ typedef struct {
   bool       syncRestore;
   int64_t    stateStartTime;
   SDnodeObj* pDnode;
+  int32_t    role;
+  SyncIndex  lastIndex;
 } SMnodeObj;
 
 typedef struct {
@@ -341,6 +343,7 @@ typedef struct {
   ESyncState syncState;
   bool       syncRestore;
   bool       syncCanRead;
+  ESyncRole  nodeRole;
 } SVnodeGid;
 
 typedef struct {
@@ -361,7 +364,7 @@ typedef struct {
   int8_t    compact;
   int8_t    isTsma;
   int8_t    replica;
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   void*     pTsma;
   int32_t   numOfCachedTables;
 } SVgObj;
