@@ -45,7 +45,7 @@ async fn put_line() -> anyhow::Result<()> {
         .build()?;
     assert_eq!(client.put(&sml_data).await?, ());
 
-    // demo omit ttl by default
+    // demo with default ttl
     let sml_data = SmlDataBuilder::default()
         .db(db.to_string())
         .protocol(SchemalessProtocol::Line)
@@ -55,7 +55,7 @@ async fn put_line() -> anyhow::Result<()> {
         .build()?;
     assert_eq!(client.put(&sml_data).await?, ());
 
-    // demo omit ttl and req_id by default
+    // demo with default ttl and req_id 
     let sml_data = SmlDataBuilder::default()
         .db(db.to_string())
         .protocol(SchemalessProtocol::Line)
@@ -64,7 +64,7 @@ async fn put_line() -> anyhow::Result<()> {
         .build()?;
     assert_eq!(client.put(&sml_data).await?, ());
 
-    // demo omit precision by default
+    // demo with default precision
     let sml_data = SmlDataBuilder::default()
         .db(db.to_string())
         .protocol(SchemalessProtocol::Line)
