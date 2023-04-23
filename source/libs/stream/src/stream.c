@@ -16,7 +16,7 @@
 #include "streamInc.h"
 #include "ttimer.h"
 
-#define STREAM_TASK_INPUT_QUEUEU_CAPACITY 100000
+#define STREAM_TASK_INPUT_QUEUEU_CAPACITY 3000
 
 int32_t streamInit() {
   int8_t old;

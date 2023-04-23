@@ -341,6 +341,8 @@ typedef struct {
     float       f;
   };
   size_t length;
+  bool keyEscaped;
+  bool valueEscaped;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
@@ -378,6 +380,8 @@ typedef struct STUidTagInfo {
 #define UD_TABLE_NAME_COLUMN_INDEX 0
 #define UD_GROUPID_COLUMN_INDEX    1
 #define UD_TAG_COLUMN_INDEX        2
+
+int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
 
 #ifdef __cplusplus
 }
