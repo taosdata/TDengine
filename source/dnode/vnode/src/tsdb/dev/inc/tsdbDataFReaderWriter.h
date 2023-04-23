@@ -23,10 +23,22 @@ extern "C" {
 #endif
 
 // SDataFileReader =============================================
-typedef struct SDataFileReader SDataFileReader;
+typedef struct SDataFileReader       SDataFileReader;
+typedef struct SDataFileReaderConfig SDataFileReaderConfig;
 
 // SDataFileWriter =============================================
-typedef struct SDataFileWriter SDataFileWriter;
+typedef struct SDataFileWriter       SDataFileWriter;
+typedef struct SDataFileWriterConfig SDataFileWriterConfig;
+
+struct SDataFileReaderConfig {
+  STsdb *pTsdb;
+  // TODO
+};
+
+struct SDataFileWriterConfig {
+  STsdb *pTsdb;
+  //   TODO
+};
 
 #ifdef __cplusplus
 }

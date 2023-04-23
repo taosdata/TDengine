@@ -27,9 +27,9 @@ typedef struct SFileOp  SFileOp;
 typedef struct SSttLvl  SSttLvl;
 
 typedef enum {
-  TSDB_FOP_EXTEND = -2,
+  TSDB_FOP_NONE = 0,
+  TSDB_FOP_EXTEND,
   TSDB_FOP_CREATE,
-  TSDB_FOP_NONE,
   TSDB_FOP_DELETE,
   TSDB_FOP_TRUNCATE,
 } tsdb_fop_t;
@@ -47,17 +47,17 @@ struct SFileOp {
 };
 
 struct SSttLvl {
-  int32_t        level;
-  int32_t        nStt;
-  struct STFile *fSttList;
+  int32_t level;
+  int32_t nStt;
+  STFile *fSttList;
   LISTD(SSttLvl) listNode;
 };
 
 struct SFileSet {
-  int32_t        fid;
-  int64_t        nextid;
-  struct STFile *farr[TSDB_FTYPE_MAX];  // file array
-  SSttLvl        lvl0;                  // level 0 of .stt
+  int32_t fid;
+  int64_t nextid;
+  STFile *farr[TSDB_FTYPE_MAX];  // file array
+  SSttLvl lvl0;                  // level 0 of .stt
 };
 
 #ifdef __cplusplus

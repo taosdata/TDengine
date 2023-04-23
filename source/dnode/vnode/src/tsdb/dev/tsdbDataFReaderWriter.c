@@ -15,11 +15,12 @@
 
 #include "dev.h"
 
-// struct SDataFReader {
-//   STsdb *pTsdb;
-//   // TODO
-// };
+// SDataFileReader =============================================
+struct SDataFileReader {
+  // TODO
+};
 
-// struct SDataFWriter {
-//   STsdb *pTsdb;
-// };
+// SDataFileWriter =============================================
+struct SDataFileWriter {
+  // TODO
+};
