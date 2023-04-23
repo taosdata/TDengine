@@ -16,7 +16,7 @@ async fn put_telnet() -> anyhow::Result<()> {
 
     let client = TaosBuilder::from_dsn(dsn)?.build().await?;
 
-    let db = "test_schemaless_ws";
+    let db = "demo_schemaless_ws";
 
     client.exec(format!("drop database if exists {db}")).await?;
 
