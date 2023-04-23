@@ -169,22 +169,29 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, pRequest, pHandle->execHandle.subType);
 
-  // lock
-//  taosWLockLatch(&pTq->lock);
-
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
   if(code != 0) {
     goto end;
   }
 
-  // till now, all data has been transferred to consumer, new data needs to push client once arrived.
-//  if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
-//      dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
-//    //code = tqRegisterPushHandle(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
-//    taosWUnLockLatch(&pTq->lock);
-//    return code;
-//  }
+//   till now, all data has been transferred to consumer, new data needs to push client once arrived.
+  if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
+      dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
+//    code = tqRegisterPushHandle(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
+    // lock
+    taosWLockLatch(&pTq->lock);
+    if(pHandle->msg != NULL){
+      tqError("pHandle->msg should be null");
+    }
+    pHandle->msg = taosMemoryCalloc(1, sizeof(SRpcMsg));
+    memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
+    pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
+    memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
+    taosArrayPush(pTq->pPushArray, &pHandle);
+    taosWUnLockLatch(&pTq->lock);
+    return code;
+  }
 
 
   code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP);

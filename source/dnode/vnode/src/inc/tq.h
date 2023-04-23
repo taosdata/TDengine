@@ -100,6 +100,7 @@ typedef struct {
   SWalRef*      pRef;
   STqPushHandle pushHandle;    // push
   STqExecHandle execHandle;    // exec
+  SRpcMsg*      msg;
 } STqHandle;
 
 typedef struct {
@@ -114,6 +115,7 @@ struct STQ {
   int64_t         walLogLastVer;
   SRWLatch        lock;
   SHashObj*       pPushMgr;    // consumerId -> STqPushEntry
+  SArray *        pPushArray;
   SHashObj*       pHandle;     // subKey -> STqHandle
   SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
   STqOffsetStore* pOffsetStore;

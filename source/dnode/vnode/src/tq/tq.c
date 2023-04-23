@@ -71,6 +71,11 @@ static void destroyTqHandle(void* data) {
     walCloseReader(pData->pWalReader);
     tqCloseReader(pData->execHandle.pTqReader);
   }
+  if(pData->msg != NULL) {
+    rpcFreeCont(pData->msg->pCont);
+    taosMemoryFree(pData->msg);
+    pData->msg = NULL;
+  }
 }
 
 static void tqPushEntryFree(void* data) {
@@ -103,6 +108,8 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pHandle, destroyTqHandle);
+
+  pTq->pPushArray = taosArrayInit(8, POINTER_BYTES);
 
   taosInitRWLatch(&pTq->lock);
   pTq->pPushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
@@ -152,6 +159,7 @@ void tqClose(STQ* pTq) {
   tqMetaClose(pTq);
   streamMetaClose(pTq->pStreamMeta);
   taosMemoryFree(pTq);
+  taosArrayDestroy(pTq->pPushArray);
 }
 
 void tqNotifyClose(STQ* pTq) {
@@ -350,25 +358,15 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // 2. check re-balance status
-//  taosRLockLatch(&pTq->lock);
+  taosRLockLatch(&pTq->lock);
   if (pHandle->consumerId != consumerId) {
     tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
             consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
     terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
-//    taosRUnLockLatch(&pTq->lock);
+    taosRUnLockLatch(&pTq->lock);
     return -1;
   }
-//  taosRUnLockLatch(&pTq->lock);
-
-  // 3. update the epoch value
-//  taosWLockLatch(&pTq->lock);
-  int32_t savedEpoch = pHandle->epoch;
-  if (savedEpoch < reqEpoch) {
-    tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, savedEpoch,
-            reqEpoch);
-    pHandle->epoch = reqEpoch;
-  }
-//  taosWUnLockLatch(&pTq->lock);
+  taosRUnLockLatch(&pTq->lock);
 
   char buf[80];
   tFormatOffset(buf, 80, &reqOffset);
@@ -560,8 +558,20 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       atomic_store_32(&pHandle->epoch, -1);
 
       // remove if it has been register in the push manager, and return one empty block to consumer
-      //tqUnregisterPushHandle(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
-
+//      tqUnregisterPushHandle(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
+      for(size_t i = 0; i < taosArrayGetSize(pTq->pPushArray); i++) {
+        void* handle = taosArrayGetP(pTq->pPushArray, i);
+        if(handle == pHandle) {
+          tqInfo("vgId:%d remove handle when switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId, req.newConsumerId);
+          taosArrayRemove(pTq->pPushArray, i);
+          break;
+        }
+      }
+      if(pHandle->msg != NULL) {
+        rpcFreeCont(pHandle->msg->pCont);
+        taosMemoryFree(pHandle->msg);
+        pHandle->msg = NULL;
+      }
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
       atomic_add_fetch_32(&pHandle->epoch, 1);
 
@@ -1064,6 +1074,28 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   }
   blockDataDestroy(pDelBlock);
 #endif
+  return 0;
+}
+
+int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
+  int32_t vgId = TD_VID(pTq->pVnode);
+  tqDebug("vgId:%d start set submit for subscribe", vgId);
+
+  taosWLockLatch(&pTq->lock);
+  for(size_t i = 0; i < taosArrayGetSize(pTq->pPushArray); i++){
+    STqHandle* pHandle = (STqHandle*)taosArrayGetP(pTq->pPushArray, i);
+    if(pHandle->msg == NULL){
+      tqError("pHandle->msg should not be null");
+    }
+    SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME, .pCont = pHandle->msg->pCont, .contLen = pHandle->msg->contLen};
+    tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+    taosMemoryFree(pHandle->msg);
+    pHandle->msg = NULL;
+  }
+  taosArrayClear(pTq->pPushArray);
+  // unlock
+  taosWUnLockLatch(&pTq->lock);
+
   return 0;
 }
 

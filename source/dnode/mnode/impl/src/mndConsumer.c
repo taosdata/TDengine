@@ -449,7 +449,6 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   // 1. check consumer status
   int32_t status = atomic_load_32(&pConsumer->status);
 
-#if 1
   if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
     mInfo("try to recover consumer:0x%" PRIx64, consumerId);
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
@@ -463,7 +462,6 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &pRpcMsg);
   }
-#endif
 
   if (status != MQ_CONSUMER_STATUS__READY) {
     mInfo("consumer:0x%" PRIx64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));

@@ -268,59 +268,61 @@ static void doPushDataForEntry(void* pIter, STqExecHandle* pExec, STQ* pTq, int6
   }
 }
 
+
 int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
-  void*   pReq = POINTER_SHIFT(msg, sizeof(SSubmitReq2Msg));
-  int32_t len = msgLen - sizeof(SSubmitReq2Msg);
-  int32_t vgId = TD_VID(pTq->pVnode);
+//  void*   pReq = POINTER_SHIFT(msg, sizeof(SSubmitReq2Msg));
+//  int32_t len = msgLen - sizeof(SSubmitReq2Msg);
+//  int32_t vgId = TD_VID(pTq->pVnode);
 
   if (msgType == TDMT_VND_SUBMIT) {
+    tqProcessSubmitReqForSubscribe(pTq);
     // lock push mgr to avoid potential msg lost
-    taosWLockLatch(&pTq->lock);
-
-    int32_t numOfRegisteredPush = taosHashGetSize(pTq->pPushMgr);
-    if (numOfRegisteredPush > 0) {
-      tqDebug("vgId:%d tq push msg version:%" PRId64 " type:%s, head:%p, body:%p len:%d, numOfPushed consumers:%d",
-              vgId, ver, TMSG_INFO(msgType), msg, pReq, len, numOfRegisteredPush);
-
-      void* data = taosMemoryMalloc(len);
-      if (data == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        tqError("failed to copy data for stream since out of memory, vgId:%d", vgId);
-        taosWUnLockLatch(&pTq->lock);
-        return -1;
-      }
-
-      memcpy(data, pReq, len);
-
-      SArray* cachedKey = taosArrayInit(0, sizeof(SItem));
-      void*   pIter = NULL;
-
-      while (1) {
-        pIter = taosHashIterate(pTq->pPushMgr, pIter);
-        if (pIter == NULL) {
-          break;
-        }
-
-        STqPushEntry* pPushEntry = *(STqPushEntry**)pIter;
-
-        STqHandle* pHandle = taosHashGet(pTq->pHandle, pPushEntry->subKey, strlen(pPushEntry->subKey));
-        if (pHandle == NULL) {
-          tqDebug("vgId:%d, failed to find handle %s in pushing data to consumer, ignore", pTq->pVnode->config.vgId,
-                  pPushEntry->subKey);
-          continue;
-        }
-
-        STqExecHandle* pExec = &pHandle->execHandle;
-        doPushDataForEntry(pIter, pExec, pTq, ver, vgId, data, len, cachedKey);
-      }
-
-      doRemovePushedEntry(cachedKey, pTq);
-      taosArrayDestroyEx(cachedKey, freeItem);
-      taosMemoryFree(data);
-    }
-
-    // unlock
-    taosWUnLockLatch(&pTq->lock);
+//    taosWLockLatch(&pTq->lock);
+//
+//    int32_t numOfRegisteredPush = taosHashGetSize(pTq->pPushMgr);
+//    if (numOfRegisteredPush > 0) {
+//      tqDebug("vgId:%d tq push msg version:%" PRId64 " type:%s, head:%p, body:%p len:%d, numOfPushed consumers:%d",
+//              vgId, ver, TMSG_INFO(msgType), msg, pReq, len, numOfRegisteredPush);
+//
+//      void* data = taosMemoryMalloc(len);
+//      if (data == NULL) {
+//        terrno = TSDB_CODE_OUT_OF_MEMORY;
+//        tqError("failed to copy data for stream since out of memory, vgId:%d", vgId);
+//        taosWUnLockLatch(&pTq->lock);
+//        return -1;
+//      }
+//
+//      memcpy(data, pReq, len);
+//
+//      SArray* cachedKey = taosArrayInit(0, sizeof(SItem));
+//      void*   pIter = NULL;
+//
+//      while (1) {
+//        pIter = taosHashIterate(pTq->pPushMgr, pIter);
+//        if (pIter == NULL) {
+//          break;
+//        }
+//
+//        STqPushEntry* pPushEntry = *(STqPushEntry**)pIter;
+//
+//        STqHandle* pHandle = taosHashGet(pTq->pHandle, pPushEntry->subKey, strlen(pPushEntry->subKey));
+//        if (pHandle == NULL) {
+//          tqDebug("vgId:%d, failed to find handle %s in pushing data to consumer, ignore", pTq->pVnode->config.vgId,
+//                  pPushEntry->subKey);
+//          continue;
+//        }
+//
+//        STqExecHandle* pExec = &pHandle->execHandle;
+//        doPushDataForEntry(pIter, pExec, pTq, ver, vgId, data, len, cachedKey);
+//      }
+//
+//      doRemovePushedEntry(cachedKey, pTq);
+//      taosArrayDestroyEx(cachedKey, freeItem);
+//      taosMemoryFree(data);
+//    }
+//
+//    // unlock
+//    taosWUnLockLatch(&pTq->lock);
   }
 
   tqDebug("handle submit, restore:%d, size:%d", pTq->pVnode->restored, (int)taosHashGetSize(pTq->pStreamMeta->pTasks));
