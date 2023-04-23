@@ -107,6 +107,9 @@ static int32_t dmStartNodes(SDnode *pDnode) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
     }
+    if(ntype == VNODE) {
+      return -1;
+    }
   }
 
   dInfo("The daemon initialized successfully");
@@ -132,11 +135,14 @@ int32_t dmRunDnode(SDnode *pDnode) {
   int32_t count = 0;
   if (dmOpenNodes(pDnode) != 0) {
     dError("failed to open nodes since %s", terrstr());
+    dmCloseNodes(pDnode);
     return -1;
   }
 
   if (dmStartNodes(pDnode) != 0) {
     dError("failed to start nodes since %s", terrstr());
+    dmStopNodes(pDnode);
+    dmCloseNodes(pDnode);
     return -1;
   }
 
