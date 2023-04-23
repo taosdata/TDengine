@@ -107,9 +107,6 @@ static int32_t dmStartNodes(SDnode *pDnode) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
     }
-    if(ntype == VNODE) {
-      return -1;
-    }
   }
 
   dInfo("The daemon initialized successfully");
