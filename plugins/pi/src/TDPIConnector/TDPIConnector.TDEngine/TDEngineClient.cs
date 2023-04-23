@@ -95,7 +95,7 @@ namespace TDPIConnector.TDEngine
         {
             if (!baseUrl.Contains("cloud.tdengine.com"))
             {
-                string sqlCommand = $"CREATE DATABASE IF NOT EXISTS {dbName};";
+                string sqlCommand = $"CREATE DATABASE IF NOT EXISTS {dbName.ToTDEngineNamingRawPattern()};";
                 return await MakeHttpRequest(sqlCommand);
             }
             else
@@ -551,7 +551,7 @@ namespace TDPIConnector.TDEngine
                 }
                 if (!string.IsNullOrEmpty(dbName))
                 {
-                    url += "/" + dbName.ToTDEngineNamingPattern();
+                    url += "/" + dbName.ToTDEngineNamingRawPattern();
                 }
                 if (!string.IsNullOrEmpty(this.queryStringToken))
                 {
@@ -571,10 +571,12 @@ namespace TDPIConnector.TDEngine
                         !string.IsNullOrEmpty(e.InnerException.InnerException.Message) &&
                         e.InnerException.InnerException.Message.StartsWith("No connection could be made because the target machine actively refused it"))
                     {
+                        log.Error($"Require to TDengine failed, {e.Message} sql:{sqlCommand}");
                         throw new TDEngineTimeoutException();
                     }
                     else
                     {
+                        log.Error($"Require to TDengine failed, {e.Message} sql:{sqlCommand}");
                         throw new TDEngineHttpResponseException(e);
                     }
                 }
@@ -590,6 +592,7 @@ namespace TDPIConnector.TDEngine
                 TDEngineResponse resp = JsonConvert.DeserializeObject<TDEngineResponse>(respStr);
                 if (!response.IsSuccessStatusCode || resp.Code != 0)
                 {
+                    log.Error($"Require to TDengine failed, {httpStatusCode} respCode:{resp.Code} sql:{sqlCommand}");
                     throw new TDEngineHttpResponseException(httpStatusCode, resp.Code, resp.Desc);
                 }
                 DoHttpResponseReceived(new TDEngineHttpResponseSummary(url, resp.Code, (int)response.StatusCode));

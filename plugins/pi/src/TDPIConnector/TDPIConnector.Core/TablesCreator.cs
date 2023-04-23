@@ -45,9 +45,9 @@ namespace TDPIConnector.Core
             }
 
             //add to list of piPoints for point mode
-            if (AppSettings.Points != null)
+            if (AppSettings.tomlConfig.PointList != null)
             {
-                points.AddRange(piServerManager.FindPIPoints(AppSettings.Points));
+                points.AddRange(piServerManager.FindPIPoints(AppSettings.tomlConfig.PointList));
             }
             else
             {

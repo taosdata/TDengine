@@ -33,13 +33,17 @@ namespace TDPIConnector.Core
             {
                 stopwatch.Start();
                 PIPointWrapper piPoint = lastTDValue.Key;
-                List<AFValueWrapper> afValues = await PISystemManager.GetPIPointRecordedValuesByCountForward(piPoint, lastTDValue.Value, 5000);
-                log.Info($"Backfill PI point {piPoint.Name}, {afValues.Count} values retrieved in {stopwatch.ElapsedMilliseconds} ms");
-                stopwatch.Reset();
-                stopwatch.Start();
-                List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).ToList();
-                tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName,TableNameConvert.GetPIPointSuperTableName(piPoint),  piPoint.Name, tdValues);
-                log.Info($"Backfill TDEngine point {piPoint.Name}, {tdValues.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
+                DateTimeWrapper startTime = new DateTimeWrapper { Value = lastTDValue.Value };
+                while (startTime.Value != DateTime.MaxValue)
+                {
+                    List<AFValueWrapper> afValues = await PISystemManager.GetPIPointRecordedValuesByCountForward(piPoint, startTime, 5000);
+                    log.Info($"Backfill PI point {piPoint.Name}, {afValues.Count} values retrieved in {stopwatch.ElapsedMilliseconds} ms");
+                    stopwatch.Reset();
+                    stopwatch.Start();
+                    List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).ToList();
+                    tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, TableNameConvert.GetPIPointSuperTableName(piPoint), piPoint.Name, tdValues);
+                    log.Info($"Backfill TDEngine point {piPoint.Name}, {tdValues.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
+                }
                 stopwatch.Reset();
             }
         }
@@ -53,13 +57,17 @@ namespace TDPIConnector.Core
             {
                 stopwatch.Start();
                 PIPointWrapper piPoint = piServerManager.FindPIPoint(lastTDValue.Key);
-                List<AFValueWrapper> afValues = await PISystemManager.GetPIPointRecordedValuesByCountReverse(piPoint, lastTDValue.Value, 5000);
-                log.Info($"Backfill PI point {piPoint.Name}, {afValues.Count} values retrieved in {stopwatch.ElapsedMilliseconds} ms");
-                stopwatch.Reset();
-                stopwatch.Start();
-                List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).ToList();
-                tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName,TableNameConvert.GetPIPointSuperTableName(piPoint), piPoint.Name, tdValues);
-                log.Info($"Backfill TDEngine point {piPoint.Name}, {tdValues.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
+                DateTimeWrapper startTime = new DateTimeWrapper { Value = lastTDValue.Value };
+                while (startTime.Value != DateTime.MaxValue)
+                {
+                    List<AFValueWrapper> afValues = await PISystemManager.GetPIPointRecordedValuesByCountReverse(piPoint, startTime, 5000);
+                    log.Info($"Backfill PI point {piPoint.Name}, {afValues.Count} values retrieved in {stopwatch.ElapsedMilliseconds} ms");
+                    stopwatch.Reset();
+                    stopwatch.Start();
+                    List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).ToList();
+                    tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, TableNameConvert.GetPIPointSuperTableName(piPoint), piPoint.Name, tdValues);
+                    log.Info($"Backfill TDEngine point {piPoint.Name}, {tdValues.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
+                }
                 stopwatch.Reset();
             }
         }
@@ -77,14 +85,18 @@ namespace TDPIConnector.Core
             foreach (var point in piPoints)
             {
                 stopwatch.Start();
-                List<AFValueWrapper> afValues = PISystemManager.GetPIPointRecordedValues(point, startTime, endTime, 5000);
-                log.Info($"PI point {point.Name}, {afValues.Count} values retrived in {stopwatch.ElapsedMilliseconds} ms");
-                stopwatch.Reset();
-                stopwatch.Start();
-                List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).ToList();
-                string supetableName = TableNameConvert.GetPIPointSuperTableName(point);
-                tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, supetableName, point.Name, tdValues);
-                log.Info($"TDEngine point {point.Name}, {tdValues.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
+                DateTime pointStartTime = startTime;
+                while (pointStartTime != DateTime.MaxValue)
+                {
+                    List<AFValueWrapper> afValues = PISystemManager.GetPIPointRecordedValues(point, ref pointStartTime, endTime, 5000);
+                    log.Info($"PI point {point.Name}, {afValues.Count} values retrived in {stopwatch.ElapsedMilliseconds} ms");
+                    stopwatch.Reset();
+                    stopwatch.Start();
+                    List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).ToList();
+                    string supetableName = TableNameConvert.GetPIPointSuperTableName(point);
+                    tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, supetableName, point.Name, tdValues);
+                    log.Info($"TDEngine point {point.Name}, {tdValues.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
+                }
                 stopwatch.Reset();
             }
         }

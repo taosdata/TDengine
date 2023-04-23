@@ -27,6 +27,7 @@ namespace TDPIConnector.Core
             public string TDDataBase { get; set; } = "pi";
             public List<string> TemplateForPIPoint { get; set; }
             public List<string> TemplateForAFElement { get; set; }
+            public List<string> PointList { get; set; }
 
             // not support
             public string PIServerUser { get; set; }
@@ -56,9 +57,10 @@ namespace TDPIConnector.Core
                 {
                     sb.AppendLine($"TemplateForAFElement={string.Join(", ", TemplateForAFElement)}");
                 }
-
-                // not support properties are excluded from the output
-
+                if (PointList != null && PointList.Any())
+                {
+                    sb.AppendLine($"PointList={string.Join(", ", PointList)}");
+                }
                 return sb.ToString();
             }
         }
@@ -93,6 +95,7 @@ namespace TDPIConnector.Core
                 {
                     tomlConfig.TemplateForPIPoint = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates1.csv").Distinct().ToList();
                     tomlConfig.TemplateForAFElement = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates2.csv").Distinct().ToList();
+                    tomlConfig.PointList = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "Points.csv").Distinct().ToList();
                 }
                 catch (Exception)
                 {
@@ -122,16 +125,6 @@ namespace TDPIConnector.Core
             {
                 TDEnginePITablesPrefix = string.Empty;
             }
-            try
-            {
-                Points = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "Points.csv").Distinct().ToList();
-            }
-            catch (Exception)
-            {
-                //throw;
-            }
-
-
         }
         public static string TDEngineHost { get; internal set; }
         public static int TDEnginePort { get; internal set; }
@@ -144,8 +137,6 @@ namespace TDPIConnector.Core
         public static int WebMaxTDEngineHttpResponses { get; internal set; }
         public static int WebMaxPIEvents { get; internal set; }
         public static bool WebMonitoringEventsEnabled { get; private set; }
-
-        public static List<string> Points { get; internal set; }
 
         public static bool TaosXEnabled { get; private set; } = true;
         public static TomlConfig tomlConfig { get; private set; }

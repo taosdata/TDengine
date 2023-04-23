@@ -25,5 +25,9 @@
             }
             return newString;
         }
+        public static string ToTDEngineNamingRawPattern(this string s)
+        {
+            return "`" + s + "`";
+        }
     }
 }
