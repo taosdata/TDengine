@@ -138,6 +138,7 @@ int32_t dmRunDnode(SDnode *pDnode) {
 
   if (dmStartNodes(pDnode) != 0) {
     dError("failed to start nodes since %s", terrstr());
+    dmSetStatus(pDnode, DND_STAT_STOPPED);
     dmStopNodes(pDnode);
     dmCloseNodes(pDnode);
     return -1;
