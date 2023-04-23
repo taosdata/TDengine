@@ -1207,13 +1207,24 @@ int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgL
 
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)msg;
-  // todo(liuyao) call task api
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+  if (pTask) {
+    tqDebug("vgId:%d s-task:%s set pause flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+  }
   return 0;
 }
 
 int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
-  // todo(liuyao) call task api
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+  if (pTask) {
+    tqDebug("vgId:%d s-task:%s set normal flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
+    streamSetStatusNormal(pTask);
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    tqStreamTasksScanWal(pTq);
+  }
   return 0;
 }
 

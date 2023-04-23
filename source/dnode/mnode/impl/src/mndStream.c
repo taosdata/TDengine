@@ -1289,7 +1289,7 @@ static int32_t mndPauseStreamTask(STrans *pTrans, SStreamTask *pTask) {
   memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
   action.pCont = pReq;
   action.contLen = sizeof(SVPauseStreamTaskReq);
-  action.msgType = TDMT_STREAM_TASK_RESUME;
+  action.msgType = TDMT_STREAM_TASK_PAUSE;
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
     return -1;

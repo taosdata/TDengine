@@ -106,7 +106,7 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     if (streamTaskShouldStop(&pTask->status) || status == TASK_STATUS__RECOVER_PREPARE ||
-        status == TASK_STATUS__WAIT_DOWNSTREAM) {
+        status == TASK_STATUS__WAIT_DOWNSTREAM || status == TASK_STATUS__PAUSE) {
       tqDebug("s-task:%s skip push data, not ready for processing, status %d", pTask->id.idStr, status);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
