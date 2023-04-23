@@ -63,7 +63,7 @@ typedef struct {
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
-  int32_t nPassVerCb;
+  int32_t passKeyCnt;   // with passVer call back
   int64_t reportBytes;  // not implemented
   int64_t startTime;
   // ctl

@@ -68,6 +68,7 @@ static int32_t hbProcessUserPassInfoRsp(void *value, int32_t valueLen, SClientHb
     }
     SPassInfo *passInfo = &pTscObj->passInfo;
     if (!passInfo->fp) {
+      releaseTscObj(pReq->connKey.tscRid);
       continue;
     }
 
@@ -770,11 +771,11 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     return NULL;
   }
 
-  int32_t nPassVerCb = atomic_load_32(&pAppHbMgr->nPassVerCb);
+  int32_t passKeyCnt = atomic_load_32(&pAppHbMgr->passKeyCnt);
   while (pIter != NULL) {
     pOneReq = taosArrayPush(pBatchReq->reqs, pOneReq);
     code = (*clientHbMgr.reqHandle[pOneReq->connKey.connType])(&pOneReq->connKey, &pOneReq->clusterId, pOneReq,
-                                                               nPassVerCb);
+                                                               passKeyCnt);
     break;
 
 #if 0
@@ -1142,6 +1143,6 @@ void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *connFp) 
 
   atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
   if (connFp) {
-    atomic_sub_fetch_32(&pAppHbMgr->nPassVerCb, 1);
+    atomic_sub_fetch_32(&pAppHbMgr->passKeyCnt, 1);
   }
 }
