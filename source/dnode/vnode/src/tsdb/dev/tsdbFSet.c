@@ -51,7 +51,7 @@ int32_t tsdbFileSetEdit(struct SFileSet *pSet, struct SFileOp *pOp) {
           ppFile = &pSet->fTomb;
         } break;
         case TSDB_FTYPE_STT: {
-          ppFile = &pSet->lStt[0].fStt;
+          // ppFile = &pSet->lStt[0].fStt;
         } break;
         default: {
           ASSERTS(0, "Invalid file type");

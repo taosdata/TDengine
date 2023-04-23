@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-typedef struct SSttLevel SSttLevel;
+typedef struct SSttLvl SSttLvl;
 
 typedef enum {
   TSDB_FOP_EXTEND = -2,
@@ -39,10 +39,10 @@ struct SFileOp {
   struct STFile nState;  // new file state
 };
 
-struct SSttLevel {
+struct SSttLvl {
   int32_t        level;
   int32_t        nStt;
-  SSttLevel     *pNext;
+  SSttLvl       *pNext;
   struct STFile *fSttList;
 };
 
@@ -53,7 +53,7 @@ struct SFileSet {
   struct STFile *fData;  // .data
   struct STFile *fSma;   // .sma
   struct STFile *fTomb;  // .tomb
-  SSttLevel     *sttLevelList;
+  SSttLvl       *sttLevelList;
 };
 
 int32_t tsdbFileSetCreate(int32_t fid, struct SFileSet **ppSet);

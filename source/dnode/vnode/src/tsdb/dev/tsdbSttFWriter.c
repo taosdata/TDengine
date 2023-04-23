@@ -21,12 +21,6 @@ extern int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, 
 extern int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size);
 extern int32_t tsdbFsyncFile(STsdbFD *pFD);
 
-typedef struct {
-  int64_t   prevFooter;
-  SFDataPtr dict[4];  // 0:bloom filter, 1:SSttBlk, 2:STbStatisBlk, 3:SDelBlk
-  uint8_t   reserved[24];
-} SFSttFooter;
-
 struct SSttFWriter {
   struct SSttFWriterConf config;
   // file

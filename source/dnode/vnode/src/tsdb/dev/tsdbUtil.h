@@ -26,11 +26,6 @@ extern "C" {
 typedef struct SDelBlock SDelBlock;
 typedef struct SDelBlk   SDelBlk;
 
-typedef struct SFDataPtr {
-  int64_t offset;
-  int64_t size;
-} SFDataPtr;
-
 int32_t tDelBlockCreate(SDelBlock *pDelBlock, int32_t capacity);
 int32_t tDelBlockDestroy(SDelBlock *pDelBlock);
 int32_t tDelBlockClear(SDelBlock *pDelBlock);

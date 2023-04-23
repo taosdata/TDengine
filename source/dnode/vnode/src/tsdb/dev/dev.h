@@ -22,6 +22,17 @@
 extern "C" {
 #endif
 
+typedef struct SFDataPtr {
+  int64_t offset;
+  int64_t size;
+} SFDataPtr;
+
+typedef struct {
+  int64_t   prevFooter;
+  SFDataPtr dict[4];  // 0:bloom filter, 1:SSttBlk, 2:STbStatisBlk, 3:SDelBlk
+  uint8_t   reserved[24];
+} SFSttFooter;
+
 #include "tsdbUtil.h"
 
 #include "tsdbFile.h"

@@ -14,6 +14,13 @@
  */
 
 #include "tsdbSttFReader.h"
+#include "dev.h"
+
+struct SSttFReader {
+  STsdb      *pTsdb;
+  SFSttFooter footer;
+  const void *bloomFilter;
+};
 
 int32_t tsdbSttFReaderOpen(const struct SSttFReaderConf *pConf, struct SSttFReader **ppReader) {
   int32_t code = 0;
