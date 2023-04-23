@@ -31,7 +31,7 @@
 #define nDup     1
 #define nRoot    10
 #define nUser    10
-#define USER_LEN 30
+#define USER_LEN 24
 
 void Test(TAOS *taos, char *qstr);
 void createUers(TAOS *taos, const char *host, char *qstr);
