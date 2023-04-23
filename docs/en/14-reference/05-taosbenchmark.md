@@ -208,7 +208,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
   Keep trying if failed to insert, default is no. Available with v3.0.9+.
 
 - **-z/--trying-interval <NUMBER\>** :
-  Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+  Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+
+- **-v/--vgroups <NUMBER\>** :
+  Specify vgroups number for creating a database, only valid with daemon version 3.0+
 
 - **-V/--version** :
   Show version information only. Users should not use it with other parameters.
@@ -239,7 +242,15 @@ The parameters listed in this section apply to all function modes.
 
 - ** keep_trying ** : Keep trying if failed to insert, default is no. Available with v3.0.9+.
 
-- ** trying_interval ** : Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+- ** trying_interval ** : Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+
+- ** childtable_from and childtable_to ** : specify the child table range to create. The range is [childtable_from, childtable_to).
+ 
+- ** continue_if_fail ** :  allow the user to specify the reaction if the insertion failed.
+
+  - "continue_if_fail" : "no"  // means taosBenchmark will exit if it fails to insert as default reaction behavior.
+  - "continue_if_fail" : "yes"  // means taosBenchmark will warn the user if it fails to insert but continue to insert the next record.
+  - "continue_if_fail": "smart" // means taosBenchmark will try to create the non-existent child table if it fails to insert.
 
 #### Database related configuration parameters
 
@@ -352,7 +363,7 @@ The configuration parameters for specifying super table tag columns and data col
 
 - **min**: The minimum value of the column/label of the data type. The generated value will equal or large than the minimum value.
 
-- **max**: The maximum value of the column/label of the data type. The generated value will less than the maxium value.
+- **max**: The maximum value of the column/label of the data type. The generated value will less than the maximum value.
 
 - **values**: The value field of the nchar/binary column/label, which will be chosen randomly from the values.
 
@@ -392,11 +403,11 @@ See [General Configuration Parameters](#General Configuration Parameters) for de
 
 #### Configuration parameters for executing the specified query statement
 
-The configuration parameters for querying the sub-tables or the normal tables are set in `specified_table_query`.
+The configuration parameters for querying the specified table (it can be a super table, a sub-table or a normal table) are set in `specified_table_query`.
 
 - **query_interval** : The query interval in seconds, the default value is 0.
 
-- **threads**: The number of threads to execute the query SQL, the default value is 1.
+- **threads/concurrent**: The number of threads to execute the query SQL, the default value is 1.
 
 - **sqls**.
   - **sql**: the SQL command to be executed.
@@ -423,9 +434,9 @@ The configuration parameters of the super table query are set in `super_table_qu
 
 #### Configuration parameters for executing the specified subscription statement
 
-The configuration parameters for subscribing to a sub-table or a generic table are set in `specified_table_query`.
+The configuration parameters for subscribing to a specified table (it can be a super table, a sub-table or a generic table) are set in `specified_table_query`.
 
-- **threads**: The number of threads to execute SQL, default is 1.
+- **threads/concurrent**: The number of threads to execute SQL, default is 1.
 
 - **interval**: The time interval to execute the subscription, in seconds, default is 0.
 

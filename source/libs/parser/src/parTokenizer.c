@@ -124,8 +124,10 @@ static SKeyword keywordTable[] = {
     {"JSON",                 TK_JSON},
     {"KEEP",                 TK_KEEP},
     {"KILL",                 TK_KILL},
+    {"LANGUAGE",             TK_LANGUAGE},
     {"LAST",                 TK_LAST},
     {"LAST_ROW",             TK_LAST_ROW},
+    {"LEADER",               TK_LEADER},
     {"LICENCES",             TK_LICENCES},
     {"LIKE",                 TK_LIKE},
     {"LIMIT",                TK_LIMIT},
@@ -176,6 +178,7 @@ static SKeyword keywordTable[] = {
     {"READ",                 TK_READ},
     {"REDISTRIBUTE",         TK_REDISTRIBUTE},
     {"RENAME",               TK_RENAME},
+    {"REPLACE",              TK_REPLACE},
     {"REPLICA",              TK_REPLICA},
     {"RESET",                TK_RESET},
     {"RETENTIONS",           TK_RETENTIONS},
@@ -236,7 +239,7 @@ static SKeyword keywordTable[] = {
     {"TTL",                  TK_TTL},
     {"UNION",                TK_UNION},
     {"UNSIGNED",             TK_UNSIGNED},
-    {"UPDATE",                  TK_UPDATE},
+    {"UPDATE",               TK_UPDATE},
     {"USE",                  TK_USE},
     {"USER",                 TK_USER},
     {"USERS",                TK_USERS},
@@ -689,7 +692,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
     len = tGetToken(&str[*i + t0.n + 1], &type);
 
     // only id and string are valid
-    if ((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) {
+    if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) || ((TK_NK_STRING != type) && (TK_NK_ID != type))) {
       t0.type = TK_NK_ILLEGAL;
       t0.n = 0;
 

@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <fstream>
+
 #include "parTestUtil.h"
 
 using namespace std;
@@ -396,7 +398,8 @@ TEST_F(ParserInitialCTest, createDnode) {
 }
 
 /*
- * CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]
+ * CREATE [OR REPLACE] [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name
+ *   AS library_path OUTPUTTYPE type_name [BUFSIZE value] [LANGUAGE value]
  */
 TEST_F(ParserInitialCTest, createFunction) {
   useDb("root", "test");
@@ -404,12 +407,14 @@ TEST_F(ParserInitialCTest, createFunction) {
   SCreateFuncReq expect = {0};
 
   auto setCreateFuncReq = [&](const char* pUdfName, int8_t outputType, int32_t outputBytes = 0,
-                              int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0) {
+                              int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0,
+                              int8_t language = TSDB_FUNC_SCRIPT_BIN_LIB, int8_t orReplace = 0) {
     memset(&expect, 0, sizeof(SCreateFuncReq));
     strcpy(expect.name, pUdfName);
+    expect.orReplace = orReplace;
     expect.igExists = igExists;
     expect.funcType = funcType;
-    expect.scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+    expect.scriptType = language;
     expect.outputType = outputType;
     expect.outputLen = outputBytes > 0 ? outputBytes : tDataTypes[outputType].bytes;
     expect.bufSize = bufSize;
@@ -421,19 +426,32 @@ TEST_F(ParserInitialCTest, createFunction) {
     ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSCreateFuncReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(req.orReplace, expect.orReplace);
     ASSERT_EQ(req.igExists, expect.igExists);
     ASSERT_EQ(req.funcType, expect.funcType);
     ASSERT_EQ(req.scriptType, expect.scriptType);
     ASSERT_EQ(req.outputType, expect.outputType);
     ASSERT_EQ(req.outputLen, expect.outputLen);
     ASSERT_EQ(req.bufSize, expect.bufSize);
+
+    tFreeSCreateFuncReq(&req);
   });
 
-  setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
-  // run("CREATE FUNCTION udf1 AS './build/lib/libudf1.so' OUTPUTTYPE INT");
+  struct udfFile {
+    udfFile(const std::string& filename) : path_(filename) {
+      std::ofstream file(filename, std::ios::binary);
+      file << 123 << "abc" << '\n';
+      file.close();
+    }
+    ~udfFile() { remove(path_.c_str()); }
+    std::string path_;
+  } udffile("udf");
 
-  setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8);
-  // run("CREATE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS './build/lib/libudf2.so' OUTPUTTYPE DOUBLE BUFSIZE 8");
+  setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
+  run("CREATE FUNCTION udf1 AS 'udf' OUTPUTTYPE INT");
+
+  setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8, TSDB_FUNC_SCRIPT_PYTHON, 1);
+  run("CREATE OR REPLACE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
 }
 
 /*
@@ -742,10 +760,10 @@ TEST_F(ParserInitialCTest, createStable) {
   addFieldToCreateStbReq(false, "a15", TSDB_DATA_TYPE_VARCHAR, 50 + VARSTR_HEADER_SIZE);
   run("CREATE STABLE IF NOT EXISTS rollup_db.t1("
       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), "
-      "c8 SMALLINT, c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
+      "c8 SMALLINT, c9 SMALLINT UNSIGNED, c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
       "c13 NCHAR(30), c14 VARCHAR(50)) "
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, "
-      "a8 BINARY(20), a9 SMALLINT, a10 SMALLINT UNSIGNED COMMENT 'test column comment', a11 TINYINT, "
+      "a8 BINARY(20), a9 SMALLINT, a10 SMALLINT UNSIGNED, a11 TINYINT, "
       "a12 TINYINT UNSIGNED, a13 BOOL, a14 NCHAR(30), a15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) MAX_DELAY 100s,10m WATERMARK 10a,1m "
       "DELETE_MARK 1000s,200m");
@@ -1005,16 +1023,16 @@ TEST_F(ParserInitialCTest, createTable) {
 
   run("CREATE TABLE IF NOT EXISTS test.t1("
       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), "
-      "c8 SMALLINT, c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
+      "c8 SMALLINT, c9 SMALLINT UNSIGNED, c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
       "c13 NCHAR(30), c15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)");
 
   run("CREATE TABLE IF NOT EXISTS rollup_db.t1("
       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), "
-      "c8 SMALLINT, c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
+      "c8 SMALLINT, c9 SMALLINT UNSIGNED, c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
       "c13 NCHAR(30), c14 VARCHAR(50)) "
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, a8 BINARY(20), "
-      "a9 SMALLINT, a10 SMALLINT UNSIGNED COMMENT 'test column comment', a11 TINYINT, a12 TINYINT UNSIGNED, a13 BOOL, "
+      "a9 SMALLINT, a10 SMALLINT UNSIGNED, a11 TINYINT, a12 TINYINT UNSIGNED, a13 BOOL, "
       "a14 NCHAR(30), a15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN)");
 

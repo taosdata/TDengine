@@ -137,12 +137,12 @@ typedef enum {
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE__TOUCH = 1,
+  CONSUMER_UPDATE__TOUCH = 1,   // rebalance req do not need change consume topic
   CONSUMER_UPDATE__ADD,
   CONSUMER_UPDATE__REMOVE,
   CONSUMER_UPDATE__LOST,
   CONSUMER_UPDATE__RECOVER,
-  CONSUMER_UPDATE__MODIFY,
+  CONSUMER_UPDATE__MODIFY,      // subscribe req need change consume topic
 } ECsmUpdateType;
 
 typedef struct {
@@ -176,6 +176,7 @@ typedef struct {
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
+  int64_t     mTraceId;
 } STrans;
 
 typedef struct {
@@ -280,6 +281,9 @@ typedef struct {
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;
+  SHashObj* readTbs;
+  SHashObj* writeTbs;
+  SHashObj* useDbs;
   SRWLatch  lock;
 } SUserObj;
 
@@ -392,7 +396,7 @@ typedef struct {
 } SSmaObj;
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
+  char    name[TSDB_INDEX_FNAME_LEN];
   char    stb[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_DB_FNAME_LEN];
   char    dstTbName[TSDB_TABLE_FNAME_LEN];
@@ -446,6 +450,8 @@ typedef struct {
   int32_t codeSize;
   char*   pComment;
   char*   pCode;
+  int32_t funcVersion;
+  SRWLatch lock;
 } SFuncObj;
 
 typedef struct {
@@ -457,6 +463,7 @@ typedef struct {
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
+  bool           restore;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];
@@ -617,7 +624,7 @@ typedef struct {
   SArray*               rebVgs;            // SArray<SMqRebOutputVg>
   SArray*               newConsumers;      // SArray<int64_t>
   SArray*               removedConsumers;  // SArray<int64_t>
-  SArray*               touchedConsumers;  // SArray<int64_t>
+  SArray*               modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj*      pSub;
   SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;

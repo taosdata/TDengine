@@ -149,20 +149,18 @@ void vnodeUpdCommitSched(SVnode *pVnode) {
   pVnode->commitSched.maxWaitMs = tsVndCommitMaxIntervalMs + (randNum % tsVndCommitMaxIntervalMs);
 }
 
-int vnodeShouldCommit(SVnode *pVnode) {
+int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
   SVCommitSched *pSched = &pVnode->commitSched;
   int64_t        nowMs = taosGetMonoTimestampMs();
   bool           diskAvail = osDataSpaceAvailable();
   bool           needCommit = false;
 
   taosThreadMutexLock(&pVnode->mutex);
-  if (!pVnode->inUse || !diskAvail) {
-    goto _out;
+  if (pVnode->inUse && diskAvail) {
+    needCommit =
+        ((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
+        ((pVnode->inUse->size > 0) && atExit);
   }
-  needCommit =
-      (((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
-       (pVnode->inUse->size > 0 && pSched->commitMs + pSched->maxWaitMs < nowMs));
-_out:
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
 }

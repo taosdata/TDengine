@@ -77,6 +77,14 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    executeQueryWithReqId
+ * Signature: ([BJJ)I
+ */
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryWithReqId(JNIEnv *, jobject, jbyteArray,
+                                                                                      jlong, jlong);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    getErrCodeImp
  * Signature: (J)I
  */
@@ -188,6 +196,14 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtImp(J
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    prepareStmtWithReqId
+ * Signature: ([BJJ)I
+ */
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtWithReqId(JNIEnv *, jobject, jbyteArray,
+                                                                                     jlong, jlong);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    setBindTableNameImp
  * Signature: (JLjava/lang/String;J)I
  */
@@ -260,6 +276,32 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JN
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertImp(JNIEnv *, jobject, jobjectArray,
                                                                                     jlong, jint, jint);
 
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertWithReqId(JNIEnv *, jobject, jlong,
+                                                                                          jobjectArray, jint, jint,
+                                                                                          jlong);
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertWithTtl(JNIEnv *, jobject, jlong,
+                                                                                        jobjectArray, jint, jint, jint);
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertWithTtlAndReqId(JNIEnv *, jobject,
+                                                                                                jlong, jobjectArray,
+                                                                                                jint, jint, jint,
+                                                                                                jlong);
+
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertRaw(JNIEnv *, jobject, jlong, jstring,
+                                                                                      jint, jint);
+
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertRawWithReqId(JNIEnv *, jobject, jlong,
+                                                                                               jstring, jint, jint,
+                                                                                               jlong);
+
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertRawWithTtl(JNIEnv *, jobject, jlong,
+                                                                                             jstring, jint, jint, jint);
+
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertRawWithTtlAndReqId(JNIEnv *, jobject,
+                                                                                                     jlong, jstring,
+                                                                                                     jint, jint, jint,
+                                                                                                     jlong);
 /**
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    getTableVgID

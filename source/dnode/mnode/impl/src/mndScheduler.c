@@ -115,7 +115,7 @@ int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, SStreamObj* pStream, SStream
 
   if (pStream->fixedSinkVgId == 0) {
     SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
-    if (pDb->cfg.numOfVgroups > 1) {
+    if (pDb != NULL && pDb->cfg.numOfVgroups > 1) {
       isShuffle = true;
       pTask->outputType = TASK_OUTPUT__SHUFFLE_DISPATCH;
       pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
@@ -138,7 +138,7 @@ int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, SStreamObj* pStream, SStream
       for (int32_t j = 0; j < sinkLvSize; j++) {
         SStreamTask* pLastLevelTask = taosArrayGetP(sinkLv, j);
         if (pLastLevelTask->nodeId == pVgInfo->vgId) {
-          pVgInfo->taskId = pLastLevelTask->taskId;
+          pVgInfo->taskId = pLastLevelTask->id.taskId;
           break;
         }
       }
@@ -149,7 +149,7 @@ int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, SStreamObj* pStream, SStream
     SArray* pArray = taosArrayGetP(pStream->tasks, 0);
     // one sink only
     SStreamTask* lastLevelTask = taosArrayGetP(pArray, 0);
-    pTask->fixedEpDispatcher.taskId = lastLevelTask->taskId;
+    pTask->fixedEpDispatcher.taskId = lastLevelTask->id.taskId;
     pTask->fixedEpDispatcher.nodeId = lastLevelTask->nodeId;
     pTask->fixedEpDispatcher.epSet = lastLevelTask->epSet;
   }
@@ -224,7 +224,7 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
       continue;
     }
 
-    SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+    SStreamTask* pTask = tNewStreamTask(pStream->uid);
     if (pTask == NULL) {
       sdbRelease(pSdb, pVgroup);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -260,7 +260,7 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
 
 int32_t mndAddFixedSinkTaskToStream(SMnode* pMnode, SStreamObj* pStream) {
   SArray*      tasks = taosArrayGetP(pStream->tasks, 0);
-  SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+  SStreamTask* pTask = tNewStreamTask(pStream->uid);
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -350,12 +350,13 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         return -1;
       }
 
-      pInnerTask = tNewSStreamTask(pStream->uid);
+      pInnerTask = tNewStreamTask(pStream->uid);
       if (pInnerTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         qDestroyQueryPlan(pPlan);
         return -1;
       }
+
       pInnerTask->fillHistory = pStream->fillHistory;
       mndAddTaskToTaskSet(taskInnerLevel, pInnerTask);
 
@@ -421,7 +422,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         continue;
       }
 
-      SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+      SStreamTask* pTask = tNewStreamTask(pStream->uid);
       if (pTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         sdbRelease(pSdb, pVgroup);
@@ -440,7 +441,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
       pTask->outputType = TASK_OUTPUT__FIXED_DISPATCH;
 
-      pTask->fixedEpDispatcher.taskId = pInnerTask->taskId;
+      pTask->fixedEpDispatcher.taskId = pInnerTask->id.taskId;
       pTask->fixedEpDispatcher.nodeId = pInnerTask->nodeId;
       pTask->fixedEpDispatcher.epSet = pInnerTask->epSet;
 
@@ -460,7 +461,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       pEpInfo->childId = pTask->selfChildId;
       pEpInfo->epSet = pTask->epSet;
       pEpInfo->nodeId = pTask->nodeId;
-      pEpInfo->taskId = pTask->taskId;
+      pEpInfo->taskId = pTask->id.taskId;
       taosArrayPush(pInnerTask->childEpInfo, &pEpInfo);
       sdbRelease(pSdb, pVgroup);
     }
@@ -491,7 +492,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         continue;
       }
 
-      SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+      SStreamTask* pTask = tNewStreamTask(pStream->uid);
       if (pTask == NULL) {
         sdbRelease(pSdb, pVgroup);
         qDestroyQueryPlan(pPlan);

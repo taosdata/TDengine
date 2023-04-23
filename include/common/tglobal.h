@@ -104,6 +104,7 @@ extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row lo
 // query client
 extern int32_t tsQueryPolicy;
 extern int32_t tsQueryRspPolicy;
+extern int64_t tsQueryMaxConcurrentTables;
 extern int32_t tsQuerySmaOptimize;
 extern int32_t tsQueryRsmaTolerance;
 extern bool    tsQueryPlannerTrace;
@@ -111,6 +112,7 @@ extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
+extern bool    tsEnableScience;
 extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;

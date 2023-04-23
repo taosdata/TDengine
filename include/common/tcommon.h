@@ -185,7 +185,7 @@ typedef struct SBlockID {
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
-  int32_t     rows;  // todo hide this attribute
+  int64_t     rows;  // todo hide this attribute
   uint32_t    capacity;
   SBlockID    id;
   int16_t     hasVarCol;
@@ -208,15 +208,12 @@ typedef struct SSDataBlock {
 } SSDataBlock;
 
 enum {
-  FETCH_TYPE__DATA = 1,
-  FETCH_TYPE__META,
-  FETCH_TYPE__SEP,
+  FETCH_TYPE__DATA = 0,
   FETCH_TYPE__NONE,
 };
 
 typedef struct {
   int8_t       fetchType;
-  STqOffsetVal offset;
   union {
     SSDataBlock data;
     void*       meta;
@@ -344,6 +341,8 @@ typedef struct {
     float       f;
   };
   size_t length;
+  bool keyEscaped;
+  bool valueEscaped;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
@@ -381,6 +380,8 @@ typedef struct STUidTagInfo {
 #define UD_TABLE_NAME_COLUMN_INDEX 0
 #define UD_GROUPID_COLUMN_INDEX    1
 #define UD_TAG_COLUMN_INDEX        2
+
+int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
 
 #ifdef __cplusplus
 }

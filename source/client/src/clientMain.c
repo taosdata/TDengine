@@ -271,8 +271,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     SReqResultInfo *pResultInfo;
     if (msg->resIter == -1) {
       pResultInfo = tmqGetNextResInfo(res, true);
-      tscDebug("consumer:0x%" PRIx64 ", vgId:%d, numOfRows:%" PRId64 ", total rows:%" PRId64, msg->rsp.head.consumerId,
-               msg->vgId, pResultInfo->numOfRows, pResultInfo->totalRows);
     } else {
       pResultInfo = tmqGetCurResInfo(res);
     }
@@ -286,9 +284,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       if (pResultInfo == NULL) {
         return NULL;
       }
-
-      tscDebug("consumer:0x%" PRIx64 " vgId:%d, numOfRows:%" PRId64 ", total rows:%" PRId64, msg->rsp.head.consumerId,
-               msg->vgId, pResultInfo->numOfRows, pResultInfo->totalRows);
 
       doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
@@ -1027,7 +1022,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   }
 
   pRequest->code =
-      setQueryResultFromRsp(pResultInfo, (SRetrieveTableRsp *)pResultInfo->pData, pResultInfo->convertUcs4, true);
+      setQueryResultFromRsp(pResultInfo, (const SRetrieveTableRsp *)pResultInfo->pData, pResultInfo->convertUcs4, true);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
     pRequest->code = code;

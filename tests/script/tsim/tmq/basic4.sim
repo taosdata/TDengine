@@ -34,6 +34,9 @@ $showRow      = 0
 sql connect
 sql use $dbName
 
+print == alter database
+sql alter database $dbName wal_retention_period 3600
+
 print == create topics from super table
 sql create topic topic_stb_column as select ts, c3 from stb
 sql create topic topic_stb_all as select ts, c1, c2, c3 from stb
@@ -80,8 +83,8 @@ $topicList = $topicList . '
 $consumerId    = 0
 $totalMsgOfStb = $ctbNum * $rowsPerCtb
 $totalMsgOfStb = $totalMsgOfStb * $topicNum
-$expectmsgcnt  = $totalMsgOfStb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+$expectmsgcnt  = 9
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $totalMsgOfStb , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from stb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $dbName -s start
@@ -102,7 +105,7 @@ endi
 if $data[0][2] != $expectmsgcnt then
   return -1
 endi
-if $data[0][3] != $expectmsgcnt then
+if $data[0][3] != $totalMsgOfStb then
   return -1
 endi
 
@@ -114,6 +117,9 @@ $cdbName = cdb1
 sql create database $cdbName vgroups 1
 sleep 500
 sql use $cdbName
+
+print == alter database
+sql alter database $cdbName wal_retention_period 3600
 
 print == create consume info table and consume result table
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
@@ -137,8 +143,8 @@ $topicList = $topicList . '
 
 $consumerId    = 0
 $totalMsgOfCtb = $rowsPerCtb * $topicNum
-$expectmsgcnt  = $totalMsgOfCtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+$expectmsgcnt  = $topicNum
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $totalMsgOfCtb , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ctb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -156,7 +162,7 @@ endi
 if $data[0][1] != $consumerId then
   return -1
 endi
-if $data[0][2] != $totalMsgOfCtb then
+if $data[0][2] != $expectmsgcnt then
   return -1
 endi
 if $data[0][3] != $totalMsgOfCtb then
@@ -171,6 +177,9 @@ $cdbName = cdb2
 sql create database $cdbName vgroups 1
 sleep 500
 sql use $cdbName
+
+print == alter database
+sql alter database $cdbName wal_retention_period 3600
 
 print == create consume info table and consume result table
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
@@ -194,8 +203,8 @@ $topicList = $topicList . '
 
 $consumerId    = 0
 $totalMsgOfNtb = $rowsPerCtb * $topicNum
-$expectmsgcnt  = $totalMsgOfNtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+$expectmsgcnt  = $topicNum
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $totalMsgOfNtb , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ntb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -213,7 +222,7 @@ endi
 if $data[0][1] != $consumerId then
   return -1
 endi
-if $data[0][2] != $totalMsgOfNtb then
+if $data[0][2] != $expectmsgcnt then
   return -1
 endi
 if $data[0][3] != $totalMsgOfNtb then

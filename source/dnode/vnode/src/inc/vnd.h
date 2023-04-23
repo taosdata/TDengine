@@ -96,7 +96,7 @@ int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
-int32_t vnodeShouldCommit(SVnode* pVnode);
+int32_t vnodeShouldCommit(SVnode* pVnode, bool atExit);
 void    vnodeUpdCommitSched(SVnode* pVnode);
 void    vnodeRollback(SVnode* pVnode);
 int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
@@ -115,7 +115,6 @@ void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
-int     vnodeShouldCommit(SVnode* pVnode);
 
 #ifdef __cplusplus
 }

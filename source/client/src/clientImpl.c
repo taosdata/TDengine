@@ -192,7 +192,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->sqlLen = sqlLen;
   (*pRequest)->validateOnly = validateSql;
 
-  SSyncQueryParam* newpParam;
+  SSyncQueryParam* newpParam = NULL;
   if (param == NULL) {
     newpParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
     if (newpParam == NULL) {
@@ -1039,8 +1039,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                       .sysInfo = pRequest->pTscObj->sysInfo,
                       .allocatorId = pRequest->allocatorRefId};
 
-  SAppInstInfo* pAppInfo = getAppInfo(pRequest);
-  SQueryPlan*   pDag = NULL;
+  SQueryPlan* pDag = NULL;
 
   int64_t st = taosGetTimestampUs();
   int32_t code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
@@ -1052,7 +1051,6 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   }
 
   pRequest->metric.execStart = taosGetTimestampUs();
-
   pRequest->metric.planCostUs = pRequest->metric.execStart - st;
 
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
@@ -1085,6 +1083,10 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     tscDebug("0x%" PRIx64 " plan not executed, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
+    if (TSDB_CODE_SUCCESS != code) {
+      pRequest->code = terrno;
+    }
+
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   }
 
@@ -1131,11 +1133,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
     default:
       pRequest->body.queryFp(pRequest->body.param, pRequest, -1);
       break;
-  }
-
-  // TODO weired responding code?
-  if (TSDB_CODE_SUCCESS != code) {
-    pRequest->code = terrno;
   }
 }
 
@@ -1546,7 +1543,7 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     pRequest->code =
-        setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData, convertUcs4, true);
+        setQueryResultFromRsp(&pRequest->body.resInfo, (const SRetrieveTableRsp*)pResInfo->pData, convertUcs4, true);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
       return NULL;

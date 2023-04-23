@@ -50,7 +50,7 @@ class TDTestCase:
 
     def create_udf_function(self):
         # create  scalar functions
-        tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
+        tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
 
         functions = tdSql.getResult("show functions")
         function_nums = len(functions)
@@ -58,34 +58,6 @@ class TDTestCase:
             tdLog.info("create one udf functions success ")
         else:
             tdLog.exit("create udf functions fail")
-        return
-
-    def checkFileContent(self, consumerId, queryString):
-        buildPath = tdCom.getBuildPath()
-        cfgPath = tdCom.getClientCfgPath()
-        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
-        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
-        tdLog.info(cmdStr)
-        os.system(cmdStr)
-
-        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
-        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
-
-        consumeFile = open(consumeRowsFile, mode='r')
-        queryFile = open(dstFile, mode='r')
-
-        # skip first line for it is schema
-        queryFile.readline()
-
-        while True:
-            dst = queryFile.readline()
-            src = consumeFile.readline()
-
-            if dst:
-                if dst != src:
-                    tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
-            else:
-                break
         return
 
     def prepareTestEnv(self):
@@ -116,6 +88,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -163,6 +136,7 @@ class TDTestCase:
         expectRowsList = []
         tmqCom.initConsumerTable()
         # tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=1)
+        # tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         # tdLog.info("create stb")
         # tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
         # tdLog.info("create ctb")
@@ -199,7 +173,7 @@ class TDTestCase:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
             tdLog.exit("0 tmq consume rows error!")
 
-        self.checkFileContent(consumerId, queryString)
+        tmqCom.checkFileContent(consumerId, queryString)
         tdLog.printNoPrefix("consumerId %d check data ok!"%(consumerId))
 
 
@@ -227,7 +201,7 @@ class TDTestCase:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[1], resultList[0]))
             tdLog.exit("1 tmq consume rows error!")
 
-        self.checkFileContent(consumerId, queryString)
+        tmqCom.checkFileContent(consumerId, queryString)
         tdLog.printNoPrefix("consumerId %d check data ok!"%(consumerId))
 
         time.sleep(10)
@@ -266,6 +240,7 @@ class TDTestCase:
         expectRowsList = []
         tmqCom.initConsumerTable()
         # tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=4,replica=1)
+        # tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         # tdLog.info("create stb")
         # tdCom.create_stable(tdSql, dbname=paraDict["dbName"],stbname=paraDict["stbName"], column_elm_list=paraDict['colSchema'], tag_elm_list=paraDict['tagSchema'])
         # tdLog.info("create ctb")
@@ -310,7 +285,7 @@ class TDTestCase:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
             tdLog.exit("2 tmq consume rows error!")
 
-        self.checkFileContent(consumerId, queryString)
+        tmqCom.checkFileContent(consumerId, queryString)
         tdLog.printNoPrefix("consumerId %d check data ok!"%(consumerId))
 
         # reinit consume info, and start tmq_sim, then check consume result
@@ -337,7 +312,7 @@ class TDTestCase:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[1], resultList[0]))
             tdLog.exit("3 tmq consume rows error!")
 
-        self.checkFileContent(consumerId, queryString)
+        tmqCom.checkFileContent(consumerId, queryString)
         tdLog.printNoPrefix("consumerId %d check data ok!"%(consumerId))
 
         time.sleep(10)

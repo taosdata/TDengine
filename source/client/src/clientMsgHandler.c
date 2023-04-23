@@ -76,7 +76,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto End;
   }
 
-  if ((code = taosCheckVersionCompatibleFromStr(version, connectRsp.sVer, 2)) != 0) {
+  if ((code = taosCheckVersionCompatibleFromStr(version, connectRsp.sVer, 3)) != 0) {
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     goto End;
@@ -506,6 +506,9 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
       code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, true);
     }
 
+    if (code != 0) {
+      taosMemoryFree(pRes);
+    }
     tFreeSShowVariablesRsp(&rsp);
   }
 

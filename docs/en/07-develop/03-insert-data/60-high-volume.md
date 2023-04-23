@@ -28,7 +28,7 @@ From the perspective of application program, you need to consider:
    - Writing to known existing tables is more efficient than writing to uncertain tables in automatic creating mode because the later needs to check whether the table exists or not before actually writing data into it.
    - Writing in SQL is more efficient than writing in schemaless mode because schemaless writing creates table automatically and may alter table schema.
 
-Application programs need to take care of the above factors and try to take advantage of them. The application progam should write to single table in each write batch. The batch size needs to be tuned to a proper value on a specific system. The number of concurrent connections needs to be tuned to a proper value too to achieve the best writing throughput.
+Application programs need to take care of the above factors and try to take advantage of them. The application program should write to single table in each write batch. The batch size needs to be tuned to a proper value on a specific system. The number of concurrent connections needs to be tuned to a proper value too to achieve the best writing throughput.
 
 ### Data Source
 

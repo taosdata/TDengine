@@ -145,6 +145,59 @@ function install_include() {
     log_print "install include success"
 }
 
+function install_jemalloc() {
+  jemalloc_dir=${script_dir}/../jemalloc
+
+  if [ -d ${jemalloc_dir} ]; then
+    ${csudo}/usr/bin/install -c -d /usr/local/bin
+
+    if [ -f ${jemalloc_dir}/bin/jemalloc-config ]; then
+      ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc-config /usr/local/bin
+    fi
+    if [ -f ${jemalloc_dir}/bin/jemalloc.sh ]; then
+      ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc.sh /usr/local/bin
+    fi
+    if [ -f ${jemalloc_dir}/bin/jeprof ]; then
+      ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jeprof /usr/local/bin
+    fi
+    if [ -f ${jemalloc_dir}/include/jemalloc/jemalloc.h ]; then
+      ${csudo}/usr/bin/install -c -d /usr/local/include/jemalloc
+      ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
+    fi
+    if [ -f ${jemalloc_dir}/lib/libjemalloc.so.2 ]; then
+      ${csudo}/usr/bin/install -c -d /usr/local/lib
+      ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
+      ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
+      ${csudo}/usr/bin/install -c -d /usr/local/lib
+      if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
+        ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
+      fi
+      if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+        ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
+      fi
+      if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+        ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
+        ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
+      fi
+    fi
+    if [ -f ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html ]; then
+      ${csudo}/usr/bin/install -c -d /usr/local/share/doc/jemalloc
+      ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
+    fi
+    if [ -f ${jemalloc_dir}/share/man/man3/jemalloc.3 ]; then
+      ${csudo}/usr/bin/install -c -d /usr/local/share/man/man3
+      ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
+    fi
+
+    if [ -d /etc/ld.so.conf.d ]; then
+      echo "/usr/local/lib" | ${csudo}tee /etc/ld.so.conf.d/jemalloc.conf >/dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
+      ${csudo}ldconfig
+    else
+      echo "/etc/ld.so.conf.d not found!"
+    fi
+  fi
+}
+
 function install_lib() {
     log_print "start install lib from ${lib_dir} to ${lib_link_dir}"
     ${csudo}rm -f ${lib_link_dir}/libtaos* || :
@@ -185,6 +238,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/taosdump || :
     ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
     ${csudo}rm -f ${bin_link_dir}/set_core || :
+    ${csudo}rm -f ${bin_link_dir}/*explorer || :
 
     ${csudo}chmod 0555 ${bin_dir}/*
 
@@ -219,6 +273,9 @@ function install_bin() {
     fi
     if [ -x ${bin_dir}/taoskeeper ]; then
       ${csudo}ln -sf ${bin_dir}/taoskeeper ${bin_link_dir}/taoskeeper        2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/*explorer ]; then
+      ${csudo}ln -s ${bin_dir}/*explorer ${bin_link_dir}/*explorer           2>>${install_log_path} || return 1
     fi
     log_print "install bin success"
 }
@@ -582,6 +639,11 @@ function install_service_on_launchctl() {
     ${csudo}cp ${install_main_dir}/service/com.taosdata.taosadapter.plist /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
     ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
   fi
+  if [ -f ${install_main_dir}/service/com.taosdata.taoskeeper.plist ]; then
+    ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taoskeeper.plist > /dev/null 2>&1 || :
+    ${csudo}cp ${install_main_dir}/service/com.taosdata.taoskeeper.plist /Library/LaunchDaemons/com.taosdata.taoskeeper.plist || :
+    ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taoskeeper.plist || :
+  fi
 }
 
 function install_taosadapter_service() {
@@ -658,6 +720,7 @@ function install_TDengine() {
     # Install include, lib, binary and service
     install_include &&
     install_lib &&
+    install_jemalloc
     install_bin
 
     if [[ "$?" != 0 ]];then
