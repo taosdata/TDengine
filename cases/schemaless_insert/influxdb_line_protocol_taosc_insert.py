@@ -1091,20 +1091,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
     def test(self):
         # self.ts_3264()
-        # try:
-        #     self.tdSql._conn.schemaless_insert([line1], TDSmlProtocolType.LINE.value, None)
-        #     raise Exception("should not reach here")
-        # except SchemalessError as err:
-        #     self.tdSql.checkNotEqual(err.errno, 0)
-        # line2 = 'hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=7u64 1626006833639000000'
-        # self.tdSql._conn.schemaless_insert([line2], TDSmlProtocolType.LINE.value, None)
-        # input_sql_id = self.tdCom.gen_full_type_sql(id_double_tag=True)[0]
-        # print(input_sql_id)
-        # try:
-        #     self.tdSql._conn.schemaless_insert([input_sql_id], TDSmlProtocolType.LINE.value, None)
-        #     raise Exception("should not reach here")
-        # except SchemalessError as err:
-        #     self.tdSql.checkNotEqual(err.errno, 0)
         # self.tdSql.query(f'select * from xx')
         # print("query_res -----", self.tdSql.query_data)
         # input_sql = 'reported_j1WhBe0W78Edj6hK,realm_device_id=test_device_id_001 Ia=10.01f32,P=1.32012f32,Ib=9.0100001f32,Ia_source_time=1677834213374i64,P_source_time=1677834213374i64,Ib_source_time=1677834213374i64 1677834213374'
