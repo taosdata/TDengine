@@ -475,6 +475,7 @@ static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reve
   return NULL;
 }
 int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
+  // signed/unsigned/float
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
     int64_t v = 0;
     if (0 != toInteger(buf, len, 10, &v)) {
@@ -509,6 +510,8 @@ int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
     } else if (type == TSDB_DATA_TYPE_USMALLINT) {
       *(uint16_t *)val = v;
     }
+  } else {
+    return -1;
   }
   return 0;
 }
