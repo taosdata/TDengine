@@ -13,7 +13,8 @@
         $t("taosagents.createnewagent")
       }}</el-button>
     </div>
-    <el-table style="margin-top: 20px" :data="topicList" size="mini">
+    <el-table style="margin-top: 20px" :data="agentList" size="mini">
+
       <el-table-column label="ID" width="150" prop="id"></el-table-column>
       <el-table-column
         :label="$t('taosagents.cluster_id')"
@@ -137,24 +138,16 @@
         label-width="120px"
         class="demo-ruleForm"
       >
-        <el-form-item prop="cycle" required :label="$t('taosuser.backupcycle')">
-          <el-select v-model="ruleForm.cycle" placeholder="">
-            <el-option
-              v-for="c in cycleList"
-              :key="c.value"
-              :label="c.label"
-              :value="c.value"
-            >
-            </el-option>
-          </el-select>
+        <el-form-item prop="name" :label="$t('taosagents.name')">
+          <el-input v-model.trim="ruleForm.name"></el-input>
         </el-form-item>
         <el-form-item
-          :label="$t('taosuser.database')"
-          prop="db"
-          required
+          :label="$t('taosagents.connectors')"
+          prop="connectors"
           v-if="!isEditDialog"
         >
-          <el-select v-model="ruleForm.db" placeholder="">
+          <el-select v-model="ruleForm.connectors" placeholder="">
+
             <el-option
               v-for="db in dblist"
               :key="db['node-key']"
@@ -165,12 +158,25 @@
           </el-select>
         </el-form-item>
         <el-form-item
-          :label="$t('taosuser.directory')"
-          prop="directory"
-          required
+          :label="$t('taosagents.dsn')"
+          prop="dsn"
           v-if="!isEditDialog"
         >
-          <el-input v-model.trim="ruleForm.directory"></el-input>
+          <el-input v-model.trim="ruleForm.dsn"></el-input>
+        </el-form-item>
+        <el-form-item
+          :label="$t('taosagents.expire_date')"
+          prop="expire_date"
+          expire_time
+          v-if="!isEditDialog"
+        >
+          <el-date-picker
+            v-model="ruleForm.expire_date"
+            style="width: 100%"
+            :picker-options="expireTimeOPtion"
+            type="datetime"
+          ></el-date-picker>
+
         </el-form-item>
       </el-form>
 
@@ -196,10 +202,18 @@
 </template>
 <script>
 import { getAgentsData } from "@/api/explorer/agent";
+
+import { getUIData} from '@/api/explorer/datain'
+
 export default {
   name: "Agent",
   data() {
     return {
+      expireTimeOPtion: {
+        disabledDate(time) {
+          return time.getTime() < Date.now();
+        },
+      },
       requestIng: false,
       dblist: [],
       isEditDialog: false,
@@ -212,45 +226,43 @@ export default {
       currentRow: null,
       clusterid: localStorage.getItem("local_clusterID"),
       ruleForm: {
-        cycle: "",
-        db: "",
-        directory: "",
+        name: "",
+        connectors: "",
+        expire_date: "",
+        dsn: "",
       },
-      cycleList: [
-        {
-          label: "Everyday",
-          value: "schedule:@daily",
-        },
-        {
-          label: "Every 7 days",
-          value: "schedule:@weekly",
-        },
-        {
-          label: "Every 30 days",
-          value: "schedule:@monthly",
-        },
-      ],
       rules: {
-        cylce: [
+        name: [
           {
-            message: "Please select backup cycle",
-            trigger: "change",
-          },
-        ],
-        db: [
-          {
-            message: "Please select the database",
-            trigger: "change",
-          },
-        ],
-        directory: [
-          {
-            message: "Please enter the directory",
+            message: this.$t("taosagents.rules.name"),
             trigger: "blur",
+            required: true,
+          },
+        ],
+        connectors: [
+          {
+            message: this.$t("taosagents.rules.connectors"),
+            trigger: "change",
+            required: true,
+          },
+        ],
+        expire_date: [
+          {
+            message: this.$t("taosagents.rules.expire_date"),
+            trigger: "blur",
+            required: true,
+          },
+        ],
+        dsn: [
+          {
+            message: this.$t("taosagents.rules.dsn"),
+            trigger: "blur",
+            required: true,
           },
         ],
       },
-      topicList: [],
+      agentList: [],
+
     };
   },
   computed: {

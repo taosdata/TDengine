@@ -138,7 +138,7 @@ export default {
     },
     async addDnodes() {
       try {
-        return await sendSQLReq(`create dnode ${this.ruleForm.endpoint};`).then(
+        return await sendSQLReq(`create dnode \`${this.ruleForm.endpoint}\`;`).then(
           (res) => {
             if (res.code == 0) {
               this.getAllDnodes();
@@ -147,6 +147,7 @@ export default {
           }
         );
       } catch (err) {
+        err&&err.desc&Message.error(err.desc)
         return Promise.reject(err);
       }
     },
@@ -155,7 +156,7 @@ export default {
         return await sendSQLReq(
           `select * from information_schema.ins_dnodes;`
         ).then((res) => {
-          this.dnodesList = res.data.map((data) => {
+          this.dnodesList= res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
                 return [item[0], data[index]];
@@ -181,5 +182,9 @@ export default {
     border: none;
     background: transparent;
   }
+}
+.dnode-block{
+  max-height:150px;
+  overflow: auto;
 }
 </style>

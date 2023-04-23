@@ -177,7 +177,8 @@ export default {
         if (valid) {
           try {
             return sendSQLReq(
-              `CREATE USER ${this.ruleForm.user} PASS '${this.ruleForm.pwd}';`
+              `CREATE USER 
+              \`${this.ruleForm.user}\` PASS '${this.ruleForm.pwd}';`
             )
               .then((res) => {
                 for (let key in this.selectedDatabasePrivileges) {

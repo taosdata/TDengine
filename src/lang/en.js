@@ -1683,7 +1683,13 @@ export default {
     last_modified_at:'Last Modified At',
     name:'Name',
     status:'Status',
-    user_id:'User ID'
+    user_id:'User ID',
+    rules:{
+      name:'Please enter the name.',
+      connectors:'Please select the connector.',
+      expire_date:'Please select the expire date.',
+      dsn:'Please enter the DSN.'
+    }
   },
   taoscluster: {
     dnodes: 'DNodes',

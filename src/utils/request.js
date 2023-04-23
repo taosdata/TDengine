@@ -84,14 +84,15 @@ request.interceptors.response.use(
     Message.closeAll()
     if (error.config.baseURL.includes('/api/x')) {
 
-      if (error.response.status === 404) {
+      if (error.response&&error.response.status === 404) {
         Message.error(navigator.language.includes('zh') ? taosx404 : taosx404en)
-      }
-      if (error.response.status === 500) {
+      }else 
+      if (error.response&&error.response.status === 500) {
         Message.error(navigator.language.includes('zh') ? taosx500 : taosx500en)
-
-
+      }else{
+        error.message&&Message.error(error.message)
       }
+
     }
 
     return Promise.reject(error);

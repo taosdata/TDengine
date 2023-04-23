@@ -30,6 +30,7 @@
             @click="del(scope.row)"
             icon="el-icon-delete"
             :disabled='!isDisable'
+            v-if="scope.row.role!=='leader'"
           ></el-button>
         </template>
       </el-table-column>
@@ -164,6 +165,7 @@ export default {
           }
         });
       } catch (err) {
+        err&&err.desc&Message.error(err.desc)
         return Promise.reject(err);
       }
     },
@@ -205,5 +207,9 @@ export default {
     border: none;
     background: transparent;
   }
+}
+.mnode-block{
+  max-height:150px;
+  overflow: auto;
 }
 </style>
