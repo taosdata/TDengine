@@ -1671,6 +1671,20 @@ export default {
     targetdsn: 'Target DSN',
     changebackup: 'Change Backup'
   },
+  taosagents:{
+    eidtagent:'Edit Agent',
+    createnewagent:'Create New Agent',
+    cluster_id:'Cluster ID',
+    connectors:'Connectors',
+    created_at:'Created At',
+    dsn:'DSN',
+    expire_date:'Expire Date',
+    id:'ID',
+    last_modified_at:'Last Modified At',
+    name:'Name',
+    status:'Status',
+    user_id:'User ID'
+  },
   taoscluster: {
     dnodes: 'DNodes',
     mnodes: 'MNodes',
@@ -1691,6 +1705,7 @@ export default {
     grafanaurl: 'Grafana Url',
     save: 'Save'
   },
+
   taospi: {
     addpi: "Add PI",
     name: 'Name',

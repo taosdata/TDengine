@@ -10,20 +10,44 @@
         >{{ $t("refresh") }}</el-button
       >
       <el-button plain @click="add" size="small" icon="el-icon-plus">{{
-        $t("taosuser.createbackup")
+        $t("taosagents.createnewagent")
       }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="150" prop="id"></el-table-column>
       <el-table-column
-        :label="$t('taosuser.database')"
-        prop="database"
+        :label="$t('taosagents.cluster_id')"
+        prop="cluster_id"
       ></el-table-column>
       <el-table-column
-        :label="$t('taosuser.createtime')"
+        :label="$t('taosagents.connectors')"
+        prop="connectors"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taosagents.created_at')"
         prop="created_at"
       ></el-table-column>
-      <el-table-column :label="$t('taosuser.lastbackup')" prop="status">
+      <el-table-column
+        :label="$t('taosagents.dsn')"
+        prop="dsn"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taosagents.expire_date')"
+        prop="expire_date"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taosagents.connectors')"
+        prop="connectors"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taosagents.last_modified_at')"
+        prop="last_modified_at"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taosagents.name')"
+        prop="name"
+      ></el-table-column>
+      <el-table-column :label="$t('taosagents.status')" prop="status">
         <template slot-scope="scope">
           <div class="status-operation">
             <el-tooltip
@@ -48,7 +72,10 @@
           </div>
         </template>
       </el-table-column>
-
+      <el-table-column
+        :label="$t('taosagents.user_id')"
+        prop="user_id"
+      ></el-table-column>
       <el-table-column :label="$t('taosuser.operation')" width="150">
         <template slot-scope="scope">
           <el-switch
@@ -168,16 +195,7 @@
   </div>
 </template>
 <script>
-import {
-  getBackupList,
-  addBackupData,
-  editBackup,
-  getAgentsData,
-} from "@/api/explorer/agent";
-import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
-import { Message } from "element-ui";
-import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { get } from 'js-cookie';
+import { getAgentsData } from "@/api/explorer/agent";
 export default {
   name: "Agent",
   data() {
@@ -185,7 +203,7 @@ export default {
       requestIng: false,
       dblist: [],
       isEditDialog: false,
-      dialogTitle: "Create New Backup",
+      dialogTitle: "Create New Agent",
       pageSize: 10,
       currentPage: 1,
       total: 10,
@@ -267,18 +285,10 @@ export default {
           cancelButtonText: "Cancel",
           type: "warning",
         }
-      ).then(async () => {
-        await excuteDel(data.id).then((res) => {
-          Message({
-            type: "success",
-            message: "Deleted Successfully",
-          });
-          this.getBackData();
-        });
-      });
+      ).then(async () => {});
     },
     add() {
-      this.dialogTitle = this.$t("taosuser.createbackup");
+      this.dialogTitle = this.$t("taosagents.createnewagent");
       this.isEditDialog = false;
       this.dialog = true;
       this.ruleForm.db = "";
@@ -288,33 +298,14 @@ export default {
       this.getBackData();
     },
     edit(data) {
-      this.dialogTitle = this.$t("taosuser.changebackup");
+      this.dialogTitle = this.$t("taosagents.changebackup");
       this.isEditDialog = true;
       this.dialog = true;
       this.ruleForm.db = data.database;
       this.ruleForm.directory = data.to;
       this.currentRow = data;
     },
-    async start(val, data) {
-      try {
-        await excuteStart(data.id).then((res) => {
-          Message.success("Operation Successfully Completed!");
-          this.getBackData();
-        });
-      } catch (err) {
-        return Promise.reject(err);
-      }
-    },
-    async stop(val, data) {
-      try {
-        await excuteStop(data.id).then((res) => {
-          Message.success("Operation Successfully Completed!");
-          this.getBackData();
-        });
-      } catch (err) {
-        return Promise.reject(err);
-      }
-    },
+
     //切换状态
     switchOperation(val, data) {
       if (val) {
@@ -355,84 +346,21 @@ export default {
         this.addBackup();
       }
     },
-    async editBakcup(id) {
-      //哪一项修改传参只传哪一项
-      try {
-        let params = {
-          trigger: this.ruleForm.cycle,
-        };
-        await editBackup(id, params).then((res) => {
-          this.getBackData();
-        });
-        this.dialog = false;
-      } catch (err) {
-        return Promise.reject(err);
-      }
-    },
-    async addBackup() {
-      try {
-        let params = {
-          name: "bakcup",
-          labels: [
-            "type::backup",
-            `cluster-id::${localStorage.getItem("local_clusterID")}`,
-          ],
-          trigger: this.ruleForm.cycle,
-          to: `local:${this.ruleForm.directory}`,
-          from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.db}`,
-        };
-        await addBackupData(this.clusterid, params).then((res) => {
-          if (res && Object.hasOwnProperty.call(res, "id")) {
-            Message.success("Created Successfully!");
-            this.getBackData();
-            this.dialog = false;
-          }
-        });
-      } catch (err) {
-        return Promise.reject(err);
-      }
-    },
-    async getBackData() {
-      try {
-        this.requestIng = true;
-        let id = localStorage.getItem("local_clusterID");
-        await getBackupList(id).then((result) => {
-          this.topicList = result.map((item) => {
-            item["database"] = item.from.split("/").at(-1);
 
-            return item;
-          });
-        });
-        this.$parent.$parent.$parent.taosxDisabled = false;
-        this.requestIng = false;
-      } catch (error) {
-        if (error.response.status == 404) {
-          this.$parent.$parent.$parent.taosxDisabled = true;
-        }
-        if (error.response.status === 500) {
-          this.$parent.$parent.$parent.taosxDisabled = true;
-        }
-      }
-    },
-    async getDatabases() {
+    async getAgents() {
       try {
-        this.dblist = await getDBListReq();
-      } catch (err) {
-        return Promise.reject(err);
+        let result = await getAgentsData(
+          localStorage.getItem("local_clusterID"),
+          localStorage.getItem("username")
+        );
+        console.log(result, "获取agents----");
+      } catch (error) {
+        console.log(error);
       }
     },
-    async getAgents(){
-        try {
-            let result = await getAgentsData(localStorage.getItem('local_clusterID'),
-            localStorage.getItem('username'))
-            console.log(result,'获取agents----');
-        } catch (error) {
-            console.log(error);
-        }
-    }
   },
   created() {
-    this.getAgents()
+    this.getAgents();
   },
 };
 </script>
