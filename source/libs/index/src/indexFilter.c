@@ -474,41 +474,41 @@ static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reve
   }
   return NULL;
 }
-int32_t sifStr2num(char *buf, int8_t type, void *val) {
-  if (type == TSDB_DATA_TYPE_TINYINT) {
-    int8_t v = 0;
-    if (1 != sscanf(buf, "%hhd", &v)) return -1;
-    *(int8_t *)val = v;
-  } else if (type == TSDB_DATA_TYPE_SMALLINT) {
-    int16_t v = 0;
-    if (1 != sscanf(buf, "%hd", &v)) return -1;
-    *(int16_t *)val = v;
-  } else if (type == TSDB_DATA_TYPE_INT) {
-    int32_t v = 0;
-    if (1 != sscanf(buf, "%d", &v)) return -1;
-    *(int32_t *)val = v;
-  } else if (type == TSDB_DATA_TYPE_BIGINT) {
+int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
     int64_t v = 0;
-    if (1 != sscanf(buf, "%" PRId64 "", &v)) return -1;
-    *(int64_t *)val = v;
-  } else if (type == TSDB_DATA_TYPE_FLOAT) {
-    float v = 0;
-    if (1 != sscanf(buf, "%f", &v)) return -1;
-    *(float *)val = v;
-  } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-    double v = 0;
-    if (1 != sscanf(buf, "%lf", &v)) return -1;
-    *(double *)val = v;
-  } else if (type == TSDB_DATA_TYPE_UBIGINT) {
+    if (0 != toInteger(buf, len, 10, &v)) {
+      return -1;
+    }
+    if (type == TSDB_DATA_TYPE_BIGINT) {
+      *(int64_t *)val = v;
+    } else if (type == TSDB_DATA_TYPE_INT) {
+      *(int32_t *)val = v;
+    } else if (type == TSDB_DATA_TYPE_TINYINT) {
+      *(int8_t *)val = v;
+    } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+      *(int16_t *)val = v;
+    }
+  } else if (IS_FLOAT_TYPE(type)) {
+    if (type == TSDB_DATA_TYPE_FLOAT) {
+      *(float *)val = taosStr2Float(buf, NULL);
+    } else {
+      *(double *)val = taosStr2Double(buf, NULL);
+    }
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
     uint64_t v = 0;
-    if (1 != sscanf(buf, "%" PRIu64 "", &v)) return -1;
-    *(uint64_t *)val = v;
-  } else if (type == TSDB_DATA_TYPE_UINT || type == TSDB_DATA_TYPE_UTINYINT || type == TSDB_DATA_TYPE_USMALLINT) {
-    uint32_t v = 0;
-    if (1 != sscanf(buf, "%u", &v)) return -1;
-    *(uint32_t *)val = v;
-  } else {
-    return -1;
+    if (0 != toUInteger(buf, len, 10, &v)) {
+      return -1;
+    }
+    if (type == TSDB_DATA_TYPE_UBIGINT) {
+      *(uint64_t *)val = v;
+    } else if (type == TSDB_DATA_TYPE_UINT) {
+      *(uint32_t *)val = v;
+    } else if (type == TSDB_DATA_TYPE_UTINYINT) {
+      *(uint8_t *)val = v;
+    } else if (type == TSDB_DATA_TYPE_USMALLINT) {
+      *(uint16_t *)val = v;
+    }
   }
   return 0;
 }
@@ -524,7 +524,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, f);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_FLOAT, &f));
+      SIF_ERR_RET(sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_FLOAT, &f));
     }
     typedata->f = f;
     param->val = &typedata->f;
@@ -533,7 +533,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, d);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_DOUBLE, &d));
+      SIF_ERR_RET(sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_DOUBLE, &d));
     }
     typedata->d = d;
     param->val = &typedata->d;
@@ -542,7 +542,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, i64);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_BIGINT, &i64));
+      SIF_ERR_RET(sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_BIGINT, &i64));
     }
     typedata->i64 = i64;
     param->val = &typedata->i64;
@@ -551,7 +551,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, i32);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_INT, &i32));
+      SIF_ERR_RET(sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_INT, &i32));
     }
     typedata->i32 = i32;
     param->val = &typedata->i32;
@@ -560,7 +560,8 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, i16);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_SMALLINT, &i16));
+      SIF_ERR_RET(
+          sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_SMALLINT, &i16));
     }
 
     typedata->i16 = i16;
@@ -570,7 +571,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, i8);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_TINYINT, &i8));
+      SIF_ERR_RET(sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_TINYINT, &i8));
     }
     typedata->i8 = i8;
     param->val = &typedata->i8;
@@ -579,7 +580,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, u64);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_UBIGINT, &u64));
+      SIF_ERR_RET(sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_UBIGINT, &u64));
     }
     typedata->u64 = u64;
     param->val = &typedata->u64;
@@ -588,7 +589,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, u32);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_UINT, &u32));
+      SIF_ERR_RET(sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_UINT, &u32));
     }
     typedata->u32 = u32;
     param->val = &typedata->u32;
@@ -597,7 +598,8 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, u16);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_USMALLINT, &u16));
+      SIF_ERR_RET(
+          sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_USMALLINT, &u16));
     }
     typedata->u16 = u16;
     param->val = &typedata->u16;
@@ -606,7 +608,7 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
     if (IS_NUMERIC_TYPE(rtype)) {
       SIF_DATA_CONVERT(rtype, right->condValue, u8);
     } else {
-      SIF_ERR_RET(sifStr2num(right->condValue + VARSTR_HEADER_SIZE, TSDB_DATA_TYPE_UTINYINT, &u8));
+      SIF_ERR_RET(sifStr2Num(varDataVal(right->condValue), varDataLen(right->condValue), TSDB_DATA_TYPE_UTINYINT, &u8));
     }
     typedata->u8 = u8;
     param->val = &typedata->u8;
