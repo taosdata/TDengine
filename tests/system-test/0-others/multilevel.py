@@ -250,8 +250,9 @@ class TDTestCase:
         self.file_distribution_same_level()
         self.three_level_basic()
         self.more_than_16_disks()
-        self.missing_middle_level()
         self.trim_database()
+        self.missing_middle_level()
+        
 
 
     def stop(self):
