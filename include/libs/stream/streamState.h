@@ -40,6 +40,7 @@ typedef struct STdbState {
   struct SStreamTask*              pOwner;
   void*                            param;
   void*                            env;
+  void*                            compactFactory;
 
   TDB* db;
   TTB* pStateDb;
@@ -149,11 +150,11 @@ typedef struct SStateSessionKey {
   int64_t     opNum;
 } SStateSessionKey;
 
-typedef struct streamValue {
+typedef struct SStreamValue {
   int64_t unixTimestamp;
   int32_t len;
-  char    data[0];
-} streamValue;
+  char*   data;
+} SStreamValue;
 
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
 int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
