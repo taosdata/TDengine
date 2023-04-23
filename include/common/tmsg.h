@@ -2805,6 +2805,7 @@ typedef struct {
 } SMqOffset;
 
 typedef struct {
+  int64_t    consumerId;
   int32_t    num;
   SMqOffset* offsets;
 } SMqCMCommitOffsetReq;
@@ -2871,6 +2872,14 @@ typedef struct {
 
 int32_t tEncodeSTqOffset(SEncoder* pEncoder, const STqOffset* pOffset);
 int32_t tDecodeSTqOffset(SDecoder* pDecoder, STqOffset* pOffset);
+
+typedef struct SMqVgOffset {
+  int64_t   consumerId;
+  STqOffset offset;
+} SMqVgOffset;
+
+int32_t tEncodeMqVgOffset(SEncoder* pEncoder, const SMqVgOffset* pOffset);
+int32_t tDecodeMqVgOffset(SDecoder* pDecoder, SMqVgOffset* pOffset);
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];

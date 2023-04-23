@@ -1082,7 +1082,7 @@ TEST(clientCase, sub_tb_test) {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "enable.auto.commit", "false");
   tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName45");
+  tmq_conf_set(conf, "group.id", "cgrpName1024");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
@@ -1113,8 +1113,14 @@ TEST(clientCase, sub_tb_test) {
   tmq_topic_assignment* pAssign = NULL;
   int32_t numOfAssign = 0;
 
-//  TAOS_RES* p = tmq_consumer_poll(tmq, timeout);
   int32_t code = tmq_get_topic_assignment(tmq, "topic_t1", &pAssign, &numOfAssign);
+  if (code != 0) {
+    printf("error occurs:%s\n", tmq_err2str(code));
+    tmq_consumer_close(tmq);
+    taos_close(pConn);
+    fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+    return;
+  }
 
   while (1) {
     TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);

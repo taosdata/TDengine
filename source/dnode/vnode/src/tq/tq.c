@@ -191,46 +191,48 @@ int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq*
 }
 
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  STqOffset offset = {0};
-  int32_t   vgId = TD_VID(pTq->pVnode);
+  SMqVgOffset vgOffset = {0};
+  int32_t     vgId = TD_VID(pTq->pVnode);
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  if (tDecodeSTqOffset(&decoder, &offset) < 0) {
+  if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
     return -1;
   }
 
   tDecoderClear(&decoder);
 
-  if (offset.val.type == TMQ_OFFSET__SNAPSHOT_DATA || offset.val.type == TMQ_OFFSET__SNAPSHOT_META) {
+  STqOffset* pOffset = &vgOffset.offset;
+
+  if (pOffset->val.type == TMQ_OFFSET__SNAPSHOT_DATA || pOffset->val.type == TMQ_OFFSET__SNAPSHOT_META) {
     tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:snapshot) uid:%" PRId64 ", ts:%" PRId64,
-            offset.subKey, vgId, offset.val.uid, offset.val.ts);
-  } else if (offset.val.type == TMQ_OFFSET__LOG) {
-    tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:log) version:%" PRId64, offset.subKey, vgId,
-            offset.val.version);
-    if (offset.val.version + 1 == sversion) {
-      offset.val.version += 1;
+            pOffset->subKey, vgId, pOffset->val.uid, pOffset->val.ts);
+  } else if (pOffset->val.type == TMQ_OFFSET__LOG) {
+    tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:log) version:%" PRId64, pOffset->subKey, vgId,
+            pOffset->val.version);
+    if (pOffset->val.version + 1 == sversion) {
+      pOffset->val.version += 1;
     }
   } else {
-    tqError("invalid commit offset type:%d", offset.val.type);
+    tqError("invalid commit offset type:%d", pOffset->val.type);
     return -1;
   }
 
-  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, offset.subKey);
-  if (pSavedOffset != NULL && tqOffsetLessOrEqual(&offset, pSavedOffset)) {
+  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
+  if (pSavedOffset != NULL && tqOffsetLessOrEqual(pOffset, pSavedOffset)) {
     tqDebug("not update the offset, vgId:%d sub:%s since committed:%" PRId64 " less than/equal to existed:%" PRId64,
-            vgId, offset.subKey, offset.val.version, pSavedOffset->val.version);
+            vgId, pOffset->subKey, pOffset->val.version, pSavedOffset->val.version);
     return 0;  // no need to update the offset value
   }
 
   // save the new offset value
-  if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
+  if (tqOffsetWrite(pTq->pOffsetStore, pOffset) < 0) {
     return -1;
   }
 
-  if (offset.val.type == TMQ_OFFSET__LOG) {
-    STqHandle* pHandle = taosHashGet(pTq->pHandle, offset.subKey, strlen(offset.subKey));
-    if (pHandle && (walRefVer(pHandle->pRef, offset.val.version) < 0)) {
+  if (pOffset->val.type == TMQ_OFFSET__LOG) {
+    STqHandle* pHandle = taosHashGet(pTq->pHandle, pOffset->subKey, strlen(pOffset->subKey));
+    if (pHandle && (walRefVer(pHandle->pRef, pOffset->val.version) < 0)) {
       return -1;
     }
   }
@@ -239,50 +241,71 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
 }
 
 int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  STqOffset offset = {0};
-  int32_t   vgId = TD_VID(pTq->pVnode);
+  SMqVgOffset vgOffset = {0};
+  int32_t     vgId = TD_VID(pTq->pVnode);
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  if (tDecodeSTqOffset(&decoder, &offset) < 0) {
+  if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
     return -1;
   }
 
   tDecoderClear(&decoder);
 
-  if (offset.val.type != TMQ_OFFSET__LOG) {
-    tqError("vgId:%d, subKey:%s invalid seek offset type:%d", vgId, offset.subKey, offset.val.type);
+  STqOffset* pOffset = &vgOffset.offset;
+  if (pOffset->val.type != TMQ_OFFSET__LOG) {
+    tqError("vgId:%d, subKey:%s invalid seek offset type:%d", vgId, pOffset->subKey, pOffset->val.type);
     return -1;
   }
 
-  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, offset.subKey);
-  if (pSavedOffset != NULL && pSavedOffset->val.type != TMQ_OFFSET__LOG) {
-    tqError("invalid saved offset type, vgId:%d sub:%s", vgId, offset.subKey);
-    return 0;  // no need to update the offset value
+  STqHandle* pHandle = taosHashGet(pTq->pHandle, pOffset->subKey, strlen(pOffset->subKey));
+  if (pHandle == NULL) {
+    tqError("tmq seek: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", vgOffset.consumerId, vgId,
+        pOffset->subKey);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
   }
 
-  if (pSavedOffset->val.version == offset.val.version) {
-    tqDebug("vgId:%d subKey:%s no need to seek to %" PRId64 " prev offset:%" PRId64, vgId, offset.subKey, offset.val.version,
-            pSavedOffset->val.version);
-    return 0;
+  // 2. check consumer-vg assignment status
+  taosRLockLatch(&pTq->lock);
+  if (pHandle->consumerId != vgOffset.consumerId) {
+    tqDebug("ERROR tmq seek: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+            vgOffset.consumerId, vgId, pOffset->subKey, pHandle->consumerId);
+    terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+    taosRUnLockLatch(&pTq->lock);
+    return -1;
   }
+  taosRUnLockLatch(&pTq->lock);
 
-  STqHandle* pHandle = taosHashGet(pTq->pHandle, offset.subKey, strlen(offset.subKey));
+  //3. check the offset info
+  STqOffset* pSavedOffset = tqOffsetRead(pTq->pOffsetStore, pOffset->subKey);
+  if (pSavedOffset != NULL) {
+    if (pSavedOffset->val.type != TMQ_OFFSET__LOG) {
+      tqError("invalid saved offset type, vgId:%d sub:%s", vgId, pOffset->subKey);
+      return 0;  // no need to update the offset value
+    }
+
+    if (pSavedOffset->val.version == pOffset->val.version) {
+      tqDebug("vgId:%d subKey:%s no need to seek to %" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey,
+              pOffset->val.version, pSavedOffset->val.version);
+      return 0;
+    }
+  }
 
   int64_t sver = 0, ever = 0;
   walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
-  if (offset.val.version < sver) {
-    offset.val.version = sver;
-  } else if (offset.val.version > ever) {
-    offset.val.version = ever;
+  if (pOffset->val.version < sver) {
+    pOffset->val.version = sver;
+  } else if (pOffset->val.version > ever) {
+    pOffset->val.version = ever;
   }
 
   // save the new offset value
-  tqDebug("vgId:%d sub:%s seek to %" PRId64 " prev offset:%" PRId64, vgId, offset.subKey, offset.val.version,
+  tqDebug("vgId:%d sub:%s seek to %" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey, pOffset->val.version,
           pSavedOffset->val.version);
 
-  if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
-    tqError("failed to save offset, vgId:%d sub:%s seek to %" PRId64, vgId, offset.subKey, offset.val.version);
+  if (tqOffsetWrite(pTq->pOffsetStore, pOffset) < 0) {
+    tqError("failed to save offset, vgId:%d sub:%s seek to %" PRId64, vgId, pOffset->subKey, pOffset->val.version);
     return -1;
   }
 

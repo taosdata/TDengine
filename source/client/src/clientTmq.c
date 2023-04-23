@@ -228,7 +228,7 @@ typedef struct {
 
 typedef struct {
   SMqCommitCbParamSet* params;
-  STqOffset*           pOffset;
+  SMqVgOffset*         pOffset;
   char                 topicName[TSDB_TOPIC_FNAME_LEN];
   int32_t              vgId;
   tmq_t*               pTmq;
@@ -492,21 +492,22 @@ static int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
 
 static int32_t doSendCommitMsg(tmq_t* tmq, SMqClientVg* pVg, const char* pTopicName, SMqCommitCbParamSet* pParamSet,
                                int32_t index, int32_t totalVgroups, int32_t type) {
-  STqOffset* pOffset = taosMemoryCalloc(1, sizeof(STqOffset));
+  SMqVgOffset* pOffset = taosMemoryCalloc(1, sizeof(SMqVgOffset));
   if (pOffset == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pOffset->val = pVg->offsetInfo.currentOffset;
+  pOffset->consumerId = tmq->consumerId;
+  pOffset->offset.val = pVg->offsetInfo.currentOffset;
 
   int32_t groupLen = strlen(tmq->groupId);
-  memcpy(pOffset->subKey, tmq->groupId, groupLen);
-  pOffset->subKey[groupLen] = TMQ_SEPARATOR;
-  strcpy(pOffset->subKey + groupLen + 1, pTopicName);
+  memcpy(pOffset->offset.subKey, tmq->groupId, groupLen);
+  pOffset->offset.subKey[groupLen] = TMQ_SEPARATOR;
+  strcpy(pOffset->offset.subKey + groupLen + 1, pTopicName);
 
   int32_t len = 0;
   int32_t code = 0;
-  tEncodeSize(tEncodeSTqOffset, pOffset, len, code);
+  tEncodeSize(tEncodeMqVgOffset, pOffset, len, code);
   if (code < 0) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -523,7 +524,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, SMqClientVg* pVg, const char* pTopicN
 
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, len);
-  tEncodeSTqOffset(&encoder, pOffset);
+  tEncodeMqVgOffset(&encoder, pOffset);
   tEncoderClear(&encoder);
 
   // build param
@@ -564,12 +565,12 @@ static int32_t doSendCommitMsg(tmq_t* tmq, SMqClientVg* pVg, const char* pTopicN
 
   SEp* pEp = GET_ACTIVE_EP(&pVg->epSet);
   char offsetBuf[80] = {0};
-  tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffset->val);
+  tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffset->offset.val);
 
   char commitBuf[80] = {0};
   tFormatOffset(commitBuf, tListLen(commitBuf), &pVg->offsetInfo.committedOffset);
   tscDebug("consumer:0x%" PRIx64 " topic:%s on vgId:%d send offset:%s prev:%s, ep:%s:%d, ordinal:%d/%d, req:0x%" PRIx64,
-           tmq->consumerId, pOffset->subKey, pVg->vgId, offsetBuf, commitBuf, pEp->fqdn, pEp->port, index + 1,
+           tmq->consumerId, pOffset->offset.subKey, pVg->vgId, offsetBuf, commitBuf, pEp->fqdn, pEp->port, index + 1,
            totalVgroups, pMsgSendInfo->requestId);
 
   int64_t transporterId = 0;
@@ -2506,6 +2507,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
     terrno = code;
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(*assignment);
+      *assignment = NULL;
       *numOfAssignment = 0;
     } else {
       int32_t num = taosArrayGetSize(pCommon->pList);
