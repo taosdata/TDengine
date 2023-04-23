@@ -49,21 +49,21 @@ struct STFile {
   int32_t      fid;
   union {
     struct {
-      int32_t level;  // level of .stt
-      int32_t nSeg;   // number of segments in .stt
-    } stt;
+      int32_t level;
+      int32_t nSeg;
+    } stt;  // .stt
+    struct {
+      int64_t offset;
+    } head;  // .head
     struct {
       // TODO
-    } head;
+    } data;  // .data
     struct {
       // TODO
-    } data;
+    } sma;  // .sma
     struct {
       // TODO
-    } sma;
-    struct {
-      // TODO
-    } tomb;
+    } tomb;  // .tomb
   };
 
   LISTD(STFile) listNode;

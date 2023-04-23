@@ -27,15 +27,15 @@ typedef struct {
   int8_t  sttTrigger;
   SArray *aTbDataP;
   // context
-  TSKEY            nextKey;
-  int32_t          fid;
-  int32_t          expLevel;
-  TSKEY            minKey;
-  TSKEY            maxKey;
-  struct SFileSet *pFileSet;
+  TSKEY     nextKey;
+  int32_t   fid;
+  int32_t   expLevel;
+  TSKEY     minKey;
+  TSKEY     maxKey;
+  SFileSet *pFileSet;
   // writer
-  SArray             *aFileOp;
-  struct SSttFWriter *pWriter;
+  SArray         *aFileOp;
+  SSttFileWriter *pWriter;
 } SCommitter;
 
 static int32_t open_committer_writer(SCommitter *pCommitter) {
@@ -44,7 +44,7 @@ static int32_t open_committer_writer(SCommitter *pCommitter) {
 
   STsdb *pTsdb = pCommitter->pTsdb;
 
-  struct SSttFWriterConfig conf = {
+  SSttFileWriterConfig conf = {
       .pTsdb = pCommitter->pTsdb,
       .maxRow = pCommitter->maxRow,
       .szPage = pCommitter->pTsdb->pVnode->config.tsdbPageSize,

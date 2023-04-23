@@ -18,6 +18,9 @@
 typedef struct {
   STsdb *pTsdb;
 
+  SSttFileReader *pSttFReader;
+  SSttFileWriter *pSttFWriter;
+
   SArray *aFileOp;  // SArray<struct SFileOp>
 } SMerger;
 

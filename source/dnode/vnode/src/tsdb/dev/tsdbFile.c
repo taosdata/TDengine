@@ -16,11 +16,11 @@
 #include "dev.h"
 
 const char *tsdb_ftype_suffix[] = {
-    NULL,     // TSDB_FTYPE_NONE
     ".head",  // TSDB_FTYPE_HEAD
     ".data",  // TSDB_FTYPE_DATA
     ".sma",   // TSDB_FTYPE_SMA
     ".tomb",  // TSDB_FTYPE_TOMB
+    NULL,     // TSDB_FTYPE_MAX
     ".stt",   // TSDB_FTYPE_STT
 };
 

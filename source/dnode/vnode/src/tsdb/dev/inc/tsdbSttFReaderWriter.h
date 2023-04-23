@@ -23,24 +23,24 @@ extern "C" {
 #endif
 
 // SSttFReader ==========================================
-typedef struct SSttFSegReader    SSttFSegReader;
-typedef struct SSttFReader       SSttFReader;
-typedef struct SSttFReaderConfig SSttFReaderConfig;
+typedef struct SSttFSegReader       SSttFSegReader;
+typedef struct SSttFileReader       SSttFileReader;
+typedef struct SSttFileReaderConfig SSttFileReaderConfig;
 
-int32_t tsdbSttFReaderOpen(const SSttFReaderConfig *config, SSttFReader **ppReader);
-int32_t tsdbSttFReaderClose(SSttFReader **ppReader);
+int32_t tsdbSttFReaderOpen(const SSttFileReaderConfig *config, SSttFileReader **ppReader);
+int32_t tsdbSttFReaderClose(SSttFileReader **ppReader);
 
 // SSttFWriter ==========================================
-typedef struct SSttFWriter       SSttFWriter;
-typedef struct SSttFWriterConfig SSttFWriterConfig;
+typedef struct SSttFileWriter       SSttFileWriter;
+typedef struct SSttFileWriterConfig SSttFileWriterConfig;
 
-int32_t tsdbSttFWriterOpen(const SSttFWriterConfig *config, SSttFWriter **ppWriter);
-int32_t tsdbSttFWriterClose(SSttFWriter **ppWriter, int8_t abort, struct SFileOp *op);
-int32_t tsdbSttFWriteTSData(SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
-int32_t tsdbSttFWriteDLData(SSttFWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
+int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **ppWriter);
+int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct SFileOp *op);
+int32_t tsdbSttFWriteTSData(SSttFileWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
+int32_t tsdbSttFWriteDLData(SSttFileWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
 
 /* ------------------------------------------------- */
-struct SSttFWriterConfig {
+struct SSttFileWriterConfig {
   STsdb    *pTsdb;
   STFile    file;
   int32_t   maxRow;
@@ -51,7 +51,7 @@ struct SSttFWriterConfig {
   uint8_t **aBuf;
 };
 
-struct SSttFReaderConfig {
+struct SSttFileReaderConfig {
   STsdb    *pTsdb;
   SSkmInfo *pSkmTb;
   SSkmInfo *pSkmRow;

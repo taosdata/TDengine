@@ -22,13 +22,11 @@
 extern "C" {
 #endif
 
-/* Exposed Handle */
-// typedef struct SDataFReader SDataFReader;
-// typedef struct SDataFWriter SDataFWriter;
+// SDataFileReader =============================================
+typedef struct SDataFileReader SDataFileReader;
 
-/* Exposed APIs */
-
-/* Exposed Structs */
+// SDataFileWriter =============================================
+typedef struct SDataFileWriter SDataFileWriter;
 
 #ifdef __cplusplus
 }

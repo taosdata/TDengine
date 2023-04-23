@@ -34,6 +34,11 @@ typedef enum {
   TSDB_FOP_TRUNCATE,
 } tsdb_fop_t;
 
+int32_t tsdbFileSetCreate(int32_t fid, SFileSet **ppSet);
+int32_t tsdbFileSetEdit(SFileSet *pSet, SFileOp *pOp);
+int32_t tsdbFileSetToJson(SJson *pJson, const SFileSet *pSet);
+int32_t tsdbEditFileSet(SFileSet *pFileSet, const SFileOp *pOp);
+
 struct SFileOp {
   tsdb_fop_t op;
   int32_t    fid;
@@ -54,11 +59,6 @@ struct SFileSet {
   struct STFile *farr[TSDB_FTYPE_MAX];  // file array
   SSttLvl        lvl0;                  // level 0 of .stt
 };
-
-int32_t tsdbFileSetCreate(int32_t fid, struct SFileSet **ppSet);
-int32_t tsdbFileSetEdit(struct SFileSet *pSet, struct SFileOp *pOp);
-int32_t tsdbFileSetToJson(SJson *pJson, const struct SFileSet *pSet);
-int32_t tsdbEditFileSet(struct SFileSet *pFileSet, const struct SFileOp *pOp);
 
 #ifdef __cplusplus
 }

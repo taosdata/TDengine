@@ -23,14 +23,7 @@ extern "C" {
 #endif
 
 /* Exposed Handle */
-struct STFileSystem {
-  STsdb *pTsdb;
-  // int32_t state; // TODO
-  tsem_t  canEdit;
-  int64_t nextEditId;
-  SArray *aFileSet;  // SArray<struct SFileSet>
-  SArray *nState;    // SArray<struct SFileSet>
-};
+typedef struct STFileSystem STFileSystem;
 
 typedef enum {
   TSDB_FS_EDIT_NONE = 0,
@@ -41,14 +34,23 @@ typedef enum {
 
 /* Exposed APIs */
 // open/close
-int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t rollback);
-int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS);
+int32_t tsdbOpenFileSystem(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback);
+int32_t tsdbCloseFileSystem(STFileSystem **ppFS);
 // txn
-int32_t tsdbFileSystemEditBegin(struct STFileSystem *pFS, const SArray *aFileOp, tsdb_fs_edit_t etype);
-int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, tsdb_fs_edit_t etype);
-int32_t tsdbFileSystemEditAbort(struct STFileSystem *pFS, tsdb_fs_edit_t etype);
+int32_t tsdbFileSystemEditBegin(STFileSystem *pFS, const SArray *aFileOp, tsdb_fs_edit_t etype);
+int32_t tsdbFileSystemEditCommit(STFileSystem *pFS, tsdb_fs_edit_t etype);
+int32_t tsdbFileSystemEditAbort(STFileSystem *pFS, tsdb_fs_edit_t etype);
 
 /* Exposed Structs */
+struct STFileSystem {
+  STsdb  *pTsdb;
+  int32_t state;
+  tsem_t  canEdit;
+  int64_t nextEditId;
+  SArray *aFileSet;  // SArray<struct SFileSet>
+  SArray *nState;    // SArray<struct SFileSet>
+};
+
 #ifdef __cplusplus
 }
 #endif
