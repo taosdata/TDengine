@@ -1394,7 +1394,13 @@ export default {
     last_modified_at:'最后修改时间',
     name:'名称',
     status:'状态',
-    user_id:'用户ID'
+    user_id:'用户ID',
+    rules:{
+      name:'请输入名称',
+      connectors:'请选择连接器',
+      expire_date:'前选择过期时间',
+      dsn:'请输入DSN'
+    }
   },
   taoscluster: {
     dnodes: 'DNodes',

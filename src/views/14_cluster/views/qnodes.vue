@@ -156,6 +156,7 @@ export default {
           }
         });
       } catch (err) {
+        err&&err.desc&Message.error(err.desc)
         return Promise.reject(err);
       }
     },
@@ -206,5 +207,9 @@ export default {
     border: none;
     background: transparent;
   }
+}
+.qnode-block{
+  max-height:150px;
+  overflow: auto;
 }
 </style>

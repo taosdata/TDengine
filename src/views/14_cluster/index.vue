@@ -54,7 +54,7 @@ export default {
   },
   methods: {
     getData(data) {
-      this.dnodeLists = data;
+      this.dnodeLists = data.length>0?data.filter(item=>item.status!='offline'):[];
     },
   },
 };
