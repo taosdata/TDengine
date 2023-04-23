@@ -1146,7 +1146,7 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
   }
 }
 
-void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *connFp) {
+void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *param) {
   SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   if (pReq) {
     tFreeClientHbReq(pReq);
@@ -1159,7 +1159,7 @@ void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *connFp) 
   }
 
   atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
-  if (connFp) {
+  if (param) {
     atomic_sub_fetch_32(&pAppHbMgr->passKeyCnt, 1);
   }
 }
