@@ -117,6 +117,10 @@ int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
+int32_t tsSlowLogThreshold = 3; // seconds
+int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
+
+
 
 
 /*
@@ -345,6 +349,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
   if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 0, INT32_MAX, true) != 0) return -1;
+  if (cfgAddString(pCfg, "slowLogScope", "", true) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
@@ -692,6 +698,36 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   metaDebugFlag = cfgGetItem(pCfg, "metaDebugFlag")->i32;
 }
 
+static int32_t taosSetSlowLogScope(char *pScope) {
+  if (NULL == pScope || 0 == strlen(pScope)) {
+    tsSlowLogScope = SLOW_LOG_TYPE_ALL;
+    return 0;
+  }
+
+  if (0 == strcasecmp(pScope, "all")) {
+    tsSlowLogScope = SLOW_LOG_TYPE_ALL;
+    return 0;
+  }
+
+  if (0 == strcasecmp(pScope, "query")) {
+    tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
+    return 0;
+  }
+
+  if (0 == strcasecmp(pScope, "insert")) {
+    tsSlowLogScope = SLOW_LOG_TYPE_INSERT;
+    return 0;
+  }
+
+  if (0 == strcasecmp(pScope, "others")) {
+    tsSlowLogScope = SLOW_LOG_TYPE_OTHERS;
+    return 0;
+  }
+
+  uError("Invalid slowLog scope value:%s", pScope);
+  return -1;
+}
+
 static int32_t taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
@@ -742,6 +778,10 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsUseAdapter = cfgGetItem(pCfg, "useAdapter")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
   tsQueryMaxConcurrentTables = cfgGetItem(pCfg, "queryMaxConcurrentTables")->i64;
+  tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
+  if (taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)) {
+    return -1;
+  }
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
 
@@ -1156,6 +1196,10 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         sDebugFlag = cfgGetItem(pCfg, "sDebugFlag")->i32;
       } else if (strcasecmp("smaDebugFlag", name) == 0) {
         smaDebugFlag = cfgGetItem(pCfg, "smaDebugFlag")->i32;
+      } else if (strcasecmp("slowLogThreshold", name) == 0) {
+        tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
+      } else if (strcasecmp("slowLogScope", name) == 0) {
+        taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)
       }
       break;
     }

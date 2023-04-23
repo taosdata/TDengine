@@ -28,6 +28,7 @@
 
 #define LOG_FILE_NAME_LEN    300
 #define LOG_DEFAULT_BUF_SIZE (20 * 1024 * 1024)  // 20MB
+#define LOG_SLOW_BUF_SIZE    (10 * 1024 * 1024)  // 10MB
 
 #define LOG_DEFAULT_INTERVAL 25
 #define LOG_INTERVAL_STEP    5
@@ -62,6 +63,7 @@ typedef struct {
   pid_t         pid;
   char          logName[LOG_FILE_NAME_LEN];
   SLogBuff     *logHandle;
+  SLogBuff     *slowHandle;
   TdThreadMutex logMutex;
 } SLogObj;
 
@@ -136,6 +138,34 @@ static int32_t taosStartLog() {
   return 0;
 }
 
+int32_t taosInitSlowLog() {
+  char fullName[PATH_MAX] = {0};
+  char logFileName[64] = {0};
+#ifdef CUS_PROMPT
+  snprintf(logFileName, 64, "%sSlowLog", CUS_PROMPT);
+#else
+  snprintf(logFileName, 64, "taosSlowLog");
+#endif
+
+  if (strlen(tsLogDir) != 0) {
+    snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logFileName);
+  } else {
+    snprintf(fullName, PATH_MAX, "%s", logFileName);
+  }
+
+  tsLogObj.slowHandle = taosLogBuffNew(LOG_SLOW_BUF_SIZE);
+  if (tsLogObj.slowHandle == NULL) return -1;
+  
+  taosUmaskFile(0);
+  tsLogObj.slowHandle->pFile = taosOpenFile(fullName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (tsLogObj.slowHandle->pFile == NULL) {
+    printf("\nfailed to open slow log file:%s, reason:%s\n", fullName, strerror(errno));
+    return -1;
+  }
+
+  return 0;
+}
+
 int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
   osUpdate();
@@ -151,6 +181,8 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
   if (taosOpenLogFile(fullName, tsNumOfLogLines, maxFiles) < 0) return -1;
+
+  if (taosInitSlowLog() < 0) return -1;
   if (taosStartLog() < 0) return -1;
   return 0;
 }
@@ -159,11 +191,23 @@ static void taosStopLog() {
   if (tsLogObj.logHandle) {
     tsLogObj.logHandle->stop = 1;
   }
+  if (tsLogObj.slowHandle) {
+    tsLogObj.slowHandle->stop = 1;
+  }
 }
 
 void taosCloseLog() {
+  taosStopLog();
+
+  if (tsLogObj.slowHandle != NULL) {
+    taosThreadMutexDestroy(&tsLogObj.slowHandle->buffMutex);
+    taosCloseFile(&tsLogObj.slowHandle->pFile);
+    taosMemoryFreeClear(tsLogObj.slowHandle->buffer);
+    memset(&tsLogObj.slowHandle->buffer, 0, sizeof(tsLogObj.slowHandle->buffer));
+    taosMemoryFreeClear(tsLogObj.slowHandle);
+  }
+
   if (tsLogObj.logHandle != NULL) {
-    taosStopLog();
     if (tsLogObj.logHandle != NULL && taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
       taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
       taosThreadClear(&tsLogObj.logHandle->asyncThread);
@@ -176,8 +220,6 @@ void taosCloseLog() {
     memset(&tsLogObj.logHandle->buffer, 0, sizeof(tsLogObj.logHandle->buffer));
     taosThreadMutexDestroy(&tsLogObj.logMutex);
     taosMemoryFreeClear(tsLogObj.logHandle);
-    memset(&tsLogObj.logHandle, 0, sizeof(tsLogObj.logHandle));
-    tsLogObj.logHandle = NULL;
   }
 }
 
