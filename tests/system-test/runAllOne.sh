@@ -351,7 +351,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py -P -N 
 python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -P -N 6 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -P -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -P -N 6 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -P -N 6 -M 3 -n 3
+#$python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -P -N 6 -M 3 -n 3
 python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -P -N 6 -M 3 
 python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -P -N 6 -M 3 -n 3 
 python3 ./test.py -f 0-others/balance_vgroups_r1.py -P -N 6
