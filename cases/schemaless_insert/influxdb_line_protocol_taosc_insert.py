@@ -1100,6 +1100,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.tdSql._conn.schemaless_insert([line_list[1]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
         except SchemalessError:
             pass
+        self.tdSql.query("select * from  hvlgpibybg")
+        self.tdSql.checkEqual(self.tdSql.query_row, len(line_list)-1)
         end_time = time.time()
         self.tdSql.checkEqual(int(end_time-start_time)<2, True)
 
@@ -1134,8 +1136,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         #             ]
 
     def run(self):
-        # self.test()
-        # return
+        self.test()
+        return
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.no_id_stb_exist_check()
