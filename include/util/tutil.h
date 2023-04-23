@@ -81,14 +81,22 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
 
 static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
                                              int32_t suffix) {
-  if (prefix == 0 && suffix == 0) {
+  if ((prefix == 0 && suffix == 0) || (tblen <= (prefix + suffix)) || (tblen <= -1 * (prefix + suffix)) || prefix * suffix < 0) {
     return MurmurHash3_32(tbname, tblen);
+  } else if (prefix > 0 || suffix > 0) {
+    return MurmurHash3_32(tbname + prefix, tblen - prefix - suffix);
   } else {
-    if (tblen <= (prefix + suffix)) {
-      return MurmurHash3_32(tbname, tblen);
-    } else {
-      return MurmurHash3_32(tbname + prefix, tblen - prefix - suffix);
+    char tbName[TSDB_TABLE_FNAME_LEN];
+    int32_t offset = 0;
+    if (prefix < 0) {
+      offset = -1 * prefix;
+      strncpy(tbName, tbname, offset);
     }
+    if (suffix < 0) {
+      strncpy(tbName + offset, tbname + tblen + suffix, -1 * suffix);
+      offset += -1 *suffix;
+    }
+    return MurmurHash3_32(tbName, offset);
   }
 }
 
