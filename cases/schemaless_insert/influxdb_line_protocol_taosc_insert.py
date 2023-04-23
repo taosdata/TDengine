@@ -1060,13 +1060,20 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.query("desc `1000E0DC000124`")
         self.tdSql.checkEqual(self.tdSql.query_data[-1], ('_tag_null', 'NCHAR', 1, 'TAG'))
 
-    def test(self):
-        # for i in range(100):
-        self.multi_insert_check(500)
+    def ts_3116(self):
         self.tdSql.execute('drop database if exists iot_dev;')
         self.tdSql.execute('create database if not exists iot_dev precision "ns";')
         self.tdSql.execute('use iot_dev')
-        # lines = ['xx,device_code=3ef89390-e612-11eb-ad04-a507e9855fed animal_id=1076048383523889174i64 1626006833639000000']
+        lines = ['meters,location=la,groupid=ca current=11.8,voltage=221']
+        self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
+        lines = ['meters,location=la,groupid=ca\\=3 current=11.8,voltage=221 1626006833639000000',
+                 'meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27 1626006833639100000']
+        self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
+        self.tdSql.query("desc `meters`")
+
+    def test(self):
+        # for i in range(100):
+        self.ts_3116()
         # self.tdSql.query(f'select * from xx')
         # print("query_res -----", self.tdSql.query_data)
         # input_sql = 'reported_j1WhBe0W78Edj6hK,realm_device_id=test_device_id_001 Ia=10.01f32,P=1.32012f32,Ib=9.0100001f32,Ia_source_time=1677834213374i64,P_source_time=1677834213374i64,Ib_source_time=1677834213374i64 1677834213374'
@@ -1155,6 +1162,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.ts_2828(10, 10, 5)
             self.ts_3053()
             self.ts_3146()
+            self.ts_3116()
 
     def cleanup(self):
         pass
