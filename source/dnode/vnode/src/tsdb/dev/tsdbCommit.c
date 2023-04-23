@@ -44,7 +44,7 @@ static int32_t open_committer_writer(SCommitter *pCommitter) {
 
   STsdb *pTsdb = pCommitter->pTsdb;
 
-  struct SSttFWriterConf conf = {
+  struct SSttFWriterConfig conf = {
       .pTsdb = pCommitter->pTsdb,
       .maxRow = pCommitter->maxRow,
       .szPage = pCommitter->pTsdb->pVnode->config.tsdbPageSize,

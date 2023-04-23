@@ -15,16 +15,16 @@
 
 #include "dev.h"
 
-extern int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD);
-extern void    tsdbCloseFile(STsdbFD **ppFD);
-extern int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size);
-extern int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size);
-extern int32_t tsdbFsyncFile(STsdbFD *pFD);
+typedef struct {
+  int64_t   prevFooter;
+  SFDataPtr dict[4];  // 0:bloom filter, 1:SSttBlk, 2:STbStatisBlk, 3:SDelBlk
+  uint8_t   reserved[24];
+} SFSttFooter;
 
 struct SSttFWriter {
-  struct SSttFWriterConf config;
+  SSttFWriterConfig config;
   // file
-  struct STFile tFile;
+  STFile tFile;
   // data
   SFSttFooter    footer;
   SBlockData     bData;
@@ -325,7 +325,7 @@ static int32_t write_file_header(struct SSttFWriter *pWriter) {
   return 0;
 }
 
-static int32_t create_stt_fwriter(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter) {
+static int32_t create_stt_fwriter(const SSttFWriterConfig *pConf, struct SSttFWriter **ppWriter) {
   int32_t code = 0;
 
   // alloc
@@ -449,7 +449,7 @@ static int32_t close_stt_fwriter(struct SSttFWriter *pWriter) {
   return 0;
 }
 
-int32_t tsdbSttFWriterOpen(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter) {
+int32_t tsdbSttFWriterOpen(const SSttFWriterConfig *pConf, struct SSttFWriter **ppWriter) {
   int32_t code = 0;
   int32_t lino;
 

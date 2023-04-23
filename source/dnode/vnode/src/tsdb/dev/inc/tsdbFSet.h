@@ -16,7 +16,7 @@
 #ifndef _TSDB_FILE_SET_H
 #define _TSDB_FILE_SET_H
 
-#include "tsdbDef.h"
+#include "tsdbFile.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,10 +33,10 @@ typedef enum {
 } tsdb_fop_t;
 
 struct SFileOp {
-  tsdb_fop_t    op;
-  int32_t       fid;
-  struct STFile oState;  // old file state
-  struct STFile nState;  // new file state
+  tsdb_fop_t op;
+  int32_t    fid;
+  STFile     oState;  // old file state
+  STFile     nState;  // new file state
 };
 
 struct SSttLvl {

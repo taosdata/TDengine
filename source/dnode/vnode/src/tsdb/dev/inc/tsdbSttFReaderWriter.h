@@ -16,28 +16,47 @@
 #ifndef _TSDB_STT_FILE_WRITER_H
 #define _TSDB_STT_FILE_WRITER_H
 
-#include "tsdbDef.h"
+#include "tsdbFS.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct SSttFWriter;
-struct SSttFWriterConf {
-  STsdb        *pTsdb;
-  struct STFile file;
-  int32_t       maxRow;
-  int32_t       szPage;
-  int8_t        cmprAlg;
-  SSkmInfo     *pSkmTb;
-  SSkmInfo     *pSkmRow;
-  uint8_t     **aBuf;
+// SSttFReader ==========================================
+typedef struct SSttFReader       SSttFReader;
+typedef struct SSttFReaderConfig SSttFReaderConfig;
+
+int32_t tsdbSttFReaderOpen(const SSttFReaderConfig *config, SSttFReader **ppReader);
+int32_t tsdbSttFReaderClose(SSttFReader **ppReader);
+
+// SSttFWriter ==========================================
+typedef struct SSttFWriter       SSttFWriter;
+typedef struct SSttFWriterConfig SSttFWriterConfig;
+
+int32_t tsdbSttFWriterOpen(const SSttFWriterConfig *config, SSttFWriter **ppWriter);
+int32_t tsdbSttFWriterClose(SSttFWriter **ppWriter, int8_t abort, struct SFileOp *op);
+int32_t tsdbSttFWriteTSData(SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
+int32_t tsdbSttFWriteDLData(SSttFWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
+
+/* ------------------------------------------------- */
+struct SSttFWriterConfig {
+  STsdb    *pTsdb;
+  STFile    file;
+  int32_t   maxRow;
+  int32_t   szPage;
+  int8_t    cmprAlg;
+  SSkmInfo *pSkmTb;
+  SSkmInfo *pSkmRow;
+  uint8_t **aBuf;
 };
 
-int32_t tsdbSttFWriterOpen(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter);
-int32_t tsdbSttFWriterClose(struct SSttFWriter **ppWriter, int8_t abort, struct SFileOp *op);
-int32_t tsdbSttFWriteTSData(struct SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
-int32_t tsdbSttFWriteDLData(struct SSttFWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
+struct SSttFReaderConfig {
+  STsdb    *pTsdb;
+  SSkmInfo *pSkmTb;
+  SSkmInfo *pSkmRow;
+  uint8_t **aBuf;
+  // TODO
+};
 
 #ifdef __cplusplus
 }

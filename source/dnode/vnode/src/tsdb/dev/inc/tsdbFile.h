@@ -66,7 +66,7 @@ struct STFile {
     } tomb;
   };
 
-  LISTD(struct STFile) listNode;
+  LISTD(STFile) listNode;
 };
 
 #ifdef __cplusplus

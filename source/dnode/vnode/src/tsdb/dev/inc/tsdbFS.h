@@ -16,7 +16,7 @@
 #ifndef _TSDB_FILE_SYSTEM_H
 #define _TSDB_FILE_SYSTEM_H
 
-#include "tsdbDef.h"
+#include "tsdbFSet.h"
 
 #ifdef __cplusplus
 extern "C" {

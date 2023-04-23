@@ -21,16 +21,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct SFDataPtr {
+
+typedef struct SFDataPtr SFDataPtr;
+
+extern int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD);
+extern void    tsdbCloseFile(STsdbFD **ppFD);
+extern int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size);
+extern int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size);
+extern int32_t tsdbFsyncFile(STsdbFD *pFD);
+
+struct SFDataPtr {
   int64_t offset;
   int64_t size;
-} SFDataPtr;
-
-typedef struct {
-  int64_t   prevFooter;
-  SFDataPtr dict[4];  // 0:bloom filter, 1:SSttBlk, 2:STbStatisBlk, 3:SDelBlk
-  uint8_t   reserved[24];
-} SFSttFooter;
+};
 
 #ifdef __cplusplus
 }
