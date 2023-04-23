@@ -11,6 +11,7 @@
   "confirm_parameter_prompt": "no",
   "prepared_rand": 100,
   "chinese": "no",
+  "escape_character": "yes",
   "insert_interval": 0,
   "num_of_records_per_req": 10,
   "databases": [{
@@ -29,7 +30,6 @@
       "child_table_exists":"no",
       "childtable_count": 8,
       "childtable_prefix": "stb_",
-      "escape_character": "yes",
       "auto_create_table": "yes",
       "batch_create_tbl_num": 10,
       "data_source": "rand",
@@ -54,7 +54,6 @@
       "child_table_exists":"no",
       "childtable_count": 8,
       "childtable_prefix": "stb4-2_",
-      "escape_character": "yes",
       "auto_create_table": "yes",
       "batch_create_tbl_num": 10,
       "data_source": "rand",

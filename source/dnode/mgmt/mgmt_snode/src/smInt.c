@@ -55,6 +55,7 @@ int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     smClose(pMgmt);
     return -1;
   }
+
   tmsgReportStartup("snode-impl", "initialized");
 
   if (smStartWorker(pMgmt) != 0) {

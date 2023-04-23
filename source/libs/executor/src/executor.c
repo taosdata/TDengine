@@ -127,7 +127,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-    qDebug("task stream set total blocks:%d %s", (int32_t)numOfBlocks, id);
+    qDebug("s-task set source blocks:%d %s", (int32_t)numOfBlocks, id);
     ASSERT(pInfo->validBlockIndex == 0 && taosArrayGetSize(pInfo->pBlockLists) == 0);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
@@ -173,9 +173,7 @@ void doSetTaskId(SOperatorInfo* pOperator) {
 void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   SExecTaskInfo* pTaskInfo = tinfo;
   pTaskInfo->id.queryId = queryId;
-
-  taosMemoryFreeClear(pTaskInfo->id.str);
-  pTaskInfo->id.str = buildTaskId(taskId, queryId);
+  buildTaskId(taskId, queryId, pTaskInfo->id.str);
 
   // set the idstr for tsdbReader
   doSetTaskId(pTaskInfo->pRoot);
@@ -197,6 +195,13 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
 
   return code;
 }
+
+void qGetCheckpointVersion(qTaskInfo_t tinfo, int64_t* dataVer, int64_t* ckId) {
+  SExecTaskInfo* pTaskInfo = tinfo;
+  *dataVer = pTaskInfo->streamInfo.dataVersion;
+  *ckId = pTaskInfo->streamInfo.checkPointId;
+}
+
 
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
@@ -363,27 +368,23 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
   return qa;
 }
 
-int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
+int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  const char*    id = GET_TASKID(pTaskInfo);
+  int32_t        code = 0;
 
   if (isAdd) {
-    qDebug("add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), pTaskInfo->id.str);
+    qDebug("add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), id);
   }
 
   // traverse to the stream scanner node to add this table id
-  SOperatorInfo* pInfo = pTaskInfo->pRoot;
-  while (pInfo->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    pInfo = pInfo->pDownstream[0];
-  }
-
-  int32_t          code = 0;
+  SOperatorInfo*   pInfo = extractOperatorInTree(pTaskInfo->pRoot, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id);
   SStreamScanInfo* pScanInfo = pInfo->info;
+
   if (isAdd) {  // add new table id
     SArray* qa = filterUnqualifiedTables(pScanInfo, tableIdList, GET_TASKID(pTaskInfo));
     int32_t numOfQualifiedTables = taosArrayGetSize(qa);
-
-    qDebug(" %d qualified child tables added into stream scanner", numOfQualifiedTables);
-
+    qDebug("%d qualified child tables added into stream scanner, %s", numOfQualifiedTables, id);
     code = tqReaderAddTbUidList(pScanInfo->tqReader, qa);
     if (code != TSDB_CODE_SUCCESS) {
       taosArrayDestroy(qa);
@@ -424,19 +425,6 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
         }
       }
 
-#if 0
-      bool exists = false;
-      for (int32_t k = 0; k < taosArrayGetSize(pListInfo->pTableList); ++k) {
-        STableKeyInfo* pKeyInfo = taosArrayGet(pListInfo->pTableList, k);
-        if (pKeyInfo->uid == keyInfo.uid) {
-          qWarn("ignore duplicated query table uid:%" PRIu64 " added, %s", pKeyInfo->uid, pTaskInfo->id.str);
-          exists = true;
-        }
-      }
-
-      if (!exists) {
-#endif
-
       tableListAddTableInfo(pTableListInfo, keyInfo.uid, keyInfo.groupId);
     }
 
@@ -447,7 +435,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
 
     taosArrayDestroy(qa);
   } else {  // remove the table id in current list
-    qDebug(" %d remove child tables from the stream scanner", (int32_t)taosArrayGetSize(tableIdList));
+    qDebug("%d remove child tables from the stream scanner, %s", (int32_t)taosArrayGetSize(tableIdList), id);
     taosWLockLatch(&pTaskInfo->lock);
     code = tqReaderRemoveTbUidList(pScanInfo->tqReader, tableIdList);
     taosWUnLockLatch(&pTaskInfo->lock);
@@ -1272,4 +1260,23 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
+}
+
+SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = tinfo;
+  SArray* plist = getTableListInfo(pTaskInfo);
+
+  // only extract table in the first elements
+  STableListInfo* pTableListInfo = taosArrayGetP(plist, 0);
+
+  SArray* pUidList = taosArrayInit(10, sizeof(uint64_t));
+
+  int32_t numOfTables = tableListGetSize(pTableListInfo);
+  for(int32_t i = 0; i < numOfTables; ++i) {
+    STableKeyInfo* pKeyInfo = tableListGetInfo(pTableListInfo, i);
+    taosArrayPush(pUidList, &pKeyInfo->uid);
+  }
+
+  taosArrayDestroy(plist);
+  return pUidList;
 }
