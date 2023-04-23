@@ -343,6 +343,60 @@ export default {
     1：支持整行更新<br />
     2：只支持更新部分列<br />
     默认值：0`,
+    cacheModelTip: `表示是否在内存中缓存子表的最近数据。默认为 none。
+    <ul>
+    <li>none：表示不缓存。</li>
+    <li>last_row：表示缓存子表最近一行数据。这将显著改善 LAST_ROW 函数的性能表现。</li>
+    <li>last_value：表示缓存子表每一列的最近的非 NULL 值。这将显著改善无特殊影响（WHERE、ORDER BY、GROUP BY、INTERVAL）下的 LAST 函数的性能表现。</li>
+    <li>both: 表示同时打开缓存最近行和列功能。</li>
+    </ul>
+    `,
+    cacheSizeTip: "表示每个 vnode 中用于缓存子表最近数据的内存大小。默认为 1 ，范围是[1, 65536]，单位是 MB。",
+    compTip: `表示数据库文件压缩标志位，缺省值为 2，取值范围为 [0, 2]。
+    <ul>
+    <li>0：表示不压缩。</li>
+    <li>1：表示一阶段压缩。</li>
+    <li>2：表示两阶段压缩。</li>
+    </ul>
+    `,
+    vgroupsTip: "数据库中初始 vgroup 的数目",
+    singleStableTip: `表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
+    <ul>
+    <li>0：表示可以创建多张超级表。</li>
+    <li>1：表示只可以创建一张超级表。</li>
+    </ul>
+    `,
+    walLevelTip: `WAL 级别，默认为 1。
+    <ul>
+    <li>1：写 WAL，但不执行 fsync。</li>
+    <li>2：写 WAL，而且执行 fsync。</li>
+    </ul>
+    `,
+    walRetentionPeriodTip: "为了数据订阅消费，需要WAL日志文件额外保留的最大时长策略。WAL日志清理，不受订阅客户端消费状态影响。单位为 s。默认为 0，表示无需为订阅保留。新建订阅，应先设置恰当的时长策略。",
+    walRetentionSizeTip: "wal 文件的额外保留策略，用于数据订阅。wal 的保存的最大上限，单位为 KB。默认为 0，即落盘后立即删除。-1 表示不删除。",
+    pagesTip: "一个 VNODE 中元数据存储引擎的缓存页个数，默认为 256，最小 64。一个 VNODE 元数据存储占用 PAGESIZE * PAGES，默认情况下为 1MB 内存。",
+    pageSizeTip: "一个 VNODE 中元数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB 到 16 MB。",
+    replicaTip: "表示数据库副本数，取值为 1 或 3，默认为 1。在集群中使用，副本数必须小于或等于 DNODE 的数目。",
+    retentionsTip:
+      "表示数据的聚合周期和保存时长，如 RETENTIONS 15s:7d,1m:21d,15m:50d 表示数据原始采集周期为 15 秒，原始数据保存 7 天；按 1 分钟聚合的数据保存 21 天；按 15 分钟聚合的数据保存 50 天。目前支持且只支持三级存储周期。",
+    strictTip: `表示数据同步的一致性要求，默认为 off。
+    <ul>
+    <li>on 表示强一致，即运行标准的 raft 协议，半数提交返回成功。</li>
+    <li>off 表示弱一致，本地提交即返回成功。</li>
+    </ul>
+    `,
+    walFsyncPeriodTip: "当 WAL 参数设置为 2 时，落盘的周期。默认为 3000，单位毫秒。最小为 0，表示每次写入立即落盘；最大为 180000，即三分钟。",
+    maxRowsTip: "文件块中记录的最大条数，默认为 4096 条。",
+    minRowsTip: "文件块中记录的最小条数，默认为 100 条。",
+    bufferTip: "一个 VNODE 写入内存池大小，单位为 MB，默认为 96，最小为 3，最大为 16384",
+    durationTip: "数据文件存储数据的时间跨度。可以使用加单位的表示形式，如 DURATION 100h、DURATION 10d 等，支持 m",
+    walRollPeriodTip:
+      "wal 文件切换时长，单位为 s。当 wal 文件创建并写入后，经过该时间，会自动创建一个新的 wal 文件。默认为 0，即仅在落盘时创建新文件。",
+    walSegmentSizeTip: "wal 单个文件大小，单位为 KB。当前写入文件大小超过上限后会自动创建一个新的 wal 文件。默认为 0，即仅在落盘时创建新文件。",
+    sttTaiggerTip: "表示落盘文件触发文件合并的个数。默认为 1，范围 1 到 16。对于少表高频场景，此参数建议使用默认配置，或较小的值；而对于多表低频场景，此参数建议配置较大的值。",
+    tsdbPagesizeTip: "一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。",
+    tablePrefixTip: "内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。",
+    tableSuffixTip: "内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。",
     stable: "超级表",
     table: "数据表",
     stableName: "超级表名称",

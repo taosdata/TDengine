@@ -49,7 +49,7 @@
               </el-select>
             </el-form-item>
             <!-- BUFFER -->
-            <!-- <el-form-item>
+            <el-form-item>
               <span slot="label">
                 BUFFER
                 <el-tooltip placement="bottom" effect="light">
@@ -67,10 +67,10 @@
                 class="form_item"
               >
               </el-input-number>
-            </el-form-item> -->
+            </el-form-item>
 
             <!-- CACHESIZE -->
-            <!-- <el-form-item>
+            <el-form-item>
               <span slot="label">
                 CACHESIZE
                 <el-tooltip placement="bottom" effect="light">
@@ -219,7 +219,7 @@
                 controls-position="right"
                 class="form_item"
               ></el-switch>
-            </el-form-item> -->
+            </el-form-item>
           </div>
           <div class="column2">
             <!-- Precision -->
@@ -237,7 +237,7 @@
                 <el-option value="ns"></el-option>
               </el-select>
             </el-form-item>
-            <!-- <el-form-item>
+            <el-form-item>
               <span slot="label">
                 WAL_LEVEL
                 <el-tooltip placement="bottom" effect="light">
@@ -271,7 +271,7 @@
                 class="form_item"
               ></el-input-number>
               <span class="inputUnit">ms</span>
-            </el-form-item> -->
+            </el-form-item>
 
             <el-form-item>
               <span slot="label">
@@ -290,7 +290,7 @@
                 class="form_item"
               ></el-input-number>
             </el-form-item>
-            <!-- <el-form-item>
+            <el-form-item>
               <span slot="label">
                 WAL_RETENTION_SIZE
                 <el-tooltip placement="bottom" effect="light">
@@ -342,15 +342,83 @@
             </el-form-item>
             <el-form-item>
               <span slot="label">
+                STT_TRIGGER
+                <el-tooltip placement="bottom" effect="light">
+                  <div slot="content" v-html="$t('data.sttTaiggerTip')"></div>
+                  <Icon name="info" class="lableTips_icon"></Icon>
+                </el-tooltip>
+              </span>
+              <el-input-number
+                size="small"
+                v-model="db_form.stt_trigger"
+                :min="1"
+                :max="16"
+                controls-position="right"
+                class="form_item"
+              ></el-input-number>
+            </el-form-item>
+            <el-form-item>
+              <span slot="label">
+                TSDB_PAGESIZE
+                <el-tooltip placement="bottom" effect="light">
+                  <div slot="content" v-html="$t('data.tsdbPagesizeTip')"></div>
+                  <Icon name="info" class="lableTips_icon"></Icon>
+                </el-tooltip>
+              </span>
+              <el-input-number
+                size="small"
+                v-model="db_form.tsdb_pagesize"
+                :min="1"
+                :max="16384"
+                controls-position="right"
+                class="form_item"
+              ></el-input-number>
+            </el-form-item>
+            <el-form-item>
+              <span slot="label">
+                TABLE_PREFIX
+                <el-tooltip placement="bottom" effect="light">
+                  <div slot="content" v-html="$t('data.tablePrefixTip')"></div>
+                  <Icon name="info" class="lableTips_icon"></Icon>
+                </el-tooltip>
+              </span>
+              <el-input-number
+                size="small"
+                v-model="db_form.table_prefix"
+                :min="1"
+                :max="192"
+                controls-position="right"
+                class="form_item"
+              ></el-input-number>
+            </el-form-item>
+            <el-form-item>
+              <span slot="label">
+                TABLE_SUFFIX
+                <el-tooltip placement="bottom" effect="light">
+                  <div slot="content" v-html="$t('data.tableSuffixTip')"></div>
+                  <Icon name="info" class="lableTips_icon"></Icon>
+                </el-tooltip>
+              </span>
+              <el-input-number
+                size="small"
+                v-model="db_form.table_suffix"
+                :min="1"
+                :max="192"
+                controls-position="right"
+                class="form_item"
+              ></el-input-number>
+            </el-form-item>
+            <el-form-item>
+              <span slot="label">
                 RETENTIONS
                 <el-tooltip placement="bottom" effect="light">
                   <div slot="content" v-html="$t('data.retentionsTip')"></div>
                   <Icon name="info" class="lableTips_icon"></Icon>
                 </el-tooltip>
               </span>
-              <el-input size="small" v-model="db_form.retentions" :disabled="isEdit" controls-position="right" class="form_item"></el-input>
+              <el-input size="small" v-model="db_form.retentions" :disabled="isEdit" controls-position="right" class="form_item" style="width: 130px"></el-input>
             </el-form-item>
-            <el-form-item>
+            <!-- <el-form-item>
               <span slot="label"
                 >STRICT
                 <el-tooltip placement="bottom" effect="light">
@@ -431,19 +499,25 @@
           if (valid) {
             this.requestIng = true;
             this.$store
-              .dispatch("dbs/createDatabase", true)
-              .then(() => {
-                this.isEdit
-                  ? this.$message({
-                      type: "success",
-                      message: this.$t("changeSucc"),
-                    })
-                  : this.$message({
-                      type: "success",
-                      message: this.$t("createSucc"),
-                    });
+            .dispatch("dbs/createDatabase", true)
+            .then(() => {
+              this.isEdit
+                ? this.$message({
+                  type: "success",
+                  message: this.$t("changeSucc"),
+                })
+                : this.$message({
+                  type: "success",
+                  message: this.$t("createSucc"),
+                });
+            })
+            .catch((err) => {
+              this.$message({
+                type: "error",
+                message: err?.desc
               })
-              .finally(() => (this.requestIng = false));
+            })
+            .finally(() => (this.requestIng = false));
           }
         });
       },

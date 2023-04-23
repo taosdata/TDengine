@@ -392,7 +392,7 @@ export default {
     Days: "Days",
     days: "days",
     precision: "Precision",
-    bufferTip: "一个 VNODE 写入内存池大小，单位为 MB，默认为 96，最小为 3，最大为 16384",
+    bufferTip: "specifies the size (in MB) of the write buffer for each vnode. Enter a value between 3 and 16384. The default value is 96.",
     cacheModelTip: `specifies how the latest data in subtables is stored in the cache. The default value is none.
     <ul>
     <li>none：The latest data is not cached.</li>
@@ -401,19 +401,19 @@ export default {
     <li>both: The last row of each subtable and the last non-null value of each column in each subtable are cached.</li>
     </ul>
     `,
-    cacheSizeTip: "表示每个 vnode 中用于缓存子表最近数据的内存大小。默认为 1 ，范围是[1, 65536]，单位是 MB。",
-    compTip: `表示数据库文件压缩标志位，缺省值为 2，取值范围为 [0, 2]。
+    cacheSizeTip: "specifies the amount (in MB) of memory used for subtable caching on each vnode. Enter a value between 1 and 65536. The default value is 1.",
+    compTip: `specifies how databases are compressed. The default value is 2.
     <ul>
-    <li>0：表示不压缩。</li>
-    <li>1：表示一阶段压缩。</li>
-    <li>2：表示两阶段压缩。</li>
+    <li>0: Compression is disabled.</li>
+    <li>1: One-pass compression is enabled.</li>
+    <li>2: Two-pass compression is enabled.</li>
     </ul>
     `,
     durationTip:
       "specifies the time period contained in each data file. After the time specified by this parameter has elapsed, TDengine creates a new data file to store incoming data. You can use m (minutes), h (hours), and d (days) as the unit, for example DURATION 100h or DURATION 10d. If you do not include a unit, d is used by default.",
-    walFsyncPeriodTip: "当 WAL 参数设置为 2 时，落盘的周期。默认为 3000，单位毫秒。最小为 0，表示每次写入立即落盘；最大为 180000，即三分钟。",
-    maxRowsTip: "文件块中记录的最大条数，默认为 4096 条。",
-    minRowsTip: "文件块中记录的最小条数，默认为 100 条。",
+    walFsyncPeriodTip: "specifies the interval (in milliseconds) at which data is written from the WAL to disk. This parameter takes effect only when the WAL parameter is set to 2. The default value is 3000. Enter a value between 0 and 180000. The value 0 indicates that incoming data is immediately written to disk.",
+    maxRowsTip: "specifies the maximum number of rows recorded in a block. The default value is 4096.",
+    minRowsTip: "specifies the minimum number of rows recorded in a block. The default value is 100.",
 
     cacheLast: "CacheLast",
     nameTip: "Name format error!",
@@ -428,36 +428,40 @@ export default {
     1: support update of entire row<br />
     2: support update only some columns<br />
     default: 0`,
-    pagesTip: "一个 VNODE 中元数据存储引擎的缓存页个数，默认为 256，最小 64。一个 VNODE 元数据存储占用 PAGESIZE * PAGES，默认情况下为 1MB 内存。",
-    pageSizeTip: "一个 VNODE 中元数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB 到 16 MB。",
-    replicaTip: "表示数据库副本数，取值为 1 或 3，默认为 1。在集群中使用，副本数必须小于或等于 DNODE 的数目。",
+    pagesTip: "specifies the number of pages in the metadata storage engine cache on each vnode. Enter a value greater than or equal to 64. The default value is 256. The space occupied by metadata storage on each vnode is equal to the product of the values of the PAGESIZE and PAGES parameters. The space occupied by default is 1 MB.",
+    pageSizeTip: "specifies the size (in KB) of each page in the metadata storage engine cache on each vnode. The default value is 4. Enter a value between 1 and 16384.",
+    replicaTip: "specifies the number of replicas that are made of the database. Enter 1 or 3. The default value is 1. The value of the REPLICA parameter cannot exceed the number of dnodes in the cluster.",
     retentionsTip:
-      "表示数据的聚合周期和保存时长，如 RETENTIONS 15s:7d,1m:21d,15m:50d 表示数据原始采集周期为 15 秒，原始数据保存 7 天；按 1 分钟聚合的数据保存 21 天；按 15 分钟聚合的数据保存 50 天。目前支持且只支持三级存储周期。",
+      "specifies the retention period for data aggregated at various intervals. For example, RETENTIONS 15s:7d,1m:21d,15m:50d indicates that data aggregated every 15 seconds is retained for 7 days, data aggregated every 1 minute is retained for 21 days, and data aggregated every 15 minutes is retained for 50 days. You must enter three aggregation intervals and corresponding retention periods.",
     strictTip: `表示数据同步的一致性要求，默认为 off。
     <ul>
     <li>on 表示强一致，即运行标准的 raft 协议，半数提交返回成功。</li>
     <li>off 表示弱一致，本地提交即返回成功。</li>
     </ul>
     `,
-    walLevelTip: `WAL 级别，默认为 1。
+    walLevelTip: `specifies whether fsync is enabled. The default value is 1.
     <ul>
-    <li>1：写 WAL，但不执行 fsync。</li>
-    <li>2：写 WAL，而且执行 fsync。</li>
+    <li>1: WAL is enabled but fsync is disabled.</li>
+    <li>2: WAL and fsync are both enabled.</li>
     </ul>
     `,
-    vgroupsTip: "数据库中初始 vgroup 的数目",
-    singleStableTip: `表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
+    vgroupsTip: "specifies the initial number of vgroups when a database is created.",
+    singleStableTip: `specifies whether the database can contain more than one supertable.
     <ul>
-    <li>0：表示可以创建多张超级表。</li>
-    <li>1：表示只可以创建一张超级表。</li>
+    <li>0: The database can contain multiple supertables.</li>
+    <li>1: The database can contain only one supertable.</li>
     </ul>
     `,
     walRetentionPeriodTip:
       "specifies the time after which WAL files are deleted. This parameter is used for data subscription. Enter a time in seconds. The default value is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted.",
-    walRetentionSizeTip: "wal 文件的额外保留策略，用于数据订阅。wal 的保存的最大上限，单位为 KB。默认为 0，即落盘后立即删除。-1 表示不删除。",
+    walRetentionSizeTip: "specifies the maximum total size of which WAL files are to be kept for consumption. This parameter is used for data subscription. Enter a size in KB. The default value is 0. A value of 0 indicates that the total size of WAL files to keep for consumption has no upper limit.",
+    walSegmentSizeTip: "specifies the maximum size of a WAL file. After the current WAL file reaches this size, a new WAL file is created. The default value is 0. A value of 0 indicates that a new WAL file is created only after TSDB data in memory are flushed to disk.",
     walRollPeriodTip:
-      "wal 文件切换时长，单位为 s。当 wal 文件创建并写入后，经过该时间，会自动创建一个新的 wal 文件。默认为 0，即仅在落盘时创建新文件。",
-    walSegmentSizeTip: "wal 单个文件大小，单位为 KB。当前写入文件大小超过上限后会自动创建一个新的 wal 文件。默认为 0，即仅在落盘时创建新文件。",
+      "specifies the time after which WAL files are rotated. After this period elapses, a new WAL file is created. The defaulspecifies the maximum size of a WAL file. After the current WAL file reaches this size, a new WAL file is created. The default value is 0. A value of 0 indicates that a new WAL file is created only after TSDB data in memory are flushed to disk.wal 单个文件大小，单位为 KB。当前写入文件大小超过上限后会自动创建一个新的 wal 文件。默认为 0，即仅在落盘时创建新文件。",
+    sttTaiggerTip: "specifies the number of file merges triggered by flushed files. The default is 8, ranging from 1 to 16. For high-frequency scenarios with few tables, it is recommended to use the default configuration or a smaller value for this parameter; For multi-table low-frequency scenarios, it is recommended to configure this parameter with a larger value.",
+    tsdbPagesizeTip: "The page size of the data storage engine in a vnode. The unit is KB. The default is 4 KB. The range is 1 to 16384, that is, 1 KB to 16 MB.",
+    tablePrefixTip: "The prefix length in the table name that is ignored when distributing table to vnode based on table name.",
+    tableSuffixTip: "The suffix length in the table name that is ignored when distributing table to vnode based on table name.",
     stable: "STable",
     table: "Table",
     stableName: "STable Name",
