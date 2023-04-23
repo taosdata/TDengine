@@ -953,8 +953,12 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_SPLIT_VGROUP_STMT:  // no pointer field
     case QUERY_NODE_SYNCDB_STMT:        // no pointer field
-    case QUERY_NODE_GRANT_STMT:         // no pointer field
-    case QUERY_NODE_REVOKE_STMT:        // no pointer field
+      break;
+    case QUERY_NODE_GRANT_STMT:
+      nodesDestroyNode(((SGrantStmt*)pNode)->pTagCond);
+      break;
+    case QUERY_NODE_REVOKE_STMT:
+      nodesDestroyNode(((SRevokeStmt*)pNode)->pTagCond);
       break;
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:

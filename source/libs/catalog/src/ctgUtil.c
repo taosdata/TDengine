@@ -486,12 +486,12 @@ void ctgFreeBatchHash(void* hash) {
   taosMemoryFreeClear(pRes->pRes);
 }
 
-void ctgFreeJsonTagVal(void *val) {
+void ctgFreeJsonTagVal(void* val) {
   if (NULL == val) {
     return;
   }
 
-  STagVal *pVal = (STagVal *)val;
+  STagVal* pVal = (STagVal*)val;
 
   if (TSDB_DATA_TYPE_JSON == pVal->type) {
     taosMemoryFree(pVal->pData);
@@ -545,6 +545,7 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
         taosArrayDestroy(*pRes);
       }
       *pRes = NULL;
+      break;
     }
     case CTG_TASK_GET_TB_META_BATCH: {
       SArray* pArray = (SArray*)*pRes;
@@ -1363,7 +1364,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   SGetUserAuthRsp* pInfo = &req->authInfo;
   SHashObj*        pTbs = (AUTH_TYPE_READ == req->singleType) ? pInfo->readTbs : pInfo->writeTbs;
   char*            stbName = NULL;
-  
+
   char tbFName[TSDB_TABLE_FNAME_LEN];
   char dbFName[TSDB_DB_FNAME_LEN];
   tNameExtractFullName(&req->pRawReq->tbName, tbFName);
@@ -1396,7 +1397,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       SCtgTbMetaCtx ctx = {0};
       ctx.pName = (SName*)&req->pRawReq->tbName;
       ctx.flag = CTG_FLAG_UNKNOWN_STB | CTG_FLAG_SYNC_OP;
-      
+
       CTG_ERR_RET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
