@@ -23,8 +23,8 @@ extern "C" {
 #endif
 
 /* Exposed Handle */
-typedef struct SDataFReader SDataFReader;
-typedef struct SDataFWriter SDataFWriter;
+// typedef struct SDataFReader SDataFReader;
+// typedef struct SDataFWriter SDataFWriter;
 
 /* Exposed APIs */
 

@@ -22,7 +22,9 @@
 extern "C" {
 #endif
 
-typedef struct SSttLvl SSttLvl;
+typedef struct SFileSet SFileSet;
+typedef struct SFileOp  SFileOp;
+typedef struct SSttLvl  SSttLvl;
 
 typedef enum {
   TSDB_FOP_EXTEND = -2,

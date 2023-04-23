@@ -21,6 +21,13 @@ typedef struct {
   uint8_t   reserved[24];
 } SFSttFooter;
 
+// SSttFReader ============================================================
+struct SSttFReader {
+  SSttFReaderConfig *config;
+  // TODO
+};
+
+// SSttFWriter ============================================================
 struct SSttFWriter {
   SSttFWriterConfig config;
   // file

@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 // SSttFReader ==========================================
+typedef struct SSttFSegReader    SSttFSegReader;
 typedef struct SSttFReader       SSttFReader;
 typedef struct SSttFReaderConfig SSttFReaderConfig;
 
