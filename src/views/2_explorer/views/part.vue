@@ -96,10 +96,10 @@
           return false;
         };
       },
-      async handleSendSQL() {
+       handleSendSQL() {
         if (this.requestIng) return;
         this.requestIng = true;
-        await this.$refs.sql.handleSendSQL();
+        this.$refs.sql.handleSendSQL();
         this.$store.commit("console/CHANGE_TREE_KEY");
         this.requestIng = false;
       },

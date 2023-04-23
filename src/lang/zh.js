@@ -670,6 +670,7 @@ export default {
     learnMoreTip: "要了解更多关于流计算的信息，请查看<a target='_blank' href=\"docsUrl\">文档</a>",
   },
   topic: {
+    agent:'代理',
     conditionSet: "条件集",
     resultSet:'结果集',
     function:'函数',
@@ -1380,6 +1381,20 @@ export default {
     fromsource: '来源',
     targetdsn: '目标DSN',
     changebackup: '选择备份周期'
+  },
+  taosagents:{
+    eidtagent:'编辑代理',
+    createnewagent:'新增代理',
+    cluster_id:'集群ID',
+    connectors:'连接器',
+    created_at:'创建时间',
+    dsn:'DSN',
+    expire_date:'过期日期',
+    id:'ID',
+    last_modified_at:'最后修改时间',
+    name:'名称',
+    status:'状态',
+    user_id:'用户ID'
   },
   taoscluster: {
     dnodes: 'DNodes',

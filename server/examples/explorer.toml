@@ -2,7 +2,7 @@
 #
 # Here is a full list of available options.
 
-# Explorer server port to listen on.
+# Explorer server port to listen on.Default is 6060.
 #
 port = 6060
 

@@ -509,14 +509,19 @@ export default {
             (this.dbname ? "/" + this.dbname : ""),
           labels: ["type::datain", `cluster-id::${id}`],
         };
+        
         if (this.tagName === "datasource") {
           if (this.isEditable) {
             await EditSource(apiParams, this.editId).then(() => {
               this.$parent.toggleComponent("tmqtable");
+            }).catch(err=>{
+              err.response.data.message&&Message.error(err.response.data.message)
             });
           } else {
             await AddSource(apiParams).then((res) => {
               this.$parent.toggleComponent('tmqtable');
+            }).catch(err=>{
+              err.response.data.message&&Message.error(err.response.data.message)
             });
           }
         } else {
