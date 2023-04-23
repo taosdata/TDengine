@@ -477,56 +477,61 @@ static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reve
 
 static void sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typedata, SMetaFltParam *param) {
   int8_t ltype = left->colValType, rtype = right->colValType;
-  if (ltype == TSDB_DATA_TYPE_FLOAT) {
-    float f = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, f);
-    typedata->f = f;
-    param->val = &typedata->f;
-  } else if (ltype == TSDB_DATA_TYPE_DOUBLE) {
-    double d = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, d);
-    typedata->d = d;
-    param->val = &typedata->d;
-  } else if (ltype == TSDB_DATA_TYPE_BIGINT) {
-    int64_t i64 = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, i64);
-    typedata->i64 = i64;
-    param->val = &typedata->i64;
-  } else if (ltype == TSDB_DATA_TYPE_INT) {
-    int32_t i32 = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, i32);
-    typedata->i32 = i32;
-    param->val = &typedata->i32;
-  } else if (ltype == TSDB_DATA_TYPE_SMALLINT) {
-    int16_t i16 = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, i16);
-    typedata->i16 = i16;
-    param->val = &typedata->i16;
-  } else if (ltype == TSDB_DATA_TYPE_TINYINT) {
-    int8_t i8 = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, i8)
-    typedata->i8 = i8;
-    param->val = &typedata->i8;
-  } else if (ltype == TSDB_DATA_TYPE_UBIGINT) {
-    uint64_t u64 = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, u64);
-    typedata->u64 = u64;
-    param->val = &typedata->u64;
-  } else if (ltype == TSDB_DATA_TYPE_UINT) {
-    uint32_t u32 = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, u32);
-    typedata->u32 = u32;
-    param->val = &typedata->u32;
-  } else if (ltype == TSDB_DATA_TYPE_USMALLINT) {
-    uint16_t u16 = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, u16);
-    typedata->u16 = u16;
-    param->val = &typedata->u16;
-  } else if (ltype == TSDB_DATA_TYPE_UTINYINT) {
-    uint8_t u8 = 0;
-    SIF_DATA_CONVERT(rtype, right->condValue, u8);
-    typedata->u8 = u8;
-    param->val = &typedata->u8;
+  if (!IS_VAR_DATA_TYPE(ltype) && IS_VAR_DATA_TYPE(rtype)) {
+  } else if (IS_VAR_DATA_TYPE(ltype) && !IS_VAR_DATA_TYPE(rtype)) {
+    return;
+  } else if (!IS_VAR_DATA_TYPE(ltype) && !IS_VAR_DATA_TYPE(rtype)) {
+    if (ltype == TSDB_DATA_TYPE_FLOAT) {
+      float f = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, f);
+      typedata->f = f;
+      param->val = &typedata->f;
+    } else if (ltype == TSDB_DATA_TYPE_DOUBLE) {
+      double d = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, d);
+      typedata->d = d;
+      param->val = &typedata->d;
+    } else if (ltype == TSDB_DATA_TYPE_BIGINT) {
+      int64_t i64 = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, i64);
+      typedata->i64 = i64;
+      param->val = &typedata->i64;
+    } else if (ltype == TSDB_DATA_TYPE_INT) {
+      int32_t i32 = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, i32);
+      typedata->i32 = i32;
+      param->val = &typedata->i32;
+    } else if (ltype == TSDB_DATA_TYPE_SMALLINT) {
+      int16_t i16 = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, i16);
+      typedata->i16 = i16;
+      param->val = &typedata->i16;
+    } else if (ltype == TSDB_DATA_TYPE_TINYINT) {
+      int8_t i8 = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, i8)
+      typedata->i8 = i8;
+      param->val = &typedata->i8;
+    } else if (ltype == TSDB_DATA_TYPE_UBIGINT) {
+      uint64_t u64 = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, u64);
+      typedata->u64 = u64;
+      param->val = &typedata->u64;
+    } else if (ltype == TSDB_DATA_TYPE_UINT) {
+      uint32_t u32 = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, u32);
+      typedata->u32 = u32;
+      param->val = &typedata->u32;
+    } else if (ltype == TSDB_DATA_TYPE_USMALLINT) {
+      uint16_t u16 = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, u16);
+      typedata->u16 = u16;
+      param->val = &typedata->u16;
+    } else if (ltype == TSDB_DATA_TYPE_UTINYINT) {
+      uint8_t u8 = 0;
+      SIF_DATA_CONVERT(rtype, right->condValue, u8);
+      typedata->u8 = u8;
+      param->val = &typedata->u8;
+    }
   }
 }
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
