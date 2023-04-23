@@ -14,6 +14,7 @@
       }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="agentList" size="mini">
+
       <el-table-column label="ID" width="150" prop="id"></el-table-column>
       <el-table-column
         :label="$t('taosagents.cluster_id')"
@@ -146,6 +147,7 @@
           v-if="!isEditDialog"
         >
           <el-select v-model="ruleForm.connectors" placeholder="">
+
             <el-option
               v-for="db in dblist"
               :key="db['node-key']"
@@ -174,6 +176,7 @@
             :picker-options="expireTimeOPtion"
             type="datetime"
           ></el-date-picker>
+
         </el-form-item>
       </el-form>
 
@@ -199,7 +202,9 @@
 </template>
 <script>
 import { getAgentsData } from "@/api/explorer/agent";
+
 import { getUIData} from '@/api/explorer/datain'
+
 export default {
   name: "Agent",
   data() {
@@ -257,6 +262,7 @@ export default {
         ],
       },
       agentList: [],
+
     };
   },
   computed: {
