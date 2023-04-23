@@ -19,17 +19,17 @@
 #include "scheduler.h"
 #include "trpc.h"
 
-static SClientHbMgr clientHbMgr = {0};
-
-static int32_t hbCreateThread();
-static void    hbStopThread();
-
 typedef struct {
   union {
     int64_t clusterId;
     int32_t passKeyCnt;
   };
 } SHbParam;
+
+static SClientHbMgr clientHbMgr = {0};
+
+static int32_t hbCreateThread();
+static void    hbStopThread();
 
 static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
 
