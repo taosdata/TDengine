@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
- 
+
 #ifndef TDENGINE_SYSTABLE_H
 #define TDENGINE_SYSTABLE_H
 
@@ -77,7 +77,6 @@ void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size);
 void getPerfDbMeta(const SSysTableMeta** pPerfsTableMeta, size_t* size);
 void getVisibleInfosTablesNum(bool sysInfo, size_t* size);
 bool invisibleColumn(bool sysInfo, int8_t tableType, int8_t flags);
-bool isSystemDb(const char *dbName);
 
 #ifdef __cplusplus
 }

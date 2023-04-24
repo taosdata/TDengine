@@ -448,7 +448,3 @@ bool invisibleColumn(bool sysInfo, int8_t tableType, int8_t flags) {
   }
   return 0 != (flags & COL_IS_SYSINFO);
 }
-
-bool isSystemDb(const char *dbName) {
-  return ((strcasecmp(dbName, TSDB_INFORMATION_SCHEMA_DB) == 0) || (strcasecmp(dbName, TSDB_PERFORMANCE_SCHEMA_DB) == 0));
-}
