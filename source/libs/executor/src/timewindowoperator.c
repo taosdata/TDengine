@@ -2854,7 +2854,7 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
   pScanInfo->pState = pAggSup->pState;
-  if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
+  if ( (!pScanInfo->igCheckUpdate || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) && !pScanInfo->pUpdateInfo ) {
     pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark);
   }
   pScanInfo->twAggSup = *pTwSup;

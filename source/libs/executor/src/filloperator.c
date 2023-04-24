@@ -520,7 +520,7 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
   pFillSup->cur.pRowVal = curVal;
 
   SStreamStateCur* pCur = streamStateFillSeekKeyPrev(pState, &key);
-  SWinKey          preKey = {.groupId = groupId};
+  SWinKey          preKey = {.ts = INT64_MIN, .groupId = groupId};
   void*            preVal = NULL;
   int32_t          preVLen = 0;
   code = streamStateGetGroupKVByCur(pCur, &preKey, (const void**)&preVal, &preVLen);
@@ -542,7 +542,7 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
     pCur = streamStateFillSeekKeyNext(pState, &key);
   }
 
-  SWinKey nextKey = {.groupId = groupId};
+  SWinKey nextKey = {.ts = INT64_MIN, .groupId = groupId};
   void*   nextVal = NULL;
   int32_t nextVLen = 0;
   code = streamStateGetGroupKVByCur(pCur, &nextKey, (const void**)&nextVal, &nextVLen);
@@ -1242,6 +1242,11 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
       }
       printDataBlock(pBlock, "stream fill recv");
 
+      if (pInfo->pFillInfo->curGroupId != pBlock->info.id.groupId) {
+        pInfo->pFillInfo->curGroupId = pBlock->info.id.groupId;
+        pInfo->pFillInfo->preRowKey = INT64_MIN;
+      }
+
       switch (pBlock->info.type) {
         case STREAM_RETRIEVE:
           return pBlock;
@@ -1392,6 +1397,7 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
   pFillInfo->type = pFillSup->type;
   pFillInfo->delRanges = taosArrayInit(16, sizeof(STimeRange));
   pFillInfo->delIndex = 0;
+  pFillInfo->curGroupId = 0;
   return pFillInfo;
 }
 
