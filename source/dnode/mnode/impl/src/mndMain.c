@@ -590,6 +590,11 @@ int32_t mndIsCatchUp(SMnode *pMnode) {
   return syncIsCatchUp(rid);
 }
 
+ESyncRole mndGetRole(SMnode *pMnode){
+  int64_t rid = pMnode->syncMgmt.sync;
+  return syncGetRole(rid);
+}
+
 void mndStop(SMnode *pMnode) {
   mndSetStop(pMnode);
   mndSyncStop(pMnode);

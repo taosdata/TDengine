@@ -341,7 +341,9 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if(vnodeGetRole(pVnode->pImpl) == TAOS_SYNC_ROLE_VOTER){
+  ESyncRole role = vnodeGetRole(pVnode->pImpl);
+  dInfo("vgId:%d, checking node role:%d", req.vgId, role);
+  if(role == TAOS_SYNC_ROLE_VOTER){
     terrno = TSDB_CODE_VND_ALREADY_IS_VOTER;
     vmReleaseVnode(pMgmt, pVnode);
     return -1;
