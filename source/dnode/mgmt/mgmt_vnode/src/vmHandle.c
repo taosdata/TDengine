@@ -336,13 +336,23 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
   if (pVnode == NULL) {
-    dError("vgId:%d, failed to alter hashrange since %s", req.vgId, terrstr());
+    dError("vgId:%d, failed to alter vnode type since %s", req.vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
     return -1;
   }
 
+  ESyncRole role = vnodeGetRole(pVnode->pImpl);
+  dInfo("vgId:%d, checking node role:%d", req.vgId, role);
+  if(role == TAOS_SYNC_ROLE_VOTER){
+    terrno = TSDB_CODE_VND_ALREADY_IS_VOTER;
+    vmReleaseVnode(pMgmt, pVnode);
+    return -1;
+  }
+
   dInfo("vgId:%d, checking node catch up", req.vgId);
-  if(vnodeIsCatchUp(pVnode->pImpl) != 0){
+  if(vnodeIsCatchUp(pVnode->pImpl) != 1){
+    terrno = TSDB_CODE_VND_NOT_CATCH_UP;
+    vmReleaseVnode(pMgmt, pVnode);
     return -1;
   }
 
@@ -365,6 +375,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       req.selfIndex >= req.replica || req.learnerSelfIndex >= req.learnerReplica) {
     terrno = TSDB_CODE_INVALID_MSG;
     dError("vgId:%d, failed to alter replica since invalid msg", vgId);
+    vmReleaseVnode(pMgmt, pVnode);
     return -1;
   }
 
@@ -381,6 +392,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_MSG;
     dError("vgId:%d, dnodeId:%d ep:%s:%u not matched with local dnode", vgId, pReplica->id, pReplica->fqdn,
            pReplica->port);
+    vmReleaseVnode(pMgmt, pVnode);
     return -1;
   }
 
