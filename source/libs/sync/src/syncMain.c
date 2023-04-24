@@ -2156,7 +2156,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
   SSyncHbTimerData* pData = syncHbTimerDataAcquire(hbDataRid);
   if (pData == NULL) {
-    sError("hb timer get pData NULL, rid:%" PRId64 " addr:%" PRId64, hbDataRid, pData->destId.addr);
+    sError("hb timer get pData NULL, %" PRId64, hbDataRid);
     return;
   }
 
