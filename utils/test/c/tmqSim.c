@@ -690,12 +690,11 @@ int32_t notifyMainScript(SThreadInfo* pInfo, int32_t cmdId) {
 }
 
 static int32_t g_once_commit_flag = 0;
-static int32_t g_once_consume_flag = 0;
 
 static void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
   taosFprintfFile(g_fp, "tmq_commit_cb_print() commit %d\n", code);
 
-  if (g_once_consume_flag == 1 && 0 == g_once_commit_flag) {
+  if (0 == g_once_commit_flag) {
     g_once_commit_flag = 1;
     notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
   }
@@ -774,6 +773,8 @@ int32_t saveConsumeResult(SThreadInfo* pInfo) {
 void loop_consume(SThreadInfo* pInfo) {
   int32_t code;
 
+  int32_t once_flag = 0;
+
   int64_t totalMsgs = 0;
   int64_t totalRows = 0;
 
@@ -833,8 +834,8 @@ void loop_consume(SThreadInfo* pInfo) {
         lastTotalMsgs = totalMsgs;
       }
 
-      if (0 == g_once_consume_flag) {
-        g_once_consume_flag = 1;
+      if (0 == once_flag) {
+        once_flag = 1;
         notifyMainScript(pInfo, NOTIFY_CMD_START_CONSUM);
       }
 
