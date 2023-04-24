@@ -391,6 +391,8 @@ int streamInitBackend(SStreamState* pState, char* path) {
   rocksdb_options_set_create_if_missing(opts, 1);
   rocksdb_options_set_create_missing_column_families(opts, 1);
   rocksdb_options_set_write_buffer_size(opts, 128 << 20);
+  rocksdb_options_set_recycle_log_file_num(opts, 3);
+  rocksdb_options_set_max_write_buffer_number(opts, 6);
 
   char* err = NULL;
   int   cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
