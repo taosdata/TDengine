@@ -149,8 +149,6 @@ typedef struct SWalReader {
   int64_t        capacity;
 //  int8_t         curInvalid;
 //  int8_t         curStopped;
-  int64_t        bodyCnt;
-  int64_t        bodyTotalSize;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
   // TODO remove it

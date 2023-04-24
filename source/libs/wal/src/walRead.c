@@ -262,8 +262,8 @@ static int32_t walFetchBodyNew(SWalReader *pReader) {
   SWalCont *pReadHead = &pReader->pHead->head;
   int64_t   ver = pReadHead->version;
 
-  wDebug("vgId:%d, wal starts to fetch body, ver:%" PRId64 " ,len:%d, total cnt:%"PRId64 ", total size:%"PRId64, pReader->pWal->cfg.vgId, ver,
-         pReadHead->bodyLen, pReader->bodyCnt, pReader->bodyTotalSize);
+  wDebug("vgId:%d, wal starts to fetch body, ver:%" PRId64 " ,len:%d, total", pReader->pWal->cfg.vgId, ver,
+         pReadHead->bodyLen);
 
   if (pReader->capacity < pReadHead->bodyLen) {
     SWalCkHead *ptr = (SWalCkHead *)taosMemoryRealloc(pReader->pHead, sizeof(SWalCkHead) + pReadHead->bodyLen);
@@ -300,8 +300,6 @@ static int32_t walFetchBodyNew(SWalReader *pReader) {
 
   wDebug("vgId:%d, index:%" PRId64 " is fetched, cursor advance", pReader->pWal->cfg.vgId, ver);
   pReader->curVersion = ver + 1;
-  pReader->bodyCnt++;
-  pReader->bodyTotalSize += pReadHead->bodyLen;
   return 0;
 }
 
