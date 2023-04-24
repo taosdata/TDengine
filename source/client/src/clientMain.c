@@ -975,8 +975,10 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   if (TSDB_CODE_SUCCESS == code) {
     pRequest->stmtType = pRequest->pQuery->pRoot->type;
-    phaseAsyncQuery(pWrapper);
-  } else {
+    code = phaseAsyncQuery(pWrapper);
+  } 
+
+  if (TSDB_CODE_SUCCESS != code) {
     tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
