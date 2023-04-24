@@ -547,7 +547,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   walApplyVer(pVnode->pWal, commitIdx);
 
   pVnode->restored = true;
-  vInfo("vgId:%d, sync restore finished", pVnode->config.vgId);
+  vInfo("vgId:%d, sync restore finished, start to restore stream tasks by replay wal", pVnode->config.vgId);
 
   // start to restore all stream tasks
   tqStartStreamTasks(pVnode->pTq);
