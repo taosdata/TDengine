@@ -792,7 +792,13 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
       default:
         break;
     }
-    code = (*clientHbMgr.reqHandle[pOneReq->connKey.connType])(&pOneReq->connKey, &param, pOneReq);
+    if (clientHbMgr.reqHandle[pOneReq->connKey.connType]) {
+      code = (*clientHbMgr.reqHandle[pOneReq->connKey.connType])(&pOneReq->connKey, &param, pOneReq);
+      if (code) {
+        tscWarn("hbGatherAllInfo failed since %s, tscRid:%" PRIi64 ", connType:%" PRIi8, tstrerror(code),
+                pOneReq->connKey.tscRid, pOneReq->connKey.connType);
+      }
+    }
     break;
 
 #if 0
