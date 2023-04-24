@@ -6,10 +6,6 @@ github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuy
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/andybalholm/brotli v1.0.5 h1:8uQZIdzKmjc/iuPu7O2ioW48L81FgatrcpfFmiq/cCs=
 github.com/andybalholm/brotli v1.0.5/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
-github.com/apache/arrow v0.0.0-20230424061852-cd14e2019ce9 h1:u5jzoHEwrVvts/QwT5R2RuL3y2WY4Xnq8a9uxnjSQg4=
-github.com/apache/arrow v0.0.0-20230424061852-cd14e2019ce9/go.mod h1:STD6VF1igP35AHE8bSEqD4PNDHjBctEkubVx6wxPA48=
-github.com/apache/arrow/go/v12 v12.0.0-20230417195444-9824ffcd48e4 h1:9BaT/0vkZkb5oFxlSbuzF148p3fouJQYD/LQrH9hLaw=
-github.com/apache/arrow/go/v12 v12.0.0-20230417195444-9824ffcd48e4/go.mod h1:d+tV/eHZZ7Dz7RPrFKtPK02tpr+c9/PEd/zm8mDS9Vg=
 github.com/apache/arrow/go/v12 v12.0.0-20230424061852-cd14e2019ce9 h1:4xSpDj1ezFGCR93EJFSeVlRqQ8ac6LHhNBIVpR0xWgU=
 github.com/apache/arrow/go/v12 v12.0.0-20230424061852-cd14e2019ce9/go.mod h1:d+tV/eHZZ7Dz7RPrFKtPK02tpr+c9/PEd/zm8mDS9Vg=
 github.com/apache/thrift v0.18.1 h1:lNhK/1nqjbwbiOPDBPFJVKxgDEGSepKuTh6OLiXW8kg=

@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/apache/arrow/go/v12/arrow"
 	"github.com/apache/arrow/go/v12/arrow/array"
@@ -25,6 +27,7 @@ type ArrowReporter struct {
 	ipcWriter sync.Map // key-valueType, value- *schema
 	debug     bool
 	mutex     sync.Mutex
+	counter   atomic.Uint64
 }
 
 var _ Reporter = (*ArrowReporter)(nil)
@@ -49,20 +52,6 @@ func (r *ArrowReporter) Report(_ context.Context, values []*common.NodeValue) er
 		log.Println("## Reporting to taosx", "values", string(j))
 	}
 
-	return r.report(values)
-}
-
-func (r *ArrowReporter) Close() {
-	log.Println("## close reporter")
-	r.ipcWriter.Range(func(key, value any) bool {
-		ws := value.(*writerAndSchema)
-		_ = ws.writer.Close()
-		_ = ws.conn.Close()
-		return true
-	})
-}
-
-func (r *ArrowReporter) report(values []*common.NodeValue) error {
 	ws, err := r.getWriterAndSchemaByValueType(values[0].ValueType)
 	if err != nil {
 		log.Println("## get writer and schema error", "error", err)
@@ -81,7 +70,25 @@ func (r *ArrowReporter) report(values []*common.NodeValue) error {
 		return fmt.Errorf("report data error %v", err)
 	}
 
+	if r.debug {
+		if r.counter.Load() > math.MaxUint64-uint64(record.NumRows()) {
+			r.counter.Store(0)
+		}
+		r.counter.Add(uint64(record.NumRows()))
+		log.Printf("## [%d] record already sent", r.counter.Load())
+	}
+
 	return nil
+}
+
+func (r *ArrowReporter) Close() {
+	log.Println("## close reporter")
+	r.ipcWriter.Range(func(key, value any) bool {
+		ws := value.(*writerAndSchema)
+		_ = ws.writer.Close()
+		_ = ws.conn.Close()
+		return true
+	})
 }
 
 func (r *ArrowReporter) packData(values []*common.NodeValue, schema *arrow.Schema) (arrow.Record, error) {
