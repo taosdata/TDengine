@@ -1248,6 +1248,11 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     return NULL;
   }
 
+  pRequest->sqlstr = taosStrdup("taos_connect");
+  if (pRequest->sqlstr) {
+    pRequest->sqlLen = strlen(pRequest->sqlstr);
+  }
+
   SMsgSendInfo* body = buildConnectMsg(pRequest);
 
   int64_t transporterId = 0;

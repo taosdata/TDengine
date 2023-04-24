@@ -724,7 +724,13 @@ static int32_t taosSetSlowLogScope(char *pScope) {
     return 0;
   }
 
+  if (0 == strcasecmp(pScope, "none")) {
+    tsSlowLogScope = 0;
+    return 0;
+  }
+
   uError("Invalid slowLog scope value:%s", pScope);
+  terrno = TSDB_CODE_INVALID_CFG_VALUE;
   return -1;
 }
 
@@ -1199,7 +1205,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
       } else if (strcasecmp("slowLogThreshold", name) == 0) {
         tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
       } else if (strcasecmp("slowLogScope", name) == 0) {
-        taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)
+        if (taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)) {
+          return -1;
+        }
       }
       break;
     }
