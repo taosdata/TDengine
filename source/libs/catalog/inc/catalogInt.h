@@ -359,6 +359,7 @@ typedef struct SCtgSubRes {
 
 struct SCtgTask {
   CTG_TASK_TYPE   type;
+  bool            subTask;
   int32_t         taskId;
   SCtgJob*        pJob;
   void*           taskCtx;

@@ -765,8 +765,9 @@ _return:
 
   *inCache = false;
   CTG_CACHE_NHIT_INC(CTG_CI_USER, 1);
+  ctgDebug("Get user from cache failed, user:%s, metaNotExists:%d, code:%d", pReq->user, pRes->metaNotExists, code);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void ctgDequeue(SCtgCacheOperation **op) {

@@ -699,6 +699,10 @@ _return:
 }
 
 int32_t ctgDumpTbMetaRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableMeta) {
     pJob->jobRes.pTableMeta = taosArrayInit(pJob->tbMetaNum, sizeof(SMetaRes));
@@ -714,6 +718,10 @@ int32_t ctgDumpTbMetaRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpTbMetasRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
 
   pJob->jobRes.pTableMeta = pTask->res;
@@ -722,6 +730,10 @@ int32_t ctgDumpTbMetasRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpDbVgRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pDbVgroup) {
     pJob->jobRes.pDbVgroup = taosArrayInit(pJob->dbVgNum, sizeof(SMetaRes));
@@ -737,6 +749,10 @@ int32_t ctgDumpDbVgRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpTbHashRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableHash) {
     pJob->jobRes.pTableHash = taosArrayInit(pJob->tbHashNum, sizeof(SMetaRes));
@@ -752,6 +768,10 @@ int32_t ctgDumpTbHashRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpTbHashsRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
 
   pJob->jobRes.pTableHash = pTask->res;
@@ -760,6 +780,10 @@ int32_t ctgDumpTbHashsRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpTbIndexRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableIndex) {
     SArray* pRes = taosArrayInit(pJob->tbIndexNum, sizeof(SMetaRes));
@@ -779,6 +803,10 @@ int32_t ctgDumpTbIndexRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpTbCfgRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableCfg) {
     SArray* pRes = taosArrayInit(pJob->tbCfgNum, sizeof(SMetaRes));
@@ -798,6 +826,10 @@ int32_t ctgDumpTbCfgRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpTbTagRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableTag) {
     SArray* pRes = taosArrayInit(pJob->tbTagNum, sizeof(SMetaRes));
@@ -818,6 +850,10 @@ int32_t ctgDumpTbTagRes(SCtgTask* pTask) {
 
 
 int32_t ctgDumpIndexRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pIndex) {
     pJob->jobRes.pIndex = taosArrayInit(pJob->indexNum, sizeof(SMetaRes));
@@ -833,6 +869,10 @@ int32_t ctgDumpIndexRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpQnodeRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pQnodeList) {
     pJob->jobRes.pQnodeList = taosArrayInit(1, sizeof(SMetaRes));
@@ -848,6 +888,10 @@ int32_t ctgDumpQnodeRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpDnodeRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pDnodeList) {
     pJob->jobRes.pDnodeList = taosArrayInit(1, sizeof(SMetaRes));
@@ -863,6 +907,10 @@ int32_t ctgDumpDnodeRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpDbCfgRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pDbCfg) {
     pJob->jobRes.pDbCfg = taosArrayInit(pJob->dbCfgNum, sizeof(SMetaRes));
@@ -878,6 +926,10 @@ int32_t ctgDumpDbCfgRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpDbInfoRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pDbInfo) {
     pJob->jobRes.pDbInfo = taosArrayInit(pJob->dbInfoNum, sizeof(SMetaRes));
@@ -893,6 +945,10 @@ int32_t ctgDumpDbInfoRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpUdfRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pUdfList) {
     pJob->jobRes.pUdfList = taosArrayInit(pJob->udfNum, sizeof(SMetaRes));
@@ -908,6 +964,10 @@ int32_t ctgDumpUdfRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpUserRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pUser) {
     pJob->jobRes.pUser = taosArrayInit(pJob->userNum, sizeof(SMetaRes));
@@ -923,6 +983,10 @@ int32_t ctgDumpUserRes(SCtgTask* pTask) {
 }
 
 int32_t ctgDumpSvrVer(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pSvrVer) {
     pJob->jobRes.pSvrVer = taosMemoryCalloc(1, sizeof(SMetaRes));
@@ -2239,6 +2303,8 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   if (inCache) {
     pTask->res = rsp.pRawRes;
 
+    ctgTaskDebug("Final res got, pass:%d, pCond:%p", rsp.pRawRes->pass, rsp.pRawRes->pCond);
+
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;
   }
@@ -2475,6 +2541,9 @@ int32_t ctgLaunchSubTask(SCtgTask* pTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp,
   }
 
   SCtgTask* pSub = taosArrayGet(pJob->pTasks, subTaskId);
+  if (newTask) {
+    pSub->subTask = true;
+  }
 
   CTG_ERR_RET(ctgSetSubTaskCb(pSub, pTask));
 
