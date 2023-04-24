@@ -528,11 +528,18 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       }
       break;
     }
+    case CTG_TASK_GET_USER: {
+      if (*pRes) {
+        SUserAuthRes* pAuth = (SUserAuthRes *)*pRes;
+        nodesDestroyNode(pAuth->pCond);
+        taosMemoryFreeClear(*pRes);
+      }
+      break;
+    }
     case CTG_TASK_GET_TB_HASH:
     case CTG_TASK_GET_DB_INFO:
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
-    case CTG_TASK_GET_USER:
     case CTG_TASK_GET_SVR_VER:
     case CTG_TASK_GET_TB_META: {
       taosMemoryFreeClear(*pRes);
