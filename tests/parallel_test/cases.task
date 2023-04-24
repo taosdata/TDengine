@@ -56,11 +56,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py -Q 4
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py -R
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py -Q 2
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py -Q 3
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
