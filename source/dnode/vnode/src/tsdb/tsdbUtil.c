@@ -722,6 +722,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
   if (taosArrayGetSize(pMerger->pArray) == 0) {
     // ts
+    jCol = 0;
     pTColumn = &pTSchema->columns[jCol++];
 
     ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
