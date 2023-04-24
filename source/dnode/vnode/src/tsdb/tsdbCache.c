@@ -137,7 +137,7 @@ SLastCol *tsdbCacheDeserialize(char const *value) {
   SLastCol *pLastCol = (SLastCol *)value;
   SColVal  *pColVal = &pLastCol->colVal;
   if (IS_VAR_DATA_TYPE(pColVal->type)) {
-    pColVal->value.pData = (char *)value + sizeof(*pColVal);
+    pColVal->value.pData = (char *)value + sizeof(*pLastCol);
   }
 
   return pLastCol;
