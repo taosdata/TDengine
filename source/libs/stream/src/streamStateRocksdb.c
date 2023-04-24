@@ -403,7 +403,7 @@ int streamInitBackend(SStreamState* pState, char* path) {
     cfOpt[i] = rocksdb_options_create_copy(opts);
     // refactor later
     rocksdb_block_based_table_options_t* tableOpt = rocksdb_block_based_options_create();
-    rocksdb_cache_t*                     cache = rocksdb_cache_create_lru(32 << 20);
+    rocksdb_cache_t*                     cache = rocksdb_cache_create_lru(64 << 20);
     rocksdb_block_based_options_set_block_cache(tableOpt, cache);
 
     rocksdb_filterpolicy_t* filter = rocksdb_filterpolicy_create_bloom(15);
