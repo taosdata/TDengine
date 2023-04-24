@@ -1580,7 +1580,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
     case UV_TASK_REQ_RSP: {
       uv_pipe_t *pipe = uvTask->pipe;
       if (pipe == NULL) {
-        code = TSDB_CODE_UDF_PIPE_NO_PIPE;
+        code = TSDB_CODE_UDF_PIPE_NOT_EXIST;
       } else {
         uv_write_t *write = taosMemoryMalloc(sizeof(uv_write_t));
         write->data = pipe->data;
@@ -1598,7 +1598,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
     case UV_TASK_DISCONNECT: {
       uv_pipe_t *pipe = uvTask->pipe;
       if (pipe == NULL) {
-        code = TSDB_CODE_UDF_PIPE_NO_PIPE;
+        code = TSDB_CODE_UDF_PIPE_NOT_EXIST;
       } else {
         SClientUvConn *conn = pipe->data;
         QUEUE_INSERT_TAIL(&conn->taskQueue, &uvTask->connTaskQueue);
@@ -1759,9 +1759,6 @@ int32_t udfcRunUdfUvTask(SClientUdfTask *task, int8_t uvTaskType) {
 }
 
 int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
-  if (gUdfcProxy.udfcState != UDFC_STATE_READY) {
-    return TSDB_CODE_UDF_INVALID_STATE;
-  }
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
   task->errCode = 0;
   task->session = taosMemoryCalloc(1, sizeof(SUdfcUvSession));
@@ -1804,7 +1801,7 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
   SUdfcUvSession *session = (SUdfcUvSession *)handle;
   if (session->udfUvPipe == NULL) {
     fnError("No pipe to udfd");
-    return TSDB_CODE_UDF_PIPE_NO_PIPE;
+    return TSDB_CODE_UDF_PIPE_NOT_EXIST;
   }
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
   task->errCode = 0;
@@ -1928,7 +1925,7 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
   if (session->udfUvPipe == NULL) {
     fnError("tear down udf. pipe to udfd does not exist. udf name: %s", session->udfName);
     taosMemoryFree(session);
-    return TSDB_CODE_UDF_PIPE_NO_PIPE;
+    return TSDB_CODE_UDF_PIPE_NOT_EXIST;
   }
 
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
