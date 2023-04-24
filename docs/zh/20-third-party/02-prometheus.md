@@ -4,6 +4,8 @@ title: Prometheus
 description: 使用 Prometheus 访问 TDengine
 ---
 
+import Prometheus from "../14-reference/_prometheus.mdx"
+
 Prometheus 是一款流行的开源监控告警系统。Prometheus 于2016年加入了 Cloud Native Computing Foundation （云原生云计算基金会，简称 CNCF），成为继 Kubernetes 之后的第二个托管项目，该项目拥有非常活跃的开发人员和用户社区。
 
 ## 前置条件
@@ -15,41 +17,7 @@ Prometheus 是一款流行的开源监控告警系统。Prometheus 于2016年加
 
 ## 配置 TDengine 为 Prometheus 的第三方数据库
 
-Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数据库产品作为它的存储引擎。为了让 Prometheus 生态圈的用户能够利用 TDengine 的高效写入和查询，TDengine 也提供了对这两个接口的支持。
-
-通过适当的配置， Prometheus 的数据可以通过 `remote_write` 接口存储到 TDengine 中，也可以通过 `remote_read` 接口来查询存储在 TDengine 中的数据，充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
-
-配置 Prometheus 是通过编辑 Prometheus 配置文件 prometheus.yml （默认位置 /etc/prometheus/prometheus.yml）完成的。
-
-### 配置第三方数据库地址
-
-将其中的 remote_read url 和 remote_write url 指向运行 taosAdapter 服务的服务器域名或 IP 地址，REST 服务端口（taosAdapter 默认使用 6041），以及希望写入 TDengine 的数据库名称，并确保相应的 URL 形式如下：
-
-- remote_read url : `http://<taosAdapter's host>:<REST service port>/prometheus/v1/remote_read/<database name>`
-- remote_write url : `http://<taosAdapter's host>:<REST service port>/prometheus/v1/remote_write/<database name>`
-
-### 配置 Basic 验证
-
-- username： <TDengine's username>
-- password： <TDengine's password>
-
-### prometheus.yml 文件中 remote_write 和 remote_read 相关部分配置示例
-
-```yaml
-remote_write:
-  - url: "http://localhost:6041/prometheus/v1/remote_write/prometheus_data"
-    basic_auth:
-      username: root
-      password: taosdata
-
-remote_read:
-  - url: "http://localhost:6041/prometheus/v1/remote_read/prometheus_data"
-    basic_auth:
-      username: root
-      password: taosdata
-    remote_timeout: 10s
-    read_recent: true
-```
+<Prometheus />
 
 ### 验证方法
 
