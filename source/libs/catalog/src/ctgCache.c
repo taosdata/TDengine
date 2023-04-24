@@ -727,6 +727,7 @@ int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid
 }
 
 int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool *inCache, SCtgAuthRsp *pRes) {
+  int32_t code = 0;
   if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
     *inCache = true;
     pRes->pRawRes->pass = true;
@@ -751,7 +752,7 @@ int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool *inCache, 
 
   CTG_LOCK(CTG_READ, &pUser->lock);
   memcpy(&req.authInfo, &pUser->userAuth, sizeof(pUser->userAuth));
-  int32_t code = ctgChkSetAuthRes(pCtg, &req, pRes);
+  code = ctgChkSetAuthRes(pCtg, &req, pRes);
   CTG_UNLOCK(CTG_READ, &pUser->lock);
   CTG_ERR_JRET(code);
 
