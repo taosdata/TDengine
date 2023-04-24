@@ -855,7 +855,9 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
     int32_t     numOfCols = pCtx->subsidiaries.num;
     const char* p = loadTupleData(pCtx, pTuplePos);
     if (p == NULL) {
-      terrno = TSDB_CODE_NO_AVAIL_DISK;
+      terrno = TSDB_CODE_NOT_FOUND;
+      qError("Load tuple data failed since %s, groupId:%" PRIu64 ", ts:%" PRId64, terrstr(),
+             pTuplePos->streamTupleKey.groupId, pTuplePos->streamTupleKey.ts);
       return terrno;
     }
 
@@ -5098,7 +5100,9 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (maxCount != 0) {
     const char* pData = loadTupleData(pCtx, &resDataPos);
     if (pData == NULL) {
-      code = TSDB_CODE_NO_AVAIL_DISK;
+      code = terrno = TSDB_CODE_NOT_FOUND;
+      qError("Load tuple data failed since %s, groupId:%" PRIu64 ", ts:%" PRId64, terrstr(),
+             resDataPos.streamTupleKey.groupId, resDataPos.streamTupleKey.ts);
       modeFunctionCleanup(pInfo);
       return code;
     }

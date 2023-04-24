@@ -195,8 +195,8 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
   if (pHandle->pBuf == NULL) {
     if (!osTempSpaceAvailable()) {
-      terrno = TSDB_CODE_NO_AVAIL_DISK;
-      qError("Add to buf failed since %s", terrstr(terrno));
+      terrno = TSDB_CODE_NO_DISKSPACE;
+      qError("Add to buf failed since %s, tempDir:%s", terrstr(), tsTempDir);
       return terrno;
     }
 
@@ -261,9 +261,8 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
   // multi-pass internal merge sort is required
   if (pHandle->pBuf == NULL) {
     if (!osTempSpaceAvailable()) {
-      code = TSDB_CODE_NO_AVAIL_DISK;
-      terrno = code;
-      qError("Sort compare init failed since %s, %s", tstrerror(code), pHandle->idStr);
+      code = terrno = TSDB_CODE_NO_DISKSPACE;
+      qError("Sort compare init failed since %s, tempDir:%s, idStr:%s", terrstr(), tsTempDir, pHandle->idStr);
       return code;
     }
 

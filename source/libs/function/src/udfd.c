@@ -842,7 +842,7 @@ void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
 
 int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   if (!osDataSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
+    terrno = TSDB_CODE_NO_DISKSPACE;
     fnError("udfd create shared library failed since %s", terrstr(terrno));
     return terrno;
   }
