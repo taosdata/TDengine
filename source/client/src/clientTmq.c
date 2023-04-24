@@ -2357,7 +2357,7 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
     tmq_topic_assignment assignment = {.begin = pHead->walsver,
                                        .end = pHead->walever,
                                        .currentOffset = rsp.rspOffset.version,
-                                       .vgroupHandle = pParam->vgId};
+                                       .vgId = pParam->vgId};
 
     taosThreadMutexLock(&pCommon->mutex);
     taosArrayPush(pCommon->pList, &assignment);
@@ -2422,7 +2422,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
 
     pAssignment->begin = pClientVg->offsetInfo.walVerBegin;
     pAssignment->end = pClientVg->offsetInfo.walVerEnd;
-    pAssignment->vgroupHandle = pClientVg->vgId;
+    pAssignment->vgId = pClientVg->vgId;
   }
 
   if (needFetch) {
@@ -2524,7 +2524,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
   }
 }
 
-int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgroupHandle, int64_t offset) {
+int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_t offset) {
   if (tmq == NULL) {
     tscError("invalid tmq handle, null");
     return TSDB_CODE_INVALID_PARA;
@@ -2544,14 +2544,14 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgroupHandle
   int32_t      numOfVgs = taosArrayGetSize(pTopic->vgs);
   for (int32_t i = 0; i < numOfVgs; ++i) {
     SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, i);
-    if (pClientVg->vgId == vgroupHandle) {
+    if (pClientVg->vgId == vgId) {
       pVg = pClientVg;
       break;
     }
   }
 
   if (pVg == NULL) {
-    tscError("consumer:0x%" PRIx64 " invalid vgroup id:%d", tmq->consumerId, vgroupHandle);
+    tscError("consumer:0x%" PRIx64 " invalid vgroup id:%d", tmq->consumerId, vgId);
     return TSDB_CODE_INVALID_PARA;
   }
 
