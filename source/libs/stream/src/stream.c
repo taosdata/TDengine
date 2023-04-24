@@ -52,7 +52,7 @@ void streamCleanUp() {
 void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
-  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
+  if (streamTaskShouldStop(&pTask->status)) {
     streamMetaReleaseTask(NULL, pTask);
     return;
   }
