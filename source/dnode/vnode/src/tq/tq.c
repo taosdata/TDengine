@@ -1084,13 +1084,15 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   taosWLockLatch(&pTq->lock);
   for(size_t i = 0; i < taosArrayGetSize(pTq->pPushArray); i++){
     STqHandle* pHandle = (STqHandle*)taosArrayGetP(pTq->pPushArray, i);
-    if(pHandle->msg == NULL){
+    if(ASSERT(pHandle->msg != NULL)){
       tqError("pHandle->msg should not be null");
+      break;
+    }else{
+      SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME, .pCont = pHandle->msg->pCont, .contLen = pHandle->msg->contLen, .info = pHandle->msg->info};
+      tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+      taosMemoryFree(pHandle->msg);
+      pHandle->msg = NULL;
     }
-    SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME, .pCont = pHandle->msg->pCont, .contLen = pHandle->msg->contLen};
-    tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
-    taosMemoryFree(pHandle->msg);
-    pHandle->msg = NULL;
   }
   taosArrayClear(pTq->pPushArray);
   // unlock
