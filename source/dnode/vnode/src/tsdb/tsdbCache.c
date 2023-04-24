@@ -391,22 +391,15 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
 
   rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
   for (int i = 0; i < num_keys; ++i) {
-    SLastCol *pLastCol = NULL;
-    if (NULL != values_list[i]) {
-      pLastCol = tsdbCacheDeserialize(values_list[i]);
-    }
-
-    if (NULL != pLastCol || (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
+    SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
+    if (NULL != pLastCol && (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
       char   key[ROCKS_KEY_LEN];
       size_t klen = snprintf(key, ROCKS_KEY_LEN, "%" PRIi64 ":%" PRIi16 ":last", uid, pLastCol->colVal.cid);
       rocksdb_writebatch_delete(wb, key, klen);
     }
 
-    if (NULL != values_list[i + num_keys]) {
-      pLastCol = tsdbCacheDeserialize(values_list[i + num_keys]);
-    }
-
-    if (NULL != pLastCol || (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
+    pLastCol = tsdbCacheDeserialize(values_list[i + num_keys]);
+    if (NULL != pLastCol && (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
       char   key[ROCKS_KEY_LEN];
       size_t klen = snprintf(key, ROCKS_KEY_LEN, "%" PRIi64 ":%" PRIi16 ":last_row", uid, pLastCol->colVal.cid);
       rocksdb_writebatch_delete(wb, key, klen);
