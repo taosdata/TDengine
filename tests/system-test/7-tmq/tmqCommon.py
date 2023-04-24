@@ -170,7 +170,7 @@ class TMQCom:
                     if tdSql.getData(i, 1) == 1:
                         loopFlag = 0
                         break
-            time.sleep(0.02)
+            time.sleep(0.10)
         return
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
