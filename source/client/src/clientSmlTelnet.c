@@ -158,7 +158,8 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       return TSDB_CODE_TSC_INVALID_VALUE;
     }
 
-    if (unlikely(valueLen > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
+    if (unlikely(valueLen > (TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
+      TASSERT
       return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
     }
 

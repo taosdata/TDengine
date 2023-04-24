@@ -81,6 +81,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
       pVal->type = TSDB_DATA_TYPE_BINARY;
       pVal->length -= BINARY_ADD_LEN;
       if (pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+        TASSERT
         return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
       }
       pVal->value += (BINARY_ADD_LEN - 1);
@@ -94,6 +95,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
       pVal->type = TSDB_DATA_TYPE_NCHAR;
       pVal->length -= NCHAR_ADD_LEN;
       if (pVal->length > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+        TASSERT
         return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
       }
       pVal->value += (NCHAR_ADD_LEN - 1);
@@ -236,7 +238,8 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       PROCESS_SLASH(value, valueLen)
     }
 
-    if (unlikely(valueLen > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
+    if (unlikely(valueLen > (TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
+      TASSERT
       return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
     }
 
