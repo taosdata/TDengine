@@ -206,7 +206,15 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
 #endif
 
   if (taosDirExist(temp)) {
-    return chmod(temp, mode);
+    int r = chmod(temp, mode);
+    if (r == 0) return 0;
+    {
+      struct stat statbuf = {0};
+      int rr = stat(temp, &statbuf);
+      if (rr) return rr;
+      if ((statbuf.st_mode & mode) == mode) return 0;
+    }
+    return r;
   }
 
   if (strncmp(temp, TD_DIRSEP, 1) == 0) {
