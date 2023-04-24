@@ -741,7 +741,6 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   pReader->type = pCond->type;
   pReader->window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows);
   pReader->blockInfoBuf.numPerBucket = 1000;  // 1000 tables per bucket
-  pReader->status.pLDataIter = taosMemoryCalloc(pVnode->config.sttTrigger, sizeof(SLDataIter));
 
   if (pReader->pResBlock == NULL) {
     pReader->freeBlock = true;
@@ -771,6 +770,12 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   code = tBlockDataCreate(&pReader->status.fileBlockData);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
+    goto _end;
+  }
+
+  pReader->status.pLDataIter = taosMemoryCalloc(pVnode->config.sttTrigger, sizeof(SLDataIter));
+  if (pReader->status.pLDataIter == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
 
@@ -4368,29 +4373,38 @@ _err:
   return code;
 }
 
+static void clearSharedPtr(STsdbReader* p) {
+  p->status.pLDataIter = NULL;
+  p->status.pTableMap = NULL;
+  p->status.uidList.tableUidList = NULL;
+  p->pReadSnap = NULL;
+  p->pSchema = NULL;
+  p->pSchemaMap = NULL;
+}
+
+static void setSharedPtr(STsdbReader* pDst, const STsdbReader* pSrc) {
+  pDst->status.pTableMap = pSrc->status.pTableMap;
+  pDst->status.pLDataIter = pSrc->status.pLDataIter;
+  pDst->status.uidList = pSrc->status.uidList;
+  pDst->pSchema = pSrc->pSchema;
+  pDst->pSchemaMap = pSrc->pSchemaMap;
+  pDst->pReadSnap = pSrc->pReadSnap;
+}
+
 void tsdbReaderClose(STsdbReader* pReader) {
   if (pReader == NULL) {
     return;
   }
 
   tsdbAcquireReader(pReader);
+
   {
     if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
       STsdbReader* p = pReader->innerReader[0];
-
-      p->status.pTableMap = NULL;
-      p->status.uidList.tableUidList = NULL;
-      p->pReadSnap = NULL;
-      p->pSchema = NULL;
-      p->pSchemaMap = NULL;
+      clearSharedPtr(p);
 
       p = pReader->innerReader[1];
-
-      p->status.pTableMap = NULL;
-      p->status.uidList.tableUidList = NULL;
-      p->pReadSnap = NULL;
-      p->pSchema = NULL;
-      p->pSchemaMap = NULL;
+      clearSharedPtr(p);
 
       tsdbReaderClose(pReader->innerReader[0]);
       tsdbReaderClose(pReader->innerReader[1]);
@@ -4627,18 +4641,10 @@ int32_t tsdbReaderResume(STsdbReader* pReader) {
 
       // we need only one row
       pPrevReader->capacity = 1;
-      pPrevReader->status.pTableMap = pReader->status.pTableMap;
-      pPrevReader->status.uidList = pReader->status.uidList;
-      pPrevReader->pSchema = pReader->pSchema;
-      pPrevReader->pSchemaMap = pReader->pSchemaMap;
-      pPrevReader->pReadSnap = pReader->pReadSnap;
+      setSharedPtr(pPrevReader, pReader);
 
       pNextReader->capacity = 1;
-      pNextReader->status.pTableMap = pReader->status.pTableMap;
-      pNextReader->status.uidList = pReader->status.uidList;
-      pNextReader->pSchema = pReader->pSchema;
-      pNextReader->pSchemaMap = pReader->pSchemaMap;
-      pNextReader->pReadSnap = pReader->pReadSnap;
+      setSharedPtr(pNextReader, pReader);
 
       code = doOpenReaderImpl(pPrevReader);
       if (code != TSDB_CODE_SUCCESS) {
