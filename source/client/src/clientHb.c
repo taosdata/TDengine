@@ -87,11 +87,11 @@ static int32_t hbProcessUserPassInfoRsp(void *value, int32_t valueLen, SClientHb
         int32_t oldVer = atomic_load_32(&passInfo->ver);
         if (oldVer < rsp->version) {
           atomic_store_32(&passInfo->ver, rsp->version);
-          tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64 "\n", rsp->user, oldVer,
-                   atomic_load_32(&passInfo->ver), pTscObj->id);
           if (passInfo->fp) {
             (*passInfo->fp)(passInfo->param, &passInfo->ver, TAOS_NOTIFY_PASSVER);
           }
+          tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64, rsp->user, oldVer,
+                   atomic_load_32(&passInfo->ver), pTscObj->id);
         }
         break;
       }
