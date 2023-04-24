@@ -10,6 +10,7 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
