@@ -1371,6 +1371,8 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
 
   while (true) {
+    taosMemoryFreeClear(pMeta);
+
     char* pCond = taosHashGet(pTbs, tbFName, strlen(tbFName));
     if (pCond) {
       if (strlen(pCond) > 1) {
@@ -1412,7 +1414,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
         if (req->onlyCache) {
           res->metaNotExists = true;
           ctgDebug("suid %" PRIu64 " name not in cache for auth", pMeta->suid);
-          return TSDB_CODE_SUCCESS;
+          goto _return;
         }
 
         continue;
