@@ -84,12 +84,32 @@ class TDTestCase:
         elif count != 1:
             tdLog.exit(f"{sql}, expect result doesn't match")
         pass
+    
+    def user_privilege_error_check(self):
+        testconn = taos.connect(user='test', password='test')        
+        expectErrNotOccured = False
+        
+        sql_list = ["alter talbe db.stb_1 set t2 = 'Wuhan'", "drop table db.stb_1"]
+        
+        for sql in sql_list:
+            try:
+                res = testconn.execute(sql)                        
+            except BaseException:
+                expectErrNotOccured = True
+            
+            if expectErrNotOccured:
+                pass
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, expect error not occured")
+        pass
 
     def run(self):
         tdSql.prepare()        
         self.prepare_data()
         self.create_user()
-        self.user_privilege_check()        
+        self.user_privilege_check()
+        self.user_privilege_error_check()
                 
     def stop(self):
         tdSql.close()
