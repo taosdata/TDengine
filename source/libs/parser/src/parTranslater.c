@@ -2577,12 +2577,13 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
           pCxt->stableQuery = true;
         }
-        if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType && isSelectStmt(pCxt->pCurrStmt)) {
-          ((SSelectStmt*)pCxt->pCurrStmt)->isTimeLineResult = false;
-        }
-        if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType && isDeleteStmt(pCxt->pCurrStmt)) {
-          code = TSDB_CODE_TSC_INVALID_OPERATION;
-          break;
+        if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+          if (isSelectStmt(pCxt->pCurrStmt)) {
+            ((SSelectStmt*)pCxt->pCurrStmt)->isTimeLineResult = false;
+          } else if (isDeleteStmt(pCxt->pCurrStmt)) {
+            code = TSDB_CODE_TSC_INVALID_OPERATION;
+            break;
+          }
         }
         code = addNamespace(pCxt, pRealTable);
       }
