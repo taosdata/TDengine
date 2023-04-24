@@ -156,6 +156,7 @@ typedef struct SReaderStatus {
   SBlockData            fileBlockData;
   SFilesetIter          fileIter;
   SDataBlockIter        blockIter;
+  SLDataIter*           pLDataIter;
 } SReaderStatus;
 
 typedef struct SBlockInfoBuf {
@@ -185,7 +186,6 @@ struct STsdbReader {
   STsdbReadSnap*     pReadSnap;
   SIOCostSummary     cost;
   STSchema*          pSchema;  // the newest version schema
-  //  STSchema*          pMemSchema;   // the previous schema for in-memory data, to avoid load schema too many times
   SSHashObj*    pSchemaMap;   // keep the retrieved schema info, to avoid the overhead by repeatly load schema
   SDataFReader* pFileReader;  // the file reader
   SDelFReader*  pDelFReader;  // the del file reader
@@ -741,6 +741,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   pReader->type = pCond->type;
   pReader->window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows);
   pReader->blockInfoBuf.numPerBucket = 1000;  // 1000 tables per bucket
+  pReader->status.pLDataIter = taosMemoryCalloc(pVnode->config.sttTrigger, sizeof(SLDataIter));
 
   if (pReader->pResBlock == NULL) {
     pReader->freeBlock = true;
@@ -2547,7 +2548,7 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
             pScanInfo->uid, pReader->idStr);
   int32_t code = tMergeTreeOpen(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC),
                                 pReader->pFileReader, pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange,
-                                pLBlockReader->pInfo, false, pReader->idStr, false);
+                                pLBlockReader->pInfo, false, pReader->idStr, false, pReader->status.pLDataIter);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }

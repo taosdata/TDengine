@@ -705,7 +705,6 @@ typedef struct SSttBlockLoadInfo {
 typedef struct SMergeTree {
   int8_t             backward;
   SRBTree            rbt;
-  SArray            *pIterList;
   SLDataIter        *pIter;
   bool               destroyLoadInfo;
   SSttBlockLoadInfo *pLoadInfo;
@@ -751,9 +750,25 @@ struct SDiskDataBuilder {
   SBlkInfo     bi;
 };
 
+typedef struct SLDataIter {
+  SRBTreeNode        node;
+  SSttBlk           *pSttBlk;
+  SDataFReader      *pReader;
+  int32_t            iStt;
+  int8_t             backward;
+  int32_t            iSttBlk;
+  int32_t            iRow;
+  SRowInfo           rInfo;
+  uint64_t           uid;
+  STimeWindow        timeWindow;
+  SVersionRange      verRange;
+  SSttBlockLoadInfo *pBlockLoadInfo;
+  bool               ignoreEarlierTs;
+} SLDataIter;
+
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
-                       bool destroyLoadInfo, const char *idStr, bool strictTimeRange);
+                       bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter* pLDataIter);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
@@ -782,6 +797,7 @@ typedef struct SCacheRowsReader {
   STableKeyInfo     *pTableList;  // table id list
   int32_t            numOfTables;
   SSttBlockLoadInfo *pLoadInfo;
+  SLDataIter        *pDataIter;
   STsdbReadSnap     *pReadSnap;
   SDataFReader      *pDataFReader;
   SDataFReader      *pDataFReaderLast;
