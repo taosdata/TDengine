@@ -288,7 +288,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, lstring);
       if (TARRAY_SIZE(pRow) <= 0) {
-        taosArrayDestroy(pRow);
+        taosArrayClear(pRow);
         continue;
       }
 
@@ -357,7 +357,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, lstring);
       if (TARRAY_SIZE(pRow) <= 0) {
-        taosArrayDestroy(pRow);
+        taosArrayClear(pRow);
         continue;
       }
 

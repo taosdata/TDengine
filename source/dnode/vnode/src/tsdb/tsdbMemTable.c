@@ -140,7 +140,6 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   SMemTable *pMemTable = pTsdb->mem;
   STbData   *pTbData = NULL;
   SVBufPool *pPool = pTsdb->pVnode->inUse;
-  TSDBKEY    lastKey = {.version = version, .ts = eKey};
 
   // check if table exists
   SMetaInfo info;
@@ -181,13 +180,17 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   pMemTable->nDel++;
   pMemTable->minVer = TMIN(pMemTable->minVer, version);
   pMemTable->maxVer = TMIN(pMemTable->maxVer, version);
-
+  /*
   if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config) && tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
     tsdbCacheDeleteLastrow(pTsdb->lruCache, pTbData->uid, eKey);
   }
 
   if (TSDB_CACHE_LAST(pMemTable->pTsdb->pVnode->config)) {
     tsdbCacheDeleteLast(pTsdb->lruCache, pTbData->uid, eKey);
+  }
+  */
+  if (eKey >= pTbData->maxKey && sKey <= pTbData->maxKey) {
+    tsdbCacheDel(pTsdb, suid, uid, sKey, eKey);
   }
 
   tsdbTrace("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
