@@ -263,7 +263,7 @@ DLL_EXPORT const char *tmq_err2str(int32_t code);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
 typedef struct tmq_topic_assignment {
-  int32_t  vgroupHandle;
+  int32_t  vgId;
   int64_t  currentOffset;
   int64_t  begin;
   int64_t  end;
@@ -277,7 +277,7 @@ DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
 DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
 DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
 DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char* pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment);
-DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char* pTopicName, int32_t vgroupHandle, int64_t offset);
+DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char* pTopicName, int32_t vgId, int64_t offset);
 
 /* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
 
