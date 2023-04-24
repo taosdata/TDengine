@@ -3792,6 +3792,11 @@ static int32_t translateDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
 }
 
 static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
+  // check delete from system tables
+  if (isSystemDb(((SRealTableNode*)pDelete->pFromTable)->table.dbName)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   pCxt->pCurrStmt = (SNode*)pDelete;
   int32_t code = translateFrom(pCxt, pDelete->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
