@@ -21,8 +21,10 @@
 
 typedef struct {
   union {
-    int64_t clusterId;
-    int32_t passKeyCnt;
+    struct {
+      int64_t clusterId;
+      int32_t passKeyCnt;
+    };
   };
 } SHbParam;
 
