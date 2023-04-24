@@ -41,6 +41,7 @@ typedef struct STdbState {
   void*                            param;
   void*                            env;
   void*                            compactFactory;
+  rocksdb_cache_t*                 cache;
 
   TDB* db;
   TTB* pStateDb;
