@@ -87,19 +87,7 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
     return -1;
   }
 
-  if (pWin1->key.ts > pWin2->key.ts) {
-    return 1;
-  } else if (pWin1->key.ts < pWin2->key.ts) {
-    return -1;
-  }
-
-  if (pWin1->key.groupId > pWin2->key.groupId) {
-    return 1;
-  } else if (pWin1->key.groupId < pWin2->key.groupId) {
-    return -1;
-  }
-
-  return 0;
+  return winKeyCmprImpl(&pWin1->key, &pWin2->key);
 }
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {

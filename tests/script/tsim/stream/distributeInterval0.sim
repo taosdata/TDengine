@@ -42,7 +42,7 @@ sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
-sql create stream stream_t1 trigger at_once watermark 1d into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
+sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
 
 sleep 1000
 
@@ -416,7 +416,7 @@ sql use test1;
 sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
-sql create stream stream_t2 trigger at_once  watermark 20s into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
+sql create stream stream_t2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 20s into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
 
 sql insert into ts1 values(1648791211000,1,2,3);
 sql insert into ts1 values(1648791222001,2,2,3);
@@ -498,7 +498,7 @@ sql create table ccc using st tags(3,2,2);
 sql create table ddd using st tags(4,2,2);
 
 
-sql create stream streams1 ignore expired 0 fill_history 0 watermark 3s into streamst subtable(c) as select  _wstart, c , count(*) c1, last_row(b) c2  from st partition by c interval(1s) ;
+sql create stream streams1 IGNORE EXPIRED 0 IGNORE UPDATE 0  fill_history 0 watermark 3s into streamst subtable(c) as select  _wstart, c , count(*) c1, last_row(b) c2  from st partition by c interval(1s) ;
 
 sql insert into aaa values(1648791221001,2,2,"/a1/aa/aa");
 sql insert into bbb values(1648791221001,2,2,"/a1/aa/aa");

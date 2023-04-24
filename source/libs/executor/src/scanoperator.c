@@ -1745,7 +1745,7 @@ static void setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
 }
 
 static void doCheckUpdate(SStreamScanInfo* pInfo, TSKEY endKey, SSDataBlock* pBlock) {
-  if (pInfo->pUpdateInfo) {
+  if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
     pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pBlock->info.version);
     checkUpdateData(pInfo, true, pBlock, true);
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, endKey);
