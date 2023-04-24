@@ -4,13 +4,14 @@ go 1.20
 
 require (
 	github.com/BurntSushi/toml v1.2.1
-	github.com/apache/arrow/go/v12 v12.0.0-20230417195444-9824ffcd48e4
+	github.com/apache/arrow/go/v12 v12.0.0-20230424061852-cd14e2019ce9
 	github.com/huskar-t/opcua v0.0.0-20221116012318-63000ef63f36
 	github.com/konimarti/opc v0.3.1
 )
 
 require (
 	github.com/andybalholm/brotli v1.0.5 // indirect
+	github.com/apache/arrow v0.0.0-20230424061852-cd14e2019ce9 // indirect
 	github.com/apache/thrift v0.18.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

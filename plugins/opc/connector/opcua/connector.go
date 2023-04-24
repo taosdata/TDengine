@@ -9,7 +9,8 @@ import (
 )
 
 type UaConnector struct {
-	reader *reader
+	reader      *reader
+	collectMode string
 }
 
 var _ connector.Connector = (*UaConnector)(nil)
@@ -21,7 +22,7 @@ func NewConnector(config common.Config) (connector.Connector, error) {
 		return nil, err
 	}
 
-	return &UaConnector{reader: r}, nil
+	return &UaConnector{reader: r, collectMode: config.Collect.Ua.CollectMode}, nil
 }
 
 func (c *UaConnector) Connect(ctx context.Context) error {
@@ -41,6 +42,9 @@ func (c *UaConnector) Stop(ctx context.Context) {
 }
 
 func (c *UaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, error) {
+	if c.collectMode == common.OPcUaSubscribeType {
+		return c.reader.subscribe(ctx)
+	}
 	return c.reader.read(ctx)
 }
 

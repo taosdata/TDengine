@@ -24,6 +24,7 @@ type ArrowReporter struct {
 	address   *net.TCPAddr
 	ipcWriter sync.Map // key-valueType, value- *schema
 	debug     bool
+	mutex     sync.Mutex
 }
 
 var _ Reporter = (*ArrowReporter)(nil)
@@ -131,6 +132,13 @@ func (r *ArrowReporter) getWriterAndSchemaByValueType(valueType common.ValueType
 		return sc.(*writerAndSchema), nil
 	}
 
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if sc, ok := r.ipcWriter.Load(valueType); ok {
+		return sc.(*writerAndSchema), nil
+	}
+
 	dataType, err := r.getDataType(valueType)
 	if err != nil {
 		return nil, err
@@ -147,6 +155,10 @@ func (r *ArrowReporter) getWriterAndSchemaByValueType(valueType common.ValueType
 	conn, err := net.DialTCP("tcp", nil, r.address)
 	if err != nil {
 		return nil, fmt.Errorf("conn to taosx error %v", err)
+	}
+	if r.debug {
+		log.Println("## create connection for value type to taosx", "address", r.address.String(), "valueType",
+			valueType)
 	}
 	writer := ipc.NewWriter(conn, ipc.WithSchema(schema))
 	ws = &writerAndSchema{writer: writer, conn: conn, schema: schema}

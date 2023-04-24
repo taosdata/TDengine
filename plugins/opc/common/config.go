@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	OpcTypeUA = "opcua"
-	OpcTypeDA = "opcda"
+	OpcTypeUA          = "opcua"
+	OpcTypeDA          = "opcda"
+	OpcUaObserveType   = "observe"
+	OPcUaSubscribeType = "subscribe"
 )
 
 type Config struct {
@@ -53,7 +55,8 @@ type CollectConfig struct {
 }
 
 type UaCollectConfig struct {
-	Nodes []NodeConfig `json:"nodes,omitempty" yaml:"nodes" toml:"nodes"`
+	CollectMode string       `json:"collect_mode,omitempty" yaml:"collect_mode" toml:"collect_mode"` // collect mode, one of `read` or `subscribe`
+	Nodes       []NodeConfig `json:"nodes,omitempty" yaml:"nodes" toml:"nodes"`
 }
 
 type DaCollectConfig struct {
@@ -172,6 +175,9 @@ func (d *DaConnectConfig) Validate() error {
 }
 
 func (c *UaCollectConfig) Validate() error {
+	if c.CollectMode == "" {
+		c.CollectMode = OpcUaObserveType
+	}
 	if len(c.Nodes) == 0 {
 		return fmt.Errorf("nodes is null")
 	}

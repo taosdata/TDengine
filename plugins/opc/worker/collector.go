@@ -9,8 +9,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -28,6 +28,7 @@ type OpcCollector struct {
 	batchDuration    time.Duration
 	nodeValueCh      chan []*common.NodeValue
 	reportConcurrent int
+	once             sync.Once
 }
 
 func NewCollector(config common.Config) (*OpcCollector, error) {
@@ -72,9 +73,19 @@ func (c *OpcCollector) Collect(ctx context.Context) error {
 	return c.collect(ctx)
 }
 
-func (c *OpcCollector) Stop(_ context.Context) {
-	log.Println("## stop worker!")
-	close(c.done)
+func (c *OpcCollector) Stop(ctx context.Context) {
+	c.once.Do(func() {
+		log.Println("## stop worker!")
+		if c.collector != nil {
+			c.collector.Stop(ctx)
+		}
+		if c.reporter != nil {
+			c.reporter.Close()
+		}
+
+		close(c.done)
+		time.Sleep(2 * time.Second)
+	})
 }
 
 func (c *OpcCollector) collect(ctx context.Context) error {
@@ -113,7 +124,9 @@ func (c *OpcCollector) collect(ctx context.Context) error {
 		select {
 		case value, ok := <-ch:
 			if !ok {
-				continue
+				// ch is close. and should exist
+				f(0)
+				return nil
 			}
 			if _, exists := values[value.Identifier]; !exists {
 				values[value.Identifier] = make([]*common.NodeValue, 0, c.batchSize)
@@ -144,7 +157,8 @@ func (c *OpcCollector) doReport() {
 
 func (c *OpcCollector) report(ctx context.Context, values []*common.NodeValue) {
 	if err := c.reporter.Report(ctx, values); err != nil {
-		log.Printf("## report node value error %v", err)
-		os.Exit(2)
+		log.Printf("## report node value error, and exit %v", err)
+		// report data error, and exit
+		c.Stop(ctx)
 	}
 }
