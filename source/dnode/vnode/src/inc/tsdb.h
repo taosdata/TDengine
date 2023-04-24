@@ -126,11 +126,13 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter);
 // SRowMerger
 int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
 int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
-
-// int32_t tsdbRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
 void tsdbRowMergerClear(SRowMerger *pMerger);
-// int32_t tsdbRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
 int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow);
+
+int32_t tsdbRowMergerInit_rv(SRowMerger* pMerger, STSchema *pSchema);
+void tsdbRowMergerClear_rv(SRowMerger* pMerger);
+void tsdbRowMergerCleanup_rv(SRowMerger* pMerger);
+
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 // TSDBKEY
