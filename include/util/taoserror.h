@@ -437,6 +437,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_VND_STOPPED                   TAOS_DEF_ERROR_CODE(0, 0x0529)
 #define TSDB_CODE_VND_DUP_REQUEST               TAOS_DEF_ERROR_CODE(0, 0x0530)
 #define TSDB_CODE_VND_QUERY_BUSY                TAOS_DEF_ERROR_CODE(0, 0x0531)
+#define TSDB_CODE_VND_NOT_CATCH_UP              TAOS_DEF_ERROR_CODE(0, 0x0532) // internal
+#define TSDB_CODE_VND_ALREADY_IS_VOTER          TAOS_DEF_ERROR_CODE(0, 0x0533) // internal
 
 // tsdb
 #define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)

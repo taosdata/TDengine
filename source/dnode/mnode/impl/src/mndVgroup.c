@@ -1263,6 +1263,8 @@ int32_t mndAddAlterVnodeTypeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, 
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_ALTER_VNODE_TYPE;
+  action.acceptableCode = TSDB_CODE_VND_ALREADY_IS_VOTER;
+  action.retryCode = TSDB_CODE_VND_NOT_CATCH_UP;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);

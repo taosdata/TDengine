@@ -580,25 +580,37 @@ int32_t syncIsCatchUp(int64_t rid) {
     return -1;
   }
 
-  while(1){
-    if(pSyncNode->pLogBuf->totalIndex < 0 || pSyncNode->pLogBuf->commitIndex < 0 ||
-        pSyncNode->pLogBuf->totalIndex < pSyncNode->pLogBuf->commitIndex ||
-        pSyncNode->pLogBuf->totalIndex - pSyncNode->pLogBuf->commitIndex > SYNC_LEARNER_CATCHUP){
-      sInfo("vgId:%d, Not catch up, wait one second, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
-                                    pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex, 
-                                    pSyncNode->pLogBuf->matchIndex);
-      taosSsleep(1);
-    }
-    else{
-      sInfo("vgId:%d, Catch up, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
-                                    pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex,
-                                    pSyncNode->pLogBuf->matchIndex);
-      break;
-    }
+  int32_t isCatchUp = 0;
+  if(pSyncNode->pLogBuf->totalIndex < 0 || pSyncNode->pLogBuf->commitIndex < 0 ||
+      pSyncNode->pLogBuf->totalIndex < pSyncNode->pLogBuf->commitIndex ||
+      pSyncNode->pLogBuf->totalIndex - pSyncNode->pLogBuf->commitIndex > SYNC_LEARNER_CATCHUP){
+    sInfo("vgId:%d, Not catch up, wait one second, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
+                                  pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex, 
+                                  pSyncNode->pLogBuf->matchIndex);
+    isCatchUp = 0;
+  }
+  else{
+    sInfo("vgId:%d, Catch up, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
+                                  pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex,
+                                  pSyncNode->pLogBuf->matchIndex);
+    isCatchUp = 1;
   }
   
   syncNodeRelease(pSyncNode);
-  return 0;
+  return isCatchUp;
+}
+
+ESyncRole syncGetRole(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    sError("sync Node Acquire error since %d", errno);
+    return -1;
+  }
+
+  ESyncRole role = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole;
+  
+  syncNodeRelease(pSyncNode);
+  return role;
 }
 
 int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq) {
