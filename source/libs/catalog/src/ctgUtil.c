@@ -1376,11 +1376,11 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
     char* pCond = taosHashGet(pTbs, tbFName, strlen(tbFName));
     if (pCond) {
       if (strlen(pCond) > 1) {
-        CTG_ERR_RET(nodesStringToNode(pCond, &res->pRawRes->pCond));
+        CTG_ERR_JRET(nodesStringToNode(pCond, &res->pRawRes->pCond));
       }
 
       res->pRawRes->pass = true;
-      return TSDB_CODE_SUCCESS;
+      goto _return;
     }
 
     if (stbName) {
@@ -1388,19 +1388,19 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       goto _return;
     }
 
-    CTG_ERR_RET(catalogGetCachedTableMeta(pCtg, &req->pRawReq->tbName, &pMeta));
+    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, &req->pRawReq->tbName, &pMeta));
     if (NULL == pMeta) {
       if (req->onlyCache) {
         res->metaNotExists = true;
         ctgDebug("db %s tb %s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
-        return TSDB_CODE_SUCCESS;
+        goto _return;
       }
 
       SCtgTbMetaCtx ctx = {0};
       ctx.pName = (SName*)&req->pRawReq->tbName;
       ctx.flag = CTG_FLAG_UNKNOWN_STB | CTG_FLAG_SYNC_OP;
 
-      CTG_ERR_RET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
+      CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
     if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
@@ -1431,6 +1431,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 _return:
 
   taosMemoryFree(pMeta);
+  taosMemoryFree(stbName);
 
   CTG_RET(code);
 }
