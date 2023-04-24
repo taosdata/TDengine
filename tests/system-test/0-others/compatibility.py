@@ -17,12 +17,12 @@ from util.dnodes import TDDnode
 from util.cluster import *
 import subprocess
 
-BASEVERSION = "3.0.1.8"
+BASEVERSION = "3.0.2.3"
 class TDTestCase:
     def caseDescription(self):
-        '''
+        f'''
         3.0 data compatibility test 
-        case1: basedata version is 3.0.1.8
+        case1: basedata version is {BASEVERSION}
         '''
         return
 

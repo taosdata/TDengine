@@ -51,6 +51,16 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
