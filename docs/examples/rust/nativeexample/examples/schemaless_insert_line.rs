@@ -25,6 +25,9 @@ async fn put_line() -> anyhow::Result<()> {
         .exec(format!("create database if not exists {db}"))
         .await?;
 
+    // should specify database before insert
+    client.exec(format!("use {db}")).await?;
+
     let data = [
         "measurement,host=host1 field1=2i,field2=2.0 1577837300000",
         "measurement,host=host1 field1=2i,field2=2.0 1577837400000",
@@ -36,7 +39,6 @@ async fn put_line() -> anyhow::Result<()> {
 
     // demo with all fields
     let sml_data = SmlDataBuilder::default()
-        .db(db.to_string())
         .protocol(SchemalessProtocol::Line)
         .precision(SchemalessPrecision::Millisecond)
         .data(data.clone())
@@ -47,7 +49,6 @@ async fn put_line() -> anyhow::Result<()> {
 
     // demo with default ttl
     let sml_data = SmlDataBuilder::default()
-        .db(db.to_string())
         .protocol(SchemalessProtocol::Line)
         .precision(SchemalessPrecision::Millisecond)
         .data(data.clone())
@@ -57,7 +58,6 @@ async fn put_line() -> anyhow::Result<()> {
 
     // demo with default ttl and req_id 
     let sml_data = SmlDataBuilder::default()
-        .db(db.to_string())
         .protocol(SchemalessProtocol::Line)
         .precision(SchemalessPrecision::Millisecond)
         .data(data.clone())
@@ -66,7 +66,6 @@ async fn put_line() -> anyhow::Result<()> {
 
     // demo with default precision
     let sml_data = SmlDataBuilder::default()
-        .db(db.to_string())
         .protocol(SchemalessProtocol::Line)
         .data(data)
         .req_id(103u64)

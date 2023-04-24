@@ -24,6 +24,8 @@ async fn put_telnet() -> anyhow::Result<()> {
         .exec(format!("create database if not exists {db}"))
         .await?;
 
+    // should specify database before insert
+    client.exec(format!("use {db}")).await?;
 
     let data = [
         "meters.current 1648432611249 10.3 location=California.SanFrancisco group=2",
@@ -40,7 +42,6 @@ async fn put_telnet() -> anyhow::Result<()> {
 
     // demo with all fields
     let sml_data = SmlDataBuilder::default()
-        .db(db.to_string())
         .protocol(SchemalessProtocol::Telnet)
         .precision(SchemalessPrecision::Millisecond)
         .data(data.clone())
@@ -51,7 +52,6 @@ async fn put_telnet() -> anyhow::Result<()> {
 
     // demo with default precision
     let sml_data = SmlDataBuilder::default()
-        .db(db.to_string())
         .protocol(SchemalessProtocol::Telnet)
         .data(data.clone())
         .ttl(1000)
@@ -61,7 +61,6 @@ async fn put_telnet() -> anyhow::Result<()> {
 
     // demo with default ttl
     let sml_data = SmlDataBuilder::default()
-        .db(db.to_string())
         .protocol(SchemalessProtocol::Telnet)
         .data(data.clone())
         .req_id(202u64)
@@ -70,7 +69,6 @@ async fn put_telnet() -> anyhow::Result<()> {
 
     // demo with default req_id
     let sml_data = SmlDataBuilder::default()
-        .db(db.to_string())
         .protocol(SchemalessProtocol::Telnet)
         .data(data.clone())
         .build()?;
