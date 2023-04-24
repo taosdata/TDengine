@@ -101,6 +101,7 @@ typedef struct TAOS_FIELD_E {
 #endif
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *res, int code);
+typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type);
 
 typedef struct TAOS_MULTI_BIND {
   int       buffer_type;
@@ -120,6 +121,10 @@ typedef enum {
   SET_CONF_RET_ERR_ONLY_ONCE = -5,
   SET_CONF_RET_ERR_TOO_LONG = -6
 } SET_CONF_RET_CODE;
+
+typedef enum {
+  TAOS_NOTIFY_PASSVER = 0,
+} TAOS_NOTIFY_TYPE;
 
 #define RET_MSG_LENGTH 1024
 typedef struct setConfRet {
@@ -224,6 +229,8 @@ DLL_EXPORT int taos_get_table_vgId(TAOS *taos, const char *db, const char *table
 DLL_EXPORT int taos_get_tables_vgId(TAOS *taos, const char *db, const char *table[], int tableNum, int *vgId);
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char *tableNameList);
+
+DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type);
 
 /*  --------------------------schemaless INTERFACE------------------------------- */
 
