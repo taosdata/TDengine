@@ -201,6 +201,11 @@ static void taosStopLog() {
 void taosCloseLog() {
   taosStopLog();
 
+  if (tsLogObj.logHandle != NULL && taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
+    taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
+    taosThreadClear(&tsLogObj.logHandle->asyncThread);
+  }
+
   if (tsLogObj.slowHandle != NULL) {
     taosThreadMutexDestroy(&tsLogObj.slowHandle->buffMutex);
     taosCloseFile(&tsLogObj.slowHandle->pFile);
@@ -209,10 +214,6 @@ void taosCloseLog() {
   }
 
   if (tsLogObj.logHandle != NULL) {
-    if (tsLogObj.logHandle != NULL && taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
-      taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
-      taosThreadClear(&tsLogObj.logHandle->asyncThread);
-    }
     tsLogInited = 0;
 
     taosThreadMutexDestroy(&tsLogObj.logHandle->buffMutex);
