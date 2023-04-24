@@ -102,6 +102,13 @@ int32_t walNextValidMsg(SWalReader *pReader) {
 
 int64_t walReaderGetCurrentVer(const SWalReader *pReader) { return pReader->curVersion; }
 
+void walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever) {
+  *sver = walGetFirstVer(pReader->pWal);
+  int64_t lastVer = walGetLastVer(pReader->pWal);
+  int64_t committedVer = walGetCommittedVer(pReader->pWal);
+  *ever = pReader->cond.scanUncommited ? lastVer : committedVer;
+}
+
 static int64_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int64_t ver) {
   int64_t ret = 0;
 

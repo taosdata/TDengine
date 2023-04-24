@@ -1511,7 +1511,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   rspObj.resType = RES_TYPE__TMQ;
 
   tDecoderInit(&decoder, data, dataLen);
-  code = tDecodeSMqDataRsp(&decoder, &rspObj.rsp);
+  code = tDecodeMqDataRsp(&decoder, &rspObj.rsp);
   if (code != 0) {
     uError("WriteRaw:decode smqDataRsp error");
     code = TSDB_CODE_INVALID_MSG;
@@ -1615,7 +1615,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   code = pRequest->code;
 
 end:
-  tDeleteSMqDataRsp(&rspObj.rsp);
+  tDeleteMqDataRsp(&rspObj.rsp);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
@@ -1858,7 +1858,7 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
 
     int32_t len = 0;
     int32_t code = 0;
-    tEncodeSize(tEncodeSMqDataRsp, &rspObj->rsp, len, code);
+    tEncodeSize(tEncodeMqDataRsp, &rspObj->rsp, len, code);
     if (code < 0) {
       return -1;
     }
@@ -1866,7 +1866,7 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
     void*    buf = taosMemoryCalloc(1, len);
     SEncoder encoder = {0};
     tEncoderInit(&encoder, buf, len);
-    tEncodeSMqDataRsp(&encoder, &rspObj->rsp);
+    tEncodeMqDataRsp(&encoder, &rspObj->rsp);
     tEncoderClear(&encoder);
 
     raw->raw = buf;

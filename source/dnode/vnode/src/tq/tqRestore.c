@@ -52,32 +52,8 @@ int tqStreamTasksScanWal(STQ* pTq) {
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   tqInfo("vgId:%d scan wal for stream tasks completed, elapsed time:%.2f sec", vgId, el);
-
-  // restore wal scan flag
-//  atomic_store_8(&pTq->pStreamMeta->walScan, 0);
   return 0;
 }
-
-//int32_t transferToNormalTask(SStreamMeta* pStreamMeta, SArray* pTaskList) {
-//  int32_t numOfTask = taosArrayGetSize(pTaskList);
-//  if (numOfTask <= 0)  {
-//    return TSDB_CODE_SUCCESS;
-//  }
-//
-//  // todo: add lock
-//  for (int32_t i = 0; i < numOfTask; ++i) {
-//    SStreamTask* pTask = taosArrayGetP(pTaskList, i);
-//    tqDebug("vgId:%d transfer s-task:%s state restore -> ready, checkpoint:%" PRId64 " checkpoint id:%" PRId64,
-//            pStreamMeta->vgId, pTask->id.idStr, pTask->chkInfo.version, pTask->chkInfo.id);
-//    taosHashRemove(pStreamMeta->pWalReadTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
-//
-//    // NOTE: do not change the following order
-//    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
-//    taosHashPut(pStreamMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, POINTER_BYTES);
-//  }
-//
-//  return TSDB_CODE_SUCCESS;
-//}
 
 int32_t streamTaskReplayWal(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetStore, bool* pScanIdle) {
   void*   pIter = NULL;
@@ -99,8 +75,8 @@ int32_t streamTaskReplayWal(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetSto
       continue;
     }
 
-    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE ||
-        pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
+    int8_t status = pTask->status.taskStatus;
+    if (status == TASK_STATUS__RECOVER_PREPARE || status == TASK_STATUS__WAIT_DOWNSTREAM) {
       tqDebug("s-task:%s skip push data, not ready for processing, status %d", pTask->id.idStr,
               pTask->status.taskStatus);
       continue;
