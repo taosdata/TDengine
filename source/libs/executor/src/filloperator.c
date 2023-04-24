@@ -1258,7 +1258,8 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           continue;
         } break;
         case STREAM_NORMAL:
-        case STREAM_INVALID: {
+        case STREAM_INVALID: 
+        case STREAM_PULL_DATA: {
           doApplyStreamScalarCalculation(pOperator, pBlock, pInfo->pSrcBlock);
           memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
           pInfo->srcRowIndex = 0;
@@ -1267,7 +1268,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           return pBlock;
         } break;
         default:
-          ASSERTS(pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
+          ASSERTS(false, "invalid SSDataBlock type");
       }
     }
 
