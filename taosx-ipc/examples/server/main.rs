@@ -1,13 +1,14 @@
 use std::{
+    any::Any,
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path, any::Any,
+    path::Path,
 };
 use taos::sync::*;
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
-    stream::{point::PointMessage, flat::FlatMessage},
+    stream::{flat::FlatMessage, point::PointMessage},
 };
 use tokio::runtime::Runtime;
 use tracing::{info, instrument};
@@ -67,7 +68,11 @@ fn ipc_test<R: Read, W: Write>(
     Ok(())
 }
 
-fn handle_flat_message<R: Read, W: Write>(ipc_reader: IpcReader<R>, taos: Taos, mut ipc_ack_writer: AckWriter<W>) -> anyhow::Result<()> {
+fn handle_flat_message<R: Read, W: Write>(
+    ipc_reader: IpcReader<R>,
+    taos: Taos,
+    mut ipc_ack_writer: AckWriter<W>,
+) -> anyhow::Result<()> {
     let mut map = HashMap::new();
     map.insert(
         String::from("topic1"),

@@ -10,16 +10,31 @@ anyhow = "1"
 atty = "0.2.14"
 clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "2.0.0"
-log = { version = "0.4", features = ["serde"] }
-twelf = { version = "0.10.0", default-features = false, features = ["toml", "env", "clap"] }
 dotenv = "0.15.0"
+log = { version = "0.4", features = ["serde"] }
 shadow-rs = "0.21.0"
 thiserror = "1"
+twelf = { version = "0.10.0", default-features = false, features = ["toml", "env", "clap"] }
 
-tonic = { version = "0.8.3" }
+chrono = "0.4.24"
+chrono-tz = "0.8.2"
+dashmap = "5.4.0"
+flume = "0.10.14"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+arrow = { workspace = true, features = ["chrono-tz"] }
+arrow-flight = { workspace = true }
+tonic = { workspace = true }
+
+futures = "0.3"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7" }
 tracing = { version = "0.1", features = ["log"] }
-tracing-subscriber = "0.3"
 
+taosx-core = { path = "../taosx-core" }
+
+tracing-subscriber = "0.3"
 [build-dependencies]
 dotenv = "0.15.0"
 shadow-rs = "0.21.0"

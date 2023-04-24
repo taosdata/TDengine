@@ -6,6 +6,7 @@ mod taoz;
 mod tmq;
 mod tmq_to_local;
 mod tmq_to_td;
+pub mod types;
 
 mod transform;
 pub mod utils;
@@ -47,6 +48,7 @@ pub struct TaskOpts {
     pub compression_level: Option<usize>,
     pub force: bool,
     pub cancel: CancellationToken,
+    pub with_agent: Option<(i64, String, String)>,
     // pub port_pool: OnceCell<PortPool>
 }
 
@@ -72,6 +74,7 @@ impl TaskOpts {
             compression_level: _,
             force,
             cancel,
+            with_agent,
             // port_pool,
         } = self;
 
@@ -110,6 +113,7 @@ impl TaskOpts {
                         *jobs,
                         port_pool,
                         cancel.clone(),
+                        with_agent.clone(),
                     )
                     .await?;
                 }
@@ -121,11 +125,20 @@ impl TaskOpts {
                         *jobs,
                         port_pool,
                         cancel.clone(),
+                        with_agent.clone(),
                     )
                     .await?;
                 }
                 ("mqtt", "taos") => {
-                    plugins::mqtt_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, port_pool, cancel.clone()).await?;
+                    plugins::mqtt_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        port_pool,
+                        cancel.clone(),
+                    )
+                    .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }

@@ -1,6 +1,6 @@
 pub mod components;
-pub mod point;
 pub mod flat;
+pub mod point;
 pub mod reader;
 pub mod writer;
 

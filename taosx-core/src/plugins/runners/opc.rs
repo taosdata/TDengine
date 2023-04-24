@@ -5,7 +5,10 @@ use std::{
 
 use anyhow::Context;
 use itertools::Itertools;
-use taos::{taos_query::helpers::ColumnMeta, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{
+    taos_query::{block_in_place_or_global, helpers::ColumnMeta},
+    AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, Taos, TaosBuilder,
+};
 use taosx_ipc::prelude::IpcDataType;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
@@ -62,7 +65,7 @@ enum OpcError {
 }
 
 #[derive(Debug, serde::Serialize)]
-struct OPCConfig {
+pub struct OPCConfig {
     opc_type: OpcType,
     debug: bool,
     connect: ConnectConfig,
@@ -74,6 +77,93 @@ struct OPCConfig {
     #[serde(skip)]
     /// table_info: table_name, Vec<(field, type)>
     table_info: HashMap<String, Vec<(String, String)>>,
+}
+
+impl OPCConfig {
+    pub async fn parse_tables_with(&self, taos: &Taos) -> anyhow::Result<OpcTableConfig> {
+        let mut ts_cloumn_name_map = HashMap::new();
+        for (table_name, field_info) in &self.table_info {
+            let res = taos.describe(&table_name).await;
+            if res.is_err() {
+                // table not exists, will create normal table
+                let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
+                log::info!("table {table_name} use `ts` as ts column");
+                ts_cloumn_name_map.insert(table_name.clone(), String::from("ts"));
+                for (field, field_type) in field_info {
+                    sql.push_str(format!(", `{field}` {field_type}").as_str());
+                }
+                sql.push_str(")");
+                log::info!("create normal table: {table_name}, sql: {sql}");
+                taos.exec(&sql).await?;
+            } else {
+                // table exists and check normal table or child table
+                let desc = res.unwrap();
+                let mut field_map = HashMap::new();
+                desc.iter().for_each(|c| match c {
+                    ColumnMeta::Column(d) => {
+                        field_map.insert(d.field.clone(), d.ty.to_string());
+                    }
+                    _ => (),
+                });
+                // insert ts column
+                log::info!("table {table_name} use `{}` as ts column", desc[0].field);
+                ts_cloumn_name_map.insert(table_name.clone(), desc[0].field.clone());
+                if desc.is_stable() {
+                    // child table.
+                    for (field, field_type) in field_info {
+                        let field_get = field_map.get(field);
+                        if field_get.is_none() {
+                            anyhow::bail!("field: {} not found in table: {}", field, table_name);
+                        }
+                        if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
+                            anyhow::bail!(
+                                "field: {} type: {} not match in child table: {} which type is {}",
+                                field,
+                                field_type,
+                                table_name,
+                                field_get.unwrap()
+                            );
+                        }
+                    }
+                } else {
+                    // ordinary table.
+                    let mut columns_to_add = HashMap::new();
+                    for (field, field_type) in field_info {
+                        let field_get = field_map.get(field);
+                        if field_get.is_none() {
+                            // column not exists and alter table
+                            columns_to_add.insert(field, field_type);
+                        } else if !check_field_type(
+                            field_get.unwrap(),
+                            field_type.to_ascii_lowercase(),
+                        ) {
+                            anyhow::bail!(
+                            "field: {} type: {} not match in normal table: {} which type is {} ",
+                            field,
+                            field_type,
+                            table_name,
+                            field_get.unwrap()
+                        );
+                        }
+                    }
+                    if columns_to_add.len() > 0 {
+                        for (field_name, field_type) in columns_to_add {
+                            let alter_sql = format!(
+                                "ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}"
+                            );
+                            log::info!("alter table sql: {}", alter_sql);
+                            taos.exec(alter_sql).await?;
+                        }
+                    }
+                }
+            }
+        }
+        let c = OpcTableConfig {
+            table_info: self.param_mapping.clone(),
+            ts_cloumn_name: ts_cloumn_name_map.clone(),
+        };
+        Ok(c)
+    }
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -390,6 +480,7 @@ pub(super) fn get_string_vec_from_param_or_file(
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .partition(|v| v.starts_with("@"));
+        dbg!(&files, &node_config);
         for file in files {
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
@@ -412,12 +503,12 @@ pub(super) fn get_string_vec_from_param_or_file(
         }
         if node_config.len() == 0 {
             // log::warn!("node config is empty");
-            return Err("node config is empty".to_string());
+            return Err(format!("node config set but is empty: {nodes}"));
         }
         return Result::Ok(node_config);
     }
     // log::warn!("node config is empty");
-    return Err("node config is empty".to_string());
+    return Err("Nodes not set".to_string());
 }
 
 fn process_table_info(
@@ -466,6 +557,15 @@ const OPC_CONNECTOR_PATH: &str = {
         "/usr/local/taos/xplugins/opc/opc-collector_darwin_arm64"
     }
 };
+
+pub async fn opc_config_from(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OpcTableConfig> {
+    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
+    config.parse_tables_with(taos).await
+}
+pub fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
+    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
+    Ok(config)
+}
 #[instrument(skip(port_pool))]
 pub async fn opc_to_taos(
     from: Dsn,
@@ -474,97 +574,17 @@ pub async fn opc_to_taos(
     jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
+    with_agent: Option<(i64, String, String)>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OPC");
     if to.subject.is_none() {
         Err(OpcError::DatabaseIsRequired(to.clone()))?;
     }
-    let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
-    use taos::AsyncQueryable;
-    let taos = target_pool.get().await?;
-    let target_pool_for_ipc = target_pool.clone();
-
     let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
 
     let config = OPCConfig::new(from, ipc_port, OPCConfigMode::Collect)?;
-    let mut ts_cloumn_name_map = HashMap::new();
-    for (table_name, field_info) in &config.table_info {
-        let res = taos.describe(&table_name).await;
-        if res.is_err() {
-            // table not exists, will create normal table
-            let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
-            log::info!("table {table_name} use `ts` as ts column");
-            ts_cloumn_name_map.insert(table_name.clone(), String::from("ts"));
-            for (field, field_type) in field_info {
-                sql.push_str(format!(", `{field}` {field_type}").as_str());
-            }
-            sql.push_str(")");
-            log::info!("create normal table: {table_name}, sql: {sql}");
-            taos.exec(&sql).await?;
-        } else {
-            // table exists and check normal table or child table
-            let desc = res.unwrap();
-            let mut field_map = HashMap::new();
-            desc.iter().for_each(|c| match c {
-                ColumnMeta::Column(d) => {
-                    field_map.insert(d.field.clone(), d.ty.to_string());
-                }
-                _ => (),
-            });
-            // insert ts column
-            log::info!("table {table_name} use `{}` as ts column", desc[0].field);
-            ts_cloumn_name_map.insert(table_name.clone(), desc[0].field.clone());
-            if desc.is_stable() {
-                // child table.
-                for (field, field_type) in field_info {
-                    let field_get = field_map.get(field);
-                    if field_get.is_none() {
-                        anyhow::bail!("field: {} not found in table: {}", field, table_name);
-                    }
-                    if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
-                        anyhow::bail!(
-                            "field: {} type: {} not match in child table: {} which type is {}",
-                            field,
-                            field_type,
-                            table_name,
-                            field_get.unwrap()
-                        );
-                    }
-                }
-            } else {
-                // ordinary table.
-                let mut columns_to_add = HashMap::new();
-                for (field, field_type) in field_info {
-                    let field_get = field_map.get(field);
-                    if field_get.is_none() {
-                        // column not exists and alter table
-                        columns_to_add.insert(field, field_type);
-                    } else if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase())
-                    {
-                        anyhow::bail!(
-                            "field: {} type: {} not match in normal table: {} which type is {} ",
-                            field,
-                            field_type,
-                            table_name,
-                            field_get.unwrap()
-                        );
-                    }
-                }
-                if columns_to_add.len() > 0 {
-                    for (field_name, field_type) in columns_to_add {
-                        let alter_sql = format!(
-                            "ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}"
-                        );
-                        log::info!("alter table sql: {}", alter_sql);
-                        taos.exec(alter_sql).await?;
-                    }
-                }
-            }
-        }
-    }
-
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -573,24 +593,32 @@ pub async fn opc_to_taos(
 
     log::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
+    let mut table_config = None;
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = sink::listen_tcp_socket(
-        target_pool_for_ipc,
-        config.report.remote,
-        sender,
-        Some(OpcTableConfig {
-            table_info: config.param_mapping.clone(),
-            ts_cloumn_name: ts_cloumn_name_map.clone(),
-        }),
-        cancel.clone(),
-    )?;
 
-    // TODO use unix socket on unix-like os
-    // let ipc = if cfg!(target_os = "windows") {
-    //     std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, socket))
-    // } else {
-    //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
-    // };
+    let ipc = if with_agent.is_none() {
+        let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
+        let taos = target_pool.get().await?;
+        let target_pool_for_ipc = target_pool.clone();
+
+        table_config.replace(config.parse_tables_with(&taos).await?);
+        sink::listen_tcp_socket(
+            target_pool_for_ipc,
+            config.report.remote,
+            sender,
+            table_config,
+            cancel.clone(),
+            with_agent,
+        )?
+    } else {
+        sink::listen_tcp_socket_with_agent(
+            config.report.remote,
+            sender,
+            table_config,
+            cancel.clone(),
+            with_agent.unwrap(),
+        )?
+    };
 
     let mut command = tokio::process::Command::new(OPC_CONNECTOR_PATH);
     let child = command
@@ -598,42 +626,8 @@ pub async fn opc_to_taos(
         .arg(format!("--conf={}", &config_path.display()))
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
-    #[cfg(target_os = "linux")]
-    {
-        tokio::select! {
-            output = command.output() => {
-                let output = output.context("Unable to run OPC collector")?;
-                log::info!("OPC exit with status {}", output.status);
-                if !output.status.success() {
-                    let _ = ipc.send(());
-                    anyhow::bail!("OPC error: {}", String::from_utf8_lossy(&output.stderr));
-                }
-            },
-            _ = tokio::signal::ctrl_c() => {
-                log::info!("Ctrl+C triggered, cancel tasks");
-                cancel.cancel();
-            },
-            err = receiver.recv() => {
-                log::info!("have received worker thread panicked message, terminate child process");
-                if let Some(err) = err {
-                    let _ = ipc.send(());
-                    anyhow::bail!("OPC writer error: {err}");
-                }
-            },
-            _ = cancel.cancelled() => {
-                log::info!("opc task cancelled");
-            },
-        };
-        // stop_thread(ipc);
-        ipc.send(())?;
-        log::info!("OPC to taos task done");
-        temp_path.close().unwrap();
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-    #[cfg(not(target_os = "linux"))]
     {
         let mut child = child.spawn()?;
-        let pid = child.id().unwrap();
         tokio::spawn(async move {
             tokio::select! {
                 status = child.wait() => {
@@ -645,10 +639,10 @@ pub async fn opc_to_taos(
                         // anyhow::bail!("OPC error: {}", child.stderr.map(|err| String::from_utf8_lossy(&err) ).unwrap_or("".into()));
                     }
                 },
-                _ = tokio::signal::ctrl_c() => {
-                    log::info!("Ctrl+C triggered, cancel tasks");
-                    cancel.cancel();
-                },
+                // _ = tokio::signal::ctrl_c() => {
+                //     log::info!("Ctrl+C triggered, cancel tasks");
+                //     cancel.cancel();
+                // },
                 err = receiver.recv() => {
                     log::info!("have received worker thread panicked message, terminate child process");
                     if let Some(err) = err {
@@ -671,21 +665,6 @@ pub async fn opc_to_taos(
     }
     Ok(())
 }
-
-fn terminate_child_process(id: u32) -> anyhow::Result<()> {
-    let mut kill_command = if cfg!(target_os = "windows") {
-        let mut command = std::process::Command::new("taskkill");
-        command.arg("/F").arg("/PID").arg(id.to_string());
-        command
-    } else {
-        let mut command = std::process::Command::new("kill");
-        command.arg("-9").arg(id.to_string());
-        command
-    };
-    kill_command.spawn()?;
-    Ok(())
-}
-
 /// check field type
 /// return true if matched
 /// if type equals return true else false
@@ -706,7 +685,7 @@ fn check_field_type(field_type_config: &String, field_type: String) -> bool {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OpcTableConfig {
     /// table_info: table_name, Vec<(field, type)>
     pub(crate) table_info: HashMap<String, (String, String, IpcDataType)>,
@@ -829,7 +808,7 @@ interval = 10
 id = "1"
 value_type = "DOUBLE"
 
-[[collect.da.nodes]]
+[[collect.da.tags]]
 tag = "123"
 value_type = "VARCHAR"
 
@@ -842,7 +821,6 @@ batch_timeout = 100
     );
     Ok(())
 }
-
 #[tokio::test]
 async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
@@ -867,5 +845,26 @@ async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
             String::from("ns=2;i=3::ntb3::c2::int")
         ]
     );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_with_agent() -> anyhow::Result<()> {
+    std::env::set_var("RUST_LOG", "debug");
+    pretty_env_logger::init();
+    let mut opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
+    ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
+    concurrent=1&batch_size=5&batch_timeout=5&debug=true";
+    let mut target = "taos:///opcua";
+    opc_to_taos(
+        opc.parse().unwrap(),
+        vec![],
+        target.parse().unwrap(),
+        1,
+        &PortPool::default(),
+        CancellationToken::new(),
+        Some((2, "http://127.0.0.1:6051".into(), "".into())),
+    )
+    .await?;
     Ok(())
 }

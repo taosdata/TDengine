@@ -10,10 +10,13 @@ description = "taosX - TDengine data integration tool"
 anyhow = "1"
 
 arrow = { workspace = true }
+arrow-flight = { workspace = true }
 parquet = { workspace = true }
+tonic = { workspace = true }
 
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
+bytes = "1"
 bitflags = "1"
 chrono = "0.4"
 clap = { version = "4.0.11", features = ["default", "derive"] }
@@ -36,6 +39,7 @@ sha2 = "0.10"
 thiserror = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
+tokio-stream = "*"
 toml = "0.7.2"
 zstd = "0.12.1"
 
@@ -64,8 +68,8 @@ tokio-cron-scheduler = "0.9.4"
 
 async-process = "1.6"
 bitvec = "1"
-tempfile = "3"
 socket2 = "0.5"
+tempfile = "3"
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "../taosx-ipc" }
@@ -82,7 +86,7 @@ libc = "0.2"
 default = ["optin", "rustls"]
 optin = ["taos/optin"]
 sys = ["taos/native"]
-rustls = [ "taos/ws-rustls"]
+rustls = ["taos/ws-rustls"]
 native-tls = ["taos/ws-native-tls"]
 disable-enterprise-only-validation = []
 

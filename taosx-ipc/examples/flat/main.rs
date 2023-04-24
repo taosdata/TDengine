@@ -4,8 +4,8 @@ use anyhow::Result;
 
 use arrow::{
     array::{
-        make_builder, StringBuilder,
-        StructBuilder, TimestampMillisecondBuilder, UInt8Array, UInt8Builder, BinaryBuilder, PrimitiveBuilder,
+        make_builder, BinaryBuilder, PrimitiveBuilder, StringBuilder, StructBuilder,
+        TimestampMillisecondBuilder, UInt8Array, UInt8Builder,
     },
     datatypes::{DataType, Field, Schema},
     ipc::writer::StreamWriter,
@@ -40,8 +40,8 @@ async fn main() -> Result<()> {
 
     let schema = Schema::new(flat_columns).with_metadata(metadata);
     // let schema = Schema::new(vec![
-        // Field::new("__type__", DataType::UInt8, false),
-        // Field::new_dict("__records__", record_list, true, 4, false),
+    // Field::new("__type__", DataType::UInt8, false),
+    // Field::new_dict("__records__", record_list, true, 4, false),
     // ])
     // .with_metadata(metadata);
 
