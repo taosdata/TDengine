@@ -322,8 +322,9 @@ int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, 
 #define TSDB_STT_FILE_DATA_ITER  2
 #define TSDB_TOMB_FILE_DATA_ITER 3
 
-#define TSDB_FILTER_FLAG_BY_VERSION 0x1
-#define TSDB_FILTER_FLAG_BY_TABLEID 0x2
+#define TSDB_FILTER_FLAG_BY_VERSION           0x1
+#define TSDB_FILTER_FLAG_BY_TABLEID           0x2
+#define TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE 0x4
 
 #define TSDB_RBTN_TO_DATA_ITER(pNode) ((STsdbDataIter2 *)(((char *)pNode) - offsetof(STsdbDataIter2, rbtn)))
 /* open */
