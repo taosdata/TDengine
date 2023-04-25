@@ -181,17 +181,16 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 //    code = tqRegisterPushHandle(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
     // lock
     taosWLockLatch(&pTq->lock);
-    if(ASSERT(pHandle->msg == NULL)){
-      tqError("pHandle->msg should be null");
-      taosWUnLockLatch(&pTq->lock);
-      goto end;
+//    tqDebug("data is over, register to handle:%p, msg:%p", pHandle, pHandle->msg);
+    if(pHandle->msg == NULL){
+      pHandle->msg = taosMemoryCalloc(1, sizeof(SRpcMsg));
     }
-    pHandle->msg = taosMemoryCalloc(1, sizeof(SRpcMsg));
+
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
     memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
     pHandle->msg->contLen = pMsg->contLen;
-    tqError("data is over, register to handle:%p, pCont:%p, len:%d", pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
+    tqDebug("data is over, register to handle:%p, pCont:%p, len:%d", pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
     taosArrayPush(pTq->pPushArray, &pHandle);
     taosWUnLockLatch(&pTq->lock);
     tDeleteSMqDataRsp(&dataRsp);

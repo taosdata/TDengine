@@ -1363,6 +1363,7 @@ CREATE_MSG_FAIL:
 typedef struct SVgroupSaveInfo {
   STqOffsetVal offset;
   int64_t      numOfRows;
+  int32_t      vgStatus;
 } SVgroupSaveInfo;
 
 static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopicEp, SHashObj* pVgOffsetHashMap,
@@ -1398,7 +1399,7 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
         .currentOffset = offsetNew,
         .vgId = pVgEp->vgId,
         .epSet = pVgEp->epSet,
-        .vgStatus = TMQ_VG_STATUS__IDLE,
+        .vgStatus = pInfo != NULL ? pInfo->vgStatus : TMQ_VG_STATUS__IDLE,
         .vgSkipCnt = 0,
         .emptyBlockReceiveTs = 0,
         .numOfRows = numOfRows,
@@ -1457,7 +1458,7 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
         tscDebug("consumer:0x%" PRIx64 ", epoch:%d vgId:%d vgKey:%s, offset:%s", tmq->consumerId, epoch, pVgCur->vgId,
                  vgKey, buf);
 
-        SVgroupSaveInfo info = {.offset = pVgCur->currentOffset, .numOfRows = pVgCur->numOfRows};
+        SVgroupSaveInfo info = {.offset = pVgCur->currentOffset, .numOfRows = pVgCur->numOfRows, .vgStatus = pVgCur->vgStatus};
         taosHashPut(pVgOffsetHashMap, vgKey, strlen(vgKey), &info, sizeof(SVgroupSaveInfo));
       }
     }

@@ -1079,11 +1079,11 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
 
 int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
-  tqDebug("vgId:%d start set submit for subscribe", vgId);
 
   taosWLockLatch(&pTq->lock);
   for(size_t i = 0; i < taosArrayGetSize(pTq->pPushArray); i++){
     STqHandle* pHandle = (STqHandle*)taosArrayGetP(pTq->pPushArray, i);
+    tqDebug("vgId:%d start set submit for pHandle:%p", vgId, pHandle);
     if(ASSERT(pHandle->msg != NULL)){
       tqError("pHandle->msg should not be null");
       break;
