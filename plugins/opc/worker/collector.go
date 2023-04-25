@@ -39,8 +39,15 @@ func NewCollector(config common.Config) (*OpcCollector, error) {
 	var err error
 	if config.OpcType == common.OpcTypeUA {
 		c, err = opcua.NewConnector(config)
-	} else {
+	}
+	if config.OpcType == common.OpcTypeDA {
 		c, err = opcda.NewConnector(config)
+	}
+	if config.OpcType == common.OpcTypeFake {
+		c = connector.NewFakeConnector(config.Collect)
+	}
+	if c == nil {
+		return nil, fmt.Errorf("unknown opc type %s", config.OpcType)
 	}
 
 	if err != nil {
@@ -95,7 +102,6 @@ func (c *OpcCollector) collect(ctx context.Context) error {
 		log.Println("## collector connect error", err)
 		return err
 	}
-	defer c.collector.Stop(ctx)
 	defer close(c.nodeValueCh)
 
 	ch, err := c.collector.Collect(ctx)

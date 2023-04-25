@@ -13,6 +13,7 @@ import (
 const (
 	OpcTypeUA          = "opcua"
 	OpcTypeDA          = "opcda"
+	OpcTypeFake        = "fake"
 	OpcUaObserveType   = "observe"
 	OPcUaSubscribeType = "subscribe"
 )
@@ -202,11 +203,10 @@ func (r *ReportConfig) Validate() error {
 }
 
 type NodeValue struct {
-	FieldName  string
-	Identifier string
-	Timestamp  time.Time
-	Value      any
-	ValueType  ValueType
+	Identifier string    `json:"identifier,omitempty"`
+	Timestamp  time.Time `json:"timestamp,omitempty"`
+	Value      any       `json:"value,omitempty"`
+	ValueType  ValueType `json:"value_type,omitempty"`
 }
 
 type Point struct {

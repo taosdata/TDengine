@@ -4,7 +4,7 @@ debug = true # debug mode. only for testing, should not be used in production
 [connect]
 
 [connect.ua] # opc ua config.
-endpoint = "opc.tcp://localhost:4840/" # opc endpoint
+endpoint = "opc.tcp://192.168.0.133:53530/OPCUA/SimulationServer" # opc endpoint
 connect_timeout = 10 # timeout for connect to endpoint in second
 request_timeout = 10 # timeout for a request in second
 security_policy = "None" # None/Basic128Rsa15/Basic256/Basic256Sha256
@@ -19,18 +19,70 @@ password = "" # Required for auth_method == "UserName"
 interval = 1 # collect data interval in second for opc ua observe mode and opc da
 
 [collect.ua]
-collect_mode = "subscribe" # observe or subscribe. default is observe
+collect_mode = "observe" # observe or subscribe. default is observe
 
-[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=2;i=2"
-value_type = "bigint"
+#[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
+#id = "ns=2;i=2"
+#value_type = "bigint"
+#
+#[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
+#id = "ns=2;i=3"
+#value_type = "bigint"
+
+#[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
+#id = "ns=2;i=4"
+#value_type = "double"
+#
+#[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
+#id = "ns=2;i=5"
+#value_type = "double"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1004"
+value_type = "float"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1005"
+value_type = "float"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1006"
+value_type = "float"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1007"
+value_type = "float"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1008"
+value_type = "float"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1009"
+value_type = "float"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1010"
+value_type = "float"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1011"
+value_type = "float"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1012"
+value_type = "float"
+
+[[collect.ua.nodes]]
+id = "ns=10;i=1013"
+value_type = "float"
 
 #[[collect.da.tags]] # opc da tags. needs tag name and value type. value type is same with data type in tdengine
 #tag = "g1.r1"
 #value_type = "INT"
 
 [report]
-remote = "192.168.0.201:6051" # taosx's address ip:port or socket path
+remote = "192.168.0.201:6056" # taosx's address ip:port or socket path
 concurrent = 2
 batch_size = 1
 batch_timeout = 10

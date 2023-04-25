@@ -23,11 +23,13 @@ type Reporter interface {
 }
 
 type ArrowReporter struct {
-	address   *net.TCPAddr
-	ipcWriter sync.Map // key-valueType, value- *schema
-	debug     bool
-	mutex     sync.Mutex
-	counter   atomic.Uint64
+	address         *net.TCPAddr
+	valueTypeSchema sync.Map // key-valueType, valueType- *schema
+	schemaLock      sync.Mutex
+	schemaWriter    sync.Map // key-valueType, *schema- *ipc.Writer
+	writerLock      sync.Mutex
+	debug           bool
+	counter         atomic.Uint64
 }
 
 var _ Reporter = (*ArrowReporter)(nil)
@@ -40,7 +42,8 @@ func NewArrowReporter(config common.Config) (*ArrowReporter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve remote address error %v", err)
 	}
-	return &ArrowReporter{address: address, debug: config.Debug}, nil
+	reporter := ArrowReporter{address: address, debug: config.Debug}
+	return &reporter, nil
 }
 
 func (r *ArrowReporter) Report(_ context.Context, values []*common.NodeValue) error {
@@ -52,22 +55,22 @@ func (r *ArrowReporter) Report(_ context.Context, values []*common.NodeValue) er
 		log.Println("## Reporting to taosx", "values", string(j))
 	}
 
-	ws, err := r.getWriterAndSchemaByValueType(values[0].ValueType)
+	schema, err := r.getSchemaByValueType(values[0].ValueType)
 	if err != nil {
-		log.Println("## get writer and schema error", "error", err)
+		log.Println("## get schema error", "error", err)
 		return err
 	}
 
-	record, err := r.packData(values, ws.schema)
+	record, err := r.packData(values, schema)
 	if err != nil {
 		log.Println("## pack data error", "error", err)
 		return fmt.Errorf("pack data error %v", err)
 	}
 	defer record.Release()
 
-	if err = ws.writer.Write(record); err != nil {
-		log.Println("## write record error", "error", err)
-		return fmt.Errorf("report data error %v", err)
+	if err = r.write(schema, record); err != nil {
+		log.Println("## write data error", "error", err)
+		return fmt.Errorf("write data error %v", err)
 	}
 
 	if r.debug {
@@ -87,10 +90,9 @@ func (r *ArrowReporter) Report(_ context.Context, values []*common.NodeValue) er
 
 func (r *ArrowReporter) Close() {
 	log.Println("## close reporter")
-	r.ipcWriter.Range(func(key, value any) bool {
-		ws := value.(*writerAndSchema)
-		_ = ws.writer.Close()
-		_ = ws.conn.Close()
+	r.schemaWriter.Range(func(key, value any) bool {
+		writer := value.(*ipcWriter)
+		_ = writer.writer.Close()
 		return true
 	})
 }
@@ -132,24 +134,17 @@ var meta = arrow.MetadataFrom(map[string]string{
 	"ack":     "none",
 })
 
-type writerAndSchema struct {
-	writer *ipc.Writer
-	conn   *net.TCPConn
-	schema *arrow.Schema
-}
-
-func (r *ArrowReporter) getWriterAndSchemaByValueType(valueType common.ValueType) (ws *writerAndSchema, err error) {
-	if sc, ok := r.ipcWriter.Load(valueType); ok {
-		return sc.(*writerAndSchema), nil
+func (r *ArrowReporter) getSchemaByValueType(valueType common.ValueType) (*arrow.Schema, error) {
+	if schema, ok := r.valueTypeSchema.Load(valueType); ok {
+		return schema.(*arrow.Schema), nil
 	}
 
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+	r.schemaLock.Lock()
+	defer r.schemaLock.Unlock()
 
-	if sc, ok := r.ipcWriter.Load(valueType); ok {
-		return sc.(*writerAndSchema), nil
+	if schema, ok := r.valueTypeSchema.Load(valueType); ok {
+		return schema.(*arrow.Schema), nil
 	}
-
 	dataType, err := r.getDataType(valueType)
 	if err != nil {
 		return nil, err
@@ -163,18 +158,62 @@ func (r *ArrowReporter) getWriterAndSchemaByValueType(valueType common.ValueType
 		},
 		&meta,
 	)
+	r.valueTypeSchema.Store(valueType, schema)
+
+	return schema, nil
+}
+
+func (r *ArrowReporter) write(schema *arrow.Schema, record arrow.Record) (err error) {
+	writer, err := r.getWriter(schema)
+	if err != nil {
+		log.Println("## get writer error", "error", err)
+		return fmt.Errorf("get arrow writer error %v", err)
+	}
+
+	writer.lock.Lock()
+	defer writer.lock.Unlock()
+
+	if err = writer.writer.Write(record); err != nil {
+		log.Println("## write record error", "error", err)
+		return fmt.Errorf("report data error %v", err)
+	}
+	writer.written.Store(true)
+
+	return nil
+}
+
+type ipcWriter struct {
+	writer  *ipc.Writer
+	lock    sync.Mutex
+	written atomic.Bool
+}
+
+func (r *ArrowReporter) getWriter(schema *arrow.Schema) (writer *ipcWriter, err error) {
+	if writer, ok := r.schemaWriter.Load(schema); ok {
+		return writer.(*ipcWriter), nil
+	}
+
+	r.writerLock.Lock()
+	defer r.writerLock.Unlock()
+
+	if writer, ok := r.schemaWriter.Load(schema); ok {
+		return writer.(*ipcWriter), nil
+	}
+
 	conn, err := net.DialTCP("tcp", nil, r.address)
 	if err != nil {
-		return nil, fmt.Errorf("conn to taosx error %v", err)
+		return nil, fmt.Errorf("dial tcp error %v", err)
 	}
 	if r.debug {
-		log.Println("## create connection for value type to taosx", "address", r.address.String(), "valueType",
-			valueType)
+		log.Println("## create connection for value type to taosx", "address", r.address.String())
 	}
-	writer := ipc.NewWriter(conn, ipc.WithSchema(schema))
-	ws = &writerAndSchema{writer: writer, conn: conn, schema: schema}
 
-	r.ipcWriter.Store(valueType, ws)
+	writer = &ipcWriter{writer: ipc.NewWriter(conn, ipc.WithSchema(schema))}
+	if err != nil {
+		return nil, fmt.Errorf("create arrow writer error %v", err)
+	}
+
+	r.schemaWriter.Store(schema, writer)
 	return
 }
 
