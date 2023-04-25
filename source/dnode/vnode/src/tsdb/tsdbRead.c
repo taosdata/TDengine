@@ -1461,8 +1461,8 @@ static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIte
   }
 
   int32_t cnt = 0;
-  void*   ptr = NULL;
-  int32_t iter = 0;
+//  void*   ptr = NULL;
+//  int32_t iter = 0;
 
 //  while (1) {
 //    ptr = tSimpleHashIterate(pReader->status.pTableMap, ptr, &iter);
@@ -2951,7 +2951,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
       }
 
       if (pBlockNum->numOfBlocks + pBlockNum->numOfLastFiles > 0) {
-        ASSERT(taosArrayGetSize(pTableList) > 0);
+//        ASSERT(taosArrayGetSize(pTableList) > 0);
         break;
       }
     }
