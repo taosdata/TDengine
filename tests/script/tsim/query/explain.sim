@@ -4,7 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print ======== step1
-sql create database db1 vgroups 3;
+sql create database db1 vgroups 3 cachesize 10 cachemodel 'both';
 sql use db1;
 sql select * from information_schema.ins_databases;
 sql create stable st1 (ts timestamp, f1 int, f2 binary(200)) tags(t1 int);
@@ -60,6 +60,15 @@ sql explain verbose true select * from information_schema.ins_stables where db_n
 sql explain verbose true select st1.f1 from st1 join st2 on st1.ts=st2.ts and st1.f1 > 0;
 sql explain verbose true insert into t1(ts) select st1.f1 from st1 join st2 on st1.ts=st2.ts and st1.f1 > 0;
 sql explain verbose true insert into t1(ts, t1) select _wstart, count(*) from st1 interval(10s);
+sql explain verbose true select distinct tbname, table_name from information_schema.ins_tables;
+sql explain verbose true select diff(f1) as f11 from tb1 order by f11;
+sql explain verbose true select count(*) from st1 where ts > now - 3m and ts < now interval(10s) fill(linear);
+sql explain verbose true select count(*) from st1 partition by tbname;
+sql explain verbose true select count(*) from information_schema.ins_tables group by stable_name;
+sql explain verbose true select last(*) from st1;
+sql explain verbose true select last_row(*) from st1;
+sql explain verbose true select interp(f1) from tb1 where ts > now - 3m and ts < now range(now-3m,now) every(1m) fill(prev);
+sql explain verbose true select _wstart, _wend, count(*) from tb1 EVENT_WINDOW start with f1 > 0 end with f1 < 10;
 
 print ======== step4
 sql explain analyze select ts from st1 where -2;
@@ -96,6 +105,13 @@ sql explain analyze verbose true select * from information_schema.ins_stables wh
 sql explain analyze verbose true select * from (select min(f1),count(*) a from st1 where f1 > 0) where a < 0;
 sql explain analyze verbose true select count(f1) from st1 group by tbname;
 sql explain analyze verbose true select st1.f1 from st1 join st2 on st1.ts=st2.ts and st1.f1 > 0;
+sql explain analyze verbose true select diff(f1) as f11 from tb1 order by f11;
+sql explain analyze verbose true select count(*) from st1 where ts > now - 3m and ts < now interval(10s) fill(linear);
+sql explain analyze verbose true select count(*) from information_schema.ins_tables group by stable_name;
+sql explain analyze verbose true select last(*) from st1;
+sql explain analyze verbose true select last_row(*) from st1;
+sql explain analyze verbose true select interp(f1) from tb1 where ts > now - 3m and ts < now range(now-3m,now) every(1m) fill(prev);
+sql explain analyze verbose true select _wstart, _wend, count(*) from tb1 EVENT_WINDOW start with f1 > 0 end with f1 < 10;
 
 #not pass case
 #sql explain verbose true select count(*),sum(f1) as aa from tb1 where (f1 > 0 or f1 < -1) and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00' order by aa;

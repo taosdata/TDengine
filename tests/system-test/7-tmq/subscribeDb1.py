@@ -52,7 +52,7 @@ class TDTestCase:
 
     def initConsumerTable(self,cdbName='cdb'):
         tdLog.info("create consume database, and consume info table, and consume result table")
-        tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
+        tdSql.query("create database if not exists %s vgroups 1 wal_retention_period 3600"%(cdbName))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
 
@@ -99,7 +99,7 @@ class TDTestCase:
         os.system(shellCmd)
 
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum):
-        tsql.execute("create database if not exists %s vgroups %d"%(dbName, vgroups))
+        tsql.execute("create database if not exists %s vgroups %d wal_retention_period 3600"%(dbName, vgroups))
         tsql.execute("use %s" %dbName)
         tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
         pre_create = "create table"
@@ -123,8 +123,9 @@ class TDTestCase:
         pre_insert = "insert into "
         sql = pre_insert
 
-        t = time.time()
-        startTs = int(round(t * 1000))
+        # t = 1678609778776 #time.time()
+        t = 1600000000000
+        startTs = t #int(round(t * 1000))
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             sql += " %s_%d values "%(stbName,i)
@@ -179,8 +180,8 @@ class TDTestCase:
         parameterDict['cfg'] = cfgPath
 
         self.initConsumerTable()
-        tdLog.info("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
-        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
+        tdLog.info("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
@@ -196,7 +197,7 @@ class TDTestCase:
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
-        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict2['dbName'], parameterDict2['vgroups'], parameterDict2['replica']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict2['dbName'], parameterDict2['vgroups'], parameterDict2['replica']))
 
         prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
         prepareEnvThread2.start()
@@ -267,7 +268,7 @@ class TDTestCase:
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
@@ -283,7 +284,7 @@ class TDTestCase:
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
-        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict2['dbName'], parameterDict2['vgroups'], parameterDict2['replica']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict2['dbName'], parameterDict2['vgroups'], parameterDict2['replica']))
 
         prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
         prepareEnvThread2.start()

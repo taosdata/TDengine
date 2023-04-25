@@ -121,7 +121,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
 
   char statePath[1024];
   if (!specPath) {
-    sprintf(statePath, "%s/%d", path, pTask->taskId);
+    sprintf(statePath, "%s/%d", path, pTask->id.taskId);
   } else {
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
@@ -130,21 +130,25 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   char cfgPath[1030];
   sprintf(cfgPath, "%s/cfg", statePath);
 
+  szPage = szPage < 0 ? 4096 : szPage;
+  pages = pages < 0 ? 256 : pages;
   char cfg[1024];
   memset(cfg, 0, 1024);
   TdFilePtr pCfgFile = taosOpenFile(cfgPath, TD_FILE_READ);
   if (pCfgFile != NULL) {
-    int64_t size;
+    int64_t size = 0;
     taosFStatFile(pCfgFile, &size, NULL);
-    taosReadFile(pCfgFile, cfg, size);
-    sscanf(cfg, "%d\n%d\n", &szPage, &pages);
+    if (size > 0) {
+      taosReadFile(pCfgFile, cfg, size);
+      sscanf(cfg, "%d\n%d\n", &szPage, &pages);
+    }
   } else {
-    taosMulModeMkDir(statePath, 0755);
-    pCfgFile = taosOpenFile(cfgPath, TD_FILE_WRITE | TD_FILE_CREATE);
-    szPage = szPage < 0 ? 4096 : szPage;
-    pages = pages < 0 ? 256 : pages;
-    sprintf(cfg, "%d\n%d\n", szPage, pages);
-    taosWriteFile(pCfgFile, cfg, strlen(cfg));
+    int32_t code = taosMulModeMkDir(statePath, 0755);
+    if (code == 0) {
+      pCfgFile = taosOpenFile(cfgPath, TD_FILE_WRITE | TD_FILE_CREATE);
+      sprintf(cfg, "%d\n%d\n", szPage, pages);
+      taosWriteFile(pCfgFile, cfg, strlen(cfg));
+    }
   }
   taosCloseFile(&pCfgFile);
 
@@ -189,6 +193,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   }
 
   pState->pTdbState->pOwner = pTask;
+  pState->checkPointId = 0;
 
   return pState;
 
@@ -239,6 +244,7 @@ int32_t streamStateCommit(SStreamState* pState) {
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
+  pState->checkPointId++;
   return 0;
 }
 

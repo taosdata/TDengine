@@ -189,7 +189,7 @@ bool fmIsScalarFunc(int32_t funcId);
 bool fmIsVectorFunc(int32_t funcId);
 bool fmIsIndefiniteRowsFunc(int32_t funcId);
 bool fmIsStringFunc(int32_t funcId);
-bool fmIsDatetimeFunc(int32_t funcId);
+bool fmIsDateTimeFunc(int32_t funcId);
 bool fmIsSelectFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
@@ -241,6 +241,7 @@ int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 bool    fmIsInvertible(int32_t funcId);
+char*   fmGetFuncName(int32_t funcId);
 
 #ifdef __cplusplus
 }

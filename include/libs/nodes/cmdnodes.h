@@ -438,6 +438,7 @@ typedef struct SDropStreamStmt {
 
 typedef struct SCreateFunctionStmt {
   ENodeType type;
+  bool      orReplace;
   bool      ignoreExists;
   char      funcName[TSDB_FUNC_NAME_LEN];
   bool      isAgg;
@@ -457,7 +458,9 @@ typedef struct SGrantStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
   char      objName[TSDB_DB_NAME_LEN];  // db or topic
+  char      tabName[TSDB_TABLE_NAME_LEN];
   int64_t   privileges;
+  SNode*    pTagCond;
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;
@@ -465,6 +468,10 @@ typedef SGrantStmt SRevokeStmt;
 typedef struct SBalanceVgroupStmt {
   ENodeType type;
 } SBalanceVgroupStmt;
+
+typedef struct SBalanceVgroupLeaderStmt {
+  ENodeType type;
+} SBalanceVgroupLeaderStmt;
 
 typedef struct SMergeVgroupStmt {
   ENodeType type;

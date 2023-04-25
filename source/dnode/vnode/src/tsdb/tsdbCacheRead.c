@@ -118,7 +118,6 @@ static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* id
   if (suid != 0) {
     p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, suid, -1, 1);
     if (p->pSchema == NULL) {
-      taosMemoryFree(p);
       tsdbWarn("stable:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", suid, idstr);
       return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
@@ -135,7 +134,6 @@ static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* id
 
     // all queried tables have been dropped already, return immediately.
     if (p->pSchema == NULL) {
-      taosMemoryFree(p);
       tsdbWarn("all queried tables has been dropped, try next group, %s", idstr);
       return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
@@ -198,6 +196,8 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
   p->idstr = taosStrdup(idstr);
   taosThreadMutexInit(&p->readerMutex, NULL);
+
+  p->lastTs = INT64_MIN;
 
   *pReader = p;
   return TSDB_CODE_SUCCESS;
@@ -330,6 +330,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
+    int64_t st = taosGetTimestampUs();
+    int64_t totalLastTs = INT64_MAX;
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
@@ -347,6 +349,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       }
 
       {
+        bool    hasNotNullRow = true;
+        int64_t singleTableLastTs = INT64_MAX;
         for (int32_t k = 0; k < pr->numOfCols; ++k) {
           int32_t slotId = slotIds[k];
 
@@ -357,15 +361,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               hasRes = true;
               p->ts = pCol->ts;
               p->colVal = pCol->colVal;
-
-              // only set value for last row query
-              if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
-                if (taosArrayGetSize(pTableUidList) == 0) {
-                  taosArrayPush(pTableUidList, &pKeyInfo->uid);
-                } else {
-                  taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
-                }
-              }
+              singleTableLastTs = pCol->ts;
             }
           } else {
             SLastCol* p = taosArrayGet(pLastCols, slotId);
@@ -373,11 +369,17 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
             if (pColVal->ts > p->ts) {
               if (!COL_VAL_IS_VALUE(&pColVal->colVal) && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
+                if (!COL_VAL_IS_VALUE(&p->colVal)) {
+                  hasNotNullRow = false;
+                }
                 continue;
               }
 
               hasRes = true;
               p->ts = pColVal->ts;
+              if (pColVal->ts < singleTableLastTs && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
+                singleTableLastTs = pColVal->ts;
+              }
 
               if (!IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
                 p->colVal = pColVal->colVal;
@@ -394,6 +396,22 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
             }
           }
         }
+
+        if (hasNotNullRow) {
+          if (INT64_MAX == totalLastTs || (INT64_MAX != singleTableLastTs && totalLastTs < singleTableLastTs)) {
+            totalLastTs = singleTableLastTs;
+          }
+          double cost = (taosGetTimestampUs() - st) / 1000.0;
+          if (cost > tsCacheLazyLoadThreshold) {
+            pr->lastTs = totalLastTs;
+          }
+        }
+      }
+
+      if (taosArrayGetSize(pTableUidList) == 0) {
+        taosArrayPush(pTableUidList, &pKeyInfo->uid);
+      } else {
+        taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
       }
 
       tsdbCacheRelease(lruCache, h);
@@ -402,7 +420,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     if (hasRes) {
       saveOneRow(pLastCols, pResBlock, pr, slotIds, pRes, pr->idstr);
     }
-
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];

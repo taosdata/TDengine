@@ -94,8 +94,8 @@ sysinfo_opt(A) ::= .                                                            
 sysinfo_opt(A) ::= SYSINFO NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
 
 /************************************************ grant/revoke ********************************************************/
-cmd ::= GRANT privileges(A) ON priv_level(B) TO user_name(C).                     { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C); }
-cmd ::= REVOKE privileges(A) ON priv_level(B) FROM user_name(C).                  { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C); }
+cmd ::= GRANT privileges(A) ON priv_level(B) with_opt(D) TO user_name(C).         { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C, D); }
+cmd ::= REVOKE privileges(A) ON priv_level(B) with_opt(D) FROM user_name(C).      { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C, D); }
 
 %type privileges                                                                  { int64_t }
 %destructor privileges                                                            { }
@@ -113,11 +113,15 @@ priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                  
 priv_type(A) ::= READ.                                                            { A = PRIVILEGE_TYPE_READ; }
 priv_type(A) ::= WRITE.                                                           { A = PRIVILEGE_TYPE_WRITE; }
 
-%type priv_level                                                                  { SToken }
+%type priv_level                                                                  { STokenPair }
 %destructor priv_level                                                            { }
-priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR.                                      { A = B; }
-priv_level(A) ::= db_name(B) NK_DOT NK_STAR.                                      { A = B; }
-priv_level(A) ::= topic_name(B).                                                  { A = B; }
+priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
+priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
+priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; }
+priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
+
+with_opt(A) ::= .                                                                 { A = NULL; }
+with_opt(A) ::= WITH search_condition(B).                                         { A = B; }
 
 /************************************************ create/drop/alter dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
@@ -236,6 +240,19 @@ alter_db_option(A) ::= REPLICA NK_INTEGER(B).                                   
 //alter_db_option(A) ::= STRICT NK_STRING(B).                                       { A.type = DB_OPTION_STRICT; A.val = B; }
 alter_db_option(A) ::= WAL_LEVEL NK_INTEGER(B).                                   { A.type = DB_OPTION_WAL; A.val = B; }
 alter_db_option(A) ::= STT_TRIGGER NK_INTEGER(B).                                 { A.type = DB_OPTION_STT_TRIGGER; A.val = B; }
+alter_db_option(A) ::= MINROWS NK_INTEGER(B).                                     { A.type = DB_OPTION_MINROWS; A.val = B; }
+alter_db_option(A) ::= WAL_RETENTION_PERIOD NK_INTEGER(B).                        { A.type = DB_OPTION_WAL_RETENTION_PERIOD; A.val = B; }
+alter_db_option(A) ::= WAL_RETENTION_PERIOD NK_MINUS(B) NK_INTEGER(C).            { 
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A.type = DB_OPTION_WAL_RETENTION_PERIOD; A.val = t;
+                                                                                  }
+alter_db_option(A) ::= WAL_RETENTION_SIZE NK_INTEGER(B).                          { A.type = DB_OPTION_WAL_RETENTION_SIZE; A.val = B; }
+alter_db_option(A) ::= WAL_RETENTION_SIZE NK_MINUS(B) NK_INTEGER(C).              { 
+                                                                                    SToken t = B;
+                                                                                    t.n = (C.z + C.n) - B.z;
+                                                                                    A.type = DB_OPTION_WAL_RETENTION_SIZE; A.val = t;
+                                                                                  }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
@@ -329,7 +346,7 @@ column_def_list(A) ::= column_def(B).                                           
 column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).                 { A = addNodeToList(pCxt, B, C); }
 
 column_def(A) ::= column_name(B) type_name(C).                                    { A = createColumnDefNode(pCxt, &B, C, NULL); }
-column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, &B, C, &D); }
+//column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, &B, C, &D); }
 
 %type type_name                                                                   { SDataType }
 %destructor type_name                                                             { }
@@ -540,8 +557,9 @@ explain_options(A) ::= explain_options(B) VERBOSE NK_BOOL(C).                   
 explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                      { A = setExplainRatio(pCxt, B, &C); }
 
 /************************************************ create/drop function ************************************************/
-cmd ::= CREATE agg_func_opt(A) FUNCTION not_exists_opt(F) function_name(B) 
-  AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E) language_opt(G).         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E, &G); }
+cmd ::= CREATE or_replace_opt(H) agg_func_opt(A) FUNCTION not_exists_opt(F)
+  function_name(B) AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E) 
+  language_opt(G).                                                                { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E, &G, H); }
 cmd ::= DROP FUNCTION exists_opt(B) function_name(A).                             { pCxt->pRootNode = createDropFunctionStmt(pCxt, B, &A); }
 
 %type agg_func_opt                                                                { bool }
@@ -558,6 +576,11 @@ bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                       
 %destructor language_opt                                                           { }
 language_opt(A) ::= .                                                              { A = nil_token; }
 language_opt(A) ::= LANGUAGE NK_STRING(B).                                         { A = B; }
+
+%type or_replace_opt                                                               { bool }
+%destructor or_replace_opt                                                         { }
+or_replace_opt(A) ::= .                                                            { A = false; }
+or_replace_opt(A) ::= OR REPLACE.                                                  { A = true; }
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
@@ -596,6 +619,7 @@ cmd ::= KILL TRANSACTION NK_INTEGER(A).                                         
 
 /************************************************ merge/redistribute/ vgroup ******************************************/
 cmd ::= BALANCE VGROUP.                                                           { pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }
+cmd ::= BALANCE VGROUP LEADER.                                                    { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt); }
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
 cmd ::= REDISTRIBUTE VGROUP NK_INTEGER(A) dnode_list(B).                          { pCxt->pRootNode = createRedistributeVgroupStmt(pCxt, &A, B); }
 cmd ::= SPLIT VGROUP NK_INTEGER(A).                                               { pCxt->pRootNode = createSplitVgroupStmt(pCxt, &A); }
@@ -1023,8 +1047,8 @@ sliding_opt(A) ::= SLIDING NK_LP duration_literal(B) NK_RP.                     
 
 fill_opt(A) ::= .                                                                 { A = NULL; }
 fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
-fill_opt(A) ::= FILL NK_LP VALUE NK_COMMA literal_list(B) NK_RP.                  { A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }  
-fill_opt(A) ::= FILL NK_LP VALUE_F NK_COMMA literal_list(B) NK_RP.                { A = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, B)); }  
+fill_opt(A) ::= FILL NK_LP VALUE NK_COMMA expression_list(B) NK_RP.               { A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }
+fill_opt(A) ::= FILL NK_LP VALUE_F NK_COMMA expression_list(B) NK_RP.             { A = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, B)); }
 
 %type fill_mode                                                                   { EFillMode }
 %destructor fill_mode                                                             { }
@@ -1122,5 +1146,5 @@ null_ordering_opt(A) ::= NULLS FIRST.                                           
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
 
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL 
-  FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE REPLACE RESTRICT ROW SEMI STAR STATEMENT
+  FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.

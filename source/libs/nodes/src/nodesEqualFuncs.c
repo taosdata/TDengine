@@ -136,6 +136,7 @@ static bool logicConditionNodeEqual(const SLogicConditionNode* a, const SLogicCo
 
 static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
+  COMPARE_STRING_FIELD(functionName);
   COMPARE_NODE_LIST_FIELD(pParameterList);
   return true;
 }

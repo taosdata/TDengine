@@ -15,8 +15,11 @@ exe:
 	gcc $(CFLAGS) ./stopquery.c  -o $(ROOT)stopquery $(LFLAGS)
 	gcc $(CFLAGS) ./dbTableRoute.c  -o $(ROOT)dbTableRoute $(LFLAGS)
 	gcc $(CFLAGS) ./insertSameTs.c  -o $(ROOT)insertSameTs $(LFLAGS)
+	gcc $(CFLAGS) ./passwdTest.c  -o $(ROOT)passwdTest $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare
 	rm $(ROOT)stopquery
 	rm $(ROOT)dbTableRoute
+	rm $(ROOT)insertSameTs
+	rm $(ROOT)passwdTest

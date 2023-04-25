@@ -3,6 +3,7 @@ import taos
 import sys
 import os
 import time
+import platform
 import inspect
 from taos.tmq import Consumer
 
@@ -97,7 +98,7 @@ class TDTestCase:
 
     def buildTaosd(self,bPath):
         # os.system(f"mv {bPath}/build_bak  {bPath}/build ")
-        os.system(f" cd {bPath}  &&  make install ")
+        os.system(f" cd {bPath}  ")
 
 
     def run(self):
@@ -105,6 +106,9 @@ class TDTestCase:
         distro_id = distro.id()
         if distro_id == "alpine":
             tdLog.info(f"alpine skip compatibility test")
+            return True
+        if platform.system().lower() == 'windows':
+            tdLog.info(f"Windows skip compatibility test")
             return True
         bPath = self.getBuildPath()
         cPath = self.getCfgPath()
@@ -142,6 +146,10 @@ class TDTestCase:
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
+        cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
+        if os.system(cmd) == 0:
+            raise Exception("failed to execute system command. cmd: %s" % cmd)
+                
         os.system("pkill  taosd")   # make sure all the data are saved in disk.
         self.checkProcessPid("taosd")
 
@@ -152,8 +160,10 @@ class TDTestCase:
         sleep(1)
         tdsql=tdCom.newTdSql()
         print(tdsql)
-
-
+        cmd = f" LD_LIBRARY_PATH=/usr/lib  taos -h localhost ;"
+        if os.system(cmd) == 0:
+            raise Exception("failed to execute system command. cmd: %s" % cmd)
+        
         tdsql.query(f"SELECT SERVER_VERSION();")
         nowServerVersion=tdsql.queryResult[0][0]
         tdLog.info(f"New server version is {nowServerVersion}")
@@ -163,7 +173,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
         tdsql.query(f"select count(*) from {stb}")
-        tdsql.checkData(0,0,tableNumbers*recordNumbers1)    
+        tdsql.checkData(0,0,tableNumbers*recordNumbers1)
         # tdsql.query("show streams;")
         # os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
         # tdsql.query("show streams;")
@@ -177,6 +187,7 @@ class TDTestCase:
         tdsql.execute("drop database if exists db")
         tdsql.execute("create database db")
         tdsql.execute("use db")
+        tdsql.execute("alter database db wal_retention_period 3600")
         tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
         tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
         tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
@@ -192,15 +203,15 @@ class TDTestCase:
         tdsql.query("describe  information_schema.ins_databases;")
         qRows=tdsql.queryRows   
         comFlag=True
-        j=0 
-        while comFlag: 
+        j=0
+        while comFlag:
             for i in  range(qRows) :
                 if tdsql.queryResult[i][0] == "retentions" :
                     print("parameters include retentions")
                     comFlag=False
                     break
                 else :
-                    comFlag=True 
+                    comFlag=True
                     j=j+1
             if j == qRows:
                 print("parameters don't include retentions")

@@ -6,7 +6,7 @@ conn = taosws.connect("taosws://root:taosdata@localhost:6041")
 
 # ANCHOR: basic
 conn.execute("drop database if exists connwspy")
-conn.execute("create database if not exists connwspy")
+conn.execute("create database if not exists connwspy wal_retention_period 3600")
 conn.execute("use connwspy")
 conn.execute("create table if not exists stb (ts timestamp, c1 int) tags (t1 int)")
 conn.execute("create table if not exists tb1 using stb tags (1)")

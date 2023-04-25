@@ -28,7 +28,7 @@ productName="TDengine"
 serverName="taosd"
 clientName="taos"
 configFile="taos.cfg"
-tarName="taos.tar.gz"
+tarName="package.tar.gz"
 dumpName="taosdump"
 benchmarkName="taosBenchmark"
 toolsName="taostools"
@@ -51,9 +51,9 @@ fi
 
 if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
   cd ${top_dir}/tools/taos-tools/packaging/deb
-  [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-  taostools_ver=$(git tag |grep -v taos | sort | tail -1)
+  taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
+  [ -z "$taostools_ver" ] && taostools_ver="0.1.0"
   taostools_install_dir="${release_dir}/${clientName2}Tools-${taostools_ver}"
 
   cd ${curr_dir}
@@ -96,7 +96,7 @@ else
       ${taostools_bin_files} \
       ${taosx_bin} \
       ${explorer_bin_files} \
-      ${build_dir}/bin/taosadapter \
+      ${build_dir}/bin/${clientName}adapter \
       ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
@@ -135,12 +135,12 @@ mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
-if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
-  cp ${compile_dir}/test/cfg/taosadapter.toml ${install_dir}/cfg || :
+if [ -f "${compile_dir}/test/cfg/${clientName}adapter.toml" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}adapter.toml ${install_dir}/cfg || :
 fi
 
-if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
-  cp ${compile_dir}/test/cfg/taosadapter.service ${install_dir}/cfg || :
+if [ -f "${compile_dir}/test/cfg/${clientName}adapter.service" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}adapter.service ${install_dir}/cfg || :
 fi
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
@@ -150,18 +150,19 @@ fi
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
+# mkdir -p ${install_dir}/share && cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
 
 if [ $adapterName != "taosadapter" ]; then
-  mv ${install_dir}/cfg/taosadapter.toml ${install_dir}/cfg/$adapterName.toml
+  mv ${install_dir}/cfg/${clientName2}adapter.toml ${install_dir}/cfg/$adapterName.toml
   sed -i "s/path = \"\/var\/log\/taos\"/path = \"\/var\/log\/${productName}\"/g" ${install_dir}/cfg/$adapterName.toml
   sed -i "s/password = \"taosdata\"/password = \"${defaultPasswd}\"/g" ${install_dir}/cfg/$adapterName.toml
 
-  mv ${install_dir}/cfg/taosadapter.service ${install_dir}/cfg/$adapterName.service
+  mv ${install_dir}/cfg/${clientName2}adapter.service ${install_dir}/cfg/$adapterName.service
   sed -i "s/TDengine/${productName}/g" ${install_dir}/cfg/$adapterName.service
   sed -i "s/taosAdapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
   sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
 
-  mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
+  mv ${install_dir}/bin/${clientName2}adapter ${install_dir}/bin/${adapterName}
   mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
 fi
 
@@ -171,22 +172,22 @@ if [ -n "${taostools_bin_files}" ]; then
         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
         && chmod a+x ${taostools_install_dir}/bin/* || :
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-taostools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/install-taostools.sh \
+    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
+        cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
             ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/install-taostools.sh \
-            || echo -e "failed to copy install-taostools.sh"
+            && chmod a+x ${taostools_install_dir}/install-tools.sh \
+            || echo -e "failed to copy install-tools.sh"
     else
-        echo -e "install-taostools.sh not found"
+        echo -e "install-tools.sh not found"
     fi
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-taostools.sh \
+    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
+        cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
             ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/uninstall-taostools.sh \
-            || echo -e "failed to copy uninstall-taostools.sh"
+            && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
+            || echo -e "failed to copy uninstall-tools.sh"
     else
-        echo -e "uninstall-taostools.sh not found"
+        echo -e "uninstall-tools.sh not found"
     fi
 
     if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
@@ -233,8 +234,10 @@ if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
   sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" remove_temp.sh
   sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" remove_temp.sh
+  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" remove_temp.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" remove_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" remove_temp.sh
+  cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -262,8 +265,10 @@ if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
   sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_temp.sh
   sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_temp.sh
+  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" install_temp.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" install_temp.sh
+  cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -317,6 +322,7 @@ if [[ $dbName == "taos" ]]; then
       mkdir -p ${install_dir}/share/
       cp -Rfap ${web_dir}/admin ${install_dir}/share/
       cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
+      cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
     else
       echo "directory not found for enterprise release: ${web_dir}/admin"
     fi
@@ -332,7 +338,20 @@ if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-        [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+        tmp_pwd=`pwd`
+    	  cd ${install_dir}/connector
+    	  if [ ! -d taos-connector-jdbc ];then
+          	git clone -b main --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
+    	  fi
+    	  cd taos-connector-jdbc
+    	  mvn clean package -Dmaven.test.skip=true
+    	  echo  ${build_dir}/lib/
+    	  cp target/*.jar  ${build_dir}/lib/
+    	  cd ${install_dir}/connector
+    	  rm -rf taos-connector-jdbc
+    	  cd ${tmp_pwd}
+   	    jars=$(ls ${build_dir}/lib/*.jar 2>/dev/null|wc -l)
+        [ "${jars}" != "0" ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
         git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
         rm -rf ${install_dir}/connector/go/.git ||:
 

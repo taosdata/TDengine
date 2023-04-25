@@ -668,6 +668,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     }
 
     STransAction action = {0};
+    action.mTraceId = pTrans->mTraceId;
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pReq;
     action.contLen = contLen;
@@ -877,7 +878,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
     pHead->vgId = htonl(pVgroup->vgId);
     tSerializeSVDropTtlTableReq((char *)pHead + sizeof(SMsgHead), contLen, &ttlReq);
 
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen, .info = pReq->info};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
     int32_t code = tmsgSendReq(&epSet, &rpcMsg);
     if (code != 0) {
@@ -2613,6 +2614,13 @@ void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst) {
   tNameGetFullDbName(&name, dst);
 }
 
+void mndExtractShortDbNameFromStbFullName(const char *stbFullName, char *dst) {
+  SName name = {0};
+  tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  tNameGetDbName(&name, dst);
+}
+
 void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t dstSize) {
   int32_t pos = -1;
   int32_t num = 0;
@@ -3113,9 +3121,18 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
   char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_TO_VARSTR(typeName, "SUPER_TABLE");
+  bool fetch = pShow->restore ? false : true;
+  pShow->restore = false;
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
-    if (pShow->pIter == NULL) break;
+    if (fetch) {
+      pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
+      if (pShow->pIter == NULL) break;
+    } else {
+      fetch = true;
+      void  *pKey = taosHashGetKey(pShow->pIter, NULL);
+      pStb = sdbAcquire(pSdb, SDB_STB, pKey);
+      if (!pStb) continue;
+    }
 
     if (pDb != NULL && pStb->dbUid != pDb->uid) {
       sdbRelease(pSdb, pStb);
@@ -3129,6 +3146,17 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       sdbRelease(pSdb, pStb);
       continue;
     }
+
+    if ((numOfRows + pStb->numOfColumns) > rows) {
+      pShow->restore = true;
+      if (numOfRows == 0) {
+        mError("mndRetrieveStbCol failed to get stable cols since buf:%d less than result:%d, stable name:%s, db:%s",
+               rows, pStb->numOfColumns, pStb->name, pStb->db);
+      }
+      sdbRelease(pSdb, pStb);
+      break;
+    }
+
     varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
     mDebug("mndRetrieveStbCol get stable cols, stable name:%s, db:%s", pStb->name, pStb->db);

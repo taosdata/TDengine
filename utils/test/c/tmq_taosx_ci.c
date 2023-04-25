@@ -441,7 +441,7 @@ int32_t init_env() {
   taos_free_result(pRes);
 
   char sql[128] = {0};
-  snprintf(sql, 128, "create database if not exists db_taosx vgroups %d", g_conf.dstVgroups);
+  snprintf(sql, 128, "create database if not exists db_taosx vgroups %d wal_retention_period 3600", g_conf.dstVgroups);
   pRes = taos_query(pConn, sql);
   if (taos_errno(pRes) != 0) {
     printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
@@ -470,7 +470,7 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  snprintf(sql, 128, "create database if not exists abc1 vgroups %d", g_conf.srcVgroups);
+  snprintf(sql, 128, "create database if not exists abc1 vgroups %d wal_retention_period 3600", g_conf.srcVgroups);
   pRes = taos_query(pConn, sql);
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
@@ -542,7 +542,6 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
-  tmq_conf_set(conf, "enable.heartbeat.background", "true");
 
   if (g_conf.snapShot) {
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");

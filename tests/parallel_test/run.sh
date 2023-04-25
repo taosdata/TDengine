@@ -167,8 +167,10 @@ function run_thread() {
         local case_build_san=`echo "$line"|cut -d, -f3`
         if [ "${case_build_san}" == "y" ]; then
             case_build_san="y"
+            DEBUGPATH="debugSan"
         elif [[ "${case_build_san}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
             case_build_san="n"
+            DEBUGPATH="debugNoSan"
         else
             usage
             exit 1
@@ -274,6 +276,7 @@ function run_thread() {
         # echo "$thread_no ${line} DONE"
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
+            flock -x $lock_file -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
         else
             if [ ! -z ${web_server} ]; then
                 flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/${case_file}.txt\" >>${failed_case_file}"
@@ -300,10 +303,10 @@ function run_thread() {
             if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
                 local build_dir=$log_dir/build_${hosts[index]}
-                local remote_build_dir="${workdirs[index]}/TDengine/debug/build"
-                if [ $ent -ne 0 ]; then
-                    remote_build_dir="${workdirs[index]}/TDinternal/debug/build"
-                fi
+                local remote_build_dir="${workdirs[index]}/{DEBUGPATH}/build"
+                # if [ $ent -ne 0 ]; then
+                #     remote_build_dir="${workdirs[index]}/{DEBUGPATH}/build"
+                # fi
                 mkdir $build_dir 2>/dev/null
                 if [ $? -eq 0 ]; then
                     # scp build binary
@@ -365,6 +368,8 @@ lock_file=$log_dir/$$.lock
 index_file=$log_dir/case_index.txt
 stat_file=$log_dir/stat.txt
 failed_case_file=$log_dir/failed.txt
+success_case_file=$log_dir/success.txt
+
 echo "0" >$index_file
 
 i=0

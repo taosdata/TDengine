@@ -380,11 +380,13 @@ static int32_t mndInitSdb(SMnode *pMnode) {
 }
 
 static int32_t mndOpenSdb(SMnode *pMnode) {
+  int32_t code = 0;
   if (!pMnode->deploy) {
-    return sdbReadFile(pMnode->pSdb);
-  } else {
-    return 0;
+    code = sdbReadFile(pMnode->pSdb);
   }
+
+  atomic_store_64(&pMnode->applied, pMnode->pSdb->commitIndex);
+  return code;
 }
 
 static void mndCleanupSdb(SMnode *pMnode) {
@@ -489,7 +491,10 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->selfDnodeId = pOption->dnodeId;
   pMnode->syncMgmt.selfIndex = pOption->selfIndex;
   pMnode->syncMgmt.numOfReplicas = pOption->numOfReplicas;
+  pMnode->syncMgmt.numOfTotalReplicas = pOption->numOfTotalReplicas;
+  pMnode->syncMgmt.lastIndex = pOption->lastIndex;
   memcpy(pMnode->syncMgmt.replicas, pOption->replicas, sizeof(pOption->replicas));
+  memcpy(pMnode->syncMgmt.nodeRoles, pOption->nodeRoles, sizeof(pOption->nodeRoles));
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
@@ -580,6 +585,16 @@ int32_t mndStart(SMnode *pMnode) {
   return mndInitTimer(pMnode);
 }
 
+int32_t mndIsCatchUp(SMnode *pMnode) {
+  int64_t rid = pMnode->syncMgmt.sync;
+  return syncIsCatchUp(rid);
+}
+
+ESyncRole mndGetRole(SMnode *pMnode){
+  int64_t rid = pMnode->syncMgmt.sync;
+  return syncGetRole(rid);
+}
+
 void mndStop(SMnode *pMnode) {
   mndSetStop(pMnode);
   mndSyncStop(pMnode);
@@ -651,7 +666,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
-           pMnode->stopped, state.restored, syncStr(state.restored));
+           pMnode->stopped, state.restored, syncStr(state.state));
     return -1;
   }
 
@@ -759,6 +774,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   pClusterInfo->connections_total = mndGetNumOfConnections(pMnode);
   pClusterInfo->dbs_total = sdbGetSize(pSdb, SDB_DB);
   pClusterInfo->stbs_total = sdbGetSize(pSdb, SDB_STB);
+  pClusterInfo->topics_toal = sdbGetSize(pSdb, SDB_TOPIC);
+  pClusterInfo->streams_total = sdbGetSize(pSdb, SDB_STREAM);
 
   void *pIter = NULL;
   while (1) {
@@ -862,7 +879,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   }
 
   // grant info
-  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 86400000.0f;
+  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 1000;
   pGrantInfo->timeseries_total = pMnode->grant.timeseriesAllowed;
   if (pMnode->grant.expireTimeMS == 0) {
     pGrantInfo->expire_time = INT32_MAX;

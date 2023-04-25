@@ -58,7 +58,7 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
 static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   ths->tmrRoutineNum++;
 
-  if (ths->tmrRoutineNum % 60 == 0 && ths->replicaNum > 1) {
+  if (ths->tmrRoutineNum % 60 == 0 && ths->totalReplicaNum > 1) {
     sNInfo(ths, "timer routines");
   } else {
     sNTrace(ths, "timer routines");
@@ -120,9 +120,6 @@ int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->pingTimerCounter);
 
-      // syncNodePingAll(ths);
-      // syncNodePingPeers(ths);
-
       syncNodeTimerRoutine(ths);
     }
 
@@ -138,8 +135,6 @@ int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
       ++(ths->heartbeatTimerCounter);
       sTrace("vgId:%d, sync timer, type:replicate count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
              ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
-
-      // syncNodeReplicate(ths, true);
     }
 
   } else {

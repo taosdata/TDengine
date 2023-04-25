@@ -67,7 +67,7 @@ int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
   return 0;
 }
 
-static SClusterObj *mndAcquireCluster(SMnode *pMnode) {
+static SClusterObj *mndAcquireCluster(SMnode *pMnode, void **ppIter) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -76,23 +76,27 @@ static SClusterObj *mndAcquireCluster(SMnode *pMnode) {
     pIter = sdbFetch(pSdb, SDB_CLUSTER, pIter, (void **)&pCluster);
     if (pIter == NULL) break;
 
+    *ppIter = pIter;
+
     return pCluster;
   }
 
   return NULL;
 }
 
-static void mndReleaseCluster(SMnode *pMnode, SClusterObj *pCluster) {
+static void mndReleaseCluster(SMnode *pMnode, SClusterObj *pCluster, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
   sdbRelease(pSdb, pCluster);
 }
 
 int64_t mndGetClusterId(SMnode *pMnode) {
   int64_t      clusterId = 0;
-  SClusterObj *pCluster = mndAcquireCluster(pMnode);
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
     clusterId = pCluster->id;
-    mndReleaseCluster(pMnode, pCluster);
+    mndReleaseCluster(pMnode, pCluster, pIter);
   }
 
   return clusterId;
@@ -100,10 +104,11 @@ int64_t mndGetClusterId(SMnode *pMnode) {
 
 int64_t mndGetClusterCreateTime(SMnode *pMnode) {
   int64_t      createTime = 0;
-  SClusterObj *pCluster = mndAcquireCluster(pMnode);
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
     createTime = pCluster->createdTime;
-    mndReleaseCluster(pMnode, pCluster);
+    mndReleaseCluster(pMnode, pCluster, pIter);
   }
 
   return createTime;
@@ -121,10 +126,11 @@ static int32_t mndGetClusterUpTimeImp(SClusterObj *pCluster) {
 
 float mndGetClusterUpTime(SMnode *pMnode) {
   int64_t      upTime = 0;
-  SClusterObj *pCluster = mndAcquireCluster(pMnode);
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
     upTime = mndGetClusterUpTimeImp(pCluster);
-    mndReleaseCluster(pMnode, pCluster);
+    mndReleaseCluster(pMnode, pCluster, pIter);
   }
 
   return upTime / 86400.0f;
@@ -321,11 +327,12 @@ static void mndCancelGetNextCluster(SMnode *pMnode, void *pIter) {
 static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   SClusterObj  clusterObj = {0};
-  SClusterObj *pCluster = mndAcquireCluster(pMnode);
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
     memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
     clusterObj.upTime += tsUptimeInterval;
-    mndReleaseCluster(pMnode, pCluster);
+    mndReleaseCluster(pMnode, pCluster, pIter);
   }
 
   if (clusterObj.id <= 0) {

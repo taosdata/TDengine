@@ -119,6 +119,39 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return NULL;
 }
 
+int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type) {
+  if (taos == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  switch (type) {
+    case TAOS_NOTIFY_PASSVER: {
+      pObj->passInfo.fp = fp;
+      pObj->passInfo.param = param;
+      if (fp) {
+        atomic_add_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
+      }
+      break;
+    }
+    default: {
+      terrno = TSDB_CODE_INVALID_PARA;
+      releaseTscObj(*(int64_t *)taos);
+      return terrno;
+    }
+  }
+
+  releaseTscObj(*(int64_t *)taos);
+  return 0;
+}
+
 void taos_close_internal(void *taos) {
   if (taos == NULL) {
     return;
@@ -271,8 +304,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     SReqResultInfo *pResultInfo;
     if (msg->resIter == -1) {
       pResultInfo = tmqGetNextResInfo(res, true);
-      tscDebug("consumer:0x%" PRIx64 ", vgId:%d, numOfRows:%" PRId64 ", total rows:%" PRId64, msg->rsp.head.consumerId,
-               msg->vgId, pResultInfo->numOfRows, pResultInfo->totalRows);
     } else {
       pResultInfo = tmqGetCurResInfo(res);
     }
@@ -286,9 +317,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       if (pResultInfo == NULL) {
         return NULL;
       }
-
-      tscDebug("consumer:0x%" PRIx64 " vgId:%d, numOfRows:%" PRId64 ", total rows:%" PRId64, msg->rsp.head.consumerId,
-               msg->vgId, pResultInfo->numOfRows, pResultInfo->totalRows);
 
       doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
@@ -611,6 +639,9 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
 }
 
 int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
+  *numOfRows = 0;
+  *pData = NULL;
+
   if (res == NULL || TD_RES_TMQ_META(res)) {
     return 0;
   }

@@ -76,7 +76,7 @@ namespace TDengineExample
 
         static void PrepareSTable()
         {
-            IntPtr res = TDengine.Query(conn, "CREATE DATABASE power");
+            IntPtr res = TDengine.Query(conn, "CREATE DATABASE power WAL_RETENTION_PERIOD 3600");
             CheckResPtr(res, "failed to create database");
             res = TDengine.Query(conn, "USE power");
             CheckResPtr(res, "failed to change database");
