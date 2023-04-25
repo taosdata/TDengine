@@ -578,12 +578,10 @@ static int32_t smlConvertJSONString(SSmlKv *pVal, char *typeStr, cJSON *value) {
   pVal->length = (uint16_t)strlen(value->valuestring);
 
   if (pVal->type == TSDB_DATA_TYPE_BINARY && pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
-    TASSERT
     return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
   }
   if (pVal->type == TSDB_DATA_TYPE_NCHAR &&
       pVal->length > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-    TASSERT
     return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
   }
 

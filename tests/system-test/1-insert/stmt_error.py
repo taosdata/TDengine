@@ -216,7 +216,6 @@ class TDTestCase:
                 tdLog.info('=========stmt error occured  for bind part column(NULL Timestamp) ==============')
             else:
                 tdLog.exit("expect error(%s) not occured - 2" % str(error))
-        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

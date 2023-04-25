@@ -4500,7 +4500,6 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
     if (TSDB_CODE_SUCCESS == code) {
       if ((TSDB_DATA_TYPE_VARCHAR == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN) ||
           (TSDB_DATA_TYPE_NCHAR == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN)) {
-        TASSERT
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
     }
@@ -4552,7 +4551,6 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     if (TSDB_CODE_SUCCESS == code) {
       if ((TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_BINARY_LEN) ||
           (TSDB_DATA_TYPE_NCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_NCHAR_LEN)) {
-        TASSERT
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
     }
@@ -5238,7 +5236,6 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
 
     if (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType) {
       if (calcTypeBytes(pStmt->dataType) > TSDB_MAX_FIELD_LEN) {
-        TASSERT
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
 
@@ -5249,7 +5246,6 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
 
     if (TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType) {
       if (calcTypeBytes(pStmt->dataType) > TSDB_MAX_TAGS_LEN) {
-        TASSERT
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
 

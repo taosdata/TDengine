@@ -22,13 +22,6 @@
 extern "C" {
 #endif
 
-
-#if 1
-#define TASSERT assert(0);
-#else
-#define TASSERT
-#endif
-
 #define TSDB__packed
 
 #define TSKEY             int64_t

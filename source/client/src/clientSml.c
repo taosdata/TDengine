@@ -624,6 +624,10 @@ static int32_t getBytes(uint8_t type, int32_t length) {
 
 static int32_t smlBuildFieldsList(SSmlHandle *info, SSchema *schemaField, SHashObj *schemaHash, SArray *cols,
                                   SArray *results, int32_t numOfCols, bool isTag) {
+  bool    check = numOfCols == 0 ? true : false;
+  int32_t maxLen = isTag ? TSDB_MAX_TAGS_LEN : TSDB_MAX_BYTES_PER_ROW;
+
+  int32_t len = 0;
   for (int j = 0; j < taosArrayGetSize(cols); ++j) {
     SSmlKv       *kv = (SSmlKv *)taosArrayGet(cols, j);
     ESchemaAction action = SCHEMA_ACTION_NULL;
@@ -635,11 +639,17 @@ static int32_t smlBuildFieldsList(SSmlHandle *info, SSchema *schemaField, SHashO
       SField field = {0};
       field.type = kv->type;
       field.bytes = getBytes(kv->type, kv->length);
+      if (check) {
+        len += field.bytes;
+        if (len > maxLen) {
+          code = TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+          uError("smlBuildFieldsList add %s  failed since %s", isTag ? "tag" : "col", tstrerror(code));
+          return code;
+        }
+      }
+
       memcpy(field.name, kv->key, kv->keyLen);
       taosArrayPush(results, &field);
-      if(numOfCols == 0) {
-
-      }
     } else if (action == SCHEMA_ACTION_CHANGE_COLUMN_SIZE || action == SCHEMA_ACTION_CHANGE_TAG_SIZE) {
       uint16_t *index = (uint16_t *)taosHashGet(schemaHash, kv->key, kv->keyLen);
       if (index == NULL) {
@@ -650,6 +660,14 @@ static int32_t smlBuildFieldsList(SSmlHandle *info, SSchema *schemaField, SHashO
       if (isTag) newIndex -= numOfCols;
       SField *field = (SField *)taosArrayGet(results, newIndex);
       field->bytes = getBytes(kv->type, kv->length);
+      if (check) {
+        len += (kv->length - schemaField[*index].bytes + VARSTR_HEADER_SIZE);
+        if (len > maxLen) {
+          code = TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+          uError("smlBuildFieldsList change %s failed since %s", isTag ? "tag" : "col", tstrerror(code));
+          return code;
+        }
+      }
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -780,11 +798,15 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       code = smlBuildFieldsList(info, NULL, NULL, sTableData->tags, pTags, 0, true);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " smlBuildFieldsList tag1 failed. %s", info->id, pName.tname);
+        taosArrayDestroy(pColumns);
+        taosArrayDestroy(pTags);
         goto end;
       }
       code = smlBuildFieldsList(info, NULL, NULL, sTableData->cols, pColumns, 0, false);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " smlBuildFieldsList col1 failed. %s", info->id, pName.tname);
+        taosArrayDestroy(pColumns);
+        taosArrayDestroy(pTags);
         goto end;
       }
       code = smlSendMetaMsg(info, &pName, pColumns, pTags, NULL, SCHEMA_ACTION_CREATE_STABLE);
@@ -836,6 +858,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
                                   pTableMeta->tableInfo.numOfColumns, true);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlBuildFieldsList tag2 failed. %s", info->id, pName.tname);
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
           goto end;
         }
 
@@ -890,6 +914,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
                                   pTableMeta->tableInfo.numOfColumns, false);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlBuildFieldsList col2 failed. %s", info->id, pName.tname);
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
           goto end;
         }
 
