@@ -647,8 +647,6 @@ bool tMergeTreeNext(SMergeTree *pMTree) {
   return pMTree->pIter != NULL;
 }
 
-TSDBROW tMergeTreeGetRow(SMergeTree *pMTree) { return pMTree->pIter->rInfo.row; }
-
 void tMergeTreeClose(SMergeTree *pMTree) {
   pMTree->pIter = NULL;
   if (pMTree->destroyLoadInfo) {
