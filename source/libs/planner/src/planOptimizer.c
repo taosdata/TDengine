@@ -2442,6 +2442,8 @@ static void tagScanOptCloneAncestorSlimit(SLogicNode* pTableScanNode) {
   if (NULL != pNode) {
     //TODO: only set the slimit now. push down slimit later
     pTableScanNode->pSlimit = nodesCloneNode(pNode->pSlimit);
+    ((SLimitNode*)pTableScanNode->pSlimit)->limit += ((SLimitNode*)pTableScanNode->pSlimit)->offset;
+    ((SLimitNode*)pTableScanNode->pSlimit)->offset = 0;
   }
   return;
 }
