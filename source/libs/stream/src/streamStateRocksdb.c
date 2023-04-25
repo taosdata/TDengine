@@ -45,8 +45,9 @@ int streamStateValueIsStale(char* vv) {
   return ts < taosGetTimestampSec() ? 1 : 0;
 }
 int iterValueIsStale(rocksdb_iterator_t* iter) {
-  char* vv = (char*)rocksdb_iter_value(iter, NULL);
-  return streamStateValueIsStale(vv);
+  size_t len;
+  char*  v = (char*)rocksdb_iter_value(iter, &len);
+  return streamStateValueIsStale(v);
 }
 int defaultKeyEncode(void* k, char* buf) {
   int len = strlen((char*)k);
@@ -997,7 +998,8 @@ SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* 
   rocksdb_iter_seek(pCur->iter, buf, len);
 
   if (rocksdb_iter_valid(pCur->iter) && !iterValueIsStale(pCur->iter)) {
-    char* val = (char*)rocksdb_iter_value(pCur->iter, NULL);
+    size_t vlen;
+    char*  val = (char*)rocksdb_iter_value(pCur->iter, &vlen);
     if (!streamStateValueIsStale(val)) {
       SStateKey curKey;
       size_t    kLen = 0;
