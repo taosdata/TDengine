@@ -1223,7 +1223,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     tqDebug("vgId:%d s-task:%s set normal flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
     streamSetStatusNormal(pTask);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    tqStreamTasksScanWal(pTq);
+    tqStartStreamTasks(pTq);
   }
   return 0;
 }

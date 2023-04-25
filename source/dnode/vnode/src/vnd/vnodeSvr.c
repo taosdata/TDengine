@@ -410,12 +410,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       }
     } break;
     case TDMT_STREAM_TASK_PAUSE: {
-      if (tqProcessTaskPauseReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
+      if (pVnode->restored && tqProcessTaskPauseReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
     } break;
     case TDMT_STREAM_TASK_RESUME: {
-      if (tqProcessTaskResumeReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
+      if (pVnode->restored && tqProcessTaskResumeReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
     } break;
