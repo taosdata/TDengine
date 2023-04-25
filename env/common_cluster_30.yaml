@@ -36,7 +36,16 @@ settings:
             asyncLog: 0
             logkeepDays: 2
             numOfLogLines: 300000000
-
+  - name: taosBenchmark
+    fqdn: [ceph01]
+    spec:
+      version: 3.0.0.0
+      taos_version: 3.0.0.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: ceph01:6030
+        logDir: /var/log/taos
+        debugFlag: 131
   - name: taospy
     fqdn: [ceph01]
     spec:
