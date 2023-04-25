@@ -538,10 +538,11 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
     return -1;
   }
 
-  struct stat fileStat;
 #ifdef WINDOWS
+  struct __stat64 fileStat;
   int32_t code = _fstat(pFile->fd, &fileStat);
 #else
+  struct stat fileStat;
   int32_t code = fstat(pFile->fd, &fileStat);
 #endif
   if (code < 0) {
