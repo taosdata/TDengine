@@ -76,6 +76,10 @@ func (r *ArrowReporter) Report(_ context.Context, values []*common.NodeValue) er
 		}
 		r.counter.Add(uint64(record.NumRows()))
 		log.Printf("## [%d] record already sent", r.counter.Load())
+
+		for i, col := range record.Columns() {
+			log.Printf("##  record column [%s] value [%v]", record.ColumnName(i), col)
+		}
 	}
 
 	return nil

@@ -201,11 +201,6 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 					continue
 				}
 
-				if r.debug {
-					j, _ := json.Marshal(values)
-					log.Println("## read opc ua metric", string(j))
-				}
-
 				for _, value := range values {
 					ch <- value
 				}
@@ -236,6 +231,10 @@ func (r *reader) readValue(ctx context.Context) ([]*common.NodeValue, error) {
 		if value.Status != ua.StatusOK {
 			log.Printf("## read data for identifier %q status %v is not ok ", identifier, values)
 			continue
+		}
+
+		if r.debug {
+			log.Printf("## read opc ua value [%v] type [%v]", value.Value.Value(), value.Value.Type())
 		}
 
 		if err = r.checkValueType(identifier, value, r.nodeTypes[i]); err != nil {
