@@ -1829,4 +1829,48 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_patch() -> anyhow::Result<()> {
+        // std::env::set_var("RUST_LOG", "taos=debug");
+        // pretty_env_logger::init();
+        let controller = TaskController::from_sqlite("sqlite::memory:").await?;
+
+        let new: AgentProps = serde_json::from_str(
+            r#"
+        {
+            "dsn": "",
+            "name": "代理1",
+            "cluster_id": "xxx",
+            "user_id":"root",
+            "expire_date": "2024-01-01",
+            "connectors": ["opc"]
+        }
+        "#,
+        )
+        .unwrap();
+        dbg!(&new);
+        let agent = controller.create_agent(new).await?;
+        
+        let detail = controller.get_agent_by_id(agent.id).await?;
+        dbg!(&detail);
+
+        let patch: AgentUpdates = serde_json::from_str(
+            r#"{
+            "name": "代理2",
+            "connectors": ["opc", "modbus"]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let _agent = controller.update_agent(agent.id, patch).await?;
+
+        let detail = controller.get_agent_by_id(agent.id).await?;
+        dbg!(&detail);
+
+        controller.delete_agent(agent.id).await?;
+
+        Ok(())
+    }
 }

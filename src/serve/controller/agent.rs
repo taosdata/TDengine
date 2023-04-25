@@ -115,7 +115,7 @@ impl AgentUpdates {
         let name = self
             .name
             .as_ref()
-            .map(|v| format!("`name` = \"{}\"", v.escape_default()));
+            .map(|v| format!("`name` = \"{}\"", v));
         let exp = self
             .expire_time
             .as_ref()
@@ -126,6 +126,8 @@ impl AgentUpdates {
             .map(|v| format!("`connectors` = '{}'", serde_json::to_string(&v).unwrap()));
 
         let s = name.into_iter().chain(exp).chain(connectors).join(",");
+
+        // log::debug!("update agent with {}", s);
 
         if s.is_empty() {
             None
