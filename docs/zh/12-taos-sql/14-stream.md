@@ -216,26 +216,26 @@ T = 最新事件时间 - DELETE_MARK
 
 ## 流式计算支持的函数
 
-1. 所有的单行函数均可用于流计算中。
-2. 以下 19 个聚合函数不能在创建流计算的 SQL 语句中使用
-```
-leastsquares
-percentile
-top
-bottom
-elapsed
-interp
-derivative
-irate
-twa
-histogram
-diff
-statecount
-stateduration
-csum
-mavg
-sample
-tail
-unique
-mode
-```
+1. 所有的[单行函数](../function/#单行函数)均可用于流计算。
+2. 以下 19 个聚合/选择函数<b>不能</b>在创建流计算的 SQL 语句，[系统信息函数](../function/#系统信息函数)其他类型的聚合函数均可用于流计算。
+
+- [leastsquares](../function/#leastsquares)
+- [percentile](../function/#percentile)
+- [top](../function/#leastsquares)
+- [bottom](../function/#top)
+- [elapsed](../function/#leastsquares)
+- [interp](../function/#elapsed)
+- [derivative](../function/#derivative)
+- [irate](../function/#irate)
+- [twa](../function/#twa)
+- [histogram](../function/#histogram)
+- [diff](../function/#diff)
+- [statecount](../function/#statecount)
+- [stateduration](../function/#stateduration)
+- [csum](../function/#csum)
+- [mavg](../function/#mavg)
+- [sample](../function/#sample)
+- [tail](../function/#tail)
+- [unique](../function/#unique)
+- [mode](../function/#mode)
+
