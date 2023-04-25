@@ -252,6 +252,7 @@
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby.sim
+,,y,script,./test.sh -f tsim/stream/pauseAndResume.sim
 ,,y,script,./test.sh -f tsim/stream/schedSnode.sim
 ,,y,script,./test.sh -f tsim/stream/session0.sim
 ,,y,script,./test.sh -f tsim/stream/session1.sim
@@ -1373,6 +1374,7 @@
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
 ,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
 ,,y,script,./test.sh -f tsim/stream/partitionby.sim
+,,y,script,./test.sh -f tsim/stream/pauseAndResume.sim
 ,,y,script,./test.sh -f tsim/stream/schedSnode.sim
 ,,y,script,./test.sh -f tsim/stream/session0.sim
 ,,y,script,./test.sh -f tsim/stream/session1.sim
