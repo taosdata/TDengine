@@ -161,6 +161,7 @@ typedef struct SReaderStatus {
   SDataBlockIter        blockIter;
   SLDataIter*           pLDataIter;
   SRowMerger            merger;
+  SColumnInfoData*      pPrimaryTsCol;      // primary time stamp output col info data
 } SReaderStatus;
 
 typedef struct SBlockInfoBuf {
@@ -780,6 +781,8 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
 
   pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
 
+  setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
+
   code = tBlockDataCreate(&pReader->status.fileBlockData);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
@@ -792,7 +795,8 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
     goto _end;
   }
 
-  setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
+  ASSERT (pReader->suppInfo.colId[0] == PRIMARYKEY_TIMESTAMP_COL_ID);
+  pReader->status.pPrimaryTsCol = taosArrayGet(pResBlock->pDataBlock, pSup->slotId[0]);
 
   tsdbInitReaderLock(pReader);
 
@@ -4091,11 +4095,12 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
   int32_t code = TSDB_CODE_SUCCESS;
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
-  if (pReader->suppInfo.colId[i] == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
-    ((int64_t*)pColData->pData)[outputRowIndex] = pBlockData->aTSKEY[rowIndex];
+//  ASSERT (pReader->suppInfo.colId[i] == PRIMARYKEY_TIMESTAMP_COL_ID);// {
+//    SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
+//    ((int64_t*)pColData->pData)[outputRowIndex] = pBlockData->aTSKEY[rowIndex];
+  ((int64_t*)pReader->status.pPrimaryTsCol->pData)[outputRowIndex] = pBlockData->aTSKEY[rowIndex];
     i += 1;
-  }
+//  }
 
   SColVal cv = {0};
   int32_t numOfInputCols = pBlockData->nColData;
