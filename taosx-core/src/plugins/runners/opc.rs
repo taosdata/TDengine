@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::prelude::*, num::ParseIntError, str::FromStr, time::Duration};
+use std::{collections::HashMap, io::prelude::*, num::ParseIntError, str::FromStr, time::Duration, f32::consts::E};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -52,11 +52,14 @@ enum OpcError {
     NodeConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
+    #[error("Parse param error from {1} while parsing parameter {0}")]
+    ParseError(&'static str, String,),
 }
 
 #[derive(Debug, serde::Serialize)]
 struct OPCConfig {
     opc_type: OpcType,
+    debug: bool,
     connect: ConnectConfig,
     collect: CollectConfig,
     report: ReportConfig,
@@ -335,6 +338,15 @@ impl OPCConfig {
         let concurrent = parse_int_at!("concurrent");
         let batch_size = parse_int_at!("batch_size");
         let batch_timeout = parse_int_at!("batch_timeout");
+        let debug = if let Some(v) = dsn.remove("debug").map(|v| {
+            v.parse::<bool>()
+                .map_err(|err| OpcError::ParseError("debug", v))
+        }).transpose()? {
+            true
+        } else {
+            false
+        };
+        
         let report = ReportConfig {
             remote,
             concurrent,
@@ -343,6 +355,7 @@ impl OPCConfig {
         };
         Ok(OPCConfig {
             opc_type,
+            debug,
             connect,
             collect,
             report,

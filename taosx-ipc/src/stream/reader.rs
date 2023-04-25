@@ -169,7 +169,7 @@ impl<R: Read> IpcReader<R> {
                             DataType::FixedSizeList(_, _) => todo!(),
                             DataType::LargeList(_) => todo!(),
                             DataType::Struct(_) => todo!(),
-                            DataType::Union(_, _, _) => todo!(),
+                            DataType::Union(_, _) => todo!(),
                             DataType::Dictionary(_, _) => todo!(),
                             DataType::Decimal128(_, _) => todo!(),
                             DataType::Decimal256(_, _) => todo!(),
@@ -303,7 +303,7 @@ impl<R: Read> IpcReader<R> {
                             DataType::FixedSizeList(_, _) => todo!(),
                             DataType::LargeList(_) => todo!(),
                             DataType::Struct(_) => todo!(),
-                            DataType::Union(_, _, _) => todo!(),
+                            DataType::Union(_, _) => todo!(),
                             DataType::Dictionary(_, _) => todo!(),
                             DataType::Decimal128(_, _) => todo!(),
                             DataType::Decimal256(_, _) => todo!(),
@@ -912,7 +912,7 @@ pub fn parse_column_view_with_types(
                 DataType::FixedSizeList(_, _) => todo!(),
                 DataType::LargeList(_) => todo!(),
                 DataType::Struct(_) => todo!(),
-                DataType::Union(_, _, _) => todo!(),
+                DataType::Union(_, _) => todo!(),
                 DataType::Dictionary(_, _) => todo!(),
                 DataType::Decimal128(_, _) => todo!(),
                 DataType::Decimal256(_, _) => todo!(),
@@ -1136,7 +1136,7 @@ pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
                 DataType::FixedSizeList(_, _) => todo!(),
                 DataType::LargeList(_) => todo!(),
                 DataType::Struct(_) => todo!(),
-                DataType::Union(_, _, _) => todo!(),
+                DataType::Union(_, _) => todo!(),
                 DataType::Dictionary(_, _) => todo!(),
                 DataType::Decimal128(_, _) => todo!(),
                 DataType::Decimal256(_, _) => todo!(),
@@ -1177,94 +1177,92 @@ impl<R: Read> Iterator for IpcReader<R> {
                 break res;
             }
         };
-        
-        // if res.is_err() {
-        //     dbg!(&res);
-        // }
-
-        if let Ok(record) = res {
-            match self.metadata().stream_type() {
-                StreamType::Lush => {
-                    let v = record
-                        .column_by_name(__TYPE__)
-                        .expect("the lush message stream should contains __type__ field")
-                        .as_any()
-                        .downcast_ref::<UInt8Array>()
-                        .unwrap();
-                    let v: LushMessageType = unsafe { std::mem::transmute(v.value(0)) };
-                    match v {
-                        LushMessageType::Table => todo!(),
-                        LushMessageType::Children => {
-                            let tables = record.column(__TABLES__INDEX__);
-
-                            let tables = (0..tables.len())
-                                .flat_map(|i| {
-                                    let tables = tables.slice(i, 1);
-                                    self.parse_tables(tables).into_iter()
-                                })
-                                .collect_vec();
-                            return Some(Ok(Box::new(LushMessage::Tables(tables))));
-                        }
-                        LushMessageType::Insert => {
-                            if let Some(attrs) = record.column_by_name(__ATTRS__) {
-                                let values = record.column_by_name(__RECORDS__).unwrap();
-                                assert_eq!(attrs.len(), values.len());
-
-                                debug_assert!(values.len() == 1);
-
-                                let mut message = Vec::with_capacity(values.len());
-                                for i in 0..values.len() {
-                                    let attrs = self.parse_attrs(attrs.slice(i, 1));
-                                    let records: LushInsertRecords = values.slice(i, 1).into();
-                                    // dbg!(&records);
-                                    let i = LushMessageInsert {
-                                        attrs,
-                                        records,
-                                        schema: self.schema.clone(),
-                                        metadata: self.metadata.clone(),
-                                    };
-                                    message.push(i);
+        match res {
+            Ok(record) => {
+                match self.metadata().stream_type() {
+                    StreamType::Lush => {
+                        let v = record
+                            .column_by_name(__TYPE__)
+                            .expect("the lush message stream should contains __type__ field")
+                            .as_any()
+                            .downcast_ref::<UInt8Array>()
+                            .unwrap();
+                        let v: LushMessageType = unsafe { std::mem::transmute(v.value(0)) };
+                        match v {
+                            LushMessageType::Table => todo!(),
+                            LushMessageType::Children => {
+                                let tables = record.column(__TABLES__INDEX__);
+    
+                                let tables = (0..tables.len())
+                                    .flat_map(|i| {
+                                        let tables = tables.slice(i, 1);
+                                        self.parse_tables(tables).into_iter()
+                                    })
+                                    .collect_vec();
+                                return Some(Ok(Box::new(LushMessage::Tables(tables))));
+                            }
+                            LushMessageType::Insert => {
+                                if let Some(attrs) = record.column_by_name(__ATTRS__) {
+                                    let values = record.column_by_name(__RECORDS__).unwrap();
+                                    assert_eq!(attrs.len(), values.len());
+    
+                                    debug_assert!(values.len() == 1);
+    
+                                    let mut message = Vec::with_capacity(values.len());
+                                    for i in 0..values.len() {
+                                        let attrs = self.parse_attrs(attrs.slice(i, 1));
+                                        let records: LushInsertRecords = values.slice(i, 1).into();
+                                        // dbg!(&records);
+                                        let i = LushMessageInsert {
+                                            attrs,
+                                            records,
+                                            schema: self.schema.clone(),
+                                            metadata: self.metadata.clone(),
+                                        };
+                                        message.push(i);
+                                    }
+                                    return Some(Ok(Box::new(LushMessage::Insert(message))));
+                                } else {
+                                    let values = record.column_by_name(__RECORDS__).unwrap();
+    
+                                    // debug_assert!(values.len() == 1);
+    
+                                    let mut message = Vec::with_capacity(values.len());
+                                    for i in 0..values.len() {
+                                        let records: LushInsertRecords = values.slice(i, 1).into();
+                                        // dbg!(&records);
+                                        let i = LushMessageInsert {
+                                            attrs: None,
+                                            records,
+                                            schema: self.schema.clone(),
+                                            metadata: self.metadata.clone(),
+                                        };
+                                        message.push(i);
+                                    }
+                                    return Some(Ok(Box::new(LushMessage::Insert(message))));
                                 }
-                                return Some(Ok(Box::new(LushMessage::Insert(message))));
-                            } else {
-                                let values = record.column_by_name(__RECORDS__).unwrap();
-
-                                // debug_assert!(values.len() == 1);
-
-                                let mut message = Vec::with_capacity(values.len());
-                                for i in 0..values.len() {
-                                    let records: LushInsertRecords = values.slice(i, 1).into();
-                                    // dbg!(&records);
-                                    let i = LushMessageInsert {
-                                        attrs: None,
-                                        records,
-                                        schema: self.schema.clone(),
-                                        metadata: self.metadata.clone(),
-                                    };
-                                    message.push(i);
-                                }
-                                return Some(Ok(Box::new(LushMessage::Insert(message))));
                             }
                         }
                     }
+                    StreamType::Point => {
+                        let record = RecordMessage {
+                            record
+                        };
+                        return Some(Ok(Box::new(PointMessage::new(vec![record]))));
+                    }
+                    StreamType::Flat => {
+                        let record = RecordMessage {
+                            record
+                        };
+                        return Some(Ok(Box::new(FlatMessage::new(vec![record]))));
+                    }
+                    _ => todo!(),
                 }
-                StreamType::Point => {
-                    let record = RecordMessage {
-                        record
-                    };
-                    return Some(Ok(Box::new(PointMessage::new(vec![record]))));
-                }
-                StreamType::Flat => {
-                    let record = RecordMessage {
-                        record
-                    };
-                    return Some(Ok(Box::new(FlatMessage::new(vec![record]))));
-                }
-                _ => todo!(),
             }
-        } else {
-            error!("Empty message");
-            None
+            Err(err) => {
+                error!("next message error, {}", err.to_string());
+                Some(Err(err))
+            }
         }
     }
 }

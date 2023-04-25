@@ -7,7 +7,7 @@ use std::{
     path::Path,
     sync::{atomic::AtomicBool, Arc},
 };
-use taos::{AsyncQueryable, Bindable, Itertools, Stmt, Taos, TaosPool};
+use taos::{AsyncQueryable, Bindable, Itertools, Stmt, Taos, TaosPool, RawBlock, taos_query::common::views::views_to_raw_block};
 use tokio::sync::{mpsc::Sender, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, debug};
@@ -152,8 +152,15 @@ async fn consume_point_record(
             stmt.bind(&new_cv_vec.as_slice())
                 .context("STMT binding error")?;
             stmt.add_batch().context("STMT adding batch error")?;
-            let n = stmt.execute().context("STMT executing error")?;
-            *count += n;
+            let res = stmt.execute();
+            match res {
+                Ok(n) => *count += n,
+                Err(err) => {
+                    let block = RawBlock::parse_from_raw_block(views_to_raw_block(&new_cv_vec), taos::Precision::Millisecond);
+                    let block = block.pretty_format();
+                    log::error!("execute error, {}, data: {}", err.to_string(), block);
+                },
+            }
         }
     }
     Ok(())
