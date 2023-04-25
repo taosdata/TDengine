@@ -170,6 +170,9 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableCfg);
   pData->pTableCfg = NULL;
 
+  taosArrayDestroy(pData->pTableTag);
+  pData->pTableTag = NULL;
+
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
@@ -530,7 +533,7 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
     }
     case CTG_TASK_GET_USER: {
       if (*pRes) {
-        SUserAuthRes* pAuth = (SUserAuthRes *)*pRes;
+        SUserAuthRes* pAuth = (SUserAuthRes*)*pRes;
         nodesDestroyNode(pAuth->pCond);
         taosMemoryFreeClear(*pRes);
       }
@@ -711,6 +714,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       SCtgTbTagCtx* taskCtx = (SCtgTbTagCtx*)pTask->taskCtx;
       taosMemoryFreeClear(taskCtx->pName);
       taosMemoryFreeClear(taskCtx->pVgInfo);
+      taosMemoryFreeClear(taskCtx);
       break;
     }
     case CTG_TASK_GET_DB_VGROUP:

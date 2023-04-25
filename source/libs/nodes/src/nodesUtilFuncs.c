@@ -827,6 +827,8 @@ void nodesDestroyNode(SNode* pNode) {
       SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pNode;
       destroyVgDataBlockArray(pStmt->pDataBlocks);
       taosMemoryFreeClear(pStmt->pTableMeta);
+      nodesDestroyNode(pStmt->pTagCond);
+      taosArrayDestroy(pStmt->pTableTag);
       taosHashCleanup(pStmt->pVgroupsHashObj);
       taosHashCleanup(pStmt->pSubTableHashObj);
       taosHashCleanup(pStmt->pTableNameHashObj);

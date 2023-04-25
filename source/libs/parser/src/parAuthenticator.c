@@ -91,17 +91,22 @@ static int32_t mergeStableTagCond(SNode** pWhere, SNode* pTagCond) {
 }
 
 static int32_t appendStableTagCond(SNode** pWhere, SNode* pTagCond) {
+  SNode* pTagCondCopy = nodesCloneNode(pTagCond);
+  if (NULL == pTagCondCopy) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   if (NULL == *pWhere) {
-    *pWhere = pTagCond;
+    *pWhere = pTagCondCopy;
     return TSDB_CODE_SUCCESS;
   }
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pWhere) &&
       LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)*pWhere)->condType) {
-    return nodesListStrictAppend(((SLogicConditionNode*)*pWhere)->pParameterList, pTagCond);
+    return nodesListStrictAppend(((SLogicConditionNode*)*pWhere)->pParameterList, pTagCondCopy);
   }
 
-  return mergeStableTagCond(pWhere, pTagCond);
+  return mergeStableTagCond(pWhere, pTagCondCopy);
 }
 
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {

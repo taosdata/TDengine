@@ -96,7 +96,9 @@ sql connect wxy
 sql reset query cache;
 sql_error select tbname, * from test.st1; 
 sql insert into test.st1s1 values(now, 10);
+sql insert into test.st1s3 using test.st1 tags(1, 'dachang') values(now, 100);
 sql_error insert into test.st1s2 values(now, 20);
+sql_error insert into test.st1s4 using test.st1 tags(3, 'dachang') values(now, 300);
 sql_error select * from test.st2; 
 sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
 
@@ -112,7 +114,7 @@ sql connect wxy
 
 sql reset query cache;
 sql select * from test.st1;
-if $rows != 5 then 
+if $rows != 6 then 
   return -1
 endi
 sql_error insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
@@ -133,7 +135,7 @@ sql connect wxy
 
 sql reset query cache;
 sql select * from test.st1; 
-if $rows != 2 then 
+if $rows != 6 then 
   return -1
 endi
 sql_error insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
@@ -153,8 +155,9 @@ sql grant read on test.st1 with id = 1 to wxy;
 sql close
 sql connect wxy
 
+sql reset query cache;
 sql select * from test.st1; 
-if $rows != 1 then 
+if $rows != 4 then 
   return -1
 endi
 sql_error insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
@@ -174,8 +177,9 @@ sql grant write on test.st1 to wxy;
 sql close
 sql connect wxy
 
+sql reset query cache;
 sql select * from test.st1;
-if $rows != 2 then 
+if $rows != 6 then 
   return -1
 endi
 sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
@@ -195,10 +199,17 @@ sql grant write on test.st1 with id = 1 to wxy;
 sql close
 sql connect wxy
 
-sql select * from test.st1; 
+sql reset query cache;
+sql select * from test.st1;
+if $rows != 8 then 
+  return -1
+endi
 sql insert into test.st1s1 values(now, 10);
 sql_error insert into test.st1s2 values(now, 20);
-sql select * from test.st2; 
+sql select * from test.st2;
+if $rows != 2 then 
+  return -1
+endi
 sql_error insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
 
 print =============== case 11: database write privilege and table unauthorized
@@ -212,6 +223,7 @@ sql grant write on test.* to wxy;
 sql close
 sql connect wxy
 
+sql reset query cache;
 sql_error select * from test.st1; 
 sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
 sql_error select * from test.st2; 
@@ -226,7 +238,11 @@ sql grant read on test.st1 to wxy;
 sql close
 sql connect wxy
 
+sql reset query cache;
 sql select * from test.st1; 
+if $rows != 11 then 
+  return -1
+endi
 sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
 sql_error select * from test.st2; 
 sql insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
@@ -241,7 +257,11 @@ sql grant read on test.st1 with id = 1 to wxy;
 sql close
 sql connect wxy
 
+sql reset query cache;
 sql select * from test.st1; 
+if $rows != 8 then 
+  return -1
+endi
 sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
 sql_error select * from test.st2; 
 sql insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);
@@ -256,6 +276,7 @@ sql grant write on test.st1 to wxy;
 sql close
 sql connect wxy
 
+sql reset query cache;
 sql_error select * from test.st1; 
 sql insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);
 sql_error select * from test.st2; 
@@ -271,6 +292,7 @@ sql grant write on test.st1 with id = 1 to wxy;
 sql close
 sql connect wxy
 
+sql reset query cache;
 sql_error select * from test.st1; 
 sql insert into test.st1s1 values(now, 10);
 sql_error insert into test.st1s2 values(now, 20);
