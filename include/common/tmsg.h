@@ -2886,6 +2886,7 @@ int32_t tDeserializeSMPauseStreamReq(void* buf, int32_t bufLen, SMPauseStreamReq
 typedef struct {
   SMsgHead head;
   int32_t  taskId;
+  int8_t   igUntreated;
 } SVResumeStreamTaskReq;
 
 typedef struct {
