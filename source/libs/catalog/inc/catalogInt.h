@@ -128,6 +128,7 @@ typedef struct SCtgDebug {
 
 typedef struct SCtgCacheStat {
   uint64_t cacheNum[CTG_CI_MAX_VALUE];
+  uint64_t cacheSize[CTG_CI_MAX_VALUE];
   uint64_t cacheHit[CTG_CI_MAX_VALUE];
   uint64_t cacheNHit[CTG_CI_MAX_VALUE];
 } SCtgCacheStat;
@@ -505,8 +506,9 @@ typedef struct SCtgOperation {
 } SCtgOperation;
 
 typedef struct SCtgCacheItemInfo {
-  char   *name;
-  int32_t flag;
+  char    *name;
+  int32_t  flag;
+  uint32_t persistSize;
 } SCtgCacheItemInfo;
 
 #define CTG_AUTH_READ(_t) ((_t) == AUTH_TYPE_READ || (_t) == AUTH_TYPE_READ_OR_WRITE)

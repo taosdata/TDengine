@@ -32,14 +32,14 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_CLEAR_CACHE, "clear cache", ctgOpClearCache}};
 
 SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
-    {"Cluster   ", CTG_CI_FLAG_LEVEL_GLOBAL},  //CTG_CI_CLUSTER
-    {"Dnode     ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_DNODE,
-    {"Qnode     ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_QNODE,
-    {"DB        ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_DB,
-    {"DbVgroup  ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_DB_VGROUP,
-    {"DbCfg     ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_DB_CFG,
-    {"DbInfo    ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_DB_INFO,
-    {"StbMeta   ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_STABLE_META,
+    {"Cluster   ", CTG_CI_FLAG_LEVEL_GLOBAL,  sizeof(SCatalog)},    //CTG_CI_CLUSTER
+    {"Dnode     ", CTG_CI_FLAG_LEVEL_CLUSTER, 0},                   //CTG_CI_DNODE,
+    {"Qnode     ", CTG_CI_FLAG_LEVEL_CLUSTER, 0},                   //CTG_CI_QNODE,
+    {"DB        ", CTG_CI_FLAG_LEVEL_CLUSTER, sizeof(SCtgDBCache)}, //CTG_CI_DB,
+    {"DbVgroup  ", CTG_CI_FLAG_LEVEL_DB,      sizeof(SDBVgInfo)},      //CTG_CI_DB_VGROUP,
+    {"DbCfg     ", CTG_CI_FLAG_LEVEL_DB,      0},      //CTG_CI_DB_CFG,
+    {"DbInfo    ", CTG_CI_FLAG_LEVEL_DB,      0},      //CTG_CI_DB_INFO,
+    {"StbMeta   ", CTG_CI_FLAG_LEVEL_DB,     },      //CTG_CI_STABLE_META,
     {"NtbMeta   ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_NTABLE_META,
     {"CtbMeta   ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_CTABLE_META,
     {"SysTblMeta", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_SYSTABLE_META,

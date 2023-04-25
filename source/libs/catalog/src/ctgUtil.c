@@ -1483,3 +1483,10 @@ void ctgGetGlobalCacheStat(SCtgCacheStat *pStat) {
   memcpy(pStat, &gCtgMgmt.statInfo.cache, sizeof(gCtgMgmt.statInfo.cache));
 }
 
+void ctgGetGlobalCacheUsedSize(uint64_t *pSize) {
+  SCtgCacheStat stat;
+  ctgGetGlobalCacheStat(&stat);
+  do;
+  
+}
+
