@@ -158,8 +158,8 @@ void tqClose(STQ* pTq) {
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
   streamMetaClose(pTq->pStreamMeta);
-  taosMemoryFree(pTq);
   taosArrayDestroy(pTq->pPushArray);
+  taosMemoryFree(pTq);
 }
 
 void tqNotifyClose(STQ* pTq) {
