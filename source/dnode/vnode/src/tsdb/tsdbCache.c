@@ -259,10 +259,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
     }
 
     if (!COL_VAL_IS_NONE(pColVal)) {
-      SLastCol *pLastCol = NULL;
-      if (NULL != values_list[i + num_keys]) {
-        pLastCol = tsdbCacheDeserialize(values_list[i + num_keys]);
-      }
+      SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i + num_keys]);
 
       if (NULL == pLastCol || pLastCol->ts <= keyTs) {
         char  *value = NULL;
@@ -330,7 +327,24 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsR
 
   for (int i = 0; i < num_keys; ++i) {
     SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
+    if (pLastCol) {
+      SColVal *pColVal = &pLastCol->colVal;
+      if (IS_VAR_DATA_TYPE(pColVal->type)) {
+        uint8_t *pVal = pColVal->value.pData;
+        if (pColVal->value.nData) {
+          pColVal->value.pData = taosMemoryMalloc(pColVal->value.nData);
+          memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+        }
+      }
+    } else {
+      // recalc: load from tsdb
 
+      // still null, then make up a null col value
+      int16_t cid = *(int16_t *)taosArrayGet(pCidList, i);
+      pLastCol = &(SLastCol){.ts = TSKEY_MIN, .colVal = COL_VAL_NONE(cid, pr->pSchema->columns[pr->pSlotIds[i]].type)};
+
+      // maybe store it back to rocks cache
+    }
     taosArrayPush(pLastArray, pLastCol);
 
     taosMemoryFree(values_list[i]);

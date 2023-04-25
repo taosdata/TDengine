@@ -23,10 +23,9 @@
 static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
                           const int32_t* dstSlotIds, void** pRes, const char* idStr) {
   int32_t numOfRows = pBlock->info.rows;
+  bool    allNullRow = true;
 
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
-    bool allNullRow = true;
-
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
       SFirstLastRes*   p = (SFirstLastRes*)varDataVal(pRes[i]);
@@ -42,6 +41,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
           varDataSetLen(p->buf, pColVal->colVal.value.nData);
           memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
           p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;  // binary needs to plus the header size
+          taosMemoryFree(pColVal->colVal.value.pData);
         } else {
           memcpy(p->buf, &pColVal->colVal.value, pReader->pSchema->columns[slotId].bytes);
           p->bytes = pReader->pSchema->columns[slotId].bytes;
@@ -63,6 +63,10 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
       SColVal*  pVal = &pColVal->colVal;
 
+      if (COL_VAL_IS_NONE(&pColVal->colVal)) {
+        continue;
+      }
+      allNullRow = false;
       if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
         if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
           colDataSetNULL(pColInfoData, numOfRows);
@@ -71,13 +75,15 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
           // tsdbError("buf:%p len:%d index:%d", pReader->transferBuf[slotId], pVal->value.nData, slotId);
           memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
           colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
+          taosMemoryFree(pVal->value.pData);
         }
       } else {
         colDataSetVal(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
       }
     }
 
-    pBlock->info.rows += 1;
+    pBlock->info.rows += allNullRow ? 0 : 1;
+    // pBlock->info.rows += 1;
   } else {
     tsdbError("invalid retrieve type:%d, %s", pReader->type, idStr);
     return TSDB_CODE_INVALID_PARA;
@@ -117,7 +123,7 @@ static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* id
 }
 
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                SArray* pCidList, uint64_t suid, void** pReader, const char* idstr) {
+                                SArray* pCidList, int32_t* pSlotIds, uint64_t suid, void** pReader, const char* idstr) {
   *pReader = NULL;
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
   if (p == NULL) {
@@ -130,6 +136,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->verRange = (SVersionRange){.minVer = 0, .maxVer = UINT64_MAX};
   p->numOfCols = numOfCols;
   p->pCidList = pCidList;
+  p->pSlotIds = pSlotIds;
   p->suid = suid;
 
   if (numOfTables == 0) {
@@ -294,6 +301,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         taosArrayClear(pRow);
         continue;
       }
+      SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
+      if (COL_VAL_IS_NONE(&pColVal->colVal)) {
+        taosArrayClear(pRow);
+        continue;
+      }
 
       {
         bool    hasNotNullRow = true;
@@ -360,6 +372,11 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, lstring);
       if (TARRAY_SIZE(pRow) <= 0) {
+        taosArrayClear(pRow);
+        continue;
+      }
+      SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
+      if (COL_VAL_IS_NONE(&pColVal->colVal)) {
         taosArrayClear(pRow);
         continue;
       }
