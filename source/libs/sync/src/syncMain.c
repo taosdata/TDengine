@@ -463,8 +463,7 @@ bool syncSnapshotRecving(int64_t rid) {
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
     sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
-    terrno = TSDB_CODE_SYN_ONE_REPLICA;
-    return -1;
+    return 0;
   }
 
   int32_t ret = 0;
@@ -486,7 +485,6 @@ int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   if (pSyncNode->replicaNum == 1) {
     sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
-    terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
 
