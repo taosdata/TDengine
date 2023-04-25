@@ -416,7 +416,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TABLE_LIMITED,          "Table creation limite
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_LEADER,               "Sync leader is unreachable")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NEW_CONFIG_ERROR,         "Sync new config error")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_PROPOSE_NOT_READY,        "Sync not ready for propose")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_PROPOSE_NOT_READY,        "Sync not ready to propose")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RESTORING,                "Sync leader is restoring")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG,     "Sync invalid snapshot msg")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BUFFER_FULL,              "Sync buffer is full")
@@ -439,7 +439,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TQ_NO_COMMITTED_OFFSET,       "TQ no committed offse
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_FILE_CORRUPTED,           "WAL file is corrupted")
-TAOS_DEFINE_ERROR(TSDB_CODE_WAL_INVALID_VER,              "WAL use invalid version")
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_INVALID_VER,              "WAL invalid version")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_LOG_NOT_EXIST,            "WAL log not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_CHKSUM_MISMATCH,          "WAL checksum mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_LOG_INCOMPLETE,           "WAL log incomplete")
