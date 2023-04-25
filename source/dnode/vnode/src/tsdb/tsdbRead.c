@@ -2567,8 +2567,8 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
 }
 
 static int64_t getCurrentKeyInLastBlock(SLastBlockReader* pLastBlockReader) {
-  TSDBROW row = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
-  return TSDBROW_TS(&row);
+  TSDBROW* pRow = &tMergeTreeGetRow((&(pLastBlockReader)->mergeTree));
+  return pRow->pBlockData->aTSKEY[pRow->iRow];
 }
 
 static bool hasDataInLastBlock(SLastBlockReader* pLastBlockReader) { return pLastBlockReader->mergeTree.pIter != NULL; }
