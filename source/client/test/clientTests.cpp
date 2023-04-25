@@ -1144,7 +1144,7 @@ TEST(clientCase, sub_tb_test) {
       taos_free_result(pRes);
     }
 
-    tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgroupHandle, pAssign[0].begin);
+    tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgId, pAssign[0].begin);
   }
 
   tmq_consumer_close(tmq);

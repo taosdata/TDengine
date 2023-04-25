@@ -280,6 +280,7 @@ typedef struct {
   int8_t    reserve;
   int32_t   acctId;
   int32_t   authVersion;
+  int32_t   passVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;

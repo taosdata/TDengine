@@ -20,6 +20,7 @@
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "trpc.h"
+#include "sync.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,6 +74,7 @@ int32_t mndStart(SMnode *pMnode);
 void mndStop(SMnode *pMnode);
 
 int32_t mndIsCatchUp(SMnode *pMnode);
+ESyncRole mndGetRole(SMnode *pMnode);
 
 /**
  * @brief Get mnode monitor info.

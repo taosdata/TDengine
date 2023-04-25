@@ -213,3 +213,29 @@ DELETE_MARK    time
 ```
 DELETE_MARK用于删除缓存的窗口状态，也就是删除流计算的中间结果。如果不设置，默认值是10年
 T = 最新事件时间 - DELETE_MARK
+
+## 流式计算支持的函数
+
+1. 所有的单行函数均可用于流计算中。
+2. 以下 19 个聚合函数不能在创建流计算的 SQL 语句中使用
+```
+leastsquares
+percentile
+top
+bottom
+elapsed
+interp
+derivative
+irate
+twa
+histogram
+diff
+statecount
+stateduration
+csum
+mavg
+sample
+tail
+unique
+mode
+```

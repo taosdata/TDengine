@@ -101,6 +101,7 @@ typedef struct TAOS_FIELD_E {
 #endif
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *res, int code);
+typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type);
 
 typedef struct TAOS_MULTI_BIND {
   int       buffer_type;
@@ -120,6 +121,10 @@ typedef enum {
   SET_CONF_RET_ERR_ONLY_ONCE = -5,
   SET_CONF_RET_ERR_TOO_LONG = -6
 } SET_CONF_RET_CODE;
+
+typedef enum {
+  TAOS_NOTIFY_PASSVER = 0,
+} TAOS_NOTIFY_TYPE;
 
 #define RET_MSG_LENGTH 1024
 typedef struct setConfRet {
@@ -225,6 +230,8 @@ DLL_EXPORT int taos_get_tables_vgId(TAOS *taos, const char *db, const char *tabl
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char *tableNameList);
 
+DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type);
+
 /*  --------------------------schemaless INTERFACE------------------------------- */
 
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision);
@@ -263,7 +270,7 @@ DLL_EXPORT const char *tmq_err2str(int32_t code);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
 typedef struct tmq_topic_assignment {
-  int32_t  vgroupHandle;
+  int32_t  vgId;
   int64_t  currentOffset;
   int64_t  begin;
   int64_t  end;
@@ -277,7 +284,7 @@ DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
 DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
 DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
 DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char* pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment);
-DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char* pTopicName, int32_t vgroupHandle, int64_t offset);
+DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char* pTopicName, int32_t vgId, int64_t offset);
 
 /* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
 
