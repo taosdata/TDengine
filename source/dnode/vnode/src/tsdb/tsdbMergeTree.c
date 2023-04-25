@@ -88,6 +88,10 @@ void getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double 
 }
 
 void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
+  if (pLoadInfo == NULL) {
+    return NULL;
+  }
+
   for (int32_t i = 0; i < pLoadInfo->numOfStt; ++i) {
     pLoadInfo[i].currentLoadBlockIndex = 1;
     pLoadInfo[i].blockIndex[0] = -1;
