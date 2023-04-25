@@ -236,7 +236,7 @@ if(${BUILD_WITH_ROCKSDB})
     endif(${TD_WINDOWS})
 
 
-    if(${TD_DARWIN} OR ${TD_WINDOWS})
+    if(${TD_DARWIN})
         option(HAVE_THREAD_LOCAL "" OFF)
         option(WITH_IOSTATS_CONTEXT "" OFF)
         option(WITH_PERF_CONTEXT "" OFF)
@@ -247,6 +247,7 @@ if(${BUILD_WITH_ROCKSDB})
     endif(${TD_WINDOWS})
     
     
+    option(WITH_FALLOCATE "" OFF)
     option(WITH_JEMALLOC "" OFF)
     option(WITH_GFLAGS "" OFF)
     option(PORTABLE "" ON)
