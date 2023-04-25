@@ -18,6 +18,7 @@
 #include "tsimplehash.h"
 
 #define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
+#define getCurrentKeyInLastBlock(_r) ((_r)->currentKey)
 
 typedef enum {
   EXTERNAL_ROWS_PREV = 0x1,
@@ -108,6 +109,7 @@ typedef struct SLastBlockReader {
   uint64_t           uid;
   SMergeTree         mergeTree;
   SSttBlockLoadInfo* pInfo;
+  int64_t            currentKey;
 } SLastBlockReader;
 
 typedef struct SFilesetIter {
@@ -234,7 +236,6 @@ static int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdb
 static STsdb*  getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idstr,
                                    int8_t* pLevel);
 static SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level);
-static int64_t       getCurrentKeyInLastBlock(SLastBlockReader* pLastBlockReader);
 static bool          hasDataInLastBlock(SLastBlockReader* pLastBlockReader);
 static int32_t       doBuildDataBlock(STsdbReader* pReader);
 static TSDBKEY       getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader);
@@ -1870,7 +1871,8 @@ static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBloc
     }
 
     TSDBROW row = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
-    TSDBKEY k = TSDBROW_KEY(&row);
+    TSDBKEY k = {.version = row.version, .ts = row.pBlockData->aTSKEY[row.iRow]};
+    pLastBlockReader->currentKey = k.ts;
     pScanInfo->lastKeyInStt = k.ts;
 
     if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->lastBlockDelIndex, &k, pLastBlockReader->order, pVerRange)) {
@@ -2582,10 +2584,9 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
   return nextRowFromLastBlocks(pLBlockReader, pScanInfo, &pReader->verRange);
 }
 
-static int64_t getCurrentKeyInLastBlock(SLastBlockReader* pLastBlockReader) {
-  TSDBROW* pRow = &tMergeTreeGetRow((&(pLastBlockReader)->mergeTree));
-  return pRow->pBlockData->aTSKEY[pRow->iRow];
-}
+//static int64_t getCurrentKeyInLastBlock(SLastBlockReader* pLastBlockReader) {
+//  return pLastBlockReader->currentKey;
+//}
 
 static bool hasDataInLastBlock(SLastBlockReader* pLastBlockReader) { return pLastBlockReader->mergeTree.pIter != NULL; }
 
