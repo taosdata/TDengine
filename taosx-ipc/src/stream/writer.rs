@@ -2,7 +2,7 @@ use std::{any::Any, collections::HashMap, fmt::Display, str::FromStr, sync::Arc}
 
 use arrow::{
     array::{Array, ArrayBuilder, ArrayRef, StructBuilder, UInt8Array},
-    datatypes::{DataType, Field, Schema},
+    datatypes::{DataType, Field, Schema, Fields},
     error::ArrowError,
     record_batch::RecordBatch,
 };
@@ -201,7 +201,7 @@ impl From<&ArrowDataType> for IpcDataType {
             ArrowDataType::FixedSizeList(_, _) => todo!(),
             ArrowDataType::LargeList(_) => todo!(),
             ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _, _) => todo!(),
+            ArrowDataType::Union(_, _) => todo!(),
             ArrowDataType::Dictionary(_, _) => todo!(),
             ArrowDataType::Decimal128(_, _) => todo!(),
             ArrowDataType::Decimal256(_, _) => todo!(),
@@ -714,15 +714,15 @@ impl LushMessageBuilder {
 
         let attrs_fields = self.table_fields();
 
-        let attr = DataType::Struct(attrs_fields);
+        let attr = DataType::Struct(Fields::from(attrs_fields));
 
-        let record_list = DataType::List(Box::new(Field::new("item", record.clone(), true)));
+        let record_list = DataType::List(Arc::new(Field::new("item", record.clone(), true)));
 
         let schema = Schema::new(vec![
             Field::new(__TYPE__, DataType::UInt8, false),
             Field::new_dict(
                 __TABLES__,
-                DataType::List(Box::new(Field::new("item", attr.clone(), true))),
+                DataType::List(Arc::new(Field::new("item", attr.clone(), true))),
                 true,
                 LushMessageType::Children as u8 as _,
                 dict_is_ordered,
