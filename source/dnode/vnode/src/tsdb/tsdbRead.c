@@ -3378,14 +3378,16 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
   SBlockNumber num = {0};
   SArray* pTableList = taosArrayInit(40, POINTER_BYTES);
 
-  int32_t      code = moveToNextFile(pReader, &num, pTableList);
+  int32_t code = moveToNextFile(pReader, &num, pTableList);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pTableList);
     return code;
   }
 
   // all data files are consumed, try data in buffer
   if (num.numOfBlocks + num.numOfLastFiles == 0) {
     pReader->status.loadFromFile = false;
+    taosArrayDestroy(pTableList);
     return code;
   }
 
@@ -3400,6 +3402,7 @@ static int32_t initForFirstBlockInFile(STsdbReader* pReader, SDataBlockIter* pBl
 
   // set the correct start position according to the query time window
   initBlockDumpInfo(pReader, pBlockIter);
+  taosArrayDestroy(pTableList);
   return code;
 }
 
