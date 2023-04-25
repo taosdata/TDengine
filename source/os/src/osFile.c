@@ -540,7 +540,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 
 #ifdef WINDOWS
   struct __stat64 fileStat;
-  int32_t code = _fstat(pFile->fd, &fileStat);
+  int32_t code = _fstat64(pFile->fd, &fileStat);
 #else
   struct stat fileStat;
   int32_t code = fstat(pFile->fd, &fileStat);
