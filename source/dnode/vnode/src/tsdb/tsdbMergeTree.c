@@ -261,8 +261,10 @@ int32_t tLDataIterOpen(struct SLDataIter *pIter, SDataFReader *pReader, int32_t 
   pIter->pReader = pReader;
   pIter->iStt = iStt;
   pIter->backward = backward;
-  pIter->verRange = *pRange;
-  pIter->timeWindow = *pTimeWindow;
+  pIter->verRange.minVer = pRange->minVer;
+  pIter->verRange.maxVer = pRange->maxVer;
+  pIter->timeWindow.skey = pTimeWindow->skey;
+  pIter->timeWindow.ekey = pTimeWindow->ekey;
 
   pIter->pBlockLoadInfo = pBlockLoadInfo;
 
