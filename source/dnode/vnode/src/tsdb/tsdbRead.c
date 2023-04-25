@@ -789,12 +789,6 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
     goto _end;
   }
 
-  pReader->status.pLDataIter = taosMemoryCalloc(pVnode->config.sttTrigger, sizeof(SLDataIter));
-  if (pReader->status.pLDataIter == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
-  }
-
   ASSERT (pReader->suppInfo.colId[0] == PRIMARYKEY_TIMESTAMP_COL_ID);
   pReader->status.pPrimaryTsCol = taosArrayGet(pResBlock->pDataBlock, pSup->slotId[0]);
 
@@ -4388,6 +4382,12 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     goto _err;
   }
 
+  pReader->status.pLDataIter = taosMemoryCalloc(pVnode->config.sttTrigger, sizeof(SLDataIter));
+  if (pReader->status.pLDataIter == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
   pReader->suspended = true;
 
   if (countOnly) {
@@ -4487,7 +4487,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   tsdbUninitReaderLock(pReader);
 
   taosMemoryFreeClear(pReader->status.pLDataIter);
-  taosMemoryFree(pReader->status.uidList.tableUidList);
+  taosMemoryFreeClear(pReader->status.uidList.tableUidList);
   SIOCostSummary* pCost = &pReader->cost;
 
   SFilesetIter* pFilesetIter = &pReader->status.fileIter;
