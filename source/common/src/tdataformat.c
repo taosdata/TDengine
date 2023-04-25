@@ -500,7 +500,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
           break;
         default:
           ASSERTS(0, "invalid row format");
-          return TSDB_CODE_IVLD_DATA_FMT;
+          return TSDB_CODE_INVALID_DATA_FMT;
       }
 
       if (bv == BIT_FLG_NONE) {
@@ -938,7 +938,7 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
       break;
     default:
       ASSERTS(0, "Invalid row flag");
-      return TSDB_CODE_IVLD_DATA_FMT;
+      return TSDB_CODE_INVALID_DATA_FMT;
   }
 
   while (pColData) {
@@ -963,7 +963,7 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
               break;
             default:
               ASSERTS(0, "Invalid row flag");
-              return TSDB_CODE_IVLD_DATA_FMT;
+              return TSDB_CODE_INVALID_DATA_FMT;
           }
 
           if (bv == BIT_FLG_NONE) {
@@ -1054,7 +1054,7 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
             pData = pv + ((uint32_t *)pKVIdx->idx)[iCol];
           } else {
             ASSERTS(0, "Invalid KV row format");
-            return TSDB_CODE_IVLD_DATA_FMT;
+            return TSDB_CODE_INVALID_DATA_FMT;
           }
 
           int16_t cid;

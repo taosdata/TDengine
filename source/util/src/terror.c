@@ -98,7 +98,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DISKSPACE,          "No enough disk space"
 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting up")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
-TAOS_DEFINE_ERROR(TSDB_CODE_IVLD_DATA_FMT,                "Invalid data format")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DATA_FMT,             "Invalid data format")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration value")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
