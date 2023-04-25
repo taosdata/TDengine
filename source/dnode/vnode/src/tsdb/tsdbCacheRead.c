@@ -67,9 +67,10 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
           colDataSetNULL(pColInfoData, numOfRows);
         } else {
-          varDataSetLen(pReader->transferBuf[dstSlotIds[i]], pVal->value.nData);
-          memcpy(varDataVal(pReader->transferBuf[dstSlotIds[i]]), pVal->value.pData, pVal->value.nData);
-          colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[dstSlotIds[i]], false);
+          varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
+          // tsdbError("buf:%p len:%d index:%d", pReader->transferBuf[slotId], pVal->value.nData, slotId);
+          memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
+          colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
         }
       } else {
         colDataSetVal(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
@@ -154,6 +155,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {
     if (IS_VAR_DATA_TYPE(p->pSchema->columns[i].type)) {
       p->transferBuf[i] = taosMemoryMalloc(p->pSchema->columns[i].bytes);
+      // tsdbError("buf:%p len:%d index:%d", p->transferBuf[i], p->pSchema->columns[i].bytes, i);
       if (p->transferBuf[i] == NULL) {
         tsdbCacherowsReaderClose(p);
         return TSDB_CODE_OUT_OF_MEMORY;
