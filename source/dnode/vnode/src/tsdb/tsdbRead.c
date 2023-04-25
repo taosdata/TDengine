@@ -4478,6 +4478,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
 
   tsdbUninitReaderLock(pReader);
 
+  taosMemoryFreeClear(pReader->status.pLDataIter);
   taosMemoryFree(pReader->status.uidList.tableUidList);
   SIOCostSummary* pCost = &pReader->cost;
 
