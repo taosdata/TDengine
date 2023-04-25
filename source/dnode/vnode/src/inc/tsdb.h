@@ -769,7 +769,7 @@ typedef struct SLDataIter {
   bool               ignoreEarlierTs;
 } SLDataIter;
 
-#define tMergeTreeGetRow(_t) ((_t)->pIter->rInfo.row)
+#define tMergeTreeGetRow(_t) (&((_t)->pIter->rInfo.row))
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
                        bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter* pLDataIter);
