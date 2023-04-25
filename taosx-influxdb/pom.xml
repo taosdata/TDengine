@@ -109,26 +109,70 @@
         <plugins>
             <!-- 启动入口类 -->
             <plugin>
-                <artifactId>maven-assembly-plugin</artifactId>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
-                    <descriptorRefs>
-                        <descriptorRef>jar-with-dependencies</descriptorRef>
-                    </descriptorRefs>
                     <archive>
                         <manifest>
+                            <!-- 这个属性特别关键，如果没有这个属性，有时候我们引用的包maven库下面可能会有多个包，并且只有一个是正确的 -->
+                            <useUniqueVersions>false</useUniqueVersions>
+                            <!-- 为依赖包添加路径, 这些路径会写在MANIFEST文件的Class-Path下 -->
+                            <addClasspath>true</addClasspath>
+                            <!-- 依赖的jar包添加classPath的时候的前缀，如果这个jar本身和依赖包在同一级目录，则不需要添加 -->
+                            <classpathPrefix>lib</classpathPrefix>
+                            <!-- 启动入口类 -->
                             <mainClass>com.taosdata.StartApplication</mainClass>
                         </manifest>
+                        <manifestEntries>
+                            <!-- 在Class-Path下添加配置文件的路径，假如这个项目可能要引入一些外部资源，但是你打包的时候并不想把这些资源文件打进包里面，这个时候你必须在这边额外指定一些这些资源文件的路径 -->
+                            <Class-Path>.</Class-Path>
+                        </manifestEntries>
                     </archive>
                 </configuration>
+            </plugin>
+            <!-- 拷贝第三方依赖文件到指定目录 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <!-- 指定目录 -->
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <!-- 是否不包含间接依赖的包 -->
+                            <excludeTransitive>false</excludeTransitive>
+                            <!-- 复制的jar文件去掉版本信息 -->
+                            <stripVersion>false</stripVersion>
+                            <!-- 包含compile、provided、system -->
+                            <includeScope>compile</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 使用assembly自定义输出内容 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <executions>
+                    <execution>
                         <phase>package</phase>
                         <goals>
                             <goal>single</goal>
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <!-- 打包文件名 -->
+                    <finalName>taosx-influxdb</finalName>
+                    <!-- assembly配置路径 -->
+                    <descriptors>
+                        <descriptor>src/assembly/assembly.xml</descriptor>
+                    </descriptors>
+                </configuration>
             </plugin>
         </plugins>
     </build>

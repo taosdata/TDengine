@@ -83,7 +83,7 @@ public class PreLoading implements CommandLineRunner {
             threadInfo.setStatus(StatusEnums.LOADING.getCode());
             threadInfo.setDescription(StatusEnums.LOADING.getDesc());
             StatusCache.noteThread(threadInfo);
-            // Influxdb信息，创建Influxdb连接并启动BucketThread线程与ScheduleThread线程
+            // Influxdb信息，创建Influxdb连接并启动BucketThread、ScheduleThread与PushPrepareThread线程
             initInfluxdb();
             // 记录Netty连接信息
             StatusCache.noteNetty(this.nettyClientConfig.getHost(), this.nettyClientConfig.getPort());

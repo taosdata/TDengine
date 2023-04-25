@@ -46,11 +46,12 @@ performance:
     # MessageThread线程
     processMessageInterval: 1
     processMessageEmptyInterval: 10
+    # PushPrepareThread线程
+    readBucketDataBatch: 10000
+    pushPrepareInterval: 10
     # PushThread线程
-    readBucketDataBatch: 1000
     pushInterval: 0
     pushEmptyInterval: 10
-    pushNotFullInterval: 5
     # BucketThread线程
     createBucketInterval: 5
     createBucketFullInterval: 200
