@@ -21,19 +21,19 @@
 const char* syncRoleToStr(ESyncRole role) {
   switch (role) {
     case TAOS_SYNC_ROLE_VOTER:
-      return "voter";
+      return "true";
     case TAOS_SYNC_ROLE_LEARNER:
-      return "learner";
+      return "false";
     default:
       return "unknown";
   }
 }
 
 const ESyncRole syncStrToRole(char* str) {
-  if(strcmp(str, "voter") == 0){
+  if(strcmp(str, "true") == 0){
     return TAOS_SYNC_ROLE_VOTER;
   }
-  if(strcmp(str, "learner") == 0){
+  if(strcmp(str, "false") == 0){
     return TAOS_SYNC_ROLE_LEARNER;
   }
 
@@ -42,7 +42,6 @@ const ESyncRole syncStrToRole(char* str) {
 
 static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
   SSyncCfg *pCfg = (SSyncCfg *)pObj;
-  if (tjsonAddDoubleToObject(pJson, "totalReplicaNum", pCfg->totalReplicaNum) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "replicaNum", pCfg->replicaNum) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "myIndex", pCfg->myIndex) < 0) return -1;
 
@@ -56,7 +55,7 @@ static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
     if (tjsonAddStringToObject(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "nodeId", pCfg->nodeInfo[i].nodeId) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "clusterId", pCfg->nodeInfo[i].clusterId) < 0) return -1;
-    if (tjsonAddStringToObject(info, "nodeRole", syncRoleToStr(pCfg->nodeInfo[i].nodeRole)) < 0) return -1;
+    if (tjsonAddStringToObject(info, "isReplica", syncRoleToStr(pCfg->nodeInfo[i].nodeRole)) < 0) return -1;
     if (tjsonAddItemToArray(nodeInfo, info) < 0) return -1;
   }
 
@@ -133,7 +132,6 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
   SSyncCfg *pCfg = (SSyncCfg *)pObj;
   int32_t   code = 0;
 
-  tjsonGetInt32ValueFromDouble(pJson, "totalReplicaNum", pCfg->totalReplicaNum, code);
   tjsonGetInt32ValueFromDouble(pJson, "replicaNum", pCfg->replicaNum, code);
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "myIndex", pCfg->myIndex, code);
@@ -153,7 +151,7 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(info, "nodeId", pCfg->nodeInfo[i].nodeId, code);
     tjsonGetNumberValue(info, "clusterId", pCfg->nodeInfo[i].clusterId, code);
     char role[10] = {0};
-    code = tjsonGetStringValue(info, "nodeRole", role);
+    code = tjsonGetStringValue(info, "isReplica", role);
     if(code < 0) return -1;
     if(strlen(role) != 0){
       pCfg->nodeInfo[i].nodeRole = syncStrToRole(role);
