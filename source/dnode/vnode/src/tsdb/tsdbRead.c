@@ -788,8 +788,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
     goto _end;
   }
 
-
-  if (pReader->suppInfo.colId[0] == PRIMARYKEY_TIMESTAMP_COL_ID) {
+  if (pReader->suppInfo.colId[0] != PRIMARYKEY_TIMESTAMP_COL_ID) {
     tsdbError("the first column isn't primary timestamp, %d, %s", pReader->suppInfo.colId[0], pReader->idStr);
     terrno = TSDB_CODE_INVALID_PARA;
     goto _end;
