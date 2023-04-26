@@ -106,14 +106,14 @@ const actions = {
         commit("HANDLE_ADD_STABLE");
         commit("console/CHANGE_TREE_KEY", null, { root: true });
       })
-      .catch(() => {
+      .catch((err) => {
         if (!state.stable_form.columns.length) {
           state.stable_form.columns.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8 });
         }
         if (!state.stable_form.tags.length) {
           state.stable_form.tags.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8 });
         }
-        return Promise.reject();
+        return Promise.reject(err);
       });
   },
 };

@@ -80,7 +80,7 @@ export const DBFILED = {
   wal_fsync_period: { type: "number", alter: true, defaultValue: undefined },
   maxrows: { type: "number", alter: false, defaultValue: undefined },
   minrows: { type: "number", alter: false, defaultValue: undefined },
-  keep: { type: "string", alter: true, defaultValue: "3650d" },
+  keep: { type: "number", alter: true, defaultValue: "3650d" },
   pages: { type: "number", alter: false, defaultValue: undefined},
   pagesize: { type: "number", alter: false, defaultValue: undefined },
   replica: { type: "number", alter: false, defaultValue: undefined },
