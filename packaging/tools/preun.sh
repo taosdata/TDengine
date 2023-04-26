@@ -17,7 +17,7 @@ cfg_link_dir="/usr/local/taos/cfg"
 
 service_config_dir="/etc/systemd/system"
 taos_service_name="taosd"
-
+taoskeeper_service_name="taoskeeper"
 csudo=""
 if command -v sudo > /dev/null; then
     csudo="sudo "
@@ -57,6 +57,13 @@ function kill_taosd() {
   fi
 }
 
+function kill_taoskeeper() {
+  pid=$(ps -ef | grep "taoskeeper" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo}kill -9 $pid   || :
+  fi
+}
+
 function clean_service_on_systemd() {
     taosadapter_service_config="${service_config_dir}/taosadapter.service"
     if systemctl is-active --quiet taosadapter; then
@@ -76,6 +83,12 @@ function clean_service_on_systemd() {
 
     [ -f ${taosadapter_service_config} ] && ${csudo}rm -f ${taosadapter_service_config}
 
+    taoskeeper_service_config="${service_config_dir}/${taoskeeper_service_name}.service"
+    if systemctl is-active --quiet ${taoskeeper_service_name}; then
+        echo "TDengine taoskeeper is running, stopping it..."
+        ${csudo}systemctl stop ${taoskeeper_service_name} &> /dev/null || echo &> /dev/null
+    fi
+    [ -f ${taoskeeper_service_config} ] && ${csudo}rm -f ${taoskeeper_service_config}
 }
 
 function clean_service_on_sysvinit() {
@@ -111,6 +124,7 @@ function clean_service() {
         # must manual stop taosd
         kill_taosadapter
         kill_taosd
+        kill_taoskeeper
     fi
 }
 
@@ -124,6 +138,7 @@ ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
 ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
 ${csudo}rm -f ${bin_link_dir}/taosdemo   || :
 ${csudo}rm -f ${bin_link_dir}/set_core   || :
+${csudo}rm -f ${bin_link_dir}/taoskeeper  || :
 ${csudo}rm -f ${cfg_link_dir}/*.new      || :
 ${csudo}rm -f ${inc_link_dir}/taos.h     || :
 ${csudo}rm -f ${inc_link_dir}/taosdef.h  || :

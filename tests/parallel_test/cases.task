@@ -51,6 +51,16 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
@@ -722,6 +732,7 @@
 ,,y,script,./test.sh -f tsim/user/privilege_db.sim
 ,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
 ,,y,script,./test.sh -f tsim/user/privilege_topic.sim
+,,y,script,./test.sh -f tsim/user/privilege_table.sim
 ,,y,script,./test.sh -f tsim/db/alter_option.sim
 ,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
 ,,y,script,./test.sh -f tsim/db/basic1.sim
@@ -746,6 +757,7 @@
 ,,y,script,./test.sh -f tsim/db/show_create_table.sim
 ,,y,script,./test.sh -f tsim/db/tables.sim
 ,,y,script,./test.sh -f tsim/db/taosdlog.sim
+,,y,script,./test.sh -f tsim/db/table_prefix_suffix.sim
 ,,y,script,./test.sh -f tsim/dnode/balance_replica1.sim
 ,,y,script,./test.sh -f tsim/dnode/balance_replica3.sim
 ,,y,script,./test.sh -f tsim/dnode/balance1.sim

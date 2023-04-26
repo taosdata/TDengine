@@ -373,9 +373,6 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
   if (src == NULL || src[0] == 0) return -1;
   char* topic = taosStrdup(src);
-  if (topic[0] != '`') {
-    strtolower(topic, src);
-  }
   if (taosArrayPush(container, &topic) == NULL) return -1;
   return 0;
 }
@@ -1243,9 +1240,6 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pParam);
 
   if (code != 0) {
-    tscWarn("consumer:0x%" PRIx64 " msg from vgId:%d discarded, epoch %d, since %s, reqId:0x%" PRIx64, tmq->consumerId,
-            vgId, epoch, tstrerror(code), requestId);
-
     if (pMsg->pData) taosMemoryFree(pMsg->pData);
     if (pMsg->pEpSet) taosMemoryFree(pMsg->pEpSet);
 
@@ -1267,6 +1261,9 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
       taosWriteQitem(tmq->mqueue, pRspWrapper);
     } else if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) {  // poll data while insert
       taosMsleep(500);
+    } else{
+      tscError("consumer:0x%" PRIx64 " msg from vgId:%d discarded, epoch %d, since %s, reqId:0x%" PRIx64, tmq->consumerId,
+               vgId, epoch, tstrerror(code), requestId);
     }
 
     goto CREATE_MSG_FAIL;
@@ -1667,11 +1664,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
     return handleErrorBeforePoll(pVg, pTmq);
   }
 
-  sendInfo->msgInfo = (SDataBuf){
-      .pData = msg,
-      .len = msgSize,
-      .handle = NULL,
-  };
+  sendInfo->msgInfo = (SDataBuf){ .pData = msg, .len = msgSize, .handle = NULL };
 
   sendInfo->requestId = req.reqId;
   sendInfo->requestObjRefId = 0;
