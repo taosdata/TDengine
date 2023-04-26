@@ -20,7 +20,7 @@
                   <Icon name="info" class="lableTips_icon"></Icon>
                 </el-tooltip>
               </span>
-              <el-input v-model="db_form.keep" controls-position="right" class="form_item"> </el-input>
+              <el-input v-model="db_form.keep" controls-position="right" class="form_item" style="width: 130px" placeholder="3650d"> </el-input>
             </el-form-item>
             <el-form-item>
               <span slot="label">
@@ -30,7 +30,7 @@
                   <Icon name="info" class="lableTips_icon"></Icon>
                 </el-tooltip>
               </span>
-              <el-input v-model="db_form.duration" :disabled="isEdit" controls-position="right" class="form_item"></el-input>
+              <el-input v-model="db_form.duration" :disabled="isEdit" controls-position="right" class="form_item" style="width: 130px" placeholder="50d"></el-input>
             </el-form-item>
             <!-- CACHEMODEL -->
             <el-form-item>
@@ -41,7 +41,7 @@
                   <Icon name="info" class="lableTips_icon"></Icon>
                 </el-tooltip>
               </span>
-              <el-select v-model="db_form.cachemodel" placeholder="" class="w100">
+              <el-select v-model="db_form.cachemodel" placeholder="none" class="w100" style="width: 130px">
                 <el-option value="none"></el-option>
                 <el-option value="last_row"></el-option>
                 <el-option value="last_value"></el-option>
@@ -49,7 +49,7 @@
               </el-select>
             </el-form-item>
             <!-- BUFFER -->
-            <!-- <el-form-item>
+            <el-form-item>
               <span slot="label">
                 BUFFER
                 <el-tooltip placement="bottom" effect="light">
@@ -65,12 +65,13 @@
                 :max="16384"
                 controls-position="right"
                 class="form_item"
+                placeholder="96MB"
               >
               </el-input-number>
-            </el-form-item> -->
+            </el-form-item>
 
             <!-- CACHESIZE -->
-            <!-- <el-form-item>
+            <el-form-item>
               <span slot="label">
                 CACHESIZE
                 <el-tooltip placement="bottom" effect="light">
@@ -78,7 +79,7 @@
                   <Icon name="info" class="lableTips_icon"></Icon>
                 </el-tooltip>
               </span>
-              <el-input-number size="small" v-model="db_form.cachesize" :min="1" :max="65536" controls-position="right" class="form_item">
+              <el-input-number size="small" v-model="db_form.cachesize" :min="1" :max="65536" controls-position="right" class="form_item" placeholder="1MB">
               </el-input-number>
             </el-form-item>
             <el-form-item>
@@ -97,6 +98,7 @@
                 :max="2"
                 controls-position="right"
                 class="form_item"
+                placeholder="2"
               ></el-input-number>
             </el-form-item>
             <el-form-item>
@@ -114,6 +116,7 @@
                 :min="0"
                 controls-position="right"
                 class="form_item"
+                placeholder="100"
               ></el-input-number>
             </el-form-item>
             <el-form-item>
@@ -131,6 +134,7 @@
                 :min="1"
                 controls-position="right"
                 class="form_item"
+                placeholder="4096"
               ></el-input-number>
             </el-form-item>
             <el-form-item>
@@ -148,6 +152,7 @@
                 :min="64"
                 controls-position="right"
                 class="form_item"
+                placeholder="256"
               ></el-input-number>
             </el-form-item>
             <el-form-item>
@@ -166,6 +171,7 @@
                 :max="16384"
                 controls-position="right"
                 class="form_item"
+                placeholder="4kb"
               ></el-input-number>
             </el-form-item>
             <el-form-item>
@@ -176,13 +182,10 @@
                   <Icon name="info" class="lableTips_icon"></Icon>
                 </el-tooltip>
               </span>
-              <el-input-number
-                size="small"
-                v-model="db_form.replica"
-                :disabled="isEdit"
-                controls-position="right"
-                class="form_item"
-              ></el-input-number>
+              <el-select v-model="db_form.replica" placeholder="1" :disabled="isEdit" class="w100" style="width: 130px">
+                <el-option :value=1></el-option>
+                <el-option :value=3></el-option>
+              </el-select>
             </el-form-item>
 
             <el-form-item>
@@ -200,6 +203,7 @@
                 :min="0"
                 controls-position="right"
                 class="form_item"
+                placeholder=""
               ></el-input-number>
             </el-form-item>
             <el-form-item>
@@ -219,7 +223,7 @@
                 controls-position="right"
                 class="form_item"
               ></el-switch>
-            </el-form-item> -->
+            </el-form-item>
           </div>
           <div class="column2">
             <!-- Precision -->
@@ -231,13 +235,13 @@
                   <Icon name="info" class="lableTips_icon"></Icon>
                 </el-tooltip>
               </span>
-              <el-select size="small" placeholder="" :disabled="isEdit" v-model="db_form.precision" style="width: 130px">
+              <el-select size="small" placeholder="ms" :disabled="isEdit" v-model="db_form.precision" style="width: 130px">
                 <el-option value="ms"></el-option>
                 <el-option value="us"></el-option>
                 <el-option value="ns"></el-option>
               </el-select>
             </el-form-item>
-            <!-- <el-form-item>
+            <el-form-item>
               <span slot="label">
                 WAL_LEVEL
                 <el-tooltip placement="bottom" effect="light">
@@ -252,6 +256,7 @@
                 :max="2"
                 controls-position="right"
                 class="form_item"
+                placeholder="1"
               ></el-input-number>
             </el-form-item>
             <el-form-item v-if="db_form.wal_level == 2">
@@ -269,9 +274,10 @@
                 :max="180000"
                 controls-position="right"
                 class="form_item"
+                placeholder="3000ms"
               ></el-input-number>
-              <span class="inputUnit">ms</span>
-            </el-form-item> -->
+              <!-- <span class="inputUnit">ms</span> -->
+            </el-form-item>
 
             <el-form-item>
               <span slot="label">
@@ -288,9 +294,10 @@
                 :disabled="isEdit"
                 controls-position="right"
                 class="form_item"
+                placeholder="0s"
               ></el-input-number>
             </el-form-item>
-            <!-- <el-form-item>
+            <el-form-item>
               <span slot="label">
                 WAL_RETENTION_SIZE
                 <el-tooltip placement="bottom" effect="light">
@@ -304,6 +311,7 @@
                 :min="-1"
                 controls-position="right"
                 class="form_item"
+                placeholder="0KB"
               ></el-input-number>
             </el-form-item>
             <el-form-item>
@@ -321,6 +329,7 @@
                 :min="0"
                 controls-position="right"
                 class="form_item"
+                placeholder="0s"
               ></el-input-number>
             </el-form-item>
             <el-form-item>
@@ -338,6 +347,77 @@
                 :min="0"
                 controls-position="right"
                 class="form_item"
+                placeholder="0KB"
+              ></el-input-number>
+            </el-form-item>
+            <el-form-item>
+              <span slot="label">
+                STT_TRIGGER
+                <el-tooltip placement="bottom" effect="light">
+                  <div slot="content" v-html="$t('data.sttTaiggerTip')"></div>
+                  <Icon name="info" class="lableTips_icon"></Icon>
+                </el-tooltip>
+              </span>
+              <el-input-number
+                size="small"
+                v-model="db_form.stt_trigger"
+                :min="1"
+                :max="16"
+                controls-position="right"
+                class="form_item"
+                placeholder="1"
+              ></el-input-number>
+            </el-form-item>
+            <el-form-item>
+              <span slot="label">
+                TSDB_PAGESIZE
+                <el-tooltip placement="bottom" effect="light">
+                  <div slot="content" v-html="$t('data.tsdbPagesizeTip')"></div>
+                  <Icon name="info" class="lableTips_icon"></Icon>
+                </el-tooltip>
+              </span>
+              <el-input-number
+                size="small"
+                v-model="db_form.tsdb_pagesize"
+                :min="1"
+                :max="16384"
+                controls-position="right"
+                class="form_item"
+                placeholder="4KB"
+              ></el-input-number>
+            </el-form-item>
+            <el-form-item>
+              <span slot="label">
+                TABLE_PREFIX
+                <el-tooltip placement="bottom" effect="light">
+                  <div slot="content" v-html="$t('data.tablePrefixTip')"></div>
+                  <Icon name="info" class="lableTips_icon"></Icon>
+                </el-tooltip>
+              </span>
+              <el-input-number
+                size="small"
+                v-model="db_form.table_prefix"
+                :min="1"
+                :max="192"
+                controls-position="right"
+                class="form_item"
+              ></el-input-number>
+            </el-form-item>
+            <el-form-item>
+              <span slot="label">
+                TABLE_SUFFIX
+                <el-tooltip placement="bottom" effect="light">
+                  <div slot="content" v-html="$t('data.tableSuffixTip')"></div>
+                  <Icon name="info" class="lableTips_icon"></Icon>
+                </el-tooltip>
+              </span>
+              <el-input-number
+                size="small"
+                v-model="db_form.table_suffix"
+                :min="1"
+                :max="192"
+                controls-position="right"
+                class="form_item"
               ></el-input-number>
             </el-form-item>
             <el-form-item>
@@ -348,9 +428,9 @@
                   <Icon name="info" class="lableTips_icon"></Icon>
                 </el-tooltip>
               </span>
-              <el-input size="small" v-model="db_form.retentions" :disabled="isEdit" controls-position="right" class="form_item"></el-input>
+              <el-input size="small" v-model="db_form.retentions" :disabled="isEdit" controls-position="right" class="form_item" style="width: 130px"></el-input>
             </el-form-item>
-            <el-form-item>
+            <!-- <el-form-item>
               <span slot="label"
                 >STRICT
                 <el-tooltip placement="bottom" effect="light">
@@ -431,19 +511,25 @@
           if (valid) {
             this.requestIng = true;
             this.$store
-              .dispatch("dbs/createDatabase", true)
-              .then(() => {
-                this.isEdit
-                  ? this.$message({
-                      type: "success",
-                      message: this.$t("changeSucc"),
-                    })
-                  : this.$message({
-                      type: "success",
-                      message: this.$t("createSucc"),
-                    });
+            .dispatch("dbs/createDatabase", true)
+            .then(() => {
+              this.isEdit
+                ? this.$message({
+                  type: "success",
+                  message: this.$t("changeSucc"),
+                })
+                : this.$message({
+                  type: "success",
+                  message: this.$t("createSucc"),
+                });
+            })
+            .catch((err) => {
+              this.$message({
+                type: "error",
+                message: err?.desc
               })
-              .finally(() => (this.requestIng = false));
+            })
+            .finally(() => (this.requestIng = false));
           }
         });
       },

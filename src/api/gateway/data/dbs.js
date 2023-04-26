@@ -86,7 +86,7 @@ export function createDB(data, name, appId = store.getters.appId) {
         .map(item => {
           let value = data[item];
           const isString = DBFILED[item]?.type == "string";
-          if (isString && !value) return "";
+          if(value == undefined) return ""
           if (isString) {
             value = `'${value}'`;
           }
@@ -111,6 +111,7 @@ export function updateDB(data, name) {
     `ALTER DATABASE ${name} ${Object.keys(data)
       .map(key => {
         let value = data[key];
+        if(value == undefined) return ""
         if (DBFILED[key]?.type == "string") {
           value = `'${value}'`;
         }
