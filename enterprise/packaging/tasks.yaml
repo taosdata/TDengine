@@ -1,0 +1,10 @@
+name: Release workflows for TDengine
+type: workflow
+
+tasks:
+  - task: cfg_release/lite.yaml
+  # - task: cfg_release/community.yaml
+  # - task: cfg_release/enterprise.yaml
+  # - task: cfg_release/oem.yaml
+  # - task: cfg_release/sample.yaml
+
