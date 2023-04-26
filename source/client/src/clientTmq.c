@@ -1664,11 +1664,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
     return handleErrorBeforePoll(pVg, pTmq);
   }
 
-  sendInfo->msgInfo = (SDataBuf){
-      .pData = msg,
-      .len = msgSize,
-      .handle = NULL,
-  };
+  sendInfo->msgInfo = (SDataBuf){ .pData = msg, .len = msgSize, .handle = NULL };
 
   sendInfo->requestId = req.reqId;
   sendInfo->requestObjRefId = 0;
