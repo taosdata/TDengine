@@ -14,45 +14,58 @@
       }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="agentList" size="mini">
-
-      <el-table-column label="ID" width="150" prop="id"></el-table-column>
+      <el-table-column label="ID" prop="id" width="60"></el-table-column>
       <el-table-column
         :label="$t('taosagents.cluster_id')"
         prop="cluster_id"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('taosagents.connectors')"
-        prop="connectors"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('taosagents.created_at')"
-        prop="created_at"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('taosagents.dsn')"
-        prop="dsn"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('taosagents.expire_date')"
-        prop="expire_date"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('taosagents.connectors')"
-        prop="connectors"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('taosagents.last_modified_at')"
-        prop="last_modified_at"
+        width="200"
       ></el-table-column>
       <el-table-column
         :label="$t('taosagents.name')"
         prop="name"
+        width="200"
       ></el-table-column>
-      <el-table-column :label="$t('taosagents.status')" prop="status">
+
+      <el-table-column
+        :label="$t('taosagents.connectors')"
+        prop="connectors"
+        width="200"
+      >
+        <template slot-scope="scope">
+          <span>{{ scope.row.connectors.join(',') }}</span>
+        </template></el-table-column
+      >
+      <el-table-column
+        :label="$t('taosagents.created_at')"
+        prop="created_at"
+        width="250"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taosagents.dsn')"
+        prop="dsn"
+        width="200"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taosagents.expire_date')"
+        prop="expire_date"
+        width="200"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taosagents.last_modified_at')"
+        prop="last_modified_at"
+        width="250"
+      ></el-table-column>
+
+      <el-table-column
+        :label="$t('taosagents.status')"
+        prop="status"
+        width="100"
+      >
         <template slot-scope="scope">
           <div class="status-operation">
             <el-tooltip
               v-if="
+                scope.row.status &&
                 ['stopped', 'finished', 'failed'].includes(
                   scope.row.status.toLowerCase()
                 )
@@ -79,13 +92,13 @@
       ></el-table-column>
       <el-table-column :label="$t('taosuser.operation')" width="150">
         <template slot-scope="scope">
-          <el-switch
+          <!-- <el-switch
             :value="scope.row.status.toLowerCase() == 'running'"
             active-color="rgb(66, 89, 206)"
             inactive-color="#dcdfe6"
             @change="switchOperation($event, scope.row)"
           >
-          </el-switch>
+          </el-switch> -->
           <el-button
             plain
             size="small"
@@ -141,42 +154,29 @@
         <el-form-item prop="name" :label="$t('taosagents.name')">
           <el-input v-model.trim="ruleForm.name"></el-input>
         </el-form-item>
-        <el-form-item
-          :label="$t('taosagents.connectors')"
-          prop="connectors"
-          v-if="!isEditDialog"
-        >
-          <el-select v-model="ruleForm.connectors" placeholder="">
-
+        <el-form-item :label="$t('taosagents.connectors')" prop="connectors">
+          <el-select v-model="ruleForm.connectors" placeholder="" multiple>
             <el-option
-              v-for="db in dblist"
-              :key="db['node-key']"
+              v-for="db in connectorList"
+              :key="db.id"
               :label="db.name"
-              :value="db.name"
+              :value="db.id"
             >
             </el-option>
           </el-select>
         </el-form-item>
         <el-form-item
-          :label="$t('taosagents.dsn')"
-          prop="dsn"
-          v-if="!isEditDialog"
-        >
-          <el-input v-model.trim="ruleForm.dsn"></el-input>
-        </el-form-item>
-        <el-form-item
           :label="$t('taosagents.expire_date')"
           prop="expire_date"
           expire_time
-          v-if="!isEditDialog"
         >
           <el-date-picker
             v-model="ruleForm.expire_date"
             style="width: 100%"
             :picker-options="expireTimeOPtion"
-            type="datetime"
+            type="date"
+            format="yyyy-MM-dd"
           ></el-date-picker>
-
         </el-form-item>
       </el-form>
 
@@ -198,13 +198,34 @@
         </el-col>
       </el-row>
     </el-dialog>
+    <el-dialog
+      class="copy-agent"
+      align="center"
+      :title="$t('copyagent')"
+      width="600px"
+      :visible.sync="copyDialog"
+      :destroy-on-close="true"
+    >
+      <div style="display: flex" class="agentcopy">
+        <span class="agent-token">{{ agenttoken }}</span>
+        <span class="copy-icon" @click="copyToken(agenttoken)">
+          <i class="el-icon-copy-document"></i>
+          {{ $t("copy") }}
+        </span>
+      </div>
+    </el-dialog>
   </div>
 </template>
 <script>
-import { getAgentsData } from "@/api/explorer/agent";
-
-import { getUIData} from '@/api/explorer/datain'
-
+import {
+  getAgentsData,
+  addNewAgent,
+  deleteAgent,
+  editAgent,
+} from "@/api/explorer/agent";
+import { copy } from "@/utils/index";
+import { getUIData } from "@/api/explorer/datain";
+import { format } from "date-fns";
 export default {
   name: "Agent",
   data() {
@@ -214,6 +235,7 @@ export default {
           return time.getTime() < Date.now();
         },
       },
+      agenttoken: "",
       requestIng: false,
       dblist: [],
       isEditDialog: false,
@@ -222,6 +244,7 @@ export default {
       currentPage: 1,
       total: 10,
       dialog: false,
+      copyDialog: false,
       operateStatus: true,
       currentRow: null,
       clusterid: localStorage.getItem("local_clusterID"),
@@ -229,7 +252,6 @@ export default {
         name: "",
         connectors: "",
         expire_date: "",
-        dsn: "",
       },
       rules: {
         name: [
@@ -253,28 +275,21 @@ export default {
             required: true,
           },
         ],
-        dsn: [
-          {
-            message: this.$t("taosagents.rules.dsn"),
-            trigger: "blur",
-            required: true,
-          },
-        ],
       },
       agentList: [],
-
+      connectorList: [],
     };
   },
   computed: {
     confirmStatus() {
-      if (!this.ruleForm.cycle) {
+      if (!this.ruleForm.name) {
         return true;
       }
 
-      if (!this.ruleForm.db) {
+      if (!this.ruleForm.connectors) {
         return true;
       }
-      if (!this.ruleForm.directory) {
+      if (!this.ruleForm.expire_date) {
         return true;
       }
 
@@ -290,34 +305,41 @@ export default {
     },
     del(data) {
       this.$confirm(
-        "Are you sure  to delete " + data.id + " backup task?",
-        "Warning",
+        this.$t("taosagents.deletetip").replace(/{id}/, data.id),
+        this.$t("warning"),
         {
-          confirmButtonText: "Ok",
-          cancelButtonText: "Cancel",
+          confirmButtonText: this.$t("ok"),
+          cancelButtonText: this.$t("cancel"),
           type: "warning",
         }
-      ).then(async () => {});
+      ).then(async () => {
+        await deleteAgent(data.id);
+        this.getAgents();
+      });
     },
     add() {
       this.dialogTitle = this.$t("taosagents.createnewagent");
       this.isEditDialog = false;
       this.dialog = true;
-      this.ruleForm.db = "";
-      this.ruleForm.directory = "";
+      this.ruleForm.name = "";
+      this.ruleForm.expire_date = "";
+      this.ruleForm.connectors = "";
     },
     refresh() {
-      this.getBackData();
+      this.getAgents();
     },
     edit(data) {
-      this.dialogTitle = this.$t("taosagents.changebackup");
+      this.dialogTitle = this.$t("taosagents.edittitle");
       this.isEditDialog = true;
       this.dialog = true;
-      this.ruleForm.db = data.database;
-      this.ruleForm.directory = data.to;
+      this.ruleForm.name = data.name;
+      this.ruleForm.connectors = data.connectors;
+      this.ruleForm.expire_date = data.expire_date;
       this.currentRow = data;
     },
-
+    copyToken(text) {
+      copy(text);
+    },
     //切换状态
     switchOperation(val, data) {
       if (val) {
@@ -353,19 +375,74 @@ export default {
     submit() {
       if (this.isEditDialog) {
         //调用编辑接口
-        this.editBakcup(this.currentRow.id);
+        this.editAgentData();
       } else {
-        this.addBackup();
+        this.addAgentData();
       }
     },
-
+    async editAgentData() {
+      try {
+        let params = {
+          connectors: this.ruleForm.connectors,
+          expire_date: this.ruleForm.expire_date,
+          name: this.ruleForm.name,
+        };
+        let result = await editAgent(this.currentRow.id, params);
+        this.dialog = false;
+        this.getAgents();
+        if (result.token) {
+          this.agenttoken = result.token;
+          this.copyDialog = true;
+        }
+      } catch (error) {
+        console.log(error);
+      }
+    },
     async getAgents() {
       try {
-        let result = await getAgentsData(
+        this.agentList = await getAgentsData(
           localStorage.getItem("local_clusterID"),
           localStorage.getItem("username")
         );
-        console.log(result, "获取agents----");
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    async getConnectorTypes() {
+      try {
+        let result = await getUIData();
+        this.connectorList =
+          result.length > 0
+            ? result.map((item) => {
+                return {
+                  id: item.id,
+                  name: item.name,
+                };
+              })
+            : [];
+
+        console.log(this.connectorList, "连接器类型");
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    async addAgentData() {
+      try {
+        let params = {
+          cluster_id: this.clusterid,
+          connectors: this.ruleForm.connectors,
+          dsn: localStorage.getItem("base_url"),
+          expire_date: format(this.ruleForm.expire_date, "yyyy-MM-dd"),
+          name: this.ruleForm.name,
+          user_id: localStorage.getItem("username"),
+        };
+        let result = await addNewAgent(params);
+        this.dialog = false;
+        this.getAgents();
+        if (result.token) {
+          this.agenttoken = result.token;
+          this.copyDialog = true;
+        }
       } catch (error) {
         console.log(error);
       }
@@ -373,6 +450,7 @@ export default {
   },
   created() {
     this.getAgents();
+    this.getConnectorTypes();
   },
 };
 </script>
@@ -382,5 +460,34 @@ export default {
 }
 .el-switch {
   margin-right: 10px;
+}
+.agent-token {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  display: inline-block;
+}
+.copy-icon {
+  visibility: hidden;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  cursor: pointer;
+  color: #4259ce;
+}
+.agentcopy {
+  display: flex;
+  &:hover {
+    .copy-icon {
+      visibility: visible;
+    }
+  }
+}
+::v-deep {
+  .el-dialog__wrapper.copy-agent {
+    .el-dialog__header {
+      display: flex;
+    }
+  }
 }
 </style>

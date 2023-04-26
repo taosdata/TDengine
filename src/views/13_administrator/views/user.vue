@@ -71,7 +71,7 @@
       :page-size="pageSize" :hide-on-single-page="true" :total="total" @current-change="handlePageChange"></el-pagination>
 
     <el-dialog align="center" :title="$t('taosuser.adduser')" width="550px" :visible.sync="dialog">
-      <AddUser @close="closeDialog"></AddUser>
+      <AddUser @close="closeDialog" :status='dialog' v-if='dialog'></AddUser>
     </el-dialog>
 
     <el-dialog align="center" :title="$t('taosuser.edituser')" width="550px" :visible.sync="editDialog">
@@ -197,7 +197,7 @@ export default {
         cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
-        sendSQLReq(`drop user ${data.name}`).then(res => {
+        sendSQLReq(`drop user \`${data.name}\``).then(res => {
           if (res.code == 0) {
             Message.success(this.$t('delSucc'))
             this.getUserData()

@@ -160,7 +160,7 @@ export default {
           this.requestIng = true;
           let username = localStorage.getItem("username");
           await sendSQLReq(
-            `ALTER USER ${username} PASS '${this.changeForm.new_password}'`
+            `ALTER USER \`${username}\` PASS '${this.changeForm.new_password}'`
           )
             .then((res) => {
               if (res) {

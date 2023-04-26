@@ -174,7 +174,7 @@ export default {
           icon: "users",
           parting: false,
           meta:{
-            show:this.isRoot? true:false
+            show:this.isRoot=='root'? true:false
           }
         },
         // {

@@ -7,6 +7,9 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  enableagent:'Enable Agent',
+  warning:'Warning',
+  ok:'OK',
   systemTitle: "TDengine Management system",
   copyright:'Copyright (c) 2022 by TDengine, All Rights Reserved.',
   sqlPreview: "SQL Preview",
@@ -17,6 +20,7 @@ export default {
   isEnable: "Are you sure to enable {isDisableName}?",
   role: "Role",
   total: "Total",
+  copySucc: "Copy Success!",
   fullName: "Full Name",
   tips: "Tips",
   time: "Time",
@@ -49,6 +53,7 @@ export default {
   save: "Save",
   error: "Error",
   copy: "Copy",
+  copyagent:"Copy the token to Agent's configuration file",
   share: "Share",
   shareSucc: "Share success",
   shareFail: "Failed to share",
@@ -1075,6 +1080,8 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
+    agent:'Agent',
+    agenttip:'Please select the agent.',
     name: 'Name',
     type: 'Type',
     target: 'Target',
@@ -1672,6 +1679,8 @@ export default {
     changebackup: 'Change Backup'
   },
   taosagents:{
+    edittitle:'Edit Agent',
+    deletetip:`Are you sure to delete agent {id} ?`,
     eidtagent:'Edit Agent',
     createnewagent:'Create New Agent',
     cluster_id:'Cluster ID',

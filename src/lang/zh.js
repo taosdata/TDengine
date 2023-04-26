@@ -7,6 +7,9 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  enableagent:'启用代理',
+  warning:'提醒',
+  ok:'确定',
   systemTitle: "TDengine 管理系统",
   copyright:' Copyright 2023 北京涛思数据科技有限公司',
   download: "下载",
@@ -19,7 +22,9 @@ export default {
   tips: "提示",
   continue: "继续",
   change: "修改",
+  copySucc: "复制成功",
   nickname: "昵称",
+  copyagent:'拷贝token到Agent配置文件',
   back: "返回",
   date: "日期",
   time: "时间",
@@ -65,7 +70,7 @@ export default {
   newPass: "新密码",
   requiredMessage: "是必填的",
   passwordError: "密码格式错误",
-  passwordTip: `<div>密码长度必须为8到16位，并且至少包含以下3中字符:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> 大写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 小写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 数字</li><li><el-icon class='el-icon-circle-check'></el-icon> 特殊字符</li></ul>`,
+  passwordTip: `<div>密码长度必须为8到16位，并且至少包含以下4类中的3类:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> 大写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 小写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 数字</li><li><el-icon class='el-icon-circle-check'></el-icon> 特殊字符</li></ul>`,
   twoPassError: "两次密码不一致",
   yesterday: "昨天",
   agoWeek: "一周前",
@@ -795,6 +800,8 @@ export default {
   },
 
   datasource: {
+    agent:'代理',
+    agenttip:'请选择代理',
     name: '名称',
     type: '类型',
     target: '目标数据库',
@@ -1383,6 +1390,8 @@ export default {
     changebackup: '选择备份周期'
   },
   taosagents:{
+    edittitle:'编辑代理',
+    deletetip:`确定删除代理 {id} ?`,
     eidtagent:'编辑代理',
     createnewagent:'新增代理',
     cluster_id:'集群ID',
