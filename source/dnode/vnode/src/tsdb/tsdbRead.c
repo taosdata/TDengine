@@ -2220,7 +2220,7 @@ static int32_t mergeFileBlockAndLastBlock(STsdbReader* pReader, SLastBlockReader
         return mergeRowsInFileBlocks(pBlockData, pBlockScanInfo, key, pReader);
       } else if (key == ts) {
         SRow*       pTSRow = NULL;
-        SRowMerger* pMerger = pMerger;
+        SRowMerger* pMerger = &pReader->status.merger;
 
         int32_t code = tsdbRowMergerAdd(pMerger, &fRow, pReader->pSchema);
         if (code != TSDB_CODE_SUCCESS) {
