@@ -124,8 +124,8 @@ typedef struct SSTableVersion {
   char     stbName[TSDB_TABLE_NAME_LEN];
   uint64_t dbId;
   uint64_t suid;
-  int16_t  sversion;
-  int16_t  tversion;
+  int32_t  sversion;
+  int32_t  tversion;
   int32_t  smaVer;
 } SSTableVersion;
 
