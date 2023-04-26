@@ -147,27 +147,24 @@ In both of these methods, configuring the watermark is essential for obtaining a
 
 ## Supported functions
 
-All [scalar functions](../function/#scalar-functions) are available in stream processing.
-All System Information Functions are <b>not</b> available for stream processing.
-All [aggregate and selection functions](../function/#system-information-functions) are available in stream processing, except following functions
-
-- [leastsquares](../function/#leastsquares)
-- [percentile](../function/#percentile)
-- [top](../function/#leastsquares)
-- [bottom](../function/#top)
-- [elapsed](../function/#leastsquares)
-- [interp](../function/#elapsed)
-- [derivative](../function/#derivative)
-- [irate](../function/#irate)
-- [twa](../function/#twa)
-- [histogram](../function/#histogram)
-- [diff](../function/#diff)
-- [statecount](../function/#statecount)
-- [stateduration](../function/#stateduration)
-- [csum](../function/#csum)
-- [mavg](../function/#mavg)
-- [sample](../function/#sample)
-- [tail](../function/#tail)
-- [unique](../function/#unique)
-- [mode](../function/#mode)
+All [scalar functions](../function/#scalar-functions) are available in stream processing. All [System Information Functions](../function/#system-information-functions) are <b>not</b> allowed in stream processing. All [Aggregate functions](function/#aggregate-functions) and [Selection functions](../function/#selection-functions) are available in stream processing, except the followings:
+  - [leastsquares](../function/#leastsquares)
+  - [percentile](../function/#percentile)
+  - [top](../function/#leastsquares)
+  - [bottom](../function/#top)
+  - [elapsed](../function/#leastsquares)
+  - [interp](../function/#elapsed)
+  - [derivative](../function/#derivative)
+  - [irate](../function/#irate)
+  - [twa](../function/#twa)
+  - [histogram](../function/#histogram)
+  - [diff](../function/#diff)
+  - [statecount](../function/#statecount)
+  - [stateduration](../function/#stateduration)
+  - [csum](../function/#csum)
+  - [mavg](../function/#mavg)
+  - [sample](../function/#sample)
+  - [tail](../function/#tail)
+  - [unique](../function/#unique)
+  - [mode](../function/#mode)
 
