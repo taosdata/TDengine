@@ -277,7 +277,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
   resetSlotInfo(pBucket);
 
   if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
+    terrno = TSDB_CODE_NO_DISKSPACE;
     // qError("MemBucket create disk based Buf failed since %s", terrstr(terrno));
     tMemBucketDestroy(pBucket);
     return NULL;

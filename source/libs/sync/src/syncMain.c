@@ -463,8 +463,7 @@ bool syncSnapshotRecving(int64_t rid) {
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
     sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
-    terrno = TSDB_CODE_SYN_ONE_REPLICA;
-    return -1;
+    return 0;
   }
 
   int32_t ret = 0;
@@ -486,7 +485,6 @@ int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   if (pSyncNode->replicaNum == 1) {
     sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
-    terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
 
@@ -580,25 +578,37 @@ int32_t syncIsCatchUp(int64_t rid) {
     return -1;
   }
 
-  while(1){
-    if(pSyncNode->pLogBuf->totalIndex < 0 || pSyncNode->pLogBuf->commitIndex < 0 ||
-        pSyncNode->pLogBuf->totalIndex < pSyncNode->pLogBuf->commitIndex ||
-        pSyncNode->pLogBuf->totalIndex - pSyncNode->pLogBuf->commitIndex > SYNC_LEARNER_CATCHUP){
-      sInfo("vgId:%d, Not catch up, wait one second, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
-                                    pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex, 
-                                    pSyncNode->pLogBuf->matchIndex);
-      taosSsleep(1);
-    }
-    else{
-      sInfo("vgId:%d, Catch up, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
-                                    pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex,
-                                    pSyncNode->pLogBuf->matchIndex);
-      break;
-    }
+  int32_t isCatchUp = 0;
+  if(pSyncNode->pLogBuf->totalIndex < 0 || pSyncNode->pLogBuf->commitIndex < 0 ||
+      pSyncNode->pLogBuf->totalIndex < pSyncNode->pLogBuf->commitIndex ||
+      pSyncNode->pLogBuf->totalIndex - pSyncNode->pLogBuf->commitIndex > SYNC_LEARNER_CATCHUP){
+    sInfo("vgId:%d, Not catch up, wait one second, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
+                                  pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex, 
+                                  pSyncNode->pLogBuf->matchIndex);
+    isCatchUp = 0;
+  }
+  else{
+    sInfo("vgId:%d, Catch up, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
+                                  pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex,
+                                  pSyncNode->pLogBuf->matchIndex);
+    isCatchUp = 1;
   }
   
   syncNodeRelease(pSyncNode);
-  return 0;
+  return isCatchUp;
+}
+
+ESyncRole syncGetRole(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    sError("sync Node Acquire error since %d", errno);
+    return -1;
+  }
+
+  ESyncRole role = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole;
+  
+  syncNodeRelease(pSyncNode);
+  return role;
 }
 
 int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq) {
@@ -2144,7 +2154,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
   SSyncHbTimerData* pData = syncHbTimerDataAcquire(hbDataRid);
   if (pData == NULL) {
-    sError("hb timer get pData NULL, rid:%" PRId64 " addr:%" PRId64, hbDataRid, pData->destId.addr);
+    sError("hb timer get pData NULL, %" PRId64, hbDataRid);
     return;
   }
 
@@ -2414,18 +2424,19 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       (void)syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId);
 
       SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
-      pSyncMsg->cmd = SYNC_LOCAL_CMD_FOLLOWER_CMT;
+      pSyncMsg->cmd =
+          (ths->state == TAOS_SYNC_STATE_LEARNER) ? SYNC_LOCAL_CMD_LEARNER_CMT : SYNC_LOCAL_CMD_FOLLOWER_CMT;
       pSyncMsg->commitIndex = pMsg->commitIndex;
       pSyncMsg->currentTerm = pMsg->term;
-      SyncIndex fcIndex = pSyncMsg->commitIndex;
 
       if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
         int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
         if (code != 0) {
-          sError("vgId:%d, sync enqueue fc-commit msg error, code:%d", ths->vgId, code);
+          sError("vgId:%d, failed to enqueue commit msg from heartbeat since %s, code:%d", ths->vgId, terrstr(), code);
           rpcFreeCont(rpcMsgLocalCmd.pCont);
         } else {
-          sTrace("vgId:%d, sync enqueue fc-commit msg, fc-index:%" PRId64, ths->vgId, fcIndex);
+          sTrace("vgId:%d, enqueue commit msg from heartbeat, commit-index:%" PRId64 ", term:%" PRId64, ths->vgId,
+                 pMsg->commitIndex, pMsg->term);
         }
       }
     }
@@ -2446,27 +2457,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
         sError("vgId:%d, sync enqueue step-down msg error, code:%d", ths->vgId, code);
         rpcFreeCont(rpcMsgLocalCmd.pCont);
       } else {
-        sTrace("vgId:%d, sync enqueue step-down msg, new-term:%" PRId64, ths->vgId, pSyncMsg->currentTerm);
-      }
-    }
-  }
-
-  if (pMsg->term >= currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER) {
-    SRpcMsg rpcMsgLocalCmd = {0};
-    (void)syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId);
-
-    SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
-    pSyncMsg->cmd = SYNC_LOCAL_CMD_LEARNER_CMT;
-    pSyncMsg->currentTerm = pMsg->term;
-    pSyncMsg->commitIndex = pMsg->commitIndex;
-
-    if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
-      int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
-      if (code != 0) {
-        sError("vgId:%d, sync enqueue step-down msg error, code:%d", ths->vgId, code);
-        rpcFreeCont(rpcMsgLocalCmd.pCont);
-      } else {
-        sTrace("vgId:%d, sync enqueue step-down msg, new-term:%" PRId64, ths->vgId, pSyncMsg->currentTerm);
+        sTrace("vgId:%d, sync enqueue step-down msg, new-term:%" PRId64, ths->vgId, pMsg->term);
       }
     }
   }
@@ -2521,7 +2512,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
     syncNodeStepDown(ths, pMsg->currentTerm);
 
-  } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
+  } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT || pMsg->cmd == SYNC_LOCAL_CMD_LEARNER_CMT) {
     if (syncLogBufferIsEmpty(ths->pLogBuf)) {
       sError("vgId:%d, sync log buffer is empty.", ths->vgId);
       return 0;
@@ -2534,20 +2525,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64 "", ths->vgId, terrstr(),
              ths->commitIndex);
     }
-  } else if (pMsg->cmd == SYNC_LOCAL_CMD_LEARNER_CMT){
-    if (syncLogBufferIsEmpty(ths->pLogBuf)) {
-      sError("vgId:%d, sync log buffer is empty.", ths->vgId);
-      return 0;
-    }
-    raftStoreSetTerm(ths, pMsg->currentTerm);
-    (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
-    sTrace("vgId:%d, start to commit raft log in heartbeat. commit index:%" PRId64 "", ths->vgId, ths->commitIndex);
-    if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
-      sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64 "", ths->vgId, terrstr(),
-             ths->commitIndex);
-    }
-  }
-  else {
+  } else {
     sError("error local cmd");
   }
 

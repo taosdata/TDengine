@@ -556,9 +556,14 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     return -1;
   }
 
-  ((SMqRspHead *)buf)->mqMsgType = TMQ_MSG_TYPE__EP_RSP;
-  ((SMqRspHead *)buf)->epoch = serverEpoch;
-  ((SMqRspHead *)buf)->consumerId = pConsumer->consumerId;
+  SMqRspHead* pHead = buf;
+
+  pHead->mqMsgType = TMQ_MSG_TYPE__EP_RSP;
+  pHead->epoch = serverEpoch;
+  pHead->consumerId = pConsumer->consumerId;
+  pHead->walsver = 0;
+  pHead->walever = 0;
+
 
   void *abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
   tEncodeSMqAskEpRsp(&abuf, &rsp);
