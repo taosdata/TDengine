@@ -790,7 +790,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   }
 
   ASSERT (pReader->suppInfo.colId[0] == PRIMARYKEY_TIMESTAMP_COL_ID);
-  pReader->status.pPrimaryTsCol = taosArrayGet(pResBlock->pDataBlock, pSup->slotId[0]);
+  pReader->status.pPrimaryTsCol = taosArrayGet(pReader->pResBlock->pDataBlock, pSup->slotId[0]);
 
   tsdbInitReaderLock(pReader);
 
