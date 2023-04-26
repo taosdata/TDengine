@@ -677,14 +677,21 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
   SServerObj* pObj = container_of(stream, SServerObj, server);
 
   uv_tcp_t* cli = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
-  uv_tcp_init(pObj->loop, cli);
+  if (cli == NULL) return;
 
-  if (uv_accept(stream, (uv_stream_t*)cli) == 0) {
+  int err = uv_tcp_init(pObj->loop, cli);
+  if (err != 0) {
+    tError("failed to create tcp: %s", uv_err_name(err));
+    taosMemoryFree(cli);
+    return;
+  }
+  err = uv_accept(stream, (uv_stream_t*)cli);
+  if (err == 0) {
 #if defined(WINDOWS) || defined(DARWIN)
     if (pObj->numOfWorkerReady < pObj->numOfThreads) {
       tError("worker-threads are not ready for all, need %d instead of %d.", pObj->numOfThreads,
              pObj->numOfWorkerReady);
-      uv_close((uv_handle_t*)cli, NULL);
+      uv_close((uv_handle_t*)cli, uvFreeCb);
       return;
     }
 #endif
@@ -700,8 +707,10 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
     uv_write2(wr, (uv_stream_t*)&(pObj->pipe[pObj->workerIdx][0]), &buf, 1, (uv_stream_t*)cli, uvOnPipeWriteCb);
   } else {
     if (!uv_is_closing((uv_handle_t*)cli)) {
-      uv_close((uv_handle_t*)cli, NULL);
+      tError("failed to accept tcp: %s", uv_err_name(err));
+      uv_close((uv_handle_t*)cli, uvFreeCb);
     } else {
+      tError("failed to accept tcp: %s", uv_err_name(err));
       taosMemoryFree(cli);
     }
   }

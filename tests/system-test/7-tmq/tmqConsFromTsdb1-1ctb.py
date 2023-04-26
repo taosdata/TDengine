@@ -54,6 +54,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -200,7 +201,7 @@ class TDTestCase:
         tdLog.info("pkill consume processor")
         tdCom.killProcessor("tmq_sim")
 
-        # time.sleep(10)
+        time.sleep(10)
 
         # reinit consume info, and start tmq_sim, then check consume result
         tmqCom.initConsumerTable()

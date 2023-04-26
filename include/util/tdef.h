@@ -198,11 +198,12 @@ typedef enum ELogicConditionType {
 #define TSDB_STREAM_NAME_LEN 193                                // it is a null-terminated string
 #define TSDB_DB_NAME_LEN     65
 #define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_PRIVILEDGE_CONDITION_LEN    200
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
 #define TSDB_FUNC_CODE_LEN       10 * 1024 * 1024
-#define TSDB_FUNC_BUF_SIZE       512
+#define TSDB_FUNC_BUF_SIZE       4096 * 64
 #define TSDB_FUNC_TYPE_SCALAR    1
 #define TSDB_FUNC_TYPE_AGGREGATE 2
 #define TSDB_FUNC_SCRIPT_BIN_LIB 0
@@ -248,7 +249,7 @@ typedef enum ELogicConditionType {
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
-#define TSDB_VERSION_LEN       12
+#define TSDB_VERSION_LEN       32
 #define TSDB_LABEL_LEN         8
 #define TSDB_JOB_STATUS_LEN    32
 
@@ -284,8 +285,11 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_ROLE_VNODE 2
 
 #define TSDB_MAX_REPLICA               5
+#define TSDB_MAX_LEARNER_REPLICA       10
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
-#define TSDB_SYNC_LOG_BUFFER_RETENTION (TSDB_SYNC_LOG_BUFFER_SIZE >> 4)
+#define TSDB_SYNC_LOG_BUFFER_RETENTION 256
+#define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
+#define TSDB_SYNC_NEGOTIATION_WIN      512
 
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
@@ -316,10 +320,10 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_KEEP_NS                (365 * 292 * 1440)  // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               (3650 * 1440)       // ten years
 #define TSDB_MIN_MINROWS_FBLOCK         10
-#define TSDB_MAX_MINROWS_FBLOCK         1000
+#define TSDB_MAX_MINROWS_FBLOCK         1000000
 #define TSDB_DEFAULT_MINROWS_FBLOCK     100
 #define TSDB_MIN_MAXROWS_FBLOCK         200
-#define TSDB_MAX_MAXROWS_FBLOCK         10000
+#define TSDB_MAX_MAXROWS_FBLOCK         10000000
 #define TSDB_DEFAULT_MAXROWS_FBLOCK     4096
 #define TSDB_MIN_FSYNC_PERIOD           0
 #define TSDB_MAX_FSYNC_PERIOD           180000  // millisecond

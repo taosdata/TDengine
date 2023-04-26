@@ -89,6 +89,7 @@ typedef void (*SendMonitorReportFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
+typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 
 typedef struct {
   int32_t        dnodeId;
@@ -112,6 +113,7 @@ typedef struct {
   SDnodeData         *pData;
   SMsgCb              msgCb;
   ProcessCreateNodeFp processCreateNodeFp;
+  ProcessAlterNodeTypeFp processAlterNodeTypeFp;
   ProcessDropNodeFp   processDropNodeFp;
   SendMonitorReportFp sendMonitorReportFp;
   GetVnodeLoadsFp     getVnodeLoadsFp;
@@ -132,6 +134,8 @@ typedef int32_t (*NodeCreateFp)(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 typedef int32_t (*NodeDropFp)(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 typedef int32_t (*NodeRequireFp)(const SMgmtInputOpt *pInput, bool *required);
 typedef SArray *(*NodeGetHandlesFp)();  // array of SMgmtHandle
+typedef bool (*NodeIsCatchUpFp)(void *pMgmt);
+typedef bool (*NodeRole)(void *pMgmt);
 
 typedef struct {
   NodeOpenFp       openFp;
@@ -142,6 +146,8 @@ typedef struct {
   NodeDropFp       dropFp;
   NodeRequireFp    requiredFp;
   NodeGetHandlesFp getHandlesFp;
+  NodeIsCatchUpFp  isCatchUpFp;
+  NodeRole         nodeRoleFp;
 } SMgmtFunc;
 
 typedef struct {
@@ -166,6 +172,7 @@ int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
 void    dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
+void    dmRotateMnodeEpSet(SDnodeData *pData);
 void    dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 bool    dmUpdateDnodeInfo(void *pData, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port);

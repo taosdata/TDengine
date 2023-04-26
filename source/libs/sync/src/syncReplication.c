@@ -48,6 +48,15 @@
 
 int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
+int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
+  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+  taosThreadMutexLock(&pBuf->mutex);
+  SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
+  syncLogReplReset(pMgr);
+  taosThreadMutexUnlock(&pBuf->mutex);
+  return 0;
+}
+
 int32_t syncNodeReplicate(SSyncNode* pNode) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   taosThreadMutexLock(&pBuf->mutex);
@@ -57,15 +66,15 @@ int32_t syncNodeReplicate(SSyncNode* pNode) {
 }
 
 int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
-  if (pNode->state != TAOS_SYNC_STATE_LEADER || pNode->replicaNum == 1) {
+  if (pNode->state != TAOS_SYNC_STATE_LEADER || pNode->raftCfg.cfg.totalReplicaNum == 1) {
     return -1;
   }
-  for (int32_t i = 0; i < pNode->replicaNum; i++) {
+  for (int32_t i = 0; i < pNode->totalReplicaNum; i++) {
     if (syncUtilSameId(&pNode->replicasId[i], &pNode->myRaftId)) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    (void)syncLogReplMgrReplicateOnce(pMgr, pNode);
+    (void)syncLogReplDoOnce(pMgr, pNode);
   }
   return 0;
 }

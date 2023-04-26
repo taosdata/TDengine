@@ -290,14 +290,22 @@ int32_t walEndSnapshot(SWal *pWal) {
   int ts = taosGetTimestampSec();
 
   ver = TMAX(ver - pWal->vers.logRetention, pWal->vers.firstVer - 1);
+
+  bool hasTopic = false;
+  int64_t refVer = ver;
   void *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
     SWalRef *pRef = *(SWalRef **)pIter;
     if (pRef->refVer == -1) continue;
-    ver = TMIN(ver, pRef->refVer - 1);
+    refVer = TMIN(refVer, pRef->refVer - 1);
     wDebug("vgId:%d, wal found ref %" PRId64 ", refId %" PRId64, pWal->cfg.vgId, pRef->refVer, pRef->refId);
+    hasTopic = true;
+  }
+  // compatible mode
+  if (pWal->cfg.retentionPeriod == 0 && hasTopic) {
+    ver = TMIN(ver, refVer);
   }
 
   int          deleteCnt = 0;
@@ -327,9 +335,9 @@ int32_t walEndSnapshot(SWal *pWal) {
       wDebug("vgId:%d, wal check remove file %" PRId64 "(file size %" PRId64 " close ts %" PRId64
              "), new tot size %" PRId64,
              pWal->cfg.vgId, iter->firstVer, iter->fileSize, iter->closeTs, newTotSize);
-      if (((pWal->cfg.retentionSize == 0) || (pWal->cfg.retentionSize != -1 && newTotSize > pWal->cfg.retentionSize)) ||
-          ((pWal->cfg.retentionPeriod == 0) ||
-           (pWal->cfg.retentionPeriod != -1 && iter->closeTs + pWal->cfg.retentionPeriod > ts))) {
+      if ((pWal->cfg.retentionSize != -1 && pWal->cfg.retentionSize != 0 && newTotSize > pWal->cfg.retentionSize) ||
+          ((pWal->cfg.retentionPeriod == 0) || (pWal->cfg.retentionPeriod != -1 && iter->closeTs != -1 &&
+                                                iter->closeTs + pWal->cfg.retentionPeriod < ts))) {
         // delete according to file size or close time
         wDebug("vgId:%d, check pass", pWal->cfg.vgId);
         deleteCnt++;
@@ -387,20 +395,33 @@ END:
 
 int32_t walRollImpl(SWal *pWal) {
   int32_t code = 0;
+
   if (pWal->pIdxFile != NULL) {
+    code = taosFsyncFile(pWal->pIdxFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
     code = taosCloseFile(&pWal->pIdxFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto END;
     }
   }
+
   if (pWal->pLogFile != NULL) {
+    code = taosFsyncFile(pWal->pLogFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
     code = taosCloseFile(&pWal->pLogFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto END;
     }
   }
+
   TdFilePtr pIdxFile, pLogFile;
   // create new file
   int64_t newFileFirstVer = pWal->vers.lastVer + 1;

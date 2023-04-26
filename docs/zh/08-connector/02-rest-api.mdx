@@ -116,14 +116,41 @@ curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timez
 
 ### HTTP 响应码
 
-| **response code** | **说明**         |
-|-------------------|----------------|
-| 200               | 正确返回和 C 接口错误返回 |
-| 400               | 参数错误返回         |
-| 401               | 鉴权失败           |
-| 404               | 接口不存在          |
-| 500               | 内部错误           |
-| 503               | 系统资源不足         |
+从 `TDengine 3.0.3.0` 开始 `taosAdapter` 提供配置参数 `httpCodeServerError` 用来设置当 C 接口返回错误时是否返回非 200 的http状态码
+
+| **说明**             | **httpCodeServerError false** | **httpCodeServerError true**          |
+|--------------------|-------------------------------|---------------------------------------|
+| taos_errno() 返回 0  | 200                           | 200                                   |
+| taos_errno() 返回 非0 | 200（除鉴权错误）                    | 500 （除鉴权错误和 400/502 错误）               |
+| 参数错误               | 400 (仅处理 HTTP 请求 URL 参数错误)    | 400 （处理 HTTP 请求 URL 参数错误和 taosd 返回错误） |
+| 鉴权错误               | 401                           | 401                                   |
+| 接口不存在              | 404                           | 404                                   |
+| 集群不可用错误            | 502                           | 502                                   |
+| 系统资源不足             | 503                           | 503                                   |
+
+返回 400 的 C 错误码为：
+
+- TSDB_CODE_TSC_SQL_SYNTAX_ERROR ( 0x0216)
+- TSDB_CODE_TSC_LINE_SYNTAX_ERROR   (0x021B)
+- TSDB_CODE_PAR_SYNTAX_ERROR (0x2600)
+- TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE (0x060B)
+- TSDB_CODE_TSC_VALUE_OUT_OF_RANGE   (0x0224)
+- TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE (0x263B)
+
+返回 401 的错误码为：
+
+- TSDB_CODE_MND_USER_ALREADY_EXIST    (0x0350)
+- TSDB_CODE_MND_USER_NOT_EXIST  ( 0x0351)
+- TSDB_CODE_MND_INVALID_USER_FORMAT  (0x0352)
+- TSDB_CODE_MND_INVALID_PASS_FORMAT   (0x0353)
+- TSDB_CODE_MND_NO_USER_FROM_CONN (0x0354)
+- TSDB_CODE_MND_TOO_MANY_USERS (0x0355)
+- TSDB_CODE_MND_INVALID_ALTER_OPER (0x0356)
+- TSDB_CODE_MND_AUTH_FAILURE (0x0357)
+
+返回 403 的错误码为：
+
+- TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED (0x0020)
 
 ### HTTP body 结构
 
@@ -271,7 +298,6 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 ```json
 {
-  "status": "succ",
   "code": 0,
   "desc": "/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"
 }
@@ -356,6 +382,133 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
       "rows": 1
   }
   ```
+
+## TDengine 2.x 和 3.0 之间 REST API 的差异
+
+### URI
+
+| URI                  | TDengine 2.x         | TDengine 3.0                                         |
+| :--------------------| :------------------: | :--------------------------------------------------: |
+| /rest/sql            | 支持                 | 支持 （响应代码和消息体不同）                        |
+| /rest/sqlt           | 支持                 | 不再支持                                             |
+| /rest/sqlutc         | 支持                 | 不再支持                                             |
+
+
+### HTTP code
+
+| HTTP code            | TDengine 2.x         | TDengine 3.0 | 备注                                  |
+| :--------------------| :------------------: | :----------: | :-----------------------------------: |
+| 200                  | 支持                 | 支持         | 正确返回和 taosc 接口错误返回         |
+| 400                  | 不支持               | 支持         | 参数错误返回                          |
+| 401                  | 不支持               | 支持         | 鉴权失败                              |
+| 404                  | 支持                 | 支持         | 接口不存在                            |
+| 500                  | 不支持               | 支持         | 内部错误                              |
+| 503                  | 支持                 | 支持         | 系统资源不足                          |
+
+
+### 响应代码和消息体
+
+#### TDengine 2.x 响应代码和消息体
+
+```JSON
+{
+  "status": "succ",
+  "head": [
+    "name",
+    "created_time",
+    "ntables",
+    "vgroups",
+    "replica",
+    "quorum",
+    "days",
+    "keep1,keep2,keep(D)",
+    "cache(MB)",
+    "blocks",
+    "minrows",
+    "maxrows",
+    "wallevel",
+    "fsync",
+    "comp",
+    "precision",
+    "status"
+  ],
+  "data": [
+    [
+      "log",
+      "2020-09-02 17:23:00.039",
+      4,
+      1,
+      1,
+      1,
+      10,
+      "30,30,30",
+      1,
+      3,
+      100,
+      4096,
+      1,
+      3000,
+      2,
+      "us",
+      "ready"
+    ]
+  ],
+  "rows": 1
+}
+```
+```
+  "data": [
+        [
+            "information_schema",
+            16,
+            "ready"
+        ],
+        [
+            "performance_schema",
+            9,
+            "ready"
+        ]
+    ],
+```
+
+#### TDengine 3.0 响应代码和消息体
+
+
+```JSON
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "name",
+            "VARCHAR",
+            64
+        ],
+        [
+            "ntables",
+            "BIGINT",
+            8
+        ],
+        [
+            "status",
+            "VARCHAR",
+            10
+        ]
+    ],
+    "data": [
+        [
+            "information_schema",
+            16,
+            "ready"
+        ],
+        [
+            "performance_schema",
+            9,
+            "ready"
+        ]
+    ],
+    "rows": 2
+}
+```
 
 ## 参考
 

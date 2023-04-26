@@ -67,7 +67,7 @@ typedef struct {
 // tqExec
 
 typedef struct {
-  char* qmsg;
+  char* qmsg;   // SubPlanToString
 } STqExecCol;
 
 typedef struct {
@@ -79,69 +79,59 @@ typedef struct {
 } STqExecDb;
 
 typedef struct {
-  int8_t subType;
-
-  STqReader*  pExecReader;
-  qTaskInfo_t task;
+  int8_t       subType;
+  STqReader*   pTqReader;
+  qTaskInfo_t  task;
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-  int32_t numOfCols;  // number of out pout column, temporarily used
+  int32_t      numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
 typedef struct {
-  // info
-  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t consumerId;
-  int32_t epoch;
-  int8_t  fetchMeta;
-
-  int64_t snapshotVer;
-
-  SWalReader* pWalReader;
-
-  SWalRef* pRef;
-
-  // push
-  STqPushHandle pushHandle;
-
-  // exec
-  STqExecHandle execHandle;
-
+  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t       consumerId;
+  int32_t       epoch;
+  int8_t        fetchMeta;
+  int64_t       snapshotVer;
+  SWalReader*   pWalReader;
+  SWalRef*      pRef;
+  STqPushHandle pushHandle;    // push
+  STqExecHandle execHandle;    // exec
 } STqHandle;
 
 typedef struct {
-  SMqDataRsp     dataRsp;
+  SMqDataRsp*    pDataRsp;
   char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  SRpcHandleInfo pInfo;
+  SRpcHandleInfo info;
+  STqHandle*     pHandle;
 } STqPushEntry;
 
 struct STQ {
-  SVnode* pVnode;
-  char*   path;
-  int64_t walLogLastVer;
-
-  SRWLatch pushLock;
-
-  SHashObj* pPushMgr;    // consumerId -> STqPushEntry
-  SHashObj* pHandle;     // subKey -> STqHandle
-  SHashObj* pCheckInfo;  // topic -> SAlterCheckInfo
-
+  SVnode*         pVnode;
+  char*           path;
+  int64_t         walLogLastVer;
+  SRWLatch        lock;
+  SHashObj*       pPushMgr;    // consumerId -> STqPushEntry
+  SHashObj*       pHandle;     // subKey -> STqHandle
+  SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
   STqOffsetStore* pOffsetStore;
-
-  TDB* pMetaDB;
-  TTB* pExecStore;
-  TTB* pCheckStore;
-
-  SStreamMeta* pStreamMeta;
+  TDB*            pMetaDB;
+  TTB*            pExecStore;
+  TTB*            pCheckStore;
+  SStreamMeta*    pStreamMeta;
 };
 
 typedef struct {
   int8_t inited;
   tmr_h  timer;
 } STqMgmt;
+
+typedef struct {
+  int32_t size;
+} STqOffsetHead;
 
 static STqMgmt tqMgmt = {0};
 
@@ -151,14 +141,14 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 // tqRead
 int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
 int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset);
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
+int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum, uint64_t reqId);
 
 // tqExec
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp);
-// int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp* pRsp);
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows);
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
-int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp);
-int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry);
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
+                      int32_t type, int32_t vgId);
+int32_t tqPushDataRsp(STqPushEntry* pPushEntry, int32_t vgId);
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);
@@ -170,11 +160,7 @@ int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
 int32_t tqMetaRestoreCheckInfo(STQ* pTq);
 
-typedef struct {
-  int32_t size;
-} STqOffsetHead;
-
-STqOffsetStore* tqOffsetOpen();
+STqOffsetStore* tqOffsetOpen(STQ* pTq);
 void            tqOffsetClose(STqOffsetStore*);
 STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t         tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset);
@@ -192,6 +178,20 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
 // tqStream
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
+int32_t tqStreamTasksScanWal(STQ* pTq);
+
+// tq util
+char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
+void    createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId);
+int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver);
+int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
+int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
+                      int32_t type, int64_t sver, int64_t ever);
+
+int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq);
+void    doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver);
+void    saveOffsetForAllTasks(STQ* pTq, int64_t ver);
+void    initOffsetForAllRestoreTasks(STQ* pTq);
 
 #ifdef __cplusplus
 }

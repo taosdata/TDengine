@@ -346,12 +346,13 @@ class MockCatalogServiceImpl {
     dnode_.insert(std::make_pair(dnodeId, epSet));
   }
 
-  void createDatabase(const string& db, bool rollup, int8_t cacheLast) {
+  void createDatabase(const string& db, bool rollup, int8_t cacheLast, int8_t precision) {
     SDbCfgInfo cfg = {0};
     if (rollup) {
       cfg.pRetensions = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SRetention));
     }
     cfg.cacheLast = cacheLast;
+    cfg.precision = precision;
     dbCfg_.insert(std::make_pair(db, cfg));
   }
 
@@ -588,8 +589,8 @@ class MockCatalogServiceImpl {
       *pUserAuthData = taosArrayInit(num, sizeof(SMetaRes));
       for (int32_t i = 0; i < num; ++i) {
         SMetaRes res = {0};
-        res.pRes = taosMemoryCalloc(1, sizeof(bool));
-        *(bool*)(res.pRes) = true;
+        res.pRes = taosMemoryCalloc(1, sizeof(SUserAuthRes));
+        ((SUserAuthRes*)res.pRes)->pass = true;
         taosArrayPush(*pUserAuthData, &res);
       }
     }
@@ -681,8 +682,8 @@ void MockCatalogService::createDnode(int32_t dnodeId, const string& host, int16_
   impl_->createDnode(dnodeId, host, port);
 }
 
-void MockCatalogService::createDatabase(const string& db, bool rollup, int8_t cacheLast) {
-  impl_->createDatabase(db, rollup, cacheLast);
+void MockCatalogService::createDatabase(const string& db, bool rollup, int8_t cacheLast, int8_t precision) {
+  impl_->createDatabase(db, rollup, cacheLast, precision);
 }
 
 int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta,

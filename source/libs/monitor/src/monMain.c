@@ -210,6 +210,8 @@ static void monGenClusterJson(SMonInfo *pMonitor) {
   tjsonAddDoubleToObject(pJson, "vnodes_total", pInfo->vnodes_total);
   tjsonAddDoubleToObject(pJson, "vnodes_alive", pInfo->vnodes_alive);
   tjsonAddDoubleToObject(pJson, "connections_total", pInfo->connections_total);
+  tjsonAddDoubleToObject(pJson, "topics_total", pInfo->topics_toal);
+  tjsonAddDoubleToObject(pJson, "streams_total", pInfo->streams_total);
 
   SJson *pDnodesJson = tjsonAddArrayToObject(pJson, "dnodes");
   if (pDnodesJson == NULL) return;

@@ -24,7 +24,7 @@
 #include "mndStb.h"
 #include "mndUser.h"
 #include "tglobal.h"
-#include "version.h"
+#include "tversion.h"
 
 typedef struct {
   uint32_t id;
@@ -221,10 +221,17 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   char            ip[24] = {0};
   const STraceId *trace = &pReq->info.traceId;
 
-  if (tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+  if ((code = tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq)) != 0) {
+    terrno = (-1 == code ? TSDB_CODE_INVALID_MSG : code);
     goto _OVER;
   }
+
+  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 3)) != 0) {
+    terrno = code;
+    goto _OVER;
+  }
+
+  code = -1;
 
   taosIp2String(pReq->info.conn.clientIp, ip);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
@@ -276,6 +283,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.connType = connReq.connType;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
   connectRsp.svrTimestamp = taosGetTimestampSec();
+  connectRsp.passVer = pUser->passVersion;
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
@@ -536,6 +544,16 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
+          taosArrayPush(hbRsp.info, &kv1);
+        }
+        break;
+      }
+      case HEARTBEAT_KEY_USER_PASSINFO: {
+        void   *rspMsg = NULL;
+        int32_t rspLen = 0;
+        mndValidateUserPassInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserPassVersion), &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_USER_PASSINFO, .valueLen = rspLen, .value = rspMsg};
           taosArrayPush(hbRsp.info, &kv1);
         }
         break;

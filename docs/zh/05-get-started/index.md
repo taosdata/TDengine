@@ -4,7 +4,7 @@ description: '快速设置 TDengine 环境并体验其高效写入和查询'
 ---
 
 import xiaot from './xiaot.webp'
-import xiaot_new from './xiaot-new.webp'
+import xiaot_new from './xiaot-03.webp'
 import channel from './channel.webp'
 import official_account from './official-account.webp'
 
@@ -19,17 +19,6 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 <DocCardList items={useCurrentSidebarCategory().items}/>
 ```
 
-## 学习 TDengine 知识地图
-
-TDengine 知识地图中涵盖了 TDengine 的各种知识点，揭示了各概念实体之间的调用关系和数据流向。学习和了解 TDengine 知识地图有助于你快速掌握 TDengine 的知识体系。
-
-<figure>
-<center>
-<a href="pathname:///img/tdengine-map.svg" target="_blank"><img src="/img/tdengine-map.svg" width="80%" /></a>
-<figcaption>图 1. TDengine 知识地图</figcaption>
-</center>
-</figure>
-
 ## 加入 TDengine 官方社区
 
 微信扫描以下二维码，学习了解 TDengine 的最新技术，与大家共同交流物联网大数据技术应用、TDengine 使用问题和技巧等话题。
@@ -41,7 +30,7 @@ TDengine 知识地图中涵盖了 TDengine 的各种知识点，揭示了各概�
 <td style={{padding:'1em 3em',border:0}}><img src={official_account} alt="TDengine 微信公众号" width="200" /></td>
 </tr>
 <tr align="center">
-<td style={{padding:'1em 3em',border:0}}>加入“物联网大数据技术群”<br/>与大家进行技术交流</td>
+<td style={{padding:'1em 3em',border:0}}>加入 TDengine 微信群<br/>了解学习最新物联网技术</td>
 <td style={{padding:'1em 3em',border:0}}>关注 TDengine 视频号<br/>收看技术直播与教学视频</td>
 <td style={{padding:'1em 3em',border:0}}>关注 TDengine 公众号<br/>阅读技术文章与行业案例</td>
 </tr>

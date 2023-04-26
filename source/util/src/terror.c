@@ -94,10 +94,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NO_AVAIL_DISK,                "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_FOUND,                    "Not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISKSPACE,                 "Out of disk space")
 TAOS_DEFINE_ERROR(TSDB_CODE_TIMEOUT_ERROR,                "Operation timeout")
+TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DISKSPACE,          "No enough disk space")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting up")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
-TAOS_DEFINE_ERROR(TSDB_CODE_IVLD_DATA_FMT,                "Invalid data format")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DATA_FMT,             "Invalid data format")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration value")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -183,11 +185,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_ACCTS,           "Too many accounts")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_ALREADY_EXIST,       "User already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_NOT_EXIST,           "Invalid user")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_USER_FORMAT,      "Invalid user format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_NOT_AVAILABLE,       "User not available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_PASS_FORMAT,      "Invalid password format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_USER_FROM_CONN,        "Can not get user from conn")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           "Too many users")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ALTER_OPER,       "Invalid alter operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_AUTH_FAILURE,             "Authentication failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_PRIVILEDGE_EXIST,         "User already have this priviledge")
 
 //mnode-stable-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "STable already exists")
@@ -210,8 +214,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_BUFSIZE,     "Invalid func bufSize"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_COMMENT,     "Invalid func comment")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_RETRIEVE,    "Invalid func retrieve msg")
 
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST,  "Tag index already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_INDEX_NOT_EXIST,  "Tag index not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST,  "index already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_INDEX_NOT_EXIST,  "index not exist")
 
 
 // mnode-db
@@ -222,6 +226,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB,               "Invalid database name
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DATABASES,       "Too many databases for account")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           "Database in dropping status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_NOT_EXIST,             "Database not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO, "WAL retention period is zero")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_ACCT,          "Invalid database account")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_OPTION_UNCHANGED,      "Database options not changed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_INDEX_NOT_EXIST,       "Index not exist")
@@ -300,9 +305,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STREAMS,         "Too many streams")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TARGET_TABLE,     "Cannot write the same stable as other stream")
 
 // mnode-sma
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "SMA does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SMA_OPTION,       "Invalid sma option")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "index already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "index not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SMA_OPTION,       "Invalid sma index option")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -317,7 +322,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_ALREADY_DEPLOYED,       "Snode already deploye
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NOT_DEPLOYED,           "Snode not deployed")
 
 // vnode
-TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode moved to another dnode or was deleted")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            "Database write operation denied")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_EXIST,                "Vnode not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_EXIST,            "Vnode already exist")
@@ -409,18 +414,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TABLE_LIMITED,          "Table creation limite
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_IS_LEADER,                "Sync is leader")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_LEADER,               "Sync not leader")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_ONE_REPLICA,              "Sync one replica")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_IN_NEW_CONFIG,        "Sync not in new config")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_LEADER,               "Sync leader is unreachable")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NEW_CONFIG_ERROR,         "Sync new config error")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RECONFIG_NOT_READY,       "Sync not ready for reconfig")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_PROPOSE_NOT_READY,        "Sync not ready for propose")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_STANDBY_NOT_READY,        "Sync not ready for standby")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BATCH_ERROR,              "Sync batch error")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RESTORING,                "Sync is restoring")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_PROPOSE_NOT_READY,        "Sync not ready to propose")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RESTORING,                "Sync leader is restoring")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG,     "Sync invalid snapshot msg")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BUFFER_FULL,              "Sync buffer is full")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRITE_STALL,              "Sync write stall")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NEGOTIATION_WIN_FULL,     "Sync negotiation win is full")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 //tq
@@ -434,12 +435,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TQ_META_KEY_NOT_IN_TXN,       "TQ meta key not in tx
 TAOS_DEFINE_ERROR(TSDB_CODE_TQ_META_KEY_DUP_IN_TXN,       "TQ met key dup in txn")
 TAOS_DEFINE_ERROR(TSDB_CODE_TQ_GROUP_NOT_SET,             "TQ group not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND,    "TQ table schema not found")
-TAOS_DEFINE_ERROR(TSDB_CODE_TQ_NO_COMMITTED_OFFSET,       "TQ no commited offset")
+TAOS_DEFINE_ERROR(TSDB_CODE_TQ_NO_COMMITTED_OFFSET,       "TQ no committed offset")
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_FILE_CORRUPTED,           "WAL file is corrupted")
-TAOS_DEFINE_ERROR(TSDB_CODE_WAL_SIZE_LIMIT,               "WAL size exceeds limit")
-TAOS_DEFINE_ERROR(TSDB_CODE_WAL_INVALID_VER,              "WAL use invalid version")
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_INVALID_VER,              "WAL invalid version")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_LOG_NOT_EXIST,            "WAL log not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_CHKSUM_MISMATCH,          "WAL checksum mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_LOG_INCOMPLETE,           "WAL log incomplete")
@@ -513,7 +513,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ONLY_ONE_JSON_TAG,         "Only one tag if ther
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_NUM_OF_COL,      "Query block has incorrect number of result columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL,   "Incorrect TIMESTAMP value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OFFSET_LESS_ZERO,          "soffset/offset can not be less than 0")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY,  "slimit/soffset only available for PARTITION BY query")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY,  "slimit/soffset only available for PARTITION/GROUP BY query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TOPIC_QUERY,        "Invalid topic query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DROP_STABLE,        "Cannot drop super table in batch")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,    "Start(end) time of query range required or time range too large")
@@ -575,13 +575,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_DUP_TIMESTAMP,            "Duplicate timestamps
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_READ_ERR,              "udf pipe read error")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_CONNECT_ERR,           "udf pipe connect error")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_NO_PIPE,               "udf no pipe")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_NOT_EXIST,             "udf pipe not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_LOAD_UDF_FAILURE,           "udf load failure")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_STATE,              "udf invalid state")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_INPUT,              "udf invalid function input")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_NO_FUNC_HANDLE,             "udf no function handle")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_BUFSIZE,            "udf invalid bufsize")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_OUTPUT_TYPE,        "udf invalid output type")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED,       "udf program language not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_FUNC_EXEC_FAILURE,          "udf function execution failure")
 
 //schemaless
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,      "Invalid line protocol type")
@@ -625,6 +625,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_MISMATCH,          "Consumer mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_CLOSED,            "Consumer closed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_ERROR,            "Consumer error, to see log")
 
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")

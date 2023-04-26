@@ -99,6 +99,9 @@ The parameters described in this document by the effect that they have on the sy
 
 ## Monitoring Parameters
 
+:::note
+Please note the `taoskeeper` needs to be installed and running to create the `log` database and receiving metrics sent by `taosd` as the full monitoring solution.
+
 ### monitor
 
 | Attribute     | Description                                                                                                                                                                                               |
@@ -599,7 +602,7 @@ The charset that takes effect is UTF-8.
 | Applicable | Client only                                           |
 | Meaning     | Whether schemaless columns are consistently ordered, depat, discarded since 3.0.3.0|
 | Value Range     | 0: not consistent; 1: consistent.            |
-| Default   | 1                             |
+| Default   | 0                             |
 
 ## Compress Parameters
 
@@ -624,6 +627,16 @@ The charset that takes effect is UTF-8.
 | Value Range   | 0: false, 1: true                                                                                                                                                       |
 | Default Value | 1                                                                                                                                                                       |
 | Note          | The core file is generated under root directory `systemctl start taosd`/`launchctl start com.tdengine.taosd` is used to start, or under the working directory if `taosd` is started directly on Linux/macOS Shell. |
+
+### enableScience
+
+| Attribute     | Description                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Applicable    |  Only taos-CLI client                                                                                                                                                      |
+| Meaning       | Whether to show float and double with the scientific notation                                                |
+| Value Range   | 0: false, 1: true                                                                                                                                                       |
+| Default Value | 0                                                                                                                                                                       |
+
 
 ### udf
 

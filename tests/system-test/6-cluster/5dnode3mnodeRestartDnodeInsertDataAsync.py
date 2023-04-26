@@ -143,7 +143,8 @@ class TDTestCase:
             stableName= '%s_%d'%(paraDict['stbName'],i)
             newTdSql=tdCom.newTdSql()
             threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
-            threads.append(threading.Thread(target=self.reCreateUser,args=(newTdSql,i,"user","passwd")))
+            createTdSql=tdCom.newTdSql()
+            threads.append(threading.Thread(target=self.reCreateUser,args=(createTdSql,i,"user","passwd")))
 
         for tr in threads:
             tr.start()

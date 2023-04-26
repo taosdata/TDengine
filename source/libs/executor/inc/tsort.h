@@ -44,7 +44,8 @@ typedef struct SSortSource {
     void* param;
     bool  onlyRef;
   };
-
+  int64_t fetchUs;
+  int64_t fetchNum;
 } SSortSource;
 
 typedef struct SMsortComparParam {

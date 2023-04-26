@@ -108,7 +108,9 @@ TEST_F(ParserInitialATest, alterDnode) {
  *   | REPLICA int_value                                         -- todo: enum 1, 3, default 1, unit replica
  *   | WAL_LEVEL int_value                                       -- enum 1, 2, default 1
  *   | STT_TRIGGER int_value                                     -- rang [1, 16], default 8
- * }
+ *   | MINROWS int_value                                         -- rang [10, 1000], default 100
+ *   | WAL_RETENTION_PERIOD int_value                            -- rang [-1, INT32_MAX], default 0
+ *   | WAL_RETENTION_SIZE int_value                              -- rang [-1, INT32_MAX], default 0
  */
 TEST_F(ParserInitialATest, alterDatabase) {
   useDb("root", "test");
@@ -133,6 +135,9 @@ TEST_F(ParserInitialATest, alterDatabase) {
     expect.cacheLastSize = -1;
     expect.replications = -1;
     expect.sstTrigger = -1;
+    expect.minRows = -1;
+    expect.walRetentionPeriod = -2;
+    expect.walRetentionSize = -2;
   };
   auto setAlterDbBuffer = [&](int32_t buffer) { expect.buffer = buffer; };
   auto setAlterDbPageSize = [&](int32_t pageSize) { expect.pageSize = pageSize; };
@@ -150,6 +155,11 @@ TEST_F(ParserInitialATest, alterDatabase) {
   auto setAlterDbCacheModel = [&](int8_t cacheModel) { expect.cacheLast = cacheModel; };
   auto setAlterDbReplica = [&](int8_t replications) { expect.replications = replications; };
   auto setAlterDbSttTrigger = [&](int8_t sstTrigger) { expect.sstTrigger = sstTrigger; };
+  auto setAlterDbMinRows = [&](int32_t minRows) { expect.minRows = minRows; };
+  auto setAlterDbWalRetentionPeriod = [&](int32_t walRetentionPeriod) {
+    expect.walRetentionPeriod = walRetentionPeriod;
+  };
+  auto setAlterDbWalRetentionSize = [&](int32_t walRetentionSize) { expect.walRetentionSize = walRetentionSize; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_DATABASE_STMT);
@@ -170,6 +180,9 @@ TEST_F(ParserInitialATest, alterDatabase) {
     ASSERT_EQ(req.cacheLast, expect.cacheLast);
     ASSERT_EQ(req.replications, expect.replications);
     ASSERT_EQ(req.sstTrigger, expect.sstTrigger);
+    ASSERT_EQ(req.minRows, expect.minRows);
+    ASSERT_EQ(req.walRetentionPeriod, expect.walRetentionPeriod);
+    ASSERT_EQ(req.walRetentionSize, expect.walRetentionSize);
   });
 
   const int32_t MINUTE_PER_DAY = MILLISECOND_PER_DAY / MILLISECOND_PER_MINUTE;
@@ -185,8 +198,10 @@ TEST_F(ParserInitialATest, alterDatabase) {
   setAlterDbBuffer(16);
   setAlterDbPages(128);
   setAlterDbReplica(3);
+  setAlterDbWalRetentionPeriod(10);
+  setAlterDbWalRetentionSize(20);
   run("ALTER DATABASE test BUFFER 16 CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 PAGES 128 "
-      "REPLICA 3 WAL_LEVEL 1 STT_TRIGGER 16");
+      "REPLICA 3 WAL_LEVEL 1 STT_TRIGGER 16 WAL_RETENTION_PERIOD 10 WAL_RETENTION_SIZE 20");
   clearAlterDbReq();
 
   initAlterDb("test");
@@ -276,6 +291,29 @@ TEST_F(ParserInitialATest, alterDatabase) {
   run("ALTER DATABASE test STT_TRIGGER 4");
   setAlterDbSttTrigger(16);
   run("ALTER DATABASE test STT_TRIGGER 16");
+  clearAlterDbReq();
+
+  initAlterDb("test");
+  setAlterDbMinRows(10);
+  run("ALTER DATABASE test MINROWS 10");
+  setAlterDbMinRows(50);
+  run("ALTER DATABASE test MINROWS 50");
+  setAlterDbMinRows(1000);
+  run("ALTER DATABASE test MINROWS 1000");
+  clearAlterDbReq();
+
+  initAlterDb("test");
+  setAlterDbWalRetentionPeriod(-1);
+  run("ALTER DATABASE test WAL_RETENTION_PERIOD -1");
+  setAlterDbWalRetentionPeriod(50);
+  run("ALTER DATABASE test WAL_RETENTION_PERIOD 50");
+  clearAlterDbReq();
+
+  initAlterDb("test");
+  setAlterDbWalRetentionSize(-1);
+  run("ALTER DATABASE test WAL_RETENTION_SIZE -1");
+  setAlterDbWalRetentionSize(50);
+  run("ALTER DATABASE test WAL_RETENTION_SIZE 50");
   clearAlterDbReq();
 }
 
@@ -599,7 +637,9 @@ TEST_F(ParserInitialATest, alterTable) {
       }
       ASSERT_EQ(req.isNull, expect.isNull);
       ASSERT_EQ(req.nTagVal, expect.nTagVal);
-      ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
+      if (nullptr != req.pTagVal) {
+        ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
+      }
       ASSERT_EQ(req.updateTTL, expect.updateTTL);
       ASSERT_EQ(req.newTTL, expect.newTTL);
       if (nullptr != expect.newComment) {
@@ -816,6 +856,23 @@ TEST_F(ParserInitialATest, balanceVgroup) {
   });
 
   run("BALANCE VGROUP");
+}
+
+/*
+ * BALANCE VGROUP LEADER
+ */
+TEST_F(ParserInitialATest, balanceVgroupLeader) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_BALANCE_VGROUP_LEADER_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_BALANCE_VGROUP_LEADER);
+    SBalanceVgroupLeaderReq req = {0};
+    ASSERT_EQ(tDeserializeSBalanceVgroupLeaderReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
+              TSDB_CODE_SUCCESS);
+  });
+
+  run("BALANCE VGROUP LEADER");
 }
 
 }  // namespace ParserTest

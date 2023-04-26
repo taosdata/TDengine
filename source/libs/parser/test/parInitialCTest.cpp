@@ -24,12 +24,16 @@ namespace ParserTest {
 class ParserInitialCTest : public ParserDdlTest {};
 
 /*
- * COMPACT DATABASE db_name
+ * COMPACT DATABASE db_name [START WITH start_time] [END WITH END_time]
  */
 TEST_F(ParserInitialCTest, compact) {
   SCompactDbReq expect = {0};
 
-  auto setCompactDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+  auto setCompactDbReq = [&](const char* pDb, int64_t start = INT64_MIN, int64_t end = INT64_MAX) {
+    snprintf(expect.db, sizeof(expect.db), "0.%s", pDb);
+    expect.timeRange.skey = start;
+    expect.timeRange.ekey = end;
+  };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_COMPACT_DATABASE_STMT);
@@ -37,10 +41,21 @@ TEST_F(ParserInitialCTest, compact) {
     SCompactDbReq req = {0};
     ASSERT_EQ(tDeserializeSCompactDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.db), std::string(expect.db));
+    ASSERT_EQ(req.timeRange.skey, expect.timeRange.skey);
+    ASSERT_EQ(req.timeRange.ekey, expect.timeRange.ekey);
   });
 
-  setCompactDbReq("wxy_db");
-  run("COMPACT DATABASE wxy_db");
+  setCompactDbReq("test");
+  run("COMPACT DATABASE test");
+
+  setCompactDbReq("test", 1678168883000, 1678255283000);
+  run("COMPACT DATABASE test START WITH '2023-03-07 14:01:23' END WITH '2023-03-08 14:01:23'");
+
+  setCompactDbReq("testus", 1673071283000000000);
+  run("COMPACT DATABASE testus START WITH TIMESTAMP '2023-01-07 14:01:23'");
+
+  setCompactDbReq("testus", INT64_MIN, 1675749683000000000);
+  run("COMPACT DATABASE testus END WITH 1675749683000000000");
 }
 
 /*
@@ -383,7 +398,7 @@ TEST_F(ParserInitialCTest, createDnode) {
 }
 
 /*
- * CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name
+ * CREATE [OR REPLACE] [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name
  *   AS library_path OUTPUTTYPE type_name [BUFSIZE value] [LANGUAGE value]
  */
 TEST_F(ParserInitialCTest, createFunction) {
@@ -393,9 +408,10 @@ TEST_F(ParserInitialCTest, createFunction) {
 
   auto setCreateFuncReq = [&](const char* pUdfName, int8_t outputType, int32_t outputBytes = 0,
                               int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0,
-                              int8_t language = TSDB_FUNC_SCRIPT_BIN_LIB) {
+                              int8_t language = TSDB_FUNC_SCRIPT_BIN_LIB, int8_t orReplace = 0) {
     memset(&expect, 0, sizeof(SCreateFuncReq));
     strcpy(expect.name, pUdfName);
+    expect.orReplace = orReplace;
     expect.igExists = igExists;
     expect.funcType = funcType;
     expect.scriptType = language;
@@ -410,6 +426,7 @@ TEST_F(ParserInitialCTest, createFunction) {
     ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSCreateFuncReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(req.orReplace, expect.orReplace);
     ASSERT_EQ(req.igExists, expect.igExists);
     ASSERT_EQ(req.funcType, expect.funcType);
     ASSERT_EQ(req.scriptType, expect.scriptType);
@@ -433,8 +450,8 @@ TEST_F(ParserInitialCTest, createFunction) {
   setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
   run("CREATE FUNCTION udf1 AS 'udf' OUTPUTTYPE INT");
 
-  setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8, TSDB_FUNC_SCRIPT_PYTHON);
-  run("CREATE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
+  setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8, TSDB_FUNC_SCRIPT_PYTHON, 1);
+  run("CREATE OR REPLACE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
 }
 
 /*
@@ -743,10 +760,10 @@ TEST_F(ParserInitialCTest, createStable) {
   addFieldToCreateStbReq(false, "a15", TSDB_DATA_TYPE_VARCHAR, 50 + VARSTR_HEADER_SIZE);
   run("CREATE STABLE IF NOT EXISTS rollup_db.t1("
       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), "
-      "c8 SMALLINT, c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
+      "c8 SMALLINT, c9 SMALLINT UNSIGNED, c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
       "c13 NCHAR(30), c14 VARCHAR(50)) "
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, "
-      "a8 BINARY(20), a9 SMALLINT, a10 SMALLINT UNSIGNED COMMENT 'test column comment', a11 TINYINT, "
+      "a8 BINARY(20), a9 SMALLINT, a10 SMALLINT UNSIGNED, a11 TINYINT, "
       "a12 TINYINT UNSIGNED, a13 BOOL, a14 NCHAR(30), a15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) MAX_DELAY 100s,10m WATERMARK 10a,1m "
       "DELETE_MARK 1000s,200m");
@@ -797,16 +814,10 @@ TEST_F(ParserInitialCTest, createStream) {
     snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
     expect.igExists = igExists;
     expect.sql = taosStrdup(pSql);
-    expect.createStb = STREAM_CREATE_STABLE_TRUE;
-    expect.triggerType = STREAM_TRIGGER_AT_ONCE;
-    expect.maxDelay = 0;
-    expect.watermark = 0;
-    expect.fillHistory = STREAM_DEFAULT_FILL_HISTORY;
-    expect.igExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
   };
 
   auto setStreamOptions =
-      [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_AT_ONCE,
+      [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
           int64_t maxDelay = 0, int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
           int8_t fillHistory = STREAM_DEFAULT_FILL_HISTORY, int8_t igUpdate = STREAM_DEFAULT_IGNORE_UPDATE) {
         expect.createStb = createStb;
@@ -868,6 +879,7 @@ TEST_F(ParserInitialCTest, createStream) {
   });
 
   setCreateStreamReq("s1", "test", "create stream s1 into st3 as select count(*) from t1 interval(10s)", "st3");
+  setStreamOptions();
   run("CREATE STREAM s1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
@@ -888,6 +900,7 @@ TEST_F(ParserInitialCTest, createStream) {
                      "st3");
   addTag("tname", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
   addTag("id", TSDB_DATA_TYPE_INT);
+  setStreamOptions();
   run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
       "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
   clearCreateStreamReq();
@@ -1010,16 +1023,16 @@ TEST_F(ParserInitialCTest, createTable) {
 
   run("CREATE TABLE IF NOT EXISTS test.t1("
       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), "
-      "c8 SMALLINT, c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
+      "c8 SMALLINT, c9 SMALLINT UNSIGNED, c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
       "c13 NCHAR(30), c15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)");
 
   run("CREATE TABLE IF NOT EXISTS rollup_db.t1("
       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), "
-      "c8 SMALLINT, c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
+      "c8 SMALLINT, c9 SMALLINT UNSIGNED, c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, "
       "c13 NCHAR(30), c14 VARCHAR(50)) "
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, a8 BINARY(20), "
-      "a9 SMALLINT, a10 SMALLINT UNSIGNED COMMENT 'test column comment', a11 TINYINT, a12 TINYINT UNSIGNED, a13 BOOL, "
+      "a9 SMALLINT, a10 SMALLINT UNSIGNED, a11 TINYINT, a12 TINYINT UNSIGNED, a13 BOOL, "
       "a14 NCHAR(30), a15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN)");
 

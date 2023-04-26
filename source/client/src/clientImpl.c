@@ -1039,8 +1039,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                       .sysInfo = pRequest->pTscObj->sysInfo,
                       .allocatorId = pRequest->allocatorRefId};
 
-  SAppInstInfo* pAppInfo = getAppInfo(pRequest);
-  SQueryPlan*   pDag = NULL;
+  SQueryPlan* pDag = NULL;
 
   int64_t st = taosGetTimestampUs();
   int32_t code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
@@ -1052,7 +1051,6 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   }
 
   pRequest->metric.execStart = taosGetTimestampUs();
-
   pRequest->metric.planCostUs = pRequest->metric.execStart - st;
 
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
@@ -1085,6 +1083,10 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     tscDebug("0x%" PRIx64 " plan not executed, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
+    if (TSDB_CODE_SUCCESS != code) {
+      pRequest->code = terrno;
+    }
+
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   }
 
@@ -1131,11 +1133,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
     default:
       pRequest->body.queryFp(pRequest->body.param, pRequest, -1);
       break;
-  }
-
-  // TODO weired responding code?
-  if (TSDB_CODE_SUCCESS != code) {
-    pRequest->code = terrno;
   }
 }
 
@@ -1251,6 +1248,11 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     return NULL;
   }
 
+  pRequest->sqlstr = taosStrdup("taos_connect");
+  if (pRequest->sqlstr) {
+    pRequest->sqlLen = strlen(pRequest->sqlstr);
+  }
+
   SMsgSendInfo* body = buildConnectMsg(pRequest);
 
   int64_t transporterId = 0;
@@ -1260,7 +1262,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
         (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
-    fprintf(stderr, "failed to connect to server, reason: %s\n\n", errorMsg);
+    tscError("failed to connect to server, reason: %s", errorMsg);
 
     terrno = pRequest->code;
     destroyRequest(pRequest);
@@ -1307,6 +1309,7 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
   tstrncpy(connectReq.user, pObj->user, sizeof(connectReq.user));
   tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));
+  tstrncpy(connectReq.sVer, version, sizeof(connectReq.sVer));
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = taosMemoryMalloc(contLen);

@@ -32,6 +32,7 @@ typedef struct SDnodeMgmt {
   TdThread            crashReportThread;
   SSingleWorker       mgmtWorker;
   ProcessCreateNodeFp processCreateNodeFp;
+  ProcessAlterNodeTypeFp processAlterNodeTypeFp;
   ProcessDropNodeFp   processDropNodeFp;
   SendMonitorReportFp sendMonitorReportFp;
   GetVnodeLoadsFp     getVnodeLoadsFp;

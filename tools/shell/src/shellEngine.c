@@ -102,10 +102,10 @@ int32_t shellRunSingleCommand(char *command) {
   }
 #ifdef WEBSOCKET
   if (shell.args.restful || shell.args.cloud) {
-	shellRunSingleCommandWebsocketImp(command);
+    shellRunSingleCommandWebsocketImp(command);
   } else {
 #endif
-	shellRunSingleCommandImp(command);
+    shellRunSingleCommandImp(command);
 #ifdef WEBSOCKET
   }
 #endif
@@ -291,7 +291,9 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
   }
 
   struct tm ptm = {0};
-  taosLocalTime(&tt, &ptm);
+  if (taosLocalTime(&tt, &ptm, buf) == NULL) {
+    return buf;
+  }
   size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
@@ -346,14 +348,23 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       taosFprintfFile(pFile, "%" PRIu64, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
+      if (tsEnableScience) {
+        taosFprintfFile(pFile, "%e", GET_FLOAT_VAL(val));
+      } else {
+        taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
+      }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
-      if (n > TMAX(25, length)) {
-        taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
-      } else {
+      if (tsEnableScience) {
+        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9e", 23, GET_DOUBLE_VAL(val));
         taosFprintfFile(pFile, "%s", buf);
+      } else {
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+        if (n > TMAX(25, length)) {
+          taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
+        } else {
+          taosFprintfFile(pFile, "%s", buf);
+        }
       }
       break;
     case TSDB_DATA_TYPE_BINARY:
@@ -541,14 +552,23 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*" PRIu64, width, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      printf("%*.5f", width, GET_FLOAT_VAL(val));
+      if (tsEnableScience) {
+        printf("%*e", width, GET_FLOAT_VAL(val));
+      } else {
+        printf("%*.5f", width, GET_FLOAT_VAL(val));
+      }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
-      if (n > TMAX(25, width)) {
-        printf("%*.15e", width, GET_DOUBLE_VAL(val));
+      if (tsEnableScience) {
+        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.9e", GET_DOUBLE_VAL(val));
+        printf("%*s", width, buf);
       } else {
-        printf("%s", buf);
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+        if (n > TMAX(25, width)) {
+            printf("%*.15e", width, GET_DOUBLE_VAL(val));
+        } else {
+            printf("%s", buf);
+        }
       }
       break;
     case TSDB_DATA_TYPE_BINARY:
@@ -1025,15 +1045,15 @@ void *shellCancelHandler(void *arg) {
     }
 
 #ifdef WEBSOCKET
-	if (shell.args.restful || shell.args.cloud) {
-		shell.stop_query = true;
-	} else {
+    if (shell.args.restful || shell.args.cloud) {
+      shell.stop_query = true;
+    } else {
 #endif
-    if (shell.conn) {
-		  taos_kill_query(shell.conn);
-		}
+      if (shell.conn) {
+        taos_kill_query(shell.conn);
+      }
 #ifdef WEBSOCKET
-	}
+    }
 #endif
   #ifdef WINDOWS
     printf("\n%s", shell.info.promptHeader);
@@ -1048,26 +1068,28 @@ void *shellThreadLoop(void *arg) {
   taosGetOldTerminalMode();
   taosThreadCleanupPush(shellCleanup, NULL);
 
-  char *command = taosMemoryMalloc(SHELL_MAX_COMMAND_SIZE);
-  if (command == NULL) {
-    printf("failed to malloc command\r\n");
-    return NULL;
-  }
-
   do {
-    memset(command, 0, SHELL_MAX_COMMAND_SIZE);
-    taosSetTerminalMode();
-
-    if (shellReadCommand(command) != 0) {
+    char *command = taosMemoryMalloc(SHELL_MAX_COMMAND_SIZE);
+    if (command == NULL) {
+      printf("failed to malloc command\r\n");
       break;
     }
 
-    taosResetTerminalMode();
-  } while (shellRunCommand(command, true) == 0);
+    do {
+      memset(command, 0, SHELL_MAX_COMMAND_SIZE);
+      taosSetTerminalMode();
 
-  taosMemoryFreeClear(command);
-  shellWriteHistory();
-  shellExit();
+      if (shellReadCommand(command) != 0) {
+        break;
+      }
+
+      taosResetTerminalMode();
+    } while (shellRunCommand(command, true) == 0);
+
+    taosMemoryFreeClear(command);
+    shellWriteHistory();
+    shellExit();
+  } while (0);
 
   taosThreadCleanupPop(1);
   return NULL;
@@ -1081,21 +1103,22 @@ int32_t shellExecute() {
   SShellArgs *pArgs = &shell.args;
 #ifdef WEBSOCKET
   if (shell.args.restful || shell.args.cloud) {
-	if (shell_conn_ws_server(1)) {
-		return -1;
-	}
+    if (shell_conn_ws_server(1)) {
+      return -1;
+    }
   } else {
 #endif
-	if (shell.args.auth == NULL) {
-		shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
-	} else {
-		shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
-	}
+    if (shell.args.auth == NULL) {
+      shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
+    } else {
+      shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
+    }
 
-	if (shell.conn == NULL) {
-		fflush(stdout);
-		return -1;
-	}
+    if (shell.conn == NULL) {
+      printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
+      fflush(stdout);
+      return -1;
+    }
 #ifdef WEBSOCKET
   }
 #endif
@@ -1116,13 +1139,13 @@ int32_t shellExecute() {
       shellSourceFile(pArgs->file);
     }
 #ifdef WEBSOCKET
-	if (shell.args.restful || shell.args.cloud) {
-		ws_close(shell.ws_conn);
-	} else {
+    if (shell.args.restful || shell.args.cloud) {
+      ws_close(shell.ws_conn);
+    } else {
 #endif
-		taos_close(shell.conn);
+      taos_close(shell.conn);
 #ifdef WEBSOCKET
-	}
+    }
 #endif
 
     shellWriteHistory();
@@ -1146,9 +1169,9 @@ int32_t shellExecute() {
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
 #ifndef WINDOWS
-  printfIntroduction();
+    printfIntroduction();
 #endif  
-	shellGetGrantInfo();
+    shellGetGrantInfo();
 #ifdef WEBSOCKET
   }
 #endif

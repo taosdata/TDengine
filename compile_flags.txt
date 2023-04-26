@@ -1,0 +1,9 @@
+-DLINUX
+-DWEBSOCKET
+-I/usr/include
+-Iinclude
+-Iinclude/os
+-Iinclude/common
+-Iinclude/util
+-Iinclude/libs/transport
+-Itools/shell/inc

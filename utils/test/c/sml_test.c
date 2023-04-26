@@ -137,6 +137,8 @@ int smlProcess_json1_Test() {
   for (int i = 0; i < 1; i++) {
     taosMemoryFree(sql1[i]);
   }
+  ASSERT(code == 0);
+
 
   const char *sql2[] = {
       "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344041,\"value\":13,\"tags\":{\"host\":\"web01\",\"dc\":\"lga\"}"
@@ -163,6 +165,34 @@ int smlProcess_json1_Test() {
   for (int i = 0; i < 1; i++) {
     taosMemoryFree(sql3[i]);
   }
+
+  ASSERT(code == 0);
+
+
+  // TD-22903
+  const char *sql4[] = {
+      "[{\"metric\": \"test_us\", \"timestamp\": {\"value\": 1626006833639, \"type\": \"ms\"}, \"value\": true, \"tags\": {\"t0\": true}}, {\"metric\": \"test_us\", \"timestamp\": {\"value\": 1626006833638, \"type\": \"ms\"}, \"value\": false, \"tags\": {\"t0\": true}}]"
+  };
+  char *sql5[1] = {0};
+  for (int i = 0; i < 1; i++) {
+    sql5[i] = taosMemoryCalloc(1, 1024);
+    strncpy(sql5[i], sql4[i], 1023);
+  }
+
+  pRes = taos_schemaless_insert(taos, (char **)sql5, sizeof(sql5) / sizeof(sql5[0]), TSDB_SML_JSON_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  code = taos_errno(pRes);
+  if (code != 0) {
+    printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  } else {
+    printf("%s result:success\n", __FUNCTION__);
+  }
+  taos_free_result(pRes);
+
+  for (int i = 0; i < 1; i++) {
+    taosMemoryFree(sql5[i]);
+  }
+  ASSERT(code == 0);
 
   taos_close(taos);
 
@@ -215,8 +245,7 @@ int smlProcess_json3_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"
-  };
+      "[{\"metric\":\"sys.cpu.nice3\",\"timestamp\":0,\"value\":\"18\",\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}}]"};
   char *sql1[1] = {0};
   for (int i = 0; i < 1; i++) {
     sql1[i] = taosMemoryCalloc(1, 1024);
@@ -744,26 +773,26 @@ int sml_dup_time_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {//"test_ms,t0=t c0=f 1626006833641",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=f,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"xcxvwjvf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"fixrzcuq\",c8=L\"ncharColValue\",c9=7u64 1626006834639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"iupzdqub\",c8=L\"ncharColValue\",c9=7u64 1626006835639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"yvvtzzof\",c8=L\"ncharColValue\",c9=7u64 1626006836639000000",
-                       "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
-                       "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
-                       "c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
-                       "123456789f64,c7=\"vbxpilkj\",c8=L\"ncharColValue\",c9=7u64 1626006837639000000"};
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=f,c1=1i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"xcxvwjvf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=T,c1=2i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"fixrzcuq\",c8=L\"ncharColValue\",c9=7u64 1626006834639000000",
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=3i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"iupzdqub\",c8=L\"ncharColValue\",c9=7u64 1626006835639000000",
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=4i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"yvvtzzof\",c8=L\"ncharColValue\",c9=7u64 1626006836639000000",
+      "ubzlsr,id=qmtcvgd,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11."
+      "12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" "
+      "c0=t,c1=5i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22."
+      "123456789f64,c7=\"vbxpilkj\",c8=L\"ncharColValue\",c9=7u64 1626006837639000000"};
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
@@ -821,7 +850,7 @@ int smlProcess_18784_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "disk,device=sdc inodes_used=176059i,total=1081101176832i 1661943960000000000",
+      "disk,device=sdc inodes_used=176059i,total=1076048383523889174i 1661943960000000000",
       "disk,device=sdc inodes_free=66932805i 1661943960000000000",
   };
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
@@ -846,7 +875,7 @@ int smlProcess_18784_Test() {
     if (rowIndex == 0) {
       ASSERT(ts == 1661943960000);
       ASSERT(used == 176059);
-      ASSERT(total == 1081101176832);
+      ASSERT(total == 1076048383523889174);
       ASSERT(freed == 66932805);
       //      ASSERT_EQ(latitude, 24.5208);
       //      ASSERT_EQ(longitude, 28.09377);
@@ -910,7 +939,77 @@ int sml_ts2164_Test() {
       //      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
       "meters,location=la,groupid=ca current=11.8,voltage=221",
       "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
+      "ts3038,location=l2a,groupid=ca current=L\"11.8\"",
+      "ts3038,location=l2a,groupid=ca voltage=L\"221\"",
+      "ts3038,location=l2a,groupid=ca phase=L\"221\"",
+//      "qgyltizmkq,id=sub_table_0123456,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64",
+//      "qgyltizmkq,id=sub_table_0123456,t=3,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64"
       //      "meters,location=la,groupid=cb current=11.8,voltage=221,phase=0.27",
+  };
+
+  pRes = taos_query(taos, "use line_test");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
+int sml_td22898_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes =
+      taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_test  BUFFER 384  MINROWS 1000  PAGES 256 PRECISION 'ns'");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "svlzxdfutx,id=nyavpjyfas,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64 1626006833639"
+  };
+
+  pRes = taos_query(taos, "use line_test");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+
+  const char *sql1[] = {
+      "svlzxdfutx,id=nyavpjyfas,t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"tgqkvsws\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"htvnnldm\",c8=L\"ncharColValue\",c9=7u64 1626006833639"
+  };
+
+  pRes = taos_schemaless_insert(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  code = taos_errno(pRes);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select * from svlzxdfutx");
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+  return code;
+}
+
+int sml_td22900_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes =
+      taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_test  BUFFER 384  MINROWS 1000  PAGES 256 PRECISION 'ns'");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "qddkgilwfu,id=qddkgilwfu_42383_49198,t0=t,t1=127i8 c4=9223372036854775807i64,c6=11.12345f32,c6=22.123456789f64 1626006833639"
   };
 
   pRes = taos_query(taos, "use line_test");
@@ -1106,6 +1205,10 @@ int main(int argc, char *argv[]) {
   ASSERT(!ret);
   ret = sml_ts2164_Test();
   ASSERT(!ret);
+  ret = sml_td22898_Test();
+  ASSERT(!ret);
+  ret = sml_td22900_Test();
+  ASSERT(ret);
   ret = smlProcess_influx_Test();
   ASSERT(!ret);
   ret = smlProcess_telnet_Test();

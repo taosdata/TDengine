@@ -41,11 +41,14 @@ static int32_t  mndProcessCreateDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessUseDbReq(SRpcMsg *pReq);
-static int32_t  mndProcessCompactDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessGetDbCfgReq(SRpcMsg *pReq);
+
+#ifndef TD_ENTERPRISE
+int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+#endif
 
 int32_t mndInitDb(SMnode *pMnode) {
   SSdbTable table = {
@@ -272,10 +275,14 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.daysToKeep2 = pNew->cfg.daysToKeep2;
   pOld->cfg.walFsyncPeriod = pNew->cfg.walFsyncPeriod;
   pOld->cfg.walLevel = pNew->cfg.walLevel;
+  pOld->cfg.walRetentionPeriod = pNew->cfg.walRetentionPeriod;
+  pOld->cfg.walRetentionSize = pNew->cfg.walRetentionSize;
   pOld->cfg.strict = pNew->cfg.strict;
   pOld->cfg.cacheLast = pNew->cfg.cacheLast;
   pOld->cfg.replications = pNew->cfg.replications;
   pOld->cfg.sstTrigger = pNew->cfg.sstTrigger;
+  pOld->cfg.minRows = pNew->cfg.minRows;
+  pOld->cfg.maxRows = pNew->cfg.maxRows;
   pOld->cfg.tsdbPageSize = pNew->cfg.tsdbPageSize;
   pOld->compactStartTime = pNew->compactStartTime;
   taosWUnLockLatch(&pOld->lock);
@@ -613,13 +620,8 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     }
   } else {
     if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
-      if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, createReq.db) == 0) {
-        mInfo("db:%s, is creating and createdb response after trans finished", createReq.db);
-        code = TSDB_CODE_ACTION_IN_PROGRESS;
-        goto _OVER;
-      } else {
-        goto _OVER;
-      }
+      code = terrno;
+      goto _OVER;
     } else if (terrno == TSDB_CODE_MND_DB_IN_DROPPING) {
       goto _OVER;
     } else if (terrno == TSDB_CODE_MND_DB_NOT_EXIST) {
@@ -722,6 +724,32 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
+  if (pAlter->sstTrigger > 0 && pAlter->sstTrigger != pDb->cfg.sstTrigger) {
+    pDb->cfg.sstTrigger = pAlter->sstTrigger;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
+  if (pAlter->minRows > 0 && pAlter->minRows != pDb->cfg.minRows) {
+    pDb->cfg.minRows = pAlter->minRows;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
+  if (pAlter->walRetentionPeriod > TSDB_DB_MIN_WAL_RETENTION_PERIOD &&
+      pAlter->walRetentionPeriod != pDb->cfg.walRetentionPeriod) {
+    pDb->cfg.walRetentionPeriod = pAlter->walRetentionPeriod;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
+  if (pAlter->walRetentionSize > TSDB_DB_MIN_WAL_RETENTION_SIZE &&
+      pAlter->walRetentionSize != pDb->cfg.walRetentionSize) {
+    pDb->cfg.walRetentionSize = pAlter->walRetentionSize;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
   return terrno;
 }
 
@@ -818,6 +846,18 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  int32_t numOfTopics = 0;
+  if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
+    goto _OVER;
+  }
+
+  if (numOfTopics != 0 && alterReq.walRetentionPeriod == 0) {
+    terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
+    mError("db:%s, not allowed to set WAL_RETENTION_PERIOD 0 when there are topics defined. numOfTopics:%d", pDb->name,
+           numOfTopics);
+    goto _OVER;
+  }
+
   memcpy(&dbObj, pDb, sizeof(SDbObj));
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
@@ -884,12 +924,19 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   cfgRsp.minRows = pDb->cfg.minRows;
   cfgRsp.maxRows = pDb->cfg.maxRows;
   cfgRsp.walFsyncPeriod = pDb->cfg.walFsyncPeriod;
+  cfgRsp.hashPrefix = pDb->cfg.hashPrefix;
+  cfgRsp.hashSuffix = pDb->cfg.hashSuffix;
   cfgRsp.walLevel = pDb->cfg.walLevel;
   cfgRsp.precision = pDb->cfg.precision;
   cfgRsp.compression = pDb->cfg.compression;
   cfgRsp.replications = pDb->cfg.replications;
   cfgRsp.strict = pDb->cfg.strict;
   cfgRsp.cacheLast = pDb->cfg.cacheLast;
+  cfgRsp.tsdbPageSize = pDb->cfg.tsdbPageSize;
+  cfgRsp.walRetentionPeriod = pDb->cfg.walRetentionPeriod;
+  cfgRsp.walRollPeriod = pDb->cfg.walRollPeriod;
+  cfgRsp.walRetentionSize = pDb->cfg.walRetentionSize;
+  cfgRsp.walSegmentSize = pDb->cfg.walSegmentSize;
   cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
   cfgRsp.pRetensions = pDb->cfg.pRetensions;
   cfgRsp.schemaless = pDb->cfg.schemaless;
@@ -1248,14 +1295,9 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       usedbRsp.errCode = terrno;
 
       if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
-        if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, usedbReq.db) == 0) {
-          mInfo("db:%s, is creating and usedb response after trans finished", usedbReq.db);
-          code = TSDB_CODE_ACTION_IN_PROGRESS;
-          goto _OVER;
-        }
+        code = terrno;
+        goto _OVER;
       }
-
-      mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
       if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
         goto _OVER;
@@ -1395,99 +1437,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   return 0;
 }
 
-static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs) {
-  SDbObj dbObj = {0};
-  memcpy(&dbObj, pDb, sizeof(SDbObj));
-  dbObj.compactStartTime = compactTs;
-
-  SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
-  if (pCommitRaw == NULL) return -1;
-  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    sdbFreeRaw(pCommitRaw);
-    return -1;
-  }
-
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  return 0;
-}
-
-static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs) {
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
-
-  while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    if (mndVgroupInDb(pVgroup, pDb->uid)) {
-      if (mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs) != 0) {
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pVgroup);
-        return -1;
-      }
-    }
-
-    sdbRelease(pSdb, pVgroup);
-  }
-
-  return 0;
-}
-
-static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
-  int64_t compactTs = taosGetTimestampMs();
-  int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "compact-db");
-  if (pTrans == NULL) goto _OVER;
-
-  mInfo("trans:%d, used to compact db:%s", pTrans->id, pDb->name);
-  mndTransSetDbName(pTrans, pDb->name, NULL);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
-  if (mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
-  if (mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
-  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  code = 0;
-
-_OVER:
-  mndTransDrop(pTrans);
-  return code;
-}
-
-static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
-  SMnode       *pMnode = pReq->info.node;
-  int32_t       code = -1;
-  SDbObj       *pDb = NULL;
-  SCompactDbReq compactReq = {0};
-
-  if (tDeserializeSCompactDbReq(pReq->pCont, pReq->contLen, &compactReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
-
-  mInfo("db:%s, start to compact", compactReq.db);
-
-  pDb = mndAcquireDb(pMnode, compactReq.db);
-  if (pDb == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB, pDb) != 0) {
-    goto _OVER;
-  }
-
-  code = mndCompactDb(pMnode, pReq, pDb);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-_OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed to process compact db req since %s", compactReq.db, terrstr());
-  }
-
-  mndReleaseDb(pMnode, pDb);
-  return code;
-}
-
-static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
+static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb, SRpcMsg *pReq) {
   SSdb       *pSdb = pMnode->pSdb;
   SVgObj     *pVgroup = NULL;
   void       *pIter = NULL;
@@ -1509,7 +1459,7 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     pHead->vgId = htonl(pVgroup->vgId);
     tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq);
 
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen};
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen, .info = pReq->info};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
     int32_t code = tmsgSendReq(&epSet, &rpcMsg);
     if (code != 0) {
@@ -1545,7 +1495,7 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndTrimDb(pMnode, pDb);
+  code = mndTrimDb(pMnode, pDb, pReq);
 
 _OVER:
   if (code != 0) {

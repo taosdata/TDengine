@@ -8,10 +8,13 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
- TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
- WATERMARK   time
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
+ WATERMARK      time
+ IGNORE EXPIRED [0|1]
+ DELETE_MARK    time
+ FILL_HISTORY   [0|1]
 }
 
 ```
@@ -28,6 +31,15 @@ subquery: SELECT select_list
 
 支持会话窗口、状态窗口与滑动窗口，其中，会话窗口与状态窗口搭配超级表时必须与partition by tbname一起使用
 
+stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，会自动创建；如果已存在，则检查列的schema信息。详见 写入已存在的超级表
+
+TAGS 字句定义了流计算中创建TAG的规则，可以为每个partition对应的子表生成自定义的TAG值，详见 自定义TAG
+```sql
+create_definition:
+    col_name column_definition
+column_definition:
+    type_name [COMMENT 'string_value']
+```
 
 subtable 子句定义了流式计算中创建的子表的命名规则，详见 流式计算的 partition 部分。
 
@@ -114,7 +126,7 @@ SELECT * from information_schema.`ins_streams`;
 
 在创建流时，可以通过 TRIGGER 指令指定流式计算的触发模式。
 
-对于非窗口计算，流式计算的触发是实时的；对于窗口计算，目前提供 3 种触发模式，默认为 AT_ONCE：
+对于非窗口计算，流式计算的触发是实时的；对于窗口计算，目前提供 3 种触发模式，默认为 WINDOW_CLOSE：
 
 1. AT_ONCE：写入立即触发
 
@@ -163,9 +175,67 @@ T3 时刻，最新事件到达，T 向后推移超过了第二个窗口关闭的
 
 TDengine 对于过期数据提供两种处理方式，由 IGNORE EXPIRED 选项指定：
 
-1. 重新计算，即 IGNORE EXPIRED 0：默认配置，从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
+1. 重新计算，即 IGNORE EXPIRED 0：从 TSDB 中重新查找对应窗口的所有数据并重新计算得到最新结果
 
-2. 直接丢弃, 即 IGNORE EXPIRED 1：忽略过期数据
+2. 直接丢弃, 即 IGNORE EXPIRED 1：默认配置，忽略过期数据
 
 
 无论在哪种模式下，watermark 都应该被妥善设置，来得到正确结果（直接丢弃模式）或避免频繁触发重算带来的性能开销（重新计算模式）。
+
+## 写入已存在的超级表
+```sql
+[field1_name,...]
+```
+用来指定stb_name的列与subquery输出结果的对应关系。如果stb_name的列与subquery输出结果的位置、数量全部匹配，则不需要显示指定对应关系。如果stb_name的列与subquery输出结果的数据类型不匹配，会把subquery输出结果的类型转换成对应的stb_name的列的类型。
+
+对于已经存在的超级表，检查列的schema信息
+1. 检查列的schema信息是否匹配，对于不匹配的，则自动进行类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
+2. 检查列的个数是否相同，如果不同，需要显示的指定超级表与subquery的列的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
+3. 至少自定义一个tag，否则报错。详见 自定义TAG
+
+## 自定义TAG
+
+用户可以为每个 partition 对应的子表生成自定义的TAG值。
+```sql
+CREATE STREAM streams2 trigger at_once INTO st1 TAGS(cc varchar(100)) as select  _wstart, count(*) c1 from st partition by concat("tag-", tbname) as cc interval(10s));
+```
+
+PARTITION 子句中，为 concat("tag-", tbname)定义了一个别名cc, 对应超级表st1的自定义TAG的名字。在上述示例中，流新创建的子表的TAG将以前缀 'new-' 连接原表名作为TAG的值。
+
+会对TAG信息进行如下检查
+1.检查tag的schema信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
+2.检查tag的个数是否相同，如果不同，需要显示的指定超级表与subquery的tag的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
+
+## 清理中间状态
+
+```
+DELETE_MARK    time
+```
+DELETE_MARK用于删除缓存的窗口状态，也就是删除流计算的中间结果。如果不设置，默认值是10年
+T = 最新事件时间 - DELETE_MARK
+
+## 流式计算支持的函数
+
+1. 所有的 [单行函数](../function/#单行函数) 均可用于流计算。
+2. 以下 19 个聚合/选择函数 <b>不能</b> 应用在创建流计算的 SQL 语句，[系统信息函数](../function/#系统信息函数) 也不能用于流计算中。此外的其他类型的函数均可用于流计算。
+
+- [leastsquares](../function/#leastsquares)
+- [percentile](../function/#percentile)
+- [top](../function/#leastsquares)
+- [bottom](../function/#top)
+- [elapsed](../function/#leastsquares)
+- [interp](../function/#elapsed)
+- [derivative](../function/#derivative)
+- [irate](../function/#irate)
+- [twa](../function/#twa)
+- [histogram](../function/#histogram)
+- [diff](../function/#diff)
+- [statecount](../function/#statecount)
+- [stateduration](../function/#stateduration)
+- [csum](../function/#csum)
+- [mavg](../function/#mavg)
+- [sample](../function/#sample)
+- [tail](../function/#tail)
+- [unique](../function/#unique)
+- [mode](../function/#mode)
+

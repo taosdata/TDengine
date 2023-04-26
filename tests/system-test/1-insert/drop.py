@@ -54,7 +54,7 @@ class TDTestCase:
             insert_list = []
             self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts) 
     def drop_ntb_check(self):
-        tdSql.execute(f'create database if not exists {self.dbname} replica {self.replicaVar}')
+        tdSql.execute(f'create database if not exists {self.dbname} replica {self.replicaVar} wal_retention_period 3600')
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         self.insert_data(self.column_dict,self.ntbname,self.rowNum)
@@ -80,7 +80,7 @@ class TDTestCase:
         tag_values = [
             f'1'
             ]
-        tdSql.execute(f"create database if not exists {self.dbname} replica {self.replicaVar}")
+        tdSql.execute(f"create database if not exists {self.dbname} replica {self.replicaVar} wal_retention_period 3600")
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
         for i in range(self.tbnum):
@@ -116,7 +116,7 @@ class TDTestCase:
                 tdSql.checkRows(self.tbnum) 
         tdSql.execute(f'drop database {self.dbname}')
     def drop_topic_check(self):
-        tdSql.execute(f'create database {self.dbname} replica {self.replicaVar}')
+        tdSql.execute(f'create database {self.dbname} replica {self.replicaVar} wal_retention_period 3600')
         tdSql.execute(f'use {self.dbname}')
         stbname = tdCom.getLongName(5,"letters")
         topic_name = tdCom.getLongName(5,"letters")
@@ -132,20 +132,20 @@ class TDTestCase:
         tdSql.execute(f'drop database {self.dbname}')
 
     def drop_stream_check(self):
-        tdSql.execute(f'create database {self.dbname} replica 1')
+        tdSql.execute(f'create database {self.dbname} replica 1 wal_retention_period 3600')
         tdSql.execute(f'use {self.dbname}')
         stbname = tdCom.getLongName(5,"letters")
         stream_name = tdCom.getLongName(5,"letters")
         tdSql.execute(f'create table {stbname} (ts timestamp,c0 int) tags(t0 int)')
         tdSql.execute(f'create table tb using {stbname} tags(1)')
-        tdSql.execute(f'create stream {stream_name} into stb as select * from {self.dbname}.{stbname} partition by tbname')
+        tdSql.execute(f'create stream {stream_name} trigger at_once ignore expired 0 into stb as select * from {self.dbname}.{stbname} partition by tbname')
         tdSql.query(f'select * from information_schema.ins_streams where stream_name = "{stream_name}"')
         print(tdSql.queryResult)
-        tdSql.checkEqual(tdSql.queryResult[0][2],f'create stream {stream_name} into stb as select * from {self.dbname}.{stbname} partition by tbname')
+        tdSql.checkEqual(tdSql.queryResult[0][2],f'create stream {stream_name} trigger at_once ignore expired 0 into stb as select * from {self.dbname}.{stbname} partition by tbname')
         tdSql.execute(f'drop stream {stream_name}')
-        tdSql.execute(f'create stream {stream_name} into stb1 as select * from tb')
+        tdSql.execute(f'create stream {stream_name} trigger at_once ignore expired 0 into stb1 as select * from tb')
         tdSql.query(f'select * from information_schema.ins_streams where stream_name = "{stream_name}"')
-        tdSql.checkEqual(tdSql.queryResult[0][2],f'create stream {stream_name} into stb1 as select * from tb')
+        tdSql.checkEqual(tdSql.queryResult[0][2],f'create stream {stream_name} trigger at_once ignore expired 0 into stb1 as select * from tb')
         tdSql.execute(f'drop database {self.dbname}')
     def run(self):
         self.drop_ntb_check()

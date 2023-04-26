@@ -139,7 +139,7 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
   if (taosRenameFile(file, realfile) != 0) goto _OVER;
 
   code = 0;
-  sInfo("vgId:%d, succeed to write raft store file:%s, len:%d", pNode->vgId, realfile, len);
+  sInfo("vgId:%d, succeed to write raft store file:%s, term:%" PRId64, pNode->vgId, realfile, pStore->currentTerm);
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);

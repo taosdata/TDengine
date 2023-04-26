@@ -108,7 +108,8 @@ typedef enum {
   TRN_STAGE_UNDO_ACTION = 3,
   TRN_STAGE_COMMIT = 4,
   TRN_STAGE_COMMIT_ACTION = 5,
-  TRN_STAGE_FINISHED = 6
+  TRN_STAGE_FINISHED = 6,
+  TRN_STAGE_PRE_FINISH = 7
 } ETrnStage;
 
 typedef enum {
@@ -175,6 +176,7 @@ typedef struct {
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
+  int64_t     mTraceId;
 } STrans;
 
 typedef struct {
@@ -213,6 +215,8 @@ typedef struct {
   bool       syncRestore;
   int64_t    stateStartTime;
   SDnodeObj* pDnode;
+  int32_t    role;
+  SyncIndex  lastIndex;
 } SMnodeObj;
 
 typedef struct {
@@ -276,9 +280,13 @@ typedef struct {
   int8_t    reserve;
   int32_t   acctId;
   int32_t   authVersion;
+  int32_t   passVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;
+  SHashObj* readTbs;
+  SHashObj* writeTbs;
+  SHashObj* useDbs;
   SRWLatch  lock;
 } SUserObj;
 
@@ -336,6 +344,7 @@ typedef struct {
   ESyncState syncState;
   bool       syncRestore;
   bool       syncCanRead;
+  ESyncRole  nodeRole;
 } SVnodeGid;
 
 typedef struct {
@@ -356,8 +365,9 @@ typedef struct {
   int8_t    compact;
   int8_t    isTsma;
   int8_t    replica;
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   void*     pTsma;
+  int32_t   numOfCachedTables;
 } SVgObj;
 
 typedef struct {
@@ -390,7 +400,7 @@ typedef struct {
 } SSmaObj;
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
+  char    name[TSDB_INDEX_FNAME_LEN];
   char    stb[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_DB_FNAME_LEN];
   char    dstTbName[TSDB_TABLE_FNAME_LEN];
@@ -444,6 +454,8 @@ typedef struct {
   int32_t codeSize;
   char*   pComment;
   char*   pCode;
+  int32_t funcVersion;
+  SRWLatch lock;
 } SFuncObj;
 
 typedef struct {
@@ -455,6 +467,7 @@ typedef struct {
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
+  bool           restore;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];
@@ -542,7 +555,7 @@ void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer
 
 typedef struct {
   int32_t vgId;
-  char*   qmsg;
+  char*   qmsg;  // SubPlanToString
   SEpSet  epSet;
 } SMqVgEp;
 

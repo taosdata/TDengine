@@ -35,12 +35,12 @@
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
-static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
+static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq);
-// static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
-/*static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq);*/
+static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
+static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessStreamMetaReq(SRpcMsg *pReq);
 static int32_t mndGetStreamMeta(SRpcMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -418,7 +418,7 @@ FAIL:
 int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
-  tEncodeSStreamTask(&encoder, pTask);
+  tEncodeStreamTask(&encoder, pTask);
   int32_t size = encoder.pos;
   int32_t tlen = sizeof(SMsgHead) + size;
   tEncoderClear(&encoder);
@@ -430,10 +430,11 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
   ((SMsgHead *)buf)->vgId = htonl(pTask->nodeId);
   void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   tEncoderInit(&encoder, abuf, size);
-  tEncodeSStreamTask(&encoder, pTask);
+  tEncodeStreamTask(&encoder, pTask);
   tEncoderClear(&encoder);
 
   STransAction action = {0};
+  action.mTraceId = pTrans->mTraceId;
   memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
   action.pCont = buf;
   action.contLen = tlen;
@@ -600,7 +601,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
     return -1;
   }
   pReq->head.vgId = htonl(pTask->nodeId);
-  pReq->taskId = pTask->taskId;
+  pReq->taskId = pTask->id.taskId;
   STransAction action = {0};
   memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
   action.pCont = pReq;
@@ -1208,7 +1209,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         // task id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)&pTask->taskId, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pTask->id.taskId, false);
 
         // node type
         char nodeType[20 + VARSTR_HEADER_SIZE] = {0};
@@ -1223,7 +1224,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         // node id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        int32_t nodeId = TMAX(pTask->nodeId, 0);
+        int64_t nodeId = TMAX(pTask->nodeId, 0);
         colDataSetVal(pColInfo, numOfRows, (const char *)&nodeId, false);
 
         // level

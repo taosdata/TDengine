@@ -795,14 +795,18 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     return -1;
   }
 
-  if (pMsg->term > raftStoreGetTerm(pSyncNode)) {
-    syncNodeStepDown(pSyncNode, pMsg->term);
+  if(pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER){
+    if (pMsg->term > raftStoreGetTerm(pSyncNode)) {
+      syncNodeStepDown(pSyncNode, pMsg->term);
+    }
   }
-  syncNodeResetElectTimer(pSyncNode);
+  else{
+    syncNodeUpdateTermWithoutStepDown(pSyncNode, pMsg->term);
+  }
 
   // state, term, seq/ack
   int32_t code = 0;
-  if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
+  if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER || pSyncNode->state == TAOS_SYNC_STATE_LEARNER) {
     if (pMsg->term == raftStoreGetTerm(pSyncNode)) {
       if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT) {
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq pre-snapshot");
@@ -840,6 +844,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     code = -1;
   }
 
+  syncNodeResetElectTimer(pSyncNode);
   return code;
 }
 
@@ -992,8 +997,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq end");
     snapshotSenderStop(pSender, true);
-    SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-    syncLogReplMgrReset(pMgr);
+    syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
     return 0;
   }
 
@@ -1018,8 +1022,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "receive error ack");
     sSError(pSender, "snapshot sender receive error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
     snapshotSenderStop(pSender, true);
-    SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-    syncLogReplMgrReset(pMgr);
+    syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
     return -1;
   }
 
@@ -1027,8 +1030,6 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
 _ERROR:
   snapshotSenderStop(pSender, true);
-  SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-  syncLogReplMgrReset(pMgr);
-
+  syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
   return -1;
 }

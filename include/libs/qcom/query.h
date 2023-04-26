@@ -33,6 +33,7 @@ typedef enum {
   JOB_TASK_STATUS_INIT,
   JOB_TASK_STATUS_EXEC,
   JOB_TASK_STATUS_PART_SUCC,
+  JOB_TASK_STATUS_FETCH,
   JOB_TASK_STATUS_SUCC,
   JOB_TASK_STATUS_FAIL,
   JOB_TASK_STATUS_DROP,
@@ -193,6 +194,7 @@ typedef struct SRequestConnInfo {
 
 typedef void (*__freeFunc)(void* param);
 
+// todo add creator/destroyer function
 typedef struct SMsgSendInfo {
   __async_send_cb_fn_t fp;      // async callback function
   STargetInfo          target;  // for update epset

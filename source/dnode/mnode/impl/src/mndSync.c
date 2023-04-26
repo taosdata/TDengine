@@ -33,7 +33,7 @@ static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
     return -1;
   }
 
-  int32_t code = tmsgPutToQueue(msgcb, SYNC_CTRL_QUEUE, pMsg);
+  int32_t code = tmsgPutToQueue(msgcb, SYNC_RD_QUEUE, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
@@ -118,17 +118,25 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
             transId, pTrans->createdTime, pMgmt->transId);
       mndTransExecute(pMnode, pTrans, false);
       mndReleaseTrans(pMnode, pTrans);
-      // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
     } else {
       mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
     }
   }
 
+  sdbWriteFile(pMnode->pSdb, tsMndSdbWriteDelta);
   return 0;
 }
 
 int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   int32_t code = 0;
+  pMsg->info.conn.applyIndex = pMeta->index;
+  pMsg->info.conn.applyTerm = pMeta->term;
+
+  if (pMsg->code == 0) {
+    SMnode *pMnode = pFsm->data;
+    atomic_store_64(&pMnode->applied, pMsg->info.conn.applyIndex);
+  }
+
   if (!syncUtilUserCommit(pMsg->msgType)) {
     goto _out;
   }
@@ -138,6 +146,11 @@ _out:
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
   return code;
+}
+
+SyncIndex mndSyncAppliedIndex(const SSyncFSM *pFSM) {
+  SMnode *pMnode = pFSM->data;
+  return atomic_load_64(&pMnode->applied);
 }
 
 int32_t mndSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
@@ -153,7 +166,7 @@ static void mndSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   sdbGetCommitInfo(pMnode->pSdb, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm, &pSnapshot->lastConfigIndex);
 }
 
-void mndRestoreFinish(const SSyncFSM *pFsm) {
+void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   SMnode *pMnode = pFsm->data;
 
   if (!pMnode->deploy) {
@@ -167,6 +180,8 @@ void mndRestoreFinish(const SSyncFSM *pFsm) {
   } else {
     mInfo("vgId:1, sync restore finished");
   }
+
+  ASSERT(commitIdx == mndSyncAppliedIndex(pFsm));
 }
 
 int32_t mndSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
@@ -222,6 +237,23 @@ static void mndBecomeFollower(const SSyncFSM *pFsm) {
   taosThreadMutexUnlock(&pMgmt->lock);
 }
 
+static void mndBecomeLearner(const SSyncFSM *pFsm) {
+  SMnode    *pMnode = pFsm->data;
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  mInfo("vgId:1, become learner");
+
+  taosThreadMutexLock(&pMgmt->lock);
+  if (pMgmt->transId != 0) {
+    mInfo("vgId:1, become learner and post sem, trans:%d, failed to propose since not leader", pMgmt->transId);
+    pMgmt->transId = 0;
+    pMgmt->transSec = 0;
+    pMgmt->transSeq = 0;
+    pMgmt->errCode = TSDB_CODE_SYN_NOT_LEADER;
+    tsem_post(&pMgmt->syncSem);
+  }
+  taosThreadMutexUnlock(&pMgmt->lock);
+}
+
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
   mInfo("vgId:1, become leader");
   SMnode *pMnode = pFsm->data;
@@ -253,6 +285,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
   pFsm->FpCommitCb = mndSyncCommitMsg;
+  pFsm->FpAppliedIndexCb = mndSyncAppliedIndex;
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
@@ -262,6 +295,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpReConfigCb = NULL;
   pFsm->FpBecomeLeaderCb = mndBecomeLeader;
   pFsm->FpBecomeFollowerCb = mndBecomeFollower;
+  pFsm->FpBecomeLearnerCb = mndBecomeLearner;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   pFsm->FpGetSnapshotInfo = mndSyncGetSnapshotInfo;
   pFsm->FpSnapshotStartRead = mndSnapshotStartRead;
@@ -301,13 +335,16 @@ int32_t mndInitSync(SMnode *pMnode) {
 
   mInfo("vgId:1, start to open sync, replica:%d selfIndex:%d", pMgmt->numOfReplicas, pMgmt->selfIndex);
   SSyncCfg *pCfg = &syncInfo.syncCfg;
+  pCfg->totalReplicaNum = pMgmt->numOfTotalReplicas;
   pCfg->replicaNum = pMgmt->numOfReplicas;
   pCfg->myIndex = pMgmt->selfIndex;
-  for (int32_t i = 0; i < pMgmt->numOfReplicas; ++i) {
+  pCfg->lastIndex = pMgmt->lastIndex;
+  for (int32_t i = 0; i < pMgmt->numOfTotalReplicas; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     pNode->nodeId = pMgmt->replicas[i].id;
     pNode->nodePort = pMgmt->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodeRole = pMgmt->nodeRoles[i];
     (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId,
           pNode->clusterId);
@@ -319,6 +356,7 @@ int32_t mndInitSync(SMnode *pMnode) {
     mError("failed to open sync since %s", terrstr());
     return -1;
   }
+  pMnode->pSdb->sync = pMgmt->sync;
 
   mInfo("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
