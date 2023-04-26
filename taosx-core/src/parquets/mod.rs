@@ -17,7 +17,6 @@ use parquet::{
     arrow::arrow_writer::ArrowWriter, basic::ZstdLevel, file::properties::WriterProperties,
 };
 
-use crate::utils::is_available_enterprise_edition;
 fn precision_to_arrow(precision: Precision) -> TimeUnit {
     match precision {
         Precision::Millisecond => TimeUnit::Millisecond,
@@ -104,7 +103,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
     let builder = TaosBuilder::from_dsn(from)?;
     let taos = builder.build().await?;
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !is_available_enterprise_edition(&builder).await {
+    if !builder.is_enterprise_edition().await? {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
 

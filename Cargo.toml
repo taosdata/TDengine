@@ -10,8 +10,8 @@ arrow = { version = "37.0.0" }
 arrow-flight = { version = "37.0.0" }
 parquet = "37.0.0"
 
-taos = { version = "0.8.0", default-features = false, features = ["ws", "deadpool"] }
-taos-query = { version = "0.8.0", default-features = false, features = ["deadpool"] }
+taos = { version = "0.8.1", default-features = false, features = ["ws", "deadpool"] }
+taos-query = { version = "0.8.1", default-features = false, features = ["deadpool"] }
 
 [package]
 name = "taosx"
