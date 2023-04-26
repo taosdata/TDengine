@@ -74,7 +74,6 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   qTaskInfo_t          task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqError("prepare scan failed, return");
     return -1;
   }
 
@@ -119,7 +118,6 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
   qTaskInfo_t          task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("tqScanTaosx prepare scan failed, return");
     return -1;
   }
 

@@ -123,15 +123,13 @@ int32_t tsdbRowCmprFn(const void *p1, const void *p2);
 int32_t  tsdbRowIterOpen(STSDBRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 void     tsdbRowClose(STSDBRowIter *pIter);
 SColVal *tsdbRowIterNext(STSDBRowIter *pIter);
-// SRowMerger
-int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRow, STSchema *pTSchema);
-int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
-void tsdbRowMergerClear(SRowMerger *pMerger);
-int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow);
 
-int32_t tsdbRowMergerInit_rv(SRowMerger* pMerger, STSchema *pSchema);
-void tsdbRowMergerClear_rv(SRowMerger* pMerger);
-void tsdbRowMergerCleanup_rv(SRowMerger* pMerger);
+// SRowMerger
+int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pSchema);
+int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
+int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow);
+void    tsdbRowMergerClear(SRowMerger *pMerger);
+void    tsdbRowMergerCleanup(SRowMerger *pMerger);
 
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
