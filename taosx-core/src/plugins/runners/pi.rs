@@ -7,7 +7,9 @@ use std::{
 
 use anyhow::Context;
 use itertools::Itertools;
+use serde_json::Value;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     plugins::{service::spawn_rest_service, sink},
@@ -57,6 +59,8 @@ struct PiConfig {
     #[serde(rename = "Points")]
     #[serde(skip_serializing_if = "Option::is_none")]
     points: Option<PathBuf>,
+    #[serde(skip)]
+    point_filter: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -121,6 +125,8 @@ impl PiConfig {
         let ipc_stream = format!("127.0.0.1:{ipc}");
         let sql_api = format!("http://127.0.0.1:{sql}");
 
+        let point_filter = dsn.remove("PointFilter");
+
         // dsn.addresses
         Ok(Self {
             server_name,
@@ -137,9 +143,12 @@ impl PiConfig {
             template_for_pi_point,
             template_for_af_element,
             points,
+            point_filter,
         })
     }
 }
+
+const PI_CONNECTOR_PATH: &'static str = "C:\\TDengine\\xplugins\\pi\\TDPIConnector.Service.exe";
 
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 pub async fn pi_to_taos(
@@ -148,6 +157,7 @@ pub async fn pi_to_taos(
     mut to: Dsn,
     jobs: usize,
     port_pool: &PortPool,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: PI");
     #[cfg(not(target_os = "windows"))]
@@ -179,11 +189,14 @@ pub async fn pi_to_taos(
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
-
-    let ipc = std::thread::spawn(move || {
-        sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream, None)
-    });
-
+    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
+    let ipc = sink::listen_tcp_socket(
+        target_pool_for_ipc,
+        config.ipc_stream,
+        sender,
+        None,
+        cancel.clone(),
+    )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -200,43 +213,77 @@ pub async fn pi_to_taos(
         retries += 1;
     }
 
-    let v = tokio::task::spawn_blocking(move || {
-        let mut command = std::process::Command::new(
-            "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
-            // "target/debug/examples/pi",
-        );
-        command
-            .arg("-f")
-            .arg(&config_path)
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
-            .output()
-    });
-
+    let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
+    let child_command = command
+        .arg("-f")
+        .arg(&config_path)
+        .stdout(async_process::Stdio::inherit())
+        .stderr(async_process::Stdio::inherit())
+        .spawn()
+        .context("Start PI collector error")?;
+    let pid = child_command.id();
     log::info!("waiting for PI connector");
-    tokio::select! {
-        output = v => {
-            let output = output.context("join error")?.context("PI connector run error")?;
-            // log::info!("PI exit with stdout: {}", std::str::from_utf8(&output.stdout).unwrap());
-            // log::info!("PI exit with stderr: {}", std::str::from_utf8(&output.stderr).unwrap());
-            log::info!("PI exit with status {}", output.status);
-        },
-        _ = tokio::signal::ctrl_c() => {
-            log::info!("Ctrl+C triggered, cancel tasks");
-            // panic!();
+    tokio::spawn(async move {
+        tokio::select! {
+            output = child_command.output() => {
+                let output = output.context("PI connector run error")?;
+                log::info!("PI exit with status {}", output.status);
+                if !output.status.success() {
+                    let len = output.stdout.len();
+                    let err = if len > 200 {
+                        String::from_utf8_lossy(&output.stdout[len - 200..])
+                    } else {
+                        String::from_utf8_lossy(&output.stdout[..])
+                    };
+
+                    let _ = ipc.send(());
+                    stop_thread(server);
+                    anyhow::bail!("PI error: {}", err);
+                }
+            },
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Ctrl+C triggered, cancel tasks");
+                cancel.cancel();
+                // panic!();
+            },
+            err = receiver.recv() => {
+                if let Some(err) = err {
+                    log::warn!("PI writer error occurred: {err}");
+                    let _ = ipc.send(());
+                    stop_thread(server);
+                    anyhow::bail!("PI writer error: {err}");
+                }
+            },
+            _ = cancel.cancelled() => {
+                log::info!("pi task cancelled");
+            }
         }
-    };
+        let _ = ipc.send(());
+        stop_thread(server);
+        terminate_child_process(pid)?;
+        log::info!("pi task Done");
+        temp_path.close().unwrap();
+        Ok(())
+    }).await??;
+    // stop_thread(ipc);
+    // let _ = ipc.send(());
+    // stop_thread(server);
+    // log::info!("pi task Done");
+    // temp_path.close().unwrap();
 
-    stop_thread(ipc);
-    stop_thread(server);
-
-    temp_path.close()?;
-    // rt.handle();
-    // (&unsafe { *Arc::into_raw(rt) }).shutdown_background();
-    log::info!("Done");
-    // server.abort();
     Ok(())
 }
+
+fn terminate_child_process(id: u32) -> anyhow::Result<()> {
+    let mut kill_command = std::process::Command::new("TASKKILL");
+    kill_command
+        .arg("/F")
+        .arg("/PID")
+        .arg(id.to_string())
+        .spawn()?;
+    Ok(())
+}
+
 
 pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     println!("# loading plugin: PI");
@@ -244,35 +291,70 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     {
         anyhow::bail!("PI connector support only windows platform");
     }
-    return Ok(vec![]);
 
-    // todo: add a command to get list of all available data sets.
+    let config = PiConfig::new(from.clone(), String::new(), 0, 0)?;
 
-    // let config = PiConfig::new(from.clone(), 0, 0)?;
+    let toml = toml::to_string(&config)?;
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    let temp_path = config_file.into_temp_path();
 
-    // let toml = toml::to_string(&config)?;
-    // let mut config_file = tempfile::NamedTempFile::new()?;
-    // write!(config_file, "{}", &toml)?;
-    // let config_path = config_file.path().to_path_buf();
-    // let temp_path = config_file.into_temp_path();
+    log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    // log::info!("Using config file {} \n{}", config_path.display(), toml);
+    let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
 
-    //     let mut command = std::process::Command::new(
-    //         "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
-    //         // "target/debug/examples/pi",
-    //     );
-    // let output = command
-    //     .arg("points")
-    //     .arg(format!("--conf={}", &config_path.display()))
-    //     .stdout(std::process::Stdio::piped())
-    //     .stderr(std::process::Stdio::piped())
-    //     .output()?;
-    // // dbg!(output);
-    // log::info!("OPC exit with status {}", output.status);
+    let point_filter = if let Some(pf) = config.point_filter {
+        pf
+    } else {
+        String::from("*")
+    };
 
-    // // let json = String::from_utf8_lossy(&output.stdout);
-    // let res: Vec<DataSets> = serde_json::from_slice(&output.stdout)?;
-    // temp_path.close()?;
-    // Ok(res)
+    let output = command
+        .arg("-f")
+        .arg(&config_path)
+        .arg("-p")
+        .arg(point_filter)
+        .stdout(async_process::Stdio::piped())
+        .stderr(async_process::Stdio::piped())
+        .output()
+        .await
+        .context("Start PI collector error")?;
+    // dbg!(output);
+    log::info!("PI Connector exit with status {}", output.status);
+
+    let json: Value = serde_json::from_slice(&output.stdout)?;
+    // let json: Value = serde_json::from_str(std::str::from_utf8(&output.stdout).unwrap()).unwrap();
+    let map = json.as_object().unwrap();
+    let mut dataset = Vec::new();
+    let mut point_names = map
+        .get("pointsName")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| DataSet {
+            id: String::from(f.as_str().unwrap()),
+            name: None,
+            category: Some(String::from("pointsName")),
+            r#type: None,
+        })
+        .collect_vec();
+    dataset.append(&mut point_names);
+    let mut template_names = map
+        .get("templateName")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| DataSet {
+            id: String::from(f.as_str().unwrap()),
+            name: None,
+            category: Some(String::from("templateName")),
+            r#type: None,
+        })
+        .collect_vec();
+    dataset.append(&mut template_names);
+    temp_path.close()?;
+    Ok(dataset)
 }

@@ -5,7 +5,7 @@ use std::{
     path::Path,
     str::FromStr,
     sync::{
-        atomic::{AtomicU16, AtomicU32, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicU16, AtomicU32, AtomicU64, Ordering},
         Arc,
     },
     time::{Duration, Instant},
@@ -17,9 +17,9 @@ use linked_hash_map::LinkedHashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::*;
-use tokio::sync::{oneshot, Semaphore};
+use tokio::sync::oneshot;
 
-use crate::{legacy::scheduler::Todo, utils::is_available_enterprise_edition, Action};
+use crate::{legacy::scheduler::Todo, Action};
 
 use self::scheduler::Scheduler;
 
@@ -157,6 +157,7 @@ struct Limit {
 }
 
 impl Limit {
+    #[cfg(test)]
     pub const fn new(limit: (u32, Option<u32>)) -> Self {
         Self {
             limit: limit.0,
@@ -164,15 +165,16 @@ impl Limit {
         }
     }
 
-    pub const fn limit(mut self, limit: u32) -> Self {
-        self.limit = limit;
-        self
-    }
-
-    pub const fn offset(mut self, offset: u32) -> Self {
-        self.offset = Some(offset);
-        self
-    }
+    // #[cfg(test)]
+    // pub const fn limit(mut self, limit: u32) -> Self {
+    //     self.limit = limit;
+    //     self
+    // }
+    // #[cfg(test)]
+    // pub const fn offset(mut self, offset: u32) -> Self {
+    //     self.offset = Some(offset);
+    //     self
+    // }
 
     pub fn is_none(&self) -> bool {
         match (self.limit, self.offset) {
@@ -612,7 +614,7 @@ async fn sync_super_table_schema_with_subs_without_pool(
         for (n, l) in &exists {
             let r = res_to.get(n).unwrap();
 
-            for (tag, l, r) in l
+            for (tag, _l, r) in l
                 .into_iter()
                 .zip(r)
                 .zip(&tag_name_vec)
@@ -764,7 +766,7 @@ async fn sync_super_table_schema_with_subs(
         for (n, l) in &exists {
             let r = res_to.get(n).unwrap();
 
-            for (tag, l, r) in l
+            for (tag, l, _r) in l
                 .into_iter()
                 .zip(r)
                 .zip(&tag_name_vec)
@@ -888,6 +890,14 @@ async fn sync_schema(
         .context("Get server version of source error")?
         .unwrap();
     let is_v3 = if v1.starts_with("2") { false } else { true };
+
+    let mut readers = Vec::new();
+    for stable in &todo.stables {
+        let (sender, reader) = oneshot::channel();
+        scheduler.send(Todo::Meta(Some(stable.clone()), vec![], Some(sender)))?;
+        readers.push((vec![], reader));
+    }
+
     // if opts.query.select_from_stable {
     let chunk_size = 400;
     let chunks = todo
@@ -916,7 +926,6 @@ async fn sync_schema(
             .unwrap_or(8)
     };
 
-    let mut readers = Vec::new();
     for chunk in chunks {
         let (sender, reader) = oneshot::channel();
         let (stable, tables) = chunk;
@@ -1613,17 +1622,19 @@ pub async fn legacy_to_taos(
     let metrics = Arc::new(LegacyMetrics::default());
     let from_database = from.subject.clone().unwrap();
     let mut source_opts = SourceOpts::from_params(&mut from)?;
-    let target_opts = TargetOpts::from_params(&mut to)?;
+
+    let target_db = to.subject.take();
 
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !is_available_enterprise_edition(&from_builder).await
-        && !is_available_enterprise_edition(&to_builder).await
+    if !from_builder.is_enterprise_edition().await?
+        && !to_builder.is_enterprise_edition().await?
     {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
 
+    let target_opts = TargetOpts::from_params(&mut to)?;
     let connect_timeout = Duration::from_secs(10);
     let from_pool = TaosBuilder::from_dsn(&from)?.pool()?;
     let from = from_pool.get().await?;
@@ -1631,7 +1642,7 @@ pub async fn legacy_to_taos(
     let source_taos = from_pool.get().await?;
     if target_opts.assert {
         // use take there to avoid [Error: [0x0383] Invalid database name] when execute sql with no database
-        if let Some(db) = to.subject.take() {
+        if let Some(db) = target_db {
             let target = to_builder.build().await?;
             if target.exec(format!("use `{db}`")).await.is_err() {
                 if let Some(database_options) = target_opts.database_options.clone() {
@@ -1689,6 +1700,8 @@ pub async fn legacy_to_taos(
         } else {
             anyhow::bail!("Target database should be set!");
         }
+    } else {
+        to.subject = target_db;
     }
 
     let to_pool = TaosBuilder::from_dsn(&to)?.pool()?;
@@ -2274,7 +2287,7 @@ mod tests {
         //     /home/huolinhe/Projects/taosdata/taos-connector-rust/taos-optin/tests/cfg/v2"
         //     .parse()?;
 
-        let opts = QueryOpts {
+        let _ = QueryOpts {
             time_range: TimeRange::new()
                 .start(DateTime::parse_from_rfc3339("2022-12-12T08:00:00Z")?.with_timezone(&Utc)),
             limit: Limit::new((1, Some(1))),

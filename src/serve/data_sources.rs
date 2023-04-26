@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
 
 use actix_web::{get, http::header::ContentType, post, web::Json, HttpResponse, Responder};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use taos::Dsn;
+
 use taosx_core::list_datasets_from;
 use utoipa::*;
 

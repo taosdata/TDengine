@@ -507,7 +507,7 @@ impl Action {
                         }
                     }
                 },
-                JsonMeta::Delete(delete) => {
+                JsonMeta::Delete(_) => {
                     // todo: renamed table should be deleted.
                     todo!()
                 }
@@ -537,7 +537,7 @@ impl Action {
                         }
                     }
                 },
-                JsonMeta::Delete(delete) => {
+                JsonMeta::Delete(_) => {
                     todo!()
                 }
             },
@@ -585,7 +585,7 @@ impl Action {
                     }
                     _ => (),
                 },
-                JsonMeta::Delete(delete) => {
+                JsonMeta::Delete(_) => {
                     todo!()
                 }
             },

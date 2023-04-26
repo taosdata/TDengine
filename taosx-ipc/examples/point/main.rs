@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use arrow::{
     array::{
-        make_builder, BinaryBuilder, Float32Builder, Int32Builder, StringBuilder, StructArray,
+        make_builder, Float32Builder, StringBuilder,
         StructBuilder, TimestampMillisecondBuilder, UInt8Array,
     },
     datatypes::{DataType, Field, Schema},
@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
             .append_value(101.);
 
         let list = list_struct_builder.finish();
-        let attrs = StructBuilder::new(
+        let _attrs = StructBuilder::new(
             opc_columns.clone(),
             opc_columns
                 .iter()

@@ -1,0 +1,142 @@
+{
+  "AFDatabase": "Meters",
+  "PIPointPrefix": "Meters_",
+  "ElementTemplate": {
+    "Name": "MeterTemplate",
+    "AttributeTemplates": [
+      {
+        "Name": "Current",
+        "Type": "double",
+        "UOM": "A"
+      },
+      {
+        "Name": "Power",
+        "Type": "double",
+        "UOM": "W"
+      },
+      {
+        "Name": "Voltage",
+        "Type": "double",
+        "UOM": "V"
+      }
+    ]
+  },
+  "AFTree": {
+    "California": {
+      "San Francisco": {
+        "Meters": [
+          {
+            "Id": 0,
+            "Type": "SinusoidWave",
+            "TimePeriod": 120,
+            "Current": {
+              "LowerLimit": 4.0,
+              "HigherLimit": 28.0,
+              "RandomNoise": 0.0,
+              "OffsetPhase": 0.0
+            },
+            "Voltage": {
+              "LowerLimit": 114.0,
+              "HigherLimit": 126.0,
+              "RandomNoise": 0.0,
+              "OffsetPhase": 0.0
+            }
+          },
+          {
+            "Id": 1,
+            "Type": "SinusoidWave",
+            "TimePeriod": 120,
+            "Current": {
+              "LowerLimit": 1.0,
+              "HigherLimit": 32.0,
+              "RandomNoise": 0.0,
+              "OffsetPhase": 0.0
+            },
+            "Voltage": {
+              "LowerLimit": 110.0,
+              "HigherLimit": 130.0,
+              "RandomNoise": 0.0,
+              "OffsetPhase": 180.0
+            }
+          }
+        ]
+      },
+      "San Diego": {
+        "Meters": [
+          {
+            "Id": 2,
+            "Type": "TriangleWave",
+            "TimePeriod": 120,
+            "Current": {
+              "LowerLimit": 4,
+              "HigherLimit": 28,
+              "RandomNoise": 0,
+              "OffsetPhase": 0
+            },
+            "Voltage": {
+              "LowerLimit": 114,
+              "HigherLimit": 126,
+              "RandomNoise": 0,
+              "OffsetPhase": 180
+            }
+          },
+          {
+            "Id": 3,
+            "Type": "SquareWave",
+            "TimePeriod": 120,
+            "Current": {
+              "LowerLimit": 1,
+              "HigherLimit": 32,
+              "RandomNoise": 0,
+              "OffsetPhase": 0
+            },
+            "Voltage": {
+              "LowerLimit": 110,
+              "HigherLimit": 130,
+              "RandomNoise": 0,
+              "OffsetPhase": 0
+            }
+          }
+        ]
+      },
+      "Los Angeles": {
+        "Meters": [
+          {
+            "Id": 4,
+            "Type": "SinusoidWave",
+            "TimePeriod": 120,
+            "Current": {
+              "LowerLimit": 4,
+              "HigherLimit": 28,
+              "RandomNoise": 0,
+              "OffsetPhase": 0
+            },
+            "Voltage": {
+              "LowerLimit": 114,
+              "HigherLimit": 126,
+              "RandomNoise": 0,
+              "OffsetPhase": 0
+            }
+          },
+          {
+            "Id": 5,
+            "Type": "SquareWave",
+            "TimePeriod": 120,
+            "Current": {
+              "LowerLimit": 1,
+              "HigherLimit": 32,
+              "RandomNoise": 0,
+              "OffsetPhase": 0
+            },
+            "Voltage": {
+              "LowerLimit": 110,
+              "HigherLimit": 130,
+              "RandomNoise": 0,
+              "OffsetPhase": 180
+            }
+          }
+        ]
+      }
+    }
+  }
+}

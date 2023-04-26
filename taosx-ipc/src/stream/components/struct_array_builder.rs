@@ -1,28 +1,19 @@
 use std::{
     any::{Any, TypeId},
     borrow::Cow,
-    collections::{HashMap, VecDeque},
-    fmt::Display,
-    str::FromStr,
-    sync::Arc,
 };
 
 use arrow::{
     array::{
-        make_builder, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanArray, BooleanBuilder,
-        ListBuilder, StringBuilder, StructArray, StructBuilder, TimestampMicrosecondBuilder,
-        TimestampMillisecondBuilder, TimestampNanosecondBuilder, TimestampSecondBuilder,
-        UInt8Array,
+        make_builder, ArrayBuilder, BinaryBuilder, StringBuilder, StructArray, StructBuilder,
+        TimestampMicrosecondBuilder, TimestampMillisecondBuilder, TimestampNanosecondBuilder,
+        TimestampSecondBuilder,
     },
-    datatypes::{ByteArrayType, DataType, Field, Schema, TimeUnit},
+    datatypes::{Field, TimeUnit},
     error::ArrowError,
-    record_batch::RecordBatch,
 };
 
 use arrow::datatypes::DataType as ArrowDataType;
-use serde::{de::Visitor, Deserialize, Serialize};
-
-use taos_query::prelude::Itertools;
 
 pub struct StructArrayBuilder {
     fields: Vec<Field>,
@@ -151,7 +142,7 @@ impl StructArrayBuilder {
             ArrowDataType::FixedSizeList(_, _) => todo!(),
             ArrowDataType::LargeList(_) => todo!(),
             ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _, _) => todo!(),
+            ArrowDataType::Union(_, _) => todo!(),
             ArrowDataType::Dictionary(_, _) => todo!(),
             ArrowDataType::Decimal128(_, _) => todo!(),
             ArrowDataType::Decimal256(_, _) => todo!(),
@@ -297,7 +288,7 @@ impl StructArrayBuilder {
             ArrowDataType::FixedSizeList(_, _) => todo!(),
             ArrowDataType::LargeList(_) => todo!(),
             ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _, _) => todo!(),
+            ArrowDataType::Union(_, _) => todo!(),
             ArrowDataType::Dictionary(_, _) => todo!(),
             ArrowDataType::Decimal128(_, _) => todo!(),
             ArrowDataType::Decimal256(_, _) => todo!(),
@@ -446,7 +437,7 @@ impl StructArrayBuilder {
             ArrowDataType::FixedSizeList(_, _) => todo!(),
             ArrowDataType::LargeList(_) => todo!(),
             ArrowDataType::Struct(_) => todo!(),
-            ArrowDataType::Union(_, _, _) => todo!(),
+            ArrowDataType::Union(_, _) => todo!(),
             ArrowDataType::Dictionary(_, _) => todo!(),
             ArrowDataType::Decimal128(_, _) => todo!(),
             ArrowDataType::Decimal256(_, _) => todo!(),
@@ -480,6 +471,7 @@ impl StructArrayBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::datatypes::DataType;
 
     #[test]
     fn builder() -> anyhow::Result<()> {

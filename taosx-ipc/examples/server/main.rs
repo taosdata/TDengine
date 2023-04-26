@@ -2,12 +2,12 @@ use std::{
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path,
+    path::Path, any::Any,
 };
 use taos::sync::*;
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
-    stream::point::PointMessage,
+    stream::{point::PointMessage, flat::FlatMessage},
 };
 use tokio::runtime::Runtime;
 use tracing::{info, instrument};
@@ -59,10 +59,85 @@ fn ipc_test<R: Read, W: Write>(
     let metadata = ipc_reader.metadata();
     dbg!(metadata);
     match metadata.stream_type() {
-        StreamType::Lush => handle_lush_message(ipc_reader, taos, ipc_ack_writer).unwrap(),
-        StreamType::Point => handle_point_message(ipc_reader, taos, ipc_ack_writer).unwrap(),
+        StreamType::Lush => handle_lush_message(ipc_reader, taos, ipc_ack_writer)?,
+        StreamType::Point => handle_point_message(ipc_reader, taos, ipc_ack_writer)?,
+        StreamType::Flat => handle_flat_message(ipc_reader, taos, ipc_ack_writer)?,
         _ => todo!(),
     }
+    Ok(())
+}
+
+fn handle_flat_message<R: Read, W: Write>(ipc_reader: IpcReader<R>, taos: Taos, mut ipc_ack_writer: AckWriter<W>) -> anyhow::Result<()> {
+    let mut map = HashMap::new();
+    map.insert(
+        String::from("topic1"),
+        (
+            String::from("d1004"),
+            String::from("current"),
+            IpcDataType::Float32,
+        ),
+    );
+    map.insert(
+        String::from("topic2"),
+        (
+            String::from("d1004"),
+            String::from("voltage"),
+            IpcDataType::Int32,
+        ),
+    );
+    map.insert(
+        String::from("topic3"),
+        (
+            String::from("d1004"),
+            String::from("phase"),
+            IpcDataType::Float32,
+        ),
+    );
+    let mut records_count = 0;
+    for record in ipc_reader {
+        if let Ok(record) = record {
+            let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
+                std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+            })
+            .unwrap();
+            // let record = record.as_any().downcast_ref::<FlatMessage>().unwrap();
+            // dbg!(record);
+            for message in record.records() {
+                let mut cv_vec =
+                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+                let mut stmt = Stmt::init(&taos)?;
+                // process ts, topic, qos, payload
+                let schema = message.schema();
+                let topic_index = schema.index_of("topic").unwrap();
+                let ts_index = schema.index_of("ts").unwrap();
+                let payload_index = schema.index_of("payload").unwrap();
+                let topic_cv = cv_vec.remove(topic_index);
+                dbg!(&cv_vec);
+                for i in 0..topic_cv.len() {
+                    let id = topic_cv.get(i).unwrap().into_value().to_string().unwrap();
+                    let (table, field, _) = map.get(&id).unwrap();
+                    let sql = if ts_index > payload_index {
+                        format!("insert into {table} ({field}, ts) values (?, ?)")
+                    } else {
+                        format!("insert into {table} (ts, {field}) values (?, ?)")
+                    };
+                    stmt.prepare(&sql).unwrap();
+                    let new_cv_vec = cv_vec
+                        .iter()
+                        .map(|t_cv| t_cv.slice(i..i + 1).unwrap())
+                        .collect_vec();
+                    info!(sql);
+                    dbg!(&new_cv_vec);
+                    stmt.bind(&new_cv_vec.as_slice()).unwrap();
+                    stmt.add_batch().unwrap();
+                    let n = stmt.execute().unwrap();
+                    records_count += n;
+                }
+            }
+            ipc_ack_writer.write_ok().unwrap();
+        }
+    }
+    println!("finished, totally {records_count} rows");
     Ok(())
 }
 
@@ -71,7 +146,7 @@ fn handle_lush_message<R: Read, W: Write>(
     taos: Taos,
     mut ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
-    let rt = Runtime::new().unwrap();
+    let _rt = Runtime::new().unwrap();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         info!("{sql}");
         taos.exec(&sql)?;
@@ -181,8 +256,14 @@ fn handle_point_message<R: Read, W: Write>(
     let mut records_count = 0;
     for record in ipc_reader {
         if let Ok(record) = record {
-            let record = record.as_any().downcast_ref::<PointMessage>().unwrap();
+            let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
+                std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+            })
+            .unwrap();
+            dbg!(&record);
+            // let record = record.as_any().downcast_ref::<PointMessage>().unwrap();
             for message in record.records() {
+                dbg!(&message.record());
                 let mut cv_vec =
                     taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
                 let mut stmt = Stmt::init(&taos)?;

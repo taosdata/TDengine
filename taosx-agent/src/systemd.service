@@ -1,0 +1,13 @@
+[Unit]
+Description=taosX Agent.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/taosx-agent
+ExecStart=/usr/bin/taosx-agent
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

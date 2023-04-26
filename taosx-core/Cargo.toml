@@ -8,7 +8,10 @@ description = "taosX - TDengine data integration tool"
 
 [dependencies]
 anyhow = "1"
+
 arrow = { workspace = true }
+parquet = { workspace = true }
+
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "1"
@@ -24,7 +27,6 @@ itertools = "0.10.4"
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = "0.4"
-parquet = { workspace = true }
 parse_duration = "2.1"
 pretty_env_logger = "0.4"
 regex = "1"
@@ -40,16 +42,14 @@ zstd = "0.12.1"
 actix-cors = "0.6.4"
 actix-web = "4"
 serde_json = { version = "1.0", features = ["raw_value"] }
-sqlx = { version = "0.6", features = ["sqlite", "chrono", "json"] }
-utoipa = { version = "3", features = ["actix_extras", "chrono"] }
-utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
+# utoipa = { version = "3", features = ["actix_extras", "chrono"] }
+# utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 
 # lru = "0.7.5"
 const_format = "0.2.30"
 metrics = "0.20.1"
 metrics-exporter-prometheus = { version = "0.11.0", default-features = false, features = ["push-gateway"] }
 # palaver = "0.2.8"
-shadow-rs = "0.21.0"
 sysinfo = "0.28.0"
 
 async-backtrace = "0.2.2"
@@ -64,9 +64,8 @@ tokio-cron-scheduler = "0.9.4"
 
 async-process = "1.6"
 bitvec = "1"
-mimalloc = { version = "0.1.34", default-features = false, optional = true }
-port-selector = "0.1.5"
 tempfile = "3"
+socket2 = "0.5"
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "../taosx-ipc" }
@@ -83,8 +82,8 @@ libc = "0.2"
 default = ["optin", "rustls"]
 optin = ["taos/optin"]
 sys = ["taos/native"]
-rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls"]
-native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls"]
+rustls = [ "taos/ws-rustls"]
+native-tls = ["taos/ws-native-tls"]
 disable-enterprise-only-validation = []
 
 [build-dependencies]

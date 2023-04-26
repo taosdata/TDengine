@@ -23,6 +23,7 @@ pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
+use utils::port_pool::{self, PortPool};
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
@@ -46,7 +47,7 @@ pub struct TaskOpts {
     pub compression_level: Option<usize>,
     pub force: bool,
     pub cancel: CancellationToken,
-    pub port_pool: crate::utils::port_pool::PortPool,
+    // pub port_pool: OnceCell<PortPool>
 }
 
 impl Drop for TaskOpts {
@@ -62,7 +63,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    pub async fn run(&self) -> Result<(), anyhow::Error> {
+    pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
             transform,
@@ -71,7 +72,7 @@ impl TaskOpts {
             compression_level: _,
             force,
             cancel,
-            port_pool,
+            // port_pool,
         } = self;
 
         {
@@ -108,12 +109,24 @@ impl TaskOpts {
                         to.clone(),
                         *jobs,
                         port_pool,
+                        cancel.clone(),
                     )
                     .await?;
-                },
-                ("opc", "taos") => {
-                    plugins::opc_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, port_pool).await?;
-                },
+                }
+                ("opc" | "opcda" | "opcua", "taos") => {
+                    plugins::opc_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        port_pool,
+                        cancel.clone(),
+                    )
+                    .await?;
+                }
+                ("mqtt", "taos") => {
+                    plugins::mqtt_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, port_pool, cancel.clone()).await?;
+                }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
             Ok(())

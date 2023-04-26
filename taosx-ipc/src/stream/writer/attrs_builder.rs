@@ -1,5 +1,3 @@
-use arrow::datatypes::Field;
-
 use crate::stream::components::StructArrayBuilder;
 
 pub type AttrsBuilder = StructArrayBuilder;

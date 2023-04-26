@@ -1,13 +1,10 @@
-use std::{
-    collections::HashMap,
-    io::prelude::*,
-    num::ParseIntError,
-    str::FromStr, 
-};
+use std::{collections::HashMap, io::prelude::*, num::ParseIntError, str::FromStr, time::Duration, f32::consts::E};
 
+use anyhow::Context;
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder, taos_query::helpers::ColumnMeta, IntoDsn};
+use taos::{taos_query::helpers::ColumnMeta, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taosx_ipc::prelude::IpcDataType;
+use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
@@ -37,6 +34,8 @@ impl FromStr for OpcType {
 
 #[derive(Debug, thiserror::Error)]
 enum OpcError {
+    #[error("One of `ua` `da` protocol should be set")]
+    ProtocolNotFound(Dsn),
     #[error("Endpoint is required in OPC dsn: {0} like `opc+..://localhost:4840?...`")]
     EndpointIsRequired(Dsn),
     #[error("Database name is required in OPC dsn: {0}")]
@@ -45,17 +44,22 @@ enum OpcError {
     UserPassRequired(Dsn),
     #[error("config file not found: {0}")]
     FileNotFound(String),
-    #[error("table cloumn not match in {0}")]
-    CloumnNotMatch(String),
+    #[error("file parse error: {0}")]
+    FileParseFound(String),
     #[error("config file content is empty in {0}")]
     EmptyConfig(String),
+    #[error("node config length is not 4, length is {0}")]
+    NodeConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
+    #[error("Parse param error from {1} while parsing parameter {0}")]
+    ParseError(&'static str, String,),
 }
 
 #[derive(Debug, serde::Serialize)]
 struct OPCConfig {
     opc_type: OpcType,
+    debug: bool,
     connect: ConnectConfig,
     collect: CollectConfig,
     report: ReportConfig,
@@ -143,12 +147,12 @@ enum OPCConfigMode {
     /// just get points
     Points,
     /// collect point data
-    Collect
+    Collect,
 }
 
 impl OPCConfig {
     fn new(mut dsn: Dsn, ipc_port: u16, config_mode: OPCConfigMode) -> Result<Self, OpcError> {
-        debug_assert!(dsn.driver == "opc");
+        debug_assert!(dsn.driver == "opc" || dsn.driver == "opcua" || dsn.driver == "opcda");
         macro_rules! parse_int_at {
             ($n:expr) => {
                 dsn.remove($n)
@@ -164,6 +168,20 @@ impl OPCConfig {
         let collect;
         let mut param_mapping = HashMap::new();
         let mut table_info: HashMap<String, Vec<(String, String)>> = HashMap::new();
+        match dsn.driver.as_str() {
+            "opc" => {
+                if dsn.protocol.is_none() {
+                    return Err(OpcError::ProtocolNotFound(dsn));
+                }
+            }
+            "opcua" => {
+                dsn.protocol.replace("ua".to_string());
+            }
+            "opcda" => {
+                dsn.protocol.replace("da".to_string());
+            }
+            _ => unreachable!(),
+        }
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OpcType::OPCUA;
@@ -222,12 +240,14 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?
+                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
-                    assert_eq!(4, pair.len());
+                    if pair.len() != 4 {
+                        return Err(OpcError::NodeConfig(pair.len().to_string()));
+                    }
                     let id = String::from(pair[0]);
                     let table = String::from(pair[1]);
                     let field = String::from(pair[2]);
@@ -280,7 +300,7 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "da.tags")?
+                    get_string_vec_from_param_or_file(&mut dsn, "da.tags").map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut da_nodes_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -306,9 +326,7 @@ impl OPCConfig {
                 collect = CollectConfig {
                     interval,
                     ua: None,
-                    da: Some(DaCollectConfig {
-                        tags: da_nodes_vec,
-                    }),
+                    da: Some(DaCollectConfig { tags: da_nodes_vec }),
                 }
             }
             _ => {
@@ -320,6 +338,15 @@ impl OPCConfig {
         let concurrent = parse_int_at!("concurrent");
         let batch_size = parse_int_at!("batch_size");
         let batch_timeout = parse_int_at!("batch_timeout");
+        let debug = if let Some(v) = dsn.remove("debug").map(|v| {
+            v.parse::<bool>()
+                .map_err(|err| OpcError::ParseError("debug", v))
+        }).transpose()? {
+            true
+        } else {
+            false
+        };
+        
         let report = ReportConfig {
             remote,
             concurrent,
@@ -328,6 +355,7 @@ impl OPCConfig {
         };
         Ok(OPCConfig {
             opc_type,
+            debug,
             connect,
             collect,
             report,
@@ -337,7 +365,7 @@ impl OPCConfig {
     }
 }
 
-fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, OpcError> {
+pub(super) fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, String> {
     if let Some(nodes) = dsn.remove(key) {
         let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
             .split(",")
@@ -348,8 +376,8 @@ fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<Str
         for file in files {
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
-                log::warn!("file: {} read error", file);
-                return Err(OpcError::FileNotFound(file));
+                // log::warn!("file: {} read error", file);
+                return Err("file read error".to_string());
             }
             let buf = std::io::BufReader::new(f.unwrap());
             let mut file_data = buf.lines().collect_vec();
@@ -357,18 +385,22 @@ fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<Str
             if file_data.remove(0).is_err() {
                 log::warn!("file: {} content length < 1", file);
             }
-            
-            node_config.extend(file_data.iter().filter_map(|r| r.as_ref().ok()).map(|s| s.replace(",", "::")));
 
+            node_config.extend(
+                file_data
+                    .iter()
+                    .filter_map(|r| r.as_ref().ok())
+                    .map(|s| s.replace(",", "::")),
+            );
         }
         if node_config.len() == 0 {
-            log::warn!("node config is empty");
-            return Err(OpcError::EmptyConfig(nodes));
+            // log::warn!("node config is empty");
+            return Err("node config is empty".to_string());
         }
         return Result::Ok(node_config);
     }
-    log::warn!("node config is empty");
-    return Err(OpcError::EmptyConfig(String::new()));
+    // log::warn!("node config is empty");
+    return Err("node config is empty".to_string());
 }
 
 fn process_table_info(
@@ -387,6 +419,36 @@ fn process_table_info(
     };
 }
 
+const OPC_CONNECTOR_PATH: &str = {
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        "C:\\TDengine\\xplugins\\opc\\opc-collector_windows_amd64.exe"
+    }
+    #[cfg(all(target_os = "windows", target_arch = "x86"))]
+    {
+        "C:\\TDengine\\xplugins\\opc\\opc-collector_windows_386.exe"
+    }
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_linux_amd64"
+    }
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_linux_arm64"
+    }
+    #[cfg(all(target_os = "linux", target_arch = "arm"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_linux_arm"
+    }
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_darwin_amd64"
+    }
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_darwin_arm64"
+    }
+};
 #[instrument(skip(port_pool))]
 pub async fn opc_to_taos(
     from: Dsn,
@@ -394,9 +456,13 @@ pub async fn opc_to_taos(
     to: Dsn,
     jobs: usize,
     port_pool: &PortPool,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OPC");
-    let target_pool = TaosBuilder::from_dsn(to)?.pool()?;
+    if to.subject.is_none() {
+        Err(OpcError::DatabaseIsRequired(to.clone()))?;
+    }
+    let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
     use taos::AsyncQueryable;
     let taos = target_pool.get().await?;
     let target_pool_for_ipc = target_pool.clone();
@@ -424,14 +490,12 @@ pub async fn opc_to_taos(
             // table exists and check normal table or child table
             let desc = res.unwrap();
             let mut field_map = HashMap::new();
-                desc.iter().for_each(|c| {
-                    match c {
-                        ColumnMeta::Column(d) => {
-                            field_map.insert(d.field.clone(), d.ty.to_string());
-                        },
-                        _ => (),
-                    }
-                });
+            desc.iter().for_each(|c| match c {
+                ColumnMeta::Column(d) => {
+                    field_map.insert(d.field.clone(), d.ty.to_string());
+                }
+                _ => (),
+            });
             // insert ts column
             log::info!("table {table_name} use `{}` as ts column", desc[0].field);
             ts_cloumn_name_map.insert(table_name.clone(), desc[0].field.clone());
@@ -443,32 +507,45 @@ pub async fn opc_to_taos(
                         anyhow::bail!("field: {} not found in table: {}", field, table_name);
                     }
                     if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
-                        anyhow::bail!("field: {} type: {} not match in child table: {} which type is {}", field, field_type,table_name, field_get.unwrap());
+                        anyhow::bail!(
+                            "field: {} type: {} not match in child table: {} which type is {}",
+                            field,
+                            field_type,
+                            table_name,
+                            field_get.unwrap()
+                        );
                     }
-                    
                 }
             } else {
                 // ordinary table.
                 let mut columns_to_add = HashMap::new();
                 for (field, field_type) in field_info {
-                    let field_get = field_map.get(field); 
+                    let field_get = field_map.get(field);
                     if field_get.is_none() {
                         // column not exists and alter table
                         columns_to_add.insert(field, field_type);
-                    } else if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
-                        anyhow::bail!("field: {} type: {} not match in normal table: {} which type is {} ", field, field_type, table_name, field_get.unwrap());
+                    } else if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase())
+                    {
+                        anyhow::bail!(
+                            "field: {} type: {} not match in normal table: {} which type is {} ",
+                            field,
+                            field_type,
+                            table_name,
+                            field_get.unwrap()
+                        );
                     }
                 }
                 if columns_to_add.len() > 0 {
                     for (field_name, field_type) in columns_to_add {
-                        let alter_sql = format!("ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}");
+                        let alter_sql = format!(
+                            "ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}"
+                        );
                         log::info!("alter table sql: {}", alter_sql);
                         taos.exec(alter_sql).await?;
                     }
                 }
             }
         }
-        
     }
 
     let toml = toml::to_string(&config)?;
@@ -479,81 +556,131 @@ pub async fn opc_to_taos(
 
     log::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
-    let ipc = std::thread::spawn(move || {
-        sink::listen_tcp_socket(
-            target_pool_for_ipc,
-            config.report.remote,
-            Some(OpcTableConfig {
-                    table_info: config.param_mapping.clone(),
-                    ts_cloumn_name: ts_cloumn_name_map.clone(),
-                }
-                ),
-        )
-    });
+    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
+    let ipc = sink::listen_tcp_socket(
+        target_pool_for_ipc,
+        config.report.remote,
+        sender,
+        Some(OpcTableConfig {
+            table_info: config.param_mapping.clone(),
+            ts_cloumn_name: ts_cloumn_name_map.clone(),
+        }),
+        cancel.clone(),
+    )?;
+
     // TODO use unix socket on unix-like os
     // let ipc = if cfg!(target_os = "windows") {
     //     std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, socket))
     // } else {
     //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
     // };
-    let v = tokio::task::spawn_blocking(move || {
-        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-        let mut command =
-            std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_amd64.exe");
-        #[cfg(all(target_os = "windows", target_arch = "x86"))]
-        let mut command =
-            std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_386.exe");
-        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_amd64");
-        #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm64");
-        #[cfg(all(target_os = "linux", target_arch = "arm"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm");
-        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_amd64");
-        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_arm64");
-        command
-            .arg("collect")
-            .arg(format!("--conf={}", &config_path.display()))
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
-            .output()
-    });
 
-    tokio::select! {
-        output = v => {
-            let output = output??;
-            // dbg!(output);
-            log::info!("OPC exit with status {}", output.status);
-            // server.abort();
-            panic!();
-        },
-        _ = tokio::signal::ctrl_c() => {
-            log::info!("Ctrl+C triggered, cancel tasks");
-            // panic!();
-        }
-    };
-
-    stop_thread(ipc);
-    temp_path.close()?;
-    log::info!("OPC to taos task done");
+    let mut command = async_process::Command::new(OPC_CONNECTOR_PATH);
+    let child = command
+        .arg("collect")
+        .arg(format!("--conf={}", &config_path.display()))
+        .stdout(async_process::Stdio::inherit())
+        .stderr(async_process::Stdio::inherit())
+        .spawn()
+        .context("Start OPC collector error")?;
+    #[cfg(target_os = "linux")]
+    {
+        tokio::select! {
+            output = child.output() => {
+                let output = output?;
+                log::info!("OPC exit with status {}", output.status);
+                if !output.status.success() {
+                    let _ = ipc.send(());
+                    anyhow::bail!("OPC error: {}", String::from_utf8_lossy(&output.stderr));
+                }
+            },
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Ctrl+C triggered, cancel tasks");
+                cancel.cancel();
+            },
+            err = receiver.recv() => {
+                log::info!("have received worker thread panicked message, terminate child process");
+                if let Some(err) = err {
+                    let _ = ipc.send(());
+                    anyhow::bail!("OPC writer error: {err}");
+                }
+            },
+            _ = cancel.cancelled() => {
+                log::info!("opc task cancelled");
+            },
+        };
+        // stop_thread(ipc);
+        ipc.send(())?;
+        log::info!("OPC to taos task done");
+        temp_path.close().unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let pid = child.id();
+        tokio::spawn(async move {
+            tokio::select! {
+                output = child.output() => {
+                    let output = output?;
+                    log::info!("OPC exit with status {}", output.status);
+                    if !output.status.success() {
+                        let _ = ipc.send(());
+                        anyhow::bail!("OPC error: {}", String::from_utf8_lossy(&output.stderr));
+                    }
+                },
+                _ = tokio::signal::ctrl_c() => {
+                    log::info!("Ctrl+C triggered, cancel tasks");
+                    cancel.cancel();
+                },
+                err = receiver.recv() => {
+                    log::info!("have received worker thread panicked message, terminate child process");
+                    if let Some(err) = err {
+                        let _ = ipc.send(());
+                        anyhow::bail!("OPC writer error: {err}");
+                    }
+                },
+                _ = cancel.cancelled() => {
+                    log::info!("opc task cancelled");
+                },
+            };
+            ipc.send(())?;
+            terminate_child_process(pid)?;
+            log::info!("OPC to taos task done");
+            temp_path.close().unwrap();
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Ok(())
+        }).await??;
+    }
     Ok(())
 }
 
-/// check field type 
-/// return true if matched 
+fn terminate_child_process(id: u32) -> anyhow::Result<()> {
+    let mut kill_command = if cfg!(target_os = "windows") {
+        let mut command = std::process::Command::new("taskkill");
+        command.arg("/F").arg("/PID").arg(id.to_string());
+        command
+    } else {
+        let mut command = std::process::Command::new("kill");
+        command.arg("-9").arg(id.to_string());
+        command
+    };
+    kill_command.spawn()?;
+    Ok(())
+}
+
+/// check field type
+/// return true if matched
 /// if type equals return true else false
 /// if type is binary|varchar|nchar check whether type configed contains those characters
 fn check_field_type(field_type_config: &String, field_type: String) -> bool {
     let field_type_config = field_type_config.to_ascii_lowercase();
-    if field_type.contains("binary") || field_type.contains("varchar") || field_type.contains("nchar") {
-        field_type_config.contains("binary") || field_type_config.contains("varchar") || field_type_config.contains("nchar")
+    if field_type.contains("binary")
+        || field_type.contains("varchar")
+        || field_type.contains("nchar")
+    {
+        field_type_config.contains("binary")
+            || field_type_config.contains("varchar")
+            || field_type_config.contains("nchar")
     } else if field_type_config == field_type {
         true
     } else {
@@ -570,7 +697,7 @@ pub struct OpcTableConfig {
     pub(crate) ts_cloumn_name: HashMap<String, String>,
 }
 
-pub async fn ops_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
+pub async fn opc_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     let config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points)?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -586,33 +713,15 @@ pub async fn ops_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     // } else {
     //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
     // };
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    let mut command =
-        std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_amd64.exe");
-    #[cfg(all(target_os = "windows", target_arch = "x86"))]
-    let mut command =
-        std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_386.exe");
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    let mut command =
-        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_amd64");
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    let mut command =
-        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm64");
-    #[cfg(all(target_os = "linux", target_arch = "arm"))]
-    let mut command =
-        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm");
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    let mut command =
-        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_amd64");
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    let mut command =
-        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_arm64");
+    let mut command = async_process::Command::new(OPC_CONNECTOR_PATH);
     let output = command
         .arg("points")
         .arg(format!("--conf={}", &config_path.display()))
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .output()?;
+        .stdout(async_process::Stdio::piped())
+        .stderr(async_process::Stdio::piped())
+        .output()
+        .await
+        .context("Start OPC collector error")?;
     // dbg!(output);
     log::info!("OPC exit with status {}", output.status);
 
@@ -678,7 +787,8 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
         table_info: HashMap::new(),
     };
     let toml = toml::to_string(&config)?;
-    assert_eq!(r#"opc_type = "opcua"
+    assert_eq!(
+        r#"opc_type = "opcua"
 
 [connect.ua]
 endpoint = "endpoint.123"
@@ -707,17 +817,33 @@ value_type = "VARCHAR"
 remote = "remote.remote"
 concurrent = 10
 batch_timeout = 100
-"#, toml);
+"#,
+        toml
+    );
     Ok(())
 }
 
 #[tokio::test]
-async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> { 
+async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
-    assert_eq!(vec_string, vec![String::from("ns=3;i=1004::ntb1::c0::double"), String::from("ns=3;i=1008::ntb1::c1::double")]);
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").map_err(|s| OpcError::FileParseFound(s))?;
+    assert_eq!(
+        vec_string,
+        vec![
+            String::from("ns=3;i=1004::ntb1::c0::double"),
+            String::from("ns=3;i=1008::ntb1::c1::double")
+        ]
+    );
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
-    assert_eq!(vec_string, vec![String::from("ns=3;i=1004::ntb1::c0::double"), String::from("ns=3;i=1008::ntb1::c1::double"), String::from("ns=2;i=2::ntb2::c1::double"), String::from("ns=2;i=3::ntb3::c2::int")]);
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").map_err(|s| OpcError::FileParseFound(s))?;
+    assert_eq!(
+        vec_string,
+        vec![
+            String::from("ns=3;i=1004::ntb1::c0::double"),
+            String::from("ns=3;i=1008::ntb1::c1::double"),
+            String::from("ns=2;i=2::ntb2::c1::double"),
+            String::from("ns=2;i=3::ntb3::c2::int")
+        ]
+    );
     Ok(())
 }

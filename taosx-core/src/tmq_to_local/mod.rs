@@ -34,19 +34,6 @@ impl Drop for ZFileMan {
     }
 }
 
-fn block_in_place<F>(f: F) -> F::Output
-where
-    F: std::future::Future,
-{
-    use tokio::runtime::Handle;
-    use tokio::task;
-
-    match Handle::try_current() {
-        Ok(handle) => task::block_in_place(move || handle.block_on(f)),
-        Err(_) => unreachable!(),
-    }
-}
-
 impl ZFileMan {
     pub async fn shutdown(&self) -> Result<()> {
         for entry in self.writers.iter_mut() {
@@ -285,7 +272,7 @@ pub async fn tmq_to_local(
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !builder.is_enterprise_edition().await {
+    if !builder.is_enterprise_edition().await? {
         anyhow::bail!(
             "Only enterprise edition is supported. If it's not your case, please contact us."
         )

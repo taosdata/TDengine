@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 use taos::*;
 use tokio::sync::Semaphore;
 
-use crate::{taoz::ZCodec, tmq_to_local::LocalConfig, utils::is_available_enterprise_edition};
+use crate::{taoz::ZCodec, tmq_to_local::LocalConfig};
 
 #[async_backtrace::framed]
 async fn restore(
@@ -158,7 +158,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
     let global_taos = target.build().await?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !is_available_enterprise_edition(&target).await {
+    if !target.is_enterprise_edition().await? {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
 

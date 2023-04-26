@@ -1,6 +1,3 @@
-use std::{io::Write, str::FromStr};
-use std::path::Path;
-
 fn labeling() {
     let cus_name = std::env::var("CUS_NAME").unwrap_or("TDengine".to_string());
     let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("taos".to_string());

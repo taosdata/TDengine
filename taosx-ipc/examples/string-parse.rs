@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use arrow::{
     array::{
-        BinaryBuilder, Float64Builder, Int32Builder, StringBuilder, TimestampMillisecondBuilder,
+        StringBuilder, TimestampMillisecondBuilder,
     },
     datatypes::DataType,
     ipc::writer::StreamWriter,

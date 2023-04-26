@@ -15,13 +15,19 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use task::*;
 
+mod agent;
 mod controller;
 mod data_sources;
 mod metrics;
 mod task;
+// mod rpc;
 
 use controller::*;
 use data_sources::*;
+
+use crate::serve::controller::agent::{AgentProps, AgentUpdates, Agent, AgentWithToken, AgentStatus, AgentConnectors};
+
+use self::agent::{create_agent, delete_agent, get_agents, update_agent};
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
     /// Listen to ip:port address.
@@ -66,7 +72,11 @@ fn configure(store: Data<TaskController>) -> impl FnOnce(&mut ServiceConfig) {
             .service(stop_task)
             .service(metrics::metrics_exporter)
             .service(data_sources_in)
-            .service(data_source_collection);
+            .service(data_source_collection)
+            .service(create_agent)
+            .service(update_agent)
+            .service(delete_agent)
+            .service(get_agents);
     }
 }
 impl Cli {
@@ -101,7 +111,14 @@ impl Cli {
                     Hint,
                     HintDefinition,
                     Definitions,
-                    AuthItem
+                    AuthItem,
+                    Agent,
+                    AgentFilter,
+                    AgentProps,
+                    AgentUpdates,
+                    AgentWithToken,
+                    AgentStatus,
+                    AgentConnectors,
                 ),
                 responses(
                 )
@@ -115,13 +132,22 @@ impl Cli {
                 task::start_task,
                 task::stop_task,
                 task::get_task_by_id,
+
                 metrics::metrics_exporter,
+
                 data_sources_in,
                 data_source_collection,
+
+                agent::create_agent,
+                agent::update_agent,
+                agent::delete_agent,
+                agent::get_agents
+
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints"),
                 (name = "data sources", description = "Data in/out"),
+                (name = "agents", description = "Agents Management"),
             ),
         )]
         struct ApiDoc;
