@@ -15,7 +15,7 @@
 
 #include "streamInc.h"
 
-#define STREAM_EXEC_MAX_BATCH_NUM 1024
+#define STREAM_EXEC_MAX_BATCH_NUM 4096
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*) &pStatus->taskStatus);

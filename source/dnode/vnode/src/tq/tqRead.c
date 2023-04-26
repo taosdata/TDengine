@@ -469,25 +469,28 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
   pBlock->info.version = pReader->msg2.ver;
 
   if (pReader->cachedSchemaSuid == 0 || pReader->cachedSchemaVer != sversion || pReader->cachedSchemaSuid != suid) {
-    taosMemoryFree(pReader->pSchema);
-    pReader->pSchema = metaGetTbTSchema(pReader->pVnodeMeta, uid, sversion, 1);
-    if (pReader->pSchema == NULL) {
-      tqWarn("vgId:%d, cannot found tsschema for table: uid:%" PRId64 " (suid:%" PRId64
-             "), version %d, possibly dropped table",
-             pReader->pWalReader->pWal->cfg.vgId, uid, suid, sversion);
-      pReader->cachedSchemaSuid = 0;
-      terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
-      return -1;
-    }
+    if(pReader->cachedSchemaVer != sversion) {
+      taosMemoryFree(pReader->pSchema);
+      pReader->pSchema = metaGetTbTSchema(pReader->pVnodeMeta, uid, sversion, 1);
+      if (pReader->pSchema == NULL) {
+        tqWarn("vgId:%d, cannot found tsschema for table: uid:%" PRId64 " (suid:%" PRId64
+              "), version %d, possibly dropped table",
+              pReader->pWalReader->pWal->cfg.vgId, uid, suid, sversion);
+        pReader->cachedSchemaSuid = 0;
+        terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
+        return -1;
+      }
 
-    tDeleteSSchemaWrapper(pReader->pSchemaWrapper);
-    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);
-    if (pReader->pSchemaWrapper == NULL) {
-      tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
-             pReader->pWalReader->pWal->cfg.vgId, uid, pReader->cachedSchemaVer);
-      pReader->cachedSchemaSuid = 0;
-      terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
-      return -1;
+      tDeleteSSchemaWrapper(pReader->pSchemaWrapper);
+      pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);
+      if (pReader->pSchemaWrapper == NULL) {
+        tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
+              pReader->pWalReader->pWal->cfg.vgId, uid, pReader->cachedSchemaVer);
+        pReader->cachedSchemaSuid = 0;
+        terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
+        return -1;
+      }
+      pReader->cachedSchemaVer = sversion;
     }
 
     STSchema*       pTschema = pReader->pSchema;

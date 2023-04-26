@@ -42,6 +42,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
                                       TSKEY delMark);
 void              streamFileStateDestroy(SStreamFileState* pFileState);
 void              streamFileStateClear(SStreamFileState* pFileState);
+bool              needClearDiskBuff(SStreamFileState* pFileState);
 
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
 int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
