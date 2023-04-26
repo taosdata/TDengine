@@ -155,7 +155,7 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
 
   int64_t fetchUs = 0, fetchNum = 0;
   tsortClearOrderdSource(pSortHandle->pOrderedSource, &fetchUs, &fetchNum);
-  qError("all source fetch time: %" PRId64 "us num:%" PRId64 " %s", fetchUs, fetchNum, pSortHandle->idStr);
+  qDebug("all source fetch time: %" PRId64 "us num:%" PRId64 " %s", fetchUs, fetchNum, pSortHandle->idStr);
   
   taosArrayDestroy(pSortHandle->pOrderedSource);
   taosMemoryFreeClear(pSortHandle);
@@ -316,7 +316,7 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
     }
 
     int64_t et = taosGetTimestampUs();
-    qError("init for merge sort completed, elapsed time:%.2f ms, %s", (et - st) / 1000.0, pHandle->idStr);
+    qDebug("init for merge sort completed, elapsed time:%.2f ms, %s", (et - st) / 1000.0, pHandle->idStr);
   }
 
   return code;
