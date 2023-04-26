@@ -14,7 +14,9 @@
       }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="agentList" size="mini">
+
       <el-table-column label="ID" prop="id" width="60"></el-table-column>
+
       <el-table-column
         :label="$t('taosagents.cluster_id')"
         prop="cluster_id"
@@ -154,8 +156,10 @@
         <el-form-item prop="name" :label="$t('taosagents.name')">
           <el-input v-model.trim="ruleForm.name"></el-input>
         </el-form-item>
+
         <el-form-item :label="$t('taosagents.connectors')" prop="connectors">
           <el-select v-model="ruleForm.connectors" placeholder="" multiple>
+
             <el-option
               v-for="db in connectorList"
               :key="db.id"
@@ -166,17 +170,21 @@
           </el-select>
         </el-form-item>
         <el-form-item
+
           :label="$t('taosagents.expire_date')"
           prop="expire_date"
           expire_time
+
         >
           <el-date-picker
             v-model="ruleForm.expire_date"
             style="width: 100%"
             :picker-options="expireTimeOPtion"
+
             type="date"
             format="yyyy-MM-dd"
           ></el-date-picker>
+
         </el-form-item>
       </el-form>
 
@@ -217,6 +225,7 @@
   </div>
 </template>
 <script>
+
 import {
   getAgentsData,
   addNewAgent,
@@ -226,6 +235,7 @@ import {
 import { copy } from "@/utils/index";
 import { getUIData } from "@/api/explorer/datain";
 import { format } from "date-fns";
+
 export default {
   name: "Agent",
   data() {
@@ -235,7 +245,9 @@ export default {
           return time.getTime() < Date.now();
         },
       },
+
       agenttoken: "",
+
       requestIng: false,
       dblist: [],
       isEditDialog: false,
@@ -252,6 +264,7 @@ export default {
         name: "",
         connectors: "",
         expire_date: "",
+
       },
       rules: {
         name: [
@@ -273,11 +286,15 @@ export default {
             message: this.$t("taosagents.rules.expire_date"),
             trigger: "blur",
             required: true,
+
+
           },
         ],
       },
       agentList: [],
+
       connectorList: [],
+
     };
   },
   computed: {

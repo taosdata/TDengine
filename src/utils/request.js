@@ -89,6 +89,7 @@ request.interceptors.response.use(
     Message.closeAll()
     if (error.config.baseURL.includes('/api/x')) {
 
+
       if (error.response && error.response.status === 404) {
         Message.error(navigator.language.includes('zh') ? taosx404 : taosx404en)
       } else
@@ -97,6 +98,7 @@ request.interceptors.response.use(
         } else {
           error.message && Message.error(error.message)
         }
+
 
     }
 
