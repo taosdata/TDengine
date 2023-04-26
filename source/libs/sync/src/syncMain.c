@@ -463,8 +463,7 @@ bool syncSnapshotRecving(int64_t rid) {
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
     sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
-    terrno = TSDB_CODE_SYN_ONE_REPLICA;
-    return -1;
+    return 0;
   }
 
   int32_t ret = 0;
@@ -486,7 +485,6 @@ int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   if (pSyncNode->replicaNum == 1) {
     sDebug("vgId:%d, only one replica, cannot leader transfer", pSyncNode->vgId);
-    terrno = TSDB_CODE_SYN_ONE_REPLICA;
     return -1;
   }
 
@@ -580,25 +578,37 @@ int32_t syncIsCatchUp(int64_t rid) {
     return -1;
   }
 
-  while(1){
-    if(pSyncNode->pLogBuf->totalIndex < 0 || pSyncNode->pLogBuf->commitIndex < 0 ||
-        pSyncNode->pLogBuf->totalIndex < pSyncNode->pLogBuf->commitIndex ||
-        pSyncNode->pLogBuf->totalIndex - pSyncNode->pLogBuf->commitIndex > SYNC_LEARNER_CATCHUP){
-      sInfo("vgId:%d, Not catch up, wait one second, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
-                                    pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex, 
-                                    pSyncNode->pLogBuf->matchIndex);
-      taosSsleep(1);
-    }
-    else{
-      sInfo("vgId:%d, Catch up, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
-                                    pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex,
-                                    pSyncNode->pLogBuf->matchIndex);
-      break;
-    }
+  int32_t isCatchUp = 0;
+  if(pSyncNode->pLogBuf->totalIndex < 0 || pSyncNode->pLogBuf->commitIndex < 0 ||
+      pSyncNode->pLogBuf->totalIndex < pSyncNode->pLogBuf->commitIndex ||
+      pSyncNode->pLogBuf->totalIndex - pSyncNode->pLogBuf->commitIndex > SYNC_LEARNER_CATCHUP){
+    sInfo("vgId:%d, Not catch up, wait one second, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
+                                  pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex, 
+                                  pSyncNode->pLogBuf->matchIndex);
+    isCatchUp = 0;
+  }
+  else{
+    sInfo("vgId:%d, Catch up, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
+                                  pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex,
+                                  pSyncNode->pLogBuf->matchIndex);
+    isCatchUp = 1;
   }
   
   syncNodeRelease(pSyncNode);
-  return 0;
+  return isCatchUp;
+}
+
+ESyncRole syncGetRole(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    sError("sync Node Acquire error since %d", errno);
+    return -1;
+  }
+
+  ESyncRole role = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole;
+  
+  syncNodeRelease(pSyncNode);
+  return role;
 }
 
 int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_t* seq) {
@@ -2144,7 +2154,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
   SSyncHbTimerData* pData = syncHbTimerDataAcquire(hbDataRid);
   if (pData == NULL) {
-    sError("hb timer get pData NULL, rid:%" PRId64 " addr:%" PRId64, hbDataRid, pData->destId.addr);
+    sError("hb timer get pData NULL, %" PRId64, hbDataRid);
     return;
   }
 

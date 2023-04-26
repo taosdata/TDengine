@@ -500,7 +500,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
           break;
         default:
           ASSERTS(0, "invalid row format");
-          return TSDB_CODE_IVLD_DATA_FMT;
+          return TSDB_CODE_INVALID_DATA_FMT;
       }
 
       if (bv == BIT_FLG_NONE) {
@@ -938,7 +938,7 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
       break;
     default:
       ASSERTS(0, "Invalid row flag");
-      return TSDB_CODE_IVLD_DATA_FMT;
+      return TSDB_CODE_INVALID_DATA_FMT;
   }
 
   while (pColData) {
@@ -963,7 +963,7 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
               break;
             default:
               ASSERTS(0, "Invalid row flag");
-              return TSDB_CODE_IVLD_DATA_FMT;
+              return TSDB_CODE_INVALID_DATA_FMT;
           }
 
           if (bv == BIT_FLG_NONE) {
@@ -1054,7 +1054,7 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
             pData = pv + ((uint32_t *)pKVIdx->idx)[iCol];
           } else {
             ASSERTS(0, "Invalid KV row format");
-            return TSDB_CODE_IVLD_DATA_FMT;
+            return TSDB_CODE_INVALID_DATA_FMT;
           }
 
           int16_t cid;
@@ -2504,9 +2504,11 @@ _exit:
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
   int32_t code = 0;
 
-  ASSERT(pColData->type == pBind->buffer_type);
-
-  if (IS_VAR_DATA_TYPE(pBind->buffer_type)) {  // var-length data type
+  if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
+    ASSERT(pColData->type == pBind->buffer_type);
+  }
+  
+  if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);

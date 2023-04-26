@@ -250,6 +250,7 @@ void    syncPreStop(int64_t rid);
 void    syncPostStop(int64_t rid);
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak, int64_t* seq);
 int32_t syncIsCatchUp(int64_t rid);
+ESyncRole syncGetRole(int64_t rid);
 int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 int32_t syncReconfig(int64_t rid, SSyncCfg* pCfg);
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
