@@ -27,6 +27,7 @@ struct SSttFileReader {
   // TODO
 };
 
+// SSttFileReader
 int32_t tsdbSttFReaderOpen(const SSttFileReaderConfig *config, SSttFileReader **ppReader) {
   int32_t code = 0;
   // TODO
@@ -34,6 +35,61 @@ int32_t tsdbSttFReaderOpen(const SSttFileReaderConfig *config, SSttFileReader **
 }
 
 int32_t tsdbSttFReaderClose(SSttFileReader **ppReader) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+// SSttFSegReader
+int32_t tsdbSttFSegReaderOpen(SSttFileReader *pReader, SSttFSegReader **ppSegReader, int32_t nSegment) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFSegReaderClose(SSttFSegReader **ppSegReader) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFSegReadBloomFilter(SSttFSegReader *pSegReader, const void *pFilter) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFSegReadStatisBlk(SSttFSegReader *pSegReader, const SArray *pStatis) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFSegReadDelBlk(SSttFSegReader *pSegReader, const SArray *pDelBlk) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFSegReadSttBlk(SSttFSegReader *pSegReader, const SArray *pSttBlk) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFSegReadStatisBlock(SSttFSegReader *pSegReader, const void *pBlock) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFSegReadDelBlock(SSttFSegReader *pSegReader, const void *pBlock) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFSegReadSttBlock(SSttFSegReader *pSegReader, const void *pBlock) {
   int32_t code = 0;
   // TODO
   return code;
