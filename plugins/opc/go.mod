@@ -4,8 +4,8 @@ go 1.20
 
 require (
 	github.com/BurntSushi/toml v1.2.1
-	github.com/apache/arrow/go/v12 v12.0.0-20230424061852-cd14e2019ce9
-	github.com/huskar-t/opcua v0.0.0-20221116012318-63000ef63f36
+	github.com/apache/arrow/go/v12 v12.0.0-20230426023424-8fbf2d732789
+	github.com/gopcua/opcua v0.3.13
 	github.com/konimarti/opc v0.3.1
 )
 

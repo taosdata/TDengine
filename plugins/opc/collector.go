@@ -77,7 +77,7 @@ func collect(ctx context.Context, configPath *string) {
 		log.Println("## parse config file error ", err)
 		os.Exit(1)
 	}
-	collector, err := worker.NewCollector(config)
+	collector, err := worker.NewCollector(ctx, config)
 	if err != nil {
 		log.Println("## new opc collector error ", err)
 		os.Exit(1)

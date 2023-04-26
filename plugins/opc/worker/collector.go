@@ -24,14 +24,15 @@ type OpcCollector struct {
 	collector        connector.Connector
 	reporter         reporter.Reporter
 	done             chan struct{}
+	nodeCount        int
+	nodeValueCh      chan []*common.NodeValue
 	batchSize        int
 	batchDuration    time.Duration
-	nodeValueCh      chan []*common.NodeValue
 	reportConcurrent int
 	once             sync.Once
 }
 
-func NewCollector(config common.Config) (*OpcCollector, error) {
+func NewCollector(ctx context.Context, config common.Config) (*OpcCollector, error) {
 	if err := config.Report.Validate(); err != nil {
 		return nil, err
 	}
@@ -64,13 +65,14 @@ func NewCollector(config common.Config) (*OpcCollector, error) {
 		collector:        c,
 		reporter:         r,
 		done:             make(chan struct{}, 1),
+		nodeCount:        len(config.Collect.Ua.Nodes) + len(config.Collect.Da.Tags),
 		batchSize:        config.Report.BatchSize,
 		batchDuration:    time.Duration(config.Report.BatchTimeout) * time.Second,
 		nodeValueCh:      make(chan []*common.NodeValue, 100),
 		reportConcurrent: config.Report.Concurrent,
 	}
 
-	opcCollector.doReport()
+	opcCollector.doReport(ctx)
 	return &opcCollector, nil
 }
 
@@ -116,13 +118,20 @@ func (c *OpcCollector) collect(ctx context.Context) error {
 	ticker := time.NewTicker(c.batchDuration)
 	defer ticker.Stop()
 
-	values := make(map[string][]*common.NodeValue, c.batchSize)
+	values := make(map[string][]*common.NodeValue, c.nodeCount) // key: node identifier, value: node value
 	f := func(threshold int) {
-		if len(values) >= threshold {
-			for _, value := range values {
-				c.nodeValueCh <- value
+		var shouldReport bool
+		for _, nodeValues := range values {
+			if len(nodeValues) >= threshold {
+				shouldReport = true
+				break
 			}
-			values = make(map[string][]*common.NodeValue, c.batchSize)
+		}
+		if shouldReport {
+			for _, nodeValues := range values {
+				c.nodeValueCh <- nodeValues
+			}
+			values = make(map[string][]*common.NodeValue, c.nodeCount) // key: node identifier, value: node value
 		}
 	}
 
@@ -131,7 +140,7 @@ func (c *OpcCollector) collect(ctx context.Context) error {
 		case value, ok := <-ch:
 			if !ok {
 				// ch is close. and should exist
-				f(0)
+				f(1)
 				return nil
 			}
 			if _, exists := values[value.Identifier]; !exists {
@@ -140,29 +149,29 @@ func (c *OpcCollector) collect(ctx context.Context) error {
 			values[value.Identifier] = append(values[value.Identifier], value)
 			f(c.batchSize)
 		case <-ticker.C:
-			f(0)
+			f(1)
 		case <-notifyCtx.Done():
-			f(0)
+			f(1)
 			return nil
 		case <-c.done:
-			f(0)
+			f(1)
 			return nil
 		}
 	}
 }
 
-func (c *OpcCollector) doReport() {
+func (c *OpcCollector) doReport(ctx context.Context) {
 	for i := 0; i < c.reportConcurrent; i++ {
-		go func() {
+		go func(index int) {
 			for nodeValues := range c.nodeValueCh {
-				c.report(context.Background(), nodeValues)
+				c.report(ctx, index, nodeValues)
 			}
-		}()
+		}(i)
 	}
 }
 
-func (c *OpcCollector) report(ctx context.Context, values []*common.NodeValue) {
-	if err := c.reporter.Report(ctx, values); err != nil {
+func (c *OpcCollector) report(ctx context.Context, routineId int, values []*common.NodeValue) {
+	if err := c.reporter.Report(ctx, routineId, values); err != nil {
 		log.Printf("## report node value error, and exit %v", err)
 		// report data error, and exit
 		c.Stop(ctx)

@@ -3,7 +3,6 @@ package reporter
 import (
 	"collector/common"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -18,15 +17,16 @@ import (
 )
 
 type Reporter interface {
-	Report(ctx context.Context, values []*common.NodeValue) error
+	Report(ctx context.Context, routineId int, values []*common.NodeValue) error
 	Close()
 }
 
+// ArrowReporter is a reporter that sends data to taosx
 type ArrowReporter struct {
 	address         *net.TCPAddr
-	valueTypeSchema sync.Map // key-valueType, valueType- *schema
+	valueTypeSchema sync.Map // key- valueType, value - *schema
 	schemaLock      sync.Mutex
-	schemaWriter    sync.Map // key-valueType, *schema- *ipc.Writer
+	schemaWriter    sync.Map // key-g-routine id with node id, value *ipc.Writer The *ipc.Writer is not thread-safe!
 	writerLock      sync.Mutex
 	debug           bool
 	counter         atomic.Uint64
@@ -46,13 +46,9 @@ func NewArrowReporter(config common.Config) (*ArrowReporter, error) {
 	return &reporter, nil
 }
 
-func (r *ArrowReporter) Report(_ context.Context, values []*common.NodeValue) error {
+func (r *ArrowReporter) Report(_ context.Context, routineId int, values []*common.NodeValue) error {
 	if len(values) == 0 {
 		return nil
-	}
-	if r.debug {
-		j, _ := json.Marshal(values)
-		log.Println("## Reporting to taosx", "values", string(j))
 	}
 
 	schema, err := r.getSchemaByValueType(values[0].ValueType)
@@ -68,21 +64,9 @@ func (r *ArrowReporter) Report(_ context.Context, values []*common.NodeValue) er
 	}
 	defer record.Release()
 
-	if err = r.write(schema, record); err != nil {
+	if err = r.write(routineId, schema, record); err != nil {
 		log.Println("## write data error", "error", err)
 		return fmt.Errorf("write data error %v", err)
-	}
-
-	if r.debug {
-		if r.counter.Load() > math.MaxUint64-uint64(record.NumRows()) {
-			r.counter.Store(0)
-		}
-		r.counter.Add(uint64(record.NumRows()))
-		log.Printf("## [%d] record already sent", r.counter.Load())
-
-		for i, col := range record.Columns() {
-			log.Printf("##  record column [%s] value [%v]", record.ColumnName(i), col)
-		}
 	}
 
 	return nil
@@ -91,8 +75,8 @@ func (r *ArrowReporter) Report(_ context.Context, values []*common.NodeValue) er
 func (r *ArrowReporter) Close() {
 	log.Println("## close reporter")
 	r.schemaWriter.Range(func(key, value any) bool {
-		writer := value.(*ipcWriter)
-		_ = writer.writer.Close()
+		writer := value.(*ipc.Writer)
+		_ = writer.Close()
 		return true
 	})
 }
@@ -163,41 +147,46 @@ func (r *ArrowReporter) getSchemaByValueType(valueType common.ValueType) (*arrow
 	return schema, nil
 }
 
-func (r *ArrowReporter) write(schema *arrow.Schema, record arrow.Record) (err error) {
-	writer, err := r.getWriter(schema)
+func (r *ArrowReporter) write(routineID int, schema *arrow.Schema, record arrow.Record) (err error) {
+	writer, err := r.getWriter(routineID, schema)
 	if err != nil {
 		log.Println("## get writer error", "error", err)
 		return fmt.Errorf("get arrow writer error %v", err)
 	}
 
-	writer.lock.Lock()
-	defer writer.lock.Unlock()
-
-	if err = writer.writer.Write(record); err != nil {
+	// ipc writer is not thread safe, so we need to get a writer for each routine.
+	// and the ipc writer should be used in single routine.
+	if err = writer.Write(record); err != nil {
 		log.Println("## write record error", "error", err)
 		return fmt.Errorf("report data error %v", err)
 	}
-	writer.written.Store(true)
+
+	if r.debug {
+		j, _ := record.MarshalJSON()
+		log.Printf("report to taosx by writer [%p] values [%s]", writer, string(j))
+
+		if r.counter.Load() > math.MaxUint64-uint64(record.NumRows()) {
+			r.counter.Store(0)
+		}
+		r.counter.Add(uint64(record.NumRows()))
+		log.Printf("## [%d] record already sent", r.counter.Load())
+	}
 
 	return nil
 }
 
-type ipcWriter struct {
-	writer  *ipc.Writer
-	lock    sync.Mutex
-	written atomic.Bool
-}
-
-func (r *ArrowReporter) getWriter(schema *arrow.Schema) (writer *ipcWriter, err error) {
-	if writer, ok := r.schemaWriter.Load(schema); ok {
-		return writer.(*ipcWriter), nil
+func (r *ArrowReporter) getWriter(routineID int, schema *arrow.Schema) (writer *ipc.Writer, err error) {
+	// ipc writer is not thread safe, so we need to get a writer for each routine.
+	writerKey := getWriterKey(routineID, schema)
+	if writer, ok := r.schemaWriter.Load(writerKey); ok {
+		return writer.(*ipc.Writer), nil
 	}
 
 	r.writerLock.Lock()
 	defer r.writerLock.Unlock()
 
-	if writer, ok := r.schemaWriter.Load(schema); ok {
-		return writer.(*ipcWriter), nil
+	if writer, ok := r.schemaWriter.Load(writerKey); ok {
+		return writer.(*ipc.Writer), nil
 	}
 
 	conn, err := net.DialTCP("tcp", nil, r.address)
@@ -205,15 +194,12 @@ func (r *ArrowReporter) getWriter(schema *arrow.Schema) (writer *ipcWriter, err 
 		return nil, fmt.Errorf("dial tcp error %v", err)
 	}
 	if r.debug {
-		log.Println("## create connection for value type to taosx", "address", r.address.String())
+		log.Printf("## create connection for routine [%d] and schema [%s] to taosx %s", routineID,
+			schema.Fingerprint(), r.address.String())
 	}
 
-	writer = &ipcWriter{writer: ipc.NewWriter(conn, ipc.WithSchema(schema))}
-	if err != nil {
-		return nil, fmt.Errorf("create arrow writer error %v", err)
-	}
-
-	r.schemaWriter.Store(schema, writer)
+	writer = ipc.NewWriter(conn, ipc.WithSchema(schema))
+	r.schemaWriter.Store(writerKey, writer)
 	return
 }
 
@@ -405,4 +391,8 @@ func appendTime(builder array.Builder, value any) error {
 	}
 	builder.(*array.TimestampBuilder).Append(arrow.Timestamp(v.UnixNano()))
 	return nil
+}
+
+func getWriterKey(routineID int, schema *arrow.Schema) string {
+	return fmt.Sprintf("%d-%s", routineID, schema.Fingerprint())
 }

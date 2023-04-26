@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/huskar-t/opcua"
-	"github.com/huskar-t/opcua/ua"
+	"github.com/gopcua/opcua"
+	"github.com/gopcua/opcua/ua"
 )
 
 type reader struct {
@@ -83,9 +83,9 @@ func (r *reader) connect(ctx context.Context) error {
 
 	r.client = opcua.NewClient(r.connectConfig.Endpoint, opts...)
 
-	ctx, cancel := context.WithTimeout(context.Background(), r.connectTimeout)
+	timeoutCtx, cancel := context.WithTimeout(ctx, r.connectTimeout)
 	defer cancel()
-	if err := r.client.Connect(ctx); err != nil {
+	if err := r.client.Connect(timeoutCtx); err != nil {
 		r.state = opcua.Disconnected
 		return fmt.Errorf("error in Client Connection: %w", err)
 	}
@@ -234,7 +234,8 @@ func (r *reader) readValue(ctx context.Context) ([]*common.NodeValue, error) {
 		}
 
 		if r.debug {
-			log.Printf("## read opc ua value [%v] type [%v]", value.Value.Value(), value.Value.Type())
+			log.Printf("## read opc ua identifier [%s] value [%v] type [%v]", identifier,
+				value.Value.Value(), value.Value.Type())
 		}
 
 		if err = r.checkValueType(identifier, value, r.nodeTypes[i]); err != nil {
@@ -274,7 +275,7 @@ func (r *reader) subscribe(ctx context.Context) (<-chan *common.NodeValue, error
 			if sub == nil {
 				return
 			}
-			cancelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			cancelCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
 			_ = sub.Cancel(cancelCtx)
 
