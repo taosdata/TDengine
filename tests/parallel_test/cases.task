@@ -137,6 +137,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
