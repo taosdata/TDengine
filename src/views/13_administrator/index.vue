@@ -18,9 +18,9 @@
         <el-tab-pane name="license" :label="$t('topic.license')" >
           <License></License>
         </el-tab-pane>
-        <el-tab-pane name="agent" :label="$t('topic.agent')" >
+        <!-- <el-tab-pane name="agent" :label="$t('topic.agent')" >
           <Agent></Agent>
-        </el-tab-pane>
+        </el-tab-pane> -->
       </el-tabs>
     </div>
   </div>

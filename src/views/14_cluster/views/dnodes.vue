@@ -159,7 +159,7 @@ export default {
             this.dialog = false;
           }
         });
-      } catch (err) {
+      } catch (err) { 
         err && err.desc & Message.error(err.desc);
         return Promise.reject(err);
       }
