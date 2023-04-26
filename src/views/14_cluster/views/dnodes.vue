@@ -1,9 +1,14 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="add" size="small" icon="el-icon-plus" :disabled='!isDisable'>{{
-        $t("add")
-      }}</el-button>
+      <el-button
+        plain
+        @click="add"
+        size="small"
+        icon="el-icon-plus"
+        :disabled="!isDisable"
+        >{{ $t("add") }}</el-button
+      >
     </div>
     <el-table style="margin-top: 20px" :data="dnodesList" size="mini">
       <el-table-column
@@ -37,7 +42,7 @@
             size="small"
             @click="del(scope.row)"
             icon="el-icon-delete"
-            :disabled='!isDisable'
+            :disabled="!isDisable"
           ></el-button>
         </template>
       </el-table-column>
@@ -56,8 +61,8 @@
       :title="$t('taoscluster.adddnodes')"
       width="600px"
       :visible.sync="dialog"
-      @close='closeDialog'
-      :destroy-on-close='true'
+      @close="closeDialog"
+      :destroy-on-close="true"
     >
       <el-form
         :model="ruleForm"
@@ -67,7 +72,11 @@
         label-width="auto"
         class="demo-ruleForm"
       >
-        <el-form-item :label="$t('taoscluster.endpoint')" prop="endpoint" required>
+        <el-form-item
+          :label="$t('taoscluster.endpoint')"
+          prop="endpoint"
+          required
+        >
           <el-input v-model.trim="ruleForm.endpoint" ref="endinput"></el-input>
         </el-form-item>
       </el-form>
@@ -100,9 +109,8 @@ export default {
   mixins: [mix],
   data() {
     return {
-      isDisable:localStorage.getItem('username')==='root',
-      dnodesList: [
-      ],
+      isDisable: localStorage.getItem("username") === "root",
+      dnodesList: [],
     };
   },
   created() {
@@ -112,42 +120,50 @@ export default {
     handlePageChange() {},
     del(data) {
       this.$confirm(
-        this.$t('isDel').replace('{isDelName}',data.endpoint),
-        this.$t('wraning'),
+        this.$t("isDel").replace("{isDelName}", data.endpoint),
+        this.$t("wraning"),
         {
-          confirmButtonText: this.$t('confirm'),
-          cancelButtonText: this.$t('cancel'),
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
           type: "warning",
         }
       ).then(() => {
-        sendSQLReq(`drop dnode ${data.id}`).then((res) => {
-          if (res.code == 0) {
-            Message.success(this.$t('delSucc'));
-            this.getAllDnodes();
-          }
-        });
+        try {
+          sendSQLReq(`drop dnode ${data.id}`).then((res) => {
+            if (res.code == 0) {
+              Message.success(this.$t("delSucc"));
+              this.getAllDnodes();
+            }
+          }).catch(err=>{
+            err.desc && Message.error(err.desc);
+          });
+        } catch (error) {
+          console.log(error, "删除");
+        }
       });
     },
     add() {
       this.dialog = true;
-      this.ruleForm.endpoint=''
-      this.$nextTick(()=>{
-        this.$refs.endinput.blur()
-      })
-      
+      this.ruleForm.endpoint = "";
+      this.$nextTick(() => {
+        this.$refs.endinput.blur();
+      });
     },
     async addDnodes() {
       try {
-        return await sendSQLReq(`create dnode \`${this.ruleForm.endpoint}\`;`).then(
-          (res) => {
-            if (res.code == 0) {
-              this.getAllDnodes();
-              this.dialog = false;
-            }
+
+        return await sendSQLReq(
+          `create dnode \`${this.ruleForm.endpoint}\`;`
+        ).then((res) => {
+          if (res.code == 0) {
+            this.getAllDnodes();
+            this.dialog = false;
+
           }
-        );
-      } catch (err) {
-        err&&err.desc&Message.error(err.desc)
+        });
+      } catch (err) { 
+        err && err.desc & Message.error(err.desc);
+
         return Promise.reject(err);
       }
     },
@@ -163,7 +179,7 @@ export default {
               })
             );
           });
-          this.$emit('sendData',this.dnodesList)
+          this.$emit("sendData", this.dnodesList);
         });
       } catch (error) {
         console.log(error);
@@ -173,18 +189,20 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.flexEnd{
+.flexEnd {
   position: absolute;
-  top:15px;
+  top: 15px;
   z-index: 9999;
   right: 10px;
-  .el-button{
+  .el-button {
     border: none;
     background: transparent;
   }
 }
-.dnode-block{
-  max-height:150px;
+
+.dnode-block {
+  max-height: 150px;
+
   overflow: auto;
 }
 </style>

@@ -1,6 +1,13 @@
 <template>
   <div>
-    <el-form :model="ruleForm" :rules="rules" ref="ruleForm" size="mini" label-width="auto" class="demo-ruleForm">
+    <el-form
+      :model="ruleForm"
+      :rules="rules"
+      ref="ruleForm"
+      size="mini"
+      label-width="auto"
+      class="demo-ruleForm"
+    >
       <el-form-item :label="$t('taosuser.username')" prop="user" required>
         <el-input v-model.trim="ruleForm.user"></el-input>
       </el-form-item>
@@ -9,11 +16,18 @@
       </el-form-item>
       <div class="line"></div>
 
-      <el-form-item :label="$t('taosuser.database')" v-if="this.databaseList.length > 0">
+      <el-form-item
+        :label="$t('taosuser.database')"
+        v-if="this.databaseList.length > 0"
+      >
         <ul>
           <li v-for="(item, index) in this.databaseList" :key="index">
             <label class="db-label">{{ item }}</label>
-            <el-checkbox-group v-model="selectedDatabasePrivileges[item]" class="db-pri" @change="changePri($event)">
+            <el-checkbox-group
+              v-model="selectedDatabasePrivileges[item]"
+              class="db-pri"
+              @change="changePri($event)"
+            >
               <el-checkbox label="Read"></el-checkbox>
               <el-checkbox label="Write"></el-checkbox>
               <!-- <el-checkbox label="All"></el-checkbox> -->
@@ -22,11 +36,17 @@
         </ul>
       </el-form-item>
 
-      <el-form-item :label="$t('taosuser.subscription')" v-if="this.topicList.length > 0">
+      <el-form-item
+        :label="$t('taosuser.subscription')"
+        v-if="this.topicList.length > 0"
+      >
         <ul>
           <li v-for="(item, index) in this.topicList" :key="index">
             <label class="db-label">{{ item }}</label>
-            <el-checkbox-group v-model="selectedTopicPrivileges[item]" class="topic-pri">
+            <el-checkbox-group
+              v-model="selectedTopicPrivileges[item]"
+              class="topic-pri"
+            >
               <el-checkbox label="Subscribe"></el-checkbox>
             </el-checkbox-group>
           </li>
@@ -41,8 +61,14 @@
         }}</el-button>
       </el-col>
       <el-col :span="5" :push="4">
-        <el-button size="small" :disabled="confirmStatus" @click="createUser" class="w100" type="primary">{{ $t("confirm")
-        }}</el-button>
+        <el-button
+          size="small"
+          :disabled="confirmStatus"
+          @click="createUser"
+          class="w100"
+          type="primary"
+          >{{ $t("confirm") }}</el-button
+        >
       </el-col>
     </el-row>
   </div>
@@ -56,42 +82,66 @@ export default {
   props: {
     close: {
       type: Function,
-      default: () => { },
+      default: () => {},
+    },
+    status: {
+      type: Boolean,
+      default: false,
     },
   },
   async created() {
     await this.getDatabaseList();
     await this.getTopicList();
   },
+  watch: {
+    status: {
+      deep: true,
+      handler(val) {
+        if (val) {
+          this.ruleForm.user = "";
+          this.ruleForm.pwd = "";
+          this.selectedDatabasePrivileges={}
+          this.selectedTopicPrivileges = {};
+        }
+
+        console.log(val,this.selectedTopicPrivileges, "状态值---");
+      },
+    },
+  },
   data() {
     return {
       ruleForm: {
         user: "",
-        pwd: ""
+        pwd: "",
       },
       rules: {
         user: [
-          { required: true, message: this.$t('taosuser.username') + this.$t('requiredMessage'), trigger: "blur" }
+          {
+            required: true,
+            message: this.$t("taosuser.username") + this.$t("requiredMessage"),
+            // trigger: "blur",
+          },
         ],
         pwd: [
-          { required: true, message: this.$t('taosuser.password') + this.$t('requiredMessage'), trigger: "blur" }
-        ]
+          {
+            required: true,
+            message: this.$t("taosuser.password") + this.$t("requiredMessage"),
+            // trigger: "blur",
+          },
+        ],
       },
       databaseList: [],
       topicList: [],
       selectedDatabasePrivileges: {},
       selectedTopicPrivileges: {},
-      confirmStatus: false
+      confirmStatus: false,
     };
   },
   methods: {
-    changePri() {
-    },
+    changePri() {},
     getDatabaseList() {
       try {
-        sendSQLReq(
-          `show databases;`
-        )
+        sendSQLReq(`show databases;`)
           .then((res) => {
             let databaseList = res.data.map((data) => {
               return Object.fromEntries(
@@ -101,14 +151,18 @@ export default {
               );
             });
             databaseList.forEach((item) => {
-              if (["performance_schema", "information_schema"].indexOf(item.name) < 0) {
+              if (
+                ["performance_schema", "information_schema"].indexOf(
+                  item.name
+                ) < 0
+              ) {
                 this.databaseList.push(item.name);
                 this.$set(this.selectedDatabasePrivileges, item.name, []);
               }
             });
           })
           .catch((err) => {
-            this.$emit("close")
+            this.$emit("close");
             return Promise.reject(err);
           });
       } catch (error) {
@@ -117,11 +171,9 @@ export default {
     },
     getTopicList() {
       try {
-        sendSQLReq(
-          `show topics;`
-        )
+        sendSQLReq(`show topics;`)
           .then((res) => {
-            console.log(res)
+            console.log(res);
             let topicList = res.data.map((data) => {
               return Object.fromEntries(
                 res.column_meta.map((item, index) => {
@@ -135,7 +187,7 @@ export default {
             });
           })
           .catch((err) => {
-            this.$emit("close")
+            this.$emit("close");
             // err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
@@ -151,24 +203,26 @@ export default {
     async grantPrivilege(privileges, dbName, userName) {
       return await sendSQLReq(
         `GRANT ${privileges} ON \`${dbName}\`.*  to \`${userName}\``
-      ).then((res) => {
-        console.log(res)
-        return Promise.resolve(res);
-      })
+      )
+        .then((res) => {
+          console.log(res);
+          return Promise.resolve(res);
+        })
         .catch((err) => {
-          this.$emit("close")
+          this.$emit("close");
           return Promise.reject(err);
         });
     },
     async grantTopic(topicName, userName) {
       return await sendSQLReq(
         `GRANT subscribe ON \`${topicName}\` to \`${userName}\``
-      ).then((res) => {
-        console.log(res)
-        return Promise.resolve(res);
-      })
+      )
+        .then((res) => {
+          console.log(res);
+          return Promise.resolve(res);
+        })
         .catch((err) => {
-          this.$emit("close")
+          this.$emit("close");
           return Promise.reject(err);
         });
     },
@@ -197,16 +251,16 @@ export default {
                     });
                   }
                 }
-                Message.success(this.$t('users.createNewUserSucTip'));
-                this.$emit("close")
+                Message.success(this.$t("users.createNewUserSucTip"));
+                this.$emit("close");
               })
               .catch((err) => {
-                if(err && (err.code == '9728' || err.code == '848')) {
-                  Message.error(this.$t('users.createNewUseErrCause'));
-                  return
+                if (err && (err.code == "9728" || err.code == "848")) {
+                  Message.error(this.$t("users.createNewUseErrCause"));
+                  return;
                 }
-                Message.error(this.$t('users.createNewUseErrTip'));
-                this.$emit("close")
+                Message.error(this.$t("users.createNewUseErrTip"));
+                this.$emit("close");
                 return Promise.reject(err);
               });
           } catch (error) {
@@ -217,7 +271,7 @@ export default {
         }
       });
     },
-  }
+  },
 };
 </script>
 

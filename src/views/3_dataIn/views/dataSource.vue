@@ -123,6 +123,11 @@
       :visible.sync="dialog"
       @closed="closeDialog"
     >
+      <!-- <div class="switch-agent">
+        <span class="label">{{ $t("enableagent") }}</span>
+        <el-switch v-model="switchVal" @change="changeAgent"></el-switch>
+      </div> -->
+
       <el-form
         :model="ruleForm"
         ref="ruleForm"
@@ -131,6 +136,20 @@
         label-position="left"
         class="demo-ruleForm"
       >
+        <!-- <el-form-item :label="$t('datasource.agent')" prop="agent" required v-if="switchVal">
+          <el-select
+            v-model="ruleForm.agent"
+            :placeholder="$t('datasource.agenttip')"
+            @change="selectAgenttype"
+          >
+            <el-option
+              :label="item.name"
+              :value="item.id"
+              v-for="item in agentList"
+              :key="item.id"
+            ></el-option>
+          </el-select>
+        </el-form-item> -->
         <el-form-item :label="$t('datasource.sourcetype')" prop="type" required>
           <el-select
             v-model="ruleForm.type"
@@ -139,7 +158,7 @@
             <el-option
               :label="item.name"
               :value="item.id"
-              v-for="item in sourceList"
+              v-for="item in typeList"
               :key="item.id"
             ></el-option>
           </el-select>
@@ -182,7 +201,7 @@
 import { Message } from "element-ui";
 import { getDatain, getOPC, getPI } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
-
+import { getAgentsData } from "@/api/explorer/agent";
 export default {
   name: "DataSource",
   props: {
@@ -210,19 +229,39 @@ export default {
   },
   data() {
     return {
+      typeList:[],
+      dataTypeMap: new Map([
+        ["tmq", "TDengine Subscription"],
+        ["pi", "PI"],
+        ["opcda", "OPC-DA"],
+        ["opcua", "OPC-UA"],
+      ]),
+      switchVal: false,
       dbsource: null,
       pageSize: 10,
       currentPage: 1,
       total: 10,
       dialog: false,
       ruleForm: {
+        agent:"",
         type: "",
         name: "",
       },
       topicList: [],
+      agentList:[]
     };
   },
   methods: {
+    selectAgenttype(){
+      this.typeList=this.agentList.filter(item=>item.id==this.ruleForm.agent)[0].connectors.map(val=>{
+        return {
+          id:val,
+          name:this.dataTypeMap.get(val)
+        }
+      })
+
+      console.log(this.ruleForm.agent,this.typeList,'选择的代理');
+    },
     handlePageChange() {},
     closeDialog() {
       this.$refs.ruleForm.resetFields();
@@ -240,7 +279,7 @@ export default {
               type: "success",
               message: "Deleted Successfully",
             });
-            this.refresh()
+            this.refresh();
           })
           .catch((err) => {
             return Promise.reject(err);
@@ -255,7 +294,7 @@ export default {
             ? data.to_expand.subject
             : "";
         this.$parent.uidata = editDdata;
-        localStorage.setItem('datainName',data.name)
+        localStorage.setItem("datainName", data.name);
         this.$parent.toggleComponent(
           this.ruleForm.type,
           data.from_detail.id,
@@ -339,7 +378,7 @@ export default {
           }
         ).then(async () => {
           await excuteStart(data.id).then((res) => {
-            this.refresh()
+            this.refresh();
           });
         });
       } catch (err) {
@@ -358,7 +397,7 @@ export default {
           }
         ).then(async () => {
           await excuteStop(data.id).then((res) => {
-            this.refresh()
+            this.refresh();
           });
         });
       } catch (err) {
@@ -378,12 +417,29 @@ export default {
           break;
       }
     },
+    async getAgentDataType() {
+      try {
+        this.agentList= await getAgentsData(
+          localStorage.getItem("local_clusterID"),
+          localStorage.getItem("username")
+        );
+        console.log(this.agentList, "代理的列表");
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    changeAgent() {
+      console.log(this.switchVal, "切换");
+      if (this.switchVal) {
+        this.getAgentDataType();
+      }
+    },
   },
   mounted() {
-    if(this.$parent.$parent.$parent.currentName=='datasource'){
-      this.refresh()
+    if (this.$parent.$parent.$parent.currentName == "datasource") {
+      this.refresh();
     }
-    
+    this.typeList=this.sourceList
   },
 };
 </script>
@@ -409,5 +465,23 @@ export default {
 }
 ::v-deep.input.el-input__inner {
   width: 172px !important;
+}
+.switch-agent {
+  display: flex;
+  margin-bottom: 15px;
+  padding-left: 10px;
+  .label {
+    color: #4d6992;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  ::v-deep {
+    .el-switch__core {
+      width: 55px !important;
+    }
+    .el-switch {
+      margin-left: 25px;
+    }
+  }
 }
 </style>

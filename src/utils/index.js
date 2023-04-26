@@ -5,6 +5,7 @@ import moment from "moment";
 import { Message } from "element-ui";
 import { $bus } from "@/const";
 import CryptoJS from "crypto-js";
+import i18n from "@/lang";
 let path = require("path");
 export function debounce(func, wait, immediate) {
   let timeout, args, context, timestamp, result;
@@ -159,7 +160,7 @@ export function download(url, filename) {
   document.body.removeChild(eleLink);
 }
 
-export function copy(text, success = () => Message.success("Copied!")) {
+export function copy(text, success = () => Message.success(i18n.t("copySucc"))) {
   let polyfillFn = () => {
     var textarea = document.createElement("textarea");
     document.body.appendChild(textarea);
