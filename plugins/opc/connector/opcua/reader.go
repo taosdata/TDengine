@@ -94,13 +94,17 @@ func (r *reader) connect(ctx context.Context) error {
 	log.Println("## connected to opc ua server")
 
 	if len(r.nodes) > 0 {
-		regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: r.nodes})
-		if err != nil {
-			return fmt.Errorf("register node failed: %w", err)
-		}
-
-		nodesToRead := make([]*ua.ReadValueID, len(regResp.RegisteredNodeIDs))
-		for i, v := range regResp.RegisteredNodeIDs {
+		//regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: r.nodes})
+		//if err != nil {
+		//	return fmt.Errorf("register node failed: %w", err)
+		//}
+		//
+		//nodesToRead := make([]*ua.ReadValueID, len(regResp.RegisteredNodeIDs))
+		//for i, v := range regResp.RegisteredNodeIDs {
+		//	nodesToRead[i] = &ua.ReadValueID{NodeID: v}
+		//}
+		nodesToRead := make([]*ua.ReadValueID, len(r.nodes))
+		for i, v := range r.nodes {
 			nodesToRead[i] = &ua.ReadValueID{NodeID: v}
 		}
 		r.nodesToRead = nodesToRead
@@ -115,12 +119,6 @@ func (r *reader) ensureConnected(ctx context.Context) error {
 	if r.state == opcua.Disconnected {
 		if err := r.connect(ctx); err != nil {
 			return err
-		}
-	}
-
-	if len(r.nodes) > 0 {
-		if _, err := r.readValue(ctx); err != nil {
-			return fmt.Errorf("get data failed: %w", err)
 		}
 	}
 
@@ -229,7 +227,7 @@ func (r *reader) readValue(ctx context.Context) ([]*common.NodeValue, error) {
 	for i, value := range res.Results {
 		identifier := r.nodes[i].String()
 		if value.Status != ua.StatusOK {
-			log.Printf("## read data for identifier %q status %v is not ok ", identifier, values)
+			log.Printf("## read data for identifier [%q] status [%v] is not ok(0x0) ", identifier, value.Status)
 			continue
 		}
 

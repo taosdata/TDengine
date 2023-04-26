@@ -43,8 +43,10 @@ func (c *UaConnector) Stop(ctx context.Context) {
 
 func (c *UaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, error) {
 	if c.collectMode == common.OPcUaSubscribeType {
+		log.Println("## opc ua connector is in subscribe mode")
 		return c.reader.subscribe(ctx)
 	}
+	log.Println("## opc ua connector collect is in observe mode")
 	return c.reader.read(ctx)
 }
 
