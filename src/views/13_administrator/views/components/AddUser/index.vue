@@ -255,11 +255,12 @@ export default {
                 this.$emit("close");
               })
               .catch((err) => {
-                if (err && (err.code == "9728" || err.code == "848")) {
-                  Message.error(this.$t("users.createNewUseErrCause"));
-                  return;
-                }
-                Message.error(this.$t("users.createNewUseErrTip"));
+                // if (err && (err.code == "9728" || err.code == "848")) {
+                //   Message.error(this.$t("users.createNewUseErrCause"));
+                //   return;
+                // }
+                // Message.error(this.$t("users.createNewUseErrTip"));
+                err&&err.desc&&Message.error(err.desc)
                 this.$emit("close");
                 return Promise.reject(err);
               });
