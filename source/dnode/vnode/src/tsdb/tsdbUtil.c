@@ -1051,8 +1051,6 @@ int32_t tBlockDataCreate(SBlockData *pBlockData) {
   pBlockData->aTSKEY = NULL;
   pBlockData->nColData = 0;
   pBlockData->aColData = NULL;
-
-_exit:
   return code;
 }
 

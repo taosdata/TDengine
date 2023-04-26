@@ -780,7 +780,6 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   }
 
   pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-
   setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
 
   code = tBlockDataCreate(&pReader->status.fileBlockData);
@@ -789,8 +788,21 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
     goto _end;
   }
 
-  ASSERT (pReader->suppInfo.colId[0] == PRIMARYKEY_TIMESTAMP_COL_ID);
+
+  if (pReader->suppInfo.colId[0] == PRIMARYKEY_TIMESTAMP_COL_ID) {
+    tsdbError("the first column isn't primary timestamp, %d, %s", pReader->suppInfo.colId[0], pReader->idStr);
+    terrno = TSDB_CODE_INVALID_PARA;
+    goto _end;
+  }
+
   pReader->status.pPrimaryTsCol = taosArrayGet(pReader->pResBlock->pDataBlock, pSup->slotId[0]);
+  int32_t type = pReader->status.pPrimaryTsCol->info.type;
+  if (type != TSDB_DATA_TYPE_TIMESTAMP) {
+    tsdbError("the first column isn't primary timestamp in result block, actual: %s, %s", tDataTypes[type].name,
+              pReader->idStr);
+    terrno = TSDB_CODE_INVALID_PARA;
+    goto _end;
+  }
 
   tsdbInitReaderLock(pReader);
 
@@ -2952,7 +2964,6 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
       }
 
       if (pBlockNum->numOfBlocks + pBlockNum->numOfLastFiles > 0) {
-//        ASSERT(taosArrayGetSize(pTableList) > 0);
         break;
       }
     }
