@@ -433,6 +433,7 @@ int streamInitBackend(SStreamState* pState, char* path) {
   pState->pTdbState->writeOpts = rocksdb_writeoptions_create();
   // rocksdb_writeoptions_
   // rocksdb_writeoptions_set_no_slowdown(pState->pTdbState->writeOpts, 1);
+  rocksdb_writeoptions_disable_WAL(pState->pTdbState->writeOpts, 1); 
   pState->pTdbState->readOpts = rocksdb_readoptions_create();
   pState->pTdbState->cfOpts = (rocksdb_options_t**)cfOpt;
   pState->pTdbState->pCompare = pCompare;

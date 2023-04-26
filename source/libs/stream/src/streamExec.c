@@ -308,7 +308,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     int64_t ckId = 0;
     int64_t dataVer = 0;
     qGetCheckpointVersion(pTask->exec.pExecutor, &dataVer, &ckId);
-    if (dataVer > pTask->chkInfo.version) {    // save it since the checkpoint is updated
+    if (ckId > pTask->chkInfo.id) {    // save it since the checkpoint is updated
       qDebug("s-task:%s exec end, start to update check point, ver from %" PRId64 " to %" PRId64
              ", checkPoint id:%" PRId64 " -> %" PRId64,
              pTask->id.idStr, pTask->chkInfo.version, dataVer, pTask->chkInfo.id, ckId);
