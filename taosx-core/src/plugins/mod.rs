@@ -28,6 +28,18 @@ pub struct DataSet {
     category: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     r#type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    options: Option<Vec<OptionSet>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    format: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct OptionSet {
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    required: bool,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -55,6 +67,8 @@ pub async fn list_datasets_from(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<
                     name: None,
                     category: Some("topic".to_string()),
                     r#type: None,
+                    options: None,
+                    format: None,
                 })
                 .try_collect()
                 .await?;
@@ -67,6 +81,8 @@ pub async fn list_datasets_from(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<
                     name: None,
                     category: Some("database".to_string()),
                     r#type: None,
+                    options: None,
+                    format: None,
                 })
                 .try_collect()
                 .await?;

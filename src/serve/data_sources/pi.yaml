@@ -76,32 +76,47 @@ groups:
     placeholder: 1
 
 datasets:
-  - category: pointsName
-    display: pointsName
+  - category: PointList
+    display: Point List
     # conflicts_with:
     # - topics
     description: |
       # Title
       Description in plain text. *Bold* text. Other markdown markups.
     target:
-      name: subject
-      description: Database datasets.
-      required: true
+      name: PointList
+      description: Pi System Point List
+      required: false
       multiple: true
     # params:
     #   - name: exclude-tables
     #     description: Exclude tables from the database.
-  - category: templateName
-    display: templateName
+  - category: TemplateForPIPoint
+    display: Template For PI Point
     # conflicts_with:
     # - topics
     description: |
       # Title
       The template names exists in pi system.
     target:
-      name: subject
+      name: TemplateForPIPoint
       description: Database datasets.
-      required: true
+      required: false
+      multiple: true
+    # params:
+    #   - name: exclude-tables
+    #     description: Exclude tables from the database.
+  - category: TemplateForAFElement
+    display: Template For AF Element
+    # conflicts_with:
+    # - topics
+    description: |
+      # Title
+      The template names exists in pi system.
+    target:
+      name: TemplateForAFElement
+      description: Database datasets.
+      required: false
       multiple: true
     # params:
     #   - name: exclude-tables

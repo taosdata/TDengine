@@ -7,7 +7,7 @@ use std::{
 use actix_web::web::Json;
 use anyhow::Context;
 use itertools::Itertools;
-use serde_json::Value;
+use serde_json::{Value, Map};
 use taos::{AsyncTBuilder, Dsn, TaosBuilder, IntoDsn};
 use tokio_util::sync::CancellationToken;
 
@@ -314,7 +314,6 @@ pub async fn pi_datasets(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
-
     let point_filter = if let Some(pf) = data.pattern {
         pf
     } else {
@@ -331,43 +330,48 @@ pub async fn pi_datasets(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet
         .output()
         .await
         .context("Start PI collector error")?;
-    // dbg!(output);
     log::info!("PI Connector exit with status {}", output.status);
 
     let json: Value = serde_json::from_slice(&output.stdout)?;
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
-    let mut point_names = map
-        .get("pointsName")
-        .unwrap()
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|f| DataSet {
-            id: String::from(f.as_str().unwrap()),
-            name: None,
-            category: Some(String::from("pointsName")),
-            r#type: None,
-        })
-        .collect_vec();
-    extend_data_set(&mut dataset, &point_names, data.offset, data.limit);
-    let mut template_names = map
-        .get("templateName")
-        .unwrap()
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|f| DataSet {
-            id: String::from(f.as_str().unwrap()),
-            name: None,
-            category: Some(String::from("templateName")),
-            r#type: None,
-        })
-        .collect_vec();
-    // dataset.append(&mut template_names);
-    extend_data_set(&mut dataset, &template_names, data.offset, data.limit);
+    data.categories.iter().for_each(|category| {
+        let result = if category.eq("PointList") {
+            map_dataset(map, "pointName", "PointList")
+        } else if category.eq("TemplateForPIPoint") {
+            map_dataset(map, "templateName", "TemplateForPIPoint")
+        } else {
+            map_dataset(map, "templateName", "TemplateForAFElement")
+        };
+        // } else if category.eq("TemplateForAFElement") {
+        //     map_dataset(map, "templateName", "TemplateForAFElement")
+        // } else {
+        //     anyhow::bail!("category is wrong, only support PointList/TemplateForPIPoint/TemplateForPIPoint");
+        // };
+        extend_data_set(&mut dataset, &result, data.offset, data.limit);
+    });
+    
+    
     temp_path.close()?;
     Ok(dataset)
+}
+
+fn map_dataset(map: &Map<String, Value>, key: &str, category: &str) -> Vec<DataSet> {
+    map
+        .get(key)
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| DataSet {
+            id: String::from(f.as_str().unwrap()),
+            name: None,
+            category: Some(String::from(category)),
+            r#type: None,
+            options: None,
+            format: None,
+        })
+        .collect_vec()
 }
 
 fn extend_data_set(dataset: &mut Vec<DataSet>, extended_vec: &Vec<DataSet>, offset: usize, limit: usize) {
