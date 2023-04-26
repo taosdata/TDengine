@@ -13,8 +13,11 @@ Because stream processing is built in to TDengine, you are no longer reliant on 
 ```sql
 CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name SUBTABLE(expression) AS subquery
 stream_options: {
- TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
- WATERMARK   time
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
+ WATERMARK      time
+ IGNORE EXPIRED [0|1]
+ DELETE_MARK    time
+ FILL_HISTORY   [0|1]
 }
 
 ```
@@ -141,3 +144,30 @@ The data in expired windows is tagged as expired. TDengine stream processing pro
 2. Recalculate the data. In this method, all data in the window is reobtained from the database and recalculated. The latest results are then returned.
 
 In both of these methods, configuring the watermark is essential for obtaining accurate results (if expired data is dropped) and avoiding repeated triggers that affect system performance (if expired data is recalculated).
+
+## Supported functions
+
+All scalar functions are available in stream processing.
+All System Information Functions are <b>not</b> available for stream processing.
+All aggregate and selection functions are available in stream processing, except following functions
+
+- [leastsquares](../function/#leastsquares)
+- [percentile](../function/#percentile)
+- [top](../function/#leastsquares)
+- [bottom](../function/#top)
+- [elapsed](../function/#leastsquares)
+- [interp](../function/#elapsed)
+- [derivative](../function/#derivative)
+- [irate](../function/#irate)
+- [twa](../function/#twa)
+- [histogram](../function/#histogram)
+- [diff](../function/#diff)
+- [statecount](../function/#statecount)
+- [stateduration](../function/#stateduration)
+- [csum](../function/#csum)
+- [mavg](../function/#mavg)
+- [sample](../function/#sample)
+- [tail](../function/#tail)
+- [unique](../function/#unique)
+- [mode](../function/#mode)
+
