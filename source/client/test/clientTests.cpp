@@ -1060,9 +1060,9 @@ TEST(clientCase, sub_tb_test) {
 
   tmq_conf_t* conf = tmq_conf_new();
 
-  int64_t ts = taosGetTimestampMs();
+  int32_t ts = taosGetTimestampMs()%INT32_MAX;
   char consumerGroupid[128] = {0};
-  sprintf(consumerGroupid, "group_id_%"PRId64, ts);
+  sprintf(consumerGroupid, "group_id_%d", ts);
 
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.commit.interval.ms", "2000");
@@ -1100,7 +1100,7 @@ TEST(clientCase, sub_tb_test) {
     if (pRes) {
       char buf[128];
 
-//      const char* topicName = tmq_get_topic_name(pRes);
+      const char* topicName = tmq_get_topic_name(pRes);
 //      const char* dbName = tmq_get_db_name(pRes);
 //      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
 //
