@@ -51,19 +51,7 @@ struct STFile {
     struct {
       int32_t level;
       int32_t nSeg;
-    } stt;  // .stt
-    struct {
-      int64_t offset;
-    } head;  // .head
-    struct {
-      // TODO
-    } data;  // .data
-    struct {
-      // TODO
-    } sma;  // .sma
-    struct {
-      // TODO
-    } tomb;  // .tomb
+    } stt;
   };
 
   LISTD(STFile) listNode;
