@@ -547,6 +547,18 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
   }
 }
 
+static void genInterpAfterDataBlock(STimeSliceOperatorInfo* pSliceInfo, SOperatorInfo* pOperator) {
+  SSDataBlock* pResBlock = pSliceInfo->pRes;
+  SInterval*   pInterval = &pSliceInfo->interval;
+
+  while (pSliceInfo->current <= pSliceInfo->win.ekey && pSliceInfo->fillType != TSDB_FILL_NEXT &&
+         pSliceInfo->fillType != TSDB_FILL_LINEAR) {
+    genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, false);
+    pSliceInfo->current =
+        taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+  }
+}
+
 static void restoreTimesliceInfo(STimeSliceOperatorInfo* pSliceInfo) {
   pSliceInfo->current = pSliceInfo->win.skey;
   pSliceInfo->prevTsSet = false;
@@ -588,8 +600,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         if (pSliceInfo->groupId != pBlock->info.id.groupId) {
           pSliceInfo->groupId = pBlock->info.id.groupId;
           pSliceInfo->pNextGroupRes = pBlock;
-          restoreTimesliceInfo(pSliceInfo);
-          goto _group_over;
+          break;
         }
       }
 
@@ -610,18 +621,15 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
     // check if need to interpolate after last datablock
     // except for fill(next), fill(linear)
-    while (pSliceInfo->current <= pSliceInfo->win.ekey && pSliceInfo->fillType != TSDB_FILL_NEXT &&
-           pSliceInfo->fillType != TSDB_FILL_LINEAR) {
-      genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, false);
-      pSliceInfo->current =
-          taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-    }
+    genInterpAfterDataBlock(pSliceInfo, pOperator);
 
-_group_over:
     doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
     if (pOperator->status == OP_EXEC_DONE) {
       break;
     }
+
+    // restore initial value for next group
+    restoreTimesliceInfo(pSliceInfo);
   }
 
   // restore the value
