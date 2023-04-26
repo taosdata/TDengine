@@ -147,7 +147,7 @@ In both of these methods, configuring the watermark is essential for obtaining a
 
 ## Supported functions
 
-All scalar functions are available in stream processing.
+All [scalar functions](../function/#scalar-functions) are available in stream processing.
 All System Information Functions are <b>not</b> available for stream processing.
 All aggregate and selection functions are available in stream processing, except following functions
 
