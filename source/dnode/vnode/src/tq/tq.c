@@ -368,6 +368,16 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
   taosRUnLockLatch(&pTq->lock);
 
+  // 3. update the epoch value
+  taosWLockLatch(&pTq->lock);
+  int32_t savedEpoch = pHandle->epoch;
+  if (savedEpoch < reqEpoch) {
+    tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, savedEpoch,
+            reqEpoch);
+    pHandle->epoch = reqEpoch;
+  }
+  taosWUnLockLatch(&pTq->lock);
+
   char buf[80];
   tFormatOffset(buf, 80, &reqOffset);
   tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, reqId:0x%" PRIx64,
