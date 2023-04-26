@@ -272,7 +272,7 @@ pub async fn tmq_to_local(
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !builder.is_enterprise_edition().await {
+    if !builder.is_enterprise_edition().await? {
         anyhow::bail!(
             "Only enterprise edition is supported. If it's not your case, please contact us."
         )

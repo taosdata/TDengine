@@ -6,7 +6,7 @@ pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
     let builder = TaosBuilder::from_dsn(from)?;
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !builder.is_enterprise_edition().await {
+    if !builder.is_enterprise_edition().await? {
         anyhow::bail!(
             "Only enterprise edition is supported. If it's not your case, please contact us."
         )
