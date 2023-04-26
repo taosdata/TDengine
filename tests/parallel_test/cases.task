@@ -347,6 +347,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/tb_100w_data_order.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_childtable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_systable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
