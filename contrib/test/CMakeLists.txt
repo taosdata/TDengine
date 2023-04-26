@@ -1,6 +1,4 @@
 # rocksdb
-message("contrib test dir:" ${BUILD_WITH_ROCKSDB})
-
 if(${BUILD_WITH_ROCKSDB})
     add_subdirectory(rocksdb)
 endif(${BUILD_WITH_ROCKSDB})

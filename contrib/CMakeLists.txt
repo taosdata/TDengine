@@ -438,7 +438,6 @@ endif(${BUILD_ADDR2LINE})
 # ================================================================================================
 # Build test
 # ================================================================================================
-message("contrib tests:" ${BUILD_DEPENDENCY_TESTS})
 if(${BUILD_DEPENDENCY_TESTS})
     add_subdirectory(test EXCLUDE_FROM_ALL)
 endif(${BUILD_DEPENDENCY_TESTS})
