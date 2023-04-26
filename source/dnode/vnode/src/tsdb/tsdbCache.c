@@ -333,8 +333,8 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsR
       SColVal *pColVal = &pLastCol->colVal;
       if (IS_VAR_DATA_TYPE(pColVal->type)) {
         uint8_t *pVal = pColVal->value.pData;
+        pColVal->value.pData = taosMemoryMalloc(pColVal->value.nData);
         if (pColVal->value.nData) {
-          pColVal->value.pData = taosMemoryMalloc(pColVal->value.nData);
           memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
         }
       }
