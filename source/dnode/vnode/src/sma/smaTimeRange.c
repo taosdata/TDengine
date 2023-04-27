@@ -332,7 +332,7 @@ _end:
   taosArrayDestroy(tagArray);
   taosArrayDestroy(pVals);
   if (pReq) {
-    tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+    tDestroySSubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pReq);
   }
 

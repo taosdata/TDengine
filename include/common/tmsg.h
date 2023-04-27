@@ -3423,7 +3423,7 @@ typedef struct {
 int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
 int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2* pReq);
 void    tDestroySSubmitTbData(SSubmitTbData* pTbData, int32_t flag);
-void    tDestroySSubmitReq2(SSubmitReq2* pReq, int32_t flag);
+void    tDestroySSubmitReq(SSubmitReq2* pReq, int32_t flag);
 
 typedef struct {
   int32_t affectedRows;
