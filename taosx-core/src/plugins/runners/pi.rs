@@ -314,7 +314,7 @@ pub async fn pi_datasets(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
-    let point_filter = if let Some(pf) = data.pattern {
+    let point_filter = if let Some(pf) = data.pattern.clone() {
         pf
     } else {
         String::from("*")
