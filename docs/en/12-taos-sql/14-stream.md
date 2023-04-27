@@ -151,7 +151,7 @@ All [scalar functions](../function/#scalar-functions) are available in stream pr
   - [leastsquares](../function/#leastsquares)
   - [percentile](../function/#percentile)
   - [top](../function/#top)
-  - [bottom](../function/#tbottomop)
+  - [bottom](../function/#bottom)
   - [elapsed](../function/#elapsed)
   - [interp](../function/#interp)
   - [derivative](../function/#derivative)
