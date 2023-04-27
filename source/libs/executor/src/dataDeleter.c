@@ -179,7 +179,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
   if (NULL == pDeleter->nextOutput.pData) {
-    assert(pDeleter->queryEnd);
+    ASSERT(pDeleter->queryEnd);
     pOutput->useconds = pDeleter->useconds;
     pOutput->precision = pDeleter->pSchema->precision;
     pOutput->bufStatus = DS_BUF_EMPTY;

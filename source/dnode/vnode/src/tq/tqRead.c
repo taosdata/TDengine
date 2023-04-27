@@ -249,7 +249,7 @@ END:
   return code;
 }
 
-STqReader* tqOpenReader(SVnode* pVnode) {
+STqReader* tqReaderOpen(SVnode* pVnode) {
   STqReader* pReader = taosMemoryCalloc(1, sizeof(STqReader));
   if (pReader == NULL) {
     return NULL;
@@ -653,7 +653,7 @@ FAIL:
   return -1;
 }
 
-int32_t tqRetrieveTaosxBlock2(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet) {
+int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet) {
   tqDebug("tq reader retrieve data block %p, %d", pReader->msg2.msgStr, pReader->nextBlk);
 
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);

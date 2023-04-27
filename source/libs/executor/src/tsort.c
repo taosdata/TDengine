@@ -229,7 +229,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     taosArrayPush(pPageIdList, &pageId);
 
     int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
-    assert(size <= getBufPageSize(pHandle->pBuf));
+    ASSERT(size <= getBufPageSize(pHandle->pBuf));
 
     blockDataToBuf(pPage, p);
 
@@ -592,7 +592,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
         int32_t size =
             blockDataGetSize(pDataBlock) + sizeof(int32_t) + taosArrayGetSize(pDataBlock->pDataBlock) * sizeof(int32_t);
-        assert(size <= getBufPageSize(pHandle->pBuf));
+        ASSERT(size <= getBufPageSize(pHandle->pBuf));
 
         blockDataToBuf(pPage, pDataBlock);
 
