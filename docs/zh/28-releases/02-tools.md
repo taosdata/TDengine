@@ -9,6 +9,9 @@ taosTools 各版本安装包下载链接如下：
 其他历史版本安装包请访问[这里](https://www.taosdata.com/all-downloads)
 
 import Release from "/components/ReleaseV3";
+## 2.5.0
+
+<Release type="tools" version="2.5.0" />
 
 ## 2.4.12
 
