@@ -2202,6 +2202,28 @@ class StreamComputingTest(TDCase):
                     else:
                         self.tdCom.check_query_data(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
 
+    def json_function(self, partition="tbname", delete=False, fill_history_value=None):
+        self.delete = delete
+        # self.prepare_stream_data()
+        self.case_name = sys._getframe().f_code.co_name
+        self.prepare_data()
+
+        self.tdSql.execute('create table if not exists json_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 json);')
+        self.tdSql.execute('create table json_ct1 using json_stb tags(\'{"abc": 1}\');')
+
+        if fill_history_value is None:
+            fill_history = ""
+        else:
+            fill_history = f'fill_history {fill_history_value}'
+            for i in range(self.range_count):
+                self.tdSql.execute(f'insert into json_ct1 values ({self.date_time}-{i}s, 100, -100.1, "hebei", Null, "Bigdata");')
+        # self.tdSql.error(f'create stream stb_json_stream trigger at_once ignore expired 0 {fill_history} into output_json_stb as select ts, to_json("{{ c2 : 1 }}") from json_stb partition by {partition};')
+        self.tdSql.execute(f'create stream stb_json_stream trigger at_once ignore expired 0 {fill_history} into output_json_stb as select ts, tags(to_json(\'{"t1":1}\')) from json_stb partition by {partition};')
+        # for tbname in ["json_ct1"]:
+        #     self.tdSql.execute(f'insert into {tbname} values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
+        #     self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
+        #     self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
+
     def scalar_function(self, partition="tbname", delete=False, fill_history_value=None):
         self.delete = delete
         # self.prepare_stream_data()
@@ -2797,6 +2819,8 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
+        # self.at_once_interval(interval=random.randint(10, 15), partition="tbname")
+        # return
         # ! not stable
         # self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 25), fill_history_value=1)
         # TODO
@@ -2814,6 +2838,11 @@ class StreamComputingTest(TDCase):
         # for fill_value in ["NEXT"]:
         #     for watermark in [None]:
         #         self.window_close_interval(interval=random.randint(10, 12), watermark=watermark, fill_value=fill_value)
+        # self.udf_test(8, "int")
+        # self.vgroup = 10
+        # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value="NULL")
+        # self.insert_after_recreate_source_table()
+        # self.json_function(partition="tbname", delete=True, fill_history_value=1)
         # return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
@@ -2824,8 +2853,7 @@ class StreamComputingTest(TDCase):
             self.create_error_source_sql_stream()
             ## ! rep3 TD-20280
             self.insert_after_restart()
-            ## ! TD-21908
-            # self.insert_after_restart(delete=True, fill_history_value=1)
+            self.insert_after_restart(delete=True, fill_history_value=1)
             ## ! TD-18123
             # # self.insert_after_recreate_source_table()
             self.query_after_drop_stream_db()
@@ -2887,7 +2915,6 @@ class StreamComputingTest(TDCase):
             # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
             # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found
             self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
-
             self.partitionby_interval(interval=None, partition_by_elm="tbname")
             self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=0)
             self.partitionby_interval(interval=10, partition_by_elm="tbname")
@@ -2897,15 +2924,13 @@ class StreamComputingTest(TDCase):
 
 
             # tmp remove fill_history
-            # ! TD-22639
             self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
             self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
             self.watermark_window_close_session(session=random.randint(10, 12), watermark=random.randint(20, 25))
 
 
             # # * FILL
-            for fill_value in ["NULL", "PREV", "NEXT", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
-            # for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
+            for fill_value in ["NULL", "PREV", "NEXT", "LINEAR", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
                 self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value)
                 self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value=fill_value, delete=True)
                 self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s", fill_value=fill_value)
@@ -2959,7 +2984,8 @@ class StreamComputingTest(TDCase):
             self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition="t1 as t5,t2 as t11", subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value="t5,t11,t13", use_exist_stb=True, use_except=True)
             self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition="t1 as t5,t2 as t11,t3 as t14", subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value="t5,t11,t13", use_exist_stb=True, use_except=True)
             self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition="t1 as t5,t2 as t11,t3 as c13", subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value="t5,t11,c13", use_exist_stb=True, use_except=True)
-
+            # ! TD-23905
+            # self.json_function(partition="tbname", delete=True, fill_history_value=1)
 
             # * FILL
             # self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_value="NULL")
