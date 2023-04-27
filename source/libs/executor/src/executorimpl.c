@@ -75,8 +75,6 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 
 static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
 
-static void releaseQueryBuf(size_t numOfTables);
-
 static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
 
@@ -87,43 +85,6 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
 static int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                                   SGroupResInfo* pGroupResInfo);
 static SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
-
-void setOperatorCompleted(SOperatorInfo* pOperator) {
-  pOperator->status = OP_EXEC_DONE;
-  pOperator->cost.totalCost = (taosGetTimestampUs() - pOperator->pTaskInfo->cost.start) / 1000.0;
-  setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-}
-
-void setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32_t type, bool blocking, int32_t status,
-                     void* pInfo, SExecTaskInfo* pTaskInfo) {
-  pOperator->name = (char*)name;
-  pOperator->operatorType = type;
-  pOperator->blocking = blocking;
-  pOperator->status = status;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-}
-
-int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
-  OPTR_SET_OPENED(pOperator);
-  pOperator->cost.openCost = 0;
-  return TSDB_CODE_SUCCESS;
-}
-
-SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
-                                   __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn,
-                                   __optr_explain_fn_t explain) {
-  SOperatorFpSet fpSet = {
-      ._openFn = openFn,
-      .getNextFn = nextFn,
-      .cleanupFn = cleanup,
-      .closeFn = closeFn,
-      .reqBufFn = reqBufFn,
-      .getExplainFn = explain,
-  };
-
-  return fpSet;
-}
 
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, int32_t interBufSize) {
   SFilePage* pData = NULL;
@@ -484,7 +445,10 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
 
 bool isTaskKilled(SExecTaskInfo* pTaskInfo) { return (0 != pTaskInfo->code); }
 
-void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) { pTaskInfo->code = rspCode; }
+void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) {
+  pTaskInfo->code = rspCode;
+  stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str);
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key) {
@@ -949,72 +913,6 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
   }
 }
 
-int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num) {
-  p->pDownstream = taosMemoryCalloc(1, num * POINTER_BYTES);
-  if (p->pDownstream == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  memcpy(p->pDownstream, pDownstream, num * POINTER_BYTES);
-  p->numOfDownstream = num;
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag, bool inheritUsOrder) {
-  // todo add more information about exchange operation
-  int32_t type = pOperator->operatorType;
-  if (type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN) {
-    *order = TSDB_ORDER_ASC;
-    *scanFlag = MAIN_SCAN;
-    return TSDB_CODE_SUCCESS;
-  } else if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
-    if (!inheritUsOrder) {
-      *order = TSDB_ORDER_ASC;
-    }
-    *scanFlag = MAIN_SCAN;
-    return TSDB_CODE_SUCCESS;
-  } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-    STableScanInfo* pTableScanInfo = pOperator->info;
-    *order = pTableScanInfo->base.cond.order;
-    *scanFlag = pTableScanInfo->base.scanFlag;
-    return TSDB_CODE_SUCCESS;
-  } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
-    STableMergeScanInfo* pTableScanInfo = pOperator->info;
-    *order = pTableScanInfo->base.cond.order;
-    *scanFlag = pTableScanInfo->base.scanFlag;
-    return TSDB_CODE_SUCCESS;
-  } else {
-    if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
-      return TSDB_CODE_INVALID_PARA;
-    } else {
-      return getTableScanInfo(pOperator->pDownstream[0], order, scanFlag, inheritUsOrder);
-    }
-  }
-}
-
-// QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN
-SOperatorInfo* extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char* id) {
-  if (pOperator == NULL) {
-    qError("invalid operator, failed to find tableScanOperator %s", id);
-    terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
-    return NULL;
-  }
-
-  if (pOperator->operatorType == type) {
-    return pOperator;
-  } else {
-    if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
-      qError("invalid operator, failed to find tableScanOperator %s", id);
-      terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
-      return NULL;
-    }
-
-    return extractOperatorInTree(pOperator->pDownstream[0], type, id);
-  }
-}
-
 void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
   for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExprInfo = &pExpr[i];
@@ -1028,37 +926,6 @@ void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
 
     taosMemoryFree(pExprInfo->base.pParam);
     taosMemoryFree(pExprInfo->pExpr);
-  }
-}
-
-void destroyOperatorInfo(SOperatorInfo* pOperator) {
-  if (pOperator == NULL) {
-    return;
-  }
-
-  if (pOperator->fpSet.closeFn != NULL) {
-    pOperator->fpSet.closeFn(pOperator->info);
-  }
-
-  if (pOperator->pDownstream != NULL) {
-    for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
-      destroyOperatorInfo(pOperator->pDownstream[i]);
-    }
-
-    taosMemoryFreeClear(pOperator->pDownstream);
-    pOperator->numOfDownstream = 0;
-  }
-
-  cleanupExprSupp(&pOperator->exprSupp);
-  taosMemoryFreeClear(pOperator);
-}
-
-// each operator should be set their own function to return total cost buffer
-int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
-  if (pOperator->blocking) {
-    return -1;
-  } else {
-    return 0;
   }
 }
 
@@ -1555,45 +1422,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   return pOptr;
 }
 
-static int32_t extractTbscanInStreamOpTree(SOperatorInfo* pOperator, STableScanInfo** ppInfo) {
-  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    if (pOperator->numOfDownstream == 0) {
-      qError("failed to find stream scan operator");
-      return TSDB_CODE_APP_ERROR;
-    }
-
-    if (pOperator->numOfDownstream > 1) {
-      qError("join not supported for stream block scan");
-      return TSDB_CODE_APP_ERROR;
-    }
-    return extractTbscanInStreamOpTree(pOperator->pDownstream[0], ppInfo);
-  } else {
-    SStreamScanInfo* pInfo = pOperator->info;
-    *ppInfo = pInfo->pTableScanOp->info;
-    return 0;
-  }
-}
-
-int32_t extractTableScanNode(SPhysiNode* pNode, STableScanPhysiNode** ppNode) {
-  if (pNode->pChildren == NULL || LIST_LENGTH(pNode->pChildren) == 0) {
-    if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == pNode->type) {
-      *ppNode = (STableScanPhysiNode*)pNode;
-      return 0;
-    } else {
-      terrno = TSDB_CODE_APP_ERROR;
-      return -1;
-    }
-  } else {
-    if (LIST_LENGTH(pNode->pChildren) != 1) {
-      terrno = TSDB_CODE_APP_ERROR;
-      return -1;
-    }
-    SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pNode->pChildren, 0);
-    return extractTableScanNode(pChildNode, ppNode);
-  }
-  return -1;
-}
-
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* pTask, SReadHandle* readHandle) {
   switch (pNode->type) {
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
@@ -1694,45 +1522,6 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);
-}
-
-static int64_t getQuerySupportBufSize(size_t numOfTables) {
-  size_t s1 = sizeof(STableQueryInfo);
-  //  size_t s3 = sizeof(STableCheckInfo);  buffer consumption in tsdb
-  return (int64_t)(s1 * 1.5 * numOfTables);
-}
-
-int32_t checkForQueryBuf(size_t numOfTables) {
-  int64_t t = getQuerySupportBufSize(numOfTables);
-  if (tsQueryBufferSizeBytes < 0) {
-    return TSDB_CODE_SUCCESS;
-  } else if (tsQueryBufferSizeBytes > 0) {
-    while (1) {
-      int64_t s = tsQueryBufferSizeBytes;
-      int64_t remain = s - t;
-      if (remain >= 0) {
-        if (atomic_val_compare_exchange_64(&tsQueryBufferSizeBytes, s, remain) == s) {
-          return TSDB_CODE_SUCCESS;
-        }
-      } else {
-        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
-      }
-    }
-  }
-
-  // disable query processing if the value of tsQueryBufferSize is zero.
-  return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
-}
-
-void releaseQueryBuf(size_t numOfTables) {
-  if (tsQueryBufferSizeBytes < 0) {
-    return;
-  }
-
-  int64_t t = getQuerySupportBufSize(numOfTables);
-
-  // restore value is not enough buffer available
-  atomic_add_fetch_64(&tsQueryBufferSizeBytes, t);
 }
 
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList) {

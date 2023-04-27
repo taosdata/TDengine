@@ -819,6 +819,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 void setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order, int32_t scanFlag, bool createDummyCol);
 
 int32_t checkForQueryBuf(size_t numOfTables);
+int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr);
 
 bool isTaskKilled(SExecTaskInfo* pTaskInfo);
 void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
