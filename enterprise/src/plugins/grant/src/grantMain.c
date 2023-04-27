@@ -1076,8 +1076,8 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t numOfRows = 0;
   int32_t cols = 0;
   char   *pWrite = NULL;
-  char    tmp[42] = {0};
-  char    tmp1[42] = {0};
+  char    tmp[128] = {0};
+  char    tmp1[128] = {0};
 
   if (pShow->numOfRows < 1) {
 #ifdef GRANTS_CFG
@@ -1235,31 +1235,69 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // connections
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // streams
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // cpu_cores
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // speed
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // querytime
+
+    // connectors
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "{\"type\":\"OPC_DA\",\"number\":0,\"speed\":0,\"expire\":\"20375\"}";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // opc_da
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "{\"type\":\"OPC_UA\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // opc_ua
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "{\"type\":\"Pi\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // pi
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "{\"type\":\"Kafka\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // kafka
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "{\"type\":\"InfluxDB\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // influxdb
+
+    ++cols;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    src = "{\"type\":\"MQTT\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    colDataAppend(pColInfo, numOfRows, tmp, false);  // mqtt
+
 #endif
     numOfRows++;
   }
