@@ -1,6 +1,6 @@
 use std::path::Path;
 
-fn main() {
+fn main() -> shadow_rs::SdResult<()> {
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let out_dir = Path::new(&out_dir);
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -44,4 +44,5 @@ fn main() {
     println!("cargo:rerun-if-env-changed=CUS_PROMPT");
     println!("cargo:rerun-if-changed=README.md");
     println!("cargo:rerun-if-changed=examples/explorer.service");
+    shadow_rs::new()
 }
