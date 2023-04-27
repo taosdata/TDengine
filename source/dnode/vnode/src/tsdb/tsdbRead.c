@@ -4449,6 +4449,10 @@ static void setSharedPtr(STsdbReader* pDst, const STsdbReader* pSrc) {
   pDst->pSchema = pSrc->pSchema;
   pDst->pSchemaMap = pSrc->pSchemaMap;
   pDst->pReadSnap = pSrc->pReadSnap;
+
+  if (pDst->pSchema) {
+    tsdbRowMergerInit(&pDst->status.merger, pDst->pSchema);
+  }
 }
 
 void tsdbReaderClose(STsdbReader* pReader) {
