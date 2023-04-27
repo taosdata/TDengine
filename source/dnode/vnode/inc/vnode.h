@@ -162,7 +162,6 @@ int32_t     metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType);
 #endif
 
 // tsdb
-// typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
 #define TSDB_DEFAULT_STT_FILE  8
