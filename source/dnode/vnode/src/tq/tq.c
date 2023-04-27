@@ -1220,11 +1220,22 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask) {
-    tqDebug("vgId:%d s-task:%s set normal flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
     streamSetStatusNormal(pTask);
+
+    // no lock needs to secure the access of the version
+    if (pReq->igUntreated) {  // discard all the data  when the stream task is suspended.
+      pTask->chkInfo.currentVer = sversion;
+      tqDebug("vgId:%d s-task:%s resume to normal from the latest version:%" PRId64 ", vnode ver:%" PRId64, pTq->pStreamMeta->vgId,
+              pTask->id.idStr, pTask->chkInfo.currentVer, sversion);
+    } else {  // from the previous paused version and go on
+      tqDebug("vgId:%d s-task:%s resume to normal from paused ver:%" PRId64 ", vnode ver:%" PRId64, pTq->pStreamMeta->vgId,
+              pTask->id.idStr, pTask->chkInfo.currentVer, sversion);
+    }
+
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     tqStartStreamTasks(pTq);
   }
+
   return 0;
 }
 
@@ -1329,7 +1340,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   taosWLockLatch(&pMeta->lock);
   int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pTasks);
   if (numOfTasks == 0) {
-    tqInfo("vgId:%d no stream tasks exists", vgId);
+    tqInfo("vgId:%d no stream tasks exist", vgId);
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
     return 0;
   }

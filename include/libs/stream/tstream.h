@@ -51,7 +51,7 @@ enum {
   TASK_STATUS__RECOVER_PREPARE,
   TASK_STATUS__RECOVER1,
   TASK_STATUS__RECOVER2,
-  TASK_STATUS__RESTORE,  // only available for source task to replay WAL from the checkpoint
+  TASK_STATUS__RESTORE,  // only available for source task to replay WAL from the checkpoint, todo remove it
   TASK_STATUS__PAUSE,
 };
 
