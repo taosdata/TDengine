@@ -333,6 +333,7 @@ pub async fn pi_datasets(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet
     log::info!("PI Connector exit with status {}", output.status);
 
     let json: Value = serde_json::from_slice(&output.stdout)?;
+    log::debug!("pi dataset: {}", &json);
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
     data.categories.iter().for_each(|category| {
