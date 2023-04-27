@@ -78,18 +78,6 @@ static void destroyTqHandle(void* data) {
   }
 }
 
-static void tqPushEntryFree(void* data) {
-  STqPushEntry* p = *(void**)data;
-  if (p->pDataRsp->head.mqMsgType == TMQ_MSG_TYPE__POLL_RSP) {
-    tDeleteSMqDataRsp(p->pDataRsp);
-  } else if (p->pDataRsp->head.mqMsgType == TMQ_MSG_TYPE__TAOSX_RSP) {
-    tDeleteSTaosxRsp((STaosxRsp*)p->pDataRsp);
-  }
-
-  taosMemoryFree(p->pDataRsp);
-  taosMemoryFree(p);
-}
-
 static bool tqOffsetLessOrEqual(const STqOffset* pLeft, const STqOffset* pRight) {
   return pLeft->val.type == TMQ_OFFSET__LOG && pRight->val.type == TMQ_OFFSET__LOG &&
          pLeft->val.version <= pRight->val.version;
@@ -109,11 +97,8 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pHandle, destroyTqHandle);
 
-  pTq->pPushArray = taosArrayInit(8, POINTER_BYTES);
-
   taosInitRWLatch(&pTq->lock);
-  pTq->pPushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  taosHashSetFreeFp(pTq->pPushMgr, tqPushEntryFree);
+  pTq->pPushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
 
   pTq->pCheckInfo = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
@@ -158,7 +143,6 @@ void tqClose(STQ* pTq) {
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
   streamMetaClose(pTq->pStreamMeta);
-  taosArrayDestroy(pTq->pPushArray);
   taosMemoryFree(pTq);
 }
 
@@ -569,14 +553,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
       // remove if it has been register in the push manager, and return one empty block to consumer
 //      tqUnregisterPushHandle(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
-      for(size_t i = 0; i < taosArrayGetSize(pTq->pPushArray); i++) {
-        void* handle = taosArrayGetP(pTq->pPushArray, i);
-        if(handle == pHandle) {
-          tqInfo("vgId:%d remove handle when switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId, req.newConsumerId);
-          taosArrayRemove(pTq->pPushArray, i);
-          break;
-        }
-      }
+      taosHashRemove(pTq->pPushMgr, &pHandle->consumerId, sizeof(int64_t));
+
       if(pHandle->msg != NULL) {
         rpcFreeCont(pHandle->msg->pCont);
         taosMemoryFree(pHandle->msg);
@@ -1091,8 +1069,9 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   taosWLockLatch(&pTq->lock);
-  for(size_t i = 0; i < taosArrayGetSize(pTq->pPushArray); i++){
-    STqHandle* pHandle = (STqHandle*)taosArrayGetP(pTq->pPushArray, i);
+  void *pIter = taosHashIterate(pTq->pPushMgr, NULL);
+  while(pIter){
+    STqHandle* pHandle = *(STqHandle**)pIter;
     tqDebug("vgId:%d start set submit for pHandle:%p", vgId, pHandle);
     if(ASSERT(pHandle->msg != NULL)){
       tqError("pHandle->msg should not be null");
@@ -1103,8 +1082,9 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
       taosMemoryFree(pHandle->msg);
       pHandle->msg = NULL;
     }
+    pIter = taosHashIterate(pTq->pPushMgr, pIter);
   }
-  taosArrayClear(pTq->pPushArray);
+  taosHashClear(pTq->pPushMgr);
   // unlock
   taosWUnLockLatch(&pTq->lock);
 

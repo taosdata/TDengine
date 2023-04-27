@@ -191,7 +191,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
     pHandle->msg->contLen = pMsg->contLen;
     tqDebug("data is over, register to handle:%p, pCont:%p, len:%d", pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
-    taosArrayPush(pTq->pPushArray, &pHandle);
+    taosHashPut(pTq->pPushMgr, &pHandle->consumerId, sizeof(int64_t), &pHandle, POINTER_BYTES);
     taosWUnLockLatch(&pTq->lock);
     tDeleteSMqDataRsp(&dataRsp);
     return code;
