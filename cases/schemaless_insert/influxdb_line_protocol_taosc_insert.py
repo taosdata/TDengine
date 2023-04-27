@@ -568,11 +568,13 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.cleanTb(dbname=self.dbname)
         stb_name = self.tdCom.get_long_name()
         tb_name = f'{stb_name}_1'
-        input_sql = f'{stb_name},id={tb_name},t0=t c0=f 1626006833639000000'
-        self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        # input_sql = f'{stb_name},id={tb_name},t0=t c0=f 1626006833639000000'
+        # print(input_sql)
+        # self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         # # * check col，col+ts max in describe ---> 16143
         input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c4="{self.tdCom.get_long_name(12)}" 1626006833639000000'
+        print(input_sql)
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         self.tdSql.query(f"select * from {stb_name}")
@@ -1075,12 +1077,15 @@ class TestInfluxdbLineTaoscInsert(TDCase):
     def thread_insert(self, *line_list):
         for line in line_list:
             try:
-                self.tdSql._conn.schemaless_insert([line], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
+                self.tdSql._conn.schemaless_insert([line], TDSmlProtocolType.LINE.value, None)
             except SchemalessError:
                 pass
 
     def ts_3264(self):
-        self.tdCom.cleanTb(dbname=self.dbname)
+        """"""
+        self.tdSql.execute('drop database if exists iot_dev;')
+        self.tdSql.execute('create database if not exists iot_dev precision "ns";')
+        self.tdSql.execute('use iot_dev')
         line_list = ['hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=7u64',
                      'hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,id="hvlgpibybg_33761_28336_2",t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=7u64',
                      'hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=8u64 1626006833669000000']
@@ -1092,12 +1097,14 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
     def ts_3262(self):
         start_time = time.time()
-        self.tdCom.cleanTb(dbname=self.dbname)
+        self.tdSql.execute('drop database if exists iot_dev;')
+        self.tdSql.execute('create database if not exists iot_dev precision "ns";')
+        self.tdSql.execute('use iot_dev')
         line_list = ['hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=1i32,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=8u64 1626006833669000000',
                      'hvlgpibybg,id="hvlgpibybg_33761_28336_1",t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="binaryTagValue",t8=L"ncharTagValue" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="binaryColValue",c8=L"ncharColValue",c9=9u64']
-        self.tdSql._conn.schemaless_insert([line_list[0]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
+        self.tdSql._conn.schemaless_insert([line_list[0]], TDSmlProtocolType.LINE.value, None)
         try:
-            self.tdSql._conn.schemaless_insert([line_list[1]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
+            self.tdSql._conn.schemaless_insert([line_list[1]], TDSmlProtocolType.LINE.value, None)
         except SchemalessError:
             pass
         self.tdSql.query("select * from  hvlgpibybg")
@@ -1106,7 +1113,25 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(int(end_time-start_time)<2, True)
 
     def test(self):
-        self.ts_3262()
+        self.ts_3264()
+        return
+        # self.tag_col_binary_max_length_check()
+        self.tdSql.execute('drop database if exists iot_dev;')
+        self.tdSql.execute('create database if not exists iot_dev precision "ns";')
+        self.tdSql.execute('use iot_dev')
+        lines = ['shadow_history_IMaT6DPrF26v8474,realm_device_id=58_bwjewX2Ytmst Q=560,Pa=706,Uca=200,Pc=635,Ic=81,Ia=89,Sa=250,Qa=397,Uab=759,Sc=562,InPw=389,Pw=224.65,Qv=80,Qb=600,InQvr=742,InPwr=224.19,S=931,P=224.98,Fr=249,Uc=171,Pf=386,InQv=173,Pb=128,Sb=595,Ubc=765,Qc=544,Ub=250,Ib=575,Ua=84 1626006833669000000']
+        self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
+        self.tdSql.execute('drop table `shadow_history_IMaT6DPrF26v8474`')
+        lines = ['shadow_history_IMaT6DPrF26v8474,realm_device_id=58_bwjewX2Ytmst Q=143,Ic=912,Ib=69,Pa=749,Ia=189,InQvr=561,InPwr=227.78,Qa=661,P=221.02,Ubc=648,InPw=19,Pb=447,Uca=868,Sc=834,Sb=1008,Pf=213,Pc=195,Uc=557,Pw=220.41,Ub=957,Qb=747,Qv=739,S=419,Sa=635,Fr=926,Uab=635,Ua=477,InQv=814,Qc=483 1626006833669000000']
+        self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
+        self.tdSql.query('select * from `shadow_history_IMaT6DPrF26v8474`')
+        self.tdSql.execute('drop table `shadow_history_IMaT6DPrF26v8474`')
+        lines = ['shadow_history_IMaT6DPrF26v8474,realm_device_id=58_bwjewX2Ytmst InPwr=228.65,P=227.79,Ubc=1000,Pc=109,Pw=225.03,Sc=400,Ua=403,Pa=967,Ub=787,Sa=892,Ic=516,Ia=340,InQv=207,Qv=767,Uc=540,Pf=233,Fr=567,Qc=778,Qb=496,Ib=992,Pb=943,Q=172,Qa=55,S=68,InPw=479,Sb=426,Uca=750,InQvr=985,Uab=209 1626006833669000000']
+        self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
+        self.tdSql.query('select * from `shadow_history_IMaT6DPrF26v8474`')
+        self.tdSql.execute('drop table `shadow_history_IMaT6DPrF26v8474`')
+
+        # self.tag_col_binary_max_length_check()
         # self.tdSql.query(f'select * from xx')
         # print("query_res -----", self.tdSql.query_data)
         # input_sql = 'reported_j1WhBe0W78Edj6hK,realm_device_id=test_device_id_001 Ia=10.01f32,P=1.32012f32,Ib=9.0100001f32,Ia_source_time=1677834213374i64,P_source_time=1677834213374i64,Ib_source_time=1677834213374i64 1677834213374'
@@ -1166,7 +1191,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.tag_col_illegal_value_check()
             self.duplicate_id_tag_col_insert_check()
             self.duplicate_insert_exist_check()
-            # TODO self.tag_col_binary_max_length_check()
+            # self.tag_col_binary_max_length_check()
             self.batch_insert_check()
             self.multi_insert_check(100)
             self.same_ts_batch_insert()
