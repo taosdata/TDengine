@@ -98,7 +98,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   taosHashSetFreeFp(pTq->pHandle, destroyTqHandle);
 
   taosInitRWLatch(&pTq->lock);
-  pTq->pPushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  pTq->pPushMgr = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
 
   pTq->pCheckInfo = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
@@ -220,17 +220,19 @@ static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqData
   return 0;
 }
 
-int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
-  SMqDataRsp* pRsp = pPushEntry->pDataRsp;
-  SMqRspHead* pHeader = &pPushEntry->pDataRsp->head;
-  doSendDataRsp(&pPushEntry->info, pRsp, pHeader->epoch, pHeader->consumerId, pHeader->mqMsgType);
+int32_t tqPushDataRsp(STQ* pTq, STqHandle* pHandle) {
+  SMqDataRsp dataRsp = {0};
+  dataRsp.head.consumerId = pHandle->consumerId;
+  dataRsp.head.epoch = pHandle->epoch;
+  dataRsp.head.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
+  doSendDataRsp(&pHandle->msg->info, &dataRsp, pHandle->epoch, pHandle->consumerId, TMQ_MSG_TYPE__POLL_RSP);
 
   char buf1[80] = {0};
   char buf2[80] = {0};
-  tFormatOffset(buf1, tListLen(buf1), &pRsp->reqOffset);
-  tFormatOffset(buf2, tListLen(buf2), &pRsp->rspOffset);
+  tFormatOffset(buf1, tListLen(buf1), &dataRsp.reqOffset);
+  tFormatOffset(buf2, tListLen(buf2), &dataRsp.rspOffset);
   tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s",
-          TD_VID(pTq->pVnode), pRsp->head.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
+          TD_VID(pTq->pVnode), dataRsp.head.consumerId, dataRsp.head.epoch, dataRsp.blockNum, buf1, buf2);
   return 0;
 }
 
@@ -552,14 +554,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       atomic_store_32(&pHandle->epoch, -1);
 
       // remove if it has been register in the push manager, and return one empty block to consumer
-//      tqUnregisterPushHandle(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
-      int32_t ret = taosHashRemove(pTq->pPushMgr, &pHandle->consumerId, sizeof(int64_t));
-      tqError("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
-      if(pHandle->msg != NULL) {
-        rpcFreeCont(pHandle->msg->pCont);
-        taosMemoryFree(pHandle->msg);
-        pHandle->msg = NULL;
-      }
+      tqUnregisterPushHandle(pTq, pHandle);
+
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
       atomic_add_fetch_32(&pHandle->epoch, 1);
 

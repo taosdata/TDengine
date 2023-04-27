@@ -300,3 +300,36 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
 
   return 0;
 }
+
+
+int32_t tqRegisterPushEntry(STQ* pTq, void* handle, SRpcMsg* pMsg) {
+  int32_t    vgId = TD_VID(pTq->pVnode);
+  STqHandle* pHandle = (STqHandle*) handle;
+  if(pHandle->msg == NULL){
+    pHandle->msg = taosMemoryCalloc(1, sizeof(SRpcMsg));
+  }
+
+  memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
+  pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
+  memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
+  pHandle->msg->contLen = pMsg->contLen;
+  int32_t ret = taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey), &pHandle, POINTER_BYTES);
+  tqDebug("vgId:%d data is over, ret:%d, consumerId:0x%" PRIx64", register to pHandle:%p, pCont:%p, len:%d", vgId, ret, pHandle->consumerId, pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
+  return 0;
+}
+
+int32_t tqUnregisterPushHandle(STQ* pTq, void *handle) {
+  STqHandle *pHandle = (STqHandle*)handle;
+  int32_t    vgId = TD_VID(pTq->pVnode);
+
+  int32_t ret = taosHashRemove(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey));
+  tqError("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
+  if(pHandle->msg != NULL) {
+    tqPushDataRsp(pTq, pHandle);
+
+    rpcFreeCont(pHandle->msg->pCont);
+    taosMemoryFree(pHandle->msg);
+    pHandle->msg = NULL;
+  }
+  return 0;
+}

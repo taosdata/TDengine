@@ -178,21 +178,9 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 //   till now, all data has been transferred to consumer, new data needs to push client once arrived.
   if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
       dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
-//    code = tqRegisterPushHandle(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
     // lock
     taosWLockLatch(&pTq->lock);
-//    tqDebug("data is over, register to handle:%p, msg:%p", pHandle, pHandle->msg);
-    if(pHandle->msg == NULL){
-      pHandle->msg = taosMemoryCalloc(1, sizeof(SRpcMsg));
-    }
-
-    memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
-    pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
-    memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
-    pHandle->msg->contLen = pMsg->contLen;
-    int32_t ret = taosHashPut(pTq->pPushMgr, &pHandle->consumerId, sizeof(int64_t), &pHandle, POINTER_BYTES);
-    tqDebug("vgId:%d data is over, ret:%d, consumerId:0x%" PRIx64", register to pHandle:%p, pCont:%p, len:%d", vgId, ret, pHandle->consumerId, pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
-
+    code = tqRegisterPushEntry(pTq, pHandle, pMsg);
     taosWUnLockLatch(&pTq->lock);
     tDeleteSMqDataRsp(&dataRsp);
     return code;
