@@ -2248,7 +2248,12 @@ static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq) {
   if (pDb == NULL) goto _OVER;
 
   code = mndSplitVgroup(pMnode, pReq, pDb, pVgroup);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code != 0) {
+    mError("vgId:%d, failed to start to split vgroup since %s, db:%s", pVgroup->vgId, terrstr(), pDb->name);
+    goto _OVER;
+  }
+
+  mInfo("vgId:%d, split vgroup started successfully. db:%s", pVgroup->vgId, pDb->name);
 
 _OVER:
   mndReleaseVgroup(pMnode, pVgroup);
