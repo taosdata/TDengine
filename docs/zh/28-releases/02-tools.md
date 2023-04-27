@@ -13,6 +13,10 @@ import Release from "/components/ReleaseV3";
 
 <Release type="tools" version="2.5.0" />
 
+## 2.5.0
+
+<Release type="tools" version="2.5.0" />
+
 ## 2.4.12
 
 <Release type="tools" version="2.4.12" />
