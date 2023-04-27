@@ -431,6 +431,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   // pState->pTdbState->pCompare = pCompare;
   pState->pTdbState->dbOpt = handle->dbOpt;
   pState->pTdbState->param = param;
+  pState->pTdbState->pBackendHandle = handle;
 
   SCfComparator compare = {.comp = pCompare, .numOfComp = cfLen};
   pState->pTdbState->pComparNode = streamBackendAddCompare(handle, &compare);
