@@ -1377,7 +1377,7 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
   tstrncpy(pTopic->topicName, pTopicEp->topic, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(pTopic->db, pTopicEp->db, TSDB_DB_FNAME_LEN);
 
-  tscDebug("consumer:0x%" PRIx64 ", update topic:%s, numOfVgs:%d", tmq->consumerId, pTopic->topicName, vgNumGet);
+  tscDebug("consumer:0x%" PRIx64 ", update topic:%s, new numOfVgs:%d", tmq->consumerId, pTopic->topicName, vgNumGet);
   pTopic->vgs = taosArrayInit(vgNumGet, sizeof(SMqClientVg));
 
   for (int32_t j = 0; j < vgNumGet; j++) {
@@ -1447,14 +1447,14 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
     SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, i);
     if (pTopicCur->vgs) {
       int32_t vgNumCur = taosArrayGetSize(pTopicCur->vgs);
-      tscDebug("consumer:0x%" PRIx64 ", new vg num: %d", tmq->consumerId, vgNumCur);
+      tscDebug("consumer:0x%" PRIx64 ", current vg num: %d", tmq->consumerId, vgNumCur);
       for (int32_t j = 0; j < vgNumCur; j++) {
         SMqClientVg* pVgCur = taosArrayGet(pTopicCur->vgs, j);
         makeTopicVgroupKey(vgKey, pTopicCur->topicName, pVgCur->vgId);
 
         char buf[80];
         tFormatOffset(buf, 80, &pVgCur->currentOffset);
-        tscDebug("consumer:0x%" PRIx64 ", epoch:%d vgId:%d vgKey:%s, offset:%s", tmq->consumerId, epoch, pVgCur->vgId,
+        tscDebug("consumer:0x%" PRIx64 ", doUpdateLocalEp current vg, epoch:%d vgId:%d vgKey:%s, offset:%s", tmq->consumerId, tmq->epoch, pVgCur->vgId,
                  vgKey, buf);
 
         SVgroupSaveInfo info = {.offset = pVgCur->currentOffset, .numOfRows = pVgCur->numOfRows};

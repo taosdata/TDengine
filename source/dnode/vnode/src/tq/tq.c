@@ -553,8 +553,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
       // remove if it has been register in the push manager, and return one empty block to consumer
 //      tqUnregisterPushHandle(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
-      taosHashRemove(pTq->pPushMgr, &pHandle->consumerId, sizeof(int64_t));
-
+      int32_t ret = taosHashRemove(pTq->pPushMgr, &pHandle->consumerId, sizeof(int64_t));
+      tqError("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
       if(pHandle->msg != NULL) {
         rpcFreeCont(pHandle->msg->pCont);
         taosMemoryFree(pHandle->msg);
@@ -1069,22 +1069,24 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   taosWLockLatch(&pTq->lock);
-  void *pIter = taosHashIterate(pTq->pPushMgr, NULL);
-  while(pIter){
-    STqHandle* pHandle = *(STqHandle**)pIter;
-    tqDebug("vgId:%d start set submit for pHandle:%p", vgId, pHandle);
-    if(ASSERT(pHandle->msg != NULL)){
-      tqError("pHandle->msg should not be null");
-      break;
-    }else{
-      SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME, .pCont = pHandle->msg->pCont, .contLen = pHandle->msg->contLen, .info = pHandle->msg->info};
-      tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
-      taosMemoryFree(pHandle->msg);
-      pHandle->msg = NULL;
+  if(taosHashGetSize(pTq->pPushMgr) > 0){
+    void *pIter = taosHashIterate(pTq->pPushMgr, NULL);
+    while(pIter){
+      STqHandle* pHandle = *(STqHandle**)pIter;
+      tqDebug("vgId:%d start set submit for pHandle:%p, consume id:0x%"PRIx64, vgId, pHandle, pHandle->consumerId);
+      if(ASSERT(pHandle->msg != NULL)){
+        tqError("pHandle->msg should not be null");
+        break;
+      }else{
+        SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME, .pCont = pHandle->msg->pCont, .contLen = pHandle->msg->contLen, .info = pHandle->msg->info};
+        tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+        taosMemoryFree(pHandle->msg);
+        pHandle->msg = NULL;
+      }
+      pIter = taosHashIterate(pTq->pPushMgr, pIter);
     }
-    pIter = taosHashIterate(pTq->pPushMgr, pIter);
+    taosHashClear(pTq->pPushMgr);
   }
-  taosHashClear(pTq->pPushMgr);
   // unlock
   taosWUnLockLatch(&pTq->lock);
 
