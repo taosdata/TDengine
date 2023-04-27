@@ -69,8 +69,6 @@ SArray* taosArrayInit_s(size_t elemSize, size_t initialSize) {
 }
 
 static int32_t taosArrayResize(SArray* pArray) {
-  assert(pArray->size >= pArray->capacity);
-
   size_t size = pArray->capacity;
   size = (size << 1u);
 
@@ -252,12 +250,12 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
 }
 
 void taosArraySet(SArray* pArray, size_t index, void* pData) {
-  assert(index < pArray->size);
+  ASSERT(index < pArray->size);
   memcpy(TARRAY_GET_ELEM(pArray, index), pData, pArray->elemSize);
 }
 
 void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
-  assert(cnt <= pArray->size);
+  ASSERT(cnt <= pArray->size);
   pArray->size = pArray->size - cnt;
   if (pArray->size == 0 || cnt == 0) {
     return;
@@ -266,12 +264,15 @@ void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
 }
 
 void taosArrayPopTailBatch(SArray* pArray, size_t cnt) {
-  assert(cnt <= pArray->size);
+  if (cnt >= pArray->size) {
+    cnt = pArray->size;
+  }
+
   pArray->size = pArray->size - cnt;
 }
 
 void taosArrayRemove(SArray* pArray, size_t index) {
-  assert(index < pArray->size);
+  ASSERT(index < pArray->size);
 
   if (index == pArray->size - 1) {
     taosArrayPop(pArray);
