@@ -458,6 +458,60 @@ static int32_t initKeeperInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t resetPrevRowsKeeper(STimeSliceOperatorInfo* pInfo) {
+  if (pInfo->pPrevRow == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pLinearInfo); ++i) {
+    SGroupKeys *pKey = taosArrayGet(pInfo->pPrevRow, i);
+    pKey->isNull = false;
+  }
+
+  pInfo->isPrevRowSet = false;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t resetNextRowsKeeper(STimeSliceOperatorInfo* pInfo) {
+  if (pInfo->pNextRow == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pLinearInfo); ++i) {
+    SGroupKeys *pKey = taosArrayGet(pInfo->pPrevRow, i);
+    pKey->isNull = false;
+  }
+
+  pInfo->isNextRowSet = false;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t resetFillLinearInfo(STimeSliceOperatorInfo* pInfo) {
+  if (pInfo->pLinearInfo == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pLinearInfo); ++i) {
+    SFillLinearInfo *pLinearInfo = taosArrayGet(pInfo->pLinearInfo, i);
+    pLinearInfo->start.key = INT64_MIN;
+    pLinearInfo->end.key = INT64_MIN;
+    pLinearInfo->isStartSet = false;
+    pLinearInfo->isEndSet = false;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t resetKeeperInfo(STimeSliceOperatorInfo* pInfo) {
+  resetPrevRowsKeeper(pInfo);
+  resetNextRowsKeeper(pInfo);
+  resetFillLinearInfo(pInfo);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock,
                             SExecTaskInfo* pTaskInfo) {
   SSDataBlock* pResBlock = pSliceInfo->pRes;
@@ -559,9 +613,10 @@ static void genInterpAfterDataBlock(STimeSliceOperatorInfo* pSliceInfo, SOperato
   }
 }
 
-static void restoreTimesliceInfo(STimeSliceOperatorInfo* pSliceInfo) {
+static void resetTimesliceInfo(STimeSliceOperatorInfo* pSliceInfo) {
   pSliceInfo->current = pSliceInfo->win.skey;
   pSliceInfo->prevTsSet = false;
+  resetKeeperInfo(pSliceInfo);
 }
 
 static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
@@ -629,7 +684,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
     }
 
     // restore initial value for next group
-    restoreTimesliceInfo(pSliceInfo);
+    resetTimesliceInfo(pSliceInfo);
   }
 
   // restore the value
