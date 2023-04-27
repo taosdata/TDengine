@@ -279,8 +279,37 @@ struct ConfigPath {
     config_file: Option<PathBuf>,
 }
 
+shadow_rs::shadow!(build);
+
+const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN && const_str::equal!("main", build::BRANCH) {
+    const_format::concatcp!(
+        build::PKG_VERSION,
+        "-",
+        build::SHORT_COMMIT,
+        " (built ",
+        build::BUILD_OS,
+        " ",
+        build::BUILD_TIME,
+        ")"
+    )
+} else {
+    const_format::concatcp!(
+        build::PKG_VERSION,
+        "-",
+        build::BRANCH,
+        "-",
+        build::SHORT_COMMIT,
+        "-dirty",
+        " (built ",
+        build::BUILD_OS,
+        " ",
+        build::BUILD_TIME,
+        ")"
+    )
+};
+
 #[derive(Parser, Debug, Clone, Deserialize)]
-#[clap(name = env!("CUS_CLI_NAME"), author, version, about, long_about = include_str!(env!("CUS_README")))]
+#[clap(name = env!("CUS_CLI_NAME"), author, version = CLAP_SHORT_VERSION, about, long_about = include_str!(env!("CUS_README")))]
 struct Args {
     /// Configuration file
     #[clap(short = 'C', long, env = "EXPLORER_CONFIG_FILE")]
