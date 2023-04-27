@@ -1115,6 +1115,7 @@ int32_t shellExecute() {
     }
 
     if (shell.conn == NULL) {
+      printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
       fflush(stdout);
       return -1;
     }
