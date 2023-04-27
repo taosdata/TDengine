@@ -483,7 +483,8 @@ void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t 
 // todo remove it
 // order array<type *>
 void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param) {
-  taosArrayGetSize(pArray) > 8 ? taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
+  taosqsort(pArray->pData, pArray->size, pArray->elemSize, param, fn);
+//  taosArrayGetSize(pArray) > 8 ? taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
 }
 
 void taosArraySwap(SArray* a, SArray* b) {
