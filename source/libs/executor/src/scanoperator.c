@@ -156,7 +156,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
         break;
       }
 
-      assert(w.skey < pBlockInfo->window.skey);
+      ASSERT(w.skey < pBlockInfo->window.skey);
       if (pBlockInfo->window.skey <= TMIN(w.ekey, pBlockInfo->window.ekey)) {
         return true;
       }
