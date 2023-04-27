@@ -100,7 +100,8 @@ sudo apt-get install tdengine
 
 :::tip
 apt-get 方式只适用于 Debian 或 Ubuntu 系统。
-::::
+:::
+
 </TabItem>
 <TabItem label="Windows 安装" value="windows">
 
