@@ -335,7 +335,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
         taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
       }
       taosRUnLockLatch(&pConsumer->lock);
-    } else if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
+    } else if (status == MQ_CONSUMER_STATUS__MODIFY) {
       taosRLockLatch(&pConsumer->lock);
 
       int32_t newTopicNum = taosArrayGetSize(pConsumer->rebNewTopics);
@@ -556,9 +556,14 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     return -1;
   }
 
-  ((SMqRspHead *)buf)->mqMsgType = TMQ_MSG_TYPE__EP_RSP;
-  ((SMqRspHead *)buf)->epoch = serverEpoch;
-  ((SMqRspHead *)buf)->consumerId = pConsumer->consumerId;
+  SMqRspHead* pHead = buf;
+
+  pHead->mqMsgType = TMQ_MSG_TYPE__EP_RSP;
+  pHead->epoch = serverEpoch;
+  pHead->consumerId = pConsumer->consumerId;
+  pHead->walsver = 0;
+  pHead->walever = 0;
+
 
   void *abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
   tEncodeSMqAskEpRsp(&abuf, &rsp);
@@ -873,16 +878,10 @@ static void updateConsumerStatus(SMqConsumerObj *pConsumer) {
   int32_t status = pConsumer->status;
 
   if (taosArrayGetSize(pConsumer->rebNewTopics) == 0 && taosArrayGetSize(pConsumer->rebRemovedTopics) == 0) {
-    if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
+    if (status == MQ_CONSUMER_STATUS__MODIFY) {
       pConsumer->status = MQ_CONSUMER_STATUS__READY;
-    } else if (status == MQ_CONSUMER_STATUS__LOST_IN_REB || status == MQ_CONSUMER_STATUS__LOST) {
+    } else if (status == MQ_CONSUMER_STATUS__LOST) {
       pConsumer->status = MQ_CONSUMER_STATUS__LOST_REBD;
-    }
-  } else {
-    if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
-      pConsumer->status = MQ_CONSUMER_STATUS__MODIFY;
-    } else if (status == MQ_CONSUMER_STATUS__LOST || status == MQ_CONSUMER_STATUS__LOST_IN_REB) {
-      pConsumer->status = MQ_CONSUMER_STATUS__LOST;
     }
   }
 }
@@ -1192,10 +1191,8 @@ static const char *mndConsumerStatusName(int status) {
       return "ready";
     case MQ_CONSUMER_STATUS__LOST:
     case MQ_CONSUMER_STATUS__LOST_REBD:
-    case MQ_CONSUMER_STATUS__LOST_IN_REB:
       return "lost";
     case MQ_CONSUMER_STATUS__MODIFY:
-    case MQ_CONSUMER_STATUS__MODIFY_IN_REB:
       return "rebalancing";
     default:
       return "unknown";

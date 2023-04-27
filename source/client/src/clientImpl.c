@@ -1039,8 +1039,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                       .sysInfo = pRequest->pTscObj->sysInfo,
                       .allocatorId = pRequest->allocatorRefId};
 
-  SAppInstInfo* pAppInfo = getAppInfo(pRequest);
-  SQueryPlan*   pDag = NULL;
+  SQueryPlan* pDag = NULL;
 
   int64_t st = taosGetTimestampUs();
   int32_t code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
@@ -1052,7 +1051,6 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   }
 
   pRequest->metric.execStart = taosGetTimestampUs();
-
   pRequest->metric.planCostUs = pRequest->metric.execStart - st;
 
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
@@ -1250,6 +1248,11 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     return NULL;
   }
 
+  pRequest->sqlstr = taosStrdup("taos_connect");
+  if (pRequest->sqlstr) {
+    pRequest->sqlLen = strlen(pRequest->sqlstr);
+  }
+
   SMsgSendInfo* body = buildConnectMsg(pRequest);
 
   int64_t transporterId = 0;
@@ -1259,7 +1262,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
         (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
-    fprintf(stderr, "failed to connect to server, reason: %s\n\n", errorMsg);
+    tscError("failed to connect to server, reason: %s", errorMsg);
 
     terrno = pRequest->code;
     destroyRequest(pRequest);

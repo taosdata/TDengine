@@ -348,14 +348,23 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       taosFprintfFile(pFile, "%" PRIu64, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
+      if (tsEnableScience) {
+        taosFprintfFile(pFile, "%e", GET_FLOAT_VAL(val));
+      } else {
+        taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
+      }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
-      if (n > TMAX(25, length)) {
-        taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
-      } else {
+      if (tsEnableScience) {
+        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9e", 23, GET_DOUBLE_VAL(val));
         taosFprintfFile(pFile, "%s", buf);
+      } else {
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+        if (n > TMAX(25, length)) {
+          taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
+        } else {
+          taosFprintfFile(pFile, "%s", buf);
+        }
       }
       break;
     case TSDB_DATA_TYPE_BINARY:
@@ -543,14 +552,23 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*" PRIu64, width, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      printf("%*ef", width, GET_FLOAT_VAL(val));
+      if (tsEnableScience) {
+        printf("%*e", width, GET_FLOAT_VAL(val));
+      } else {
+        printf("%*.5f", width, GET_FLOAT_VAL(val));
+      }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
-      if (n > TMAX(25, width)) {
-        printf("%*.15e", width, GET_DOUBLE_VAL(val));
+      if (tsEnableScience) {
+        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.9e", GET_DOUBLE_VAL(val));
+        printf("%*s", width, buf);
       } else {
-        printf("%s", buf);
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+        if (n > TMAX(25, width)) {
+            printf("%*.15e", width, GET_DOUBLE_VAL(val));
+        } else {
+            printf("%s", buf);
+        }
       }
       break;
     case TSDB_DATA_TYPE_BINARY:
@@ -1097,6 +1115,7 @@ int32_t shellExecute() {
     }
 
     if (shell.conn == NULL) {
+      printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
       fflush(stdout);
       return -1;
     }

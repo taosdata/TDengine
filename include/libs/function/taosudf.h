@@ -165,6 +165,8 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn *pColumn, int32_t ne
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    uint32_t extend = BitmapLen(allocCapacity) - BitmapLen(data->rowsAlloc);
+    memset(tmp + BitmapLen(data->rowsAlloc), 0, extend);
     data->fixLenCol.nullBitmap = tmp;
     data->fixLenCol.nullBitmapLen = BitmapLen(allocCapacity);
     int32_t oldLen = BitmapLen(existedRows);
@@ -276,6 +278,8 @@ typedef enum EUdfFuncType { UDF_FUNC_TYPE_SCALAR = 1, UDF_FUNC_TYPE_AGG = 2 } EU
 
 typedef struct SScriptUdfInfo {
   const char *name;
+  int32_t version;
+  int64_t createdTime;
 
   EUdfFuncType funcType;
   int8_t       scriptType;

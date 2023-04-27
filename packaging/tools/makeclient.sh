@@ -197,7 +197,8 @@ if [[ $productName == "TDengine" ]]; then
       mkdir -p ${install_dir}/connector
       if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
           if [ "$osType" != "Darwin" ]; then
-              [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+                jars=$(ls ${build_dir}/lib/*.jar 2>/dev/null|wc -l)
+                [ "${jars}" != "0" ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
           fi
           git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
           rm -rf ${install_dir}/connector/go/.git ||:

@@ -36,7 +36,6 @@ database_option: {
   | TSDB_PAGESIZE value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
-  | WAL_ROLL_PERIOD value
   | WAL_SEGMENT_SIZE value
 }
 ```

@@ -30,6 +30,27 @@
 #include "taos.h"
 
 namespace {
+
+void printSubResults(void* pRes, int32_t* totalRows) {
+  char buf[1024];
+
+  while (1) {
+    TAOS_ROW row = taos_fetch_row(pRes);
+    if (row == NULL) {
+      break;
+    }
+
+    TAOS_FIELD* fields = taos_fetch_fields(pRes);
+    int32_t numOfFields = taos_field_count(pRes);
+    int32_t precision = taos_result_precision(pRes);
+    taos_print_row(buf, row, fields, numOfFields);
+    *totalRows += 1;
+    printf("precision: %d, row content: %s\n", precision, buf);
+  }
+
+//  taos_free_result(pRes);
+}
+
 void showDB(TAOS* pConn) {
   TAOS_RES* pRes = taos_query(pConn, "show databases");
   TAOS_ROW  pRow = NULL;
@@ -112,7 +133,7 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 100; i += 20) {
+  for (int32_t i = 0; i < 10000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -162,9 +183,11 @@ void* queryThread(void* arg) {
   return NULL;
 }
 
-static int32_t numOfThreads = 1;
+int32_t numOfThreads = 1;
 
-void tmq_commit_cb_print(tmq_t* pTmq, int32_t code, void* param) { printf("success, code:%d\n", code); }
+void tmq_commit_cb_print(tmq_t* pTmq, int32_t code, void* param) {
+  printf("auto commit success, code:%d\n\n\n\n", code);
+}
 
 void* doConsumeData(void* param) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -172,7 +195,7 @@ void* doConsumeData(void* param) {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName12");
+  tmq_conf_set(conf, "group.id", "cgrpName41");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
@@ -801,7 +824,7 @@ TEST(clientCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 10000; ++i) {
+  for (int32_t i = 0; i < 1; ++i) {
     printf("create table :%d\n", i);
     createNewTable(pConn, i);
   }
@@ -988,7 +1011,7 @@ TEST(clientCase, sub_db_test) {
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
-  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "false");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -998,7 +1021,7 @@ TEST(clientCase, sub_db_test) {
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
   tmq_list_append(topicList, "topic_t1");
-  tmq_list_append(topicList, "topic_s2");
+//  tmq_list_append(topicList, "topic_s2");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
@@ -1057,13 +1080,13 @@ TEST(clientCase, sub_tb_test) {
   ASSERT_NE(pConn, nullptr);
 
   tmq_conf_t* conf = tmq_conf_new();
-  tmq_conf_set(conf, "enable.auto.commit", "true");
+  tmq_conf_set(conf, "enable.auto.commit", "false");
   tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName27");
+  tmq_conf_set(conf, "group.id", "cgrpName1024");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
-  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "false");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -1072,11 +1095,10 @@ TEST(clientCase, sub_tb_test) {
 
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
-  tmq_list_append(topicList, "topic_t2");
+  tmq_list_append(topicList, "topic_t1");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
-
   tmq_list_destroy(topicList);
 
   TAOS_FIELD* fields = NULL;
@@ -1088,11 +1110,21 @@ TEST(clientCase, sub_tb_test) {
 
   int32_t count = 0;
 
+  tmq_topic_assignment* pAssign = NULL;
+  int32_t numOfAssign = 0;
+
+  int32_t code = tmq_get_topic_assignment(tmq, "topic_t1", &pAssign, &numOfAssign);
+  if (code != 0) {
+    printf("error occurs:%s\n", tmq_err2str(code));
+    tmq_consumer_close(tmq);
+    taos_close(pConn);
+    fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+    return;
+  }
+
   while (1) {
     TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
-    if (pRes) {
-      char buf[1024];
-
+    if (pRes != NULL) {
       const char* topicName = tmq_get_topic_name(pRes);
       const char* dbName = tmq_get_db_name(pRes);
       int32_t     vgroupId = tmq_get_vgroup_id(pRes);
@@ -1101,27 +1133,18 @@ TEST(clientCase, sub_tb_test) {
       printf("db: %s\n", dbName);
       printf("vgroup id: %d\n", vgroupId);
 
-      while (1) {
-        TAOS_ROW row = taos_fetch_row(pRes);
-        if (row == NULL) {
-          break;
-        }
-
-        fields = taos_fetch_fields(pRes);
-        numOfFields = taos_field_count(pRes);
-        precision = taos_result_precision(pRes);
-        taos_print_row(buf, row, fields, numOfFields);
-        totalRows += 1;
-        printf("precision: %d, row content: %s\n", precision, buf);
-      }
-
-      taos_free_result(pRes);
-      //      if ((++count) > 1) {
-      //        break;
-      //      }
+      printSubResults(pRes, &totalRows);
     } else {
-      break;
+//      tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgroupHandle, pAssign[0].begin);
+//      break;
     }
+
+    tmq_commit_sync(tmq, pRes);
+    if (pRes != NULL) {
+      taos_free_result(pRes);
+    }
+
+    tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgId, pAssign[0].begin);
   }
 
   tmq_consumer_close(tmq);

@@ -82,7 +82,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>3.0.0</version>
+ <version>3.1.0</version>
 </dependency>
 ```
 
@@ -227,7 +227,7 @@ In addition to getting the connection from the specified URL, you can use Proper
 Note:
 
 - The client parameter set in the application is process-level. If you want to update the parameters of the client, you need to restart the application. This is because the client parameter is a global parameter that takes effect only the first time the application is set.
-- The following sample code is based on taos-jdbcdriver-3.0.0.
+- The following sample code is based on taos-jdbcdriver-3.1.0.
 
 ```java
 public Connection getConn() throws Exception{
@@ -364,7 +364,7 @@ TDengine has significantly improved the bind APIs to support data writing (INSER
 **Note:**
 
 - JDBC REST connections do not currently support bind interface
-- The following sample code is based on taos-jdbcdriver-3.0.0
+- The following sample code is based on taos-jdbcdriver-3.1.0
 - The setString method should be called for binary type data, and the setNString method should be called for nchar type data
 - both setString and setNString require the user to declare the width of the corresponding column in the size parameter of the table definition
 
@@ -632,7 +632,7 @@ TDengine supports schemaless writing. It is compatible with InfluxDB's Line Prot
 Note:
 
 - JDBC REST connections do not currently support schemaless writes
-- The following sample code is based on taos-jdbcdriver-3.0.0
+- The following sample code is based on taos-jdbcdriver-3.1.0
 
 ```java
 public class SchemalessInsertTest {

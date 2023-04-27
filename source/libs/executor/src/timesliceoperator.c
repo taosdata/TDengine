@@ -156,6 +156,16 @@ static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo*
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isIrowtsPseudoColumn(SExprInfo* pExprInfo) {
+  char *name = pExprInfo->pExpr->_function.functionName;
+  return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_irowts") == 0);
+}
+
+static bool isIsfilledPseudoColumn(SExprInfo* pExprInfo) {
+  char *name = pExprInfo->pExpr->_function.functionName;
+  return (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_isfilled") == 0);
+}
+
 static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
                                    bool beforeTs) {
   int32_t rows = pResBlock->info.rows;
@@ -170,10 +180,10 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
     int32_t          dstSlot = pExprInfo->base.resSchema.slotId;
     SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
-    if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
+    if (isIrowtsPseudoColumn(pExprInfo)) {
       colDataSetVal(pDst, rows, (char*)&pSliceInfo->current, false);
       continue;
-    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+    } else if (isIsfilledPseudoColumn(pExprInfo)) {
       bool isFilled = true;
       colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
       continue;
@@ -202,6 +212,14 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
           int64_t v = 0;
           GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
+          colDataSetVal(pDst, rows, (char*)&v, false);
+        } else if (IS_BOOLEAN_TYPE(pDst->info.type)) {
+          bool v = false;
+          if (!IS_VAR_DATA_TYPE(pVar->nType)) {
+            GET_TYPED_DATA(v, bool, pVar->nType, &pVar->i);
+          } else {
+            v = taosStr2Int8(varDataVal(pVar->pz), NULL, 10);
+          }
           colDataSetVal(pDst, rows, (char*)&v, false);
         }
         break;
@@ -288,9 +306,9 @@ static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp*
     int32_t          dstSlot = pExprInfo->base.resSchema.slotId;
     SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
-    if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
+    if (isIrowtsPseudoColumn(pExprInfo)) {
       colDataSetVal(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
-    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+    } else if (isIsfilledPseudoColumn(pExprInfo)) {
       bool isFilled = false;
       colDataSetVal(pDst, pResBlock->info.rows, (char*)&isFilled, false);
     } else {
@@ -643,6 +661,9 @@ void destroyTimeSliceOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pLinearInfo);
   cleanupExprSupp(&pInfo->scalarSup);
 
+  for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
+    taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+  }
   taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }

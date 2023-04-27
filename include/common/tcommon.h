@@ -128,6 +128,7 @@ enum {
   TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
   TMQ_MSG_TYPE__TAOSX_RSP,
+  TMQ_MSG_TYPE__WALINFO_RSP,
   TMQ_MSG_TYPE__END_RSP,
 };
 
@@ -208,15 +209,12 @@ typedef struct SSDataBlock {
 } SSDataBlock;
 
 enum {
-  FETCH_TYPE__DATA = 1,
-  FETCH_TYPE__META,
-  FETCH_TYPE__SEP,
+  FETCH_TYPE__DATA = 0,
   FETCH_TYPE__NONE,
 };
 
 typedef struct {
   int8_t       fetchType;
-  STqOffsetVal offset;
   union {
     SSDataBlock data;
     void*       meta;

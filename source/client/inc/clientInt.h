@@ -36,14 +36,6 @@ extern "C" {
 
 #include "tconfig.h"
 
-#define CHECK_CODE_GOTO(expr, label) \
-  do {                               \
-    code = expr;                     \
-    if (TSDB_CODE_SUCCESS != code) { \
-      goto label;                    \
-    }                                \
-  } while (0)
-
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
 
@@ -71,6 +63,7 @@ typedef struct {
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
+  int32_t passKeyCnt;   // with passVer call back
   int64_t reportBytes;  // not implemented
   int64_t startTime;
   // ctl
@@ -133,6 +126,12 @@ typedef struct SAppInfo {
   TdThreadMutex mutex;
 } SAppInfo;
 
+typedef struct {
+  int32_t            ver;
+  void*              param;
+  __taos_notify_fn_t fp;
+} SPassInfo;
+
 typedef struct STscObj {
   char          user[TSDB_USER_LEN];
   char          pass[TSDB_PASSWORD_LEN];
@@ -148,6 +147,7 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
+  SPassInfo     passInfo;
 } STscObj;
 
 typedef struct STscDbg {
@@ -286,28 +286,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   return (SReqResultInfo*)&msg->resInfo;
 }
 
-static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
-  SMqRspObj* pRspObj = (SMqRspObj*)res;
-  pRspObj->resIter++;
-
-  if (pRspObj->resIter < pRspObj->rsp.blockNum) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, pRspObj->resIter);
-    if (pRspObj->rsp.withSchema) {
-      SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRspObj->rsp.blockSchema, pRspObj->resIter);
-      setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols);
-      taosMemoryFreeClear(pRspObj->resInfo.row);
-      taosMemoryFreeClear(pRspObj->resInfo.pCol);
-      taosMemoryFreeClear(pRspObj->resInfo.length);
-      taosMemoryFreeClear(pRspObj->resInfo.convertBuf);
-      taosMemoryFreeClear(pRspObj->resInfo.convertJson);
-    }
-
-    setQueryResultFromRsp(&pRspObj->resInfo, pRetrieve, convertUcs4, false);
-    return &pRspObj->resInfo;
-  }
-
-  return NULL;
-}
+SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4);
 
 static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
   if (TD_RES_QUERY(res)) return &(((SRequestObj*)res)->body.resInfo);
@@ -319,7 +298,6 @@ extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
 extern int32_t  timestampDeltaLimit;
 extern int64_t  lastClusterId;
-
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
@@ -373,7 +351,6 @@ void taos_close_internal(void* taos);
 // global, called by mgmt
 int  hbMgrInit();
 void hbMgrCleanUp();
-int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 
 // cluster level
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
@@ -384,10 +361,7 @@ void       stopAllRequests(SHashObj* pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
-void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
-
-// --- mq
-void hbMgrInitMqHbRspHandle();
+void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* param);
 
 typedef struct SSqlCallbackWrapper {
   SParseContext* pParseCtx;

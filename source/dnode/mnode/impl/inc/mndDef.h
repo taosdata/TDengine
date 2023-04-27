@@ -215,6 +215,8 @@ typedef struct {
   bool       syncRestore;
   int64_t    stateStartTime;
   SDnodeObj* pDnode;
+  int32_t    role;
+  SyncIndex  lastIndex;
 } SMnodeObj;
 
 typedef struct {
@@ -278,9 +280,13 @@ typedef struct {
   int8_t    reserve;
   int32_t   acctId;
   int32_t   authVersion;
+  int32_t   passVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;
+  SHashObj* readTbs;
+  SHashObj* writeTbs;
+  SHashObj* useDbs;
   SRWLatch  lock;
 } SUserObj;
 
@@ -338,6 +344,7 @@ typedef struct {
   ESyncState syncState;
   bool       syncRestore;
   bool       syncCanRead;
+  ESyncRole  nodeRole;
 } SVnodeGid;
 
 typedef struct {
@@ -358,7 +365,7 @@ typedef struct {
   int8_t    compact;
   int8_t    isTsma;
   int8_t    replica;
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   void*     pTsma;
   int32_t   numOfCachedTables;
 } SVgObj;
@@ -447,6 +454,8 @@ typedef struct {
   int32_t codeSize;
   char*   pComment;
   char*   pCode;
+  int32_t funcVersion;
+  SRWLatch lock;
 } SFuncObj;
 
 typedef struct {

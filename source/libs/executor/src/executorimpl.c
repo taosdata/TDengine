@@ -998,6 +998,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
 SOperatorInfo* extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char* id) {
   if (pOperator == NULL) {
     qError("invalid operator, failed to find tableScanOperator %s", id);
+    terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
     return NULL;
   }
 
@@ -1006,6 +1007,7 @@ SOperatorInfo* extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, con
   } else {
     if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
       qError("invalid operator, failed to find tableScanOperator %s", id);
+      terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
       return NULL;
     }
 
@@ -1149,8 +1151,8 @@ void cleanupExprSupp(SExprSupp* pSupp) {
 
 void cleanupBasicInfo(SOptrBasicInfo* pInfo) { pInfo->pRes = blockDataDestroy(pInfo->pRes); }
 
-char* buildTaskId(uint64_t taskId, uint64_t queryId) {
-  char* p = taosMemoryMalloc(64);
+void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst) {
+  char* p = dst;
 
   int32_t offset = 6;
   memcpy(p, "TID:0x", offset);
@@ -1161,7 +1163,6 @@ char* buildTaskId(uint64_t taskId, uint64_t queryId) {
   offset += tintToHex(queryId, &p[offset]);
 
   p[offset] = 0;
-  return p;
 }
 
 SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model,
@@ -1183,7 +1184,9 @@ SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t v
   taosInitRWLatch(&pTaskInfo->lock);
   pTaskInfo->id.vgId = vgId;
   pTaskInfo->id.queryId = queryId;
-  pTaskInfo->id.str = buildTaskId(taskId, queryId);
+
+  pTaskInfo->id.str = taosMemoryMalloc(64);
+  buildTaskId(taskId, queryId, pTaskInfo->id.str);
   return pTaskInfo;
 }
 
@@ -1591,8 +1594,7 @@ int32_t extractTableScanNode(SPhysiNode* pNode, STableScanPhysiNode** ppNode) {
   return -1;
 }
 
-int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, STableListInfo* pTableListInfo,
-                            SReadHandle* readHandle) {
+int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* pTask, SReadHandle* readHandle) {
   switch (pNode->type) {
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
       SInserterParam* pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
@@ -1610,23 +1612,26 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, STableListInfo*
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
-      int32_t tbNum = tableListGetSize(pTableListInfo);
+      SArray*         pInfoList = getTableListInfo(pTask);
+      STableListInfo* pTableListInfo = taosArrayGetP(pInfoList, 0);
+      taosArrayDestroy(pInfoList);
+
       pDeleterParam->suid = tableListGetSuid(pTableListInfo);
 
       // TODO extract uid list
-      pDeleterParam->pUidList = taosArrayInit(tbNum, sizeof(uint64_t));
+      int32_t numOfTables = tableListGetSize(pTableListInfo);
+      pDeleterParam->pUidList = taosArrayInit(numOfTables, sizeof(uint64_t));
       if (NULL == pDeleterParam->pUidList) {
         taosMemoryFree(pDeleterParam);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
-      for (int32_t i = 0; i < tbNum; ++i) {
+      for (int32_t i = 0; i < numOfTables; ++i) {
         STableKeyInfo* pTable = tableListGetInfo(pTableListInfo, i);
         taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
       }
 
       *pParam = pDeleterParam;
-
       break;
     }
     default:
@@ -1973,11 +1978,11 @@ void qStreamCloseTsdbReader(void* task) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
   SOperatorInfo* pOp = pTaskInfo->pRoot;
 
-  qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
-         pTaskInfo->streamInfo.lastStatus.ts);
+  qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.currentOffset.uid,
+         pTaskInfo->streamInfo.currentOffset.ts);
 
   // todo refactor, other thread may already use this read to extract data.
-  pTaskInfo->streamInfo.lastStatus = (STqOffsetVal){0};
+  pTaskInfo->streamInfo.currentOffset = (STqOffsetVal){0};
   while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
     SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
     if (pDownstreamOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -2004,7 +2009,11 @@ void qStreamCloseTsdbReader(void* task) {
 }
 
 static void extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
-  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pScanInfo = pOperator->info;
+    STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
+    taosArrayPush(pList, &pTableScanInfo->base.pTableListInfo);
+  } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pScanInfo = pOperator->info;
     taosArrayPush(pList, &pScanInfo->base.pTableListInfo);
   } else {

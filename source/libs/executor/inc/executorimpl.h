@@ -127,14 +127,9 @@ enum {
 };
 
 typedef struct {
-  // TODO remove prepareStatus
-  STqOffsetVal prepareStatus;  // for tmq
-  STqOffsetVal lastStatus;     // for tmq
-  SMqMetaRsp   metaRsp;        // for tmq fetching meta
-  int8_t       returned;
-  int64_t      snapshotVer;
-  // const SSubmitReq* pReq;
-
+  STqOffsetVal        currentOffset;  // for tmq
+  SMqMetaRsp          metaRsp;        // for tmq fetching meta
+  int64_t             snapshotVer;
   SPackedData         submit;
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
@@ -144,6 +139,8 @@ typedef struct {
   int64_t             fillHistoryVer1;
   int64_t             fillHistoryVer2;
   SStreamState*       pState;
+  int64_t             dataVersion;
+  int64_t             checkPointId;
 } SStreamTaskInfo;
 
 typedef struct {
@@ -191,7 +188,6 @@ enum {
   OP_OPENED = 0x1,
   OP_RES_TO_RETURN = 0x5,
   OP_EXEC_DONE = 0x9,
-  OP_EXEC_RECV = 0x11,
 };
 
 typedef struct SOperatorFpSet {
@@ -370,6 +366,7 @@ typedef struct STagScanInfo {
   int32_t         curPos;
   SReadHandle     readHandle;
   STableListInfo* pTableListInfo;
+  SLimitNode*     pSlimit;
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
@@ -431,7 +428,6 @@ typedef struct STimeWindowAggSupp {
 } STimeWindowAggSupp;
 
 typedef struct SStreamScanInfo {
-  uint64_t      tableUid;  // queried super table uid
   SExprInfo*    pPseudoExpr;
   int32_t       numOfPseudoExpr;
   SExprSupp     tbnameCalSup;
@@ -502,31 +498,11 @@ typedef struct STableCountScanSupp {
   char    stbNameFilter[TSDB_TABLE_NAME_LEN];
 } STableCountScanSupp;
 
-typedef struct STableCountScanOperatorInfo {
-  SReadHandle  readHandle;
-  SSDataBlock* pRes;
-
-  STableCountScanSupp supp;
-
-  int32_t currGrpIdx;
-  SArray* stbUidList;  // when group by db_name and/or stable_name
-} STableCountScanOperatorInfo;
-
 typedef struct SOptrBasicInfo {
   SResultRowInfo resultRowInfo;
   SSDataBlock*   pRes;
   bool           mergeResultBlock;
 } SOptrBasicInfo;
-
-typedef struct SAggOperatorInfo {
-  SOptrBasicInfo   binfo;
-  SAggSupporter    aggSup;
-  STableQueryInfo* current;
-  uint64_t         groupId;
-  SGroupResInfo    groupResInfo;
-  SExprSupp        scalarExprSup;
-  bool             groupKeyOptimized;
-} SAggOperatorInfo;
 
 typedef struct SIntervalAggOperatorInfo {
   SOptrBasicInfo     binfo;              // basic info
@@ -580,6 +556,7 @@ typedef struct SStreamIntervalOperatorInfo {
   uint64_t           numOfDatapack;
   SArray*            pUpdated;
   SSHashObj*         pUpdatedMap;
+  int64_t            dataVersion;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -629,6 +606,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pStUpdated;
+  int64_t             dataVersion;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -647,6 +625,7 @@ typedef struct SStreamStateAggOperatorInfo {
   bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
+  int64_t             dataVersion;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -847,14 +826,13 @@ void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void doDestroyTask(SExecTaskInfo* pTaskInfo);
 void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 
-char* buildTaskId(uint64_t taskId, uint64_t queryId);
+void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);
 
 SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo);
 
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model);
-int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, STableListInfo* pTableListInfo,
-                            SReadHandle* readHandle);
+int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* pTask, SReadHandle* readHandle);
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,

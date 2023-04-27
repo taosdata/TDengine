@@ -143,22 +143,13 @@ _exit:
   return code;
 }
 
-void vnodeUpdCommitSched(SVnode *pVnode) {
-  int64_t randNum = taosRand();
-  pVnode->commitSched.commitMs = taosGetMonoTimestampMs();
-  pVnode->commitSched.maxWaitMs = tsVndCommitMaxIntervalMs + (randNum % tsVndCommitMaxIntervalMs);
-}
-
-int vnodeShouldCommit(SVnode *pVnode) {
-  SVCommitSched *pSched = &pVnode->commitSched;
-  int64_t        nowMs = taosGetMonoTimestampMs();
+int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
   bool           diskAvail = osDataSpaceAvailable();
   bool           needCommit = false;
 
   taosThreadMutexLock(&pVnode->mutex);
   if (pVnode->inUse && diskAvail) {
-    needCommit =
-        ((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs));
+    needCommit = (pVnode->inUse->size > pVnode->inUse->node.size) || (pVnode->inUse->size > 0 && atExit);
   }
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
@@ -429,8 +420,6 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   vInfo("vgId:%d, start to commit, commitId:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
         pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
-
-  vnodeUpdCommitSched(pVnode);
 
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {

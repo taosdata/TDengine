@@ -24,6 +24,12 @@
 extern "C" {
 #endif
 
+#define SLOW_LOG_TYPE_QUERY  0x1
+#define SLOW_LOG_TYPE_INSERT 0x2
+#define SLOW_LOG_TYPE_OTHERS 0x4
+#define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
+
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -104,6 +110,7 @@ extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row lo
 // query client
 extern int32_t tsQueryPolicy;
 extern int32_t tsQueryRspPolicy;
+extern int64_t tsQueryMaxConcurrentTables;
 extern int32_t tsQuerySmaOptimize;
 extern int32_t tsQueryRsmaTolerance;
 extern bool    tsQueryPlannerTrace;
@@ -111,11 +118,14 @@ extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
+extern bool    tsEnableScience;
 extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
 extern int32_t tsMaxRetryWaitTime;
 extern bool    tsUseAdapter;
+extern int32_t tsSlowLogThreshold;
+extern int32_t tsSlowLogScope;
 
 // client
 extern int32_t tsMinSlidingTime;

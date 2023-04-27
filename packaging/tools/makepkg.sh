@@ -51,11 +51,9 @@ fi
 
 if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
   cd ${top_dir}/tools/taos-tools/packaging/deb
-  
-  taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
-  [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
   taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
+  [ -z "$taostools_ver" ] && taostools_ver="0.1.0"
   taostools_install_dir="${release_dir}/${clientName2}Tools-${taostools_ver}"
 
   cd ${curr_dir}
@@ -152,6 +150,7 @@ fi
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
+# mkdir -p ${install_dir}/share && cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
 
 if [ $adapterName != "taosadapter" ]; then
   mv ${install_dir}/cfg/${clientName2}adapter.toml ${install_dir}/cfg/$adapterName.toml
@@ -323,6 +322,7 @@ if [[ $dbName == "taos" ]]; then
       mkdir -p ${install_dir}/share/
       cp -Rfap ${web_dir}/admin ${install_dir}/share/
       cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
+      cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
     else
       echo "directory not found for enterprise release: ${web_dir}/admin"
     fi
@@ -338,7 +338,20 @@ if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-        [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+        tmp_pwd=`pwd`
+    	  cd ${install_dir}/connector
+    	  if [ ! -d taos-connector-jdbc ];then
+          	git clone -b 3.1.0 --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
+    	  fi
+    	  cd taos-connector-jdbc
+    	  mvn clean package -Dmaven.test.skip=true
+    	  echo  ${build_dir}/lib/
+    	  cp target/*.jar  ${build_dir}/lib/
+    	  cd ${install_dir}/connector
+    	  rm -rf taos-connector-jdbc
+    	  cd ${tmp_pwd}
+   	    jars=$(ls ${build_dir}/lib/*.jar 2>/dev/null|wc -l)
+        [ "${jars}" != "0" ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
         git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
         rm -rf ${install_dir}/connector/go/.git ||:
 
