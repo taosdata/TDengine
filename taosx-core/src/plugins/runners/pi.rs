@@ -338,7 +338,7 @@ pub async fn pi_datasets(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet
     let mut dataset = Vec::new();
     data.categories.iter().for_each(|category| {
         let result = if category.eq("PointList") {
-            map_dataset(map, "pointName", "PointList")
+            map_dataset(map, "pointsName", "PointList")
         } else if category.eq("TemplateForPIPoint") {
             map_dataset(map, "templateName", "TemplateForPIPoint")
         } else {
