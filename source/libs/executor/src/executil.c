@@ -26,6 +26,7 @@
 #include "executil.h"
 #include "executorimpl.h"
 #include "tcompression.h"
+#include "querytask.h"
 
 typedef struct STableListIdInfo {
   uint64_t suid;

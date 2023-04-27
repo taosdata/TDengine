@@ -31,6 +31,9 @@
 #include "thash.h"
 #include "ttypes.h"
 #include "vnode.h"
+#include "operator.h"
+#include "querytask.h"
+
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
 typedef int32_t (*__sys_filte)(void* pMeta, SNode* cond, SArray* result);

@@ -24,6 +24,8 @@
 #include "index.h"
 #include "query.h"
 #include "thash.h"
+#include "operator.h"
+#include "querytask.h"
 
 typedef struct SFetchRspHandleWrapper {
   uint32_t exchangeId;

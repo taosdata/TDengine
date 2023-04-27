@@ -26,6 +26,8 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
+#include "operator.h"
+#include "querytask.h"
 
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
