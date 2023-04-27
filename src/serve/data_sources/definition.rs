@@ -167,6 +167,13 @@ impl Definitions {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
+pub struct DatasetsDefinition {
+    pub name: String,
+    pub description: String,
+    pub categories: Vec<DatasetParam>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
 pub struct DatasetParam {
     pub category: String,
     pub display: String,
@@ -234,7 +241,7 @@ pub struct DataSourceDefinition {
     pub definitions: Definitions,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub datasets: Option<Vec<DatasetParam>>,
+    pub datasets: Option<DatasetsDefinition>,
 }
 
 impl DataSourceDefinition {
