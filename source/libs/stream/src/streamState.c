@@ -26,6 +26,88 @@
 
 #define MAX_TABLE_NAME_NUM 100000
 
+void* streamBackendInit(const char* path) {
+  SBackendHandle* pHandle = calloc(1, sizeof(SBackendHandle));
+  pHandle->list = tdListNew(sizeof(SCfComparator));
+  taosThreadMutexInit(&pHandle->mutex, NULL);
+
+  rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
+  rocksdb_env_set_low_priority_background_threads(env, 4);
+  rocksdb_env_set_high_priority_background_threads(env, 2);
+
+  rocksdb_cache_t* cache = rocksdb_cache_create_lru(128 << 20);
+
+  rocksdb_options_t* opts = rocksdb_options_create();
+  rocksdb_options_set_env(opts, env);
+  rocksdb_options_set_create_if_missing(opts, 1);
+  rocksdb_options_set_create_missing_column_families(opts, 1);
+  rocksdb_options_set_write_buffer_size(opts, 128 << 20);
+  rocksdb_options_set_max_total_wal_size(opts, 128 << 20);
+  rocksdb_options_set_recycle_log_file_num(opts, 6);
+  rocksdb_options_set_max_write_buffer_number(opts, 3);
+
+  pHandle->env = env;
+  pHandle->dbOpt = opts;
+  pHandle->cache = cache;
+
+  char* err = NULL;
+  pHandle->db = rocksdb_open(opts, path, &err);
+  if (err != NULL) {
+    qError("failed to open rocksdb, path:%s, reason:%s", path, err);
+    taosMemoryFreeClear(err);
+    goto _EXIT;
+  }
+
+  return pHandle;
+_EXIT:
+  rocksdb_options_destroy(opts);
+  rocksdb_cache_destroy(cache);
+  rocksdb_env_destroy(env);
+  taosThreadMutexDestroy(&pHandle->mutex);
+  tdListFree(pHandle->list);
+  free(pHandle);
+  return NULL;
+}
+void streamBackendCleanup(void* arg) {
+  SBackendHandle* pHandle = (SBackendHandle*)arg;
+  rocksdb_close(pHandle->db);
+  rocksdb_options_destroy(pHandle->dbOpt);
+  rocksdb_env_destroy(pHandle->env);
+  rocksdb_cache_destroy(pHandle->cache);
+
+  taosThreadMutexDestroy(&pHandle->mutex);
+  SListNode* head = tdListPopHead(pHandle->list);
+  while (head != NULL) {
+    streamStateDestroyCompar(head->data);
+    taosMemoryFree(head);
+    head = tdListPopHead(pHandle->list);
+  }
+  tdListFree(pHandle->list);
+
+  taosMemoryFree(pHandle);
+
+  return;
+}
+SListNode* streamBackendAddCompare(void* backend, void* arg) {
+  SBackendHandle* pHandle = (SBackendHandle*)backend;
+  SListNode*      node = NULL;
+  taosThreadMutexLock(&pHandle->mutex);
+  node = tdListAdd(pHandle->list, arg);
+  taosThreadMutexUnlock(&pHandle->mutex);
+  return node;
+}
+void streamBackendDelCompare(void* backend, void* arg) {
+  SBackendHandle* pHandle = (SBackendHandle*)backend;
+  SListNode*      node = NULL;
+  taosThreadMutexLock(&pHandle->mutex);
+  node = tdListPopNode(pHandle->list, arg);
+  taosThreadMutexUnlock(&pHandle->mutex);
+  if (node) {
+    streamStateDestroyCompar(node->data);
+    taosMemoryFree(node);
+  }
+}
+
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {
     return 1;
@@ -100,7 +182,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   pState->pTdbState = taosMemoryCalloc(1, sizeof(STdbState));
   if (pState->pTdbState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    streamStateDestroy(pState);
+    streamStateDestroy(pState, true);
     return NULL;
   }
 
@@ -111,9 +193,11 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
   }
+  pState->taskId = pTask->id.taskId;
+  pState->streamId = pTask->id.streamId;
 #ifdef USE_ROCKSDB
   qWarn("open stream state1");
-  int code = streamInitBackend(pState, statePath);
+  int code = streamStateOpenBackend(pTask->pMeta->streamBackend, pState);
   if (code == -1) {
     taosMemoryFree(pState);
     pState = NULL;
@@ -205,14 +289,15 @@ _err:
   tdbTbClose(pState->pTdbState->pParNameDb);
   tdbTbClose(pState->pTdbState->pParTagDb);
   tdbClose(pState->pTdbState->db);
-  streamStateDestroy(pState);
+  streamStateDestroy(pState, false);
   return NULL;
 #endif
 }
 
-void streamStateClose(SStreamState* pState) {
+void streamStateClose(SStreamState* pState, bool remove) {
 #ifdef USE_ROCKSDB
-  streamCleanBackend(pState);
+  // streamStateCloseBackend(pState);
+  streamStateDestroy(pState, remove);
 #else
   tdbCommit(pState->pTdbState->db, pState->pTdbState->txn);
   tdbPostCommit(pState->pTdbState->db, pState->pTdbState->txn);
@@ -224,7 +309,6 @@ void streamStateClose(SStreamState* pState) {
   tdbTbClose(pState->pTdbState->pParTagDb);
   tdbClose(pState->pTdbState->db);
 #endif
-  streamStateDestroy(pState);
 }
 
 int32_t streamStateBegin(SStreamState* pState) {
@@ -388,6 +472,7 @@ int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, vo
 #ifdef USE_ROCKSDB
   int32_t code = 0;
   void*   batch = streamStateCreateBatch();
+
   code = streamStatePutBatch(pState, "default", batch, pKey, pVal, vLen);
   if (code != 0) {
     return code;
@@ -1077,10 +1162,10 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
 #endif
 }
 
-void streamStateDestroy(SStreamState* pState) {
+void streamStateDestroy(SStreamState* pState, bool remove) {
 #ifdef USE_ROCKSDB
   streamFileStateDestroy(pState->pFileState);
-  streamStateDestroy_rocksdb(pState);
+  streamStateDestroy_rocksdb(pState, remove);
   tSimpleHashCleanup(pState->parNameMap);
   // do nothong
 #endif

@@ -87,6 +87,15 @@ int32_t tdListAppend(SList *list, const void *data) {
 
   return 0;
 }
+// return the node pointer
+SListNode *tdListAdd(SList *list, const void *data) {
+  SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
+  if (node == NULL) return NULL;
+
+  memcpy((void *)(node->data), data, list->eleSize);
+  TD_DLIST_APPEND(list, node);
+  return node;
+}
 
 SListNode *tdListPopHead(SList *list) {
   SListNode *node;

@@ -324,7 +324,6 @@ int32_t streaValueIsStale(void* k, int64_t ts) {
 
 typedef struct {
   void* tableOpt;
-  void* lru;  // global or not
 } rocksdbCfParam;
 const char* cfName[] = {"default", "state", "fill", "sess", "func", "parname", "partag"};
 
@@ -358,6 +357,9 @@ typedef struct {
 
 } SCfInit;
 
+#define GEN_COLUMN_FAMILY_NAME(name, streamId, taskId, SUBFIX) \
+  sprintf(name, "%d_%d_%s", (streamId), (taskId), (SUBFIX));
+
 SCfInit ginitDict[] = {
     {"default", 7, 0, defaultKeyComp, defaultKeyEncode, defaultKeyDecode, defaultKeyToString, compareDefaultName,
      destroyFunc},
@@ -378,21 +380,9 @@ const char* compareFuncKeyName(void* name) { return ginitDict[4].key; }
 const char* compareParKeyName(void* name) { return ginitDict[5].key; }
 const char* comparePartagKeyName(void* name) { return ginitDict[6].key; }
 
-int streamInitBackend(SStreamState* pState, char* path) {
-  rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
-  rocksdb_env_set_low_priority_background_threads(env, 4);
-  rocksdb_env_set_high_priority_background_threads(env, 2);
-
-  rocksdb_options_t* opts = rocksdb_options_create();
-  rocksdb_options_set_env(opts, env);
-  // rocksdb_options_increase_parallelism(opts, 8);
-  //  rocksdb_options_optimize_level_style_compaction(opts, 0);
-  //   create the DB if it's not already present
-  rocksdb_options_set_create_if_missing(opts, 1);
-  rocksdb_options_set_create_missing_column_families(opts, 1);
-  rocksdb_options_set_write_buffer_size(opts, 64 << 20);
-  rocksdb_options_set_recycle_log_file_num(opts, 6);
-  rocksdb_options_set_max_write_buffer_number(opts, 3);
+int streamStateOpenBackend(void* backend, SStreamState* pState) {
+  qError("start to open backend, %p, %d-%d", pState, pState->streamId, pState->taskId);
+  SBackendHandle* handle = backend;
 
   char* err = NULL;
   int   cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
@@ -400,11 +390,10 @@ int streamInitBackend(SStreamState* pState, char* path) {
   rocksdbCfParam*           param = taosMemoryCalloc(cfLen, sizeof(rocksdbCfParam));
   const rocksdb_options_t** cfOpt = taosMemoryCalloc(cfLen, sizeof(rocksdb_options_t*));
   for (int i = 0; i < cfLen; i++) {
-    cfOpt[i] = rocksdb_options_create_copy(opts);
+    cfOpt[i] = rocksdb_options_create();
     // refactor later
     rocksdb_block_based_table_options_t* tableOpt = rocksdb_block_based_options_create();
-    rocksdb_cache_t*                     cache = rocksdb_cache_create_lru(64 << 20);
-    rocksdb_block_based_options_set_block_cache(tableOpt, cache);
+    rocksdb_block_based_options_set_block_cache(tableOpt, handle->cache);
 
     rocksdb_filterpolicy_t* filter = rocksdb_filterpolicy_create_bloom(15);
     rocksdb_block_based_options_set_filter_policy(tableOpt, filter);
@@ -412,73 +401,93 @@ int streamInitBackend(SStreamState* pState, char* path) {
     rocksdb_options_set_block_based_table_factory((rocksdb_options_t*)cfOpt[i], tableOpt);
 
     param[i].tableOpt = tableOpt;
-    param[i].lru = cache;
-    // rocksdb_slicetransform_t* trans = rocksdb_slicetransform_create_fixed_prefix(8);
-    // rocksdb_options_set_prefix_extractor((rocksdb_options_t*)cfOpt[i], trans);
   };
 
   rocksdb_comparator_t** pCompare = taosMemoryCalloc(cfLen, sizeof(rocksdb_comparator_t**));
   for (int i = 0; i < cfLen; i++) {
-    SCfInit*              cf = &ginitDict[i];
+    SCfInit* cf = &ginitDict[i];
+
     rocksdb_comparator_t* compare = rocksdb_comparator_create(NULL, cf->detroyFunc, cf->cmpFunc, cf->cmpName);
     rocksdb_options_set_comparator((rocksdb_options_t*)cfOpt[i], compare);
     pCompare[i] = compare;
   }
-
   rocksdb_column_family_handle_t** cfHandle = taosMemoryMalloc(cfLen * sizeof(rocksdb_column_family_handle_t*));
-  rocksdb_t*                       db = rocksdb_open_column_families(opts, path, cfLen, cfName, cfOpt, cfHandle, &err);
+  for (int i = 0; i < cfLen; i++) {
+    char buf[64] = {0};
+    GEN_COLUMN_FAMILY_NAME(buf, pState->streamId, pState->taskId, ginitDict[i].key);
+    cfHandle[i] = rocksdb_create_column_family(handle->db, cfOpt[i], buf, &err);
+    if (err != NULL) {
+      qError("rocksdb create column family failed, reason:%s", err);
+      taosMemoryFree(err);
+      return -1;
+    }
+  }
 
-  pState->pTdbState->rocksdb = db;
+  pState->pTdbState->rocksdb = handle->db;
   pState->pTdbState->pHandle = cfHandle;
   pState->pTdbState->writeOpts = rocksdb_writeoptions_create();
-  // rocksdb_writeoptions_
-  // rocksdb_writeoptions_set_no_slowdown(pState->pTdbState->writeOpts, 1);
   pState->pTdbState->readOpts = rocksdb_readoptions_create();
   pState->pTdbState->cfOpts = (rocksdb_options_t**)cfOpt;
-  pState->pTdbState->pCompare = pCompare;
-  pState->pTdbState->dbOpt = opts;
+  // pState->pTdbState->pCompare = pCompare;
+  pState->pTdbState->dbOpt = handle->dbOpt;
   pState->pTdbState->param = param;
-  pState->pTdbState->env = env;
+
+  SCfComparator compare = {.comp = pCompare, .numOfComp = cfLen};
+  pState->pTdbState->pComparNode = streamBackendAddCompare(handle, &compare);
+
+  rocksdb_writeoptions_disable_WAL(pState->pTdbState->writeOpts, 1);
+  qError("end to open backend, %p", pState);
   return 0;
 }
-void streamCleanBackend(SStreamState* pState) {
+void streamStateCloseBackend(SStreamState* pState, bool remove) {
+  char* status[] = {"remove", "drop"};
+  qError("start to %s backend, %p, %d-%d", status[remove == false ? 1 : 0], pState, pState->streamId, pState->taskId);
   if (pState->pTdbState->rocksdb == NULL) {
-    qInfo("rocksdb already free");
     return;
   }
 
   int             cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
   rocksdbCfParam* param = pState->pTdbState->param;
+
+  char*                   err = NULL;
+  rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
+  for (int i = 0; i < cfLen; i++) {
+    if (remove) {
+      rocksdb_drop_column_family(pState->pTdbState->rocksdb, pState->pTdbState->pHandle[i], &err);
+    } else {
+      rocksdb_flush_cf(pState->pTdbState->rocksdb, flushOpt, pState->pTdbState->pHandle[i], &err);
+    }
+  }
+  rocksdb_flushoptions_destroy(flushOpt);
+
   for (int i = 0; i < cfLen; i++) {
     rocksdb_column_family_handle_destroy(pState->pTdbState->pHandle[i]);
   }
   taosMemoryFreeClear(pState->pTdbState->pHandle);
 
-  rocksdb_options_destroy(pState->pTdbState->dbOpt);
-
+  for (int i = 0; i < cfLen; i++) {
+    rocksdb_options_destroy(pState->pTdbState->cfOpts[i]);
+    rocksdb_block_based_options_destroy(param[i].tableOpt);
+  }
+  if (remove) {
+    streamBackendDelCompare(pState->pTdbState->pBackendHandle, pState->pTdbState->pComparNode);
+  }
   rocksdb_writeoptions_destroy(pState->pTdbState->writeOpts);
   pState->pTdbState->writeOpts = NULL;
 
   rocksdb_readoptions_destroy(pState->pTdbState->readOpts);
   pState->pTdbState->readOpts = NULL;
-
-  rocksdb_close(pState->pTdbState->rocksdb);
-  // wait for all background work to finish
-  for (int i = 0; i < cfLen; i++) {
-    rocksdb_options_destroy(pState->pTdbState->cfOpts[i]);
-    rocksdb_comparator_destroy(pState->pTdbState->pCompare[i]);
-
-    rocksdb_cache_destroy(param[i].lru);
-    rocksdb_block_based_options_destroy(param[i].tableOpt);
-  }
   taosMemoryFreeClear(pState->pTdbState->cfOpts);
-  taosMemoryFree(pState->pTdbState->pCompare);
-  taosMemoryFree(pState->pTdbState->param);
-  rocksdb_env_destroy(pState->pTdbState->env);
-
+  taosMemoryFreeClear(pState->pTdbState->param);
   pState->pTdbState->rocksdb = NULL;
 }
-
+void streamStateDestroyCompar(void* arg) {
+  SCfComparator* comp = (SCfComparator*)arg;
+  for (int i = 0; i < comp->numOfComp; i++) {
+    rocksdb_comparator_destroy(comp->comp[i]);
+  }
+  taosMemoryFree(comp->comp);
+}
 int streamGetInit(const char* funcName) {
   size_t len = strlen(funcName);
   for (int i = 0; i < sizeof(ginitDict) / sizeof(ginitDict[0]); i++) {
@@ -1540,7 +1549,7 @@ int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, voi
   return code;
 }
 
-void streamStateDestroy_rocksdb(SStreamState* pState) {
+void streamStateDestroy_rocksdb(SStreamState* pState, bool remove) {
   // only close db
-  streamCleanBackend(pState);
+  streamStateCloseBackend(pState, remove);
 }

@@ -27,6 +27,21 @@ extern "C" {
 #ifndef _STREAM_STATE_H_
 #define _STREAM_STATE_H_
 
+typedef struct {
+  rocksdb_t*              db;
+  rocksdb_writeoptions_t* writeOpts;
+  rocksdb_readoptions_t*  readOpts;
+  rocksdb_options_t*      dbOpt;
+  void*                   param;
+  void*                   env;
+  rocksdb_cache_t*        cache;
+  TdThreadMutex           mutex;
+  SList*                  list;
+} SBackendHandle;
+void*      streamBackendInit(const char* path);
+void       streamBackendCleanup(void* arg);
+SListNode* streamBackendAddCompare(void* backend, void* arg);
+void       streamBackendDelCompare(void* backend, void* arg);
 typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
 
 typedef struct STdbState {
@@ -35,11 +50,12 @@ typedef struct STdbState {
   rocksdb_writeoptions_t*          writeOpts;
   rocksdb_readoptions_t*           readOpts;
   rocksdb_options_t**              cfOpts;
-  rocksdb_comparator_t**           pCompare;
   rocksdb_options_t*               dbOpt;
   struct SStreamTask*              pOwner;
   void*                            param;
   void*                            env;
+  SListNode*                       pComparNode;
+  SBackendHandle*                  pBackendHandle;
 
   TDB* db;
   TTB* pStateDb;
@@ -58,13 +74,15 @@ typedef struct {
   int32_t           number;
   SSHashObj*        parNameMap;
   int64_t           checkPointId;
+  int32_t           taskId;
+  int32_t           streamId;
 } SStreamState;
 
 SStreamState* streamStateOpen(char* path, struct SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);
-void          streamStateClose(SStreamState* pState);
+void          streamStateClose(SStreamState* pState, bool remove);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);
-void          streamStateDestroy(SStreamState* pState);
+void          streamStateDestroy(SStreamState* pState, bool remove);
 int32_t       streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark);
 
 typedef struct {

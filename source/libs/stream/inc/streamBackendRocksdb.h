@@ -24,8 +24,14 @@
 #include "tcompare.h"
 #include "ttimer.h"
 
-int  streamInitBackend(SStreamState* pState, char* path);
-void streamCleanBackend(SStreamState* pState);
+typedef struct SCfComparator {
+  rocksdb_comparator_t** comp;
+  int32_t                numOfComp;
+} SCfComparator;
+int  streamStateOpenBackend(void* backend, SStreamState* pState);
+void streamStateCloseBackend(SStreamState* pState, bool remove);
+void streamStateDestroyCompar(void* arg);
+// void streamStateRemoveBackend(SStreamState* pState);
 
 int32_t streamStateFuncPut_rocksdb(SStreamState* pState, const STupleKey* key, const void* value, int32_t vLen);
 int32_t streamStateFuncGet_rocksdb(SStreamState* pState, const STupleKey* key, void** pVal, int32_t* pVLen);
@@ -73,7 +79,7 @@ int32_t          streamStatePutParTag_rocksdb(SStreamState* pState, int64_t grou
 int32_t          streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen);
 int32_t streamStatePutParName_rocksdb(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]);
 int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, void** pVal);
-void    streamStateDestroy_rocksdb(SStreamState* pState);
+void    streamStateDestroy_rocksdb(SStreamState* pState, bool remove);
 
 void*   streamStateCreateBatch();
 int32_t streamStateGetBatchSize(void* pBatch);
