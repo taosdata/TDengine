@@ -259,17 +259,14 @@ int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
-void    tqNextBlock(STqReader *pReader, SFetchRet *ret);
+int32_t tqNextBlock(STqReader *pReader, SSDataBlock* pBlock);
 int32_t extractSubmitMsgFromWal(SWalReader *pReader, SPackedData *pPackedData);
 
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
-// int32_t tqReaderSetDataMsg(STqReader *pReader, const SSubmitReq *pMsg, int64_t ver);
-bool    tqNextDataBlock(STqReader *pReader);
-bool    tqNextDataBlockFilterOut2(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock2(SSDataBlock *pBlock, STqReader *pReader, SSubmitTbData **pSubmitTbDataRet);
+bool    tqNextBlockImpl(STqReader *pReader);
+bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
+int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader, SSubmitTbData **pSubmitTbDataRet);
 int32_t tqRetrieveTaosxBlock2(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
-// int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
-// int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas);
 
 int32_t vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
 

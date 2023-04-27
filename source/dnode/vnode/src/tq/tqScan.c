@@ -203,7 +203,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     STqReader* pReader = pExec->pTqReader;
     tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver);
-    while (tqNextDataBlock(pReader)) {
+    while (tqNextBlockImpl(pReader)) {
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
       SSubmitTbData* pSubmitTbDataRet = NULL;
@@ -262,7 +262,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
   } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
     STqReader* pReader = pExec->pTqReader;
     tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver);
-    while (tqNextDataBlockFilterOut2(pReader, pExec->execDb.pFilterOutTbUid)) {
+    while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
       SSubmitTbData* pSubmitTbDataRet = NULL;
