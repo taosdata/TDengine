@@ -76,6 +76,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -A, --all-databases        Dump all databases.
   -D, --databases=DATABASES  Dump listed databases. Use comma to separate
                              database names.
+  -e, --escape-character     Use escaped character for database name
   -N, --without-property     Dump database without its properties.
   -s, --schemaonly           Only dump table schemas.
   -y, --answer-yes           Input yes for prompt. It will skip data file
