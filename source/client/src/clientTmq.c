@@ -1830,7 +1830,9 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
       if (pollRspWrapper->metaRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
-        pVg->currentOffset = pollRspWrapper->metaRsp.rspOffset;
+        if(pollRspWrapper->metaRsp.rspOffset.type != 0){    // if offset is validate
+          pVg->currentOffset = pollRspWrapper->metaRsp.rspOffset;
+        }
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         // build rsp
         SMqMetaRspObj* pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);
@@ -1848,7 +1850,9 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
       if (pollRspWrapper->taosxRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
-        pVg->currentOffset = pollRspWrapper->taosxRsp.rspOffset;
+        if(pollRspWrapper->taosxRsp.rspOffset.type != 0){    // if offset is validate
+          pVg->currentOffset = pollRspWrapper->taosxRsp.rspOffset;
+        }
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
 
         if (pollRspWrapper->taosxRsp.blockNum == 0) {
