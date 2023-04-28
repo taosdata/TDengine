@@ -187,9 +187,7 @@ echo "=======================new version number: ${verNumber}, compatible versio
 
 build_time=$(date +"%F %R")
 
-# get commint id from git
-gitinfo=$(git rev-parse --verify HEAD)
-
+# get TDinternal git commit id
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   enterprise_dir="${top_dir}/enterprise"
   cd ${enterprise_dir}
@@ -198,7 +196,17 @@ else
   gitinfoOfInternal=NULL
 fi
 
+# get TDengine commint id from git
+if [ -d ${top_dir}/community ]; then
+  cd ${top_dir}/community
+  gitinfo=$(git rev-parse --verify HEAD)
+else
+  echo "can not find TDengine source code"
+  exit 1
+fi
+
 cd "${curr_dir}"
+
 
 # 2. cmake executable file
 compile_dir="${top_dir}/community/debug"
@@ -208,7 +216,8 @@ fi
 
 mkdir -p ${compile_dir}
 cd ${compile_dir}
- 
+
+
 if [[ "$allocator" == "jemalloc" ]]; then
    allocator_macro="-DJEMALLOC_ENABLED=true"
 else

@@ -35,10 +35,13 @@ rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
 
+if [ "$cpuType" == "x64" ]; then
+  allocator=jemalloc
+fi
 # generate lite version in x64
 if [ "$cpuType" == "x64" ]; then
-  echo "../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true"
-  ../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true
+  echo "../enterprise/packaging/release.sh -a glibc -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true"
+  ../enterprise/packaging/release.sh -a glibc -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true
 fi
 
 # need build lite package first. standard need rebuild to include blm3
@@ -73,7 +76,7 @@ tar axf $server_tar
 tar axf $prefix/package.tar.gz -C $prefix/taos/
 cp -f $taoskeeper_binary $prefix/taos/bin/
 cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
-cp -f $(dirname $taoskeeper_binary)/config/keeper.toml $prefix/taos/cfg/
+cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml $prefix/taos/cfg/
 cat $scriptDir/remove_taoskeeper.sh >> $prefix/taos/bin/remove.sh
 cat $scriptDir/install_taoskeeper.sh >> $prefix/install.sh
 cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
