@@ -307,10 +307,14 @@ int32_t tqRegisterPushEntry(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   STqHandle* pHandle = (STqHandle*) handle;
   if(pHandle->msg == NULL){
     pHandle->msg = taosMemoryCalloc(1, sizeof(SRpcMsg));
+    memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
+    pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
+  }else{
+    void *tmp = pHandle->msg->pCont;
+    memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
+    pHandle->msg->pCont = tmp;
   }
 
-  memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
-  pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
   memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
   pHandle->msg->contLen = pMsg->contLen;
   int32_t ret = taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey), &pHandle, POINTER_BYTES);
