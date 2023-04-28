@@ -172,7 +172,7 @@ void tqNotifyClose(STQ* pTq) {
       int64_t st = taosGetTimestampMs();
       qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
       int64_t el = taosGetTimestampMs() - st;
-      tqDebug("vgId:%d s-task:%s is closed in %" PRId64 "ms", pTq->pStreamMeta->vgId, pTask->id.idStr, el);
+      tqDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pTq->pStreamMeta->vgId, pTask->id.idStr, el);
     }
 
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
