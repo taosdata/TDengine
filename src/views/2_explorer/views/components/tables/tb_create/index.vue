@@ -422,6 +422,13 @@ export default {
           this.handleData();
           this.$store.dispatch("tables/submitTableForm").then(() => {
             this.$message.success(this.$t("createSucc"));
+          })
+          .catch((err) => {
+            console.log('sssserr',err);
+            this.$message({
+              type: "error",
+              message: err?.desc
+            })
           });
         }
       });

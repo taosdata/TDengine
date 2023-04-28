@@ -121,14 +121,14 @@ const actions = {
         // dispatch("handleUseStbCreate", state.table_form.stbTmpl);
         commit("console/CHANGE_TREE_KEY", null, { root: true });
       })
-      .catch(() => {
-        if (!state.table_form.columns.length) {
-          state.table_form.columns.push({ type: "INT", field: "", value: "",varcharLength:8,ncharLength:8 });
+      .catch((err) => {
+        if (!state.table_form.columns?.length) {
+          state.table_form.columns?.push({ type: "INT", field: "", value: "",varcharLength:8,ncharLength:8 });
         }
-        if (!state.table_form.tags.length) {
-          state.table_form.tags.push({ type: "INT", field: "", value: "",varcharLength:8,ncharLength:8 });
+        if (!state.table_form.tags?.length) {
+          state.table_form.tags?.push({ type: "INT", field: "", value: "",varcharLength:8,ncharLength:8 });
         }
-        return Promise.reject();
+        return Promise.reject(err);
       });
   },
 };

@@ -643,6 +643,12 @@ export default {
             .dispatch("stables/submitStableForm", this.selected_db)
             .then(() => {
               this.$message.success(this.$t("createSucc"));
+            })
+            .catch((err) => {
+              this.$message({
+                type: "error",
+                message: err?.desc
+              })
             });
         }
       });
