@@ -50,16 +50,16 @@ parameters:
     OSTYPE: Linux
     CPUTYPE: x64
     WEBSOCKET: false
-    SOMODE: dynamic 
+    SOMODE: dynamic
     DBNAME: taos
     VERTYPE: stable
-    VERDATE: true 
+    VERDATE: true
     GITINFO: community/$(git rev-parse --verify HEAD)
     GITINFOI: NULL
     VERNUMBER: 3.0.3.0
     VERCOMPATIBLE: 3.0.0.0
     PAGMODE: lite
-    BUILD_HTTP: true 
+    BUILD_HTTP: true
     BUILD_TOOLS: false
     BUILD_EXPLORER: false
     CUS_NAME: TDengine
