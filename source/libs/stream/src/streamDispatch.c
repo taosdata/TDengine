@@ -230,23 +230,21 @@ int32_t streamDispatchOneCheckReq(SStreamTask* pTask, const SStreamTaskCheckReq*
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeSStreamTaskCheckReq(&encoder, pReq)) < 0) {
-    goto FAIL;
+    rpcFreeCont(buf);
+    return code;
   }
+
   tEncoderClear(&encoder);
 
   msg.contLen = tlen + sizeof(SMsgHead);
   msg.pCont = buf;
   msg.msgType = TDMT_STREAM_TASK_CHECK;
 
-  qDebug("dispatch from s-task:%s to downstream s-task:%"PRIx64":%d node %d: check msg", pTask->id.idStr,
-      pReq->streamId, pReq->downstreamTaskId, nodeId);
+  qDebug("dispatch from s-task:%s to downstream s-task:%" PRIx64 ":%d node %d: check msg", pTask->id.idStr,
+         pReq->streamId, pReq->downstreamTaskId, nodeId);
 
   tmsgSendReq(pEpSet, &msg);
-
   return 0;
-FAIL:
-  if (buf) rpcFreeCont(buf);
-  return code;
 }
 
 int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecoverFinishReq* pReq, int32_t vgId,

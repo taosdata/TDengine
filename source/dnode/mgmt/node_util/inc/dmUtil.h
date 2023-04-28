@@ -135,6 +135,7 @@ typedef int32_t (*NodeDropFp)(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 typedef int32_t (*NodeRequireFp)(const SMgmtInputOpt *pInput, bool *required);
 typedef SArray *(*NodeGetHandlesFp)();  // array of SMgmtHandle
 typedef bool (*NodeIsCatchUpFp)(void *pMgmt);
+typedef bool (*NodeRole)(void *pMgmt);
 
 typedef struct {
   NodeOpenFp       openFp;
@@ -146,6 +147,7 @@ typedef struct {
   NodeRequireFp    requiredFp;
   NodeGetHandlesFp getHandlesFp;
   NodeIsCatchUpFp  isCatchUpFp;
+  NodeRole         nodeRoleFp;
 } SMgmtFunc;
 
 typedef struct {

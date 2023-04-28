@@ -421,6 +421,7 @@ void dumpUser(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
     tjsonAddStringToObject(item, "superUser", i642str(pObj->superUser));
     tjsonAddStringToObject(item, "authVersion", i642str(pObj->authVersion));
+    tjsonAddStringToObject(item, "passVersion", i642str(pObj->passVersion));
     tjsonAddStringToObject(item, "numOfReadDbs", i642str(taosHashGetSize(pObj->readDbs)));
     tjsonAddStringToObject(item, "numOfWriteDbs", i642str(taosHashGetSize(pObj->writeDbs)));
     sdbRelease(pSdb, pObj);

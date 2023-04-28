@@ -5,9 +5,9 @@ description: This document describes the standard SQL functions available in TDe
 toc_max_heading_level: 4
 ---
 
-## Single Row Functions
+## Scalar Functions
 
-Single row functions return a result for each row.
+Scalar functions return one result for each row.
 
 ### Mathematical Functions
 

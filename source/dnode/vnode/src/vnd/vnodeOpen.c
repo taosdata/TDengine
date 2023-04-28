@@ -431,6 +431,10 @@ int32_t vnodeIsCatchUp(SVnode *pVnode){
   return syncIsCatchUp(pVnode->sync);
 }
 
+ESyncRole vnodeGetRole(SVnode *pVnode){
+  return syncGetRole(pVnode->sync);
+}
+
 void vnodeStop(SVnode *pVnode) {}
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }

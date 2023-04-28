@@ -159,6 +159,10 @@ static int32_t mmSyncIsCatchUp(SMnodeMgmt *pMgmt) {
   return mndIsCatchUp(pMgmt->pMnode);
 }
 
+static ESyncRole mmSyncGetRole(SMnodeMgmt *pMgmt) {
+  return mndGetRole(pMgmt->pMnode);
+}
+
 SMgmtFunc mmGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};
   mgmtFunc.openFp = mmOpen;
@@ -170,6 +174,7 @@ SMgmtFunc mmGetMgmtFunc() {
   mgmtFunc.requiredFp = mmRequire;
   mgmtFunc.getHandlesFp = mmGetMsgHandles;
   mgmtFunc.isCatchUpFp = (NodeIsCatchUpFp)mmSyncIsCatchUp;
+  mgmtFunc.nodeRoleFp = (NodeRole)mmSyncGetRole;
 
   return mgmtFunc;
 }

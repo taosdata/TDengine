@@ -263,7 +263,7 @@ static void doPushDataForEntry(void* pIter, STqExecHandle* pExec, STQ* pTq, int6
 
   if (pRsp->blockNum > 0) {
     tqOffsetResetToLog(&pRsp->rspOffset, ver);
-    tqPushDataRsp(pTq, pPushEntry);
+    tqPushDataRsp(pPushEntry, vgId);
     recordPushedEntry(pCachedKey, pIter);
   }
 }
@@ -376,6 +376,7 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* pHandle, const SMqPollReq* pRequest
     return -1;
   }
 
+  pPushEntry->pHandle = pHandle;
   pPushEntry->info = pRpcMsg->info;
   memcpy(pPushEntry->subKey, pTqHandle->subKey, TSDB_SUBSCRIBE_KEY_LEN);
 
@@ -388,6 +389,7 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* pHandle, const SMqPollReq* pRequest
   }
 
   SMqRspHead* pHead = &pPushEntry->pDataRsp->head;
+
   pHead->consumerId = consumerId;
   pHead->epoch = pRequest->epoch;
   pHead->mqMsgType = type;
@@ -411,7 +413,7 @@ int32_t tqUnregisterPushHandle(STQ* pTq, const char* pKey, int32_t keyLen, uint6
             (*pEntry)->subKey, vgId, taosHashGetSize(pTq->pPushMgr) - 1);
 
     if (rspConsumer) {  // rsp the old consumer with empty block.
-      tqPushDataRsp(pTq, *pEntry);
+      tqPushDataRsp(*pEntry, vgId);
     }
 
     taosHashRemove(pTq->pPushMgr, pKey, keyLen);

@@ -102,8 +102,10 @@ int32_t streamRecheckOneDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp
       .downstreamNodeId = pRsp->downstreamNodeId,
       .childId = pRsp->childId,
   };
-  qDebug("task %d at node %d check downstream task %d at node %d (recheck)", pTask->id.taskId, pTask->nodeId,
+
+  qDebug("s-task:%s at node %d check downstream task %d at node %d (recheck)", pTask->id.idStr, pTask->nodeId,
          req.downstreamTaskId, req.downstreamNodeId);
+
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
     streamDispatchOneCheckReq(pTask, &req, pRsp->downstreamNodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -116,6 +118,7 @@ int32_t streamRecheckOneDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp
       }
     }
   }
+
   return 0;
 }
 
@@ -158,9 +161,10 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
     } else {
       ASSERT(0);
     }
-  } else {
+  } else { // not ready, it should wait for at least 100ms and then retry
     streamRecheckOneDownstream(pTask, pRsp);
   }
+
   return 0;
 }
 
