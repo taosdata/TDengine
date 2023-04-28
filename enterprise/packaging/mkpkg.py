@@ -900,7 +900,9 @@ def mkServerTar(tarServerOptions, buildOptions, verMode):
     os.makedirs(os.path.join(installDir, 'init.d'), exist_ok=True)
 
     if buildOptions['PAGMODE'] == 'lite':
-        tarServerLite(tarServerOptions['server'])
+        # tarServerLite(tarServerOptions['server'])
+        tarServer(tarServerOptions['server'], buildOptions, verMode)
+        
     else:
         tarServer(tarServerOptions['server'], buildOptions, verMode)
     

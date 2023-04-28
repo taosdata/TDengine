@@ -384,25 +384,7 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
             logging.warning(f"jemalloc is not supported on this {platform}")
     else:
         logging.info("Jemalloc build is not enabled")
-
-    # 20
-    if buildOptions.get('BUILD_EXPLORER') is None:
-        if buildOptions['BUILD_EXPLORER'] == False:
-            command += f" -DBUILD_EXPLORER=false "
-            logging.info("BUILD_EXPLORER is false, explorer will not be built")
-        elif verMode in ['cluster', 'cloud'] and buildOptions['BUILD_EXPLORER'] == False:
-            command += f" -DBUILD_EXPLORER=false "
-            logging.warning(
-                "BUILD_EXPLORER is true, but verMode is not cluster or cloud")
-        elif verMode in ['cluster', 'cloud', 'cluster'] and buildOptions['BUILD_EXPLORER'] == True:
-            command += f" -DBUILD_EXPLORER=true "
-        else:
-            logging.error(
-                "BUILD_EXPLORER is not supported for this verMode:{}".format(verMode))
-            raise Exception(
-                "BUILD_EXPLORER is not supported for this verMode:{}".format(verMode))
-    else:
-        logging.info("BUILD_EXPLORER is not set, will not build explorer")
+        
     # 15
     if buildOptions.get('BUILD_TAOSX') is None:
         if buildOptions['BUILD_TAOSX'] == True:
@@ -437,11 +419,32 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
         command += f" -DCUS_PROMPT={buildOptions['CUS_PROMPT']} "
     # 19
         command += f" -DCUS_EMAIL={buildOptions['CUS_EMAIL']} "
+    
+        # 20
+    if buildOptions.get('BUILD_EXPLORER') is None:
+        if buildOptions['BUILD_EXPLORER'] == False:
+            command += f" -DBUILD_EXPLORER=false "
+            logging.info("BUILD_EXPLORER is false, explorer will not be built")
+        elif verMode in ['cluster', 'cloud'] and buildOptions['BUILD_EXPLORER'] == False:
+            command += f" -DBUILD_EXPLORER=false "
+            logging.warning(
+                "BUILD_EXPLORER is true, but verMode is not cluster or cloud")
+        elif verMode in ['cluster', 'cloud', 'cluster'] and buildOptions['BUILD_EXPLORER'] == True:
+            command += f" -DBUILD_EXPLORER=true "
+        else:
+            logging.error(
+                "BUILD_EXPLORER is not supported for this verMode:{}".format(verMode))
+            raise Exception(
+                "BUILD_EXPLORER is not supported for this verMode:{}".format(verMode))
+    else:
+        logging.info("BUILD_EXPLORER is not set, will not build explorer")
+    
+    if buildOptions.get('')
     logging.info(f"cmake command is {command}")
     return command
 
 
-def buildInstall(options, verMode):
+def sbuildInstall(options, verMode):
     buildOptions = options['buildOptions']
     prepareDir(options)
     os.chdir(compileDir)
@@ -629,7 +632,7 @@ def doRelease(options, preActions, postActions, args):
 
     # ================= build and install
 
-    #buildInstall(options, options['verMode'])
+    buildInstall(options, options['verMode'])
 
     # ================ making packages
     makePackages(options, options['buildOptions'], options['verMode'])

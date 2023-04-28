@@ -50,21 +50,18 @@ parameters:
     OSTYPE: Linux
     CPUTYPE: x64
     WEBSOCKET: false
-    BUILD_HTTP: true 
-    BUILD_TOOLS: false
-    BUILD_EXPLORER: false
-    JEMALLOC_ENABLED: false
-    BUILD_TAOSX: false
-    BUILD_CLOUD: false
-    VERNUMBER: 3.0.3.0
-    VERCOMPATIBLE: 3.0.0.0
-    PAGMODE: lite
     SOMODE: dynamic 
     DBNAME: taos
     VERTYPE: stable
     VERDATE: true 
     GITINFO: community/$(git rev-parse --verify HEAD)
     GITINFOI: NULL
+    VERNUMBER: 3.0.3.0
+    VERCOMPATIBLE: 3.0.0.0
+    PAGMODE: lite
+    BUILD_HTTP: true 
+    BUILD_TOOLS: false
+    BUILD_EXPLORER: false
     CUS_NAME: TDengine
     CUS_PROMPT: taos
     CUS_EMAIL: support@taosdata.com
