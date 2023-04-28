@@ -24,9 +24,9 @@
 #include "ttime.h"
 
 #include "executil.h"
-#include "executorimpl.h"
-#include "tcompression.h"
+#include "executorInt.h"
 #include "querytask.h"
+#include "tcompression.h"
 
 typedef struct STableListIdInfo {
   uint64_t suid;

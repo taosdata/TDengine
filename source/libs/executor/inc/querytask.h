@@ -22,6 +22,17 @@ extern "C" {
 
 #define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
 
+enum {
+  // when this task starts to execute, this status will set
+      TASK_NOT_COMPLETED = 0x1u,
+
+  /* Task is over
+   * 1. this status is used in one row result query process, e.g., count/sum/first/last/ avg...etc.
+   * 2. when all data within queried time window, it is also denoted as query_completed
+   */
+      TASK_COMPLETED = 0x2u,
+};
+
 typedef struct STaskIdInfo {
   uint64_t queryId;  // this is also a request id
   uint64_t subplanId;
@@ -43,6 +54,23 @@ typedef struct STaskStopInfo {
   SRWLatch lock;
   SArray*  pStopInfo;
 } STaskStopInfo;
+
+typedef struct {
+  STqOffsetVal        currentOffset;  // for tmq
+  SMqMetaRsp          metaRsp;        // for tmq fetching meta
+  int64_t             snapshotVer;
+  SPackedData         submit;  // todo remove it
+  SSchemaWrapper*     schema;
+  char                tbName[TSDB_TABLE_NAME_LEN];   // this is the current scan table: todo refactor
+  int8_t              recoverStep;
+  int8_t              recoverScanFinished;
+  SQueryTableDataCond tableCond;
+  int64_t             fillHistoryVer1;
+  int64_t             fillHistoryVer2;
+  SStreamState*       pState;
+  int64_t             dataVersion;
+  int64_t             checkPointId;
+} SStreamTaskInfo;
 
 struct SExecTaskInfo {
   STaskIdInfo           id;
@@ -75,6 +103,7 @@ void           setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t        createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                   int32_t vgId, char* sql, EOPTR_EXEC_MODEL model);
 int32_t        qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
+SArray*        getTableListInfo(const SExecTaskInfo* pTaskInfo);
 
 #ifdef __cplusplus
 }

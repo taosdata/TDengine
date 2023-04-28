@@ -24,14 +24,14 @@
 #include "tdatablock.h"
 #include "tmsg.h"
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "index.h"
+#include "operator.h"
 #include "query.h"
+#include "querytask.h"
 #include "thash.h"
 #include "ttypes.h"
 #include "vnode.h"
-#include "operator.h"
-#include "querytask.h"
 
 #define CLEAR_QUERY_STATUS(q, st) ((q)->status &= (~(st)))
 

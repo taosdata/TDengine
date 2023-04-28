@@ -24,13 +24,13 @@
 #include "os.h"
 
 #include "executor.h"
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "function.h"
+#include "operator.h"
 #include "taos.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tvariant.h"
-#include "operator.h"
 
 namespace {
 

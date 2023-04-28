@@ -20,12 +20,12 @@
 
 #include "tglobal.h"
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "index.h"
-#include "query.h"
-#include "vnode.h"
 #include "operator.h"
+#include "query.h"
 #include "querytask.h"
+#include "vnode.h"
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn,
@@ -75,28 +75,6 @@ void setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32_t type, b
   pOperator->pTaskInfo = pTaskInfo;
 }
 
-void destroyOperator(SOperatorInfo* pOperator) {
-  if (pOperator == NULL) {
-    return;
-  }
-
-  if (pOperator->fpSet.closeFn != NULL) {
-    pOperator->fpSet.closeFn(pOperator->info);
-  }
-
-  if (pOperator->pDownstream != NULL) {
-    for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
-      destroyOperator(pOperator->pDownstream[i]);
-    }
-
-    taosMemoryFreeClear(pOperator->pDownstream);
-    pOperator->numOfDownstream = 0;
-  }
-
-  cleanupExprSupp(&pOperator->exprSupp);
-  taosMemoryFreeClear(pOperator);
-}
-
 // each operator should be set their own function to return total cost buffer
 int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
   if (pOperator->blocking) {
@@ -105,40 +83,6 @@ int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
     return 0;
   }
 }
-
-//int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag, bool inheritUsOrder) {
-//  // todo add more information about exchange operation
-//  int32_t type = pOperator->operatorType;
-//  if (type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN ||
-//      type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN ||
-//      type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN) {
-//    *order = TSDB_ORDER_ASC;
-//    *scanFlag = MAIN_SCAN;
-//    return TSDB_CODE_SUCCESS;
-//  } else if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
-//    if (!inheritUsOrder) {
-//      *order = TSDB_ORDER_ASC;
-//    }
-//    *scanFlag = MAIN_SCAN;
-//    return TSDB_CODE_SUCCESS;
-//  } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-//    STableScanInfo* pTableScanInfo = pOperator->info;
-//    *order = pTableScanInfo->base.cond.order;
-//    *scanFlag = pTableScanInfo->base.scanFlag;
-//    return TSDB_CODE_SUCCESS;
-//  } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
-//    STableMergeScanInfo* pTableScanInfo = pOperator->info;
-//    *order = pTableScanInfo->base.cond.order;
-//    *scanFlag = pTableScanInfo->base.scanFlag;
-//    return TSDB_CODE_SUCCESS;
-//  } else {
-//    if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
-//      return TSDB_CODE_INVALID_PARA;
-//    } else {
-//      return getTableScanInfo(pOperator->pDownstream[0], order, scanFlag, inheritUsOrder);
-//    }
-//  }
-//}
 
 static int64_t getQuerySupportBufSize(size_t numOfTables) {
   size_t s1 = sizeof(STableQueryInfo);
@@ -319,7 +263,7 @@ int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr) {
 }
 
 SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
-                                  SNode* pTagIndexCond, const char* pUser, const char* dbname) {
+                              SNode* pTagIndexCond, const char* pUser, const char* dbname) {
   int32_t     type = nodeType(pPhyNode);
   const char* idstr = GET_TASKID(pTaskInfo);
 
@@ -347,7 +291,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
 
       code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
       if (code) {
-        pTaskInfo->code = terrno;
+        pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
         return NULL;
       }
@@ -355,6 +299,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
       pOperator = createTableScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo);
       if (NULL == pOperator) {
         pTaskInfo->code = terrno;
+        tableListDestroy(pTableListInfo);
         return NULL;
       }
 
@@ -577,4 +522,57 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
   }
 
   return pOptr;
+}
+
+void destroyOperator(SOperatorInfo* pOperator) {
+  if (pOperator == NULL) {
+    return;
+  }
+
+  if (pOperator->fpSet.closeFn != NULL) {
+    pOperator->fpSet.closeFn(pOperator->info);
+  }
+
+  if (pOperator->pDownstream != NULL) {
+    for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+      destroyOperator(pOperator->pDownstream[i]);
+    }
+
+    taosMemoryFreeClear(pOperator->pDownstream);
+    pOperator->numOfDownstream = 0;
+  }
+
+  cleanupExprSupp(&pOperator->exprSupp);
+  taosMemoryFreeClear(pOperator);
+}
+
+int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList) {
+  SExplainExecInfo  execInfo = {0};
+  SExplainExecInfo* pExplainInfo = taosArrayPush(pExecInfoList, &execInfo);
+
+  pExplainInfo->numOfRows = operatorInfo->resultInfo.totalRows;
+  pExplainInfo->startupCost = operatorInfo->cost.openCost;
+  pExplainInfo->totalCost = operatorInfo->cost.totalCost;
+  pExplainInfo->verboseLen = 0;
+  pExplainInfo->verboseInfo = NULL;
+
+  if (operatorInfo->fpSet.getExplainFn) {
+    int32_t code =
+        operatorInfo->fpSet.getExplainFn(operatorInfo, &pExplainInfo->verboseInfo, &pExplainInfo->verboseLen);
+    if (code) {
+      qError("%s operator getExplainFn failed, code:%s", GET_TASKID(operatorInfo->pTaskInfo), tstrerror(code));
+      return code;
+    }
+  }
+
+  int32_t code = 0;
+  for (int32_t i = 0; i < operatorInfo->numOfDownstream; ++i) {
+    code = getOperatorExplainExecInfo(operatorInfo->pDownstream[i], pExecInfoList);
+    if (code != TSDB_CODE_SUCCESS) {
+      //      taosMemoryFreeClear(*pRes);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }

@@ -20,16 +20,16 @@
 #include "tfill.h"
 #include "tname.h"
 
+#include "executorInt.h"
+#include "index.h"
+#include "operator.h"
+#include "query.h"
+#include "querytask.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tglobal.h"
-#include "executorimpl.h"
-#include "index.h"
-#include "query.h"
-#include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "operator.h"
-#include "querytask.h"
 
 typedef struct {
   bool    hasAgg;

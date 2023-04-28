@@ -14,14 +14,14 @@
  */
 
 #include "executor.h"
-#include "executorimpl.h"
+#include "executorInt.h"
+#include "operator.h"
 #include "planner.h"
+#include "querytask.h"
 #include "tdatablock.h"
 #include "tref.h"
 #include "tudf.h"
 #include "vnode.h"
-#include "operator.h"
-#include "querytask.h"
 
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             exchangeObjRefPool = -1;
@@ -718,8 +718,6 @@ void qRemoveTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo) {
     taosArrayRemove(pTaskInfo->stopInfo.pStopInfo, idx);
   }
   taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
-
-  return;
 }
 
 void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
@@ -1303,4 +1301,26 @@ SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
 
   taosArrayDestroy(plist);
   return pUidList;
+}
+
+static void extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pScanInfo = pOperator->info;
+    STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
+    taosArrayPush(pList, &pTableScanInfo->base.pTableListInfo);
+  } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pScanInfo = pOperator->info;
+    taosArrayPush(pList, &pScanInfo->base.pTableListInfo);
+  } else {
+    if (pOperator->pDownstream != NULL && pOperator->pDownstream[0] != NULL) {
+      extractTableList(pList, pOperator->pDownstream[0]);
+    }
+  }
+}
+
+SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo) {
+  SArray*        pArray = taosArrayInit(0, POINTER_BYTES);
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+  extractTableList(pArray, pOperator);
+  return pArray;
 }

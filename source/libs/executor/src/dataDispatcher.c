@@ -15,7 +15,7 @@
 
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "planner.h"
 #include "tcompression.h"
 #include "tdatablock.h"
