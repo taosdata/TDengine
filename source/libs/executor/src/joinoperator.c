@@ -23,6 +23,8 @@
 #include "thash.h"
 #include "tmsg.h"
 #include "ttypes.h"
+#include "operator.h"
+#include "querytask.h"
 
 typedef struct SJoinRowCtx {
   bool    rowRemains;

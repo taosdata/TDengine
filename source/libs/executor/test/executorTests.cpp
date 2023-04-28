@@ -29,11 +29,8 @@
 #include "taos.h"
 #include "tdatablock.h"
 #include "tdef.h"
-#include "tglobal.h"
-#include "tmsg.h"
-#include "tname.h"
-#include "trpc.h"
 #include "tvariant.h"
+#include "operator.h"
 
 namespace {
 

@@ -16,6 +16,8 @@
 #include "filter.h"
 #include "executorimpl.h"
 #include "tdatablock.h"
+#include "operator.h"
+#include "querytask.h"
 
 typedef struct SSortOperatorInfo {
   SOptrBasicInfo binfo;

@@ -85,39 +85,6 @@ typedef struct SLimit {
 
 typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
 
-typedef struct STaskCostInfo {
-  int64_t                 created;
-  int64_t                 start;
-  uint64_t                elapsedTime;
-  double                  extractListTime;
-  double                  groupIdMapTime;
-  SFileBlockLoadRecorder* pRecoder;
-} STaskCostInfo;
-
-typedef struct SOperatorCostInfo {
-  double openCost;
-  double totalCost;
-} SOperatorCostInfo;
-
-struct SOperatorInfo;
-
-typedef int32_t (*__optr_encode_fn_t)(struct SOperatorInfo* pOperator, char** result, int32_t* length);
-typedef int32_t (*__optr_decode_fn_t)(struct SOperatorInfo* pOperator, char* result);
-
-typedef int32_t (*__optr_open_fn_t)(struct SOperatorInfo* pOptr);
-typedef SSDataBlock* (*__optr_fn_t)(struct SOperatorInfo* pOptr);
-typedef void (*__optr_close_fn_t)(void* param);
-typedef int32_t (*__optr_explain_fn_t)(struct SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len);
-typedef int32_t (*__optr_reqBuf_fn_t)(struct SOperatorInfo* pOptr);
-
-typedef struct STaskIdInfo {
-  uint64_t queryId;  // this is also a request id
-  uint64_t subplanId;
-  uint64_t templateId;
-  char*    str;
-  int32_t  vgId;
-} STaskIdInfo;
-
 enum {
   STREAM_RECOVER_STEP__NONE = 0,
   STREAM_RECOVER_STEP__PREPARE1,
@@ -156,51 +123,6 @@ typedef struct SExchangeOpStopInfo {
   int64_t refId;
 } SExchangeOpStopInfo;
 
-typedef struct STaskStopInfo {
-  SRWLatch lock;
-  SArray*  pStopInfo;
-} STaskStopInfo;
-
-struct SExecTaskInfo {
-  STaskIdInfo           id;
-  uint32_t              status;
-  STimeWindow           window;
-  STaskCostInfo         cost;
-  int64_t               owner;  // if it is in execution
-  int32_t               code;
-  int32_t               qbufQuota;  // total available buffer (in KB) during execution query
-  int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
-  SStreamTaskInfo       streamInfo;
-  SSchemaInfo           schemaInfo;
-  const char*           sql;        // query sql string
-  jmp_buf               env;        // jump to this position when error happens.
-  EOPTR_EXEC_MODEL      execModel;  // operator execution model [batch model|stream model]
-  SSubplan*             pSubplan;
-  struct SOperatorInfo* pRoot;
-  SLocalFetch           localFetch;
-  SArray*               pResultBlockList;  // result block list
-  STaskStopInfo         stopInfo;
-  SRWLatch              lock;  // secure the access of STableListInfo
-};
-
-enum {
-  OP_NOT_OPENED = 0x0,
-  OP_OPENED = 0x1,
-  OP_RES_TO_RETURN = 0x5,
-  OP_EXEC_DONE = 0x9,
-};
-
-typedef struct SOperatorFpSet {
-  __optr_open_fn_t    _openFn;  // DO NOT invoke this function directly
-  __optr_fn_t         getNextFn;
-  __optr_fn_t         cleanupFn;  // call this function to release the allocated resources ASAP
-  __optr_close_fn_t   closeFn;
-  __optr_reqBuf_fn_t  reqBufFn;  // total used buffer for blocking operator
-  __optr_encode_fn_t  encodeResultRow;
-  __optr_decode_fn_t  decodeResultRow;
-  __optr_explain_fn_t getExplainFn;
-} SOperatorFpSet;
-
 typedef struct SExprSupp {
   SExprInfo*      pExprInfo;
   int32_t         numOfExprs;  // the number of scalar expression in group operator
@@ -208,22 +130,6 @@ typedef struct SExprSupp {
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
   SFilterInfo*    pFilterInfo;
 } SExprSupp;
-
-typedef struct SOperatorInfo {
-  uint16_t               operatorType;
-  int16_t                resultDataBlockId;
-  bool                   blocking;  // block operator or not
-  uint8_t                status;    // denote if current operator is completed
-  char*                  name;      // name, for debug purpose
-  void*                  info;      // extension attribution
-  SExprSupp              exprSupp;
-  SExecTaskInfo*         pTaskInfo;
-  SOperatorCostInfo      cost;
-  SResultInfo            resultInfo;
-  struct SOperatorInfo** pDownstream;      // downstram pointer list
-  int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
-  SOperatorFpSet         fpSet;
-} SOperatorInfo;
 
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
@@ -449,8 +355,8 @@ typedef struct SStreamScanInfo {
   SUpdateInfo* pUpdateInfo;
 
   EStreamScanMode       scanMode;
-  SOperatorInfo*        pStreamScanOp;
-  SOperatorInfo*        pTableScanOp;
+  struct SOperatorInfo*        pStreamScanOp;
+  struct SOperatorInfo*        pTableScanOp;
   SArray*               childIds;
   SWindowSupporter      windowSup;
   SPartitionBySupporter partitionSup;
@@ -676,18 +582,8 @@ typedef struct SStreamFillOperatorInfo {
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
 
-SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model,
-                                    char* dbFName);
-
-SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
-                                   __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn, __optr_explain_fn_t explain);
-int32_t        optrDummyOpenFn(SOperatorInfo* pOperator);
-int32_t        appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
-void           setOperatorCompleted(SOperatorInfo* pOperator);
-void           setOperatorInfo(SOperatorInfo* pOperator, const char* name, int32_t type, bool blocking, int32_t status,
-                               void* pInfo, SExecTaskInfo* pTaskInfo);
-void           destroyOperatorInfo(SOperatorInfo* pOperator);
-int32_t        optrDefaultBufFn(SOperatorInfo* pOperator);
+SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
+int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName, SExecTaskInfo* pTaskInfo);
 
 void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void cleanupBasicInfo(SOptrBasicInfo* pInfo);
@@ -703,9 +599,9 @@ void    cleanupAggSup(SAggSupporter* pAggSup);
 
 void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows);
 
-void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
+void doBuildStreamResBlock(struct SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
                            SDiskbasedBuf* pBuf);
-void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
+void doBuildResultDatablock(struct SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
                             SDiskbasedBuf* pBuf);
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
@@ -719,12 +615,10 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
 
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart);
 void    updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t dataLen, int64_t startTs,
-                             SOperatorInfo* pOperator);
+                             struct SOperatorInfo* pOperator);
 
 STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInterval* pInterval, int32_t order);
 
-SOperatorInfo* extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char* id);
-int32_t        getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag, bool inheritUsOrder);
 int32_t        getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz);
 
 extern void doDestroyExchangeOperatorInfo(void* param);
@@ -742,76 +636,6 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
                                    bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup);
-// operator creater functions
-// clang-format off
-SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, STableListInfo* pTableList, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode, const char* pUser, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createTableCountScanOperatorInfo(SReadHandle* handle, STableCountScanPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_t numStreams, SMergePhysiNode* pMergePhysiNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMergeAlignedIntervalPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
-
-SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPhysiNode* pSessionNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhysiNode* pStateNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
-
-SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo);
-// clang-format on
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                               int32_t numOfOutput, SArray* pPseudoList);
@@ -820,19 +644,10 @@ void setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order,
 
 int32_t checkForQueryBuf(size_t numOfTables);
 
-bool isTaskKilled(SExecTaskInfo* pTaskInfo);
-void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
-void doDestroyTask(SExecTaskInfo* pTaskInfo);
-void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
-
-void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);
-
 SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo);
 
-int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* pTask, SReadHandle* readHandle);
-int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
+int32_t getOperatorExplainExecInfo(struct SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
                                 int32_t order);
@@ -854,17 +669,16 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 bool    groupbyTbname(SNodeList* pGroupList);
-int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
+int32_t buildDataBlockFromGroupRes(struct SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);
 int32_t saveSessionDiscBuf(SStreamState* pState, SSessionKey* key, void* buf, int32_t size);
-int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock,
+int32_t buildSessionResultDataBlock(struct SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock,
                                     SExprSupp* pSup, SGroupResInfo* pGroupResInfo);
 int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId,
                      SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup);
 int32_t releaseOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult);
 int32_t saveOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
 void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
-int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
 int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos, int32_t order,
                                int64_t* pData);
 void    appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, uint64_t groupId,

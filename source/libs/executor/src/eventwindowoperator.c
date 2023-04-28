@@ -21,6 +21,8 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "ttime.h"
+#include "operator.h"
+#include "querytask.h"
 
 typedef struct SEventWindowOperatorInfo {
   SOptrBasicInfo     binfo;

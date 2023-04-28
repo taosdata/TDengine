@@ -21,6 +21,8 @@
 #include "tdatablock.h"
 #include "tfill.h"
 #include "ttime.h"
+#include "operator.h"
+#include "querytask.h"
 
 #define IS_FINAL_OP(op)    ((op)->isFinal)
 #define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL * 24LL * 365LL * 10LL);
@@ -1606,7 +1608,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChildOp = taosArrayGetP(pInfo->pChildren, i);
-      destroyOperatorInfo(pChildOp);
+      destroyOperator(pChildOp);
     }
     taosArrayDestroy(pInfo->pChildren);
   }
@@ -2835,7 +2837,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChild = taosArrayGetP(pInfo->pChildren, i);
-      destroyOperatorInfo(pChild);
+      destroyOperator(pChild);
     }
     taosArrayDestroy(pInfo->pChildren);
   }
@@ -3812,7 +3814,7 @@ void destroyStreamStateOperatorInfo(void* param) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChild = taosArrayGetP(pInfo->pChildren, i);
-      destroyOperatorInfo(pChild);
+      destroyOperator(pChild);
     }
     taosArrayDestroy(pInfo->pChildren);
   }

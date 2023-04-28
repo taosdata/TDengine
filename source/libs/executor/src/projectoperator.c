@@ -16,6 +16,8 @@
 #include "executorimpl.h"
 #include "filter.h"
 #include "functionMgt.h"
+#include "operator.h"
+#include "querytask.h"
 
 typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;

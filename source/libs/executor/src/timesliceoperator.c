@@ -21,6 +21,8 @@
 #include "tdatablock.h"
 #include "tfill.h"
 #include "ttime.h"
+#include "operator.h"
+#include "querytask.h"
 
 typedef struct STimeSliceOperatorInfo {
   SSDataBlock*         pRes;
