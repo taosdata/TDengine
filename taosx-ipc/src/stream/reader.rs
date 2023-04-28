@@ -1171,12 +1171,13 @@ impl<R: Read> Iterator for IpcReader<R> {
 
     fn next(&mut self) -> Option<Self::Item> {
         debug!("Next message in the stream");
-        // let res = self.reader.next()?;
-        let res = loop {
-            if let Some(res) = self.reader.next() {
-                break res;
-            }
-        };
+        let res = self.reader.next()?;
+        // let res = loop {
+        //     debug!("Getting next");
+        //     if let Some(res) = self.reader.next() {
+        //         break res;
+        //     }
+        // };
         match res {
             Ok(record) => {
                 match self.metadata().stream_type() {
@@ -1192,7 +1193,7 @@ impl<R: Read> Iterator for IpcReader<R> {
                             LushMessageType::Table => todo!(),
                             LushMessageType::Children => {
                                 let tables = record.column(__TABLES__INDEX__);
-    
+
                                 let tables = (0..tables.len())
                                     .flat_map(|i| {
                                         let tables = tables.slice(i, 1);
@@ -1205,9 +1206,9 @@ impl<R: Read> Iterator for IpcReader<R> {
                                 if let Some(attrs) = record.column_by_name(__ATTRS__) {
                                     let values = record.column_by_name(__RECORDS__).unwrap();
                                     assert_eq!(attrs.len(), values.len());
-    
+
                                     debug_assert!(values.len() == 1);
-    
+
                                     let mut message = Vec::with_capacity(values.len());
                                     for i in 0..values.len() {
                                         let attrs = self.parse_attrs(attrs.slice(i, 1));
@@ -1224,9 +1225,9 @@ impl<R: Read> Iterator for IpcReader<R> {
                                     return Some(Ok(Box::new(LushMessage::Insert(message))));
                                 } else {
                                     let values = record.column_by_name(__RECORDS__).unwrap();
-    
+
                                     // debug_assert!(values.len() == 1);
-    
+
                                     let mut message = Vec::with_capacity(values.len());
                                     for i in 0..values.len() {
                                         let records: LushInsertRecords = values.slice(i, 1).into();
