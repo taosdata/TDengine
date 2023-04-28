@@ -256,6 +256,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     ASSERT(0);
     return 0;
   }
+
   // continue dispatch
   streamDispatch(pTask);
   return 0;

@@ -880,6 +880,9 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
   }
 
   // do recovery step 2
+  int64_t st = taosGetTimestampMs();
+  tqDebug("s-task:%s start step2 recover, ts:%"PRId64, pTask->id.idStr, st);
+
   code = streamSourceRecoverScanStep2(pTask, sversion);
   if (code < 0) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
@@ -904,6 +907,9 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
+
+  double el = (taosGetTimestampMs() - st)/ 1000.0;
+  tqDebug("s-task:%s step2 recover finished, el:%.2f s", pTask->id.idStr, el);
 
   // dispatch recover finish req to all related downstream task
   code = streamDispatchRecoverFinishReq(pTask);

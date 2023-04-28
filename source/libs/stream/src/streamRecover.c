@@ -224,8 +224,8 @@ int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
 
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-    qDebug("s-task:%s send recover finish msg to downstream (fix-dispatch) to taskId:%d", pTask->id.idStr,
-           pTask->fixedEpDispatcher.taskId);
+    qDebug("s-task:%s send recover finish msg to downstream (fix-dispatch) to taskId:%d, status:%d", pTask->id.idStr,
+           pTask->fixedEpDispatcher.taskId, pTask->status.taskStatus);
 
     req.taskId = pTask->fixedEpDispatcher.taskId;
     streamDispatchOneRecoverFinishReq(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
