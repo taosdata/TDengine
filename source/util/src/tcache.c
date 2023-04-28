@@ -264,7 +264,6 @@ static void pushfrontNodeInEntryList(SCacheEntry *pEntry, SCacheNode *pNode) {
 
 static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode *pNode) {
   if (prev == NULL) {
-    ASSERT(pe->next == pNode);
     pe->next = pNode->pNext;
   } else {
     prev->pNext = pNode->pNext;
@@ -464,7 +463,6 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   SCacheNode *pNode = doSearchInEntryList(pe, key, keyLen, &prev);
   if (pNode != NULL) {
     int32_t ref = T_REF_INC(pNode);
-    ASSERT(ref > 0);
   }
 
   taosRUnLockLatch(&pe->latch);
@@ -607,7 +605,6 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
           uDebug("cache:%s, key:%p, %p successfully removed from hash table, refcnt:%d", pCacheObj->name, pNode->key,
                  pNode->data, ref);
           if (ref > 0) {
-            ASSERT(pNode->pTNodeHeader == NULL);
             taosAddToTrashcan(pCacheObj, pNode);
           } else {  // ref == 0
             atomic_sub_fetch_64(&pCacheObj->sizeInBytes, pNode->size);
@@ -916,7 +913,6 @@ void taosStopCacheRefreshWorker(void) {
 size_t taosCacheGetNumOfObj(const SCacheObj *pCacheObj) { return pCacheObj->numOfElems + pCacheObj->numOfElemsInTrash; }
 
 SCacheIter *taosCacheCreateIter(const SCacheObj *pCacheObj) {
-  ASSERT(pCacheObj != NULL);
   SCacheIter *pIter = taosMemoryCalloc(1, sizeof(SCacheIter));
   pIter->pCacheObj = (SCacheObj *)pCacheObj;
   pIter->entryIndex = -1;
@@ -966,12 +962,8 @@ bool taosCacheIterNext(SCacheIter *pIter) {
 
       SCacheNode *pNode = pEntry->next;
       for (int32_t i = 0; i < pEntry->num; ++i) {
-        ASSERT(pNode != NULL);
-
         pIter->pCurrent[i] = pNode;
         int32_t ref = T_REF_INC(pIter->pCurrent[i]);
-        ASSERT(ref >= 1);
-
         pNode = pNode->pNext;
       }
 

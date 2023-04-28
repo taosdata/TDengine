@@ -139,7 +139,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       }
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
-      ASSERT(numOfBlocks == 1);
       taosArrayPush(pInfo->pBlockLists, input);
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
@@ -854,15 +853,6 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
-#if 0
-int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
-  taosWriteQitem(pTaskInfo->streamInfo.inputQueue->queue, pItem);
-  return 0;
-}
-#endif
-
 int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
@@ -897,8 +887,7 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
       SStreamIntervalOperatorInfo* pInfo = pOperator->info;
       ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
              pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
-      ASSERT(pInfo->twAggSup.calTriggerSaved == 0);
-      ASSERT(pInfo->twAggSup.deleteMarkSaved == 0);
+      ASSERT(pInfo->twAggSup.calTriggerSaved == 0 && pInfo->twAggSup.deleteMarkSaved == 0);
 
       qInfo("save stream param for interval: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
 
@@ -914,9 +903,8 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
       SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
       ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
              pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
-      ASSERT(pInfo->twAggSup.calTriggerSaved == 0);
-      ASSERT(pInfo->twAggSup.deleteMarkSaved == 0);
 
+      ASSERT(pInfo->twAggSup.calTriggerSaved == 0 && pInfo->twAggSup.deleteMarkSaved == 0);
       qInfo("save stream param for session: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
 
       pInfo->twAggSup.calTriggerSaved = pInfo->twAggSup.calTrigger;
@@ -929,8 +917,7 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
       SStreamStateAggOperatorInfo* pInfo = pOperator->info;
       ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
              pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
-      ASSERT(pInfo->twAggSup.calTriggerSaved == 0);
-      ASSERT(pInfo->twAggSup.deleteMarkSaved == 0);
+      ASSERT(pInfo->twAggSup.calTriggerSaved == 0 && pInfo->twAggSup.deleteMarkSaved == 0);
 
       qInfo("save stream param for state: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
 
@@ -991,7 +978,6 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
     if (pOperator->numOfDownstream != 1 || pOperator->pDownstream[0] == NULL) {
       if (pOperator->numOfDownstream > 1) {
         qError("unexpected stream, multiple downstream");
-        /*ASSERT(0);*/
         return -1;
       }
       return 0;
