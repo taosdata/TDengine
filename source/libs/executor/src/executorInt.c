@@ -25,15 +25,15 @@
 #include "tmsg.h"
 #include "ttime.h"
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "index.h"
+#include "operator.h"
 #include "query.h"
+#include "querytask.h"
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
 #include "vnode.h"
-#include "operator.h"
-#include "querytask.h"
 
 #define SET_REVERSE_SCAN_FLAG(runtime)    ((runtime)->scanFlag = REVERSE_SCAN)
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
@@ -1059,37 +1059,6 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList) {
-  SExplainExecInfo  execInfo = {0};
-  SExplainExecInfo* pExplainInfo = taosArrayPush(pExecInfoList, &execInfo);
-
-  pExplainInfo->numOfRows = operatorInfo->resultInfo.totalRows;
-  pExplainInfo->startupCost = operatorInfo->cost.openCost;
-  pExplainInfo->totalCost = operatorInfo->cost.totalCost;
-  pExplainInfo->verboseLen = 0;
-  pExplainInfo->verboseInfo = NULL;
-
-  if (operatorInfo->fpSet.getExplainFn) {
-    int32_t code =
-        operatorInfo->fpSet.getExplainFn(operatorInfo, &pExplainInfo->verboseInfo, &pExplainInfo->verboseLen);
-    if (code) {
-      qError("%s operator getExplainFn failed, code:%s", GET_TASKID(operatorInfo->pTaskInfo), tstrerror(code));
-      return code;
-    }
-  }
-
-  int32_t code = 0;
-  for (int32_t i = 0; i < operatorInfo->numOfDownstream; ++i) {
-    code = getOperatorExplainExecInfo(operatorInfo->pDownstream[i], pExecInfoList);
-    if (code != TSDB_CODE_SUCCESS) {
-      //      taosMemoryFreeClear(*pRes);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId,
                      SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup) {
   SWinKey key = {
@@ -1330,26 +1299,4 @@ void qStreamCloseTsdbReader(void* task) {
       }
     }
   }
-}
-
-static void extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
-  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    SStreamScanInfo* pScanInfo = pOperator->info;
-    STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
-    taosArrayPush(pList, &pTableScanInfo->base.pTableListInfo);
-  } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-    STableScanInfo* pScanInfo = pOperator->info;
-    taosArrayPush(pList, &pScanInfo->base.pTableListInfo);
-  } else {
-    if (pOperator->pDownstream != NULL && pOperator->pDownstream[0] != NULL) {
-      extractTableList(pList, pOperator->pDownstream[0]);
-    }
-  }
-}
-
-SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo) {
-  SArray*        pArray = taosArrayInit(0, POINTER_BYTES);
-  SOperatorInfo* pOperator = pTaskInfo->pRoot;
-  extractTableList(pArray, pOperator);
-  return pArray;
 }
