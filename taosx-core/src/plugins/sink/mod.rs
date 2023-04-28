@@ -7,13 +7,19 @@ use std::{
     path::Path,
     sync::{atomic::AtomicBool, Arc},
 };
-use taos::{AsyncQueryable, Bindable, Itertools, Stmt, Taos, TaosPool, RawBlock, taos_query::common::views::views_to_raw_block};
+use taos::{
+    taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, Itertools, RawBlock,
+    Stmt, Taos, TaosPool,
+};
 use tokio::sync::{mpsc::Sender, Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, instrument, debug};
+use tracing::{debug, info, instrument};
 
 use super::runners::opc::OpcTableConfig;
-use taosx_ipc::{prelude::*, stream::{point::PointMessage, flat::FlatMessage}};
+use taosx_ipc::{
+    prelude::*,
+    stream::{flat::FlatMessage, point::PointMessage},
+};
 
 // #[instrument(skip_all)]
 async fn ipc_tcp_read(
@@ -56,6 +62,7 @@ async fn ipc_unix_read(
 // #[instrument(skip(taos, record, names, marks))]
 async fn consume_lush_record(
     taos: &Taos,
+    stmt: &mut Stmt,
     record: LushMessage,
     names: &str,
     marks: &str,
@@ -70,8 +77,6 @@ async fn consume_lush_record(
             }
         }
         LushMessage::Insert(record) => {
-            let mut stmt = Stmt::init(&taos)?;
-            info!("init stmt");
             let sql = format!("insert into ? ({names}) values({marks})");
             info!("prepare with sql: {sql}");
             stmt.prepare(&sql)?;
@@ -113,14 +118,13 @@ async fn consume_lush_record(
 }
 
 async fn consume_point_record(
-    taos: &Taos,
+    stmt: &mut Stmt,
     record: &PointMessage,
     count: &mut usize,
     config: &OpcTableConfig,
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
-        let mut stmt = Stmt::init(&taos)?;
         // process id, ts, value
         let schema = message.schema();
         let id_index = schema.index_of("id")?;
@@ -156,10 +160,13 @@ async fn consume_point_record(
             match res {
                 Ok(n) => *count += n,
                 Err(err) => {
-                    let block = RawBlock::parse_from_raw_block(views_to_raw_block(&new_cv_vec), taos::Precision::Millisecond);
+                    let block = RawBlock::parse_from_raw_block(
+                        views_to_raw_block(&new_cv_vec),
+                        taos::Precision::Millisecond,
+                    );
                     let block = block.pretty_format();
                     log::error!("execute error, {}, data: {}", err.to_string(), block);
-                },
+                }
             }
         }
     }
@@ -173,7 +180,7 @@ async fn consume_flat_record(
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
-        let mut stmt = Stmt::init(&taos)?;
+        // let mut stmt = Stmt::init(&taos)?;
         // process id, ts, value
         dbg!(&cv_vec);
         // TODO transfer to transformer
@@ -190,6 +197,7 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
     let columns = ipc_reader.columns();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
+    let mut stmt = Stmt::init(taos)?;
 
     let mut count = 0;
 
@@ -199,7 +207,7 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_lush_record(&taos, record, &names, &marks, &mut count).await?;
+            consume_lush_record(&taos, &mut stmt, record, &names, &marks, &mut count).await?;
             ipc_ack_writer.write_ok()?;
         }
     }
@@ -215,13 +223,14 @@ async fn ipc_point_reader<R: Read, W: Write>(
     config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
+    let mut stmt = Stmt::init(taos)?;
     for record in ipc_reader {
         if let Ok(record) = record {
             let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_point_record(&taos, &record, &mut count, config.as_ref().unwrap()).await?;
+            consume_point_record(&mut stmt, &record, &mut count, config.as_ref().unwrap()).await?;
 
             ipc_ack_writer.write_ok()?;
         }
@@ -242,7 +251,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_flat_record(&taos, &record, &mut count, ).await?;
+            consume_flat_record(&taos, &record, &mut count).await?;
 
             ipc_ack_writer.write_ok()?;
         }
@@ -279,7 +288,7 @@ async fn ipc_process<R: Read, W: Write>(
     }
     match stream_type {
         StreamType::Line => todo!(),
-        StreamType::Flat => ipc_flat_stream_reader(&taos, ipc_reader, ipc_ack_writer,).await?,
+        StreamType::Flat => ipc_flat_stream_reader(&taos, ipc_reader, ipc_ack_writer).await?,
         StreamType::Lush => ipc_lush_stream_reader(&taos, ipc_reader, ipc_ack_writer).await?,
         StreamType::Point => ipc_point_reader(&taos, ipc_reader, ipc_ack_writer, config).await?,
     }
