@@ -114,7 +114,7 @@ struct STQ {
   char*           path;
   int64_t         walLogLastVer;
   SRWLatch        lock;
-  SHashObj*       pPushMgr;    // consumerId -> STqHandle
+  SHashObj*       pPushMgr;    // subKey -> STqHandle
   SHashObj*       pHandle;     // subKey -> STqHandle
   SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
   STqOffsetStore* pOffsetStore;

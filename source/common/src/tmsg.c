@@ -6839,10 +6839,8 @@ int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) 
     if (tEncodeI64(pEncoder, pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
     if (tEncodeI64(pEncoder, pOffsetVal->version) < 0) return -1;
-  } else if (pOffsetVal->type < 0) {
-    // do nothing
   } else {
-    ASSERT(0);
+    // do nothing
   }
   return 0;
 }
@@ -6854,10 +6852,8 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
     if (tDecodeI64(pDecoder, &pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
     if (tDecodeI64(pDecoder, &pOffsetVal->version) < 0) return -1;
-  } else if (pOffsetVal->type < 0) {
-    // do nothing
   } else {
-    ASSERT(0);
+    // do nothing
   }
   return 0;
 }

@@ -1790,8 +1790,9 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
           pVg->epSet = *pollRspWrapper->pEpset;
         }
 
-        // update the local offset value only for the returned values.
-        pVg->currentOffset = pDataRsp->rspOffset;
+        if(pDataRsp->rspOffset.type != 0){    // if offset is validate
+          pVg->currentOffset = pDataRsp->rspOffset;          // update the local offset value only for the returned values.
+        }
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
 
         char buf[80];

@@ -551,13 +551,12 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       }
 
       taosWLockLatch(&pTq->lock);
-      atomic_store_32(&pHandle->epoch, -1);
+      atomic_store_32(&pHandle->epoch, 0);
 
       // remove if it has been register in the push manager, and return one empty block to consumer
       tqUnregisterPushHandle(pTq, pHandle);
 
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
-      atomic_add_fetch_32(&pHandle->epoch, 1);
 
       if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
         qStreamCloseTsdbReader(pTaskInfo);
