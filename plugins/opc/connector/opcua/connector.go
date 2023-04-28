@@ -6,50 +6,120 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 )
 
 type UaConnector struct {
-	reader      *reader
+	readers     []*reader
 	collectMode string
+	ch          chan *common.NodeValue
+	wait        sync.WaitGroup
+	once        sync.Once
 }
 
 var _ connector.Connector = (*UaConnector)(nil)
 
 func NewConnector(config common.Config) (connector.Connector, error) {
-	r, err := newReader(config)
+	if err := config.Connect.Ua.Validate(); err != nil {
+		return nil, fmt.Errorf("validate connection collectConfig fail. %v", err)
+	}
+	if config.Collect.Interval <= 0 {
+		config.Collect.Interval = 1
+	}
+	readers, err := createReaders(config)
 	if err != nil {
 		log.Println("## create opc ua reader error", err)
 		return nil, err
 	}
 
-	return &UaConnector{reader: r, collectMode: config.Collect.Ua.CollectMode}, nil
+	return &UaConnector{
+		readers:     readers,
+		collectMode: config.Collect.Ua.CollectMode,
+		ch:          make(chan *common.NodeValue, len(config.Collect.Ua.Nodes)),
+	}, nil
+}
+
+func createReaders(config common.Config) (readers []*reader, err error) {
+	limit := config.Collect.Ua.Limit
+	nodes := config.Collect.Ua.Nodes
+	if limit >= len(nodes) { // nodes length is zero on get all points case
+		r, err := createReader(config, nodes)
+		return []*reader{r}, err
+	}
+	readers = make([]*reader, 0, len(nodes)/limit+1)
+	start := 0
+	for start < len(nodes) {
+		end := start + limit
+		if end > len(nodes) {
+			end = len(nodes)
+		}
+		subNodes := nodes[start:end]
+		r, err := createReader(config, subNodes)
+		if err != nil {
+			return nil, fmt.Errorf("create reader fail %w", err)
+		}
+		readers = append(readers, r)
+		start = end
+	}
+
+	return
+}
+
+func createReader(config common.Config, nodes []common.NodeConfig) (*reader, error) {
+	return newReader(config.Debug, config.Connect.Ua, config.Collect.Ua.CollectMode, nodes, config.Collect.Interval)
 }
 
 func (c *UaConnector) Connect(ctx context.Context) error {
-	if err := c.reader.connect(ctx); err != nil {
-		return fmt.Errorf("connect fail %w", err)
+	for _, r := range c.readers {
+		if err := r.connect(ctx); err != nil {
+			return fmt.Errorf("connect fail for reader %p. %w", r, err)
+		}
 	}
 
 	return nil
 }
 
 func (c *UaConnector) Stop(ctx context.Context) {
-	log.Println("## stop opc ua connector")
-	if c.reader != nil {
-		c.reader.stop(ctx)
-	}
-	c.reader = nil
+	c.once.Do(func() {
+		if c.readers != nil {
+			for _, r := range c.readers {
+				r.stop(ctx)
+			}
+		}
+		c.readers = nil
+		close(c.ch)
+		log.Println("## opc ua connector stopped!")
+	})
 }
 
 func (c *UaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, error) {
+	for _, r := range c.readers {
+		c.wait.Add(1)
+		go func(r *reader) {
+			defer c.wait.Done()
+			if err := c.collect(ctx, r); err != nil {
+				log.Println("## collect error", err)
+			}
+		}(r)
+	}
+
+	return c.ch, nil
+}
+
+func (c *UaConnector) collect(ctx context.Context, r *reader) error {
 	if c.collectMode == common.OPcUaSubscribeType {
 		log.Println("## opc ua connector is in subscribe mode")
-		return c.reader.subscribe(ctx)
+		return r.subscribe(ctx, c.ch)
 	}
-	log.Println("## opc ua connector collect is in observe mode")
-	return c.reader.read(ctx)
+
+	if c.collectMode == common.OpcUaObserveType {
+		log.Println("## opc ua connector collect is in observe mode")
+		return r.observe(ctx, c.ch)
+	}
+
+	return fmt.Errorf("collect mode is not supported")
 }
 
 func (c *UaConnector) GetAllPoints(ctx context.Context) ([]common.Point, error) {
-	return c.reader.getAllNodes(ctx)
+	return c.readers[0].getAllNodes(ctx)
 }

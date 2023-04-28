@@ -31,14 +31,14 @@ func NewFakeConnector(config common.CollectConfig) *FakeConnector {
 }
 
 func (f *FakeConnector) Connect(_ context.Context) error {
-	log.Println("## FakeConnector connect")
+	log.Println("## FakeConnector connected!")
 	return nil
 }
 
 func (f *FakeConnector) Stop(_ context.Context) {
 	f.once.Do(func() {
-		log.Println("## FakeConnector stop")
 		close(f.done)
+		log.Println("## fake connector stopped!")
 	})
 }
 
@@ -64,6 +64,7 @@ func (f *FakeConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, 
 					v := common.NodeValue{
 						Identifier: point.id,
 						Timestamp:  time.Now(),
+						Now:        time.Now(),
 						Value:      fakeValue(point.valueType),
 						ValueType:  point.valueType,
 					}

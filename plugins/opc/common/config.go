@@ -57,6 +57,7 @@ type CollectConfig struct {
 
 type UaCollectConfig struct {
 	CollectMode string       `json:"collect_mode,omitempty" yaml:"collect_mode" toml:"collect_mode"` // collect mode, one of `read` or `subscribe`
+	Limit       int          `json:"limit,omitempty" yaml:"limit" toml:"limit"`
 	Nodes       []NodeConfig `json:"nodes,omitempty" yaml:"nodes" toml:"nodes"`
 }
 
@@ -205,6 +206,7 @@ func (r *ReportConfig) Validate() error {
 type NodeValue struct {
 	Identifier string    `json:"identifier,omitempty"`
 	Timestamp  time.Time `json:"timestamp,omitempty"`
+	Now        time.Time `json:"now,omitempty"`
 	Value      any       `json:"value,omitempty"`
 	ValueType  ValueType `json:"value_type,omitempty"`
 }

@@ -5,83 +5,151 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"net"
+	"os"
 	"sync"
-	"sync/atomic"
+	"time"
 
 	"github.com/apache/arrow/go/v12/arrow"
 	"github.com/apache/arrow/go/v12/arrow/array"
-	"github.com/apache/arrow/go/v12/arrow/ipc"
 	"github.com/apache/arrow/go/v12/arrow/memory"
 )
 
 type Reporter interface {
-	Report(ctx context.Context, routineId int, values []*common.NodeValue) error
-	Close()
+	Report(ctx context.Context, value <-chan *common.NodeValue) error
+	Stop(ctx context.Context)
 }
 
-// ArrowReporter is a reporter that sends data to taosx
-type ArrowReporter struct {
-	address         *net.TCPAddr
-	valueTypeSchema sync.Map // key- valueType, value - *schema
-	schemaLock      sync.Mutex
-	schemaWriter    sync.Map // key-g-routine id with node id, value *ipc.Writer The *ipc.Writer is not thread-safe!
-	writerLock      sync.Mutex
-	debug           bool
-	counter         atomic.Uint64
-}
-
-var _ Reporter = (*ArrowReporter)(nil)
-
-func NewArrowReporter(config common.Config) (*ArrowReporter, error) {
-	if err := config.Report.Validate(); err != nil {
-		return nil, err
-	}
+func NewOpcReporter(config common.Config) (Reporter, error) {
 	address, err := net.ResolveTCPAddr("tcp", config.Report.Remote)
 	if err != nil {
-		return nil, fmt.Errorf("resolve remote address error %v", err)
+		return nil, fmt.Errorf("create opc reporter error. %v", err)
 	}
-	reporter := ArrowReporter{address: address, debug: config.Debug}
-	return &reporter, nil
+	valueTypes, err := parseValueType(config.Collect)
+	if err != nil {
+		return nil, fmt.Errorf("create opc reporter error. %v", err)
+	}
+
+	r := OpcReporter{
+		valueTypes:   valueTypes,
+		concurrent:   config.Report.Concurrent,
+		batchSize:    config.Report.BatchSize,
+		batchTimeout: time.Duration(config.Report.BatchTimeout) * time.Second,
+		address:      address,
+		channels:     make(map[common.ValueType]chan *common.NodeValue, len(valueTypes)),
+		debug:        config.Debug,
+	}
+
+	return &r, nil
 }
 
-func (r *ArrowReporter) Report(_ context.Context, routineId int, values []*common.NodeValue) error {
-	if len(values) == 0 {
-		return nil
-	}
+type OpcReporter struct {
+	valueTypes   []common.ValueType
+	concurrent   int
+	batchSize    int
+	batchTimeout time.Duration
+	address      *net.TCPAddr
+	channels     map[common.ValueType]chan *common.NodeValue // value channel map. key - valueType, value - value channel
+	writers      []writer
+	once         sync.Once
+	wait         sync.WaitGroup
+	debug        bool
+}
 
-	schema, err := r.getSchemaByValueType(values[0].ValueType)
-	if err != nil {
-		log.Println("## get schema error", "error", err)
-		return err
-	}
+var _ Reporter = (*OpcReporter)(nil)
 
-	record, err := r.packData(values, schema)
-	if err != nil {
-		log.Println("## pack data error", "error", err)
-		return fmt.Errorf("pack data error %v", err)
+func (r *OpcReporter) Report(ctx context.Context, valueCh <-chan *common.NodeValue) error {
+	r.createValueChannel()
+	if err := r.createWriters(); err != nil {
+		return fmt.Errorf("create opc reporter error. %v", err)
 	}
-	defer record.Release()
-
-	if err = r.write(routineId, schema, record); err != nil {
-		log.Println("## write data error", "error", err)
-		return fmt.Errorf("write data error %v", err)
-	}
-
+	r.startWriting(ctx)
+	r.readValue(valueCh)
 	return nil
 }
 
-func (r *ArrowReporter) Close() {
-	log.Println("## close reporter")
-	r.schemaWriter.Range(func(key, value any) bool {
-		writer := value.(*ipc.Writer)
-		_ = writer.Close()
-		return true
+func (r *OpcReporter) readValue(valueCh <-chan *common.NodeValue) {
+	defer func() {
+		if r.debug {
+			log.Println("## read value is done.")
+		}
+
+		for _, ch := range r.channels {
+			close(ch)
+		}
+	}()
+
+	for value := range valueCh {
+		r.channels[value.ValueType] <- value
+	}
+}
+
+func (r *OpcReporter) createValueChannel() {
+	for _, valueType := range r.valueTypes {
+		if r.debug {
+			log.Println("## create value channel for ", valueType)
+		}
+		r.channels[valueType] = make(chan *common.NodeValue, r.batchSize)
+	}
+}
+
+func (r *OpcReporter) createWriters() error {
+	for _, valueType := range r.valueTypes {
+		if r.debug {
+			log.Printf("## create %d writer for %s", r.concurrent, valueType)
+		}
+		for i := 0; i < r.concurrent; i++ {
+			w, err := r.createWriter(valueType)
+			if err != nil {
+				return err
+			}
+			r.writers = append(r.writers, w)
+		}
+	}
+	return nil
+}
+
+func (r *OpcReporter) createWriter(valueType common.ValueType) (writer, error) {
+	schema, err := getSchema(valueType)
+	if err != nil {
+		return nil, fmt.Errorf("create writer error. %v", err)
+	}
+	f, err := getAppendFunc(valueType)
+	if err != nil {
+		return nil, fmt.Errorf("create writer error. %v", err)
+	}
+	return NewArrowWriter(r.address, r.debug, r.batchSize, r.batchTimeout, schema, f, r.channels[valueType])
+}
+
+func (r *OpcReporter) startWriting(ctx context.Context) {
+	for _, w := range r.writers {
+		r.wait.Add(1)
+		go func(w writer) {
+			defer r.wait.Done()
+			if err := w.write(ctx); err != nil {
+				log.Printf("## write error. %v", err)
+				os.Exit(2)
+			}
+		}(w)
+	}
+}
+
+func (r *OpcReporter) Stop(ctx context.Context) {
+	r.once.Do(func() {
+		defer r.wait.Wait()
+
+		for _, w := range r.writers {
+			if w == nil {
+				continue
+			}
+			_ = w.close(ctx)
+		}
+
+		log.Println("## opc reporter stopped!")
 	})
 }
 
-func (r *ArrowReporter) packData(values []*common.NodeValue, schema *arrow.Schema) (arrow.Record, error) {
+func packData(values []*common.NodeValue, schema *arrow.Schema, valueFunc appendFunc) (arrow.Record, error) {
 	recordBuilder := array.NewRecordBuilder(memory.NewGoAllocator(), schema)
 	defer recordBuilder.Release()
 
@@ -89,13 +157,16 @@ func (r *ArrowReporter) packData(values []*common.NodeValue, schema *arrow.Schem
 	defer field0.Release()
 	field1 := recordBuilder.Field(1).(*array.TimestampBuilder)
 	defer field1.Release()
-	field2 := recordBuilder.Field(2)
+	field2 := recordBuilder.Field(2).(*array.TimestampBuilder)
 	defer field2.Release()
+	field3 := recordBuilder.Field(3)
+	defer field3.Release()
 
 	for _, value := range values {
 		field0.Append(value.Identifier)
 		field1.Append(arrow.Timestamp(value.Timestamp.UnixMilli()))
-		if err := r.appendField(field2, value.ValueType, value.Value); err != nil {
+		field2.Append(arrow.Timestamp(value.Now.UnixMilli()))
+		if err := valueFunc(field3, value.Value); err != nil {
 			return nil, fmt.Errorf("append value field error %v", err)
 		}
 	}
@@ -103,13 +174,28 @@ func (r *ArrowReporter) packData(values []*common.NodeValue, schema *arrow.Schem
 	return recordBuilder.NewRecord(), nil
 }
 
-func (*ArrowReporter) appendField(builder array.Builder, valueType common.ValueType, value any) (err error) {
-	f, err := getAppendFunc(valueType)
-	if err != nil {
-		return err
+func parseValueType(config common.CollectConfig) (valueTypes []common.ValueType, err error) {
+	valueTypeMap := make(map[common.ValueType]struct{}, len(config.Ua.Nodes)+len(config.Da.Tags))
+	for _, node := range config.Ua.Nodes {
+		vt, err := common.ValueTypeFromString(node.ValueType)
+		if err != nil {
+			return nil, err
+		}
+		valueTypeMap[vt] = struct{}{}
+	}
+	for _, tag := range config.Da.Tags {
+		vt, err := common.ValueTypeFromString(tag.ValueType)
+		if err != nil {
+			return nil, err
+		}
+		valueTypeMap[vt] = struct{}{}
 	}
 
-	return f(builder, value)
+	for vt := range valueTypeMap {
+		valueTypes = append(valueTypes, vt)
+	}
+
+	return
 }
 
 var meta = arrow.MetadataFrom(map[string]string{
@@ -118,18 +204,23 @@ var meta = arrow.MetadataFrom(map[string]string{
 	"ack":     "none",
 })
 
-func (r *ArrowReporter) getSchemaByValueType(valueType common.ValueType) (*arrow.Schema, error) {
-	if schema, ok := r.valueTypeSchema.Load(valueType); ok {
+var (
+	valueTypeSchema sync.Map // key- valueType, value - *schema
+	schemaLock      sync.Mutex
+)
+
+func getSchema(valueType common.ValueType) (*arrow.Schema, error) {
+	if schema, ok := valueTypeSchema.Load(valueType); ok {
 		return schema.(*arrow.Schema), nil
 	}
 
-	r.schemaLock.Lock()
-	defer r.schemaLock.Unlock()
+	schemaLock.Lock()
+	defer schemaLock.Unlock()
 
-	if schema, ok := r.valueTypeSchema.Load(valueType); ok {
+	if schema, ok := valueTypeSchema.Load(valueType); ok {
 		return schema.(*arrow.Schema), nil
 	}
-	dataType, err := r.getDataType(valueType)
+	dataType, err := getDataType(valueType)
 	if err != nil {
 		return nil, err
 	}
@@ -138,72 +229,17 @@ func (r *ArrowReporter) getSchemaByValueType(valueType common.ValueType) (*arrow
 		[]arrow.Field{
 			{Name: "id", Type: arrow.BinaryTypes.String},
 			{Name: "ts", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},
+			{Name: "now", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},
 			{Name: "value", Type: dataType},
 		},
 		&meta,
 	)
-	r.valueTypeSchema.Store(valueType, schema)
+	valueTypeSchema.Store(valueType, schema)
 
 	return schema, nil
 }
 
-func (r *ArrowReporter) write(routineID int, schema *arrow.Schema, record arrow.Record) (err error) {
-	writer, err := r.getWriter(routineID, schema)
-	if err != nil {
-		log.Println("## get writer error", "error", err)
-		return fmt.Errorf("get arrow writer error %v", err)
-	}
-
-	// ipc writer is not thread safe, so we need to get a writer for each routine.
-	// and the ipc writer should be used in single routine.
-	if err = writer.Write(record); err != nil {
-		log.Println("## write record error", "error", err)
-		return fmt.Errorf("report data error %v", err)
-	}
-
-	if r.debug {
-		j, _ := record.MarshalJSON()
-		log.Printf("report to taosx by writer [%p] values [%s]", writer, string(j))
-
-		if r.counter.Load() > math.MaxUint64-uint64(record.NumRows()) {
-			r.counter.Store(0)
-		}
-		r.counter.Add(uint64(record.NumRows()))
-		log.Printf("## [%d] record already sent", r.counter.Load())
-	}
-
-	return nil
-}
-
-func (r *ArrowReporter) getWriter(routineID int, schema *arrow.Schema) (writer *ipc.Writer, err error) {
-	// ipc writer is not thread safe, so we need to get a writer for each routine.
-	writerKey := getWriterKey(routineID, schema)
-	if writer, ok := r.schemaWriter.Load(writerKey); ok {
-		return writer.(*ipc.Writer), nil
-	}
-
-	r.writerLock.Lock()
-	defer r.writerLock.Unlock()
-
-	if writer, ok := r.schemaWriter.Load(writerKey); ok {
-		return writer.(*ipc.Writer), nil
-	}
-
-	conn, err := net.DialTCP("tcp", nil, r.address)
-	if err != nil {
-		return nil, fmt.Errorf("dial tcp error %v", err)
-	}
-	if r.debug {
-		log.Printf("## create connection for routine [%d] and schema [%s] to taosx %s", routineID,
-			schema.Fingerprint(), r.address.String())
-	}
-
-	writer = ipc.NewWriter(conn, ipc.WithSchema(schema))
-	r.schemaWriter.Store(writerKey, writer)
-	return
-}
-
-func (*ArrowReporter) getDataType(valueType common.ValueType) (arrow.DataType, error) {
+func getDataType(valueType common.ValueType) (arrow.DataType, error) {
 	switch valueType {
 	case common.TIMESTAMP:
 		return &arrow.TimestampType{}, nil
