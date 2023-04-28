@@ -67,7 +67,7 @@ struct SExecTaskInfo {
 };
 
 void           buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);
-SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, char* dbFName);
+SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model);
 void           doDestroyTask(SExecTaskInfo* pTaskInfo);
 bool           isTaskKilled(SExecTaskInfo* pTaskInfo);
 void           setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);

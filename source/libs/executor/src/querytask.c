@@ -35,8 +35,7 @@
 
 #define CLEAR_QUERY_STATUS(q, st) ((q)->status &= (~(st)))
 
-SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model,
-                                    char* dbFName) {
+SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   if (pTaskInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -46,17 +45,17 @@ SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOP
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
   pTaskInfo->cost.created = taosGetTimestampUs();
 
-  pTaskInfo->schemaInfo.dbname = taosStrdup(dbFName);
   pTaskInfo->execModel = model;
   pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
   pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
 
   taosInitRWLatch(&pTaskInfo->lock);
+
   pTaskInfo->id.vgId = vgId;
   pTaskInfo->id.queryId = queryId;
-
   pTaskInfo->id.str = taosMemoryMalloc(64);
   buildTaskId(taskId, queryId, pTaskInfo->id.str);
+
   return pTaskInfo;
 }
 
@@ -79,7 +78,7 @@ void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
 
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model) {
-  *pTaskInfo = doCreateTask(pPlan->id.queryId, taskId, vgId, model, pPlan->dbFName);
+  *pTaskInfo = doCreateTask(pPlan->id.queryId, taskId, vgId, model);
   if (*pTaskInfo == NULL) {
     goto _complete;
   }
@@ -90,8 +89,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     }
   }
 
-  (*pTaskInfo)->sql = sql;
-  sql = NULL;
+  TSWAP((*pTaskInfo)->sql, sql);
 
   (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pRoot = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond,
