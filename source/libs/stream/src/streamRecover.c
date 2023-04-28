@@ -212,7 +212,7 @@ int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req*
 int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
   void* exec = pTask->exec.pExecutor;
 
-  qDebug("s-task:%s recover step2(blocking stage) started", pTask->id.idStr);
+  qDebug("s-task:%s recover step2 (blocking stage) started", pTask->id.idStr);
   if (qStreamSourceRecoverStep2(exec, ver) < 0) {
   }
 
@@ -220,12 +220,13 @@ int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
 }
 
 int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
-  SStreamRecoverFinishReq req = {
-      .streamId = pTask->id.streamId,
-      .childId = pTask->selfChildId,
-  };
+  SStreamRecoverFinishReq req = { .streamId = pTask->id.streamId, .childId = pTask->selfChildId };
+
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+    qDebug("s-task:%s send recover finish msg to downstream (fix-dispatch) to taskId:%d", pTask->id.idStr,
+           pTask->fixedEpDispatcher.taskId);
+
     req.taskId = pTask->fixedEpDispatcher.taskId;
     streamDispatchOneRecoverFinishReq(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {

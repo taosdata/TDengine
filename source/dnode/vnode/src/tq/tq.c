@@ -826,6 +826,9 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
 
   streamSourceRecoverScanStep1(pTask);
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
+    double el = (taosGetTimestampMs() - st) / 1000.0;
+    tqDebug("s-task:%s is dropped, abort recover in step1", pTask->id.idStr);
+
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   }
@@ -842,7 +845,6 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     return 0;
   }
@@ -852,13 +854,14 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
 
   void* serializedReq = rpcMallocCont(len);
   if (serializedReq == NULL) {
+    tqError("s-task:%s failed to prepare the step2 stage, out of memory", pTask->id.idStr);
     return -1;
   }
 
   memcpy(serializedReq, &req, len);
 
   // dispatch msg
-  tqDebug("s-task:%s start recover block stage", pTask->id.idStr);
+  tqDebug("s-task:%s start recover block stage(step 2)", pTask->id.idStr);
 
   SRpcMsg rpcMsg = {
       .code = 0, .contLen = len, .msgType = TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE, .pCont = serializedReq};
@@ -870,7 +873,8 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
   int32_t code = 0;
 
   SStreamRecoverStep2Req* pReq = (SStreamRecoverStep2Req*)msg;
-  SStreamTask*            pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask == NULL) {
     return -1;
   }
@@ -912,7 +916,6 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
   streamMetaSaveTask(pTq->pStreamMeta, pTask);
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-
   return 0;
 }
 
