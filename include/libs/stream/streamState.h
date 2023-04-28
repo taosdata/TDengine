@@ -56,6 +56,7 @@ typedef struct STdbState {
   void*                            env;
   SListNode*                       pComparNode;
   SBackendHandle*                  pBackendHandle;
+  char                             idstr[48];
 
   TDB* db;
   TTB* pStateDb;
