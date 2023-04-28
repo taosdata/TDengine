@@ -2388,7 +2388,7 @@ _end:
   if (terrno != 0) {
     *ppReq = NULL;
     if (pReq) {
-      tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+      tDestroySSubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
       taosMemoryFreeClear(pReq);
     }
 

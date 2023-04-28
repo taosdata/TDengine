@@ -150,7 +150,6 @@ static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntr
     //atomic_add_fetch_64(&pHashObj->compTimes, 1);
     if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) &&
         pNode->removed == 0) {
-      assert(pNode->hashVal == hashVal);
       break;
     }
 
@@ -189,8 +188,6 @@ static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *p
  */
 static FORCE_INLINE void doUpdateHashNode(SHashObj *pHashObj, SHashEntry *pe, SHashNode *prev, SHashNode *pNode,
                                           SHashNode *pNewNode) {
-  assert(pNode->keyLen == pNewNode->keyLen);
-
   atomic_sub_fetch_16(&pNode->refCount, 1);
   if (prev != NULL) {
     prev->next = pNewNode;
@@ -236,7 +233,7 @@ static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) { return t
 
 SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type) {
   if (fn == NULL) {
-    assert(0);
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -342,19 +339,11 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
   taosHashEntryWLock(pHashObj, pe);
 
   SHashNode *pNode = pe->next;
-#if 0
-  if (pe->num > 0) {
-    assert(pNode != NULL);
-  } else {
-    assert(pNode == NULL);
-  }
-#endif
-
   SHashNode *prev = NULL;
   while (pNode) {
     if ((pNode->keyLen == keyLen) && (*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0 &&
         pNode->removed == 0) {
-      assert(pNode->hashVal == hashVal);
+      ASSERT(pNode->hashVal == hashVal);
       break;
     }
 
@@ -370,8 +359,6 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
     }
 
     pushfrontNodeInEntryList(pe, pNewNode);
-    assert(pe->next != NULL);
-
     taosHashEntryWUnlock(pHashObj, pe);
 
     // enable resize
@@ -446,14 +433,6 @@ void *taosHashGetImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void *
   char *data = NULL;
   taosHashEntryRLock(pHashObj, pe);
 
-#if 0
-  if (pe->num > 0) {
-    assert(pe->next != NULL);
-  } else {
-    assert(pe->next == NULL);
-  }
-#endif
-
   SHashNode *pNode = doSearchInEntryList(pHashObj, pe, key, keyLen, hashVal);
   if (pNode != NULL) {
     if (pHashObj->callbackFp != NULL) {
@@ -514,8 +493,6 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
 
   // double check after locked
   if (pe->num == 0) {
-    assert(pe->next == NULL);
-
     taosHashEntryWUnlock(pHashObj, pe);
     taosHashRUnlock(pHashObj);
     return -1;
@@ -568,13 +545,10 @@ void taosHashClear(SHashObj *pHashObj) {
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     SHashEntry *pEntry = pHashObj->hashList[i];
     if (pEntry->num == 0) {
-      assert(pEntry->next == NULL);
       continue;
     }
 
     pNode = pEntry->next;
-    assert(pNode != NULL);
-
     while (pNode) {
       pNext = pNode->next;
       FREE_HASH_NODE(pHashObj->freeFp, pNode);
@@ -671,13 +645,10 @@ void taosHashTableResize(SHashObj *pHashObj) {
     SHashNode  *pPrev = NULL;
 
     if (pe->num == 0) {
-      assert(pe->next == NULL);
       continue;
     }
 
     pNode = pe->next;
-
-    assert(pNode != NULL);
 
     while (pNode != NULL) {
       int32_t newIdx = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
@@ -728,8 +699,6 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
 }
 
 void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode) {
-  assert(pNode != NULL && pEntry != NULL);
-
   pNode->next = pEntry->next;
   pEntry->next = pNode;
 

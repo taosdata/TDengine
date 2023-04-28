@@ -1132,6 +1132,33 @@ int sml_td22900_Test() {
   return code;
 }
 
+int sml_td23881_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes =
+      taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_23881 PRECISION 'ns'");
+  taos_free_result(pRes);
+
+  char tmp[16375] = {0};
+  memset(tmp, 'a', 16374);
+  char sql[102400] = {0};
+  sprintf(sql,"lujixfvqor,t0=t c0=f,c1=\"%s\",c2=\"%s\",c3=\"%s\",c4=\"wthvqxcsrlps\" 1626006833639000000", tmp, tmp, tmp);
+
+  pRes = taos_query(taos, "use line_23881");
+  taos_free_result(pRes);
+
+  int totalRows = 0;
+  pRes = taos_schemaless_insert_raw(taos, sql, strlen(sql), &totalRows, TSDB_SML_LINE_PROTOCOL,
+                                    TSDB_SML_TIMESTAMP_NANO_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
 int sml_ttl_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
@@ -1301,6 +1328,8 @@ int main(int argc, char *argv[]) {
   }
 
   int ret = 0;
+  ret = sml_td23881_Test();
+  ASSERT(ret);
   ret = sml_escape_Test();
   ASSERT(!ret);
   ret = sml_ts3116_Test();
