@@ -80,7 +80,8 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model) {
   *pTaskInfo = doCreateTask(pPlan->id.queryId, taskId, vgId, model);
   if (*pTaskInfo == NULL) {
-    goto _complete;
+    taosMemoryFree(sql);
+    return terrno;
   }
 
   if (pHandle) {
@@ -96,16 +97,12 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
                                        pPlan->user, pPlan->dbFName);
 
   if (NULL == (*pTaskInfo)->pRoot) {
-    terrno = (*pTaskInfo)->code;
-    goto _complete;
+    int32_t code = (*pTaskInfo)->code;
+    doDestroyTask(*pTaskInfo);
+    return code;
+  } else {
+    return TSDB_CODE_SUCCESS;
   }
-
-  return TSDB_CODE_SUCCESS;
-
-  _complete:
-  taosMemoryFree(sql);
-  doDestroyTask(*pTaskInfo);
-  return terrno;
 }
 
 void cleanupQueriedTableScanInfo(SSchemaInfo* pSchemaInfo) {
