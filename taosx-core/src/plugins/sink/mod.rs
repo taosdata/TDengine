@@ -5,7 +5,10 @@ use std::{
     net::SocketAddr,
     panic,
     path::Path,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
 };
 use taos::{
     taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, Itertools, RawBlock,
@@ -41,6 +44,7 @@ async fn ipc_tcp_read(
             Ok(())
         },
         done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config) => {
+            log::info!("IPC stopped");
             done
         }
     }
@@ -274,12 +278,18 @@ async fn ipc_process<R: Read, W: Write>(
     let stream_type = *metadata.stream_type();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         let guard = lock.lock().await;
+        let max_retries = 10;
+        let mut i = 0;
         loop {
             info!("[{client}] {sql}");
             // rt.block_on(taos.exec(&sql))?;
             let res = taos.exec(&sql).await;
             if let Err(err) = res {
                 tracing::error!("Query error with {sql}: {err:?}");
+                i += 1;
+                if i > max_retries {
+                    break;
+                }
             } else {
                 break;
             }
@@ -358,6 +368,11 @@ pub fn listen_tcp_socket(
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(16)
+        .thread_name_fn(|| {
+            static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
+            let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
+            format!("ipc-runner-{}", id)
+        })
         .build()?;
     // info!("listen on socket address: {tcp_addr}");
     let sql_lock = Arc::new(Mutex::new(()));
@@ -373,12 +388,14 @@ pub fn listen_tcp_socket(
         tracing::debug!("shutdown socket");
         closed.store(true, std::sync::atomic::Ordering::SeqCst);
         let _ = closer_socket.shutdown(std::net::Shutdown::Both);
+
         // runtime.shutdown_background();
     });
 
     std::thread::spawn(move || {
         loop {
             if closed2.load(std::sync::atomic::Ordering::SeqCst) {
+                tracing::debug!("IPC stopped");
                 break;
             }
             match socket.accept() {
@@ -390,28 +407,27 @@ pub fn listen_tcp_socket(
                     let se = sender.clone();
                     let cancel = cancel.clone();
                     runtime.spawn(async move {
-                        let res = ipc_tcp_read(
-                            addr.as_socket_ipv4().unwrap().to_string(),
-                            pool,
-                            stream,
-                            lock,
-                            config,
-                            cancel,
-                        )
-                        .await;
+                        let client = addr.as_socket_ipv4().unwrap().to_string();
+                        let res =
+                            ipc_tcp_read(client.to_string(), pool, stream, lock, config, cancel)
+                                .await;
                         if let Err(err) = res {
                             // panic!("{err:?}");
                             log::error!("ipc read err: {}", err);
                             let _ = se.send(err.to_string()).await;
+                        } else {
+                            log::info!("IPC reader stopped for client {client}",);
                         }
                     });
                 }
                 Err(e) => {
                     /* connection failed */
                     tracing::debug!("IPC stream acceptation error {e}, might be stopped");
+                    break;
                 }
             }
         }
+        log::info!("IPC stream listener stopped");
     });
 
     Ok(closer)
