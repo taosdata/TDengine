@@ -1033,6 +1033,31 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t resultRowEncode(void* k, int32_t* size, char* buf) {
+  // SResultRow* key = k;
+  // int         len = 0;
+  // int         struLen = *size;
+  // len += taosEncodeFixedI32((void**)&buf, key->pageId);
+
+  // uint32_t offset = key->offset;
+  // len += taosEncodeFixedU32((void**)&buf, offset);
+
+  // len += taosEncodeFixedI8((void**)&buf, key->startInterp);
+  // len += taosEncodeFixedI8((void**)&buf, key->endInterp);
+  // len += taosEncodeFixedI8((void**)&buf, key->closed);
+  // len += taosEncodeFixedU32((void**)&buf, key->numOfRows);
+
+  // len += taosEncodeFixedI64((void**)&buf, key->win.skey);
+  // len += taosEncodeFixedI64((void**)&buf, key->win.ekey);
+
+  // int32_t numOfEntryInfo = (struLen - sizeof(SResultRow)) / sizeof(struct SResultRowEntryInfo);
+  // len += taosEncodeFixedI32((void**)&buf, numOfEntryInfo);
+  // for (int i = 0; i < numOfEntryInfo; i++) {
+  //   SResultRowEntryInfo* p = &key->pEntryInfo[i];
+
+  //   uint8_t value = p->initialized ? 1 : 0;
+  //   len += taosEncodeFixedU8((void**)&buf, value);
+
   //   value = p->complete ? 1 : 0;
   //   len += taosEncodeFixedU8((void**)&buf, value);
 
