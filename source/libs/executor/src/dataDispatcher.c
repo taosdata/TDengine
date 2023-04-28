@@ -15,7 +15,7 @@
 
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "planner.h"
 #include "tcompression.h"
 #include "tdatablock.h"
@@ -185,7 +185,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (NULL == pDispatcher->nextOutput.pData) {
-    assert(pDispatcher->queryEnd);
+    ASSERT(pDispatcher->queryEnd);
     pOutput->useconds = pDispatcher->useconds;
     pOutput->precision = pDispatcher->pSchema->precision;
     pOutput->bufStatus = DS_BUF_EMPTY;

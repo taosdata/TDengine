@@ -219,8 +219,9 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
 
 void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   int32_t left = atomic_sub_fetch_32(&pTask->refCnt, 1);
-  ASSERT(left >= 0);
-  if (left == 0) {
+  if (left < 0) {
+    qError("task ref is invalid, ref:%d, %s", left, pTask->id.idStr);
+  } else if (left == 0) {
     ASSERT(streamTaskShouldStop(&pTask->status));
     tFreeStreamTask(pTask);
   }
@@ -252,12 +253,12 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
 
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
   if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
-    ASSERT(0);
+    qError("failed to commit stream meta");
     return -1;
   }
 
   if (tdbPostCommit(pMeta->db, pMeta->txn) < 0) {
-    ASSERT(0);
+    qError("failed to commit stream meta");
     return -1;
   }
 

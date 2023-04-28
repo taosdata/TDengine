@@ -444,7 +444,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       len += sizeof(SSubmitReq2Msg);
       pBuf = rpcMallocCont(len);
       if (NULL == pBuf) {
-        tDestroySSubmitReq2(&submitReq, TSDB_MSG_FLG_ENCODE);
+        tDestroySSubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
       ((SSubmitReq2Msg*)pBuf)->header.vgId = TD_VID(pVnode);
@@ -456,11 +456,11 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         tqError("failed to encode submit req since %s", terrstr());
         tEncoderClear(&encoder);
         rpcFreeCont(pBuf);
-        tDestroySSubmitReq2(&submitReq, TSDB_MSG_FLG_ENCODE);
+        tDestroySSubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
         continue;
       }
       tEncoderClear(&encoder);
-      tDestroySSubmitReq2(&submitReq, TSDB_MSG_FLG_ENCODE);
+      tDestroySSubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
 
       SRpcMsg msg = {
           .msgType = TDMT_VND_SUBMIT,

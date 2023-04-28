@@ -12,10 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -26,6 +28,11 @@
 
 #define IS_FINAL_OP(op)    ((op)->isFinal)
 #define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL * 24LL * 365LL * 10LL);
+
+typedef struct SStateWindowInfo {
+  SResultWindowInfo winInfo;
+  SStateKeys*       pStateKey;
+} SStateWindowInfo;
 
 
 typedef struct SSessionAggOperatorInfo {
@@ -156,7 +163,7 @@ FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn
     //    }
   }
 
-  assert(forwardRows >= 0);
+  ASSERT(forwardRows >= 0);
   return forwardRows;
 }
 
@@ -167,8 +174,6 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
   if (num <= 0) {
     return -1;
   }
-
-  assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
 
   TSKEY*  keyList = (TSKEY*)pValue;
   int32_t firstPos = 0;
@@ -233,7 +238,7 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
 
 int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, int32_t startPos, TSKEY ekey,
                                  __block_search_fn_t searchFn, STableQueryInfo* item, int32_t order) {
-  assert(startPos >= 0 && startPos < pDataBlockInfo->rows);
+  ASSERT(startPos >= 0 && startPos < pDataBlockInfo->rows);
 
   int32_t num = -1;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(order);
@@ -264,7 +269,6 @@ int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimary
     }
   }
 
-  assert(num >= 0);
   return num;
 }
 
@@ -436,7 +440,7 @@ static bool setTimeWindowInterpolationEndTs(SIntervalAggOperatorInfo* pInfo, SEx
   }
 
   int32_t nextRowIndex = endRowIndex + 1;
-  assert(nextRowIndex >= 0);
+  ASSERT(nextRowIndex >= 0);
 
   TSKEY nextKey = tsCols[nextRowIndex];
   doTimeWindowInterpolation(pInfo->pPrevValues, pDataBlock, actualEndKey, endRowIndex, nextKey, nextRowIndex, key,
@@ -497,9 +501,9 @@ static int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, 
    */
   if (primaryKeys == NULL) {
     if (ascQuery) {
-      assert(pDataBlockInfo->window.skey <= pNext->ekey);
+      ASSERT(pDataBlockInfo->window.skey <= pNext->ekey);
     } else {
-      assert(pDataBlockInfo->window.ekey >= pNext->skey);
+      ASSERT(pDataBlockInfo->window.ekey >= pNext->skey);
     }
   } else {
     if (ascQuery && primaryKeys[startPos] > pNext->ekey) {
@@ -536,7 +540,6 @@ static bool isResultRowInterpolated(SResultRow* pResult, SResultTsInterpType typ
 }
 
 static void setResultRowInterpo(SResultRow* pResult, SResultTsInterpType type) {
-  assert(pResult != NULL && (type == RESULT_ROW_START_INTERP || type == RESULT_ROW_END_INTERP));
   if (type == RESULT_ROW_START_INTERP) {
     pResult->startInterp = true;
   } else {
@@ -2802,7 +2805,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChild = taosArrayGetP(pInfo->pChildren, i);
-      destroyOperatorInfo(pChild);
+      destroyOperator(pChild);
     }
     taosArrayDestroy(pInfo->pChildren);
   }
@@ -3780,7 +3783,7 @@ void destroyStreamStateOperatorInfo(void* param) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChild = taosArrayGetP(pInfo->pChildren, i);
-      destroyOperatorInfo(pChild);
+      destroyOperator(pChild);
     }
     taosArrayDestroy(pInfo->pChildren);
   }

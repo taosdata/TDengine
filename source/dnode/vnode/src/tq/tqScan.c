@@ -74,7 +74,6 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   qTaskInfo_t          task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqError("prepare scan failed, return");
     return -1;
   }
 
@@ -119,7 +118,6 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
   qTaskInfo_t          task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("tqScanTaosx prepare scan failed, return");
     return -1;
   }
 
@@ -132,6 +130,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
       tqError("vgId:%d, task exec error since %s", pTq->pVnode->config.vgId, terrstr());
       return -1;
     }
+
     tqDebug("tmqsnap task execute end, get %p", pDataBlock);
 
     if (pDataBlock != NULL && pDataBlock->info.rows > 0) {
@@ -205,11 +204,11 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     STqReader* pReader = pExec->pTqReader;
     tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver);
-    while (tqNextDataBlock(pReader)) {
+    while (tqNextBlockImpl(pReader)) {
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
       SSubmitTbData* pSubmitTbDataRet = NULL;
-      if (tqRetrieveTaosxBlock2(pReader, pBlocks, pSchemas, &pSubmitTbDataRet) < 0) {
+      if (tqRetrieveTaosxBlock(pReader, pBlocks, pSchemas, &pSubmitTbDataRet) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
       }
       if (pRsp->withTbName) {
@@ -264,11 +263,11 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
   } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
     STqReader* pReader = pExec->pTqReader;
     tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver);
-    while (tqNextDataBlockFilterOut2(pReader, pExec->execDb.pFilterOutTbUid)) {
+    while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
       SSubmitTbData* pSubmitTbDataRet = NULL;
-      if (tqRetrieveTaosxBlock2(pReader, pBlocks, pSchemas, &pSubmitTbDataRet) < 0) {
+      if (tqRetrieveTaosxBlock(pReader, pBlocks, pSchemas, &pSubmitTbDataRet) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
       }
       if (pRsp->withTbName) {

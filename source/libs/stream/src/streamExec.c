@@ -15,7 +15,7 @@
 
 #include "streamInc.h"
 
-#define STREAM_EXEC_MAX_BATCH_NUM 1024
+#define STREAM_EXEC_MAX_BATCH_NUM 20480
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*) &pStatus->taskStatus);
@@ -167,20 +167,24 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
       batchCnt++;
 
-      qDebug("task %d scan exec block num %d, block limit %d", pTask->id.taskId, batchCnt, batchSz);
+      qDebug("s-task:%s scan exec block num %d, block limit %d", pTask->id.idStr, batchCnt, batchSz);
 
-      if (batchCnt >= batchSz) break;
+      if (batchCnt >= batchSz) {
+        break;
+      }
     }
+
     if (taosArrayGetSize(pRes) == 0) {
       if (finished) {
         taosArrayDestroy(pRes);
-        qDebug("task %d finish recover exec task ", pTask->id.taskId);
+        qDebug("s-task:%s finish recover exec task ", pTask->id.idStr);
         break;
       } else {
-        qDebug("task %d continue recover exec task ", pTask->id.taskId);
+        qDebug("s-task:%s continue recover exec task ", pTask->id.idStr);
         continue;
       }
     }
+
     SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     if (qRes == NULL) {
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
@@ -308,7 +312,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     int64_t ckId = 0;
     int64_t dataVer = 0;
     qGetCheckpointVersion(pTask->exec.pExecutor, &dataVer, &ckId);
-    if (dataVer > pTask->chkInfo.version) {    // save it since the checkpoint is updated
+    if (ckId > pTask->chkInfo.id) {    // save it since the checkpoint is updated
       qDebug("s-task:%s exec end, start to update check point, ver from %" PRId64 " to %" PRId64
              ", checkPoint id:%" PRId64 " -> %" PRId64,
              pTask->id.idStr, pTask->chkInfo.version, dataVer, pTask->chkInfo.id, ckId);

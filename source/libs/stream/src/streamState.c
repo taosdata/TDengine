@@ -447,7 +447,10 @@ int32_t streamStateFillDel(SStreamState* pState, const SWinKey* key) {
 int32_t streamStateClear(SStreamState* pState) {
 #ifdef USE_ROCKSDB
   streamFileStateClear(pState->pFileState);
-  return streamStateClear_rocksdb(pState);
+  if (needClearDiskBuff(pState->pFileState)) {
+    streamStateClear_rocksdb(pState);
+  }
+  return 0;
 #else
   SWinKey key = {.ts = 0, .groupId = 0};
   streamStatePut(pState, &key, NULL, 0);

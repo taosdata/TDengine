@@ -131,7 +131,6 @@ SListNode *tdListPopNode(SList *list, SListNode *node) {
 
 // Move all node elements from src to dst, the dst is assumed as an empty list
 void tdListMove(SList *src, SList *dst) {
-  // assert(dst->eleSize == src->eleSize);
   SListNode *node = NULL;
   while ((node = tdListPopHead(src)) != NULL) {
     tdListAppendNode(dst, node);

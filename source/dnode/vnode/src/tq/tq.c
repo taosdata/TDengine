@@ -504,7 +504,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       pHandle->execHandle.pTqReader = qExtractReaderFromStreamScanner(scanner);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
       pHandle->pWalReader = walOpenReader(pVnode->pWal, NULL);
-      pHandle->execHandle.pTqReader = tqOpenReader(pVnode);
+      pHandle->execHandle.pTqReader = tqReaderOpen(pVnode);
 
       pHandle->execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -523,7 +523,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
         tqDebug("vgId:%d, idx %d, uid:%" PRId64, vgId, i, tbUid);
       }
-      pHandle->execHandle.pTqReader = tqOpenReader(pVnode);
+      pHandle->execHandle.pTqReader = tqReaderOpen(pVnode);
       tqReaderSetTbUidList(pHandle->execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
 
@@ -821,12 +821,17 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // do recovery step 1
-  streamSourceRecoverScanStep1(pTask);
+  tqDebug("s-task:%s start recover step 1 scan", pTask->id.idStr);
+  int64_t st = taosGetTimestampMs();
 
+  streamSourceRecoverScanStep1(pTask);
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   }
+
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+  tqDebug("s-task:%s recover step 1 ended, elapsed time:%.2fs", pTask->id.idStr, el);
 
   // build msg to launch next step
   SStreamRecoverStep2Req req;
@@ -853,20 +858,17 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   memcpy(serializedReq, &req, len);
 
   // dispatch msg
+  tqDebug("s-task:%s start recover block stage", pTask->id.idStr);
+
   SRpcMsg rpcMsg = {
-      .code = 0,
-      .contLen = len,
-      .msgType = TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE,
-      .pCont = serializedReq,
-  };
-
+      .code = 0, .contLen = len, .msgType = TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE, .pCont = serializedReq};
   tmsgPutToQueue(&pTq->pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
-
   return 0;
 }
 
 int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  int32_t                 code;
+  int32_t code = 0;
+
   SStreamRecoverStep2Req* pReq = (SStreamRecoverStep2Req*)msg;
   SStreamTask*            pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask == NULL) {
@@ -1220,11 +1222,22 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask) {
-    tqDebug("vgId:%d s-task:%s set normal flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
     streamSetStatusNormal(pTask);
+
+    // no lock needs to secure the access of the version
+    if (pReq->igUntreated) {  // discard all the data  when the stream task is suspended.
+      pTask->chkInfo.currentVer = sversion;
+      tqDebug("vgId:%d s-task:%s resume to normal from the latest version:%" PRId64 ", vnode ver:%" PRId64, pTq->pStreamMeta->vgId,
+              pTask->id.idStr, pTask->chkInfo.currentVer, sversion);
+    } else {  // from the previous paused version and go on
+      tqDebug("vgId:%d s-task:%s resume to normal from paused ver:%" PRId64 ", vnode ver:%" PRId64, pTq->pStreamMeta->vgId,
+              pTask->id.idStr, pTask->chkInfo.currentVer, sversion);
+    }
+
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     tqStartStreamTasks(pTq);
   }
+
   return 0;
 }
 
@@ -1329,7 +1342,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   taosWLockLatch(&pMeta->lock);
   int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pTasks);
   if (numOfTasks == 0) {
-    tqInfo("vgId:%d no stream tasks exists", vgId);
+    tqInfo("vgId:%d no stream tasks exist", vgId);
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
     return 0;
   }

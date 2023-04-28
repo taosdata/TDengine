@@ -16,7 +16,7 @@
 #include "streamInc.h"
 #include "ttimer.h"
 
-#define STREAM_TASK_INPUT_QUEUEU_CAPACITY 3000
+#define STREAM_TASK_INPUT_QUEUEU_CAPACITY 102400
 
 int32_t streamInit() {
   int8_t old;
@@ -273,17 +273,11 @@ int32_t streamProcessRunReq(SStreamTask* pTask) {
 }
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
-  qDebug("task %d receive retrieve req from node %d task %d", pTask->id.taskId, pReq->srcNodeId, pReq->srcTaskId);
-
+  qDebug("s-task:%s receive retrieve req from node %d taskId:%d", pTask->id.idStr, pReq->srcNodeId, pReq->srcTaskId);
   streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
 
   ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
   streamSchedExec(pTask);
-
-  /*streamTryExec(pTask);*/
-
-  /*streamDispatch(pTask);*/
-
   return 0;
 }
 

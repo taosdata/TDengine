@@ -20,6 +20,8 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__RECOVER_PREPARE);
+    qDebug("s-task:%s set task status:%d and start recover", pTask->id.idStr, pTask->status.taskStatus);
+
     streamSetParamForRecover(pTask);
     streamSourceRecoverPrepareStep1(pTask, version);
 
@@ -197,7 +199,6 @@ int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req*
 }
 
 int32_t streamSourceRecoverScanStep1(SStreamTask* pTask) {
-  //
   return streamScanExec(pTask, 100);
 }
 
@@ -210,8 +211,11 @@ int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req*
 
 int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
   void* exec = pTask->exec.pExecutor;
+
+  qDebug("s-task:%s recover step2(blocking stage) started", pTask->id.idStr);
   if (qStreamSourceRecoverStep2(exec, ver) < 0) {
   }
+
   return streamScanExec(pTask, 100);
 }
 

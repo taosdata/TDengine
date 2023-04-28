@@ -422,7 +422,6 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
       // return -1;
     }
   }
-
   pState->pTdbState->rocksdb = handle->db;
   pState->pTdbState->pHandle = cfHandle;
   pState->pTdbState->writeOpts = rocksdb_writeoptions_create();

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <util/tsimplehash.h>
 #include "tsdb.h"
 
 #define MEM_MIN_HASH 1024
@@ -298,12 +299,12 @@ int64_t tsdbCountTbDataRows(STbData *pTbData) {
   return rowsNum;
 }
 
-void tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj*        pTableMap, int64_t *rowsNum) {
+void tsdbMemTableCountRows(SMemTable *pMemTable, SSHashObj* pTableMap, int64_t *rowsNum) {
   taosRLockLatch(&pMemTable->latch);
   for (int32_t i = 0; i < pMemTable->nBucket; ++i) {
     STbData *pTbData = pMemTable->aBucket[i];
     while (pTbData) {
-      void* p = taosHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
+      void* p = tSimpleHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
       if (p == NULL) {
         pTbData = pTbData->next;
         continue;
