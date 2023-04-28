@@ -213,7 +213,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   tqInitTaosxRsp(&taosxRsp, pRequest);
   qTaskInfo_t task = pHandle->execHandle.task;
   if(qTaskIsExecuting(task)){
-    code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
+    code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
     tDeleteSTaosxRsp(&taosxRsp);
     return code;
   }
