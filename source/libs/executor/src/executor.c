@@ -800,7 +800,11 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
     return;
   }
 
-  qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
+  if (pTaskInfo->pRoot != NULL) {
+    qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
+  } else {
+    qDebug("%s execTask completed", GET_TASKID(pTaskInfo));
+  }
 
   printTaskExecCostInLog(pTaskInfo);  // print the query cost summary
   doDestroyTask(pTaskInfo);
