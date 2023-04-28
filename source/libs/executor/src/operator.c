@@ -277,13 +277,14 @@ static ERetType extractScanInfo(SOperatorInfo* pOperator, STraverParam* pParam, 
 }
 
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag, bool inheritUsOrder) {
-  SExtScanInfo info = {.inheritUsOrder = inheritUsOrder};
+  SExtScanInfo info = {.inheritUsOrder = inheritUsOrder, .order = *order};
   STraverParam p = {.pParam = &info};
 
   traverseOperatorTree(pOperator, extractScanInfo, &p, NULL);
   *order = info.order;
   *scanFlag = info.scanFlag;
 
+  ASSERT(*order == TSDB_ORDER_ASC || *order == TSDB_ORDER_DESC);
   return p.code;
 }
 
