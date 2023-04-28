@@ -575,7 +575,7 @@ static int32_t smlConvertJSONString(SSmlKv *pVal, char *typeStr, cJSON *value) {
     uError("OTD:invalid type(%s) for JSON String", typeStr);
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
-  pVal->length = (uint16_t)strlen(value->valuestring);
+  pVal->length = strlen(value->valuestring);
 
   if (pVal->type == TSDB_DATA_TYPE_BINARY && pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
     return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
