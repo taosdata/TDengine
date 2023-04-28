@@ -192,6 +192,11 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
   return false;
 }
 
+static bool isInterpFunc(SExprInfo* pExprInfo) {
+  char *name = pExprInfo->pExpr->_function.functionName;
+  return (strcasecmp(name, "interp") == 0);
+}
+
 static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
                                    bool beforeTs) {
   int32_t rows = pResBlock->info.rows;
@@ -212,6 +217,8 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
     } else if (isIsfilledPseudoColumn(pExprInfo)) {
       bool isFilled = true;
       colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
+      continue;
+    } else if (!isInterpFunc(pExprInfo)) {
       continue;
     }
 
