@@ -22,7 +22,8 @@
 #include "tmsg.h"
 
 #include "executorInt.h"
-#include "executorimpl.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"

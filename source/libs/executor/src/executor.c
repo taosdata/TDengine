@@ -14,9 +14,10 @@
  */
 
 #include "executor.h"
-#include <vnode.h>
-#include "executorimpl.h"
+#include "executorInt.h"
+#include "operator.h"
 #include "planner.h"
+#include "querytask.h"
 #include "tdatablock.h"
 #include "tref.h"
 #include "tudf.h"
@@ -249,7 +250,7 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
                                      uint64_t id) {
   if (msg == NULL) {  // create raw scan
-    SExecTaskInfo* pTaskInfo = doCreateExecTaskInfo(0, id, vgId, OPTR_EXEC_MODEL_QUEUE, "");
+    SExecTaskInfo* pTaskInfo = doCreateTask(0, id, vgId, OPTR_EXEC_MODEL_QUEUE);
     if (NULL == pTaskInfo) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
@@ -717,8 +718,6 @@ void qRemoveTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo) {
     taosArrayRemove(pTaskInfo->stopInfo.pStopInfo, idx);
   }
   taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
-
-  return;
 }
 
 void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
@@ -1302,4 +1301,26 @@ SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
 
   taosArrayDestroy(plist);
   return pUidList;
+}
+
+static void extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pScanInfo = pOperator->info;
+    STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
+    taosArrayPush(pList, &pTableScanInfo->base.pTableListInfo);
+  } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pScanInfo = pOperator->info;
+    taosArrayPush(pList, &pScanInfo->base.pTableListInfo);
+  } else {
+    if (pOperator->pDownstream != NULL && pOperator->pDownstream[0] != NULL) {
+      extractTableList(pList, pOperator->pDownstream[0]);
+    }
+  }
+}
+
+SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo) {
+  SArray*        pArray = taosArrayInit(0, POINTER_BYTES);
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+  extractTableList(pArray, pOperator);
+  return pArray;
 }

@@ -13,8 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executorInt.h"
 #include "filter.h"
-#include "executorimpl.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tdatablock.h"
 
 typedef struct SSortOperatorInfo {

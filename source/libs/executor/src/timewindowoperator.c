@@ -12,10 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -26,6 +28,11 @@
 
 #define IS_FINAL_OP(op)    ((op)->isFinal)
 #define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL * 24LL * 365LL * 10LL);
+
+typedef struct SStateWindowInfo {
+  SResultWindowInfo winInfo;
+  SStateKeys*       pStateKey;
+} SStateWindowInfo;
 
 
 typedef struct SSessionAggOperatorInfo {
@@ -2798,7 +2805,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChild = taosArrayGetP(pInfo->pChildren, i);
-      destroyOperatorInfo(pChild);
+      destroyOperator(pChild);
     }
     taosArrayDestroy(pInfo->pChildren);
   }
@@ -3776,7 +3783,7 @@ void destroyStreamStateOperatorInfo(void* param) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
     for (int32_t i = 0; i < size; i++) {
       SOperatorInfo* pChild = taosArrayGetP(pInfo->pChildren, i);
-      destroyOperatorInfo(pChild);
+      destroyOperator(pChild);
     }
     taosArrayDestroy(pInfo->pChildren);
   }

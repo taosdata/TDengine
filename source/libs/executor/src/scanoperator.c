@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -30,6 +30,8 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
+#include "operator.h"
+#include "querytask.h"
 
 int32_t scanDebug = 0;
 
@@ -2300,7 +2302,7 @@ static void destroyStreamScanOperatorInfo(void* param) {
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
 
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
-    destroyOperatorInfo(pStreamScan->pTableScanOp);
+    destroyOperator(pStreamScan->pTableScanOp);
   }
 
   if (pStreamScan->tqReader) {
