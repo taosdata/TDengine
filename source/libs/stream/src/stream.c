@@ -216,8 +216,8 @@ int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
 }
 
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
-  qDebug("vgId:%d s-task:%s receive dispatch req from taskId:%d", pReq->upstreamNodeId, pTask->id.idStr,
-         pReq->upstreamTaskId);
+  qDebug("s-task:%s receive dispatch msg from taskId:%d (vgId:%d)", pTask->id.idStr, pReq->upstreamTaskId,
+         pReq->upstreamNodeId);
 
   streamTaskEnqueueBlocks(pTask, pReq, pRsp);
   tDeleteStreamDispatchReq(pReq);

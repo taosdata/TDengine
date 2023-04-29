@@ -100,7 +100,7 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     int32_t status = pTask->status.taskStatus;
     if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
-      tqDebug("s-task:%s not source task, no need to start", pTask->id.idStr);
+      tqDebug("s-task:%s level:%d not source task, no need to start", pTask->id.idStr, pTask->taskLevel);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
@@ -113,7 +113,7 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     if (tInputQueueIsFull(pTask)) {
-      tqDebug("vgId:%d s-task:%s input queue is full, do nothing", vgId, pTask->id.idStr);
+      tqDebug("s-task:%s input queue is full, do nothing", pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
