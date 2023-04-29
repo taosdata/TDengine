@@ -2252,8 +2252,7 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
 
       pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
       SResultRowEntryInfo* pEnryInfo = pCtx[j].resultInfo;
-      qDebug("initd:%d, complete:%d, null:%d, res:%d", pEnryInfo->initialized, pEnryInfo->complete,
-             pEnryInfo->isNullRes, pEnryInfo->numOfRes);
+
       if (pCtx[j].fpSet.finalize) {
         int32_t code1 = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
         if (TAOS_FAILED(code1)) {
@@ -2275,6 +2274,7 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
 
     pBlock->info.rows += pRow->numOfRows;
   }
+
   pBlock->info.dataLoad = 1;
   blockDataUpdateTsWindow(pBlock, 0);
   return TSDB_CODE_SUCCESS;
