@@ -3567,7 +3567,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
       code = doBuildDataBlock(pReader);
     }
 
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS || pReader->flag == READER_STATUS_SHOULD_STOP) {
       return code;
     }
 
