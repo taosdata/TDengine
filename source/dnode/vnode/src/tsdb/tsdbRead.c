@@ -2997,6 +2997,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
     // only check here, since the iterate data in memory is very fast.
     if (pReader->flag == READER_STATUS_SHOULD_STOP) {
       tsdbWarn("tsdb reader is stopped ASAP, %s", pReader->idStr);
+      taosArrayDestroy(pIndexList);
       return TSDB_CODE_SUCCESS;
     }
 
@@ -3162,6 +3163,10 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   STableBlockScanInfo* pScanInfo = NULL;
   SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(pBlockIter);
   SLastBlockReader*    pLastBlockReader = pReader->status.fileIter.pLastBlockReader;
+
+  if (pReader->flag == READER_STATUS_SHOULD_STOP) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
   if (pScanInfo == NULL) {
@@ -3483,7 +3488,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
   if (pBlockIter->numOfBlocks == 0) {
   _begin:
     code = doLoadLastBlockSequentially(pReader);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS || pReader->flag == READER_STATUS_SHOULD_STOP) {
       return code;
     }
 
@@ -3496,7 +3501,8 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
       code = initForFirstBlockInFile(pReader, pBlockIter);
 
       // error happens or all the data files are completely checked
-      if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false)) {
+      if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false) ||
+          pReader->flag == READER_STATUS_SHOULD_STOP) {
         return code;
       }
 
@@ -5066,6 +5072,11 @@ static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
   SReaderStatus*       pStatus = &pReader->status;
   int32_t              code = TSDB_CODE_SUCCESS;
   SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(&pStatus->blockIter);
+
+  if (pReader->flag == READER_STATUS_SHOULD_STOP) {
+    return NULL;
+  }
+
   STableBlockScanInfo* pBlockScanInfo = getTableBlockScanInfo(pStatus->pTableMap, pBlockInfo->uid, pReader->idStr);
   if (pBlockScanInfo == NULL) {
     return NULL;
