@@ -3497,6 +3497,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
     }
 
     // all data blocks are checked in this last block file, now let's try the next file
+    // ASSERT(pReader->status.pTableIter == NULL);
     if (pReader->status.pTableIter == NULL) {
       code = initForFirstBlockInFile(pReader, pBlockIter);
 
@@ -3551,7 +3552,8 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
             code = initForFirstBlockInFile(pReader, pBlockIter);
 
             // error happens or all the data files are completely checked
-            if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false)) {
+            if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false) ||
+                pReader->flag == READER_STATUS_SHOULD_STOP) {
               return code;
             }
 
