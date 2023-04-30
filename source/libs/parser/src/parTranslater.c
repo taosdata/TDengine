@@ -1310,7 +1310,8 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
 }
 
 static EDealRes haveVectorFunction(SNode* pNode, void* pContext) {
-  if (isAggFunc(pNode) || isIndefiniteRowsFunc(pNode) || isWindowPseudoColumnFunc(pNode) || isInterpPseudoColumnFunc(pNode)) {
+  if (isAggFunc(pNode) || isIndefiniteRowsFunc(pNode) || isWindowPseudoColumnFunc(pNode) ||
+      isInterpPseudoColumnFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
   }
@@ -2577,8 +2578,13 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
           pCxt->stableQuery = true;
         }
-        if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType && isSelectStmt(pCxt->pCurrStmt)) {
-          ((SSelectStmt*)pCxt->pCurrStmt)->isTimeLineResult = false;
+        if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+          if (isSelectStmt(pCxt->pCurrStmt)) {
+            ((SSelectStmt*)pCxt->pCurrStmt)->isTimeLineResult = false;
+          } else if (isDeleteStmt(pCxt->pCurrStmt)) {
+            code = TSDB_CODE_TSC_INVALID_OPERATION;
+            break;
+          }
         }
         code = addNamespace(pCxt, pRealTable);
       }
@@ -6642,6 +6648,7 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
   }
+  tFreeSAlterUserReq(&req);
   return code;
 }
 

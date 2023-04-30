@@ -689,6 +689,7 @@ typedef struct {
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
 int32_t tDeserializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
+void    tFreeSAlterUserReq(SAlterUserReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];

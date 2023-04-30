@@ -145,32 +145,30 @@ class TMQCom:
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         tdLog.debug("%s is stopped by kill -INT" % (processorName))
 
-    def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb',rows=1):
+    def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb'):
         loopFlag = 1
         while loopFlag:
             tdSql.query("select * from %s.notifyinfo"%cdbName)
             #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
             actRows = tdSql.getRows()
-            if (actRows >= rows):
-                for i in range(actRows):
-                    if tdSql.getData(i, 1) == 0:
-                        loopFlag = 0
-                        break
+            for i in range(actRows):
+                if tdSql.getData(i, 1) == 0:
+                    loopFlag = 0
+                    break
             time.sleep(0.02)
         return
 
-    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=2):
+    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb'):
         loopFlag = 1
         while loopFlag:
             tdSql.query("select * from %s.notifyinfo"%cdbName)
             #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
             actRows = tdSql.getRows()
-            if (actRows >= rows):
-                for i in range(actRows):
-                    if tdSql.getData(i, 1) == 1:
-                        loopFlag = 0
-                        break
-            time.sleep(0.10)
+            for i in range(actRows):
+                if tdSql.getData(i, 1) == 1:
+                    loopFlag = 0
+                    break
+            time.sleep(0.02)
         return
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):

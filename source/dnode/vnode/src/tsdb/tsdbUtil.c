@@ -1107,9 +1107,10 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
     int32_t   iColumn = 1;
     STColumn *pTColumn = &pTSchema->columns[iColumn];
     for (int32_t iCid = 0; iCid < nCid; iCid++) {
-      if (ASSERTS(pTColumn != NULL, "invalid input param")) {
-        code = TSDB_CODE_INVALID_PARA;
-        goto _exit;
+
+      // aCid array (from taos client catalog) contains columns that does not exist in the pTSchema. the pTSchema is newer
+      if (pTColumn == NULL) {
+        continue;
       }
 
       while (pTColumn->colId < aCid[iCid]) {
@@ -1118,9 +1119,8 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
         pTColumn = &pTSchema->columns[iColumn];
       }
 
-      if (ASSERTS(pTColumn->colId == aCid[iCid], "invalid input param")) {
-        code = TSDB_CODE_INVALID_PARA;
-        goto _exit;
+      if (pTColumn->colId != aCid[iCid]) {
+        continue;
       }
 
       tColDataInit(&pBlockData->aColData[iCid], pTColumn->colId, pTColumn->type,

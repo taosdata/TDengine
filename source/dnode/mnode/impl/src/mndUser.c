@@ -390,6 +390,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &ref, _OVER);
 
       taosHashPut(pUser->useDbs, key, keyLen, &ref, sizeof(ref));
+      taosMemoryFree(key);
     }
   }
 
@@ -956,6 +957,7 @@ _OVER:
     mError("user:%s, failed to alter since %s", alterReq.user, terrstr());
   }
 
+  tFreeSAlterUserReq(&alterReq);
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
   mndUserFreeObj(&newUser);
