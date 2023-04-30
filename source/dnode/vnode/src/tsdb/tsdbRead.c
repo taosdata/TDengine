@@ -3529,8 +3529,9 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
   SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
 
   if (pBlockIter->numOfBlocks == 0) {
+    // let's try to extract data from stt files.
     ERetrieveType type = doReadDataFromLastFiles(pReader);
-    if (type != TSDB_READ_RETURN) {
+    if (type == TSDB_READ_RETURN) {
       return terrno;
     }
 
@@ -3571,7 +3572,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
           resetTableListIndex(&pReader->status);
 
           ERetrieveType type = doReadDataFromLastFiles(pReader);
-          if (type != TSDB_READ_RETURN) {
+          if (type == TSDB_READ_RETURN) {
             return terrno;
           }
         }
