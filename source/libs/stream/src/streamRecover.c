@@ -174,7 +174,7 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
       ASSERT(0);
     }
   } else { // not ready, wait for 100ms and retry
-    qDebug("s-task:%s downstream taskId:%"PRId64" (vgId:%d) not ready, wait for 100ms and retry", pTask->id.idStr,
+    qDebug("s-task:%s downstream taskId:%d (vgId:%d) not ready, wait for 100ms and retry", pTask->id.idStr,
         pRsp->downstreamTaskId, pRsp->downstreamNodeId);
     taosMsleep(100);
     streamRecheckOneDownstream(pTask, pRsp);
