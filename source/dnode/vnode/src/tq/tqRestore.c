@@ -20,13 +20,13 @@ static int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle);
 // this function should be executed by stream threads.
 // extract submit block from WAL, and add them into the input queue for the sources tasks.
 int32_t tqStreamTasksScanWal(STQ* pTq) {
-  int32_t vgId = TD_VID(pTq->pVnode);
+  int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
-  int64_t st = taosGetTimestampMs();
+  int64_t      st = taosGetTimestampMs();
 
   while (1) {
     int32_t scan = pMeta->walScanCounter;
-    tqDebug("vgId:%d continue check if data in wal are available, scan:%d", vgId, scan);
+    tqDebug("vgId:%d continue check if data in wal are available, walScanCounter:%d", vgId, scan);
 
     // check all restore tasks
     bool shouldIdle = true;
