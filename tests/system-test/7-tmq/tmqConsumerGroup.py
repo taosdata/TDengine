@@ -100,7 +100,7 @@ class TDTestCase:
 
         tdLog.info("wait consumer commit notify")
         # tmqCom.getStartCommitNotifyFromTmqsim(rows=4)
-        tmqCom.getStartConsumeNotifyFromTmqsim(rows=2)
+        tmqCom.getStartConsumeNotifyFromTmqsim()
 
         tdLog.info("pkill one consume processor")
         tmqCom.stopTmqSimProcess('tmq_sim_new')

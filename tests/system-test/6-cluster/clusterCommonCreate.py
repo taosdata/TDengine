@@ -94,26 +94,26 @@ class ClusterComCreate:
         tdLog.info(shellCmd)
         os.system(shellCmd)
 
-    def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb'):
-        while 1:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if (tdSql.getRows() == 1) and (tdSql.getData(0, 1) == 0):
-                break
-            else:
-                time.sleep(0.1)
-        return
-
-    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb'):
-        while 1:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == 2 :
-                print(tdSql.getData(0, 1), tdSql.getData(1, 1))
-                if tdSql.getData(1, 1) == 1:
-                    break
-            time.sleep(0.1)
-        return
+    # def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb'):
+    #     while 1:
+    #         tdSql.query("select * from %s.notifyinfo"%cdbName)
+    #         #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+    #         if (tdSql.getRows() == 1) and (tdSql.getData(0, 1) == 0):
+    #             break
+    #         else:
+    #             time.sleep(0.1)
+    #     return
+    #
+    # def getStartCommitNotifyFromTmqsim(self,cdbName='cdb'):
+    #     while 1:
+    #         tdSql.query("select * from %s.notifyinfo"%cdbName)
+    #         #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+    #         if tdSql.getRows() == 2 :
+    #             print(tdSql.getData(0, 1), tdSql.getData(1, 1))
+    #             if tdSql.getData(1, 1) == 1:
+    #                 break
+    #         time.sleep(0.1)
+    #     return
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
         if dropFlag == 1:

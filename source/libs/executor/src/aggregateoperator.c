@@ -15,24 +15,21 @@
 
 #include "filter.h"
 #include "function.h"
-#include "functionMgt.h"
 #include "os.h"
 #include "querynodes.h"
 #include "tfill.h"
 #include "tname.h"
 
+#include "executorInt.h"
+#include "index.h"
+#include "operator.h"
+#include "query.h"
+#include "querytask.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tglobal.h"
-#include "tmsg.h"
-#include "ttime.h"
-
-#include "executorimpl.h"
-#include "index.h"
-#include "query.h"
-#include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "vnode.h"
 
 typedef struct {
   bool    hasAgg;

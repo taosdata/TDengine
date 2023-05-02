@@ -3,6 +3,7 @@
 %define cfg_install_dir  /etc/taos
 %define __strip /bin/true
 %global __python /usr/bin/python3
+%global _build_id_links none
 
 Name:		tdengine
 Version:	%{_version}
@@ -62,6 +63,15 @@ fi
 if [ -f %{_compiledir}/test/cfg/taosadapter.service ]; then
     cp %{_compiledir}/test/cfg/taosadapter.service %{buildroot}%{homepath}/cfg
 fi
+
+if [ -f %{_compiledir}/../build-taoskeeper/config/taoskeeper.toml ]; then
+    cp %{_compiledir}/../build-taoskeeper/config/taoskeeper.toml %{buildroot}%{homepath}/cfg ||:
+fi
+
+if [ -f %{_compiledir}/../build-taoskeeper/taoskeeper.service ]; then
+    cp %{_compiledir}/../build-taoskeeper/taoskeeper.service %{buildroot}%{homepath}/cfg ||:
+fi
+
 #cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
 cp %{_compiledir}/../packaging/tools/post.sh        %{buildroot}%{homepath}/script
 cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/script
@@ -73,8 +83,12 @@ cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/udfd                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 
+if [ -f %{_compiledir}/../build-taoskeeper/taoskeeper ]; then
+    cp %{_compiledir}/../build-taoskeeper/taoskeeper %{buildroot}%{homepath}/bin
+fi
+
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
-    cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:
+    cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 [ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
@@ -119,7 +133,9 @@ if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
         cp %{_compiledir}/build/lib/pkgconfig/jemalloc.pc %{buildroot}%{homepath}/jemalloc/lib/pkgconfig
     fi
 fi
-
+ls -al %{buildroot}%{homepath}/bin
+tree -L 5
+echo "==============================copying files done"
 #Scripts executed before installation
 %pre
 if [ -f /var/lib/taos/dnode/dnodeCfg.json ]; then
@@ -196,6 +212,7 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${bin_link_dir}/taosd      || :
     ${csudo}rm -f ${bin_link_dir}/udfd       || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
+    ${csudo}rm -f ${bin_link_dir}/taoskeeper       || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h     || :

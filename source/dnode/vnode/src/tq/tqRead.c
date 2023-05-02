@@ -249,7 +249,7 @@ END:
   return code;
 }
 
-STqReader* tqOpenReader(SVnode* pVnode) {
+STqReader* tqReaderOpen(SVnode* pVnode) {
   STqReader* pReader = taosMemoryCalloc(1, sizeof(STqReader));
   if (pReader == NULL) {
     return NULL;
@@ -288,7 +288,7 @@ void tqCloseReader(STqReader* pReader) {
   }
   // free hash
   taosHashCleanup(pReader->tbIdHash);
-  tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
+  tDestroySSubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
   taosMemoryFree(pReader);
 }
 
@@ -322,12 +322,11 @@ int32_t extractSubmitMsgFromWal(SWalReader* pReader, SPackedData* pPackedData) {
   return 0;
 }
 
-void tqNextBlock(STqReader* pReader, SFetchRet* ret) {
+int32_t tqNextBlock(STqReader* pReader, SSDataBlock* pBlock) {
   while (1) {
     if (pReader->msg2.msgStr == NULL) {
       if (walNextValidMsg(pReader->pWalReader) < 0) {
-        ret->fetchType = FETCH_TYPE__NONE;
-        return;
+        return FETCH_TYPE__NONE;
       }
 
       void*   pBody = POINTER_SHIFT(pReader->pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
@@ -337,15 +336,14 @@ void tqNextBlock(STqReader* pReader, SFetchRet* ret) {
       tqReaderSetSubmitMsg(pReader, pBody, bodyLen, ver);
     }
 
-    while (tqNextDataBlock(pReader)) {
-      memset(&ret->data, 0, sizeof(SSDataBlock));
-      int32_t code = tqRetrieveDataBlock2(&ret->data, pReader, NULL);
-      if (code != 0 || ret->data.info.rows == 0) {
+    while (tqNextBlockImpl(pReader)) {
+      memset(pBlock, 0, sizeof(SSDataBlock));
+      int32_t code = tqRetrieveDataBlock(pBlock, pReader, NULL);
+      if (code != TSDB_CODE_SUCCESS || pBlock->info.rows == 0) {
         continue;
       }
 
-      ret->fetchType = FETCH_TYPE__DATA;
-      return;
+      return FETCH_TYPE__DATA;
     }
   }
 }
@@ -367,7 +365,7 @@ int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, i
   return 0;
 }
 
-bool tqNextDataBlock(STqReader* pReader) {
+bool tqNextBlockImpl(STqReader* pReader) {
   if (pReader->msg2.msgStr == NULL) {
     return false;
   }
@@ -387,20 +385,20 @@ bool tqNextDataBlock(STqReader* pReader) {
       tqDebug("tq reader block found, ver:%"PRId64", uid:%"PRId64, pReader->msg2.ver, pSubmitTbData->uid);
       return true;
     } else {
-      tqDebug("tq reader discard block, uid:%"PRId64", continue", pSubmitTbData->uid);
+      tqDebug("tq reader discard submit block, uid:%"PRId64", continue", pSubmitTbData->uid);
     }
 
     pReader->nextBlk++;
   }
 
-  tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
+  tDestroySSubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
   pReader->nextBlk = 0;
   pReader->msg2.msgStr = NULL;
 
   return false;
 }
 
-bool tqNextDataBlockFilterOut2(STqReader* pReader, SHashObj* filterOutUids) {
+bool tqNextDataBlockFilterOut(STqReader* pReader, SHashObj* filterOutUids) {
   if (pReader->msg2.msgStr == NULL) return false;
 
   int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
@@ -415,7 +413,7 @@ bool tqNextDataBlockFilterOut2(STqReader* pReader, SHashObj* filterOutUids) {
     pReader->nextBlk++;
   }
 
-  tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
+  tDestroySSubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
   pReader->nextBlk = 0;
   pReader->msg2.msgStr = NULL;
 
@@ -451,7 +449,7 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   return 0;
 }
 
-int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbData** pSubmitTbDataRet) {
+int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbData** pSubmitTbDataRet) {
   tqDebug("tq reader retrieve data block %p, index:%d", pReader->msg2.msgStr, pReader->nextBlk);
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
   pReader->nextBlk++;
@@ -560,7 +558,7 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
       int32_t sourceIdx = 0;
       while (targetIdx < colActual) {
         if(sourceIdx >= numOfCols){
-          tqError("tqRetrieveDataBlock2 sourceIdx:%d >= numOfCols:%d", sourceIdx, numOfCols);
+          tqError("tqRetrieveDataBlock sourceIdx:%d >= numOfCols:%d", sourceIdx, numOfCols);
           goto FAIL;
         }
         SColData*        pCol = taosArrayGet(pCols, sourceIdx);
@@ -568,7 +566,7 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
         SColVal          colVal;
 
         if(pCol->nVal != numOfRows){
-          tqError("tqRetrieveDataBlock2 pCol->nVal:%d != numOfRows:%d", pCol->nVal, numOfRows);
+          tqError("tqRetrieveDataBlock pCol->nVal:%d != numOfRows:%d", pCol->nVal, numOfRows);
           goto FAIL;
         }
 
@@ -655,7 +653,7 @@ FAIL:
   return -1;
 }
 
-int32_t tqRetrieveTaosxBlock2(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet) {
+int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet) {
   tqDebug("tq reader retrieve data block %p, %d", pReader->msg2.msgStr, pReader->nextBlk);
 
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);

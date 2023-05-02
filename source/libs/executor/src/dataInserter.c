@@ -15,7 +15,7 @@
 
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "planner.h"
 #include "tcompression.h"
 #include "tdatablock.h"
@@ -301,7 +301,7 @@ _end:
   if (terrno != 0) {
     *ppReq = NULL;
     if (pReq) {
-      tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+      tDestroySSubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
       taosMemoryFree(pReq);
     }
     return terrno;
@@ -326,7 +326,7 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
     code = buildSubmitReqFromBlock(pInserter, &pReq, pDataBlock, pTSchema, uid, vgId, suid);
     if (code) {
       if (pReq) {
-        tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+        tDestroySSubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
         taosMemoryFree(pReq);
       }
 
@@ -335,7 +335,7 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
   }
 
   code = submitReqToMsg(vgId, pReq, pMsg, msgLen);
-  tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+  tDestroySSubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pReq);
 
   return code;

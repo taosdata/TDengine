@@ -165,20 +165,24 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
       batchCnt++;
 
-      qDebug("task %d scan exec block num %d, block limit %d", pTask->id.taskId, batchCnt, batchSz);
+      qDebug("s-task:%s scan exec block num %d, block limit %d", pTask->id.idStr, batchCnt, batchSz);
 
-      if (batchCnt >= batchSz) break;
+      if (batchCnt >= batchSz) {
+        break;
+      }
     }
+
     if (taosArrayGetSize(pRes) == 0) {
       if (finished) {
         taosArrayDestroy(pRes);
-        qDebug("task %d finish recover exec task ", pTask->id.taskId);
+        qDebug("s-task:%s finish recover exec task ", pTask->id.idStr);
         break;
       } else {
-        qDebug("task %d continue recover exec task ", pTask->id.taskId);
+        qDebug("s-task:%s continue recover exec task ", pTask->id.idStr);
         continue;
       }
     }
+
     SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     if (qRes == NULL) {
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -30,6 +30,8 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
+#include "operator.h"
+#include "querytask.h"
 
 int32_t scanDebug = 0;
 
@@ -156,7 +158,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
         break;
       }
 
-      assert(w.skey < pBlockInfo->window.skey);
+      ASSERT(w.skey < pBlockInfo->window.skey);
       if (pBlockInfo->window.skey <= TMIN(w.ekey, pBlockInfo->window.ekey)) {
         return true;
       }
@@ -1646,10 +1648,10 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     blockDataCleanup(pInfo->pRes);
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
 
-    while (tqNextDataBlock(pInfo->tqReader)) {
+    while (tqNextBlockImpl(pInfo->tqReader)) {
       SSDataBlock block = {0};
 
-      int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader, NULL);
+      int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader, NULL);
       if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
         continue;
       }
@@ -1687,23 +1689,23 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
     while (1) {
-      SFetchRet ret = {0};
-      tqNextBlock(pInfo->tqReader, &ret);
-      tqOffsetResetToLog(
-          &pTaskInfo->streamInfo.currentOffset,
-          pInfo->tqReader->pWalReader->curVersion - 1);  // curVersion move to next, so currentOffset = curVersion - 1
+      SSDataBlock block = {0};
+      int32_t type = tqNextBlock(pInfo->tqReader, &block);
 
-      if (ret.fetchType == FETCH_TYPE__DATA) {
-        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, ret.data.info.rows,
+      // curVersion move to next, so currentOffset = curVersion - 1
+      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion - 1);
+
+      if (type == FETCH_TYPE__DATA) {
+        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, block.info.rows,
                pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
-        setBlockIntoRes(pInfo, &ret.data, true);
+        setBlockIntoRes(pInfo, &block, true);
         if (pInfo->pRes->info.rows > 0) {
           qDebug("doQueueScan get data from log %" PRId64 " rows, return, version:%" PRId64, pInfo->pRes->info.rows,
                  pTaskInfo->streamInfo.currentOffset.version);
           return pInfo->pRes;
         }
-      } else if (ret.fetchType == FETCH_TYPE__NONE) {
+      } else if (type == FETCH_TYPE__NONE) {
         qDebug("doQueueScan get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
         return NULL;
       }
@@ -1855,7 +1857,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
         if (pSDB) {
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-          uint64_t        version = getReaderMaxVersion(pTableScanInfo->base.dataReader);
+          uint64_t        version = tsdbGetReaderMaxVersion(pTableScanInfo->base.dataReader);
           updateInfoSetScanRange(pInfo->pUpdateInfo, &pTableScanInfo->base.cond.twindows, pInfo->groupId, version);
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
           checkUpdateData(pInfo, true, pSDB, false);
@@ -2021,7 +2023,7 @@ FETCH_NEXT_BLOCK:
         SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
         if (pSDB) {
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-          uint64_t        version = getReaderMaxVersion(pTableScanInfo->base.dataReader);
+          uint64_t        version = tsdbGetReaderMaxVersion(pTableScanInfo->base.dataReader);
           updateInfoSetScanRange(pInfo->pUpdateInfo, &pTableScanInfo->base.cond.twindows, pInfo->groupId, version);
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
           checkUpdateData(pInfo, true, pSDB, false);
@@ -2072,11 +2074,10 @@ FETCH_NEXT_BLOCK:
 
       blockDataCleanup(pInfo->pRes);
 
-      while (tqNextDataBlock(pInfo->tqReader)) {
+      while (tqNextBlockImpl(pInfo->tqReader)) {
         SSDataBlock block = {0};
 
-        int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader, NULL);
-
+        int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader, NULL);
         if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
           continue;
         }
@@ -2305,7 +2306,7 @@ static void destroyStreamScanOperatorInfo(void* param) {
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
 
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
-    destroyOperatorInfo(pStreamScan->pTableScanOp);
+    destroyOperator(pStreamScan->pTableScanOp);
   }
 
   if (pStreamScan->tqReader) {
@@ -2427,7 +2428,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
     if (pHandle->initTqReader) {
       ASSERT(pHandle->tqReader == NULL);
-      pInfo->tqReader = tqOpenReader(pHandle->vnode);
+      pInfo->tqReader = tqReaderOpen(pHandle->vnode);
       ASSERT(pInfo->tqReader);
     } else {
       ASSERT(pHandle->tqReader);
