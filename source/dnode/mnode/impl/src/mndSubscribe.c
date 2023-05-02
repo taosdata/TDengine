@@ -213,13 +213,9 @@ static void doRemoveExistedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, 
 
       int32_t consumerVgNum = taosArrayGetSize(pConsumerEp->vgs);
       for (int32_t j = 0; j < consumerVgNum; j++) {
-        SMqVgEp       *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
-        SMqRebOutputVg outputVg = {
-            .oldConsumerId = consumerId,
-            .newConsumerId = -1,
-            .pVgEp = pVgEp,
-        };
+        SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
 
+        SMqRebOutputVg outputVg = {.oldConsumerId = consumerId, .newConsumerId = -1, .pVgEp = pVgEp};
         taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg));
         mInfo("sub:%s mq re-balance remove vgId:%d from consumer:%" PRIx64, pSubKey, pVgEp->vgId, consumerId);
       }
@@ -584,22 +580,31 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
 
   // here we only handle one topic rebalance requirement to ensure the atomic execution of this transaction.
   while (1) {
-//    if (rebalanceOnce) {
-//      break;
-//    }
-
     pIter = taosHashIterate(pReq->rebSubHash, pIter);
     if (pIter == NULL) {
       break;
     }
 
-    // todo handle the malloc failure
     SMqRebInputObj  rebInput = {0};
     SMqRebOutputObj rebOutput = {0};
     rebOutput.newConsumers = taosArrayInit(0, sizeof(int64_t));
     rebOutput.removedConsumers = taosArrayInit(0, sizeof(int64_t));
     rebOutput.modifyConsumers = taosArrayInit(0, sizeof(int64_t));
     rebOutput.rebVgs = taosArrayInit(0, sizeof(SMqRebOutputVg));
+
+    if (rebOutput.newConsumers == NULL || rebOutput.removedConsumers == NULL || rebOutput.modifyConsumers == NULL ||
+        rebOutput.rebVgs == NULL) {
+      taosArrayDestroy(rebOutput.newConsumers);
+      taosArrayDestroy(rebOutput.removedConsumers);
+      taosArrayDestroy(rebOutput.modifyConsumers);
+      taosArrayDestroy(rebOutput.rebVgs);
+
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mInfo("mq re-balance failed, due to out of memory");
+      taosHashCleanup(pReq->rebSubHash);
+      mndRebEnd();
+      return -1;
+    }
 
     SMqRebInfo      *pRebInfo = (SMqRebInfo *)pIter;
     SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pRebInfo->key);
@@ -640,6 +645,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       rebInput.oldConsumerNum = taosHashGetSize(pSub->consumerHash);
       rebOutput.pSub = tCloneSubscribeObj(pSub);
       taosRUnLockLatch(&pSub->lock);
+
       mInfo("sub topic:%s has %d consumers sub till now", pRebInfo->key, rebInput.oldConsumerNum);
       mndReleaseSubscribe(pMnode, pSub);
     }
@@ -661,9 +667,6 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
     taosArrayDestroy(rebOutput.rebVgs);
     tDeleteSubscribeObj(rebOutput.pSub);
     taosMemoryFree(rebOutput.pSub);
-
-//    taosSsleep(100);
-//    rebalanceOnce = true;
   }
 
   // reset flag

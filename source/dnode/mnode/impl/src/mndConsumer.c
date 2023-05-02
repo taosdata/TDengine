@@ -672,7 +672,6 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     if (mndTransPrepare(pMnode, pTrans) != 0) goto _over;
 
   } else {
-    /*taosRLockLatch(&pExistedConsumer->lock);*/
     int32_t status = atomic_load_32(&pExistedConsumer->status);
 
     mInfo("receive subscribe request from existed consumer:0x%" PRIx64
@@ -881,7 +880,7 @@ static void updateConsumerStatus(SMqConsumerObj *pConsumer) {
 // remove from new topic
 static void removeFromNewTopicList(SMqConsumerObj *pConsumer, const char *pTopic) {
   int32_t size = taosArrayGetSize(pConsumer->rebNewTopics);
-  for (int32_t i = 0; i < taosArrayGetSize(pConsumer->rebNewTopics); i++) {
+  for (int32_t i = 0; i < size; i++) {
     char *p = taosArrayGetP(pConsumer->rebNewTopics, i);
     if (strcmp(pTopic, p) == 0) {
       taosArrayRemove(pConsumer->rebNewTopics, i);
@@ -902,9 +901,42 @@ static void removeFromRemoveTopicList(SMqConsumerObj *pConsumer, const char *pTo
     if (strcmp(pTopic, p) == 0) {
       taosArrayRemove(pConsumer->rebRemovedTopics, i);
       taosMemoryFree(p);
+
+      mDebug("consumer:0x%" PRIx64 " remove topic:%s in the removed topic list, remain removedTopics:%d",
+             pConsumer->consumerId, pTopic, (int)taosArrayGetSize(pConsumer->rebRemovedTopics));
       break;
     }
   }
+}
+
+static void removeFromCurrentTopicList(SMqConsumerObj *pConsumer, const char *pTopic) {
+  int32_t sz = taosArrayGetSize(pConsumer->currentTopics);
+  for (int32_t i = 0; i < sz; i++) {
+    char *topic = taosArrayGetP(pConsumer->currentTopics, i);
+    if (strcmp(pTopic, topic) == 0) {
+      taosArrayRemove(pConsumer->currentTopics, i);
+      taosMemoryFree(topic);
+
+      mDebug("consumer:0x%" PRIx64 " remove topic:%s in the current topic list, remain currentTopics:%d",
+             pConsumer->consumerId, pTopic, (int)taosArrayGetSize(pConsumer->currentTopics));
+      break;
+    }
+  }
+}
+
+static bool existInCurrentTopicList(const SMqConsumerObj* pConsumer, const char* pTopic) {
+  bool    existing = false;
+  int32_t size = taosArrayGetSize(pConsumer->currentTopics);
+  for (int32_t i = 0; i < size; i++) {
+    char *topic = taosArrayGetP(pConsumer->currentTopics, i);
+
+    if (strcmp(topic, pTopic) == 0) {
+      existing = true;
+      break;
+    }
+  }
+
+  return existing;
 }
 
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer, SMqConsumerObj *pNewConsumer) {
@@ -951,24 +983,16 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__ADD) {
     char *pNewTopic = taosStrdup(taosArrayGetP(pNewConsumer->rebNewTopics, 0));
 
-    // not exist in current topic
-    bool    existing = false;
-    int32_t numOfExistedTopics = taosArrayGetSize(pOldConsumer->currentTopics);
-    for (int32_t i = 0; i < numOfExistedTopics; i++) {
-      char *topic = taosArrayGetP(pOldConsumer->currentTopics, i);
-      if (strcmp(topic, pNewTopic) == 0) {
-        existing = true;
-      }
-    }
-
+    // check if exist in current topic
     removeFromNewTopicList(pOldConsumer, pNewTopic);
 
     // add to current topic
-    if (!existing) {
+    bool existing = existInCurrentTopicList(pOldConsumer, pNewTopic);
+    if (existing) {
+      taosMemoryFree(pNewTopic);
+    } else {  // added into current topic list
       taosArrayPush(pOldConsumer->currentTopics, &pNewTopic);
       taosArraySort(pOldConsumer->currentTopics, taosArrayCompareString);
-    } else {
-      taosMemoryFree(pNewTopic);
     }
 
     // set status
@@ -993,16 +1017,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     removeFromRemoveTopicList(pOldConsumer, removedTopic);
 
     // remove from current topic
-    int32_t i = 0;
-    int32_t sz = taosArrayGetSize(pOldConsumer->currentTopics);
-    for (i = 0; i < sz; i++) {
-      char *topic = taosArrayGetP(pOldConsumer->currentTopics, i);
-      if (strcmp(removedTopic, topic) == 0) {
-        taosArrayRemove(pOldConsumer->currentTopics, i);
-        taosMemoryFree(topic);
-        break;
-      }
-    }
+    removeFromCurrentTopicList(pOldConsumer, removedTopic);
 
     // set status
     int32_t status = pOldConsumer->status;
