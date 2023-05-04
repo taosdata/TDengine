@@ -168,7 +168,7 @@ int defaultKeyComp(void* state, const char* aBuf, size_t aLen, const char* bBuf,
 int streamStateValueIsStale(char* vv) {
   int64_t ts = 0;
   taosDecodeFixedI64(vv, &ts);
-  return ts < taosGetTimestampSec() ? 1 : 0;
+  return (ts != 0 && ts < taosGetTimestampSec()) ? 1 : 0;
 }
 int iterValueIsStale(rocksdb_iterator_t* iter) {
   size_t len;
