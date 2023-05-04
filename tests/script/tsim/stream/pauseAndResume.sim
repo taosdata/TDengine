@@ -190,6 +190,46 @@ if $data11 != 1 then
   goto loop2
 endi
 
+sql pause stream streams2;
+
+sql insert into t1 values(1648791223003,2,2,3,1.1);
+sql insert into t1 values(1648791233003,2,2,3,1.1);
+
+sql resume stream  IGNORE UNTREATED streams2;
+
+$loop_count = 0
+
+loop3:
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sleep 500
+
+print 4 select * from streamt2;
+sql select * from streamt2;
+
+if $rows != 2 then
+  print =====rows=$rows
+  print $data00 $data01 $data02
+  print $data10 $data11 $data12
+  print $data20 $data21 $data22
+  goto loop3
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop3
+endi
+
+if $data11 != 1 then
+  print =====data01=$data01
+  goto loop3
+endi
+
+
 print ===== step 2 over
 
 
