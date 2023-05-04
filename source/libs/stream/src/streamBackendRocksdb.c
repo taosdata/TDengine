@@ -70,6 +70,7 @@ void* streamBackendInit(const char* path) {
   rocksdb_options_set_max_total_wal_size(opts, 128 << 20);
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 3);
+  rocksdb_options_set_info_log_level(opts, 0);
 
   pHandle->env = env;
   pHandle->dbOpt = opts;
@@ -98,7 +99,8 @@ _EXIT:
   return NULL;
 }
 void streamBackendCleanup(void* arg) {
-  SBackendHandle*         pHandle = (SBackendHandle*)arg;
+  SBackendHandle* pHandle = (SBackendHandle*)arg;
+
   rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
   char*                   err = NULL;
   rocksdb_flush(pHandle->db, flushOpt, &err);
@@ -1175,6 +1177,7 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   int              len = stateSessionKeyEncode(&sKey, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
+    streamStateFreeCur(pCur);
     return NULL;
   }
   while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) rocksdb_iter_prev(pCur->iter);
