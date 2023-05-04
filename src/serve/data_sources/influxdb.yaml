@@ -1,0 +1,64 @@
+---
+id: influxdb
+name: InfluxDB
+description: |
+  InfluxDB is a popular open-source time-series database that is optimized for
+  handling large volumes of timestamped data.
+
+  TaosX can efficiently read the data in influxdb and write it to TDengine through
+  the taosx-influxdb plugin to achieve historical data migration or real-time data
+  synchronization.
+type: uri
+options:
+  host:
+    display: IP address
+    description: The access address of InfluxDB
+    placeholder: 127.0.0.1
+    hint: str
+    required: true
+  port:
+    display: Port
+    description: The port of InfluxDB
+    placeholder: "8086"
+    hint: int
+    required: true
+authentication:
+  display: Authentication
+  description: Authentication is the process of verifying the identity before granting access to InfluxDB.
+  value: token
+  alternatives:
+    - name: token
+      display: Token
+      description: Use access token.
+      params:
+        - name: orgId
+          display: Organization Id
+          description: It is a workspace for a group of users. All dashboards, tasks, buckets, and users belong to one organization.
+          placeholder: Please input your organization id in the InfluxDB
+          required: true
+          hint: str
+        - name: token
+          display: Token
+          description: This token will be able to create, update, delete, read, and write to anything in this organization.
+          placeholder: Please input your access token in the InfluxDB
+          required: true
+          hint: str
+groups:
+  - name: task
+    display_order: 1
+    description: Configure the data migration task
+    params:
+      - name: beginTime
+        display: Data Begin Time
+        description: Set a data start time
+        placeholder: YYYY-MM-DD
+        hint: time
+      - name: endTime
+        display: Data End Time
+        description: Set a data end time
+        placeholder: YYYY-MM-DD
+        hint: time
+      - name: buckets
+        display: Bucket&Measurement
+        description: Select the dataset to migrate
+        hint: str
