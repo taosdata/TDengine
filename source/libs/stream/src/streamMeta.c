@@ -304,6 +304,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       tdbTbcClose(pCur);
       return -1;
     }
+
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
@@ -322,7 +323,6 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       return -1;
     }
 
-    /*pTask->status.taskStatus = TASK_STATUS__NORMAL;*/
     if (pTask->fillHistory) {
       pTask->status.taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
       streamTaskCheckDownstream(pTask, ver);

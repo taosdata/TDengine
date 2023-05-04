@@ -208,8 +208,6 @@ void* qExtractReaderFromStreamScanner(void* scanner);
 
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
-int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
-
 int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo);
 int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver);
 int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver);

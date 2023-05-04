@@ -259,8 +259,6 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
   pHashObj->freeFp = NULL;
   pHashObj->callbackFp = NULL;
 
-  ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
-
   pHashObj->hashList = (SHashEntry **)taosMemoryMalloc(pHashObj->capacity * sizeof(void *));
   if (pHashObj->hashList == NULL) {
     taosMemoryFree(pHashObj);
@@ -343,7 +341,6 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
   while (pNode) {
     if ((pNode->keyLen == keyLen) && (*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0 &&
         pNode->removed == 0) {
-      ASSERT(pNode->hashVal == hashVal);
       break;
     }
 
@@ -701,8 +698,6 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
 void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode) {
   pNode->next = pEntry->next;
   pEntry->next = pNode;
-
-  ASSERT(pNode->next != pNode);
   pEntry->num += 1;
 }
 
@@ -816,19 +811,7 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
 
     /*uint16_t prevRef = atomic_load_16(&pNode->refCount);*/
     uint16_t afterRef = atomic_add_fetch_16(&pNode->refCount, 1);
-#if 0
-    ASSERT(prevRef < afterRef);
 
-    // the reference count value is overflow, which will cause the delete node operation immediately.
-    if (prevRef > afterRef) {
-      uError("hash entry ref count overflow, prev ref:%d, current ref:%d", prevRef, afterRef);
-      // restore the value
-      atomic_sub_fetch_16(&pNode->refCount, 1);
-      data = NULL;
-    } else {
-      data = GET_HASH_NODE_DATA(pNode);
-    }
-#endif
     data = GET_HASH_NODE_DATA(pNode);
 
     if (afterRef >= MAX_WARNING_REF_COUNT) {

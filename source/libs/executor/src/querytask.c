@@ -99,6 +99,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   if (NULL == (*pTaskInfo)->pRoot) {
     int32_t code = (*pTaskInfo)->code;
     doDestroyTask(*pTaskInfo);
+    (*pTaskInfo) = NULL;
     return code;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -206,11 +207,14 @@ static void freeBlock(void* pParam) {
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
   destroyOperator(pTaskInfo->pRoot);
+  pTaskInfo->pRoot = NULL;
+
   cleanupQueriedTableScanInfo(&pTaskInfo->schemaInfo);
   cleanupStreamInfo(&pTaskInfo->streamInfo);
 
   if (!pTaskInfo->localFetch.localExec) {
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
+    pTaskInfo->pSubplan = NULL;
   }
 
   taosArrayDestroyEx(pTaskInfo->pResultBlockList, freeBlock);

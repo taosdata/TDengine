@@ -122,10 +122,8 @@ int32_t tNameLen(const SName* name) {
   int32_t len2 = (int32_t)strlen(name->tname);
 
   if (name->type == TSDB_DB_NAME_T) {
-    ASSERT(len2 == 0);
     return len + len1 + TSDB_NAME_DELIMITER_LEN;
   } else {
-    ASSERT(len2 > 0);
     return len + len1 + len2 + TSDB_NAME_DELIMITER_LEN * 2;
   }
 }
