@@ -231,7 +231,7 @@ typedef struct SSnapContext {
 } SSnapContext;
 
 typedef struct STqReader {
-  SPackedData     msg2;
+  SPackedData     msg;
   SSubmitReq2     submit;
   int32_t         nextBlk;
   int64_t         lastBlkUid;
@@ -242,7 +242,7 @@ typedef struct STqReader {
   int32_t         cachedSchemaVer;
   int64_t         cachedSchemaSuid;
   SSchemaWrapper *pSchemaWrapper;
-  STSchema       *pSchema;
+  SSDataBlock    *pResBlock;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
@@ -255,6 +255,7 @@ int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
 int32_t tqNextBlock(STqReader *pReader, SSDataBlock* pBlock);
+int32_t tqNextBlockInWal(STqReader* pReader);
 int32_t extractSubmitMsgFromWal(SWalReader *pReader, SPackedData *pPackedData);
 
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);

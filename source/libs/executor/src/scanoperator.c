@@ -1623,7 +1623,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   pInfo->pRes->info.dataLoad = 1;
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
-  blockDataFreeRes((SSDataBlock*)pBlock);
+//  blockDataFreeRes((SSDataBlock*)pBlock);
 
   calBlockTbName(pInfo, pInfo->pRes);
   return 0;
@@ -1637,7 +1637,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   qDebug("start to exec queue scan, %s", id);
 
   if (pTaskInfo->streamInfo.submit.msgStr != NULL) {
-    if (pInfo->tqReader->msg2.msgStr == NULL) {
+    if (pInfo->tqReader->msg.msgStr == NULL) {
       SPackedData submit = pTaskInfo->streamInfo.submit;
       if (tqReaderSetSubmitMsg(pInfo->tqReader, submit.msgStr, submit.msgLen, submit.ver) < 0) {
         qError("submit msg messed up when initing stream submit block %p", submit.msgStr);
@@ -1663,7 +1663,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       }
     }
 
-    pInfo->tqReader->msg2 = (SPackedData){0};
+    pInfo->tqReader->msg = (SPackedData){0};
     pTaskInfo->streamInfo.submit = (SPackedData){0};
     return NULL;
   }
@@ -1689,17 +1689,17 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
     while (1) {
-      SSDataBlock block = {0};
-      int32_t type = tqNextBlock(pInfo->tqReader, &block);
+      int32_t type = tqNextBlockInWal(pInfo->tqReader);
+      SSDataBlock* pRes = pInfo->tqReader->pResBlock;
 
       // curVersion move to next, so currentOffset = curVersion - 1
       tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion - 1);
 
       if (type == FETCH_TYPE__DATA) {
-        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, block.info.rows,
+        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
-        setBlockIntoRes(pInfo, &block, true);
+        setBlockIntoRes(pInfo, pRes, true);
         if (pInfo->pRes->info.rows > 0) {
           qDebug("doQueueScan get data from log %" PRId64 " rows, return, version:%" PRId64, pInfo->pRes->info.rows,
                  pTaskInfo->streamInfo.currentOffset.version);
@@ -2055,7 +2055,7 @@ FETCH_NEXT_BLOCK:
 
   NEXT_SUBMIT_BLK:
     while (1) {
-      if (pInfo->tqReader->msg2.msgStr == NULL) {
+      if (pInfo->tqReader->msg.msgStr == NULL) {
         if (pInfo->validBlockIndex >= totBlockNum) {
           updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           doClearBufferedBlocks(pInfo);
@@ -2191,7 +2191,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
     }
     qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
-    tDeleteSSchemaWrapper(mtInfo.schema);
+    tDeleteSchemaWrapper(mtInfo.schema);
     return NULL;
   } else if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_META) {
     SSnapContext* sContext = pInfo->sContext;

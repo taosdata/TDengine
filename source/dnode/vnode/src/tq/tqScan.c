@@ -215,7 +215,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         int64_t uid = pExec->pTqReader->lastBlkUid;
         if (tqAddTbNameToRsp(pTq, uid, pRsp, taosArrayGetSize(pBlocks)) < 0) {
           taosArrayDestroyEx(pBlocks, (FDelete)blockDataFreeRes);
-          taosArrayDestroyP(pSchemas, (FDelete)tDeleteSSchemaWrapper);
+          taosArrayDestroyP(pSchemas, (FDelete)tDeleteSchemaWrapper);
           pBlocks = taosArrayInit(0, sizeof(SSDataBlock));
           pSchemas = taosArrayInit(0, sizeof(void*));
           continue;
@@ -274,7 +274,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         int64_t uid = pExec->pTqReader->lastBlkUid;
         if (tqAddTbNameToRsp(pTq, uid, pRsp, taosArrayGetSize(pBlocks)) < 0) {
           taosArrayDestroyEx(pBlocks, (FDelete)blockDataFreeRes);
-          taosArrayDestroyP(pSchemas, (FDelete)tDeleteSSchemaWrapper);
+          taosArrayDestroyP(pSchemas, (FDelete)tDeleteSchemaWrapper);
           pBlocks = taosArrayInit(0, sizeof(SSDataBlock));
           pSchemas = taosArrayInit(0, sizeof(void*));
           continue;
