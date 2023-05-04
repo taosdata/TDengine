@@ -68,10 +68,13 @@ export function changeTableStruct(data, tableName) {
 // 获取表的tag value
 export function getTagValue(tags, database, stable_name, table_name) {
   if (!tags.length) return Promise.resolve({});
- 
+ let sql=`SELECT DISTINCT tbname,${tags.map(item => `\`${item.field}\``).join(",")} from \`${database}\``;
+ if(stable_name){
+  sql+=`.`+`\`${stable_name}\``
+ }
+//  sql+=`  where tbname='${table_name}';`
   return sendSQLReq(
-    `SELECT DISTINCT tbname,${tags.map(item => `\`${item.field}\``).join(",")} from \`${database}\``+'.'+`\`${stable_name}\` where tbname=\`${table_name}\`;`,
-    true
+     sql
   )
     .then(data => {
       let result = data?.[0] || {};
