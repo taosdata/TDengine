@@ -324,7 +324,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
         SMqConsumerClearMsg *pClearMsg = rpcMallocCont(sizeof(SMqConsumerClearMsg));
         if (pClearMsg == NULL) {
           mError("consumer:0x%"PRIx64" failed to clear consumer due to out of memory. alloc size:%d",
-                 pConsumer->consumerId, sizeof(SMqConsumerClearMsg));
+                 pConsumer->consumerId, (int32_t)sizeof(SMqConsumerClearMsg));
           continue;
         }
 
