@@ -27,21 +27,10 @@ extern "C" {
 #ifndef _STREAM_STATE_H_
 #define _STREAM_STATE_H_
 
-typedef struct {
-  rocksdb_t*              db;
-  rocksdb_writeoptions_t* writeOpts;
-  rocksdb_readoptions_t*  readOpts;
-  rocksdb_options_t*      dbOpt;
-  void*                   param;
-  void*                   env;
-  rocksdb_cache_t*        cache;
-  TdThreadMutex           mutex;
-  SList*                  list;
-} SBackendHandle;
-void*      streamBackendInit(const char* path);
-void       streamBackendCleanup(void* arg);
-SListNode* streamBackendAddCompare(void* backend, void* arg);
-void       streamBackendDelCompare(void* backend, void* arg);
+// void*      streamBackendInit(const char* path);
+// void       streamBackendCleanup(void* arg);
+// SListNode* streamBackendAddCompare(void* backend, void* arg);
+// void       streamBackendDelCompare(void* backend, void* arg);
 typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
 
 typedef struct STdbState {
@@ -55,8 +44,9 @@ typedef struct STdbState {
   void*                            param;
   void*                            env;
   SListNode*                       pComparNode;
-  SBackendHandle*                  pBackendHandle;
+  void*                            pBackendHandle;
   char                             idstr[48];
+  void*                            compactFactory;
 
   TDB* db;
   TTB* pStateDb;
@@ -168,11 +158,11 @@ typedef struct SStateSessionKey {
   int64_t     opNum;
 } SStateSessionKey;
 
-typedef struct streamValue {
+typedef struct SStreamValue {
   int64_t unixTimestamp;
   int32_t len;
-  char    data[0];
-} streamValue;
+  char*   data;
+} SStreamValue;
 
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
 int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
