@@ -3,7 +3,7 @@
     <component
       :is="currentName"
       :sourceList="sourceList"
-      :dbsource="uidata"
+      :dbsourceList="uidata"
       :editId="editId"
       :dbName="dbName"
       :tagName="tagName"
