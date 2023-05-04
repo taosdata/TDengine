@@ -1082,7 +1082,7 @@ int32_t ctgUpdateUserEnqueue(SCatalog *pCtg, SGetUserAuthRsp *pAuth, bool syncOp
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateUserMsg));
     taosMemoryFree(op);
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   msg->pCtg = pCtg;
