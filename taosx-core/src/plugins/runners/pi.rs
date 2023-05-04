@@ -344,11 +344,6 @@ pub async fn pi_datasets(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet
         } else {
             map_dataset(map, "templateName", "TemplateForAFElement")
         };
-        // } else if category.eq("TemplateForAFElement") {
-        //     map_dataset(map, "templateName", "TemplateForAFElement")
-        // } else {
-        //     anyhow::bail!("category is wrong, only support PointList/TemplateForPIPoint/TemplateForPIPoint");
-        // };
         extend_data_set(&mut dataset, &result, data.offset, data.limit);
     });
     
