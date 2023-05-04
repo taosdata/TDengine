@@ -103,8 +103,13 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   pTq->pCheckInfo = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
-  tqInitialize(pTq);
-  return pTq;
+  int32_t code = tqInitialize(pTq);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqClose(pTq);
+    return NULL;
+  } else {
+    return pTq;
+  }
 }
 
 int32_t tqInitialize(STQ* pTq) {
@@ -594,11 +599,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->chkInfo.currentVer = ver;
 
   // expand executor
-  if (pTask->fillHistory) {
-    pTask->status.taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
-  } else {
-    pTask->status.taskStatus = TASK_STATUS__RESTORE;
-  }
+  pTask->status.taskStatus = (pTask->fillHistory)? TASK_STATUS__WAIT_DOWNSTREAM:TASK_STATUS__NORMAL;
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
@@ -657,6 +658,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   }
 
   streamSetupTrigger(pTask);
+
   tqInfo("vgId:%d expand stream task, s-task:%s, checkpoint ver:%" PRId64 " child id:%d, level:%d", vgId, pTask->id.idStr,
          pTask->chkInfo.version, pTask->selfChildId, pTask->taskLevel);
 
@@ -686,8 +688,9 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   };
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
+
   if (pTask) {
-    rsp.status = (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__NORMAL) ? 1 : 0;
+    rsp.status = streamTaskCheckStatus(pTask);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
     tqDebug("tq recv task check req(reqId:0x%" PRIx64
@@ -1168,9 +1171,6 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask != NULL) {
     if (pTask->status.taskStatus == TASK_STATUS__NORMAL) {
-      tqDebug("vgId:%d s-task:%s start to process run req", vgId, pTask->id.idStr);
-      streamProcessRunReq(pTask);
-    } else if (pTask->status.taskStatus == TASK_STATUS__RESTORE) {
       tqDebug("vgId:%d s-task:%s start to process block from wal, last chk point:%" PRId64, vgId,
               pTask->id.idStr, pTask->chkInfo.version);
       streamProcessRunReq(pTask);
@@ -1334,10 +1334,10 @@ int32_t tqStartStreamTasks(STQ* pTq) {
     return 0;
   }
 
-  pMeta->walScan += 1;
+  pMeta->walScanCounter += 1;
 
-  if (pMeta->walScan > 1) {
-    tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->walScan);
+  if (pMeta->walScanCounter > 1) {
+    tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->walScanCounter);
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
     return 0;
   }

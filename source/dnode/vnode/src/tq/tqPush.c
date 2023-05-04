@@ -274,21 +274,6 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
     }
 
     if (msgType == TDMT_VND_SUBMIT) {
-#if 0
-      void* data = taosMemoryMalloc(len);
-      if (data == NULL) {
-        // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then retry
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", vgId);
-        return -1;
-      }
-
-      memcpy(data, pReq, len);
-      SPackedData submit = {.msgStr = data, .msgLen = len, .ver = ver};
-
-      tqDebug("vgId:%d tq copy submit msg:%p len:%d ver:%" PRId64 " from %p for stream", vgId, data, len, ver, pReq);
-      tqProcessSubmitReq(pTq, submit);
-#endif
       SPackedData submit = {0};
       tqProcessSubmitReq(pTq, submit);
     }
