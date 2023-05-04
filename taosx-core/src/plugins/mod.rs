@@ -15,7 +15,6 @@ pub use runners::pi::pi_to_taos;
 pub use runners::mqtt::mqtt_to_taos;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
-use utoipa::ToSchema;
 
 use crate::plugins::runners::pi::pi_datasets;
 
@@ -42,7 +41,7 @@ pub struct OptionSet {
     required: bool,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DataSetsReq {
     from: String,
     #[serde(skip_serializing_if = "Option::is_none")]
