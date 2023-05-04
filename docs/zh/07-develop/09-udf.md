@@ -6,11 +6,13 @@ description: "支持用户编码的聚合函数和标量函数，在查询中嵌
 
 在有些应用场景中，应用逻辑需要的查询无法直接使用系统内置的函数来表示。利用 UDF(User Defined Function) 功能，TDengine 可以插入用户编写的处理代码并在查询中使用它们，就能够很方便地解决特殊应用场景中的使用需求。 UDF 通常以数据表中的一列数据做为输入，同时支持以嵌套子查询的结果作为输入。
 
-TDengine 支持通过 C/C++ 语言进行 UDF 定义。接下来结合示例讲解 UDF 的使用方法。
-
 用户可以通过 UDF 实现两类函数：标量函数和聚合函数。标量函数对每行数据输出一个值，如求绝对值 abs，正弦函数 sin，字符串拼接函数 concat 等。聚合函数对多行数据进行输出一个值，如求平均数 avg，最大值 max 等。
 
-实现 UDF 时，需要实现规定的接口函数
+TDengine 支持通过 C/Python 语言进行 UDF 定义。接下来结合示例讲解 UDF 的使用方法。
+
+# C 语言实现UDF
+
+使用 C 语言实现 UDF 时，需要实现规定的接口函数
 - 标量函数需要实现标量接口函数 scalarfn 。
 - 聚合函数需要实现聚合接口函数 aggfn_start ， aggfn ， aggfn_finish。
 - 如果需要初始化，实现 udf_init；如果需要清理工作，实现udf_destroy。
@@ -213,9 +215,6 @@ gcc -g -O0 -fPIC -shared bit_and.c -o libbitand.so
 
 这样就准备好了动态链接库 libbitand.so 文件，可以供后文创建 UDF 时使用了。为了保证可靠的系统运行，编译器 GCC 推荐使用 7.5 及以上版本。
 
-## 管理和使用UDF
-编译好的UDF，还需要将其加入到系统才能被正常的SQL调用。关于如何管理和使用UDF，参见[UDF使用说明](../12-taos-sql/26-udf.md)
-
 ## 示例代码
 
 ### 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/bit_and.c)
@@ -269,3 +268,119 @@ select max_vol(vol1,vol2,vol3,deviceid) from battery;
 ```
 
 </details>
+
+# Python 语言实现UDF
+使用 Python 语言实现 UDF 时，需要实现规定的接口函数
+- 标量函数需要实现标量接口函数 process 。
+- 聚合函数需要实现聚合接口函数 start ，reduce ，finish。
+- 如果需要初始化，实现 init；如果需要清理工作，实现 destroy。
+
+## 实现标量函数
+
+标量函数实现模版如下
+```Python
+def init():
+    # initialization
+def destroy():
+    # destroy
+def process(input: datablock) -> tuple[output_type]:
+    # process input datablock, 
+    # datablock.data(row, col) is to access the python object in location(row,col)
+    # return tuple object consisted of object of type outputtype   
+```
+
+## 实现聚合函数
+
+聚合函数实现模版如下
+```Python
+def init():
+    #initialization
+def destroy():
+    #destroy
+def start() -> bytes:
+    #return serialize(init_state)
+def reduce(inputs: datablock, buf: bytes) -> bytes
+    # deserialize buf to state
+    # reduce the inputs and state into new_state. 
+    # use inputs.data(i,j) to access python ojbect of location(i,j)
+    # serialize new_state into new_state_bytes
+    return new_state_bytes   
+def finish(buf: bytes) -> output_type:
+    #return obj of type outputtype   
+```
+
+## 接口函数定义
+
+### 标量接口函数
+```Python
+def process(input: datablock) -> tuple[output_type]:
+```
+- input:datablock 类似二维矩阵，通过成员方法 data(row,col)返回位于 row 行，col 列的 python 对象
+- 返回值是一个 Python 对象元组，每个元素类型为输出类型。
+
+### 聚合接口函数
+```Python
+def start() -> bytes:
+def reduce(inputs: datablock, buf: bytes) -> bytes
+def finish(buf: bytes) -> output_type:
+```
+
+首先调用 start 生成最初结果 buffer，然后输入数据会被分为多个行数据块，对每个数据块 inputs 和当前中间结果 buf 调用 reduce，得到新的中间结果，最后再调用 finish 从中间结果 buf 产生最终输出，最终输出只能含 0 或 1 条数据。
+
+
+### UDF 初始化和销毁
+```Python
+def init()
+def destroy()
+```
+
+其中 init 完成初始化工作。 destroy 完成清理工作。如果没有初始化工作，无需定义 init 函数。如果没有清理工作，无需定义 destroy 函数。
+
+## Python数据类型和TDengine数据类型映射
+|  **TDengine SQL数据类型**   | **Python数据类型** |
+| :-----------------------: | ------------ |
+|TINYINT / SMALLINT / INT  / BIGINT     | int   |
+|TINYINT UNSIGNED / SMALLINT UNSIGNED / INT UNSIGNED / BIGINT UNSIGNED | int |
+|FLOAT / DOUBLE | float |
+|BOOL | bool |
+|BINARY / VARCHAR / NCHAR | bytes|
+|TIMESTAMP | int |
+|JSON and other types | 不支持 |
+
+## Python UDF 环境的安装
+1. 安装 taospyudf 包。此包执行Python UDF程序。
+```bash
+pip install taospyudf
+lddconfig
+```
+2. 如果 Python UDF 程序执行时，引用其它的包，PYTHONPATH 环境变量可以通过在 taos.cfg 的 UdfdLdLibPath 变量配置
+ 
+## 示例代码
+### 标量函数示例 [pybitand](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/pybitand.py)
+
+bit_add 实现多列的按位与功能。如果只有一列，返回这一列。bit_add 忽略空值。
+
+<details>
+<summary>pybitand.py</summary>
+
+```Python
+{{#include tests/script/sh/pybitand.py}}
+```
+
+</details>
+
+### 聚合函数示例 [pyl2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/pyl2norm.py)
+
+pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
+
+<details>
+<summary>pyl2norm.py</summary>
+
+```c
+{{#include tests/script/sh/pyl2norm.py}}
+```
+
+</details>
+
+# 管理和使用UDF
+编译好的UDF，还需要将其加入到系统才能被正常的SQL调用。关于如何管理和使用UDF，参见[UDF使用说明](../12-taos-sql/26-udf.md)
