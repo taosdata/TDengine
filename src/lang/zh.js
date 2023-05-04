@@ -10,6 +10,7 @@ export default {
   enableagent:'启用代理',
   warning:'提醒',
   ok:'确定',
+  changepwdtip:'密码修改成功，请重新登录',
   systemTitle: "TDengine 管理系统",
   copyright:' Copyright 2023 北京涛思数据科技有限公司',
   download: "下载",

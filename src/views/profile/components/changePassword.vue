@@ -72,8 +72,9 @@
 <script>
 import { validEmail, validPassword } from "@/utils/validate.js";
 import { sendSQLReq } from "@/api/gateway/console";
-import {deleteCookieItem} from '@/utils/index'
-import {decrypt} from '@/utils/index'
+import { deleteCookieItem } from "@/utils/index";
+import { decrypt } from "@/utils/index";
+import { MessageBox } from "element-ui";
 export default {
   props: {
     needEmail: {
@@ -169,12 +170,23 @@ export default {
                   new_password: "",
                   confirm_password: "",
                 };
-                this.$message.success(this.$t("login.changeSucc"));
+                // this.$message.success(this.$t("login.changeSucc"));
                 this.requestIng = false;
-                localStorage.removeItem('username')
-                localStorage.removeItem('pwd')
-                deleteCookieItem()
-                
+                localStorage.removeItem("username");
+                localStorage.removeItem("pwd");
+                deleteCookieItem();
+                this.$alert(this.$t("changepwdtip"), this.$t("tips"), {
+                  showCancelButton: false,
+                  showConfirmButton: true,
+                  confirmButtonText: this.$t("ok"),
+                  closeOnClickModal: false,
+                  showClose: false,
+                  type: "success",
+                }).then(() => {
+                  this.$router.push({
+                    path: "/login",
+                  });
+                });
               }
             })
             .catch((err) => {

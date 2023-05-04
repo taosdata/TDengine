@@ -222,7 +222,7 @@ export default {
         cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
-        sendSQLReq(`alter user ${data.name} enable ${state}`).then(res => {
+        sendSQLReq(`alter user \`${data.name}\` enable ${state}`).then(res => {
           if (res.code == 0) {
             Message.success(this.$t('operateSucc'))
             this.getUserData()
