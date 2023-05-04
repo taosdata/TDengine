@@ -341,6 +341,8 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
 
       SDecoder decoder = {0};
       tDecoderInit(&decoder, pBody, bodyLen);
+      taosArrayDestroy(pReader->submit.aSubmitTbData);
+
       if (tDecodeSubmitReq(&decoder, &pReader->submit) < 0) {
         tDecoderClear(&decoder);
         tqError("decode wal file error, msgLen:%d, ver:%"PRId64, bodyLen, ver);
