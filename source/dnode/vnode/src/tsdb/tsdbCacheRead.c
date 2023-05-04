@@ -285,7 +285,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   pr->pDataFReader = NULL;
   pr->pDataFReaderLast = NULL;
 
-  char const* lstring = pr->type & CACHESCAN_RETRIEVE_LAST ? "last" : "last_row";
+  int32_t ltype = pr->type & CACHESCAN_RETRIEVE_LAST >> 3;
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
@@ -294,7 +294,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
-      tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, lstring);
+      tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, ltype);
       if (TARRAY_SIZE(pRow) <= 0) {
         taosArrayClearEx(pRow, freeItem);
         continue;
@@ -368,7 +368,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
-      tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, lstring);
+      tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, ltype);
       if (TARRAY_SIZE(pRow) <= 0) {
         taosArrayClearEx(pRow, freeItem);
         continue;

@@ -293,8 +293,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, char const *lstring) {
-  int32_t code = 0;
+int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int32_t ltype) {
+  static char const *alstring[2] = {"last", "last_row"};
+  char const        *lstring = alstring[ltype];
+  int32_t            code = 0;
 
   SArray *pCidList = pr->pCidList;
   int     num_keys = TARRAY_SIZE(pCidList);
