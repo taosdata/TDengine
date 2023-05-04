@@ -19,6 +19,8 @@ typedef struct {
   STsdb    *pTsdb;
   SFileSet *pSet;
 
+  SBlockData bData;
+
   // reader
   SSttFileReader *pSttFReader;
   int32_t         nSttFSegReader;
