@@ -196,12 +196,14 @@ FAIL:
 static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   SMnode              *pMnode = pMsg->info.node;
   SMqConsumerClearMsg *pClearMsg = pMsg->pCont;
-  SMqConsumerObj      *pConsumer = mndAcquireConsumer(pMnode, pClearMsg->consumerId);
+
+  SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, pClearMsg->consumerId);
   if (pConsumer == NULL) {
+    mError("consumer:0x%"PRIx64" failed to be found to clear it", pClearMsg->consumerId);
     return 0;
   }
 
-  mInfo("receive consumer clear msg, consumer id %" PRId64 ", status %s", pClearMsg->consumerId,
+  mInfo("consumer:0x%" PRIx64 " needs to be cleared, status %s", pClearMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
 
   if (pConsumer->status != MQ_CONSUMER_STATUS__LOST_REBD) {
@@ -216,6 +218,8 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "clear-csm");
   if (pTrans == NULL) goto FAIL;
+
+  // this is the drop action, not the update action
   if (mndSetConsumerDropLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
 
@@ -300,6 +304,11 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
     if (status == MQ_CONSUMER_STATUS__READY) {
       if (hbStatus > MND_CONSUMER_LOST_HB_CNT) {
         SMqConsumerLostMsg *pLostMsg = rpcMallocCont(sizeof(SMqConsumerLostMsg));
+        if (pLostMsg == NULL) {
+          mError("consumer:0x%"PRIx64" failed to transfer consumer status to lost due to out of memory. alloc size:%d",
+              pConsumer->consumerId, sizeof(SMqConsumerLostMsg));
+          continue;
+        }
 
         pLostMsg->consumerId = pConsumer->consumerId;
         SRpcMsg rpcMsg = {
@@ -313,6 +322,11 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
       // if the client is lost longer than one day, clear it. Otherwise, do nothing about the lost consumers.
       if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD) {
         SMqConsumerClearMsg *pClearMsg = rpcMallocCont(sizeof(SMqConsumerClearMsg));
+        if (pClearMsg == NULL) {
+          mError("consumer:0x%"PRIx64" failed to clear consumer due to out of memory. alloc size:%d",
+                 pConsumer->consumerId, sizeof(SMqConsumerClearMsg));
+          continue;
+        }
 
         pClearMsg->consumerId = pConsumer->consumerId;
         SRpcMsg rpcMsg = {
@@ -871,7 +885,7 @@ static void updateConsumerStatus(SMqConsumerObj *pConsumer) {
     if (status == MQ_CONSUMER_STATUS_REBALANCE) {
       pConsumer->status = MQ_CONSUMER_STATUS__READY;
     } else if (status == MQ_CONSUMER_STATUS__LOST) {
-      ASSERT(taosArrayGetSize(pConsumer->currentTopics) == 0 && taosArrayGetSize(pConsumer->assignedTopics) == 0);
+      ASSERT(taosArrayGetSize(pConsumer->currentTopics) == 0);
       pConsumer->status = MQ_CONSUMER_STATUS__LOST_REBD;
     }
   }

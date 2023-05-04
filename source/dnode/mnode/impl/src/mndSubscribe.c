@@ -480,14 +480,16 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   for (int32_t i = 0; i < vgNum; i++) {
     SMqRebOutputVg *pRebVg = taosArrayGet(rebVgs, i);
     if (mndPersistSubChangeVgReq(pMnode, pTrans, pOutput->pSub, pRebVg) < 0) {
-      goto REB_FAIL;
+      mndTransDrop(pTrans);
+      return -1;
     }
   }
 
   // 2. redo log: subscribe and vg assignment
   // subscribe
   if (mndSetSubCommitLogs(pMnode, pTrans, pOutput->pSub) != 0) {
-    goto REB_FAIL;
+    mndTransDrop(pTrans);
+    return -1;
   }
 
   // 3. commit log: consumer to update status and epoch
@@ -502,11 +504,15 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
       tDeleteSMqConsumerObj(pConsumerNew);
       taosMemoryFree(pConsumerNew);
-      goto REB_FAIL;
+
+      mndTransDrop(pTrans);
+      return -1;
     }
+
     tDeleteSMqConsumerObj(pConsumerNew);
     taosMemoryFree(pConsumerNew);
   }
+
   // 3.2 set new consumer
   consumerNum = taosArrayGetSize(pOutput->newConsumers);
   for (int32_t i = 0; i < consumerNum; i++) {
@@ -523,8 +529,11 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
       tDeleteSMqConsumerObj(pConsumerNew);
       taosMemoryFree(pConsumerNew);
-      goto REB_FAIL;
+
+      mndTransDrop(pTrans);
+      return -1;
     }
+
     tDeleteSMqConsumerObj(pConsumerNew);
     taosMemoryFree(pConsumerNew);
   }
@@ -545,8 +554,11 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
       tDeleteSMqConsumerObj(pConsumerNew);
       taosMemoryFree(pConsumerNew);
-      goto REB_FAIL;
+
+      mndTransDrop(pTrans);
+      return -1;
     }
+
     tDeleteSMqConsumerObj(pConsumerNew);
     taosMemoryFree(pConsumerNew);
   }
@@ -559,15 +571,12 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   // 6. execution
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("failed to prepare trans rebalance since %s", terrstr());
-    goto REB_FAIL;
+    mndTransDrop(pTrans);
+    return -1;
   }
 
   mndTransDrop(pTrans);
   return 0;
-
-REB_FAIL:
-  mndTransDrop(pTrans);
-  return -1;
 }
 
 static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
