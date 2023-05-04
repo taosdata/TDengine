@@ -82,7 +82,7 @@ Copy code bellow to your editor, then run it. If you are using jupyter, assuming
 {{#include docs/examples/python/develop_tutorial.py:connect}}
 ```
 
-For how to write data and query data, please refer to <https://docs.tdengine.com/cloud/data-in/insert-data/> and <https://docs.tdengine.com/cloud/data-out/query-data/>.
+For how to write data and query data, please refer to [Data In](https://docs.tdengine.com/cloud/data-in/) and [Data Out](https://docs.tdengine.com/cloud/data-out/).
 
 For more details about how to write or query data via REST API, please check [REST API](https://docs.tdengine.com/cloud/programming/connector/rest-api/).
 

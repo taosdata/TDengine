@@ -124,4 +124,4 @@ Successfully connect to cloud.tdengine.com:8085 in restful mode
 taos>
 ```
 
-After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see the [official document](https://docs.tdengine.com/reference/taos-shell#execute-sql-script-file) for more details.
+After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see the [official document](https://docs.tdengine.com/reference/taos-shell/#execute-sql-script-file) for more details.

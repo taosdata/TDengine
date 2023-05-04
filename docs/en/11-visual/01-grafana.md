@@ -54,4 +54,4 @@ Users can log in to the Grafana server (initial username/password: admin/admin) 
 
 Please add new dashboard or import exist dashboard to illustrate the data you store in the TDengine.
 
-And refer to the [documentation](https://docs.tdengine.com/third-party/grafana#create-dashboard) for more details.
+And refer to the [documentation](https://docs.tdengine.com/third-party/grafana/#create-dashboard) for more details.
