@@ -1221,6 +1221,7 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask) {
     tqDebug("vgId:%d s-task:%s set pause flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
+    atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   }
@@ -1231,7 +1232,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask) {
-    streamSetStatusNormal(pTask);
+    atomic_store_8(&pTask->status.taskStatus, pTask->status.keepTaskStatus);
 
     // no lock needs to secure the access of the version
     if (pReq->igUntreated) {  // discard all the data  when the stream task is suspended.

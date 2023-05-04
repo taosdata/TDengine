@@ -52,7 +52,7 @@ void streamCleanUp() {
 void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
-  if (streamTaskShouldStop(&pTask->status)) {
+  if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
     streamMetaReleaseTask(NULL, pTask);
     return;
   }

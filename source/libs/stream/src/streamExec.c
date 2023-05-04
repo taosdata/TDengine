@@ -22,6 +22,11 @@ bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   return (status == TASK_STATUS__STOP) || (status == TASK_STATUS__DROPPING);
 }
 
+bool streamTaskShouldPause(const SStreamStatus* pStatus) {
+  int32_t status = atomic_load_8((int8_t*) &pStatus->taskStatus);
+  return (status == TASK_STATUS__PAUSE);
+}
+
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pExecutor = pTask->exec.pExecutor;
@@ -141,7 +146,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     int32_t batchCnt = 0;
     while (1) {
-      if (streamTaskShouldStop(&pTask->status)) {
+      if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
         taosArrayDestroy(pRes);
         return 0;
       }
