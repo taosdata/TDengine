@@ -83,7 +83,7 @@ void* streamBackendInit(const char* path) {
   if (err != NULL) {
     qError("failed to open rocksdb, path:%s, reason:%s", path, err);
     taosMemoryFreeClear(err);
-    goto _EXIT;
+    // goto _EXIT;
   }
 
   return (void*)pHandle;
@@ -592,14 +592,17 @@ const char* compactFilteFactoryName(void* arg) {
 void          destroyCompactFilte(void* arg) { (void)arg; }
 unsigned char compactFilte(void* arg, int level, const char* key, size_t klen, const char* val, size_t vlen,
                            char** newval, size_t* newvlen, unsigned char* value_changed) {
-  int64_t      unixTime = taosGetTimestampMs();
-  SStreamValue value;
-  memset(&value, 0, sizeof(value));
-  streamValueDecode(&value, (char*)val);
-  taosMemoryFree(value.data);
-  if (value.unixTimestamp != 0 && value.unixTimestamp < unixTime) {
+  // int64_t      unixTime = taosGetTimestampMs();
+  if (streamStateValueIsStale((char*)val)) {
     return 1;
   }
+  // SStreamValue value;
+  // memset(&value, 0, sizeof(value));
+  //  streamValueDecode(&value, (char*)val);
+  //  taosMemoryFree(value.data);
+  //  if (value.unixTimestamp != 0 && value.unixTimestamp < unixTime) {
+  //    return 1;
+  //  }
   return 0;
 }
 const char* compactFilteName(void* arg) { return "stream_filte"; }
