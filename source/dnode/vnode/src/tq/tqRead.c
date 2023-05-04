@@ -530,22 +530,27 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
   pBlock->info.id.uid = uid;
   pBlock->info.version = pReader->msg.ver;
 
-  if (pReader->cachedSchemaSuid == 0 || pReader->cachedSchemaVer != sversion || pReader->cachedSchemaSuid != suid) {
+  if ((suid != 0 && pReader->cachedSchemaSuid != suid) || (suid == 0 && pReader->cachedSchemaUid != uid) || (pReader->cachedSchemaVer != sversion)) {
     tDeleteSchemaWrapper(pReader->pSchemaWrapper);
 
     pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);
     if (pReader->pSchemaWrapper == NULL) {
-      tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
-             pReader->pWalReader->pWal->cfg.vgId, uid, pReader->cachedSchemaVer);
+      tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", uid:%" PRId64 "version %d, possibly dropped table",
+             pReader->pWalReader->pWal->cfg.vgId, suid, uid, pReader->cachedSchemaVer);
       pReader->cachedSchemaSuid = 0;
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;
     }
 
+    pReader->cachedSchemaUid = uid;
     pReader->cachedSchemaSuid = suid;
     pReader->cachedSchemaVer = sversion;
 
     SSchemaWrapper* pSchemaWrapper = pReader->pSchemaWrapper;
+    if (blockDataGetNumOfCols(pBlock) > 0) {
+      blockDataDestroy(pReader->pResBlock);
+      pReader->pResBlock = createDataBlock();
+    }
 
     int32_t numOfCols = taosArrayGetSize(pReader->pColIdList);
     if (numOfCols == 0) {  // all columns are required
@@ -671,8 +676,12 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, j);
         while (1) {
           SColVal colVal;
+          tqDebug("start to extract column id:%d, index:%d", pColData->info.colId, sourceIdx);
+
           tRowGet(pRow, pTSchema, sourceIdx, &colVal);
           if (colVal.cid < pColData->info.colId) {
+            tqDebug("colIndex:%d column id:%d in row, ignore, the required colId:%d, total cols in schema:%d",
+                    sourceIdx, colVal.cid, pColData->info.colId, pTSchema->numOfCols);
             sourceIdx++;
             continue;
           } else if (colVal.cid == pColData->info.colId) {

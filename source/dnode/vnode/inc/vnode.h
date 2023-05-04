@@ -241,6 +241,7 @@ typedef struct STqReader {
   SArray         *pColIdList;  // SArray<int16_t>
   int32_t         cachedSchemaVer;
   int64_t         cachedSchemaSuid;
+  int64_t         cachedSchemaUid;
   SSchemaWrapper *pSchemaWrapper;
   SSDataBlock    *pResBlock;
 } STqReader;
