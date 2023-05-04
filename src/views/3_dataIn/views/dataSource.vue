@@ -123,10 +123,10 @@
       :visible.sync="dialog"
       @closed="closeDialog"
     >
-      <!-- <div class="switch-agent">
+      <div class="switch-agent">
         <span class="label">{{ $t("enableagent") }}</span>
         <el-switch v-model="switchVal" @change="changeAgent"></el-switch>
-      </div> -->
+      </div>
 
       <el-form
         :model="ruleForm"
@@ -136,7 +136,7 @@
         label-position="left"
         class="demo-ruleForm"
       >
-        <!-- <el-form-item :label="$t('datasource.agent')" prop="agent" required v-if="switchVal">
+        <el-form-item :label="$t('datasource.agent')" prop="agent" required v-if="switchVal">
           <el-select
             v-model="ruleForm.agent"
             :placeholder="$t('datasource.agenttip')"
@@ -149,7 +149,7 @@
               :key="item.id"
             ></el-option>
           </el-select>
-        </el-form-item> -->
+        </el-form-item>
         <el-form-item :label="$t('datasource.sourcetype')" prop="type" required>
           <el-select
             v-model="ruleForm.type"
@@ -253,14 +253,13 @@ export default {
   },
   methods: {
     selectAgenttype(){
+      this.ruleForm.type=''
       this.typeList=this.agentList.filter(item=>item.id==this.ruleForm.agent)[0].connectors.map(val=>{
         return {
           id:val,
           name:this.dataTypeMap.get(val)
         }
       })
-
-      console.log(this.ruleForm.agent,this.typeList,'选择的代理');
     },
     handlePageChange() {},
     closeDialog() {
