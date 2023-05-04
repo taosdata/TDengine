@@ -2164,6 +2164,7 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg2.vgId, i, newVg2.vnodeGid[i].dnodeId);
   }
 
+  // alter hash range
   int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
   if (mndAddAlterVnodeHashRangeAction(pMnode, pTrans, &newVg1, maxVgId) != 0) goto _OVER;
   newVg1.vgId = maxVgId;
@@ -2171,6 +2172,10 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   maxVgId++;
   if (mndAddAlterVnodeHashRangeAction(pMnode, pTrans, &newVg2, maxVgId) != 0) goto _OVER;
   newVg2.vgId = maxVgId;
+
+  if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg1) != 0) goto _OVER;
+
+  if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg2) != 0) goto _OVER;
 
   // adjust vgroup replica
   if (pDb->cfg.replications != newVg1.replica) {
