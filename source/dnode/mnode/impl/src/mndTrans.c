@@ -546,6 +546,7 @@ static void mndTransDropData(STrans *pTrans) {
     pTrans->param = NULL;
     pTrans->paramLen = 0;
   }
+  (void)taosThreadMutexDestroy(&pTrans->mutex);
 }
 
 static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
@@ -651,6 +652,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
   pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : 0;
   taosInitRWLatch(&pTrans->lockRpcArray);
+  taosThreadMutexInit(&pTrans->mutex, NULL);
 
   if (pTrans->redoActions == NULL || pTrans->undoActions == NULL || pTrans->commitActions == NULL ||
       pTrans->pRpcArray == NULL) {
@@ -1307,7 +1309,13 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
   int32_t code = 0;
   int32_t numOfActions = taosArrayGetSize(pTrans->redoActions);
   if (numOfActions == 0) return code;
-  if (pTrans->redoActionPos >= numOfActions) return code;
+
+  taosThreadMutexLock(&pTrans->mutex);
+
+  if (pTrans->redoActionPos >= numOfActions) {
+    taosThreadMutexUnlock(&pTrans->mutex);
+    return code;
+  }
 
   mInfo("trans:%d, execute %d actions serial, current redoAction:%d", pTrans->id, numOfActions, pTrans->redoActionPos);
 
@@ -1376,6 +1384,8 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
       break;
     }
   }
+
+  taosThreadMutexUnlock(&pTrans->mutex);
 
   return code;
 }
