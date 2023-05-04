@@ -111,7 +111,7 @@ impl PiConfig {
         let update_interval = parse_int_at!("UpdateInterval");
         if let Some(ui) = update_interval {
             if ui < 100 || ui > 60000 {
-                return Err(PiError::ValueConfigError("MaxWaitLen", "100", "60000"));
+                return Err(PiError::ValueConfigError("UpdateInterval", "100", "60000"));
             }
         }
         let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
