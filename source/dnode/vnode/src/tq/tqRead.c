@@ -341,7 +341,15 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
 
       SDecoder decoder = {0};
       tDecoderInit(&decoder, pBody, bodyLen);
-      taosArrayDestroy(pReader->submit.aSubmitTbData);
+
+      {
+        int32_t nSubmitTbData = taosArrayGetSize(pReader->submit.aSubmitTbData);
+        for (int32_t i = 0; i < nSubmitTbData; i++) {
+          SSubmitTbData* pData = taosArrayGet(pReader->submit.aSubmitTbData, i);
+          pData->aRowP = taosArrayDestroy(pData->aRowP);
+        }
+        pReader->submit.aSubmitTbData = taosArrayDestroy(pReader->submit.aSubmitTbData);
+      }
 
       if (tDecodeSubmitReq(&decoder, &pReader->submit) < 0) {
         tDecoderClear(&decoder);
