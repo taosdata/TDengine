@@ -157,6 +157,7 @@ export default {
     dsepPlaceholder: "TDengine主机URL，比如: http://localhost:6041",
     theDatasource: "数据源{0}",
     dsurlError: "数据源URL格式不正确，比如: http://localhost:6041",
+    enterTip: "请输入"
   },
   route: {
     dataIn: "数据写入",

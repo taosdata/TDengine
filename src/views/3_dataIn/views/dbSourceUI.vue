@@ -225,6 +225,72 @@
           </div>
         </div>
       </section>
+      <section :class="['groups-dataset', dbsource[0].datasets?.name]" v-if="dbsource[0]?.datasets">
+            <div style="flex-direction: column; align-items: baseline">
+              <div class="block-title">
+                <span>{{ dbsource[0].datasets.name }}</span>
+              </div>
+              <div
+                class="description"
+                v-html="transforHtml(dbsource[0].datasets.description)"
+              ></div>
+            </div>
+            <template>
+              <el-tabs v-model="activeName" @tab-click="handleClick">
+                <el-tab-pane v-for="(p,pind) in dbsource[0].datasets.categories" :label="p.display" :name="p.category" :key="p.category" lazy>
+                  <div :key="pind">
+                    <div 
+                      class="description"
+                      v-html="transforHtml(p.description)"
+                    ></div>
+                    <div class="target">
+                      <template v-if="p.target.multiple">
+                        <el-select v-model="p.target.value" :multiple="p.target.multiple">
+                          <el-option v-for="(t,tind) in (p.target.value)" :key="tind" :value="tind" disabled>
+                            {{ t }}
+                          </el-option>
+                        </el-select>
+                      </template>
+                      <template v-else>
+                        <el-input v-model="p.target.value"></el-input>             
+                      </template>
+                      <el-button size="medium" @click="handleSelBtn" style="height: 42px;">Select</el-button>
+                    </div>
+                    <div class="configuration" v-if="isShowConfiguration">
+                      <el-input 
+                        placeholder="Regex Pattern Input" 
+                        v-model="p.value" 
+                        @input="searchDatas"
+                        ></el-input>
+                      <div>
+                        <div class="searchList" v-loading="loading">
+                          <div v-for="(c) in configurationdata" :key="c.id" :class="[activeDataSet.id == c.id ? 'actived' : '']" @click="handelDataSet(c)">{{ c.id }}</div>
+                        </div>
+                        <template v-if="Object.hasOwnProperty.call(activeDataSet, 'options')">
+                          <div class="options-wrap">
+                            <div class="option-list">
+                              <div class="option-item" v-for="o in activeDataSet.options " :key="o.name">
+                                <span :class="['label', o.required ? 'required' : '']">
+                                  {{ o.name }}
+                                </span>
+                                <el-input
+                                  placeholder="Please enter "
+                                  v-model="o.value"
+                                />
+                              </div>                     
+                            </div>
+                            <div>
+                              <el-button size="small" type="primary" plain @click="addOption">Add</el-button>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                </el-tab-pane>             
+              </el-tabs>
+            </template>
+          </section>
       <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
@@ -325,10 +391,10 @@
 </template>
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource } from "@/api/explorer/datain";
+import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
-import { decrypt } from "@/utils/index";
+import { decrypt, debounce } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   props: {
@@ -336,7 +402,7 @@ export default {
       type: String,
       default: "datasource",
     },
-    dbsource: {
+    dbsourceList: {
       type: Array,
       default() {
         return [];
@@ -362,7 +428,6 @@ export default {
   data() {
     return {
       decryptPwd: "", //解密的密码
-      //   dbsource,
       disable: false,
       address: "",
       port: "",
@@ -372,6 +437,13 @@ export default {
       radio: "",
       dblist: [],
       dbname: "",
+      activeName: '',
+      textarea:'',
+      isShowConfiguration: false,
+      loading: false,
+      configurationdata: [],
+      activeDataSet: {},
+      dbsource: []
     };
   },
   created() {
@@ -379,6 +451,10 @@ export default {
     if (this.isEditable) {
       this.dbname = this.dbName;
     }
+    this.dbsource = this.dbsourceList
+  },
+  mounted() {
+    this.activeName = this.dbsource[0].datasets.categories[0].category
   },
   watch: {
     dbName: {
@@ -424,6 +500,7 @@ export default {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
+      let enterTip = this.$t("dataIn.enterTip")
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
@@ -438,7 +515,7 @@ export default {
           ) {
             Message({
               type: "warning",
-              message: `Please enter ${data.options[key].display} `,
+              message: `${enterTip} ${data.options[key].display} `,
             });
             return;
           }
@@ -478,7 +555,7 @@ export default {
             ) {
               Message({
                 type: "warning",
-                message: `Please enter ${data.groups[index].params[g].name} `,
+                message: `${enterTip} ${data.groups[index].params[g].name} `,
               });
               return;
             } else {
@@ -492,7 +569,35 @@ export default {
           //   }
         }
 
+        if (data.datasets) {
+          for (let index = 0; index < data.datasets.categories.length; index++) {
+            // 判断必填项 多选时value为数组，单选时为字符串
+            let target = data.datasets.categories[index].target
+            if(
+              Object.hasOwnProperty.call(target,"required") 
+              && target.required
+              && target.value == null
+            ) {
+              Message({
+                type: "warning",
+                message: `${enterTip} ${target.name} `,
+              });
+              return;
+            } else if (target.value){
+              if (Array.isArray(target.value)) {              
+                let str = ""
+                for(let i = 0; i < target.value.length; i++) {
+                  str += `${target.value[i]},`
+                }
+                querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&"
+              } else {
+                querystr += `${target.name}=${target.value}` + "&"
+              }
+            }
+          }
+        }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+
         let apiParams = {
           from:
             "tmq" +
@@ -559,6 +664,106 @@ export default {
         console.log(error);
       }
     },
+
+    handleClick(tab, event) {
+      this.isShowConfiguration = false
+      this.configurationdata = []
+      this.activeDataSet = {}
+      // console.log(tab, event);
+    },
+
+    handleSelBtn() {
+      this.isShowConfiguration = true
+    },
+
+    addOption() {
+      // "format": "{id}::{table}::{field}::{type}"
+      let curData = this.configurationdata.filter((item) => item.id === this.activeDataSet.id)
+      let enterTip = this.$t("dataIn.enterTip")
+      let format = curData[0].id
+      let options = curData[0].options
+      for(let i = 0; i < options.length; i++) {
+        if(options[i].required && !options[i].value) {
+          Message({
+            type: "warning",
+            message: `${enterTip} ${options[i].name}`,
+          });
+          return
+        }
+        format += `::${options[i].value}`
+
+      }
+      let categories = []
+      categories = this.dbsource[0].datasets.categories.map(cate => {
+        if(cate.category == this.activeDataSet.category) {
+          if(Array.isArray(cate.target.value)) {
+            cate.target.value.push(format)
+            cate.target.value = Array.from(new Set(cate.target.value))
+          } else {
+            cate.target.value = format
+          }
+        }  
+        return cate     
+      })    
+    },
+    handelDataSet(data) {
+      this.activeDataSet = data
+      let categories = []
+      if(!Object.hasOwnProperty.call(data, "options")) {
+        categories = this.dbsource[0].datasets.categories.map(cate => {
+          if(cate.category == data.category) {
+            if(Array.isArray(cate.target.value)) {
+              cate.target.value.push(data.id)
+              cate.target.value = Array.from(new Set(cate.target.value))
+            } else {
+              cate.target.value = data.id
+            }
+          }  
+          return cate     
+        }) 
+        this.dbsource[0].datasets.categories = categories      
+      }
+    },
+    searchDatas: debounce(function (value) {
+      try {
+        let data = this.dbsource[0];
+        let host = data.options.host.value ? data.options.host.value : ""
+        let subject = data.options.subject.value
+          ? "/" + data.options.subject.value
+          : "";
+        let enterTip = this.$t("dataIn.enterTip")
+        if(!host) {
+          Message({
+            type: "warning",
+            message: `${enterTip} ${data.options.host.display}`,
+          });
+          return
+        }
+        if(!subject) {
+          Message({
+            type: "warning",
+            message: `${enterTip} ${data.options.subject.display}`,
+          });
+          return
+        }
+        let params = null;
+          params = {
+            from: `pi://${host}${subject}`,
+            categories: [this.activeName],
+            pattern: value,
+            offset: 1,
+            limit: 10
+          };
+        this.loading = true
+        getUaAndDaData(params).then((res) => {
+          this.loading = false
+          this.configurationdata = res
+          });
+        } catch (error) {
+          this.loading = false
+          console.log(error);
+        }
+    }, 100),
   },
 };
 </script>
@@ -723,6 +928,81 @@ export default {
       display: flex;
       justify-content: center;
       align-items: center;
+    }
+  }
+  .target {
+    display: flex;
+    margin-top: 24px;
+    .el-input {
+      width: 50%;
+      margin-right: 24px;
+    }
+    .el-select {
+      width: 50%;
+      margin-right: 24px;
+    }
+  }
+  .configuration {
+    > div{
+      display: flex;
+      margin-top: 16px;
+    }
+    margin-top: 24px;
+    .el-input {
+      width: 50%;
+    }
+    .searchList {
+      width: 50%;
+      height: 210px;
+      border: 1px solid #DCDFE6;
+      overflow-y: auto;
+      > div {
+        border-bottom: 1px solid #DCDFE6;
+        line-height: 30px;
+      }
+      .actived {
+        color: #4259ce; 
+        border-color: #c6cdf0;
+        background-color: #eceefa;  
+      }
+      :hover {
+        cursor: pointer; 
+        color: #4259ce; 
+        border-color: #c6cdf0;
+        background-color: #eceefa;     
+      }
+    }
+    .options-wrap {
+      height: 210px;
+      margin-left: 24px;
+      border: 1px solid #DCDFE6;
+      padding: 16px 8px;
+      flex: 1;
+      .option-list {
+        overflow-y: auto;
+        height: 150px;
+        padding-left: 10px;
+        .option-item {
+          display: flex;
+          white-space: nowrap;
+          align-items: baseline;
+          margin-bottom: 8px;
+          .label {
+            font-size: 14px;
+            color: #4259ce;
+            align-items: center;
+            width: 100px;
+            display: block;
+          }
+          .el-input {
+            flex: 1;
+          }
+        }
+      }
+      :last-child {
+        display: flex;
+        justify-content: flex-end;
+      }
     }
   }
 }

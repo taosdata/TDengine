@@ -269,6 +269,7 @@ export default {
       // });
     },
     handleAdd() {
+      console.log('11111');
       localStorage.setItem("datainName", this.ruleForm.name);
       this.$parent.toggleComponent(this.ruleForm.type, "", "");
     },
