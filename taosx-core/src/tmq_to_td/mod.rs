@@ -6,7 +6,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     tmq::{check_tmq_dsn, group_id_hash, TmqMetrics},
-    utils::is_available_enterprise_edition,
     Action,
 };
 
@@ -25,6 +24,25 @@ async fn write_data(
         .messages_of_data
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let mut has_blocks = false;
+    if target_is_v3 && actions.is_empty() {
+        let raw = data.as_raw_data().await?;
+        taos.write_raw_meta(&unsafe { std::mem::transmute(raw) })
+            .await?;
+        while let Some(raw) = data.fetch_raw_block().await? {
+            *rows += raw.nrows();
+            metrics
+                .blocks
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            metrics
+                .records
+                .fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
+            metrics.points.fetch_add(
+                raw.nrows() as u64 * raw.ncols() as u64,
+                std::sync::atomic::Ordering::SeqCst,
+            );
+        }
+        return Ok(0);
+    }
     while let Some(mut raw) = data.fetch_raw_block().await? {
         has_blocks = true;
         if let Some(name) = table {
@@ -323,18 +341,19 @@ pub async fn tmq_to_td(
     let mut task_id = 0;
 
     let target_database = to.subject.take();
-    let target = TaosBuilder::from_dsn(&to)?.pool()?;
 
-    let target_taos = target.get().await?;
+    let target_builder = TaosBuilder::from_dsn(&to)?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     {
-        if !is_available_enterprise_edition(&builder).await
-            && !is_available_enterprise_edition(&TaosBuilder::from_dsn(&to)?).await
+        if !builder.is_enterprise_edition().await?
+            && !target_builder.is_enterprise_edition().await?
         {
             bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
         }
     }
+    let target = target_builder.pool()?;
+    let target_taos = target.get().await?;
 
     let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
 

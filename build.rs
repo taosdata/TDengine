@@ -1,13 +1,18 @@
 use std::fs::File;
 use std::path::Path;
+use std::time::Duration;
 use std::{io::Write, str::FromStr};
 
 use shadow_rs::SdResult;
 use sqlx::migrate::Migrator;
+use sqlx::sqlite::SqliteJournalMode;
 static MIGRATOR: Migrator = sqlx::migrate!();
 
 async fn init_sqlx(dsn: &str) -> Result<(), sqlx::Error> {
-    let options = sqlx::sqlite::SqliteConnectOptions::from_str(&dsn)?.create_if_missing(true);
+    let options = sqlx::sqlite::SqliteConnectOptions::from_str(&dsn)?
+        .create_if_missing(true)
+        .busy_timeout(Duration::from_secs(30))
+        .journal_mode(SqliteJournalMode::Wal);
     let pool = sqlx::SqlitePool::connect_with(options).await?;
     MIGRATOR.run(&pool).await?;
     Ok(())

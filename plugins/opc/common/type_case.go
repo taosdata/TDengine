@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 	"unsafe"
@@ -240,7 +241,8 @@ func Float(v any) (float32, error) {
 	case float32:
 		return v, nil
 	case float64:
-		return float32(v), nil
+		f, _ := big.NewFloat(v).Float32()
+		return f, nil
 	default:
 		return 0, fmt.Errorf(typeErrorTemplate, v, "float32")
 	}
@@ -259,7 +261,7 @@ func Double(v any) (float64, error) {
 	case int64:
 		return float64(v), nil
 	case float32:
-		return float64(v), nil
+		return float64(v), nil // cast float32 to float64 will lose precision
 	case float64:
 		return v, nil
 	default:

@@ -64,9 +64,9 @@ namespace TDPIConnector.Core
                         await backfill.BackfillPIPointsFromLastRecordedValue(tdDatabaseName, pointsToBackfillChecked);
                     }
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    log.Error("Error backfilling PI Points...");
+                    log.Error($"Error backfilling PI Points...{e.Message}");
                 }
                 log.Info("Process backfill, PI Point Mode backfill finshed");
             });
@@ -100,9 +100,9 @@ namespace TDPIConnector.Core
                         backfill.BackfillAFElementsFromLastRecordedValue(tdDatabaseName, elementsToBackfill);
                     }
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    log.Error("Error backfilling AF Elements...");
+                    log.Error($"Error backfilling AF Elements...{e.Message}");
                 }
                 log.Info("Process backfill, AF Element Mode backfill finished");
             });

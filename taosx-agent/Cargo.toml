@@ -1,0 +1,25 @@
+[package]
+name = "taosx-agent"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+atty = "0.2.14"
+clap = { version = "4", features = ["derive", "env"] }
+clap-verbosity-flag = "2.0.0"
+log = { version = "0.4", features = ["serde"] }
+twelf = { version = "0.10.0", default-features = false, features = ["toml", "env", "clap"] }
+dotenv = "0.15.0"
+shadow-rs = "0.21.0"
+thiserror = "1"
+
+tonic = { version = "0.8.3" }
+tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = "0.3"
+
+[build-dependencies]
+dotenv = "0.15.0"
+shadow-rs = "0.21.0"

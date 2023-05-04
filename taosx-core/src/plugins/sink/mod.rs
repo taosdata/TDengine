@@ -5,15 +5,24 @@ use std::{
     net::SocketAddr,
     panic,
     path::Path,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
 };
-use taos::{AsyncQueryable, Bindable, Itertools, Stmt, Taos, TaosPool};
+use taos::{
+    taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, Itertools, RawBlock,
+    Stmt, Taos, TaosPool,
+};
 use tokio::sync::{mpsc::Sender, Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, instrument, debug};
+use tracing::{debug, info, instrument};
 
 use super::runners::opc::OpcTableConfig;
-use taosx_ipc::{prelude::*, stream::{point::PointMessage, flat::FlatMessage}};
+use taosx_ipc::{
+    prelude::*,
+    stream::{flat::FlatMessage, point::PointMessage},
+};
 
 // #[instrument(skip_all)]
 async fn ipc_tcp_read(
@@ -35,6 +44,7 @@ async fn ipc_tcp_read(
             Ok(())
         },
         done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config) => {
+            log::info!("IPC stopped");
             done
         }
     }
@@ -56,6 +66,7 @@ async fn ipc_unix_read(
 // #[instrument(skip(taos, record, names, marks))]
 async fn consume_lush_record(
     taos: &Taos,
+    stmt: &mut Stmt,
     record: LushMessage,
     names: &str,
     marks: &str,
@@ -70,8 +81,6 @@ async fn consume_lush_record(
             }
         }
         LushMessage::Insert(record) => {
-            let mut stmt = Stmt::init(&taos)?;
-            info!("init stmt");
             let sql = format!("insert into ? ({names}) values({marks})");
             info!("prepare with sql: {sql}");
             stmt.prepare(&sql)?;
@@ -113,14 +122,13 @@ async fn consume_lush_record(
 }
 
 async fn consume_point_record(
-    taos: &Taos,
+    stmt: &mut Stmt,
     record: &PointMessage,
     count: &mut usize,
     config: &OpcTableConfig,
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
-        let mut stmt = Stmt::init(&taos)?;
         // process id, ts, value
         let schema = message.schema();
         let id_index = schema.index_of("id")?;
@@ -152,8 +160,18 @@ async fn consume_point_record(
             stmt.bind(&new_cv_vec.as_slice())
                 .context("STMT binding error")?;
             stmt.add_batch().context("STMT adding batch error")?;
-            let n = stmt.execute().context("STMT executing error")?;
-            *count += n;
+            let res = stmt.execute();
+            match res {
+                Ok(n) => *count += n,
+                Err(err) => {
+                    let block = RawBlock::parse_from_raw_block(
+                        views_to_raw_block(&new_cv_vec),
+                        taos::Precision::Millisecond,
+                    );
+                    let block = block.pretty_format();
+                    log::error!("execute error, {}, data: {}", err.to_string(), block);
+                }
+            }
         }
     }
     Ok(())
@@ -166,7 +184,7 @@ async fn consume_flat_record(
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
-        let mut stmt = Stmt::init(&taos)?;
+        // let mut stmt = Stmt::init(&taos)?;
         // process id, ts, value
         dbg!(&cv_vec);
         // TODO transfer to transformer
@@ -183,6 +201,7 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
     let columns = ipc_reader.columns();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
+    let mut stmt = Stmt::init(taos)?;
 
     let mut count = 0;
 
@@ -192,7 +211,7 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_lush_record(&taos, record, &names, &marks, &mut count).await?;
+            consume_lush_record(&taos, &mut stmt, record, &names, &marks, &mut count).await?;
             ipc_ack_writer.write_ok()?;
         }
     }
@@ -208,13 +227,14 @@ async fn ipc_point_reader<R: Read, W: Write>(
     config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
+    let mut stmt = Stmt::init(taos)?;
     for record in ipc_reader {
         if let Ok(record) = record {
             let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_point_record(&taos, &record, &mut count, config.as_ref().unwrap()).await?;
+            consume_point_record(&mut stmt, &record, &mut count, config.as_ref().unwrap()).await?;
 
             ipc_ack_writer.write_ok()?;
         }
@@ -235,7 +255,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_flat_record(&taos, &record, &mut count, ).await?;
+            consume_flat_record(&taos, &record, &mut count).await?;
 
             ipc_ack_writer.write_ok()?;
         }
@@ -258,12 +278,18 @@ async fn ipc_process<R: Read, W: Write>(
     let stream_type = *metadata.stream_type();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         let guard = lock.lock().await;
+        let max_retries = 10;
+        let mut i = 0;
         loop {
             info!("[{client}] {sql}");
             // rt.block_on(taos.exec(&sql))?;
             let res = taos.exec(&sql).await;
             if let Err(err) = res {
                 tracing::error!("Query error with {sql}: {err:?}");
+                i += 1;
+                if i > max_retries {
+                    break;
+                }
             } else {
                 break;
             }
@@ -272,7 +298,7 @@ async fn ipc_process<R: Read, W: Write>(
     }
     match stream_type {
         StreamType::Line => todo!(),
-        StreamType::Flat => ipc_flat_stream_reader(&taos, ipc_reader, ipc_ack_writer,).await?,
+        StreamType::Flat => ipc_flat_stream_reader(&taos, ipc_reader, ipc_ack_writer).await?,
         StreamType::Lush => ipc_lush_stream_reader(&taos, ipc_reader, ipc_ack_writer).await?,
         StreamType::Point => ipc_point_reader(&taos, ipc_reader, ipc_ack_writer, config).await?,
     }
@@ -342,6 +368,11 @@ pub fn listen_tcp_socket(
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(16)
+        .thread_name_fn(|| {
+            static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
+            let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
+            format!("ipc-runner-{}", id)
+        })
         .build()?;
     // info!("listen on socket address: {tcp_addr}");
     let sql_lock = Arc::new(Mutex::new(()));
@@ -357,12 +388,14 @@ pub fn listen_tcp_socket(
         tracing::debug!("shutdown socket");
         closed.store(true, std::sync::atomic::Ordering::SeqCst);
         let _ = closer_socket.shutdown(std::net::Shutdown::Both);
+
         // runtime.shutdown_background();
     });
 
     std::thread::spawn(move || {
         loop {
             if closed2.load(std::sync::atomic::Ordering::SeqCst) {
+                tracing::debug!("IPC stopped");
                 break;
             }
             match socket.accept() {
@@ -374,28 +407,27 @@ pub fn listen_tcp_socket(
                     let se = sender.clone();
                     let cancel = cancel.clone();
                     runtime.spawn(async move {
-                        let res = ipc_tcp_read(
-                            addr.as_socket_ipv4().unwrap().to_string(),
-                            pool,
-                            stream,
-                            lock,
-                            config,
-                            cancel,
-                        )
-                        .await;
+                        let client = addr.as_socket_ipv4().unwrap().to_string();
+                        let res =
+                            ipc_tcp_read(client.to_string(), pool, stream, lock, config, cancel)
+                                .await;
                         if let Err(err) = res {
                             // panic!("{err:?}");
                             log::error!("ipc read err: {}", err);
                             let _ = se.send(err.to_string()).await;
+                        } else {
+                            log::info!("IPC reader stopped for client {client}",);
                         }
                     });
                 }
                 Err(e) => {
                     /* connection failed */
                     tracing::debug!("IPC stream acceptation error {e}, might be stopped");
+                    break;
                 }
             }
         }
+        log::info!("IPC stream listener stopped");
     });
 
     Ok(closer)

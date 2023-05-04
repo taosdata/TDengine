@@ -19,7 +19,7 @@ use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
 
-use crate::{legacy::scheduler::Todo, utils::is_available_enterprise_edition, Action};
+use crate::{legacy::scheduler::Todo, Action};
 
 use self::scheduler::Scheduler;
 
@@ -1628,8 +1628,8 @@ pub async fn legacy_to_taos(
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !is_available_enterprise_edition(&from_builder).await
-        && !is_available_enterprise_edition(&to_builder).await
+    if !from_builder.is_enterprise_edition().await?
+        && !to_builder.is_enterprise_edition().await?
     {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"os/signal"
 	"strings"
 	"sync"
@@ -179,10 +178,18 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 		ticker := time.NewTicker(r.interval)
+		checkConnTicker := time.NewTicker(10 * time.Second)
+
 		defer ticker.Stop()
+		defer checkConnTicker.Stop()
 
 		for {
 			select {
+			case <-checkConnTicker.C:
+				if !r.OpcConnected() {
+					log.Println("## opc ua connection is not alive")
+					return
+				}
 			case <-r.done:
 				return
 			case <-notifyCtx.Done():
@@ -191,12 +198,7 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 				values, err := r.readValue(ctx)
 				if err != nil {
 					log.Println("## read metric error ", err)
-					os.Exit(2)
-				}
-
-				if r.debug {
-					j, _ := json.Marshal(values)
-					log.Println("## read opc ua metric", string(j))
+					continue
 				}
 
 				for _, value := range values {
@@ -231,13 +233,8 @@ func (r *reader) readValue(ctx context.Context) ([]*common.NodeValue, error) {
 			continue
 		}
 
-		var ts time.Time
-		if !value.SourceTimestamp.IsZero() {
-			ts = value.SourceTimestamp
-		} else if !value.ServerTimestamp.IsZero() {
-			ts = value.ServerTimestamp
-		} else {
-			ts = time.Now()
+		if r.debug {
+			log.Printf("## read opc ua value [%v] type [%v]", value.Value.Value(), value.Value.Type())
 		}
 
 		if err = r.checkValueType(identifier, value, r.nodeTypes[i]); err != nil {
@@ -246,13 +243,134 @@ func (r *reader) readValue(ctx context.Context) ([]*common.NodeValue, error) {
 
 		values = append(values, &common.NodeValue{
 			Identifier: identifier,
-			Timestamp:  ts,
+			Timestamp:  time.Now(), // TD-23826, ts for read mod is time.Now()
 			Value:      value.Value.Value(),
 			ValueType:  r.nodeTypes[i],
 		})
 	}
 
 	return values, nil
+}
+
+func (r *reader) subscribe(ctx context.Context) (<-chan *common.NodeValue, error) {
+	if err := r.collectConfig.Validate(); err != nil { // check collect config before collect
+		return nil, fmt.Errorf("validate reader collectConfig fail. %v", err)
+	}
+	if err := r.ensureConnected(ctx); err != nil {
+		return nil, err
+	}
+
+	sub, subscribeCh, err := r.subscribeNodes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("subscribe nodes failed: %w", err)
+	}
+
+	ch := make(chan *common.NodeValue, len(r.nodes))
+	go func() {
+		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+
+		defer close(ch)
+		defer func() {
+			if sub == nil {
+				return
+			}
+			cancelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			_ = sub.Cancel(cancelCtx)
+
+			log.Println("## cancel subscription")
+		}()
+
+		checkConnTicker := time.NewTicker(10 * time.Second)
+		defer checkConnTicker.Stop()
+
+		for {
+			select {
+			case <-checkConnTicker.C:
+				if !r.OpcConnected() {
+					log.Println("## opc ua connection is not alive")
+					return
+				}
+			case <-r.done:
+				return
+			case <-notifyCtx.Done():
+				return
+			case value, ok := <-subscribeCh:
+				if !ok {
+					continue
+				}
+
+				if value.Error != nil {
+					log.Println("## subscribe error", value.Error)
+					continue
+				}
+
+				v, ok := value.Value.(*ua.DataChangeNotification)
+				if !ok {
+					log.Printf("what's this publish result? %#v", value)
+					continue
+				}
+				if r.debug {
+					j, _ := json.Marshal(v)
+					log.Println("## subscribe from opc ua", string(j))
+				}
+				for _, item := range v.MonitoredItems {
+					var ts time.Time
+					if !item.Value.SourceTimestamp.IsZero() {
+						ts = item.Value.SourceTimestamp
+					} else if !item.Value.ServerTimestamp.IsZero() {
+						ts = item.Value.ServerTimestamp
+					} else {
+						ts = time.Now()
+					}
+
+					if uint64(item.ClientHandle) > uint64(len(r.nodes)) {
+						continue
+					}
+
+					ch <- &common.NodeValue{
+						Identifier: r.nodes[item.ClientHandle].String(),
+						Timestamp:  ts,
+						Value:      item.Value.Value.Value(),
+						ValueType:  r.nodeTypes[item.ClientHandle],
+					}
+				}
+			}
+		}
+
+	}()
+
+	return ch, nil
+}
+
+func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, ch chan *opcua.PublishNotificationData, err error) {
+	ch = make(chan *opcua.PublishNotificationData, 1)
+	sub, err = r.client.SubscribeWithContext(ctx, &opcua.SubscriptionParameters{}, ch)
+	if err != nil {
+		log.Println("## subscribe failed ", err)
+		return nil, nil, fmt.Errorf("subscribe failed: %w", err)
+	}
+
+	for i, node := range r.nodes {
+		res, err := sub.Monitor(ua.TimestampsToReturnBoth, opcua.NewMonitoredItemCreateRequestWithDefaults(node,
+			ua.AttributeIDValue, uint32(i)))
+		if err != nil {
+			log.Println("## subscribe monitor failed ", err)
+			return nil, nil, fmt.Errorf("subscribe monitor failed: %w", err)
+		}
+
+		for _, r := range res.Results {
+			if r.StatusCode != ua.StatusOK {
+				log.Println("## subscribe monitor status error", r.StatusCode)
+				return nil, nil, fmt.Errorf("subscribe monitor status error")
+			}
+		}
+	}
+	return
+}
+
+func (r *reader) OpcConnected() bool {
+	return r.client.State() == opcua.Connected
 }
 
 var types = map[ua.TypeID][]common.ValueType{

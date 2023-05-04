@@ -1,4 +1,7 @@
-use std::{collections::HashMap, io::prelude::*, num::ParseIntError, str::FromStr, time::Duration};
+use std::{
+    collections::HashMap, f32::consts::E, io::prelude::*, num::ParseIntError, str::FromStr,
+    time::Duration,
+};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -18,6 +21,7 @@ use crate::{
 enum OpcType {
     OPCUA,
     OPCDA,
+    FAKE,
 }
 
 impl FromStr for OpcType {
@@ -27,6 +31,7 @@ impl FromStr for OpcType {
         match s {
             "opcua" => Ok(Self::OPCUA),
             "opcda" => Ok(Self::OPCDA),
+            "fake" => Ok(Self::FAKE),
             _ => Err(s.to_string()),
         }
     }
@@ -52,11 +57,14 @@ enum OpcError {
     NodeConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
+    #[error("Parse param error from {1} while parsing parameter {0}")]
+    ParseError(&'static str, String),
 }
 
 #[derive(Debug, serde::Serialize)]
 struct OPCConfig {
     opc_type: OpcType,
+    debug: bool,
     connect: ConnectConfig,
     collect: CollectConfig,
     report: ReportConfig,
@@ -160,7 +168,7 @@ impl OPCConfig {
                     .transpose()?
             };
         }
-        let opc_type;
+        let mut opc_type;
         let connect;
         let collect;
         let mut param_mapping = HashMap::new();
@@ -237,7 +245,8 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").map_err(|s| OpcError::FileParseFound(s))?
+                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+                        .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -297,7 +306,8 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "da.tags").map_err(|s| OpcError::FileParseFound(s))?
+                    get_string_vec_from_param_or_file(&mut dsn, "da.tags")
+                        .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut da_nodes_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -331,10 +341,26 @@ impl OPCConfig {
                 // bail!("opc config has wrong protocol");
             }
         }
+        if dsn.remove("fake").is_some() {
+            opc_type = OpcType::FAKE;
+        }
         let remote = format!("127.0.0.1:{ipc_port}");
         let concurrent = parse_int_at!("concurrent");
         let batch_size = parse_int_at!("batch_size");
         let batch_timeout = parse_int_at!("batch_timeout");
+        let debug = if let Some(v) = dsn
+            .remove("debug")
+            .map(|v| {
+                v.parse::<bool>()
+                    .map_err(|err| OpcError::ParseError("debug", v))
+            })
+            .transpose()?
+        {
+            true
+        } else {
+            false
+        };
+
         let report = ReportConfig {
             remote,
             concurrent,
@@ -343,6 +369,7 @@ impl OPCConfig {
         };
         Ok(OPCConfig {
             opc_type,
+            debug,
             connect,
             collect,
             report,
@@ -352,7 +379,10 @@ impl OPCConfig {
     }
 }
 
-pub(super) fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, String> {
+pub(super) fn get_string_vec_from_param_or_file(
+    dsn: &mut Dsn,
+    key: &str,
+) -> Result<Vec<String>, String> {
     if let Some(nodes) = dsn.remove(key) {
         let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
             .split(",")
@@ -562,19 +592,17 @@ pub async fn opc_to_taos(
     //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
     // };
 
-    let mut command = async_process::Command::new(OPC_CONNECTOR_PATH);
+    let mut command = tokio::process::Command::new(OPC_CONNECTOR_PATH);
     let child = command
         .arg("collect")
         .arg(format!("--conf={}", &config_path.display()))
-        .stdout(async_process::Stdio::inherit())
-        .stderr(async_process::Stdio::inherit())
-        .spawn()
-        .context("Start OPC collector error")?;
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
     #[cfg(target_os = "linux")]
     {
         tokio::select! {
-            output = child.output() => {
-                let output = output?;
+            output = command.output() => {
+                let output = output.context("Unable to run OPC collector")?;
                 log::info!("OPC exit with status {}", output.status);
                 if !output.status.success() {
                     let _ = ipc.send(());
@@ -604,15 +632,17 @@ pub async fn opc_to_taos(
     }
     #[cfg(not(target_os = "linux"))]
     {
-        let pid = child.id();
+        let mut child = child.spawn()?;
+        let pid = child.id().unwrap();
         tokio::spawn(async move {
             tokio::select! {
-                output = child.output() => {
-                    let output = output?;
-                    log::info!("OPC exit with status {}", output.status);
-                    if !output.status.success() {
+                status = child.wait() => {
+                    let status = status?;
+                    log::info!("OPC exit with status {}", status);
+                    if !status.success() {
                         let _ = ipc.send(());
-                        anyhow::bail!("OPC error: {}", String::from_utf8_lossy(&output.stderr));
+                        anyhow::bail!("OPC exist with status {}", status);
+                        // anyhow::bail!("OPC error: {}", child.stderr.map(|err| String::from_utf8_lossy(&err) ).unwrap_or("".into()));
                     }
                 },
                 _ = tokio::signal::ctrl_c() => {
@@ -631,7 +661,8 @@ pub async fn opc_to_taos(
                 },
             };
             ipc.send(())?;
-            terminate_child_process(pid)?;
+            let _ = child.kill().await;
+            // terminate_child_process(pid)?;
             log::info!("OPC to taos task done");
             temp_path.close().unwrap();
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -813,7 +844,8 @@ batch_timeout = 100
 #[tokio::test]
 async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").map_err(|s| OpcError::FileParseFound(s))?;
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+        .map_err(|s| OpcError::FileParseFound(s))?;
     assert_eq!(
         vec_string,
         vec![
@@ -822,7 +854,8 @@ async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
         ]
     );
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").map_err(|s| OpcError::FileParseFound(s))?;
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+        .map_err(|s| OpcError::FileParseFound(s))?;
     assert_eq!(
         vec_string,
         vec![

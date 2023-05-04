@@ -13,6 +13,10 @@ using TDPIConnector.PI.Exceptions;
 
 namespace TDPIConnector.PI
 {
+    public class DateTimeWrapper
+    {
+        public DateTime Value { get; set; }
+    }
     public class PISystemManager : IDisposable
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
@@ -135,103 +139,83 @@ namespace TDPIConnector.PI
             }
         }
 
-        public static async Task<List<AFValueWrapper>> GetPIPointRecordedValuesByCountForward(PIPointWrapper piPoint, DateTime startTime, int count)
+        public static async Task<List<AFValueWrapper>> GetPIPointRecordedValuesByCountForward(PIPointWrapper piPoint, DateTimeWrapper startTime, int count)
         {
-            DateTime currentDateTime = startTime;
             List<AFValueWrapper> valuesWrapper = new List<AFValueWrapper>();
-            do
+            AFValues values = await piPoint.AFSDKObject.RecordedValuesByCountAsync(
+                new AFTime(startTime.Value),
+                count,
+                true,
+                OSIsoft.AF.Data.AFBoundaryType.Inside,
+                string.Empty,
+                true);
+
+            foreach (AFValue val in values)
             {
-                AFValues values = await piPoint.AFSDKObject.RecordedValuesByCountAsync(
-                    new AFTime(currentDateTime),
-                    count,
-                    true,
-                    OSIsoft.AF.Data.AFBoundaryType.Inside,
-                    string.Empty,
-                    true);
+                valuesWrapper.Add(new AFValueWrapper(val));
+            }
 
-
-
-                foreach (AFValue val in values)
-                {
-                    valuesWrapper.Add(new AFValueWrapper(val));
-                }
-
-
-                if (values.Count == 0)
-                {
-                    currentDateTime = DateTime.MaxValue;
-                }
-                else
-                {
-                    currentDateTime = values.ToArray().ToList().Last().Timestamp.LocalTime.AddMilliseconds(1);
-                }
-            } while (currentDateTime != DateTime.MaxValue);
+            if (values.Count == 0)
+            {
+            startTime.Value = DateTime.MaxValue;
+            }
+            else
+            {
+                startTime.Value = values.ToArray().ToList().Last().Timestamp.LocalTime.AddMilliseconds(1);
+            }
             return valuesWrapper;
         }
 
-        public static List<AFValueWrapper> GetPIPointRecordedValues(PIPointWrapper piPoint, DateTime startTime, DateTime endTime, int count)
+        public static List<AFValueWrapper> GetPIPointRecordedValues(PIPointWrapper piPoint, ref DateTime startTime, DateTime endTime, int count)
         {
-            DateTime currentDateTime = startTime;
             List<AFValueWrapper> valuesWrapper = new List<AFValueWrapper>();
-            do
-            {
                 AFValues values = piPoint.AFSDKObject.RecordedValues(
-                    new AFTimeRange(currentDateTime, endTime),
+                    new AFTimeRange(startTime, endTime),
                     OSIsoft.AF.Data.AFBoundaryType.Inside,
                     string.Empty,
                     true, count);
 
+            foreach (AFValue val in values)
+            {
+                valuesWrapper.Add(new AFValueWrapper(val));
+            }
 
 
-                foreach (AFValue val in values)
-                {
-                    valuesWrapper.Add(new AFValueWrapper(val));
-                }
-
-
-                if (values.Count == 0)
-                {
-                    currentDateTime = DateTime.MaxValue;
-                }
-                else
-                {
-                    currentDateTime = values.ToArray().ToList().Last().Timestamp.LocalTime.AddMilliseconds(1);
-                }
-            } while (currentDateTime != DateTime.MaxValue);
+            if (values.Count == 0)
+            {
+                startTime = DateTime.MaxValue;
+            }
+            else
+            {
+            startTime = values.ToArray().ToList().Last().Timestamp.LocalTime.AddMilliseconds(1);
+            }
             return valuesWrapper;
         }
 
-        public static async Task<List<AFValueWrapper>> GetPIPointRecordedValuesByCountReverse(PIPointWrapper piPoint, DateTime startTime, int count)
+        public static async Task<List<AFValueWrapper>> GetPIPointRecordedValuesByCountReverse(PIPointWrapper piPoint, DateTimeWrapper startTime, int count)
         {
-            DateTime currentDateTime = startTime;
             List<AFValueWrapper> valuesWrapper = new List<AFValueWrapper>();
-            do
+            AFValues values = await piPoint.AFSDKObject.RecordedValuesByCountAsync(
+                new AFTime(startTime.Value),
+                count,
+                false,
+                AFBoundaryType.Inside,
+                string.Empty,
+                true);
+
+            foreach (AFValue val in values)
             {
-                AFValues values = await piPoint.AFSDKObject.RecordedValuesByCountAsync(
-                    new AFTime(currentDateTime),
-                    count,
-                    false,
-                    AFBoundaryType.Inside,
-                    string.Empty,
-                    true);
+                valuesWrapper.Add(new AFValueWrapper(val));
+            }
 
-
-
-                foreach (AFValue val in values)
-                {
-                    valuesWrapper.Add(new AFValueWrapper(val));
-                }
-
-
-                if (values.Count == 0)
-                {
-                    currentDateTime = DateTime.MinValue;
-                }
-                else
-                {
-                    currentDateTime = values.ToArray().ToList().Last().Timestamp.LocalTime.AddMilliseconds(-1);
-                }
-            } while (currentDateTime != DateTime.MinValue);
+            if (values.Count == 0)
+            {
+                startTime.Value = DateTime.MinValue;
+            }
+            else
+            {
+                startTime.Value = values.ToArray().ToList().Last().Timestamp.LocalTime.AddMilliseconds(-1);
+            }
             return valuesWrapper;
         }
 
