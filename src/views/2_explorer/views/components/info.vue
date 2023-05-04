@@ -10,7 +10,7 @@
           >
             {{ infoData[item] }}
           </el-form-item>
-          <el-form-item v-if="infoType !== 'database'" label="tags:">
+          <el-form-item v-if="infoType !== 'database'" :label="infoData.stable_name?'tags:':'columns:'">
             <el-table
               tooltip-effect="light"
               style="width: 80%"
@@ -24,9 +24,10 @@
                 prop="name"
               >
               </el-table-column>
+              
               <el-table-column
                 :show-overflow-tooltip="true"
-                label="type"
+                :label="infoType=='stable'?'type':(infoData.stable_name?'value':'type')"
                 prop="value"
                 :width="infoType == 'stable' ? 100 : 150"
               >
@@ -148,14 +149,26 @@ export default {
     },
     //普通表没有tag
     async getTableStruct() {
-      let tags = await getMatrixStructReq({
+      let result = (await getMatrixStructReq({
         selected_db: this.infoData.parent.split(".")[0],
         selected_tb: this.infoData.name,
-      });
+      }));
+      let tags=[]
+      if(this.infoData.stable_name){
+        tags=result.filter((item) => item.typeName == "tag")
+      }else{
+        tags=result
+      }
+      let data = await getTagValue(
+        tags.map((item) => ({ field: item.name })) || [],
+        ...this.infoData.parent.split("."),
+        this.infoData.name
+      ).catch(() => []);
       this.tags = tags.map((item) => {
-        item.value = item.dataType;
+        item.value = data[0]?data[0][item.name]:item['dataType'];
         return item;
       });
+
     },
   },
 };

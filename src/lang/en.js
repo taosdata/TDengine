@@ -10,6 +10,7 @@ export default {
   enableagent:'Enable Agent',
   warning:'Warning',
   ok:'OK',
+  changepwdtip:'Password is successfully changed, please log in again',
   systemTitle: "TDengine Management system",
   copyright:'Copyright (c) 2022 by TDengine, All Rights Reserved.',
   sqlPreview: "SQL Preview",

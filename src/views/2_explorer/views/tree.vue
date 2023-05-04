@@ -243,7 +243,6 @@ export default {
       if (all) {
         let columns = [];
         let db = "";
-
         if (data.typeName === "stable") {
           db = data.parent.split(".")[0];
           let sdata = await getStableStructReq({

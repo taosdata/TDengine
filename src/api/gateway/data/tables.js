@@ -72,15 +72,22 @@ export function getTagValue(tags, database, stable_name, table_name) {
  if(stable_name){
   sql+=`.`+`\`${stable_name}\``
  }
-//  sql+=`  where tbname='${table_name}';`
+ sql+=`  where tbname='${table_name}';`
   return sendSQLReq(
      sql
   )
     .then(data => {
-      let result = data?.[0] || {};
-      Object.keys(result).forEach(key => {
-        result[key] = result[key] + "";
-      });
+      //  = data.data?.[0] || {};
+       let result=data.data?.[0]? data.data.map((db) => {
+        return Object.fromEntries(
+          data.column_meta.map((item, index) => {
+            return [item[0], db[index]];
+          })
+        );
+      }):{};
+      // Object.keys(result).forEach(key => {
+      //   result[key] = result[key] + "";
+      // });
       return result;
     })
     .catch(err => {
