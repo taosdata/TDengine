@@ -6,6 +6,7 @@ mod transform;
 
 mod runners;
 
+use actix_web::web::Json;
 use anyhow::bail;
 use futures::TryStreamExt;
 pub use runners::opc::opc_to_taos;
@@ -26,10 +27,32 @@ pub struct DataSet {
     category: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     r#type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    options: Option<Vec<OptionSet>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    format: Option<String>,
 }
 
-pub async fn list_datasets_from(from: impl IntoDsn) -> anyhow::Result<Vec<DataSet>> {
-    let from = from.into_dsn()?;
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct OptionSet {
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    required: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DataSetsReq {
+    from: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pattern: Option<String>,
+    categories: Vec<String>,
+    offset: usize,
+    limit: usize,
+}
+
+pub async fn list_datasets_from(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet>> {
+    let from = data.from.clone().into_dsn()?;
     match from.driver.as_str() {
         "tmq" => {
             // get tmq list
@@ -43,6 +66,8 @@ pub async fn list_datasets_from(from: impl IntoDsn) -> anyhow::Result<Vec<DataSe
                     name: None,
                     category: Some("topic".to_string()),
                     r#type: None,
+                    options: None,
+                    format: None,
                 })
                 .try_collect()
                 .await?;
@@ -55,6 +80,8 @@ pub async fn list_datasets_from(from: impl IntoDsn) -> anyhow::Result<Vec<DataSe
                     name: None,
                     category: Some("database".to_string()),
                     r#type: None,
+                    options: None,
+                    format: None,
                 })
                 .try_collect()
                 .await?;
@@ -64,7 +91,7 @@ pub async fn list_datasets_from(from: impl IntoDsn) -> anyhow::Result<Vec<DataSe
         }
         "pi" => {
             // pi
-            return pi_datasets(&from).await;
+            return pi_datasets(data).await;
         }
         "opc" => {
             // opc

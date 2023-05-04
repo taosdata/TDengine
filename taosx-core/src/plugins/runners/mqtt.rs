@@ -56,9 +56,9 @@ impl MqttConfig {
         } else {
             1883
         };
-        let ca = get_string_from_param_or_file(&mut dsn, "ca", true).map_err(|s| MqttConfigError::CAConfigReadError(s))?;
-        let cert = get_string_from_param_or_file(&mut dsn, "cert", true).map_err(|s| MqttConfigError::CAConfigReadError(s))?;
-        let cert_key = get_string_from_param_or_file(&mut dsn, "cert_key", true).map_err(|s| MqttConfigError::CAConfigReadError(s))?;
+        let ca = get_string_from_param_or_file(&mut dsn, "ca", true, None).map_err(|s| MqttConfigError::CAConfigReadError(s))?;
+        let cert = get_string_from_param_or_file(&mut dsn, "cert", true, None).map_err(|s| MqttConfigError::CAConfigReadError(s))?;
+        let cert_key = get_string_from_param_or_file(&mut dsn, "cert_key", true, None).map_err(|s| MqttConfigError::CAConfigReadError(s))?;
         let address = if ca.is_some() {
             format!("ssl://{host}:{port}")
         } else {
@@ -133,7 +133,12 @@ pub async fn mqtt_to_taos(
     Ok(())
 }
 
-fn get_string_from_param_or_file(dsn: &mut Dsn, key: &str, line_break: bool) -> Result<Option<String>, String> {
+/// get string value from dsn's key  
+/// 
+/// line_break: push \n between lines if is true  
+/// 
+/// append_line: push append_line between lines if is not None  
+pub(super) fn get_string_from_param_or_file(dsn: &mut Dsn, key: &str, line_break: bool, append_line: Option<&str>) -> Result<Option<String>, String> {
     if let Some(value) = dsn.remove(key) {
         let (files, config): (Vec<_>, Vec<_>) = value
             .split(",")
@@ -143,8 +148,11 @@ fn get_string_from_param_or_file(dsn: &mut Dsn, key: &str, line_break: bool) -> 
             .partition(|v| v.starts_with("@"));
         let mut result = String::new();
         for config_str in config {
-            if line_break {
+            if line_break && !result.is_empty() {
                 result.push_str("\n");
+            }
+            if append_line.is_some() && !result.is_empty() {
+                result.push_str(append_line.unwrap());
             }
             result.push_str(&config_str);
         }
@@ -154,11 +162,13 @@ fn get_string_from_param_or_file(dsn: &mut Dsn, key: &str, line_break: bool) -> 
                 return Err("file read error".to_string());
             }
             let buf = std::io::BufReader::new(f.unwrap());
-            // buf.read_line(&mut result);
             let file_data = buf.lines().collect_vec();
             file_data.iter().filter_map(|r| r.as_ref().ok()).for_each(|v| {
-                if line_break {
+                if line_break && !result.is_empty() {
                     result.push_str("\n");
+                }
+                if append_line.is_some() && !result.is_empty() {
+                    result.push_str(append_line.unwrap());
                 }
                 result.push_str(v.as_str());
             });
@@ -221,9 +231,8 @@ MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
     let mut dsn = format!("mqtt:///?ca=123,456,@{},@{}", &config_path.display(), &config_path.display()).into_dsn()?;
-    let result = get_string_from_param_or_file(&mut dsn, "ca", true).unwrap().unwrap();
-    assert_eq!("
-123
+    let result = get_string_from_param_or_file(&mut dsn, "ca", true, None).unwrap().unwrap();
+    assert_eq!("123
 456
 -----BEGIN CERTIFICATE-----
 MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
@@ -231,6 +240,14 @@ MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
 -----BEGIN CERTIFICATE-----
 MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
 -----END CERTIFICATE-----", result);
+
+    let mut dsn = format!("mqtt:///?ca=123,456,@{},@{}", &config_path.display(), &config_path.display()).into_dsn()?;
+    let result = get_string_from_param_or_file(&mut dsn, "ca", false, None).unwrap().unwrap();
+    assert_eq!("123456-----BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE----------BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE-----", result);
+
+    let mut dsn = format!("mqtt:///?ca=123,456,@{},@{}", &config_path.display(), &config_path.display()).into_dsn()?;
+    let result = get_string_from_param_or_file(&mut dsn, "ca", false, Some(",")).unwrap().unwrap();
+    assert_eq!("123,456,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----", result);
     temp_path.close()?;
     Ok(())
 }

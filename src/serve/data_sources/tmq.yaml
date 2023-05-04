@@ -90,7 +90,8 @@ groups:
             - latest
       - name: timeout
         display: Timeout
-        hint: timeout
+        hint: 
+          type: timeout
         description: |
           A timeout for polling data from the topic.
 

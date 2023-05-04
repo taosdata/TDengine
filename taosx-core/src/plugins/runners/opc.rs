@@ -762,6 +762,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     );
     let config = OPCConfig {
         opc_type: OpcType::OPCUA,
+        debug: true,
         connect: ConnectConfig {
             ua: Some(UaConnectConfig {
                 endpoint: String::from("endpoint.123"),
@@ -807,6 +808,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     let toml = toml::to_string(&config)?;
     assert_eq!(
         r#"opc_type = "opcua"
+debug = true
 
 [connect.ua]
 endpoint = "endpoint.123"
