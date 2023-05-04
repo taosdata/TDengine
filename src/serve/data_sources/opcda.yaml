@@ -38,13 +38,15 @@ groups:
       - name: nodes
         display: DA Nodes
         description: A OPC DA node list separated by ','.
-        hint: str
+        hint:
+          type: str
         placeholder: localhost
       - name: da.tags
         display: DA Tags
         description: A OPC DA tags list separated by ','.
         placeholder: ns=2;i=2, ns=2;i=3
-        hint: str
+        hint:
+          type: str
 
   - name: Connection
     display_order: 2
@@ -55,11 +57,13 @@ groups:
         description: |-
           Timeout for connect to endpoint in seconds.
         placeholder: 10
-        hint: integer
+        hint:
+          type: integer
 
       - name: request_timeout
         display: Request Timeout
-        hint: integer
+        hint:
+          type: integer
         description: Timeout for a request in seconds.
         placeholder: 10
 
@@ -74,11 +78,13 @@ groups:
           type: integer
       - name: batch_size
         display: Batch Size
-        hint: integer
+        hint: 
+          type: integer
         description: Max batch size for each record batch while reporting to target.
         placeholder: 100
       - name: batch_timeout
         display: Batch Timeout
-        hint: integer
+        hint:
+          type: integer
         description: Reporting timeout for a batch in seconds.
         placeholder: 20

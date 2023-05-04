@@ -29,13 +29,15 @@ groups:
       type: str
   - name: PIDataPipesInstances
     display: PI Data Pipes Instances
-    hint: integer
+    hint: 
+      type: integer
     description: |
       Default 1.
     placeholder: 1
   - name: AFDataPipesInstances
     display: AF Data Pipes Instances
-    hint: integer
+    hint: 
+      type: integer
     description: |
       Default 1.
     placeholder: 1
@@ -50,14 +52,20 @@ groups:
       Message Wait queue max length
     hint:
       type: integer
+      min: 1
+      max: 10000
   - name: UpdateInterval
     display: Update Interval (in ms)
-    hint: integer
+    hint: 
+      type: integer
+      min: 100
+      max: 60000
     description: Pull Data from PI System Interval in `ms`.
     placeholder: 10000
   - name: MaxBackfillRangeDays
     display: Max Backfill Range(in days)
-    hint: integer
+    hint: 
+      type: integer
     description: Max backfill time range in days.
     placeholder: 1
 

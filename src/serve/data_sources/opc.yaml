@@ -80,11 +80,13 @@ authentication:
         - name: certificate
           display: Certificate
           description: Path to cert.pem. Required when security mode or policy isn't "None".
-          hint: file
+          hint: 
+            type: file
         - name: private_key
           display: Private key
           description: Path to private key.pem. Required when security mode or policy isn't "None"
-          hint: file
+          hint: 
+            type: file
         - name: security_mode
           display: Security Mode
           description: |
@@ -120,20 +122,23 @@ groups:
         display: Nodes
         description: Node id list separated by a ','.
         placeholder: ns=2;i=2, ns=2;i=3
-        hint: str
+        hint: 
+          type: str
         if: protocol.ua
 
       - name: nodes
         display: DA Nodes
         description: A OPC DA node list separated by ','.
-        hint: str
+        hint: 
+          type: str
         placeholder: localhost
         if: protocol.da
       - name: da.tags
         display: DA Tags
         description: A OPC DA tags list separated by ','.
         placeholder: ns=2;i=2, ns=2;i=3
-        hint: str
+        hint:
+          type: str
         if: protocol.da
 
   - name: Connection
@@ -145,11 +150,13 @@ groups:
         description: |-
           Timeout for connect to endpoint in seconds.
         placeholder: 10
-        hint: integer
+        hint:
+          type: integer
 
       - name: request_timeout
         display: Request Timeout
-        hint: integer
+        hint:
+          type: integer
         description: Timeout for a request in seconds.
         placeholder: 10
 
@@ -164,11 +171,13 @@ groups:
           type: integer
       - name: batch_size
         display: Batch Size
-        hint: integer
+        hint:
+          type: integer
         description: Max batch size for each record batch while reporting to target.
         placeholder: 100
       - name: batch_timeout
         display: Batch Timeout
-        hint: integer
+        hint:
+          type: integer
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
