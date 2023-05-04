@@ -306,7 +306,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
         SMqConsumerLostMsg *pLostMsg = rpcMallocCont(sizeof(SMqConsumerLostMsg));
         if (pLostMsg == NULL) {
           mError("consumer:0x%"PRIx64" failed to transfer consumer status to lost due to out of memory. alloc size:%d",
-              pConsumer->consumerId, sizeof(SMqConsumerLostMsg));
+              pConsumer->consumerId, (int32_t)sizeof(SMqConsumerLostMsg));
           continue;
         }
 
