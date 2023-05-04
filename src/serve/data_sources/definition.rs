@@ -184,15 +184,18 @@ pub struct DatasetParam {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target: Option<Target>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub params: Option<Param>,
+    pub param: Option<Param>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
 pub struct Target {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub required: bool,
     pub multiple: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode)]
@@ -366,6 +369,22 @@ impl DataSourceDefinition {
                 if let Some(value) = dsn.remove(&param.name) {
                     if !value.is_empty() {
                         param.value.replace(value);
+                    }
+                }
+            }
+        }
+
+        if let Some(datasets) = self.datasets.as_mut() {
+            for dataset_param in datasets.categories.as_mut_slice() {
+                if let Some(target) = dataset_param.target.as_mut() {
+                    if let Some(value) = dsn.remove(target.name.clone()) {
+                        if !value.is_empty() {
+                            if target.multiple == true {
+                                target.value = Some(serde_json::Value::Array(value.split(",").into_iter().map(|v| serde_json::Value::String(v.to_string())).collect()));
+                            } else {
+                                target.value = Some(serde_json::Value::String(value));
+                            }
+                        }
                     }
                 }
             }
