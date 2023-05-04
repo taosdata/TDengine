@@ -51,13 +51,13 @@ type DaConnectConfig struct {
 
 type CollectConfig struct {
 	Interval int64           `json:"interval,omitempty" yaml:"interval" toml:"interval"`
+	Limit    int             `json:"limit,omitempty" yaml:"limit" toml:"limit"`
 	Ua       UaCollectConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
 	Da       DaCollectConfig `json:"da,omitempty" yaml:"da" toml:"da"`
 }
 
 type UaCollectConfig struct {
 	CollectMode string       `json:"collect_mode,omitempty" yaml:"collect_mode" toml:"collect_mode"` // collect mode, one of `read` or `subscribe`
-	Limit       int          `json:"limit,omitempty" yaml:"limit" toml:"limit"`
 	Nodes       []NodeConfig `json:"nodes,omitempty" yaml:"nodes" toml:"nodes"`
 }
 

@@ -17,10 +17,10 @@ password = "" # Required for auth_method == "UserName"
 
 [collect]
 interval = 1 # collect data interval in second for opc ua observe mode and opc da
+limit = 2 # max node for read in one request.
 
 [collect.ua]
 collect_mode = "subscribe" # observe or subscribe. default is observe
-limit = 2 # max node for read in one request.
 
 [[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
 id = "ns=2;i=2"

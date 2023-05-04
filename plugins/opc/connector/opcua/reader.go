@@ -86,7 +86,7 @@ func (r *reader) connect(ctx context.Context) error {
 	}
 
 	r.state = opcua.Connected
-	log.Println("## connected to opc ua server")
+	log.Printf("## create reader %p and connected to opc ua server", r)
 
 	if len(r.nodes) > 0 {
 		regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: r.nodes})
@@ -119,6 +119,9 @@ func (r *reader) stop(ctx context.Context) {
 	defer close(r.done)
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	if r.state == opcua.Disconnected {
+		return
+	}
 	if err := r.client.CloseWithContext(ctx); err != nil {
 		log.Println("## close opc ua connection error", err)
 	}
@@ -172,7 +175,7 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 		for {
 			select {
 			case <-checkConnTicker.C:
-				if !r.OpcConnected() {
+				if r.state == opcua.Connected && !r.OpcConnected() {
 					log.Println("## opc ua connection is not alive")
 					return
 				}
@@ -505,7 +508,6 @@ func (r *reader) authOptions(authMode string, cert []byte, username, password st
 		return
 	}
 
-	log.Println("## unknown auth-mode, defaulting to Anonymous")
 	token = ua.UserTokenTypeAnonymous
 	option = opcua.AuthAnonymous()
 

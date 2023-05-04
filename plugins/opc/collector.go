@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -23,8 +25,8 @@ func main() {
 	collectConfigPath := coll.String("conf", "", "use --conf to set config path")
 
 	if len(os.Args) < 2 {
-		log.Printf("## param error %v", os.Args[1:])
-		os.Exit(1)
+		log.Panicf("## param error %v", os.Args[1:])
+		return
 	}
 
 	switch os.Args[1] {
@@ -37,31 +39,31 @@ func main() {
 	case "version":
 		showVersion()
 	default:
-		log.Printf("## unknown command %s ", os.Args[1])
-		os.Exit(1)
+		log.Panicf("## unknown command %s ", os.Args[1])
+		return
 	}
 }
 
 func getAllNodes(ctx context.Context, configPath *string) {
 	if configPath == nil || len(*configPath) == 0 {
-		log.Println("## config file is null")
-		os.Exit(1)
+		log.Panicf("## config file is null")
+		return
 	}
 	config, err := common.ParseConfig(*configPath)
 	if err != nil {
-		log.Println("## parse config file error ", err)
-		os.Exit(1)
+		log.Panic("## parse config file error ", err)
+		return
 	}
 	pointer, err := worker.NewOpcPointer(config)
 	if err != nil {
-		log.Println("## new opc pointer error ", err)
-		os.Exit(1)
+		log.Panic("## new opc pointer error ", err)
+		return
 	}
 	defer pointer.Exist(ctx)
 	points, err := pointer.GetAllPoints(ctx)
 	if err != nil {
-		log.Println("## get all pointer error ", err)
-		os.Exit(1)
+		log.Panic("## get all pointer error ", err)
+		return
 	}
 	j, _ := json.Marshal(points)
 	fmt.Println(string(j))
@@ -69,24 +71,33 @@ func getAllNodes(ctx context.Context, configPath *string) {
 
 func collect(ctx context.Context, configPath *string) {
 	if configPath == nil || len(*configPath) == 0 {
-		log.Println("## config file is null")
-		os.Exit(1)
+		log.Panic("## config file is null")
+		return
 	}
 	config, err := common.ParseConfig(*configPath)
 	if err != nil {
-		log.Println("## parse config file error ", err)
-		os.Exit(1)
+		log.Panic("## parse config file error ", err)
+		return
 	}
 	collector, err := worker.NewCollector(ctx, config)
 	if err != nil {
-		log.Println("## new opc collector error ", err)
-		os.Exit(1)
+		log.Panic("## new opc collector error ", err)
+		return
 	}
 	defer collector.Stop(ctx)
+	go func() {
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+		if _, ok := <-ch; ok {
+			log.Println("## receive stop signal, stop collect opc data")
+			collector.Stop(ctx)
+			return
+		}
+	}()
 	err = collector.Collect(ctx)
 	if err != nil {
-		log.Println("## collect opc data error ", err)
-		os.Exit(1)
+		log.Panic("## collect opc data error ", err)
+		return
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 type UaConnector struct {
@@ -32,17 +33,14 @@ func NewConnector(config common.Config) (connector.Connector, error) {
 		return nil, err
 	}
 
-	return &UaConnector{
-		readers:     readers,
-		collectMode: config.Collect.Ua.CollectMode,
-		ch:          make(chan *common.NodeValue, len(config.Collect.Ua.Nodes)),
-	}, nil
+	nodeValueCh := make(chan *common.NodeValue, len(config.Collect.Ua.Nodes))
+	return &UaConnector{readers: readers, collectMode: config.Collect.Ua.CollectMode, ch: nodeValueCh}, nil
 }
 
 func createReaders(config common.Config) (readers []*reader, err error) {
-	limit := config.Collect.Ua.Limit
+	limit := config.Collect.Limit
 	nodes := config.Collect.Ua.Nodes
-	if limit >= len(nodes) { // nodes length is zero on get all points case
+	if limit >= len(nodes) { // nodes length is zero on get all points case or no limit
 		r, err := createReader(config, nodes)
 		return []*reader{r}, err
 	}
@@ -81,13 +79,18 @@ func (c *UaConnector) Connect(ctx context.Context) error {
 
 func (c *UaConnector) Stop(ctx context.Context) {
 	c.once.Do(func() {
+		defer func() {
+			c.wait.Wait()
+			time.Sleep(time.Second)
+			close(c.ch)
+		}()
+
 		if c.readers != nil {
 			for _, r := range c.readers {
 				r.stop(ctx)
 			}
 		}
 		c.readers = nil
-		close(c.ch)
 		log.Println("## opc ua connector stopped!")
 	})
 }

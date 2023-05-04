@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
 
@@ -65,6 +64,9 @@ func (r *OpcReporter) Report(ctx context.Context, valueCh <-chan *common.NodeVal
 	}
 	r.startWriting(ctx)
 	r.readValue(valueCh)
+	if r.debug {
+		log.Println("## opc reporter is done.")
+	}
 	return nil
 }
 
@@ -127,8 +129,7 @@ func (r *OpcReporter) startWriting(ctx context.Context) {
 		go func(w writer) {
 			defer r.wait.Done()
 			if err := w.write(ctx); err != nil {
-				log.Printf("## write error. %v", err)
-				os.Exit(2)
+				log.Panicf("## write error. %v", err)
 			}
 		}(w)
 	}
@@ -427,8 +428,4 @@ func appendTime(builder array.Builder, value any) error {
 	}
 	builder.(*array.TimestampBuilder).Append(arrow.Timestamp(v.UnixNano()))
 	return nil
-}
-
-func getWriterKey(routineID int, schema *arrow.Schema) string {
-	return fmt.Sprintf("%d-%s", routineID, schema.Fingerprint())
 }
