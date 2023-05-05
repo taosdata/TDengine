@@ -69,7 +69,7 @@ typedef struct SParseMetaCache {
   SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
   SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
-  SHashObj* pTableTag;     // key is tbFName, element is STagVal*
+  SHashObj* pTableTag;     // key is tbFName, element is SArray<STagVal>*
   SArray*   pDnodes;       // element is SEpSet
   bool      dnodeRequired;
 } SParseMetaCache;
@@ -95,6 +95,7 @@ int32_t       getTableTypeFromCache(SParseMetaCache* pMetaCache, char* pFName, i
 STableMeta*   tableMetaDup(const STableMeta* pTableMeta);
 int32_t       buildTagNameFromMeta(STableMeta* pMeta, SArray** pTagName);
 int32_t       checkSubtablePrivilege(SArray* pTagVals, SArray* pTagName, SNode** pCond);
+int32_t       getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName);

@@ -255,15 +255,13 @@ int32_t getTableTypeFromCache(SParseMetaCache* pMetaCache, char* pFName, int8_t*
     return TSDB_CODE_FAILED;
   }
 
-  SMetaRes* pMetaRes = taosHashGet(pMetaCache->pTableMeta, pFName, strlen(pFName));
-  if (TSDB_CODE_SUCCESS != pMetaRes->code) {
-    return pMetaRes->code;
+  STableMeta* pTableMeta = NULL;
+  int32_t     code = getMetaDataFromHash(pFName, strlen(pFName), pMetaCache->pTableMeta, (void**)&pTableMeta);
+  if (TSDB_CODE_SUCCESS == code) {
+    *tableType = pTableMeta->tableType;
   }
-
-  STableMeta* pMeta = (STableMeta*)pMetaRes->pRes;
-  *tableType = pMeta->tableType;
-
-  return TSDB_CODE_SUCCESS;
+  
+  return code;
 }
 
 int32_t buildTagNameFromMeta(STableMeta* pMeta, SArray** pTagName) {
@@ -833,7 +831,7 @@ static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pD
   return taosHashPut(*pHash, pKey, len, &pRes, POINTER_BYTES);
 }
 
-static int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput) {
+int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput) {
   SMetaRes** pRes = taosHashGet(pHash, pKey, len);
   if (NULL == pRes || NULL == *pRes) {
     return TSDB_CODE_PAR_INTERNAL_ERROR;

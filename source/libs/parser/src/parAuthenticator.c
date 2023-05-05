@@ -114,21 +114,22 @@ static int32_t checkTablePrivilege(SParseMetaCache* pMetaCache, SNode* pTagCond,
     return TSDB_CODE_FAILED;
   }
 
-  SMetaRes* pMetaRes = taosHashGet(pMetaCache->pTableMeta, pFName, strlen(pFName));
-  if (TSDB_CODE_SUCCESS != pMetaRes->code) {
-    return pMetaRes->code;
+  STableMeta* pTableMeta = NULL;
+  int32_t     code = getMetaDataFromHash(pFName, strlen(pFName), pMetaCache->pTableMeta, (void**)&pTableMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
 
-  STableMeta* pMeta = (STableMeta*)pMetaRes->pRes;
-  SMetaRes* pTagRes = taosHashGet(pMetaCache->pTableTag, pFName, strlen(pFName));
-  if (TSDB_CODE_SUCCESS != pTagRes->code) {
-    return pTagRes->code;
+  SArray* pTagVal = NULL;
+  code = getMetaDataFromHash(pFName, strlen(pFName), pMetaCache->pTableTag, (void**)&pTagVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
 
-  SArray* pTagName = NULL;
-  int32_t code = buildTagNameFromMeta(pMeta, &pTagName);
+  SArray* pTagName = NULL;  
+  code = buildTagNameFromMeta(pTableMeta, &pTagName);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkSubtablePrivilege((SArray*)pTagRes->pRes, pTagName, &pTagCond);
+    code = checkSubtablePrivilege(pTagVal, pTagName, &pTagCond);
   }
   taosArrayDestroy(pTagName);
   return code;
