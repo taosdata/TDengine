@@ -284,7 +284,7 @@ impl DataSourceDefinition {
                         if let Some(value) = dsn.subject.as_ref() {
                             subject.value.replace(value.to_string());
                         }
-                    },
+                    }
                     DataSourceOptions::Endpoint { endpoint } => {
                         let mut endpoint_str = String::new();
                         if let Some(addr) = dsn.addresses.first() {
@@ -301,7 +301,7 @@ impl DataSourceDefinition {
                             endpoint_str.push_str(value.as_str());
                         }
                         endpoint.value.replace(endpoint_str);
-                    },
+                    }
                 },
                 None => (),
             },
@@ -317,7 +317,9 @@ impl DataSourceDefinition {
                                 port: _,
                                 subject: _,
                             } => panic!("mixed path and uri type of DSN"),
-                            DataSourceOptions::Endpoint { endpoint : _ } => panic!("mixed path and uri type of DSN"),
+                            DataSourceOptions::Endpoint { endpoint: _ } => {
+                                panic!("mixed path and uri type of DSN")
+                            }
                         },
                         None => {
                             self.options.replace(DataSourceOptions::Path {
@@ -443,7 +445,6 @@ fn opc() {
     // let tmq = &mut def[0];
     let dsn = def.values_from(dsn);
     dbg!(&dsn);
-
 }
 #[test]
 fn test_values() {

@@ -19,13 +19,15 @@ mod agent;
 mod controller;
 mod data_sources;
 mod metrics;
+mod rpc;
 mod task;
-// mod rpc;
 
 use controller::*;
 use data_sources::*;
 
-use crate::serve::controller::agent::{AgentProps, AgentUpdates, Agent, AgentWithToken, AgentStatus, AgentConnectors};
+use crate::serve::controller::agent::{
+    Agent, AgentConnectors, AgentProps, AgentStatus, AgentUpdates, AgentWithToken,
+};
 
 use self::agent::{create_agent, delete_agent, get_agents, update_agent};
 #[derive(Parser, Debug)]
@@ -58,7 +60,7 @@ impl Default for Cli {
     }
 }
 
-fn configure(store: Data<TaskController>) -> impl FnOnce(&mut ServiceConfig) {
+fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) {
     |config: &mut ServiceConfig| {
         config
             .app_data(store)
@@ -160,19 +162,19 @@ impl Cli {
             "sqlite:taosx.db".to_string()
         };
 
-        let controller = TaskController::from_sqlite(&database_url)
-            .await?
-            .with_runtime(rt);
+        let controller = TaskControllerRef::from_sqlite_with_runtime(&database_url, rt).await?;
+
+        if !self.do_not_resume {
+            log::info!("resume all tasks");
+            controller.start_all_with_schedule().await?;
+        }
+
+        let rpc_controller_ref = controller.clone();
 
         let store = Data::new(controller);
 
         // let task_ctl: TaskControllerRef = store.clone().into_inner().into();
         let store_cloned = store.clone();
-        if !self.do_not_resume {
-            log::info!("resume all tasks");
-            // tokio::spawn(start_all_with_schedule(store.clone().into_inner()));
-            start_all_with_schedule(store.clone().into_inner()).await?;
-        }
         // // Make instance variable of ApiDoc so all worker threads gets the same instance.
         let openapi = ApiDoc::openapi();
 
@@ -182,6 +184,7 @@ impl Cli {
 
         let recorder = Data::new(handle);
 
+        let addr = self.listen.as_str();
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()
@@ -198,16 +201,22 @@ impl Cli {
                         .url("/api-doc/openapi.json", openapi.clone()),
                 )
         })
-        .bind(self.listen.as_str())?
+        .bind(addr)
+        .map_err(|err| anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})"))?
         .run();
+
+        let mut flight = rpc::RpcConfig::default();
 
         tokio::select! {
             _ = server => {
-                 log::info!("server stopped");
+                log::info!("server stopped");
                 // done;
             },
+            _ = flight.serve_with_controller(rpc_controller_ref) => {
+                log::info!("flight RPC service stopped");
+            }
             _ = tokio::signal::ctrl_c() => {
-                 log::info!("Ctrl+C triggered");
+                log::info!("Ctrl+C triggered");
             }
         };
         store_cloned.stop_all().await?;

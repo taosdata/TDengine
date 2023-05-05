@@ -170,6 +170,7 @@ pub async fn pi_to_taos(
     jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
+    with_agent: Option<(i64, String, String)>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: PI");
     #[cfg(not(target_os = "windows"))]
@@ -208,6 +209,7 @@ pub async fn pi_to_taos(
         sender,
         None,
         cancel.clone(),
+        with_agent,
     )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -276,7 +278,8 @@ pub async fn pi_to_taos(
         log::info!("pi task Done");
         temp_path.close().unwrap();
         Ok(())
-    }).await??;
+    })
+    .await??;
     // stop_thread(ipc);
     // let _ = ipc.send(());
     // stop_thread(server);
@@ -346,8 +349,8 @@ pub async fn pi_datasets(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet
         };
         extend_data_set(&mut dataset, &result, data.offset, data.limit);
     });
-    
-    
+
+
     temp_path.close()?;
     Ok(dataset)
 }
@@ -377,5 +380,5 @@ fn extend_data_set(dataset: &mut Vec<DataSet>, extended_vec: &Vec<DataSet>, offs
         dataset.extend_from_slice(&extended_vec[page_index..page_index + limit]);
     } else if len > page_index && len < page_index + limit {
         dataset.extend_from_slice(&extended_vec[page_index..]);
-    } 
+    }
 }

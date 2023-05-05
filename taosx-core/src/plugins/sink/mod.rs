@@ -1,6 +1,20 @@
 use anyhow::Context;
+use arrow::{
+    array::{ArrayRef, TimestampMillisecondArray},
+    datatypes::{Field, Schema, SchemaRef},
+    ipc::{reader::StreamReader, writer::IpcWriteOptions},
+    record_batch::RecordBatch,
+};
+use arrow_flight::{flight_service_client::FlightServiceClient, FlightClient, PutResult};
+use async_trait::async_trait;
+use bytes::Bytes;
+use futures::{FutureExt, Stream, TryFutureExt, TryStreamExt};
 use std::{
     any::Any,
+    cell::{RefCell, UnsafeCell},
+    collections::HashMap,
+    error::Error,
+    f32::consts::E,
     io::{Read, Write},
     net::SocketAddr,
     panic,
@@ -9,20 +23,171 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
+    task::Poll,
 };
 use taos::{
-    taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, Itertools, RawBlock,
-    Stmt, Taos, TaosPool,
+    taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, ColumnView, Dsn,
+    Itertools, RawBlock, Stmt, Taos, TaosPool,
 };
-use tokio::sync::{mpsc::Sender, Mutex};
+use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
 use tokio_util::sync::CancellationToken;
+use tonic::IntoStreamingRequest;
 use tracing::{debug, info, instrument};
 
-use super::runners::opc::OpcTableConfig;
+use crate::OPCConfig;
+
+use super::runners::opc::{opc_config_blocking, opc_config_from, OpcTableConfig};
 use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
 };
+
+// mod rpc_client;
+
+// #[derive(Debug)]
+// pub enum XMessageBatch {
+//     Tables(Vec<(String, Option<String>, Vec<(taos::Field, taos::Value)>)>),
+//     Records(Vec<(String, Vec<ColumnView>)>),
+// }
+
+#[instrument(skip(stream, cancel))]
+async fn ipc_tcp_forward(
+    client: String,
+    stream: socket2::Socket,
+    cancel: CancellationToken,
+    remote: String, // "http://127.0.0.1:6051"
+    token: String,
+    task_id: i64,
+) -> anyhow::Result<()> {
+    use arrow_flight::{
+        encode::{FlightDataEncoder, FlightDataEncoderBuilder},
+        error::FlightError,
+        FlightData,
+    };
+    use futures::StreamExt;
+    struct FakeStream(SchemaRef, tokio::time::Interval);
+
+    impl futures::Stream for FakeStream {
+        type Item = Result<RecordBatch, FlightError>;
+        fn poll_next(
+            mut self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Option<Self::Item>> {
+            // std::thread::sleep(Duration::from_millis(100));
+            match self.1.poll_tick(cx) {
+                Poll::Ready(_) => (),
+                Poll::Pending => return Poll::Pending,
+            }
+            // fut.poll_unpin(cx);
+            let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1])) as ArrayRef;
+            let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
+            log::info!("{item:?}");
+            std::task::Poll::Ready(Some(item))
+        }
+    }
+    struct Data {
+        data: FlightDataEncoder,
+    }
+    impl futures::Stream for Data {
+        type Item = FlightData;
+        fn poll_next(
+            mut self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Option<Self::Item>> {
+            self.data
+                .try_poll_next_unpin(cx)
+                .map(|u| u.transpose().unwrap())
+                .map(|u| {
+                    u.map(|mut v| {
+                        if v.app_metadata.is_empty() {
+                            v.app_metadata = Bytes::from("request");
+                            dbg!(v)
+                        } else {
+                            dbg!(v)
+                        }
+                    })
+                })
+        }
+    }
+    let ipc_reader = IpcReader::new(stream.try_clone()?)?;
+    let mut ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+
+    let schema = ipc_reader.schema.clone();
+    dbg!(&schema);
+    let (sender, receiver) = flume::bounded(5);
+
+    tokio::spawn(async move {
+        let mut batches = futures::stream::iter(ipc_reader.reader);
+        while let Some(res) = batches.next().await {
+            // dbg!(&res);
+            sender.send(res.map_err(FlightError::from)).unwrap();
+        }
+        log::error!("[task:{task_id}] stopped");
+    });
+
+    struct IpcStream {
+        receiver: flume::Receiver<Result<RecordBatch, FlightError>>,
+        marker: AtomicUsize,
+    }
+    impl IpcStream {
+        fn new(receiver: flume::Receiver<Result<RecordBatch, FlightError>>) -> Self {
+            Self {
+                receiver,
+                marker: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl futures::Stream for IpcStream {
+        type Item = Result<RecordBatch, FlightError>;
+        fn poll_next(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Option<Self::Item>> {
+            let c = self
+                .marker
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            log::info!("polled: {c} {cx:?}");
+
+            if c % 2 == 0 {
+                // todo: why this is require?
+                cx.waker().wake_by_ref();
+                return Poll::Pending;
+            }
+            let recv = self.receiver.recv();
+            dbg!(&recv);
+            // cx.waker().wake_by_ref();
+            Poll::Ready(dbg!(recv.ok()))
+        }
+    }
+
+    let data = FlightDataEncoderBuilder::new()
+        .with_schema(schema.clone())
+        .with_options(IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap())
+        .build(IpcStream::new(receiver));
+    let channel = tonic::transport::Endpoint::try_from(remote)
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    let mut client = FlightClient::new(channel);
+    let res = client
+        .handshake(Bytes::from(token.as_bytes().to_vec()))
+        .await?;
+    dbg!(res);
+    client.add_header("x-task-id", &task_id.to_string())?;
+    client.add_header("x-token", &token)?;
+    let mut stream = client.do_put(data).await.unwrap();
+
+    while let Some(res) = stream.next().await {
+        let res: PutResult = dbg!(res?);
+        dbg!(res.app_metadata);
+        ipc_ack_writer.write_ok()?;
+    }
+
+    info!("[{task_id}] Putting stream finished");
+    Ok(())
+}
 
 // #[instrument(skip_all)]
 async fn ipc_tcp_read(
@@ -88,7 +253,9 @@ async fn consume_lush_record(
             for record in record {
                 *records += record.num_rows();
                 // let data = record.to_column_views();
+                // RawBlock
                 let map_data = record.to_column_views_group_by_tablename();
+                // taos.write_raw_block()
                 // dbg!(&map_data);
                 for (k, data_vec) in &map_data {
                     let table_name = k.as_deref().or(record.table());
@@ -178,12 +345,12 @@ async fn consume_point_record(
 }
 
 async fn consume_flat_record(
-    taos: &Taos,
+    _taos: &Taos,
     record: &FlatMessage,
-    count: &mut usize,
+    _count: &mut usize,
 ) -> anyhow::Result<()> {
     for message in record.records() {
-        let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+        let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
         // let mut stmt = Stmt::init(&taos)?;
         // process id, ts, value
         dbg!(&cv_vec);
@@ -305,6 +472,145 @@ async fn ipc_process<R: Read, W: Write>(
     Ok(())
 }
 
+pub struct IpcStreamWorker<'a> {
+    taos: &'a Taos,
+    parser: IpcParser,
+    lock: Arc<Mutex<()>>,
+    task: Option<i64>,
+    from: Dsn,
+    config: Option<OPCConfig>,
+    opc_table_config: OnceCell<OpcTableConfig>,
+    // stmt: Arc<UnsafeCell<Stmt>>,
+}
+
+unsafe impl<'a> Send for IpcStreamWorker<'a> {}
+unsafe impl<'a> Sync for IpcStreamWorker<'a> {}
+
+impl<'a> IpcStreamWorker<'a> {
+    pub fn new(
+        taos: &'a Taos,
+        from: Dsn,
+        lock: Arc<Mutex<()>>,
+        schema: Arc<Schema>,
+    ) -> anyhow::Result<Self> {
+        let config = if from.driver.starts_with("opc") {
+            Some(opc_config_blocking(taos, &from, 1)?)
+        } else {
+            None
+        };
+
+        // let stmt = Stmt::init(&taos)?;
+        Ok(Self {
+            taos,
+            from,
+            parser: IpcParser::new(schema),
+            lock: lock,
+            task: None,
+            config,
+            opc_table_config: OnceCell::const_new(),
+            // stmt: Arc::new(UnsafeCell::new(stmt)),
+        })
+    }
+
+    pub fn with_presets(mut self, preset: OPCConfig) -> Self {
+        self.config.replace(preset);
+        self
+    }
+
+    pub async fn process_record(
+        &self,
+        stmt: &mut Stmt,
+        record: RecordBatch,
+    ) -> anyhow::Result<usize> {
+        // let stmt = unsafe { &mut *self.stmt.get() };
+        match self.parser.metadata().stream_type() {
+            StreamType::Line => {
+                todo!()
+            }
+            StreamType::Flat => {
+                let message = self.parser.parse(record)?;
+                let mut count = 0;
+                let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
+                    std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
+                })
+                .unwrap();
+                consume_flat_record(&self.taos, &record, &mut count).await?;
+                Ok(count)
+            }
+            StreamType::Lush => {
+                let columns = self.parser.columns();
+                let names = columns.iter().map(|n| format!("`{n}`")).join(",");
+                let marks = std::iter::repeat('?').take(columns.len()).join(",");
+
+                let message = self.parser.parse(record)?;
+                let mut count = 0;
+
+                let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
+                    std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
+                })
+                .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
+                // let stmt = unsafe { &mut *self.stmt.get() };
+                consume_lush_record(&self.taos, stmt, record, &names, &marks, &mut count).await?;
+                Ok(count)
+            }
+            StreamType::Point => {
+                let message = self.parser.parse(record)?;
+                let mut count = 0;
+                let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
+                    std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
+                })
+                .unwrap();
+                let config = self
+                    .config
+                    .as_ref()
+                    .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?;
+
+                let guard = self.lock.lock().await;
+                let res = self.opc_table_config.get();
+                let config = match res {
+                    Some(config) => config,
+                    None => {
+                        let v = config.parse_tables_with(&self.taos).await?;
+                        self.opc_table_config
+                            .get_or_try_init(|| async {
+                                config.parse_tables_with(&self.taos).await
+                            })
+                            .await?
+                    }
+                };
+                drop(guard);
+                consume_point_record(stmt, &record, &mut count, config).await?;
+                Ok(count)
+            }
+        }
+    }
+
+    // pub async fn consume<'b: 'a, E: Error>(
+    //     &'a self,
+    //     stream: impl 'b + Stream<Item = Result<RecordBatch, E>>,
+    // ) -> impl 'a + Stream<Item = anyhow::Result<usize>> {
+    //     let metadata = self.parser.metadata();
+    //     let stream_type = *metadata.stream_type();
+    //     if let Some(sql) = self.parser.metadata().init_sql_string() {
+    //         let guard = self.lock.lock().await;
+    //         loop {
+    //             info!("[] {sql}");
+    //             let res = self.taos.exec(&sql).await;
+    //             if let Err(err) = res {
+    //                 tracing::error!("Query error with {sql}: {err:?}");
+    //             } else {
+    //                 break;
+    //             }
+    //         }
+    //         drop(guard)
+    //     }
+    //     use futures::StreamExt;
+    //     stream
+    //         .map_err(|err| anyhow::format_err!("Parse record error: {err}\n\n {:?}", err.source()))
+    //         .try_filter_map(|record| async { self.process_record(record).await.map(Some) })
+    // }
+}
+
 #[cfg(unix)]
 pub fn listen_unix_socket(
     target: TaosPool,
@@ -349,12 +655,12 @@ pub fn listen_unix_socket(
     }
 }
 
-pub fn listen_tcp_socket(
-    target: TaosPool,
+pub fn listen_tcp_socket_with_agent(
     socket: impl AsRef<str>,
     sender: Sender<String>,
     config: Option<OpcTableConfig>,
     cancel: CancellationToken,
+    with_agent: (i64, String, String),
 ) -> anyhow::Result<std::sync::mpsc::Sender<()>> {
     let addr = socket.as_ref();
     use socket2::{Domain, Socket, Type};
@@ -401,15 +707,15 @@ pub fn listen_tcp_socket(
             match socket.accept() {
                 Ok((stream, addr)) => {
                     log::info!("new tcp client!: {:?}", addr);
-                    let pool = target.clone();
-                    let lock = sql_lock.clone();
-                    let config = config.clone();
+                    let client = addr.as_socket_ipv4().unwrap().to_string();
                     let se = sender.clone();
                     let cancel = cancel.clone();
+                    let (id, remote, token) = with_agent.clone();
+
                     runtime.spawn(async move {
                         let client = addr.as_socket_ipv4().unwrap().to_string();
                         let res =
-                            ipc_tcp_read(client.to_string(), pool, stream, lock, config, cancel)
+                            ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
                                 .await;
                         if let Err(err) = res {
                             // panic!("{err:?}");
@@ -428,6 +734,92 @@ pub fn listen_tcp_socket(
             }
         }
         log::info!("IPC stream listener stopped");
+    });
+
+    Ok(closer)
+}
+
+pub fn listen_tcp_socket(
+    target: TaosPool,
+    socket: impl AsRef<str>,
+    sender: Sender<String>,
+    config: Option<OpcTableConfig>,
+    cancel: CancellationToken,
+    with_agent: Option<(i64, String, String)>,
+) -> anyhow::Result<std::sync::mpsc::Sender<()>> {
+    let addr = socket.as_ref();
+    use socket2::{Domain, Socket, Type};
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, None)?;
+    let addr: SocketAddr = addr.parse()?;
+    socket.bind(&addr.into())?;
+    socket.set_keepalive(true)?;
+    socket.set_nonblocking(false)?;
+    socket.listen(128)?;
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(16)
+        .build()?;
+    // info!("listen on socket address: {tcp_addr}");
+    let sql_lock = Arc::new(Mutex::new(()));
+    let socket = Arc::new(socket);
+    let closer_socket = socket.clone();
+
+    let (closer, receiver) = std::sync::mpsc::channel::<()>();
+    let closed = Arc::new(AtomicBool::new(false));
+    let closed2 = closed.clone();
+
+    std::thread::spawn(move || {
+        let _ = receiver.recv();
+        tracing::debug!("shutdown socket");
+        closed.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _ = closer_socket.shutdown(std::net::Shutdown::Both);
+        // runtime.shutdown_background();
+    });
+
+    std::thread::spawn(move || {
+        loop {
+            if closed2.load(std::sync::atomic::Ordering::SeqCst) {
+                break;
+            }
+            match socket.accept() {
+                Ok((stream, addr)) => {
+                    log::info!("new tcp client!: {:?}", addr);
+                    let client = addr.as_socket_ipv4().unwrap().to_string();
+                    let se = sender.clone();
+                    let cancel = cancel.clone();
+
+                    if let Some((id, server, token)) = with_agent.clone() {
+                        runtime.spawn(async move {
+                            let res =
+                                ipc_tcp_forward(client, stream, cancel, server, token, id).await;
+                            if let Err(err) = res {
+                                // panic!("{err:?}");
+                                log::error!("ipc read err: {}", err);
+                                let _ = se.send(err.to_string()).await;
+                            }
+                        });
+                    } else {
+                        let pool = target.clone();
+                        let lock = sql_lock.clone();
+                        let config = config.clone();
+                        runtime.spawn(async move {
+                            let res =
+                                ipc_tcp_read(client, pool, stream, lock, config, cancel).await;
+                            if let Err(err) = res {
+                                // panic!("{err:?}");
+                                log::error!("ipc read err: {}", err);
+                                let _ = se.send(err.to_string()).await;
+                            }
+                        });
+                    }
+                }
+                Err(e) => {
+                    /* connection failed */
+                    tracing::debug!("IPC stream acceptation error {e}, might be stopped");
+                }
+            }
+        }
     });
 
     Ok(closer)

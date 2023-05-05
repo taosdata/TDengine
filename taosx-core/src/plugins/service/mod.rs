@@ -88,9 +88,13 @@ pub fn spawn_rest_service(pool: TaosPool, port: u16) -> anyhow::Result<()> {
         match rest.query(&sql).await {
             Ok(ok) => HttpResponse::Ok().json(ok),
             Err(err) => {
-                log::info!("query sql error code :{}, message:{} ", err.code.to_string(), err.desc);
+                log::info!(
+                    "query sql error code :{}, message:{} ",
+                    err.code.to_string(),
+                    err.desc
+                );
                 HttpResponse::InternalServerError().json(err)
-            },
+            }
         }
     }
     #[get("/ping")]

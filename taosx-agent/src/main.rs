@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
@@ -132,6 +132,28 @@ impl Args {
     }
 }
 
+mod agent;
+mod runner;
+
+async fn main_agent_service(args: Args) -> anyhow::Result<()> {
+    let ctrl_c = tokio::signal::ctrl_c();
+    let mut client = agent::Client::new(&args.endpoint, &args.token).await?;
+    let (runner, sender) = runner::spawn_runner(&args.endpoint, &args.token);
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("SIGINT triggered");
+        }
+        _ = runner => {
+            tracing::info!("Runner stopped");
+        }
+        _ = client.wait_tasks(sender) => {
+            tracing::info!("Task listener stopped");
+        }
+    }
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     let args = Args::init()?;
     println!(
@@ -154,6 +176,14 @@ fn main() -> anyhow::Result<()> {
     log::info!("Start");
 
     // todo: arrow flight rpc client.
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .max_blocking_threads(4096)
+        .thread_name("taosx-agent")
+        .enable_all()
+        .build()?;
+
+    rt.block_on(main_agent_service(args))?;
+    rt.shutdown_timeout(Duration::from_secs(5));
 
     Ok(())
 }

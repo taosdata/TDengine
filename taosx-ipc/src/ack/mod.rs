@@ -14,8 +14,6 @@ use arrow::{
 };
 use thiserror::Error;
 
-
-
 pub struct LushAck {
     code: i32,
     message: Option<String>,
