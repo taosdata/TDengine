@@ -153,10 +153,14 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
 
   // 2.save task
+  taosWLockLatch(&pSnode->pMeta->lock);
   code = streamMetaAddDeployedTask(pSnode->pMeta, -1, pTask);
   if (code < 0) {
+    taosWUnLockLatch(&pSnode->pMeta->lock);
     return -1;
   }
+
+  taosWUnLockLatch(&pSnode->pMeta->lock);
 
   // 3.go through recover steps to fill history
   if (pTask->fillHistory) {
