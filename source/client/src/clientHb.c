@@ -1172,7 +1172,7 @@ void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
 
   taosThreadMutexLock(&pTscObj->mutex);
   if (pTscObj->passInfo.fp) {
-    int32_t cnt = atomic_sub_fetch_32(&pAppHbMgr->passKeyCnt, 1);
+    atomic_sub_fetch_32(&pAppHbMgr->passKeyCnt, 1);
   }
   taosThreadMutexUnlock(&pTscObj->mutex);
 }

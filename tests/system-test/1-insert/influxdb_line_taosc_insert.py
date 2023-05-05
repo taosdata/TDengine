@@ -896,7 +896,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkNotEqual(tb_name1, tb_name3)
 
-    # * tag binary max is 16384, col+ts binary max  65531
+    # * tag binary max is 16384-2, col+ts binary max 65531
     def tagColBinaryMaxLengthCheckCase(self):
         """
             every binary and nchar must be length+2
@@ -960,7 +960,7 @@ class TDTestCase:
             tdSql.checkNotEqual(err.errno, 0)
 
 
-    # * tag nchar max is 16384/4, col+ts nchar max  65531
+    # * tag nchar max is (16384-2)/4, col+ts nchar max 65531
     def tagColNcharMaxLengthCheckCase(self):
         """
             check nchar length limit
@@ -971,7 +971,7 @@ class TDTestCase:
         input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000'
         code = self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
-        # * legal tag nchar could not be larger than 16384/4
+        # * legal tag nchar could not be larger than (16384-2)/4
         # input_sql = f'{stb_name},t0=t,t1=L"{tdCom.getLongName(4093, "letters")}",t2=L"{tdCom.getLongName(1, "letters")}" c0=f 1626006833639000000'
         # self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         # tdSql.query(f"select * from {stb_name}")
