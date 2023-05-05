@@ -565,7 +565,7 @@ static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
     result = length;
   }else{
     while (result <= length) {
-      result << 1;
+      result <<= 1;
     }
   }
 
