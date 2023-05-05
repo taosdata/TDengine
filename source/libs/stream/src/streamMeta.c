@@ -16,6 +16,7 @@
 #include "executor.h"
 #include "streamBackendRocksdb.h"
 #include "streamInc.h"
+#include "tref.h"
 #include "ttimer.h"
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
@@ -77,6 +78,9 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   pMeta->streamBackend = streamBackendInit(statePath);
+  pMeta->streamBackendId = taosOpenRef(20, streamBackendCleanup);
+  pMeta->streamBackendRid = taosAddRef(pMeta->streamBackendId, pMeta->streamBackend);
+
   taosMemoryFree(statePath);
 
   taosInitRWLatch(&pMeta->lock);
@@ -88,7 +92,7 @@ _err:
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
-  if (pMeta->streamBackend) streamBackendCleanup(pMeta->streamBackend);
+  // if (pMeta->streamBackend) streamBackendCleanup(pMeta->streamBackend);
   taosMemoryFree(pMeta);
   return NULL;
 }
@@ -116,7 +120,9 @@ void streamMetaClose(SStreamMeta* pMeta) {
   }
 
   taosHashCleanup(pMeta->pTasks);
-  streamBackendCleanup(pMeta->streamBackend);
+  taosRemoveRef(pMeta->streamBackendId, pMeta->streamBackendRid);
+  // streamBackendCleanup(pMeta->streamBackend);
+  taosCloseRef(pMeta->streamBackendId);
   taosMemoryFree(pMeta->path);
   taosMemoryFree(pMeta);
 }

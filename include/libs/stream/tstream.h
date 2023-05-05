@@ -347,6 +347,8 @@ typedef struct SStreamMeta {
   SRWLatch     lock;
   int32_t      walScanCounter;
   void*        streamBackend;
+  int32_t      streamBackendId;
+  int64_t      streamBackendRid;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);

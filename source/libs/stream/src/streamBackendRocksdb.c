@@ -617,10 +617,10 @@ rocksdb_compactionfilter_t* compactFilteFactoryCreateFilter(void* arg, rocksdb_c
 }
 
 int streamStateOpenBackend(void* backend, SStreamState* pState) {
-  qInfo("start to open backend, %p, %d-%d", pState, pState->streamId, pState->taskId);
+  qInfo("start to open backend, %p 0x%" PRIx64 "-%d", pState, pState->streamId, pState->taskId);
   SBackendHandle* handle = backend;
 
-  sprintf(pState->pTdbState->idstr, "%d-%d", pState->streamId, pState->taskId);
+  sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-%d", pState->streamId, pState->taskId);
   char* err = NULL;
   int   cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
 
@@ -671,12 +671,14 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   SCfComparator compare = {.comp = pCompare, .numOfComp = cfLen};
   pState->pTdbState->pComparNode = streamBackendAddCompare(handle, &compare);
   rocksdb_writeoptions_disable_WAL(pState->pTdbState->writeOpts, 1);
+  qInfo("succ to open backend, %p, 0x%" PRIx64 "-%d", pState, pState->streamId, pState->taskId);
   return 0;
 }
 
 void streamStateCloseBackend(SStreamState* pState, bool remove) {
   char* status[] = {"close", "drop"};
-  qInfo("start to %s backend, %p, %d-%d", status[remove == false ? 0 : 1], pState, pState->streamId, pState->taskId);
+  qInfo("start to %s backend, %p, 0x%" PRIx64 "-%d", status[remove == false ? 0 : 1], pState, pState->streamId,
+        pState->taskId);
   if (pState->pTdbState->rocksdb == NULL) {
     return;
   }

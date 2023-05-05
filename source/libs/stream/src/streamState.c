@@ -22,6 +22,7 @@
 #include "tcoding.h"
 #include "tcommon.h"
 #include "tcompare.h"
+#include "tref.h"
 #include "ttimer.h"
 
 #define MAX_TABLE_NAME_NUM 100000
@@ -92,6 +93,10 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
   qWarn("open stream state, %s", path);
+  if (pTask == NULL) {
+    qWarn("failed to open stream state, %s", path);
+    return NULL;
+  }
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -115,8 +120,10 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   pState->streamId = pTask->id.streamId;
 #ifdef USE_ROCKSDB
   qWarn("open stream state1");
+  taosAcquireRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
   int code = streamStateOpenBackend(pTask->pMeta->streamBackend, pState);
   if (code == -1) {
+    taosReleaseRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
     taosMemoryFree(pState);
     pState = NULL;
   }
@@ -125,6 +132,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   pState->pFileState = NULL;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
   pState->parNameMap = tSimpleHashInit(1024, hashFn);
+
   return pState;
 
 #else
@@ -213,6 +221,7 @@ _err:
 }
 
 void streamStateClose(SStreamState* pState, bool remove) {
+  SStreamTask* pTask = pState->pTdbState->pOwner;
 #ifdef USE_ROCKSDB
   // streamStateCloseBackend(pState);
   streamStateDestroy(pState, remove);
@@ -227,6 +236,7 @@ void streamStateClose(SStreamState* pState, bool remove) {
   tdbTbClose(pState->pTdbState->pParTagDb);
   tdbClose(pState->pTdbState->db);
 #endif
+  taosReleaseRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
 }
 
 int32_t streamStateBegin(SStreamState* pState) {
