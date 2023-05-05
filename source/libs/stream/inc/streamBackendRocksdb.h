@@ -42,6 +42,8 @@ typedef struct {
   TdThreadMutex                      mutex;
   rocksdb_compactionfilterfactory_t* filterFactory;
   SList*                             list;
+  TdThreadMutex                      cfMutex;
+  SHashObj*                          cfInst;
 } SBackendHandle;
 
 void*      streamBackendInit(const char* path);
