@@ -217,7 +217,7 @@ gcc -g -O0 -fPIC -shared bit_and.c -o libbitand.so
 
 ## C UDF 示例代码
 
-### C UDF 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/bit_and.c)
+### C UDF 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/bit_and.c)
 
 bit_add 实现多列的按位与功能。如果只有一列，返回这一列。bit_add 忽略空值。
 
@@ -230,7 +230,7 @@ bit_add 实现多列的按位与功能。如果只有一列，返回这一列。
 
 </details>
 
-### C UDF 聚合函数示例1 返回值为数值类型 [l2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/l2norm.c)
+### C UDF 聚合函数示例1 返回值为数值类型 [l2norm](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/l2norm.c)
 
 l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
@@ -243,7 +243,7 @@ l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先�
 
 </details>
 
-### C UDF 聚合函数示例2 返回值为字符串类型 [max_vol](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/max_vol.c)
+### C UDF 聚合函数示例2 返回值为字符串类型 [max_vol](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/max_vol.c)
 
 max_vol 实现了从多个输入的电压列中找到最大电压，返回由设备ID + 最大电压所在（行，列）+ 最大电压值 组成的组合字符串值
 
