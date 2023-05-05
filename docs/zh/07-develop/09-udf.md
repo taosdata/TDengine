@@ -10,7 +10,7 @@ description: "支持用户编码的聚合函数和标量函数，在查询中嵌
 
 TDengine 支持通过 C/Python 语言进行 UDF 定义。接下来结合示例讲解 UDF 的使用方法。
 
-# C 语言实现UDF
+# C 语言实现 UDF
 
 使用 C 语言实现 UDF 时，需要实现规定的接口函数
 - 标量函数需要实现标量接口函数 scalarfn 。
@@ -269,7 +269,7 @@ select max_vol(vol1,vol2,vol3,deviceid) from battery;
 
 </details>
 
-# Python 语言实现UDF
+# Python 语言实现 UDF
 使用 Python 语言实现 UDF 时，需要实现规定的接口函数
 - 标量函数需要实现标量接口函数 process 。
 - 聚合函数需要实现聚合接口函数 start ，reduce ，finish。
@@ -336,7 +336,10 @@ def destroy()
 
 其中 init 完成初始化工作。 destroy 完成清理工作。如果没有初始化工作，无需定义 init 函数。如果没有清理工作，无需定义 destroy 函数。
 
-## Python数据类型和TDengine数据类型映射
+## Python 数据类型和 TDengine 数据类型映射
+
+下表描述了TDengine SQL数据类型和Python数据类型的映射。任何类型的NULL值都映射成Python的None值。
+
 |  **TDengine SQL数据类型**   | **Python数据类型** |
 | :-----------------------: | ------------ |
 |TINYINT / SMALLINT / INT  / BIGINT     | int   |
@@ -350,8 +353,8 @@ def destroy()
 ## Python UDF 环境的安装
 1. 安装 taospyudf 包。此包执行Python UDF程序。
 ```bash
-pip install taospyudf
-lddconfig
+sudo pip install taospyudf
+ldconfig
 ```
 2. 如果 Python UDF 程序执行时，通过 PYTHONPATH 引用其它的包，可以设置 taos.cfg 的 UdfdLdLibPath 变量为PYTHONPATH的内容
  
@@ -382,5 +385,5 @@ pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据�
 
 </details>
 
-# 管理和使用UDF
-编译好的UDF，还需要将其加入到系统才能被正常的SQL调用。关于如何管理和使用UDF，参见[UDF使用说明](../12-taos-sql/26-udf.md)
+# 管理和使用 UDF
+需要 UDF 将其加入到系统才能被正常的 SQL 调用。关于如何管理和使用 UDF，参见[UDF使用说明](../12-taos-sql/26-udf.md)
