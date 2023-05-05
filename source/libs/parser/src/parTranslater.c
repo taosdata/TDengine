@@ -6666,22 +6666,36 @@ static int32_t createRealTableForGrantTable(SGrantStmt* pStmt, SRealTableNode** 
 }
 
 static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterUserReq* pReq) {
-  if (NULL == pStmt->pTagCond) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "The With clause can only be used for table level privilege");
-  }
-
-  pCxt->pCurrStmt = (SNode*)pStmt;
   SRealTableNode* pTable = NULL;
   int32_t         code = createRealTableForGrantTable(pStmt, &pTable);
   if (TSDB_CODE_SUCCESS == code) {
     SName name;
     code = getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pTable->table.dbName, pTable->table.tableName, &name),
                             &(pTable->pMeta));
+    if (code) {
+      nodesDestroyNode((SNode*)pTable);
+      return code;
+    }
+
+    if (TSDB_SUPER_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType) {
+      nodesDestroyNode((SNode*)pTable);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Only supertable and normal table can be granted");
+    }
   }
+
+  if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTagCond) {
+    nodesDestroyNode((SNode*)pTable);
+    return TSDB_CODE_SUCCESS;
+  }
+  if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
+    nodesDestroyNode((SNode*)pTable);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "The With clause can only be used for table level privilege");
+  }
+
+  pCxt->pCurrStmt = (SNode*)pStmt;
+
   if (TSDB_CODE_SUCCESS == code) {
     code = addNamespace(pCxt, pTable);
   }
