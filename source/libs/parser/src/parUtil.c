@@ -1086,7 +1086,7 @@ int32_t reserveTableTagInCache(int32_t acctId, const char* pDb, const char* pTab
   SName name;
   char  tFName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(toName(acctId, pDb, pTable, &name), tFName);
-  return reserveTableTagInCacheImpl(tFName, strlen(tFName), pMetaCache);
+  return reserveTableTagInCacheImpl(tFName, strlen(tFName) + 1, pMetaCache);
 }
 
 
