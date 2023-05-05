@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Context;
 use itertools::Itertools;
-use taos::{taos_query::helpers::ColumnMeta, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{taos_query::helpers::ColumnMeta, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder, Ty};
 use taosx_ipc::prelude::IpcDataType;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
@@ -65,6 +65,9 @@ enum OpcError {
 struct OPCConfig {
     opc_type: OpcType,
     debug: bool,
+    #[serde(skip)]
+    /// use receviced time as ts cloumn value when config true
+    use_received_time: bool,
     connect: ConnectConfig,
     collect: CollectConfig,
     report: ReportConfig,
@@ -113,13 +116,34 @@ struct DaConnectConfig {
 #[derive(Debug, serde::Serialize)]
 struct CollectConfig {
     interval: Option<i64>,
+    limit: i64,
     ua: Option<UaCollectConfig>,
     da: Option<DaCollectConfig>,
 }
 
 #[derive(Debug, serde::Serialize)]
 struct UaCollectConfig {
+    collect_mode: CollectMode,
     nodes: Vec<UANodeConfig>,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+enum CollectMode {
+    OBSERVE,
+    SUBSCRIBE,    
+}
+
+impl FromStr for CollectMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "observe" => Ok(Self::OBSERVE),
+            "subscribe" => Ok(Self::SUBSCRIBE),
+            _ => Err(s.to_string()),
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -187,6 +211,8 @@ impl OPCConfig {
             }
             _ => unreachable!(),
         }
+        let interval = parse_int_at!("interval");
+        let limit = parse_int_at!("limit").unwrap_or(0);
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OpcType::OPCUA;
@@ -241,7 +267,7 @@ impl OPCConfig {
                     ua: Some(connect_ua_config),
                     da: None,
                 };
-                let interval = parse_int_at!("interval");
+                
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
@@ -273,11 +299,14 @@ impl OPCConfig {
                     ua_node_config_vec.push(ua_node_config);
                     process_table_info(&mut table_info, table, field, value_type);
                 }
+                let collect_mode = dsn.remove("collect_mode").unwrap_or("observe".to_string());
                 let collect_ua_config = UaCollectConfig {
+                    collect_mode: collect_mode.parse::<CollectMode>().map_err(|err| OpcError::ParseError("collect_mode", err))?,
                     nodes: ua_node_config_vec,
                 };
                 collect = CollectConfig {
                     interval,
+                    limit,
                     ua: Some(collect_ua_config),
                     da: None,
                 };
@@ -302,7 +331,6 @@ impl OPCConfig {
                     ua: None,
                     da: Some(connect_da_config),
                 };
-                let interval = parse_int_at!("interval");
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
@@ -332,6 +360,7 @@ impl OPCConfig {
                 }
                 collect = CollectConfig {
                     interval,
+                    limit,
                     ua: None,
                     da: Some(DaCollectConfig { tags: da_nodes_vec }),
                 }
@@ -356,10 +385,23 @@ impl OPCConfig {
             })
             .transpose()?
         {
-            true
+            v
         } else {
             false
         };
+        let use_received_time = if let Some(v) = dsn
+            .remove("use_received_time")
+            .map(|v| {
+                v.parse::<bool>()
+                    .map_err(|err| OpcError::ParseError("use_received_time", v))
+            })
+            .transpose()?
+        {
+            v
+        } else {
+            false
+        };
+
 
         let report = ReportConfig {
             remote,
@@ -370,6 +412,7 @@ impl OPCConfig {
         Ok(OPCConfig {
             opc_type,
             debug,
+            use_received_time,
             connect,
             collect,
             report,
@@ -466,6 +509,10 @@ const OPC_CONNECTOR_PATH: &str = {
         "/usr/local/taos/xplugins/opc/opc-collector_darwin_arm64"
     }
 };
+
+pub(crate) const DEFAULT_TS_COLUMN_NAME: &str = "ts";
+pub(crate) const DEFAULT_SERVER_TS_COLUMN_NAME: &str = "server_ts";
+
 #[instrument(skip(port_pool))]
 pub async fn opc_to_taos(
     from: Dsn,
@@ -494,9 +541,15 @@ pub async fn opc_to_taos(
         let res = taos.describe(&table_name).await;
         if res.is_err() {
             // table not exists, will create normal table
-            let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
-            log::info!("table {table_name} use `ts` as ts column");
-            ts_cloumn_name_map.insert(table_name.clone(), String::from("ts"));
+            let mut sql = if config.use_received_time {
+                ts_cloumn_name_map.insert(table_name.clone(), (String::from(DEFAULT_TS_COLUMN_NAME), Some(String::from(DEFAULT_SERVER_TS_COLUMN_NAME))));
+                log::info!("table {table_name} use `ts` as ts column, use `server_ts` as second ts column");
+                format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP, {DEFAULT_SERVER_TS_COLUMN_NAME} TIMESTAMP ")
+            } else {
+                ts_cloumn_name_map.insert(table_name.clone(), (String::from(DEFAULT_TS_COLUMN_NAME), None));
+                log::info!("table {table_name} use `ts` as ts column");
+                format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP")
+            };
             for (field, field_type) in field_info {
                 sql.push_str(format!(", `{field}` {field_type}").as_str());
             }
@@ -507,15 +560,23 @@ pub async fn opc_to_taos(
             // table exists and check normal table or child table
             let desc = res.unwrap();
             let mut field_map = HashMap::new();
-            desc.iter().for_each(|c| match c {
+            desc.iter().for_each(|c: &ColumnMeta| match c {
                 ColumnMeta::Column(d) => {
                     field_map.insert(d.field.clone(), d.ty.to_string());
                 }
                 _ => (),
             });
             // insert ts column
-            log::info!("table {table_name} use `{}` as ts column", desc[0].field);
-            ts_cloumn_name_map.insert(table_name.clone(), desc[0].field.clone());
+            if config.use_received_time {
+                if desc.len() < 2 || desc[1].ty != Ty::Timestamp {
+                    anyhow::bail!("table: {} column type not match[len < 2 or second column is not timestamp]", table_name);
+                }
+                log::info!("table {table_name} use `{}` as ts column, use `{}` as sever ts column", desc[0].field, desc[1].field);
+                ts_cloumn_name_map.insert(table_name.clone(), (desc[0].field.clone(), Some(desc[1].field.clone())));
+            } else {
+                log::info!("table {table_name} use `{}` as ts column", desc[0].field);
+                ts_cloumn_name_map.insert(table_name.clone(), (desc[0].field.clone(), None));
+            }
             if desc.is_stable() {
                 // child table.
                 for (field, field_type) in field_info {
@@ -581,6 +642,7 @@ pub async fn opc_to_taos(
         Some(OpcTableConfig {
             table_info: config.param_mapping.clone(),
             ts_cloumn_name: ts_cloumn_name_map.clone(),
+            use_received_time: config.use_received_time,
         }),
         cancel.clone(),
     )?;
@@ -672,20 +734,6 @@ pub async fn opc_to_taos(
     Ok(())
 }
 
-fn terminate_child_process(id: u32) -> anyhow::Result<()> {
-    let mut kill_command = if cfg!(target_os = "windows") {
-        let mut command = std::process::Command::new("taskkill");
-        command.arg("/F").arg("/PID").arg(id.to_string());
-        command
-    } else {
-        let mut command = std::process::Command::new("kill");
-        command.arg("-9").arg(id.to_string());
-        command
-    };
-    kill_command.spawn()?;
-    Ok(())
-}
-
 /// check field type
 /// return true if matched
 /// if type equals return true else false
@@ -712,7 +760,9 @@ pub struct OpcTableConfig {
     pub(crate) table_info: HashMap<String, (String, String, IpcDataType)>,
 
     /// table_name, ts column
-    pub(crate) ts_cloumn_name: HashMap<String, String>,
+    pub(crate) ts_cloumn_name: HashMap<String, (String, Option<String>)>,
+
+    pub(crate) use_received_time: bool,
 }
 
 pub async fn opc_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
@@ -763,6 +813,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     let config = OPCConfig {
         opc_type: OpcType::OPCUA,
         debug: true,
+        use_received_time: true,
         connect: ConnectConfig {
             ua: Some(UaConnectConfig {
                 endpoint: String::from("endpoint.123"),
@@ -783,7 +834,9 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
         },
         collect: CollectConfig {
             interval: Some(10),
+            limit: 0,
             ua: Some(UaCollectConfig {
+                collect_mode: "observe".to_string().parse::<CollectMode>().map_err(|err| OpcError::ParseError("collect_mode", err))?,
                 nodes: vec![UANodeConfig {
                     id: String::from("1"),
                     value_type: String::from("DOUBLE"),
@@ -824,12 +877,16 @@ nodes = ["localhost"]
 
 [collect]
 interval = 10
+limit = 0
+
+[collect.ua]
+collect_mode = "observe"
 
 [[collect.ua.nodes]]
 id = "1"
 value_type = "DOUBLE"
 
-[[collect.da.nodes]]
+[[collect.da.tags]]
 tag = "123"
 value_type = "VARCHAR"
 
