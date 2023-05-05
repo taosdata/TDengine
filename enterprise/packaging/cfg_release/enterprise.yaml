@@ -71,7 +71,7 @@ parameters:
     CUS_NAME: TDengine
     CUS_PROMPT: taos
     CUS_EMAIL: support@taosdata.com
-    DGRANT_VALUE: 60
+    GRANT_VALUE: 60
   
   OEMFLAG:
    enable: 
@@ -182,14 +182,15 @@ parameters:
             - nodejs
             - python
             - R
-            - taosbenchmark-json          
+            - taosbenchmark-json
           install.sh: *install_server
           connector:
             - dotnet
             - go
             - nodejs
             - python
-            - rust          
+            - rust
+            - jdbc
           share: true
 
       client: 
@@ -216,6 +217,7 @@ parameters:
             - nodejs
             - python
             - rust
+            - jdbc
           driver:
             - *libtaos
             - *libtaows

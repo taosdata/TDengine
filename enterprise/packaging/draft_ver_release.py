@@ -244,13 +244,16 @@ def prepareDir(options):
     logging.info("Prepare the release directories.")
 
     # check dir clear path
-
     if os.path.exists(communityDir):
-        os.chdir(communityDir)
         if not os.path.exists(compileDir):
             logging.info("mkdir {0}".format(compileDir))
             os.mkdir(compileDir)
+        else:
+            shutil.rmtree(compileDir)           
+            os.mkdir(compileDir)
+            logging.info("clean exist compile dir")    
     else:
+        logging.error("community dir not found")
         raise Exception("community dir not found")
 
     # mkdir release
@@ -376,7 +379,7 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
         logging.info("taoTools will not be built")
 
     # 14
-    if buildOptions.get('BUILD_TOOLS') is not None and buildOptions['JEMALLOC_ENABLED'] == True:
+    if buildOptions.get('JEMALLOC_ENABLED') is not None and buildOptions['JEMALLOC_ENABLED'] == True:
         platform = f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']}-{buildOptions['PAGMODE']}"
         if platform == 'Linux-x64-full':
             command += f" -DJEMALLOC_ENABLED=true "
@@ -386,7 +389,7 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
         logging.info("Jemalloc build is not enabled")
         
     # 15
-    if buildOptions.get('BUILD_TAOSX') is None:
+    if buildOptions.get('BUILD_TAOSX') is not None:
         if buildOptions['BUILD_TAOSX'] == True:
             if verMode in ['cluster', 'cloud']:
                 command += f" -DBUILD_TAOSX=true "
@@ -400,7 +403,7 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
         logging.info("BUILD_TAOSX is not set, will not build taosx")
 
     # 16
-    if buildOptions.get('BUILD_TAOSX') is None:
+    if buildOptions.get('BUILD_TAOSX') is not None:
         if buildOptions['BUILD_CLOUD'] == True:
             if verMode == 'cloud':
                 command += f" -DBUILD_CLOUD=true "
@@ -420,8 +423,8 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
     # 19
         command += f" -DCUS_EMAIL={buildOptions['CUS_EMAIL']} "
     
-        # 20
-    if buildOptions.get('BUILD_EXPLORER') is None:
+    # 20
+    if buildOptions.get('BUILD_EXPLORER') is not None:
         if buildOptions['BUILD_EXPLORER'] == False:
             command += f" -DBUILD_EXPLORER=false "
             logging.info("BUILD_EXPLORER is false, explorer will not be built")
@@ -439,19 +442,35 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
     else:
         logging.info("BUILD_EXPLORER is not set, will not build explorer")
     
-    if buildOptions.get('')
+    # 21
+    if buildOptions.get('PAGMODE') is not None:
+        if buildOptions['PAGMODE'] in ['full','lite']:
+            command += f" -DPAGMODE={buildOptions['PAGMODE']} "
+        else:
+            logging.error(f"PAGMODE:{buildOptions['PAGMODE']} is not supported")
+            raise Exception(f"PAGMODE:{buildOptions['PAGMODE']} is not supported")
+    else:
+        logging.info("PAGMODE is not setted")
+    
+    # 22
+    if buildOptions.get('GRANT_VALUE') is not None and len(buildOptions['GRANT_VALUE']) > 0:
+        command += f" -DGRANT_VALUE={buildOptions['GRANT_VALUE']} "
+    else:
+        logging.info("GRANT_VALUE is not setted")
+         
     logging.info(f"cmake command is {command}")
     return command
 
 
-def sbuildInstall(options, verMode):
+def buildInstall(options, verMode):
     buildOptions = options['buildOptions']
     prepareDir(options)
+    
     os.chdir(compileDir)
     logging.info(
         f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']} of {'community' if options['verMode']=='edge' else 'enterprise'} will be build.")
     logging.info("compile Dir:{0}".format(os))
-    command = generateCmakeCommand(buildOptions, verMode)
+    command = generateCmakeCommand(buildOptions, verMode) 
     executeCommand(command)
 
     logging.info(f"cmake -j {cpuCount} ")
@@ -462,14 +481,14 @@ def sbuildInstall(options, verMode):
     os.chdir(scriptDir)
 
 
-def makeTDenginePackages(packages, buildOptions, verMode):
+def makeTDenginePackages(packages, buildOptions, verMode):  
     # pack TDengine.tar.gz
-    if packages['tar.gz']['enable'] == True:
+    if packages.get('tar.gz') is not None and packages['tar.gz']['enable'] == True:
 
         if packages['tar.gz']['server']['enable'] == True:
             logging.info(
                 f"making TDengine-{verMode}-server-{buildOptions['VERNUMBER'] }-tar.gz")
-            mkpkg.mkServerTar(
+            mkpkg.makeServerTar(
                 packages['tar.gz'], buildOptions, verMode)
         else:
             logging.warning(
@@ -490,7 +509,7 @@ def makeTDenginePackages(packages, buildOptions, verMode):
     logging.debug(packages)
 
     # pack TDengine.rpm
-    if packages['rpm']['enable'] == True:
+    if  packages.get('rpm') is not None and packages['rpm']['enable'] == True:
 
         if packages['rpm']['server']['enable'] == True:
             logging.info(
@@ -516,7 +535,7 @@ def makeTDenginePackages(packages, buildOptions, verMode):
             f"Skip packing TDengine-{verMode}-{buildOptions['VERNUMBER'] } rpm packages")
 
     # pack TDengine.deb
-    if packages['deb']['enable'] == True:
+    if packages.get('deb') is not None and packages['deb']['enable'] == True:
 
         if packages['deb']['server']['enable'] == True:
             logging.info(
@@ -568,18 +587,16 @@ def makeTaosToolsPackages(taosToolsPackages, buildOptions, verMode):
 
 def makePackages(options, buildOptions, verMode):
     # =====================for TDengine =========================
-    if options['TDenginePackages']['enable'] == True:
+    if options.get('TDenginePackages') is not None and options['TDenginePackages']['enable'] == True:
         logging.info(
             "making TDengine packages like TDengine-server or TDengine-client")
-        makeTDenginePackages(
-            options['TDenginePackages'], buildOptions, verMode)
+        mkpkg.makePackages(options['TDenginePackages'], buildOptions, verMode)
     else:
         logging.warning("Skip making TDengine packages")
 
     # ========= for taos tools ==========
-    if options['taosToolsPackages']['enable'] == True:
-        makeTaosToolsPackages(
-            options['taosToolsPackages'], buildOptions, verMode)
+    if options.get('taosToolsPackages') is not None and options['taosToolsPackages']['enable'] == True:
+        mkpkg.makeTaosToolPackages(options['taosToolsPackages'], buildOptions, verMode)
     else:
         logging.warning("Skip making taosTools packages")
 
@@ -602,7 +619,7 @@ def doActions(parePareOptions):
 
 def doRelease(options, preActions, postActions, args):
     targets = []
-    if options['TDenginePackages']['tar.gz']['enable'] == True:
+    if options['TDenginePackages'].get('tar.gz') is not None and options['TDenginePackages']['tar.gz']['enable'] == True:
         targets.append('tar.gz')
     if options['TDenginePackages'].get('rpm') is not None and options['TDenginePackages']['rpm']['enable'] == True:
         targets.append('rpm')
@@ -628,10 +645,9 @@ def doRelease(options, preActions, postActions, args):
     else:
         logging.info("No post acotions.")
 
-    # build && install and packaging
-
     # ================= build and install
 
+    # build && install and packaging
     buildInstall(options, options['verMode'])
 
     # ================ making packages
