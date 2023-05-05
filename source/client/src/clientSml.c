@@ -1335,6 +1335,8 @@ static int32_t smlInsertData(SSmlHandle *info) {
     }
     taosArrayPush(info->pRequest->tableList, &pName);
 
+    tstrncpy(pName.tname, tableData->childTableName, strlen(tableData->childTableName) + 1);
+
     SRequestConnInfo conn = {0};
     conn.pTrans = info->taos->pAppInfo->pTransporter;
     conn.requestId = info->pRequest->requestId;
