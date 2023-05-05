@@ -1152,6 +1152,7 @@ int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, vo
       memcpy(*pVal, tmp, *pVLen);
     }
   }
+  taosMemoryFree(tmp);
   streamStateFreeCur(pCur);
   // impl later
   return code;
@@ -1296,7 +1297,11 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   if (len < 0) {
     return -1;
   }
-  if (pVal != NULL) *pVal = (char*)val;
+  if (pVal != NULL) {
+    *pVal = (char*)val;
+  } else {
+    taosMemoryFree(val);
+  }
   if (pVLen != NULL) *pVLen = len;
 
   if (pKTmp->opNum != pCur->number) {
@@ -1535,13 +1540,16 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
   if (code == 0) {
     if (sessionRangeKeyCmpr(&searchKey, key) == 0) {
       memcpy(tmp, *pVal, valSize);
+      taosMemoryFreeClear(*pVal);
       streamStateSessionDel_rocksdb(pState, key);
       goto _end;
     }
+    taosMemoryFreeClear(*pVal);
     streamStateCurNext_rocksdb(pState, pCur);
   } else {
     *key = originKey;
     streamStateFreeCur(pCur);
+    taosMemoryFreeClear(*pVal);
     pCur = streamStateSessionSeekKeyNext_rocksdb(pState, key);
   }
 
