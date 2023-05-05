@@ -343,6 +343,7 @@ struct SVnodeCfg {
   SVnodeStats vndStats;
   uint32_t    hashBegin;
   uint32_t    hashEnd;
+  bool        hashChange;
   int16_t     sttTrigger;
   int16_t     hashPrefix;
   int16_t     hashSuffix;

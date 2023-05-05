@@ -2084,6 +2084,8 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
     return -1;
   }
 
+  mndSortVnodeGid(&newVgroup);
+
   {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
     if (pVgRaw == NULL) return -1;
@@ -2162,6 +2164,7 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg2.vgId, i, newVg2.vnodeGid[i].dnodeId);
   }
 
+  // alter hash range
   int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
   if (mndAddAlterVnodeHashRangeAction(pMnode, pTrans, &newVg1, maxVgId) != 0) goto _OVER;
   newVg1.vgId = maxVgId;
@@ -2170,25 +2173,30 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   if (mndAddAlterVnodeHashRangeAction(pMnode, pTrans, &newVg2, maxVgId) != 0) goto _OVER;
   newVg2.vgId = maxVgId;
 
+  if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg1) != 0) goto _OVER;
+
+  if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg2) != 0) goto _OVER;
+
   // adjust vgroup replica
   if (pDb->cfg.replications != newVg1.replica) {
     if (mndBuildAlterVgroupAction(pMnode, pTrans, pDb, pDb, &newVg1, pArray) != 0) goto _OVER;
+  } else {
+    pRaw = mndVgroupActionEncode(&newVg1);
+    if (pRaw == NULL) goto _OVER;
+    if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
   }
+
   if (pDb->cfg.replications != newVg2.replica) {
     if (mndBuildAlterVgroupAction(pMnode, pTrans, pDb, pDb, &newVg2, pArray) != 0) goto _OVER;
+  } else {
+    pRaw = mndVgroupActionEncode(&newVg2);
+    if (pRaw == NULL) goto _OVER;
+    if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
   }
-
-  pRaw = mndVgroupActionEncode(&newVg1);
-  if (pRaw == NULL) goto _OVER;
-  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-  pRaw = NULL;
-
-  pRaw = mndVgroupActionEncode(&newVg2);
-  if (pRaw == NULL) goto _OVER;
-  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-  pRaw = NULL;
 
   pRaw = mndVgroupActionEncode(pVgroup);
   if (pRaw == NULL) goto _OVER;
@@ -2245,7 +2253,12 @@ static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq) {
   if (pDb == NULL) goto _OVER;
 
   code = mndSplitVgroup(pMnode, pReq, pDb, pVgroup);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code != 0) {
+    mError("vgId:%d, failed to start to split vgroup since %s, db:%s", pVgroup->vgId, terrstr(), pDb->name);
+    goto _OVER;
+  }
+
+  mInfo("vgId:%d, split vgroup started successfully. db:%s", pVgroup->vgId, pDb->name);
 
 _OVER:
   mndReleaseVgroup(pMnode, pVgroup);
