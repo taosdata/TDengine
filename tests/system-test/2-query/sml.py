@@ -35,6 +35,8 @@ class TDTestCase:
             tdLog.info("sml_test ret != 0")
 
         tdSql.query(f"select * from ts3303.stb2")
+        tdSql.query(f"select * from ts3303.meters")
+
         # tdSql.execute('use sml_db')
         tdSql.query(f"select * from {dbname}.t_b7d815c9222ca64cdf2614c61de8f211")
         tdSql.checkRows(1)

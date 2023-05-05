@@ -1183,6 +1183,11 @@ int sml_ts3303_Test() {
       "stb2,t1=4,dataModelName=t0 f1=72i32 1629717140000",
   };
 
+  const char *sql1[] = {
+      "meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase=\"2022-02-0210:22:22\" 1626006833339000000",
+      "meters,groupid=2,location=California.LosAngeles current=11.8,voltage=221,phase=\"2022-02-0210:22:22\" 1626006833339000000",
+  };
+
   pRes = taos_query(taos, "use ts3303");
   taos_free_result(pRes);
 
@@ -1190,8 +1195,16 @@ int sml_ts3303_Test() {
                                     TSDB_SML_TIMESTAMP_MILLI_SECONDS, 20);
 
   int code = taos_errno(pRes);
+  printf("%s result0:%s\n", __FUNCTION__, taos_errstr(pRes));
+  taos_free_result(pRes);
+  ASSERT(code == 0);
+
+  pRes = taos_schemaless_insert_ttl(taos, (char **)sql1, sizeof(sql1) / sizeof(sql1[0]), TSDB_SML_LINE_PROTOCOL,
+                                    TSDB_SML_TIMESTAMP_NANO_SECONDS, 20);
+
   printf("%s result1:%s\n", __FUNCTION__, taos_errstr(pRes));
   taos_free_result(pRes);
+
   taos_close(taos);
 
   return code;
