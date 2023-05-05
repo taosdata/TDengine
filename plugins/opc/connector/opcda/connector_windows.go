@@ -29,11 +29,11 @@ func (d *DaConnector) Connect(ctx context.Context) error {
 }
 
 func (d *DaConnector) Stop(ctx context.Context) {
-	log.Println("## stop opc da connector")
 	if d.r != nil {
 		d.r.stop(ctx)
 	}
 	d.r = nil
+	log.Println("## opc da connector stopped!")
 }
 
 func (d *DaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, error) {

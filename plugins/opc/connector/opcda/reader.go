@@ -158,6 +158,7 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 					ch <- &common.NodeValue{
 						Identifier: id,
 						Timestamp:  item.Timestamp,
+						Now:        time.Now(),
 						Value:      item.Value,
 						ValueType:  r.valueTypes[id],
 					}

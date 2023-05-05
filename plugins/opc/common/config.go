@@ -51,6 +51,7 @@ type DaConnectConfig struct {
 
 type CollectConfig struct {
 	Interval int64           `json:"interval,omitempty" yaml:"interval" toml:"interval"`
+	Limit    int             `json:"limit,omitempty" yaml:"limit" toml:"limit"`
 	Ua       UaCollectConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
 	Da       DaCollectConfig `json:"da,omitempty" yaml:"da" toml:"da"`
 }
@@ -205,6 +206,7 @@ func (r *ReportConfig) Validate() error {
 type NodeValue struct {
 	Identifier string    `json:"identifier,omitempty"`
 	Timestamp  time.Time `json:"timestamp,omitempty"`
+	Now        time.Time `json:"now,omitempty"`
 	Value      any       `json:"value,omitempty"`
 	ValueType  ValueType `json:"value_type,omitempty"`
 }

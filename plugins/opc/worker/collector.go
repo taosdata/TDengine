@@ -9,9 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -21,17 +19,12 @@ type Collector interface {
 }
 
 type OpcCollector struct {
-	collector        connector.Connector
-	reporter         reporter.Reporter
-	done             chan struct{}
-	batchSize        int
-	batchDuration    time.Duration
-	nodeValueCh      chan []*common.NodeValue
-	reportConcurrent int
-	once             sync.Once
+	collector connector.Connector
+	reporter  reporter.Reporter
+	once      sync.Once
 }
 
-func NewCollector(config common.Config) (*OpcCollector, error) {
+func NewCollector(_ context.Context, config common.Config) (*OpcCollector, error) {
 	if err := config.Report.Validate(); err != nil {
 		return nil, err
 	}
@@ -46,6 +39,9 @@ func NewCollector(config common.Config) (*OpcCollector, error) {
 	if config.OpcType == common.OpcTypeFake {
 		c = connector.NewFakeConnector(config.Collect)
 	}
+	if err != nil {
+		return nil, fmt.Errorf("create connector for worker error %v", err)
+	}
 	if c == nil {
 		return nil, fmt.Errorf("unknown opc type %s", config.OpcType)
 	}
@@ -54,117 +50,45 @@ func NewCollector(config common.Config) (*OpcCollector, error) {
 		log.Println("## create connector for worker error ", err)
 		return nil, fmt.Errorf("create connector for worker error %v", err)
 	}
-	r, err := reporter.NewArrowReporter(config)
+	r, err := reporter.NewOpcReporter(config)
 	if err != nil {
 		log.Println("## create reporter for worker error ", err)
 		return nil, fmt.Errorf("create reporter for worker error %v", err)
 	}
 
-	opcCollector := OpcCollector{
-		collector:        c,
-		reporter:         r,
-		done:             make(chan struct{}, 1),
-		batchSize:        config.Report.BatchSize,
-		batchDuration:    time.Duration(config.Report.BatchTimeout) * time.Second,
-		nodeValueCh:      make(chan []*common.NodeValue, 100),
-		reportConcurrent: config.Report.Concurrent,
-	}
-
-	opcCollector.doReport()
+	opcCollector := OpcCollector{collector: c, reporter: r}
 	return &opcCollector, nil
 }
 
 var _ Collector = (*OpcCollector)(nil)
 
 func (c *OpcCollector) Collect(ctx context.Context) error {
-	return c.collect(ctx)
-}
-
-func (c *OpcCollector) Stop(ctx context.Context) {
-	c.once.Do(func() {
-		log.Println("## stop worker!")
-		if c.collector != nil {
-			c.collector.Stop(ctx)
-		}
-		if c.reporter != nil {
-			c.reporter.Close()
-		}
-
-		close(c.done)
-		time.Sleep(2 * time.Second)
-	})
-}
-
-func (c *OpcCollector) collect(ctx context.Context) error {
-	defer c.reporter.Close()
 	// connect to opc
 	if err := c.collector.Connect(ctx); err != nil {
-		log.Println("## collector connect error", err)
 		return err
 	}
-	defer close(c.nodeValueCh)
 
 	ch, err := c.collector.Collect(ctx)
 	if err != nil {
 		log.Println("## collector data error", err)
 		return err
 	}
-
-	notifyCtx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	ticker := time.NewTicker(c.batchDuration)
-	defer ticker.Stop()
-
-	values := make(map[string][]*common.NodeValue, c.batchSize)
-	f := func(threshold int) {
-		if len(values) >= threshold {
-			for _, value := range values {
-				c.nodeValueCh <- value
-			}
-			values = make(map[string][]*common.NodeValue, c.batchSize)
-		}
-	}
-
-	for {
-		select {
-		case value, ok := <-ch:
-			if !ok {
-				// ch is close. and should exist
-				f(0)
-				return nil
-			}
-			if _, exists := values[value.Identifier]; !exists {
-				values[value.Identifier] = make([]*common.NodeValue, 0, c.batchSize)
-			}
-			values[value.Identifier] = append(values[value.Identifier], value)
-			f(c.batchSize)
-		case <-ticker.C:
-			f(0)
-		case <-notifyCtx.Done():
-			f(0)
-			return nil
-		case <-c.done:
-			f(0)
-			return nil
-		}
-	}
+	return c.reporter.Report(cancelCtx, ch)
 }
 
-func (c *OpcCollector) doReport() {
-	for i := 0; i < c.reportConcurrent; i++ {
-		go func() {
-			for nodeValues := range c.nodeValueCh {
-				c.report(context.Background(), nodeValues)
-			}
-		}()
-	}
-}
+func (c *OpcCollector) Stop(ctx context.Context) {
+	c.once.Do(func() {
+		time.Sleep(2 * time.Second)
 
-func (c *OpcCollector) report(ctx context.Context, values []*common.NodeValue) {
-	if err := c.reporter.Report(ctx, values); err != nil {
-		log.Printf("## report node value error, and exit %v", err)
-		// report data error, and exit
-		c.Stop(ctx)
-	}
+		if c.collector != nil {
+			c.collector.Stop(ctx)
+		}
+		if c.reporter != nil {
+			c.reporter.Stop(ctx)
+		}
+
+		log.Println("## opc collector stopped!")
+	})
 }
