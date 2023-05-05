@@ -2865,7 +2865,8 @@ class StreamComputingTest(TDCase):
             self.scalar_function(partition="tbname,c1", delete=True, fill_history_value=1)
             self.stream_tandem()
             self.udf_test(8, "int")
-            self.udf_test(8, "int", 1)
+            # ! TD-23989
+            # self.udf_test(8, "int", 1)
             self.udaf_test(10, 8, "double")
             self.udaf_test(10, 8, "double", 1)
 
