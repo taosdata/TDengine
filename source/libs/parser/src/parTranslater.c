@@ -6667,6 +6667,15 @@ static int32_t createRealTableForGrantTable(SGrantStmt* pStmt, SRealTableNode** 
 
 static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterUserReq* pReq) {
   SRealTableNode* pTable = NULL;
+  if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
+    if (pStmt->pTagCond) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "The With clause can only be used for table level privilege");
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   int32_t         code = createRealTableForGrantTable(pStmt, &pTable);
   if (TSDB_CODE_SUCCESS == code) {
     SName name;
@@ -6687,11 +6696,6 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
   if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTagCond) {
     nodesDestroyNode((SNode*)pTable);
     return TSDB_CODE_SUCCESS;
-  }
-  if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
-    nodesDestroyNode((SNode*)pTable);
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "The With clause can only be used for table level privilege");
   }
 
   pCxt->pCurrStmt = (SNode*)pStmt;
