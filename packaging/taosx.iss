@@ -37,10 +37,12 @@ end;
 
 [UninstallDelete]
 Type: files; Name: "{app}\bin\taosx.exe"
-Type: files; Name: "{app}\plugins\pi\*.*"
-Type: files; Name: "{app}\plugins\opc\*.*"
-Type: dirifempty; Name: "{app}\plugins\pi";
-Type: dirifempty; Name: "{app}\plugins\opc";
+Type: files; Name: "{app}\xplugins\pi\*.*"
+Type: files; Name: "{app}\xplugins\opc\*.*"
+Type: files; Name: "{app}\xplugins\mqtt\*.*"
+Type: dirifempty; Name: "{app}\xplugins\pi";
+Type: dirifempty; Name: "{app}\xplugins\opc";
+Type: dirifempty; Name: "{app}\xplugins\mqtt";
 
 [UninstallRun]
 Filename: "{app}\uninstall.exe"; Parameters: "/SILENT"; Check: fileexists('{app}\uninstall.exe')
