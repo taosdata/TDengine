@@ -294,7 +294,7 @@ _exit:
 }
 
 int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int32_t ltype) {
-  static char const *alstring[2] = {"last", "last_row"};
+  static char const *alstring[2] = {"last_row", "last"};
   char const        *lstring = alstring[ltype];
   int32_t            code = 0;
 
@@ -342,7 +342,12 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsR
       }
     } else {
       // recalc: load from tsdb
-
+      if (ltype) {
+        SArray *pArray = NULL;
+        // mergeLastCid(uid, pTsdb, &pArray, pr, cid);
+      } else {
+        // mergeLastRowCid(uid, pTsdb, &pArray, pr, cid);
+      }
       // still null, then make up a null col value
       pLastCol = &noneCol;
 
