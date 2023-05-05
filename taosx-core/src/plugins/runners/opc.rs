@@ -640,12 +640,7 @@ pub async fn opc_to_taos(
     let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
-    let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
-    use taos::AsyncQueryable;
-    let taos = target_pool.get().await?;
-    let target_pool_for_ipc = target_pool.clone();
     let config = OPCConfig::new(from, ipc_port, OPCConfigMode::Collect)?;
-    
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
