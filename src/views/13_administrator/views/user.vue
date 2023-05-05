@@ -3,7 +3,7 @@
     <div class="flexEnd">
       <el-button plain @click="showDialog" size="small" icon="el-icon-plus" :disabled='!isDisable'>{{ $t("add") }}</el-button>
     </div>
-    <el-table style="margin-top: 20px" :data="usersList" size="mini">
+    <el-table style="margin-top: 20px" :data="usersList" size="mini" v-loading="loading">
       <el-table-column :label="$t('userName')" prop="name"></el-table-column>
       <!-- <el-table-column
         :label="$t('topic.super')"
@@ -144,7 +144,8 @@ export default {
       },
       usersList: [],
       editUser: "",
-      currentUser: {}
+      currentUser: {},
+      loading: true
     };
   },
   created() {
@@ -232,6 +233,7 @@ export default {
     },
     async getUserData() {
       try {
+        this.loading = true
         let permissionMap = await sendSQLReq(`select * from information_schema.ins_users;`)
           .then((res) => {
             return res.data.map((data) => {
@@ -275,11 +277,14 @@ export default {
             permissionMap.unshift(rooUser);
             permissionMap.splice(++rootUserIndex, 1);
             this.usersList = permissionMap;
+            this.loading = false
           })
           .catch((err) => {
+            this.loading = false
             return Promise.reject(err);
           });
       } catch (error) {
+        this.loading = false
         console.log(error);
       }
     },

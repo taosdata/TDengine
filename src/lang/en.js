@@ -892,6 +892,8 @@ export default {
     watermark: "Watermark",
     trigger: "Trigger",
     learnMoreTip: `To learn more about stream processing, please check <a target='_blank' href="docsUrl">documentation</a>`,
+    delayTip: "The watermark is the amount of time to wait for out-of-order data before executing a query.",
+    stableUpperRequired: "The STABLE cannot be empty",
   },
   topic: {
     agent:'Agent',

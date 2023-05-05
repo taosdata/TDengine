@@ -152,7 +152,7 @@
           >{{ $t("create") }}</el-button
         >
         <el-button :disabled="previewBtn" @click="generateSql"
-          >SQL Preview</el-button
+          >{{ $t('sqlPreview') }}</el-button
         >
       </div>
     </el-form-item>
@@ -220,8 +220,12 @@ export default {
     return {
       sqlPrefix: "CREATE STREAM ",
       rules: {
-        stream_name: [{ validator: validateTopicName, trigger: "blur" }],
-        target_stb: [{ validator: validateTargetStb, trigger: "blur" }],
+        stream_name: [{ validator: validateTopicName }],
+        target_stb: [{ 
+          // validator: validateTargetStb, 
+          required: true,
+          message: this.$t("stream.stableUpperRequired") 
+        }],
       },
       cmOptions: {
         tabSize: 2,
