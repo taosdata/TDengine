@@ -216,12 +216,14 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
+
+    taosWLockLatch(&pMeta->lock);
+
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
 
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__STOP);
 
-    taosWLockLatch(&pMeta->lock);
     streamMetaReleaseTask(pMeta, pTask);
     taosWUnLockLatch(&pMeta->lock);
   }

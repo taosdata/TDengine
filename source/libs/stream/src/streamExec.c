@@ -313,6 +313,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       pTask->chkInfo = (SCheckpointInfo) {.version = dataVer, .id = ckId, .currentVer = pTask->chkInfo.currentVer};
 
       taosWLockLatch(&pTask->pMeta->lock);
+
       streamMetaSaveTask(pTask->pMeta, pTask);
       if (streamMetaCommit(pTask->pMeta) < 0) {
         taosWUnLockLatch(&pTask->pMeta->lock);
