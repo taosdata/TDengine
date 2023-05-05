@@ -69,9 +69,17 @@ typedef struct SParseMetaCache {
   SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
   SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
+  SHashObj* pTableTag;     // key is tbFName, element is STagVal*
   SArray*   pDnodes;       // element is SEpSet
   bool      dnodeRequired;
 } SParseMetaCache;
+
+typedef struct SRewriteTagCondCxt {
+  SArray* pTagVals;
+  SArray* pTagName;
+  int32_t code;
+} SRewriteTagCondCxt;
+
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
 int32_t generateSyntaxErrMsgExt(SMsgBuf* pBuf, int32_t errCode, const char* pFormat, ...);
@@ -83,7 +91,10 @@ SSchema*      getTableTagSchema(const STableMeta* pTableMeta);
 int32_t       getNumOfColumns(const STableMeta* pTableMeta);
 int32_t       getNumOfTags(const STableMeta* pTableMeta);
 STableComInfo getTableInfo(const STableMeta* pTableMeta);
+int32_t       getTableTypeFromCache(SParseMetaCache* pMetaCache, char* pFName, int8_t* tableType);
 STableMeta*   tableMetaDup(const STableMeta* pTableMeta);
+int32_t       buildTagNameFromMeta(STableMeta* pMeta, SArray** pTagName);
+int32_t       checkSubtablePrivilege(SArray* pTagVals, SArray* pTagName, SNode** pCond);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName);
@@ -95,6 +106,7 @@ int32_t reserveTableMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCac
 int32_t reserveDbVgInfoInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
 int32_t reserveTableVgroupInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableVgroupInCacheExt(const SName* pName, SParseMetaCache* pMetaCache);
+int32_t reserveTableTagInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveDbVgVersionInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
 int32_t reserveDbCfgInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
 int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,

@@ -109,6 +109,32 @@ static int32_t appendStableTagCond(SNode** pWhere, SNode* pTagCond) {
   return mergeStableTagCond(pWhere, pTagCondCopy);
 }
 
+static int32_t checkTablePrivilege(SParseMetaCache* pMetaCache, SNode* pTagCond, char* pFName) {
+  if (NULL == pMetaCache->pTableTag || 1 != taosHashGetSize(pMetaCache->pTableTag)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SMetaRes* pMetaRes = taosHashGet(pMetaCache->pTableMeta, pFName, strlen(pFName));
+  if (TSDB_CODE_SUCCESS != pMetaRes->code) {
+    return pMetaRes->code;
+  }
+
+  STableMeta* pMeta = (STableMeta*)pMetaRes->pRes;
+  SMetaRes* pTagRes = taosHashGet(pMetaCache->pTableTag, pFName, strlen(pFName));
+  if (TSDB_CODE_SUCCESS != pTagRes->code) {
+    return pTagRes->code;
+  }
+
+  SArray* pTagName = NULL;
+  int32_t code = buildTagNameFromMeta(pMeta, &pTagName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkSubtablePrivilege((SArray*)pTagRes->pRes, pTagName, &pTagCond);
+  }
+  taosArrayDestroy(pTagName);
+  return code;
+}
+
+
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   SSelectAuthCxt* pCxt = pContext;
   SAuthCxt*       pAuthCxt = pCxt->pAuthCxt;
@@ -215,9 +241,25 @@ static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
 }
 
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SNode* pTagCond = NULL;
-  // todo check tag condition for subtable
-  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL);
+  code = checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, &pTagCond);
+  if (TSDB_CODE_SUCCESS != code || NULL == pTagCond) {
+    return code;
+  }
+  SName name;
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), fullName);
+
+  int8_t tableType = 0;
+  code = getTableTypeFromCache(pCxt->pMetaCache, fullName, &tableType);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (TSDB_SUPER_TABLE == tableType) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  return checkTablePrivilege(pCxt->pMetaCache, pTagCond, fullName);
 }
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
