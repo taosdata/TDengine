@@ -798,7 +798,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
 
   if(pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
-    terrno = TSDB_CODE_MND_BIG_FIELD_VALUE;
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 
