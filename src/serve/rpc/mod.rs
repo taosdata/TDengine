@@ -15,7 +15,9 @@ use arrow::{
 use async_backtrace::framed;
 use futures::{Stream, StreamExt, TryStreamExt};
 use serde::Deserialize;
+#[cfg(unix)]
 use tokio::net::UnixListener;
+#[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tokio_util::codec::BytesCodec;
 use tonic::{transport::Server, IntoStreamingRequest, Request, Response, Status, Streaming};
@@ -414,36 +416,32 @@ impl RpcConfig {
         self,
         controller: TaskControllerRef,
     ) -> Result<(), anyhow::Error> {
-        match (self.tcp, self.unix) {
-            (None, None) => anyhow::bail!("RPC service could no start with empty config"),
-            (Some(tcp), None) => {
-                let service = FlightServiceImpl { controller };
-                Server::builder()
-                    .add_service(FlightServiceServer::new(service))
-                    .serve_with_shutdown(tcp, async {
-                        let _ = tokio::signal::ctrl_c().await;
-                        tracing::info!("Ctrl+C invoked, shutdown RPC service")
-                    })
-                    .await?;
-                Ok(())
-            }
-            (None, Some(path)) => {
-                let uds = UnixListener::bind(path).unwrap();
-                let stream = UnixListenerStream::new(uds);
-                let service = FlightServiceImpl { controller };
-                Server::builder()
-                    .add_service(FlightServiceServer::new(service))
-                    .serve_with_incoming_shutdown(stream, async {
-                        let _ = tokio::signal::ctrl_c().await;
-                        tracing::info!("Ctrl+C invoked, shutdown RPC service")
-                    })
-                    .await?;
-                Ok(())
-            }
-            (Some(_tcp), Some(_unix)) => {
-                todo!()
-            }
+        if let Some(tcp) = self.tcp {
+            let service = FlightServiceImpl {
+                controller: controller.clone(),
+            };
+            Server::builder()
+                .add_service(FlightServiceServer::new(service))
+                .serve_with_shutdown(tcp, async {
+                    let _ = tokio::signal::ctrl_c().await;
+                    tracing::info!("Ctrl+C invoked, shutdown RPC service")
+                })
+                .await?;
         }
+        #[cfg(unix)]
+        if let Some(path) = self.unix {
+            let uds = UnixListener::bind(path).unwrap();
+            let stream = UnixListenerStream::new(uds);
+            let service = FlightServiceImpl { controller };
+            Server::builder()
+                .add_service(FlightServiceServer::new(service))
+                .serve_with_incoming_shutdown(stream, async {
+                    let _ = tokio::signal::ctrl_c().await;
+                    tracing::info!("Ctrl+C invoked, shutdown RPC service")
+                })
+                .await?;
+        }
+        Ok(())
     }
 }
 
