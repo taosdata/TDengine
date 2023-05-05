@@ -10,7 +10,7 @@ description: "支持用户编码的聚合函数和标量函数，在查询中嵌
 
 TDengine 支持通过 C/Python 语言进行 UDF 定义。接下来结合示例讲解 UDF 的使用方法。
 
-# C 语言实现 UDF
+## 用 C 语言实现 UDF
 
 使用 C 语言实现 UDF 时，需要实现规定的接口函数
 - 标量函数需要实现标量接口函数 scalarfn 。
@@ -19,7 +19,7 @@ TDengine 支持通过 C/Python 语言进行 UDF 定义。接下来结合示例�
 
 接口函数的名称是 UDF 名称，或者是 UDF 名称和特定后缀（_start, _finish, _init, _destroy)的连接。列表中的scalarfn，aggfn, udf需要替换成udf函数名。
 
-## C UDF 实现标量函数
+### 用 C 语言实现标量函数
 标量函数实现模板如下
 ```c
 #include "taos.h"
@@ -51,7 +51,7 @@ int32_t scalarfn_destroy() {
 ```
 scalarfn 为函数名的占位符，需要替换成函数名，如bit_and。
 
-## C UDF 实现聚合函数
+### 用 C 语言实现聚合函数
 
 聚合函数的实现模板如下
 ```c
@@ -102,7 +102,7 @@ int32_t aggfn_destroy() {
 ```
 aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
 
-## C UDF 接口函数定义
+### C 语言 UDF 接口函数定义
 
 接口函数的名称是 udf 名称，或者是 udf 名称和特定后缀（_start, _finish, _init, _destroy)的连接。以下描述中函数名称中的 scalarfn，aggfn, udf 需要替换成udf函数名。
 
@@ -110,7 +110,7 @@ aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
 
 接口函数参数类型见数据结构定义。
 
-### C UDF 标量接口函数
+#### 标量函数接口
 
  `int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn)` 
  
@@ -120,7 +120,7 @@ aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
   - inputDataBlock: 输入的数据块
   - resultColumn: 输出列 
 
-### C UDF 聚合接口函数
+#### 聚合函数接口
 
 `int32_t aggfn_start(SUdfInterBuf *interBuf)`
 
@@ -137,7 +137,7 @@ aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
   - result：最终结果。
 
 
-### C UDF 初始化和销毁
+#### 初始化和销毁接口
 `int32_t udf_init()`
 
 `int32_t udf_destroy()`
@@ -145,7 +145,7 @@ aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
 其中 udf 是函数名的占位符。udf_init 完成初始化工作。 udf_destroy 完成清理工作。如果没有初始化工作，无需定义udf_init函数。如果没有清理工作，无需定义udf_destroy函数。
 
 
-## C UDF 数据结构
+### C 语言 UDF 数据结构
 ```c
 typedef struct SUdfColumnMeta {
   int16_t type;
@@ -203,7 +203,7 @@ typedef struct SUdfInterBuf {
 
 为了更好的操作以上数据结构，提供了一些便利函数，定义在 taosudf.h。
 
-## 编译 C UDF
+### 编译 C UDF
 
 用户定义函数的 C 语言源代码无法直接被 TDengine 系统使用，而是需要先编译为 动态链接库，之后才能载入 TDengine 系统。
 
@@ -215,9 +215,9 @@ gcc -g -O0 -fPIC -shared bit_and.c -o libbitand.so
 
 这样就准备好了动态链接库 libbitand.so 文件，可以供后文创建 UDF 时使用了。为了保证可靠的系统运行，编译器 GCC 推荐使用 7.5 及以上版本。
 
-## C UDF 示例代码
+### C UDF 示例代码
 
-### C UDF 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/bit_and.c)
+#### 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/bit_and.c)
 
 bit_add 实现多列的按位与功能。如果只有一列，返回这一列。bit_add 忽略空值。
 
@@ -230,7 +230,7 @@ bit_add 实现多列的按位与功能。如果只有一列，返回这一列。
 
 </details>
 
-### C UDF 聚合函数示例1 返回值为数值类型 [l2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/l2norm.c)
+#### 聚合函数示例1 返回值为数值类型 [l2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/l2norm.c)
 
 l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
@@ -243,7 +243,7 @@ l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先�
 
 </details>
 
-### C UDF 聚合函数示例2 返回值为字符串类型 [max_vol](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/max_vol.c)
+#### 聚合函数示例2 返回值为字符串类型 [max_vol](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/max_vol.c)
 
 max_vol 实现了从多个输入的电压列中找到最大电压，返回由设备ID + 最大电压所在（行，列）+ 最大电压值 组成的组合字符串值
 
@@ -269,13 +269,14 @@ select max_vol(vol1,vol2,vol3,deviceid) from battery;
 
 </details>
 
-# Python 语言实现 UDF
+## 用 Python 语言实现 UDF
+
 使用 Python 语言实现 UDF 时，需要实现规定的接口函数
 - 标量函数需要实现标量接口函数 process 。
 - 聚合函数需要实现聚合接口函数 start ，reduce ，finish。
 - 如果需要初始化，实现 init；如果需要清理工作，实现 destroy。
 
-## Python UDF 实现标量函数
+### 用 Python 实现标量函数
 
 标量函数实现模版如下
 ```Python
@@ -289,7 +290,7 @@ def process(input: datablock) -> tuple[output_type]:
     # return tuple object consisted of object of type outputtype   
 ```
 
-## Python UDF 实现聚合函数
+### 用 Python 实现聚合函数
 
 聚合函数实现模版如下
 ```Python
@@ -309,16 +310,16 @@ def finish(buf: bytes) -> output_type:
     #return obj of type outputtype   
 ```
 
-## Python UDF 接口函数定义
+### Python UDF 接口函数定义
 
-### Python UDF 标量接口函数
+#### 标量函数接口
 ```Python
 def process(input: datablock) -> tuple[output_type]:
 ```
 - input:datablock 类似二维矩阵，通过成员方法 data(row,col)返回位于 row 行，col 列的 python 对象
 - 返回值是一个 Python 对象元组，每个元素类型为输出类型。
 
-### Python UDF 聚合接口函数
+#### 聚合函数接口
 ```Python
 def start() -> bytes:
 def reduce(inputs: datablock, buf: bytes) -> bytes
@@ -328,7 +329,7 @@ def finish(buf: bytes) -> output_type:
 首先调用 start 生成最初结果 buffer，然后输入数据会被分为多个行数据块，对每个数据块 inputs 和当前中间结果 buf 调用 reduce，得到新的中间结果，最后再调用 finish 从中间结果 buf 产生最终输出，最终输出只能含 0 或 1 条数据。
 
 
-### Python UDF 初始化和销毁
+#### 初始化和销毁接口
 ```Python
 def init()
 def destroy()
@@ -336,7 +337,7 @@ def destroy()
 
 其中 init 完成初始化工作。 destroy 完成清理工作。如果没有初始化工作，无需定义 init 函数。如果没有清理工作，无需定义 destroy 函数。
 
-## Python 数据类型和 TDengine 数据类型映射
+### Python 和 TDengine之间的数据类型映射
 
 下表描述了TDengine SQL数据类型和Python数据类型的映射。任何类型的NULL值都映射成Python的None值。
 
@@ -350,7 +351,7 @@ def destroy()
 |TIMESTAMP | int |
 |JSON and other types | 不支持 |
 
-## Python UDF 环境的安装
+### Python UDF 环境的安装
 1. 安装 taospyudf 包。此包执行Python UDF程序。
 ```bash
 sudo pip install taospyudf
@@ -358,8 +359,8 @@ ldconfig
 ```
 2. 如果 Python UDF 程序执行时，通过 PYTHONPATH 引用其它的包，可以设置 taos.cfg 的 UdfdLdLibPath 变量为PYTHONPATH的内容
  
-## Python UDF 示例代码
-### Python UDF 标量函数示例 [pybitand](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pybitand.py)
+### Python UDF 示例代码
+#### 标量函数示例 [pybitand](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pybitand.py)
 
 pybitand 实现多列的按位与功能。如果只有一列，返回这一列。pybitand 忽略空值。
 
@@ -372,7 +373,7 @@ pybitand 实现多列的按位与功能。如果只有一列，返回这一列�
 
 </details>
 
-### Python UDF 聚合函数示例 [pyl2norm](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pyl2norm.py)
+#### 聚合函数示例 [pyl2norm](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pyl2norm.py)
 
 pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
@@ -385,5 +386,6 @@ pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据�
 
 </details>
 
-# 管理和使用 UDF
-需要 UDF 将其加入到系统才能被正常的 SQL 调用。关于如何管理和使用 UDF，参见[UDF使用说明](../12-taos-sql/26-udf.md)
+## 管理和使用 UDF
+在使用 UDF 之前需要先将其加入到 TDengine 系统中。关于如何管理和使用 UDF，请参考[管理和使用 UDF](../12-taos-sql/26-udf.md)
+
