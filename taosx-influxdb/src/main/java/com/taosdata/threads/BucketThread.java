@@ -3,6 +3,7 @@ package com.taosdata.threads;
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.StatusCache;
+import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
 import com.taosdata.model.enums.StatusEnums;
@@ -60,7 +61,7 @@ public class BucketThread implements Runnable {
 
     @Override
     public void run() {
-        while (true) {
+        while (LocalConfig.isRunBucketThread) {
             long start = System.currentTimeMillis();
             try {
                 this.name = Thread.currentThread().getName();

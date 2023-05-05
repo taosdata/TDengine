@@ -3,6 +3,7 @@ package com.taosdata.threads;
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.StatusCache;
+import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
@@ -53,7 +54,7 @@ public class ScheduleThread implements Runnable {
 
     @Override
     public void run() {
-        while (true) {
+        while (LocalConfig.isRunScheduleThread) {
             long start = System.currentTimeMillis();
             try {
                 this.name = Thread.currentThread().getName();
@@ -126,6 +127,8 @@ public class ScheduleThread implements Runnable {
      * 线程结束
      */
     private void exit() {
+        // 结束线程池中所有任务
+        this.threadPoolExecutor.shutdownNow();
         // 线程结束
         logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
@@ -143,8 +146,10 @@ public class ScheduleThread implements Runnable {
                 // 取出一个子线程
                 BucketDataThread bucketDataThread = BucketCache.getBucketDataThread(key);
                 // 正常则启动
-                if (bucketDataThread != null) {
+                if (bucketDataThread != null && !LocalConfig.fetchFilterSet.contains(bucketDataThread.getKey())) {
                     this.threadPoolExecutor.execute(bucketDataThread);
+                } else {
+                    logger.info(this.name + "#忽略读取数据任务{}", bucketDataThread);
                 }
             }
         });

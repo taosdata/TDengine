@@ -10,6 +10,8 @@ spring:
 
 # task parameters
 task:
+  # whether to resume running from the last breakpoint: normal(default)/resume
+  mode: resume
   # empty is all, follow this principle
   buckets:
     - bucket: influxdb

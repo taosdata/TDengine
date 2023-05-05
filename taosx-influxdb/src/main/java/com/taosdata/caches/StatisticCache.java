@@ -25,12 +25,21 @@ public class StatisticCache {
     /**
      * 记录已完成的读取数据任务
      *
+     * @param key
+     */
+    public static void noteCompletedTask(String key) {
+        completedTaskSet.add(key);
+    }
+
+    /**
+     * 记录已完成的读取数据任务
+     *
      * @param bucket
      * @param measurement
      * @param startTime
      * @param stopTime
      */
     public static void noteCompletedTask(String bucket, String measurement, String startTime, String stopTime) {
-        completedTaskSet.add(bucket + "," + measurement + "," + startTime + "," + stopTime);
+        noteCompletedTask(bucket + "," + measurement + "," + startTime + "," + stopTime);
     }
 }

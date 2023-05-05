@@ -17,6 +17,7 @@ import java.util.List;
 @Data
 public class TaskConfig {
 
+    private String mode = "normal";
     private List<BucketConfig> buckets;
     private String beginTime;
     private String endTime;

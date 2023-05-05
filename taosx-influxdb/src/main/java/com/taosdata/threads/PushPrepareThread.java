@@ -3,6 +3,7 @@ package com.taosdata.threads;
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatusCache;
+import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.enums.StatusEnums;
@@ -53,7 +54,7 @@ public class PushPrepareThread implements Runnable {
 
     @Override
     public void run() {
-        while (true) {
+        while (LocalConfig.isRunPushPrepareThread) {
             long start = System.currentTimeMillis();
             try {
                 this.name = Thread.currentThread().getName();
@@ -152,6 +153,12 @@ public class PushPrepareThread implements Runnable {
      * 线程结束
      */
     private void exit() {
+        // 断开所有连接
+        BucketDataCache.socketMap.values().forEach(channel -> channel.close());
+        // 获取所有子队列
+        Set<String> keySet = BucketDataCache.getBucketDataKeySet();
+        // 遍历写回主队列
+        keySet.stream().forEach(key -> BucketDataCache.addBucketData(BucketDataCache.getBucketData(key, BucketDataCache.getBucketDataQueueSize(key))));
         // 线程结束
         logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息

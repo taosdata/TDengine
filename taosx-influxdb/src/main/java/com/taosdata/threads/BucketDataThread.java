@@ -55,12 +55,19 @@ public class BucketDataThread implements Runnable {
     private String startTime;
     private String stopTime;
 
+    /**
+     * 由bucket,measurement,period组成的唯一标识
+     */
+    @Getter
+    private String key;
+
     public BucketDataThread(String orgId, String bucket, String measurement, String startTime, String stopTime) {
         this.orgId = orgId;
         this.bucket = bucket;
         this.measurement = measurement;
         this.startTime = startTime;
         this.stopTime = stopTime;
+        this.key = bucket + "," + measurement + "," + startTime + "," + stopTime;
     }
 
     /**
@@ -108,7 +115,7 @@ public class BucketDataThread implements Runnable {
                     this.offset += influxdbBucketDataEntityList.size();
                 } else {
                     // 记录任务完成信息
-                    StatisticCache.noteCompletedTask(this.bucket, this.measurement, this.startTime, this.stopTime);
+                    StatisticCache.noteCompletedTask(this.key);
                     // 终止
                     break;
                 }
