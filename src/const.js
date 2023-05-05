@@ -1352,7 +1352,10 @@ export const GeneralOperator = [
     label: "NOT BETWEEN",
   },
   {
-    label: "ISNULL",
+    label: "IS NULL",
+  },
+  {
+    label: "IS NOT NULL",
   },
 ];
 

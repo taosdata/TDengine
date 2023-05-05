@@ -71,6 +71,7 @@
 <style scoped lang="scss">
   .condition-list {
     max-height: 300px;
+    overflow-y: auto;
 
     &:deep(.el-select .el-input) {
       width: 120px;
