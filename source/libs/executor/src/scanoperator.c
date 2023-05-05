@@ -1649,14 +1649,12 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
 
     while (tqNextBlockImpl(pInfo->tqReader)) {
-      SSDataBlock block = {0};
-
-      int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader, NULL);
-      if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
+      int32_t code = tqRetrieveDataBlock(pInfo->tqReader->pResBlock, pInfo->tqReader, NULL);
+      if (code != TSDB_CODE_SUCCESS || pInfo->tqReader->pResBlock->info.rows == 0) {
         continue;
       }
 
-      setBlockIntoRes(pInfo, &block, true);
+      setBlockIntoRes(pInfo, pInfo->tqReader->pResBlock, true);
 
       if (pBlockInfo->rows > 0) {
         return pInfo->pRes;
@@ -2075,14 +2073,12 @@ FETCH_NEXT_BLOCK:
       blockDataCleanup(pInfo->pRes);
 
       while (tqNextBlockImpl(pInfo->tqReader)) {
-        SSDataBlock block = {0};
-
-        int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader, NULL);
-        if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
+        int32_t code = tqRetrieveDataBlock(pInfo->tqReader->pResBlock, pInfo->tqReader, NULL);
+        if (code != TSDB_CODE_SUCCESS || pInfo->tqReader->pResBlock->info.rows == 0) {
           continue;
         }
 
-        setBlockIntoRes(pInfo, &block, false);
+        setBlockIntoRes(pInfo, pInfo->tqReader->pResBlock, false);
 
         if (updateInfoIgnore(pInfo->pUpdateInfo, &pInfo->pRes->info.window, pInfo->pRes->info.id.groupId,
                              pInfo->pRes->info.version)) {
