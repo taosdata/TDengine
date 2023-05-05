@@ -224,7 +224,7 @@ impl<W: Write> AckWriter<W> {
                 self.writer
                     .as_mut()
                     .unwrap()
-                    .write(&ack.code.to_le_bytes())?;
+                    .write_all(&ack.code.to_le_bytes())?;
                 Ok(())
             }
             AckType::Lush => {

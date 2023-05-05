@@ -144,7 +144,7 @@ where
     }
 
     pub async fn write_meta_async(&mut self, meta: &RawMeta) -> std::io::Result<usize> {
-        self.0.write(&[DataType::IS_META.bits()]).await?;
+        self.0.write_all(&[DataType::IS_META.bits()]).await?;
         Ok(self.0.write_inlinable(meta).await? + std::mem::size_of::<DataType>())
     }
 

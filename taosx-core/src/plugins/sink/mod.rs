@@ -645,6 +645,7 @@ pub fn listen_unix_socket(
                         lock,
                         config,
                     )
+                    .await
                 });
             }
             Err(e) => {
