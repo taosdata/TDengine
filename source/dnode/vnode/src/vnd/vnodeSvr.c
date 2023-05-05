@@ -1453,11 +1453,30 @@ int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen) {
   return vnodeProcessCreateTSmaReq(pVnode, 1, pCont, contLen, NULL);
 }
 
+static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t version) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  vInfo("vgId:%d, trim meta of tables per hash range [%" PRIu32 ", %" PRIu32 "]. apply-index:%" PRId64, TD_VID(pVnode),
+        pVnode->config.hashBegin, pVnode->config.hashEnd, version);
+
+  // TODO: trim meta of tables from TDB per hash range [pVnode->config.hashBegin, pVnode->config.hashEnd]
+
+  return code;
+}
+
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  vInfo("vgId:%d, vnode management handle msgType:alter-confirm, alter replica confim msg is processed", 
-          TD_VID(pVnode));
+  vInfo("vgId:%d, vnode handle msgType:alter-confirm, alter confim msg is processed", TD_VID(pVnode));
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!pVnode->config.hashChange) {
+    goto _exit;
+  }
+
+  code = vnodeConsolidateAlterHashRange(pVnode, version);
+  pVnode->config.hashChange = false;
+
+_exit:
   pRsp->msgType = TDMT_VND_ALTER_CONFIRM_RSP;
-  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->code = code;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
