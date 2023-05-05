@@ -87,8 +87,8 @@ taosx run \
 **以上示例的PI参数表示**
 - PIServerName：PI 连接配置主机名 ，此示例中为 WIN-2OA23UM12TN
 - AFDatabaseName：指定连接的 PI 数据库，此示例中为 Met1
-- TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 下的所有Element导出到 TDengine 服务器 tdengine的 pi 库中
-- TemplateForAFElement：使用 AF Point 模式将模板template3 ，template4 下的所有Element导出到 TDengine 服务器 tdengine的 pi 库中
+- TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 ，按照 element 的每个Arrtribution作为子表导入到 TDengine 服务器 tdengine 的 pi 库中
+- TemplateForAFElement：使用 AF Point 模式将模板template3 ，template4 ，按照 element 的 Attribution 集合作为一个子表导入到 TDengine 服务器 tdengine的 pi 库中
 
 **在 taosX CLI 运行时支持的参数如下**
 
