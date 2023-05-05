@@ -360,7 +360,7 @@ ldconfig
 2. 如果 Python UDF 程序执行时，通过 PYTHONPATH 引用其它的包，可以设置 taos.cfg 的 UdfdLdLibPath 变量为PYTHONPATH的内容
  
 ### Python UDF 示例代码
-#### 标量函数示例 [pybitand](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/pybitand.py)
+#### 标量函数示例 [pybitand](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pybitand.py)
 
 pybitand 实现多列的按位与功能。如果只有一列，返回这一列。pybitand 忽略空值。
 
@@ -388,3 +388,4 @@ pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据�
 
 ## 管理和使用 UDF
 在使用 UDF 之前需要先将其加入到 TDengine 系统中。关于如何管理和使用 UDF，请参考[管理和使用 UDF](../12-taos-sql/26-udf.md)
+
