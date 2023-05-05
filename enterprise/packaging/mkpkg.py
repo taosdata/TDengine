@@ -306,22 +306,21 @@ def copyExamples(packageComponent, buildOptions):
     logging.info("copying examples")
     global packagingDir, taosToolsDir
     os.chdir(packagingDir)
-
     if buildOptions['DBNAME'] == 'taos':
         dstExampleDir = os.path.join(packagingDir, 'examples')
         srcExampleDir = os.path.join(communityDir, 'examples')
         os.makedirs(dstExampleDir, exist_ok=True)
-        if packageComponent.get('examples') == 1:
-            logging.debug(
+        
+        logging.debug(
                 f"copy examples from {srcExampleDir} to {dstExampleDir}")
-            for example in packageComponent['examples']:
-                if example == 'taosbenchmark-json':
-                    utilCopyTree(os.path.join(taosToolsDir, 'example'),
-                                 os.path.join(dstExampleDir, 'taosbenchmark-json'))
-                else:
-                    utilCopyTree(os.path.join(srcExampleDir, example),
+        for example in packageComponent['examples']:
+            if example == 'taosbenchmark-json':
+                utilCopyTree(os.path.join(taosToolsDir, 'example'),
+                             os.path.join(dstExampleDir, 'taosbenchmark-json'))
+            else:
+                utilCopyTree(os.path.join(srcExampleDir, example),
                                  os.path.join(dstExampleDir, example))
-                logging.info("copy examples of {0} into {1} success".format(
+            logging.info("copy examples of {0} into {1} success".format(
                     example, dstExampleDir))
 
         if buildOptions['PAGMODE'] != 'lite' and buildOptions['CPUTYPE'] != 'aarch32':
@@ -344,9 +343,6 @@ def copyExamples(packageComponent, buildOptions):
                     shutil.rmtree(target)
             logging.info(
                 "copy examples into {0} success".format(dstExampleDir))
-        else:
-            logging.info(
-                "skip copying examples, since PAGMODE: is lite or CPUTYPE aarch32")
     else:
         logging.warning("skip copying examples, since DBNAME:{0} is not taos".format(
             buildOptions['DBNAME']))
@@ -676,8 +672,9 @@ def initRemoveClientScript(verMode, buildOptions):
     logging.info("nothing need modify with remove_client.sh")
 
 
-def copyInstallServerScript(verMode, buildOption, packageComponent):
+def copyInstallServerScript(packageComponent, buildOption, verMode):
     logging.info("init install.sh")
+    logging.debug(packageComponent)
     path = packageComponent['install.sh'].split('/')
     baseDir = globals()[path[0]]
     path[0] = baseDir
@@ -734,7 +731,7 @@ def copyInstallServerScript(verMode, buildOption, packageComponent):
     logging.info("copy install.sh success")
 
 
-def copyInstallClientScript(buildOption, packageComponent, verMode):
+def copyInstallClientScript(packageComponent, buildOption, verMode):
     logging.info("init install_client.sh ...")
 
     path = packageComponent['install_client.sh'].split('/')
@@ -778,7 +775,7 @@ def copyInstallClientScript(buildOption, packageComponent, verMode):
                 f_out.write(line.replace('pagMode=edge', 'pagMode=cloud'))
         os.replace(os.path.join(packagingDir, 'install_client_temp.sh'), os.path.join(
             packagingDir, 'install_client.sh'))
-        os.chmod(os.path.join(packagingDir, 'install.sh'), 0o755)
+        os.chmod(os.path.join(packagingDir, 'install_client.sh'), 0o755)
 
     if buildOption['PAGMODE'] == "lite":
         with open(os.path.join(packagingDir, 'install_client.sh')) as f_in, open(os.path.join(packagingDir, 'install_client_temp.sh'), 'w') as f_out:
@@ -787,7 +784,7 @@ def copyInstallClientScript(buildOption, packageComponent, verMode):
                 f_out.write(line.replace('pagMode=full', 'pagMode=lite'))
         os.replace(os.path.join(packagingDir, 'install_client_temp.sh'), os.path.join(
             packagingDir, 'install_client.sh'))
-        os.chmod(os.path.join(packagingDir, 'install.sh'), 0o755)
+        os.chmod(os.path.join(packagingDir, 'install_client.sh'), 0o755)
     logging.info("copy client_install.sh success")
 
 
@@ -881,7 +878,7 @@ def packageTarGz(packageComponent, buildOptions, verMode, type):
 def collectionTarball(packageComponent, buildOptions, verMode, type):
     logging.info("collecting tarball package content")
     # driver
-    if packageComponent['component']['package.tar.gz'].get('driver') is not None:
+    if packageComponent['component'].get('driver') is not None:
         initLibFiles(packageComponent['component'], buildOptions)
         # copy into *.sh, driver,example,share
         copyDriver(buildOptions)
@@ -890,20 +887,21 @@ def collectionTarball(packageComponent, buildOptions, verMode, type):
         logging.warning(
             "no driver files will be packed,since ['component']['package.tar.gz']['driver'] is not set")
 
-    # install.sh || install_client.sh
+    # install.sh
     if packageComponent['component'].get('install.sh') is not None:
-        # install.sh or install_client.sh
-        if type == 'server':
-            copyInstallServerScript(packageComponent, buildOptions, verMode)
-        elif type == 'client':
-            copyInstallClientScript(packageComponent, buildOptions, verMode)
-        else:
-            logging.error("unsupported package type:{0}".format(type))
-            raise Exception("unsupported package type:{0}".format(type))
+     
+        copyInstallServerScript(packageComponent['component'], buildOptions, verMode)
     else:
         logging.warning(
             "no install.sh will be packed,since ['component']['install.sh'] is not set")
-
+    
+    # install_client.sh
+    if packageComponent['component'].get('install_client.sh') is not None:
+        copyInstallClientScript(packageComponent['component'], buildOptions, verMode)
+    else:
+        logging.warning(
+            "no install_client.sh will be packed,since ['component']['install_client.sh'] is not set")
+    
     # example folder
     if packageComponent['component'].get('examples') is not None:
         # copy examples
@@ -938,11 +936,13 @@ def tarServer(packageComponent, buildOptions, verMode):
     os.chdir(releaseDir)
     packageName = makePackageName(buildOptions, verMode, 'server')
     
-    logging.info(f"tar {packagingDir} to {packageName}")
+    logging.info(f"rename packaging_dir:{packagingDir} to {os.path.join(releaseDir,packageName)}")   
+    os.rename(packagingDir,os.path.join(releaseDir,packageName))
+    logging.debug(os.getcwd())
     
-    executeCommand(f'tar -zcv -f {packageName} {packagingDir} --remove-files || :')
+    executeCommand(f'tar -zcv -f "$(basename {packageName}).tar.gz" "$(basename {os.path.join(releaseDir,packageName)})" --remove-files || :')
     
-    logging.info(f"packing {packageName} at {releaseDir} done")
+    logging.info(f"packing {packageName}.tar.gz at {releaseDir} done")
     os.chdir(scriptDir)
 
 def tarClient(packageComponent, buildOptions, verMode):
@@ -953,10 +953,12 @@ def tarClient(packageComponent, buildOptions, verMode):
     os.chdir(releaseDir)
     packageName = makePackageName(buildOptions, verMode, 'client')
     
-    logging.info(f"tar {packagingDir} to {packageName}")
-    
-    executeCommand(f'tar -zcv -f {packageName} {packagingDir} --remove-files || :')
-    logging.info(f"packing {packageName} at {releaseDir} done")
+    logging.info(f"rename packaging_dir:{packagingDir} to {os.path.join(releaseDir,packageName)}")   
+    os.rename(packagingDir,os.path.join(releaseDir,packageName))
+    logging.debug(os.getcwd())
+   
+    executeCommand(f'tar -zcv -f {packageName}.tar.gz "$(basename {os.path.join(releaseDir,packageName)})" --remove-files || :')
+    logging.info(f"packing {packageName}.tar.gz at {releaseDir} done")
     os.chdir(scriptDir)
 
 def makeTDengineTarball(tarOptions, buildOptions, verMode):
@@ -1054,12 +1056,12 @@ def makePackages(tdenginePackageOptions, buildOptions, verMode):
     else:
         logging.warning("no tar.gz package will be packed")
     
-    if tdenginePackageOptions['rpm']['enable'] == True and tdenginePackageOptions.get('rpm') is not None:
+    if tdenginePackageOptions.get('rpm') is not None and tdenginePackageOptions['rpm']['enable'] == True:
         makeServeRpm(buildOptions, verMode)
     else:
         logging.warning("no rpm package will be packed")
     
-    if tdenginePackageOptions['deb']['enable'] == True and tdenginePackageOptions.get('deb') is not None:
+    if tdenginePackageOptions.get('deb') is not None and tdenginePackageOptions['deb']['enable'] == True:
         makeServerDeb(buildOptions, verMode)    
     else:
         logging.warning("no deb package will be packed")

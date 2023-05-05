@@ -56,11 +56,12 @@ def getGitHead(gitPath, repo):
     logging.info(f"gitPath:{gitPath}")
     code, output = subprocess.getstatusoutput('git rev-parse --verify HEAD')
     if code == 0:
+        os.chdir(scriptDir)
         return output
     else:
         raise Exception(
             "get repo {0} git info failed, reason {1}".format(repo, output))
-
+    
 
 def readOption(filecontent, option):
     options = yamlfile[option]
@@ -465,12 +466,13 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
 def buildInstall(options, verMode):
     buildOptions = options['buildOptions']
     prepareDir(options)
-    
-    os.chdir(compileDir)
+
     logging.info(
         f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']} of {'community' if options['verMode']=='edge' else 'enterprise'} will be build.")
-    logging.info("compile Dir:{0}".format(os))
-    command = generateCmakeCommand(buildOptions, verMode) 
+    command = generateCmakeCommand(buildOptions, verMode)   
+    
+    os.chdir(compileDir)
+    logging.info("compile Dir:{0}".format(compileDir))
     executeCommand(command)
 
     logging.info(f"cmake -j {cpuCount} ")
@@ -647,8 +649,7 @@ def doRelease(options, preActions, postActions, args):
 
     # ================= build and install
 
-    # build && install and packaging
-    buildInstall(options, options['verMode'])
+    # buildInstall(options, options['verMode'])
 
     # ================ making packages
     makePackages(options, options['buildOptions'], options['verMode'])
