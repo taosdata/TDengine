@@ -558,14 +558,15 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
   return 0;
 }
 
+#define BOUNDARY 1024
 static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
   int32_t result = 1;
-  if (length < 1024) {
-    while (result <= length) {
-      result <<= 1;
-    }
-  } else {
+  if (length >= BOUNDARY){
     result = length;
+  }else{
+    while (result <= length) {
+      result << 1;
+    }
   }
 
   if (type == TSDB_DATA_TYPE_BINARY && result > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
