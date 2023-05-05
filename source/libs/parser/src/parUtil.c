@@ -770,7 +770,7 @@ static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
 
 static int32_t buildTableTagReq(SHashObj* pTableTagHash, SArray** pTableTag) {
   if (NULL != pTableTagHash) {
-    *pTableTag = taosArrayInit(taosHashGetSize(pTableTagHash), sizeof(SUserAuthInfo));
+    *pTableTag = taosArrayInit(taosHashGetSize(pTableTagHash), sizeof(SName));
     if (NULL == *pTableTag) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
