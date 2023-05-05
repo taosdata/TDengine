@@ -8,7 +8,7 @@ use taos::Code;
 use crate::serve::{
     controller::{
         agent::{AgentProps, AgentUpdates},
-        AgentFilter, TaskController,
+        AgentFilter, TaskController, TaskControllerRef,
     },
     task::Failed,
 };
@@ -23,7 +23,7 @@ use crate::serve::{
 )]
 #[post("/agents")]
 pub(super) async fn create_agent(
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     agent: Json<AgentProps>,
 ) -> impl Responder {
     match task_store.create_agent(agent.into_inner()).await {
@@ -45,7 +45,7 @@ pub(super) async fn create_agent(
 )]
 #[delete("/agents/{agent_id}")]
 pub(super) async fn delete_agent(
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     agent_id: Path<i64>,
 ) -> impl Responder {
     match task_store.delete_agent(agent_id.into_inner()).await {
@@ -70,7 +70,7 @@ pub(super) async fn delete_agent(
 )]
 #[get("/agents")]
 pub(super) async fn get_agents(
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     filter: Query<AgentFilter>,
 ) -> impl Responder {
     match task_store.get_agents(filter.into_inner()).await {
@@ -95,7 +95,7 @@ pub(super) async fn get_agents(
 )]
 #[patch("/agents/{agent_id}")]
 pub(super) async fn update_agent(
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     agent_id: Path<i64>,
     body: Json<AgentUpdates>,
 ) -> impl Responder {

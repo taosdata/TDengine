@@ -1628,9 +1628,7 @@ pub async fn legacy_to_taos(
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !from_builder.is_enterprise_edition().await?
-        && !to_builder.is_enterprise_edition().await?
-    {
+    if !from_builder.is_enterprise_edition().await? && !to_builder.is_enterprise_edition().await? {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
 

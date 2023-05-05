@@ -7,8 +7,28 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use itertools::Itertools;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Encode, Decode};
-use utoipa::{ToSchema, IntoParams};
+use sqlx::{Decode, Encode, FromRow};
+use tokio_util::sync::CancellationToken;
+use utoipa::{IntoParams, ToSchema};
+
+use super::Task;
+
+// pub struct IpcWorker {}
+
+pub struct AgentWorker {
+    cancel: CancellationToken,
+    task: Task,
+}
+
+impl AgentWorker {
+    pub fn spawn(&self) {
+        if self.task.from.starts_with("opc") {
+            // opc
+        }
+    }
+    pub fn sender(&self) {}
+    pub fn send(&self) {}
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -112,10 +132,7 @@ pub struct AgentUpdates {
 
 impl AgentUpdates {
     pub fn update_agent_with(&self, id: i64) -> Option<String> {
-        let name = self
-            .name
-            .as_ref()
-            .map(|v| format!("`name` = \"{}\"", v));
+        let name = self.name.as_ref().map(|v| format!("`name` = \"{}\"", v));
         let exp = self
             .expire_time
             .as_ref()
@@ -163,13 +180,19 @@ impl AgentClaims {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct AgentToken(String);
+pub struct AgentToken(pub String);
 
 impl std::ops::Deref for AgentToken {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<T: AsRef<[u8]>> From<T> for AgentToken {
+    fn from(value: T) -> Self {
+        Self(String::from_utf8_lossy(value.as_ref()).to_string())
     }
 }
 

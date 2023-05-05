@@ -5,18 +5,15 @@ use std::{
 
 use arrow::{
     array::{
-        make_builder, ArrayBuilder, BinaryBuilder,
-        ListBuilder, StringBuilder, StructBuilder, TimestampMicrosecondBuilder,
-        TimestampMillisecondBuilder, TimestampNanosecondBuilder, TimestampSecondBuilder,
+        make_builder, ArrayBuilder, BinaryBuilder, ListBuilder, StringBuilder, StructBuilder,
+        TimestampMicrosecondBuilder, TimestampMillisecondBuilder, TimestampNanosecondBuilder,
+        TimestampSecondBuilder,
     },
     datatypes::{Field, TimeUnit},
     error::ArrowError,
 };
 
 use arrow::datatypes::DataType as ArrowDataType;
-
-
-
 
 pub struct ListOfStructBuilder {
     fields: Vec<Field>,

@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os/signal"
@@ -14,13 +15,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/huskar-t/opcua"
-	"github.com/huskar-t/opcua/ua"
+	"github.com/gopcua/opcua"
+	"github.com/gopcua/opcua/ua"
 )
 
 type reader struct {
 	connectConfig  common.UaConnectConfig
-	collectConfig  common.UaCollectConfig
+	collectMode    string
+	collectNodes   []common.NodeConfig
 	client         *opcua.Client
 	state          opcua.ConnState
 	nodes          []*ua.NodeID
@@ -34,24 +36,17 @@ type reader struct {
 	mutex          sync.Mutex
 }
 
-func newReader(config common.Config) (*reader, error) {
-	if err := config.Connect.Ua.Validate(); err != nil {
-		return nil, fmt.Errorf("validate connection collectConfig fail. %v", err)
-	}
-
-	if config.Collect.Interval <= 0 {
-		config.Collect.Interval = 1
-	}
-
+func newReader(debug bool, connectConfig common.UaConnectConfig, collectMode string, nodes []common.NodeConfig, interval int64) (*reader, error) {
 	r := &reader{
-		connectConfig:  config.Connect.Ua,
-		collectConfig:  config.Collect.Ua,
+		connectConfig:  connectConfig,
+		collectMode:    collectMode,
+		collectNodes:   nodes,
 		state:          opcua.Disconnected,
-		interval:       time.Duration(config.Collect.Interval) * time.Second,
-		connectTimeout: time.Duration(config.Connect.Ua.ConnectTimeout) * time.Second,
-		requestTimeout: time.Duration(config.Connect.Ua.RequestTimeout) * time.Second,
+		interval:       time.Duration(interval) * time.Second,
+		connectTimeout: time.Duration(connectConfig.ConnectTimeout) * time.Second,
+		requestTimeout: time.Duration(connectConfig.RequestTimeout) * time.Second,
 		done:           make(chan struct{}, 1),
-		debug:          config.Debug,
+		debug:          debug,
 	}
 	if err := r.initNodeMetricMapping(); err != nil {
 		return nil, err
@@ -83,22 +78,21 @@ func (r *reader) connect(ctx context.Context) error {
 
 	r.client = opcua.NewClient(r.connectConfig.Endpoint, opts...)
 
-	ctx, cancel := context.WithTimeout(context.Background(), r.connectTimeout)
+	timeoutCtx, cancel := context.WithTimeout(ctx, r.connectTimeout)
 	defer cancel()
-	if err := r.client.Connect(ctx); err != nil {
+	if err := r.client.Connect(timeoutCtx); err != nil {
 		r.state = opcua.Disconnected
 		return fmt.Errorf("error in Client Connection: %w", err)
 	}
 
 	r.state = opcua.Connected
-	log.Println("## connected to opc ua server")
+	log.Printf("## create reader %p and connected to opc ua server", r)
 
 	if len(r.nodes) > 0 {
 		regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: r.nodes})
 		if err != nil {
 			return fmt.Errorf("register node failed: %w", err)
 		}
-
 		nodesToRead := make([]*ua.ReadValueID, len(regResp.RegisteredNodeIDs))
 		for i, v := range regResp.RegisteredNodeIDs {
 			nodesToRead[i] = &ua.ReadValueID{NodeID: v}
@@ -118,12 +112,6 @@ func (r *reader) ensureConnected(ctx context.Context) error {
 		}
 	}
 
-	if len(r.nodes) > 0 {
-		if _, err := r.readValue(ctx); err != nil {
-			return fmt.Errorf("get data failed: %w", err)
-		}
-	}
-
 	return nil
 }
 
@@ -131,6 +119,9 @@ func (r *reader) stop(ctx context.Context) {
 	defer close(r.done)
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	if r.state == opcua.Disconnected {
+		return
+	}
 	if err := r.client.CloseWithContext(ctx); err != nil {
 		log.Println("## close opc ua connection error", err)
 	}
@@ -140,8 +131,8 @@ func (r *reader) stop(ctx context.Context) {
 
 // initNodeMetricMapping builds nodes from the configuration
 func (r *reader) initNodeMetricMapping() error {
-	existing := make(map[string]struct{}, len(r.collectConfig.Nodes))
-	for _, node := range r.collectConfig.Nodes {
+	existing := make(map[string]struct{}, len(r.collectNodes))
+	for _, node := range r.collectNodes {
 		if _, ok := existing[node.ID]; ok {
 			continue
 		}
@@ -164,17 +155,15 @@ func (r *reader) initNodeMetricMapping() error {
 	return nil
 }
 
-func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
-	if err := r.collectConfig.Validate(); err != nil { // check collect config before collect
-		return nil, fmt.Errorf("validate reader collectConfig fail. %v", err)
+func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
+	if len(r.collectNodes) == 0 {
+		return errors.New("nodes to be observe is empty")
 	}
 	if err := r.ensureConnected(ctx); err != nil {
-		return nil, err
+		return err
 	}
-	ch := make(chan *common.NodeValue, len(r.nodes))
 
 	go func() {
-		defer close(ch)
 		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 		ticker := time.NewTicker(r.interval)
@@ -186,7 +175,7 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 		for {
 			select {
 			case <-checkConnTicker.C:
-				if !r.OpcConnected() {
+				if r.state == opcua.Connected && !r.OpcConnected() {
 					log.Println("## opc ua connection is not alive")
 					return
 				}
@@ -195,9 +184,9 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 			case <-notifyCtx.Done():
 				return
 			case <-ticker.C:
-				values, err := r.readValue(ctx)
+				values, err := r.observeValue(ctx)
 				if err != nil {
-					log.Println("## read metric error ", err)
+					log.Println("## observe metric error ", err)
 					continue
 				}
 
@@ -209,10 +198,10 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 
 	}()
 
-	return ch, nil
+	return nil
 }
 
-func (r *reader) readValue(ctx context.Context) ([]*common.NodeValue, error) {
+func (r *reader) observeValue(ctx context.Context) ([]*common.NodeValue, error) {
 	res, err := r.client.ReadWithContext(
 		ctx,
 		&ua.ReadRequest{
@@ -222,29 +211,41 @@ func (r *reader) readValue(ctx context.Context) ([]*common.NodeValue, error) {
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("read failed: %w", err)
+		return nil, fmt.Errorf("observe failed: %w", err)
 	}
 
 	values := make([]*common.NodeValue, 0, len(res.Results))
-	for i, value := range res.Results {
+	for i, item := range res.Results {
 		identifier := r.nodes[i].String()
-		if value.Status != ua.StatusOK {
-			log.Printf("## read data for identifier %q status %v is not ok ", identifier, values)
+		if r.debug {
+			log.Printf("## observe opc ua identifier [%s] value [%v] type [%v]", identifier,
+				item.Value.Value(), item.Value.Type())
+		}
+
+		if item.Status != ua.StatusOK {
+			log.Printf("## observe data for identifier [%q] status [%v] is not ok(0x0) ", identifier, item.Status)
 			continue
 		}
 
-		if r.debug {
-			log.Printf("## read opc ua value [%v] type [%v]", value.Value.Value(), value.Value.Type())
+		if err = r.checkValueType(identifier, item, r.nodeTypes[i]); err != nil {
+			log.Printf("## check value type for identifier [%q] error [%v]", identifier, err)
+			continue
 		}
 
-		if err = r.checkValueType(identifier, value, r.nodeTypes[i]); err != nil {
-			return nil, err
+		var ts time.Time
+		if !item.SourceTimestamp.IsZero() {
+			ts = item.SourceTimestamp
+		} else if !item.ServerTimestamp.IsZero() {
+			ts = item.ServerTimestamp
+		} else {
+			ts = time.Now()
 		}
 
 		values = append(values, &common.NodeValue{
 			Identifier: identifier,
-			Timestamp:  time.Now(), // TD-23826, ts for read mod is time.Now()
-			Value:      value.Value.Value(),
+			Timestamp:  ts,
+			Now:        time.Now(),
+			Value:      item.Value.Value(),
 			ValueType:  r.nodeTypes[i],
 		})
 	}
@@ -252,29 +253,27 @@ func (r *reader) readValue(ctx context.Context) ([]*common.NodeValue, error) {
 	return values, nil
 }
 
-func (r *reader) subscribe(ctx context.Context) (<-chan *common.NodeValue, error) {
-	if err := r.collectConfig.Validate(); err != nil { // check collect config before collect
-		return nil, fmt.Errorf("validate reader collectConfig fail. %v", err)
+func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error {
+	if len(r.collectNodes) == 0 {
+		return errors.New("nodes to be subscribed is empty")
 	}
 	if err := r.ensureConnected(ctx); err != nil {
-		return nil, err
+		return err
 	}
 
 	sub, subscribeCh, err := r.subscribeNodes(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("subscribe nodes failed: %w", err)
+		return fmt.Errorf("subscribe nodes failed: %w", err)
 	}
 
-	ch := make(chan *common.NodeValue, len(r.nodes))
 	go func() {
 		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
-		defer close(ch)
 		defer func() {
 			if sub == nil {
 				return
 			}
-			cancelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			cancelCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
 			_ = sub.Cancel(cancelCtx)
 
@@ -331,6 +330,7 @@ func (r *reader) subscribe(ctx context.Context) (<-chan *common.NodeValue, error
 					ch <- &common.NodeValue{
 						Identifier: r.nodes[item.ClientHandle].String(),
 						Timestamp:  ts,
+						Now:        time.Now(),
 						Value:      item.Value.Value.Value(),
 						ValueType:  r.nodeTypes[item.ClientHandle],
 					}
@@ -340,7 +340,7 @@ func (r *reader) subscribe(ctx context.Context) (<-chan *common.NodeValue, error
 
 	}()
 
-	return ch, nil
+	return nil
 }
 
 func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, ch chan *opcua.PublishNotificationData, err error) {
@@ -415,7 +415,7 @@ func (r *reader) setupOptions(ctx context.Context) (opts []opcua.Option, err err
 }
 
 func (r *reader) generateOptions(endpoints []*ua.EndpointDescription) (opts []opcua.Option, err error) {
-	// ApplicationURI is automatically read from the cert so is not required if a cert is provided
+	// ApplicationURI is automatically observe from the cert so is not required if a cert is provided
 	opts = append(opts, opcua.ApplicationURI("urn:taosx:gopcua:client"))
 	opts = append(opts, opcua.ApplicationName("taosx"))
 	opts = append(opts, opcua.RequestTimeout(r.requestTimeout))
@@ -508,7 +508,6 @@ func (r *reader) authOptions(authMode string, cert []byte, username, password st
 		return
 	}
 
-	log.Println("## unknown auth-mode, defaulting to Anonymous")
 	token = ua.UserTokenTypeAnonymous
 	option = opcua.AuthAnonymous()
 

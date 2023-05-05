@@ -54,7 +54,7 @@ def readArgs():
 
     # 添加 -c 参数，connector集合
     parser.add_argument('-c', '--connector_array', nargs='+', help='An array of strings')
-    parser.add_argument('-t', '--test_process', help='test single process(pi,opc,taosx, package)')
+    parser.add_argument('-t', '--test_process', help='test single process(pi,opc,mqtt,taosx, package)')
 
     args, unknown_args = parser.parse_known_args()
     if args.connector_array:
@@ -105,12 +105,37 @@ def buildAndInstallOPCOnWindows():
         print("Build OPC failed: ", e.strerror)
         sys.exit()
 
+def buildAndInstallMQTTOnWindows():
+    print("buildAndInstallMQTT on windows start...")
+    mqtt_connector_path = os.path.join(taosx_dir, "plugins", "mqtt")
+    os.chdir(mqtt_connector_path)
+
+    os.environ["GOOS"] = "windows"
+    os.environ["GOARCH"] = "amd64"
+    mqtt_app_name = "taosmqtt.exe"
+    os.system(f"go build -o dist/{mqtt_app_name}")
+
+    mqtt_install_path = os.path.join(install_path, "xplugins", "mqtt")
+    initDirectory(mqtt_install_path)
+    mqtt_path = os.path.join(mqtt_connector_path, "dist", mqtt_app_name)
+    try:
+        shutil.copy2(mqtt_path, mqtt_install_path)
+    except FileNotFoundError as e:
+        print("Build MQTT failed: ", e.strerror)
+        sys.exit()
 
 def buildAndInstallOPC():
     if current_os == 'Windows':
         buildAndInstallOPCOnWindows()
     else:
         print('buildAndInstallOPC not supported on operating system:', current_os)
+        sys.exit()
+
+def buildAndInstallMQTT():
+    if current_os == 'Windows':
+        buildAndInstallMQTTOnWindows()
+    else:
+        print('buildAndInstallMQTT not supported on operating system:', current_os)
         sys.exit()
 
 
@@ -206,6 +231,9 @@ def initInstallDirectory():
     pi_install_path = os.path.join(install_path, "xplugins", "pi")
     initDirectory(pi_install_path)
 
+    mqtt_install_path = os.path.join(install_path, "xplugins", "mqtt")
+    initDirectory(mqtt_install_path)
+
 
 def initReleaseDirectory():
     print("initReleaseDirectory {}...".format(release_path))
@@ -218,6 +246,9 @@ def testHanle(process):
     elif process == "opc":
         print("Calling OPC function...")
         buildAndInstallOPC()
+    elif process == 'mqtt':
+        print("Calling MQTT function...")
+        buildAndInstallMQTT()
     elif process == "package":
         print("Calling Package function...")
         package()
@@ -241,6 +272,8 @@ if __name__ == '__main__':
         buildAndInstallPI()
     if "opc" in connector_array:
         buildAndInstallOPC()
+    if "mqtt" in connector_array:
+        buildAndInstallMQTT()
         
     initReleaseDirectory()
     package()

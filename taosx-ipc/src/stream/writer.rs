@@ -2,7 +2,7 @@ use std::{any::Any, collections::HashMap, fmt::Display, str::FromStr, sync::Arc}
 
 use arrow::{
     array::{Array, ArrayBuilder, ArrayRef, StructBuilder, UInt8Array},
-    datatypes::{DataType, Field, Schema, Fields},
+    datatypes::{DataType, Field, Fields, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
 };
@@ -450,7 +450,7 @@ impl<'a> ChildTablesBuilder<'a> {
     }
 
     pub fn next_table(&mut self, name: &str) -> &mut Self {
-        self.builder.append(&name.to_string());
+        let _ = self.builder.append(&name.to_string());
         self
     }
 

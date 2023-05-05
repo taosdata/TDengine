@@ -4,18 +4,18 @@ use actix_web::{
     HttpResponse, Responder,
 };
 
-
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use taos::{Code};
+use taos::Code;
 
-
-use tokio_cron_scheduler::{Job};
+use tokio_cron_scheduler::Job;
 
 use utoipa::*;
 
-use crate::serve::{NewTask, TaskController, TaskDecorator, TaskFilter, UpdateTask};
+use crate::serve::{
+    controller::TaskControllerRef, NewTask, TaskController, TaskDecorator, TaskFilter, UpdateTask,
+};
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -46,7 +46,7 @@ pub(super) struct Failed {
 )]
 #[get("/tasks")]
 pub(super) async fn get_tasks(
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     filter: Query<TaskFilter>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
@@ -84,7 +84,7 @@ pub(super) async fn get_tasks(
 )]
 #[get("/tasks/count")]
 pub(super) async fn get_tasks_count(
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     filter: Query<TaskFilter>,
 ) -> impl Responder {
     match task_store.tasks_count(filter.into_inner()).await {
@@ -120,7 +120,7 @@ pub(super) async fn get_tasks_count(
 #[post("/tasks")]
 pub(super) async fn create_task(
     task: actix_web::web::Json<NewTask>,
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     let task = task.into_inner();
@@ -240,7 +240,7 @@ pub(super) struct NewReplicate {
 pub(super) async fn update_task(
     id: Path<i64>,
     task: actix_web::web::Json<UpdateTask>,
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     match task_store.update(id.into_inner(), task.into_inner()).await {
@@ -276,7 +276,7 @@ pub(super) async fn update_task(
 #[delete("/tasks/{id}")]
 pub(super) async fn delete_task(
     id: Path<i64>,
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     match task_store.delete(id.into_inner()).await {
@@ -308,7 +308,7 @@ pub(super) async fn delete_task(
 #[get("/tasks/{id}")]
 pub(super) async fn get_task_by_id(
     id: Path<i64>,
-    task_store: Data<TaskController>,
+    task_store: Data<TaskControllerRef>,
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     let id = id.into_inner();
@@ -338,7 +338,10 @@ pub(super) async fn get_task_by_id(
     ),
 )]
 #[post("/tasks/{id}/start")]
-pub(super) async fn start_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
+pub(super) async fn start_task(
+    id: Path<i64>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
     let id = id.into_inner();
     match task_store.start(id).await {
         Ok(Some(_)) => HttpResponse::Ok().body("{}"),
@@ -369,7 +372,10 @@ pub(super) async fn start_task(id: Path<i64>, task_store: Data<TaskController>) 
     ),
 )]
 #[post("/tasks/{id}/stop")]
-pub(super) async fn stop_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
+pub(super) async fn stop_task(
+    id: Path<i64>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
     let id = id.into_inner();
     match task_store.stop(id).await {
         Ok(Some(_)) => HttpResponse::Ok().body("{}"),

@@ -1,0 +1,51 @@
+name: MQTT_PLUGIN
+
+on:
+  push:
+    paths:
+      - 'plugins/mqtt/**'
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.17', '1.20' ]
+    name: mqtt_build ${{ matrix.go }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: plugins/mqtt/go.sum
+
+      - name: build
+        working-directory: plugins/mqtt
+        run: go build
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.17', '1.20' ]
+    name: mqtt_test ${{ matrix.go }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: plugins/mqtt/go.sum
+
+      - name: install mosquitto
+        run: sudo apt install -y mosquitto
+
+      - name: Test
+        working-directory: plugins/mqtt
+        run: go test -v --count=1 ./...

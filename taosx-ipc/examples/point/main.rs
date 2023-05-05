@@ -4,10 +4,10 @@ use anyhow::Result;
 
 use arrow::{
     array::{
-        make_builder, Float32Builder, StringBuilder,
-        StructBuilder, TimestampMillisecondBuilder, UInt8Array,
+        make_builder, Float32Builder, StringBuilder, StructBuilder, TimestampMillisecondBuilder,
+        UInt8Array,
     },
-    datatypes::{DataType, Field, Schema},
+    datatypes::{DataType, Field, Fields, Schema},
     ipc::writer::StreamWriter,
     record_batch::RecordBatch,
 };
@@ -35,8 +35,10 @@ async fn main() -> Result<()> {
         Field::new("id", ArrowDataType::Utf8, false),
         Field::new("value", ArrowDataType::Float32, false),
     ];
-    let record = DataType::Struct(opc_columns.clone());
-    let record_list = DataType::List(Box::new(Field::new("item", record.clone(), true)));
+    // let opc_columns = Fields::from_iter(&opc_columns);
+    let fields = Fields::from((&opc_columns).clone());
+    let record = DataType::Struct(fields);
+    let record_list = DataType::List(Arc::new(Field::new("item", record.clone(), true)));
     let schema = Schema::new(vec![
         Field::new("__type__", DataType::UInt8, false),
         // Field::new_dict(

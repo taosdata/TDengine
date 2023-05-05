@@ -1,9 +1,7 @@
 use anyhow::Result;
 
 use arrow::{
-    array::{
-        StringBuilder, TimestampMillisecondBuilder,
-    },
+    array::{StringBuilder, TimestampMillisecondBuilder},
     datatypes::DataType,
     ipc::writer::StreamWriter,
 };

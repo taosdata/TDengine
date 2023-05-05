@@ -1,17 +1,41 @@
-use std::pin::Pin;
-
-use futures::{Stream, TryStreamExt};
-use tonic::{Request, Response, Status, Streaming};
-
-use arrow_flight::{
-    flight_service_server::FlightService, Action, ActionType, Criteria, Empty, FlightData,
-    FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult, SchemaResult,
-    Ticket,
+use std::{
+    net::SocketAddr,
+    path::PathBuf,
+    pin::Pin,
+    sync::{atomic::AtomicUsize, Arc},
+    task::Poll,
+    time::Duration,
 };
 
-use crate::serve::rpc::put::PutStream;
+use arrow::{
+    array::{ArrayRef, StringArray, TimestampMillisecondArray, TimestampMillisecondBuilder},
+    datatypes::{Field, Fields, Schema},
+    record_batch::RecordBatch,
+};
+use async_backtrace::framed;
+use futures::{Stream, StreamExt, TryStreamExt};
+use serde::Deserialize;
+#[cfg(unix)]
+use tokio::net::UnixListener;
+#[cfg(unix)]
+use tokio_stream::wrappers::UnixListenerStream;
+use tokio_util::codec::BytesCodec;
+use tonic::{transport::Server, IntoStreamingRequest, Request, Response, Status, Streaming};
 
-use super::controller::TaskControllerRef;
+use arrow_flight::{
+    encode::{FlightDataEncoder, FlightDataEncoderBuilder},
+    error::FlightError,
+    flight_service_server::{FlightService, FlightServiceServer},
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+};
+
+use crate::serve::{
+    controller::agent::{Agent, AgentToken},
+    rpc::put::PutStream,
+};
+
+use super::controller::{AgentAction, TaskControllerRef, TaskDetail};
 
 mod put;
 
@@ -39,21 +63,26 @@ impl FlightService for FlightServiceImpl {
         dbg!(&addr);
         let (meta, extension, mut req) = req.into_parts();
 
+        dbg!(&meta);
+
         let req = req.message().await?;
 
         if let Some(req) = req {
-            let res = HandshakeResponse {
+            let mut res = HandshakeResponse {
                 protocol_version: req.protocol_version,
                 payload: req.payload,
             };
+            let agent = self
+                .controller
+                .get_agent_with_token(&AgentToken::from(&res.payload))
+                .await
+                .map_err(|err| Status::permission_denied(format!("Invalid token")))?
+                .ok_or_else(|| Status::permission_denied("Agent not found"))?;
+            res.payload = serde_json::to_vec(&agent).unwrap().into();
             let handshake_stream = futures::stream::once(async { Ok(res) });
             return Ok(Response::new(Box::pin(handshake_stream)));
         }
-        // dbg!(req.try_collect::<Vec<_>>());
-        // dbg!(meta, extension, req);
-
-        // Ok(Response::new())
-        Err(Status::unimplemented("Implement handshake"))
+        Err(Status::permission_denied("Token not found"))
     }
     type ListFlightsStream =
         Pin<Box<dyn Stream<Item = Result<FlightInfo, Status>> + Send + Sync + 'static>>;
@@ -95,12 +124,16 @@ impl FlightService for FlightServiceImpl {
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, Status> {
         let (meta, extension, mut req) = req.into_parts();
+        dbg!(&meta);
 
-        // let message = req.try_next().await?;
         let task_id = meta
             .get("x-task-id")
-            .ok_or_else(|| Status::unavailable("Task id should be set"))?;
+            .ok_or_else(|| Status::unavailable("Task id should be set"))
+            .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
+        dbg!(task_id);
+
+        // let message = req.try_next().await?;
 
         let put_stream = PutStream::new(self.controller.clone(), task_id, req);
 
@@ -115,18 +148,238 @@ impl FlightService for FlightServiceImpl {
         // dbg!(&message);
 
         Ok(Response::new(Box::pin(
-            put_stream.into_flight_put_result().await,
+            put_stream
+                .into_flight_put_result()
+                .await
+                .map_err(|err| Status::unavailable(err.to_string()))?,
+            // req.map_ok(|v| PutResult {
+            //     app_metadata: v.app_metadata,
+            // }),
         )))
     }
 
     type DoExchangeStream =
-        Pin<Box<dyn Stream<Item = Result<FlightData, Status>> + Send + Sync + 'static>>;
+        Pin<Box<dyn Stream<Item = Result<FlightData, Status>> + Send + 'static>>;
 
     async fn do_exchange(
         &self,
-        _request: Request<Streaming<FlightData>>,
+        req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
-        Err(Status::unimplemented("Implement do_exchange"))
+        let (meta, extension, mut req) = req.into_parts();
+        dbg!(&meta);
+
+        dbg!(&extension);
+        let token = meta
+            .get("x-token")
+            .unwrap()
+            .to_str()
+            .map_err(|err| Status::aborted(format!("Invalid token: {err}")))?;
+
+        // dbg!(token);
+
+        let controller = self.controller.clone();
+        let agent = controller
+            .get_agent_with_token(&AgentToken(token.to_string()))
+            .await
+            .map_err(|err| Status::permission_denied(format!("Token error: {err}")))?
+            .ok_or_else(|| Status::permission_denied(format!("Agent has been deleted")))?;
+
+        dbg!(&agent);
+        // let agent: Agent = serde_json::from_str(r#"
+        // {
+        //     "id": 2, "dsn": "taos:///", "name": "agent1", "cluster_id":"", "user_id":"", "connectors": [], "created_at":"2022-02-02T00:00:00Z"
+        // }"#).unwrap();
+
+        let (tx, rx) = flume::bounded(100);
+        let stream: Self::DoExchangeStream = Box::pin(IpcStream::new(rx));
+        let response = tonic::Response::from_parts(meta, stream, extension);
+        struct IpcStream {
+            encoder: FlightDataEncoder,
+            marker: AtomicUsize,
+        }
+
+        unsafe impl Send for IpcStream {}
+        unsafe impl Sync for IpcStream {}
+        impl IpcStream {
+            fn new(receiver: flume::Receiver<Result<RecordBatch, FlightError>>) -> Self {
+                let schema = Arc::new(Schema::new(Fields::from(vec![
+                    Field::new(
+                        "ts",
+                        arrow::datatypes::DataType::Timestamp(
+                            arrow::datatypes::TimeUnit::Millisecond,
+                            None,
+                        ),
+                        false,
+                    ),
+                    Field::new("action", arrow::datatypes::DataType::Utf8, false),
+                    Field::new("context", arrow::datatypes::DataType::Utf8, false),
+                ])));
+
+                let encoder = FlightDataEncoderBuilder::new()
+                    .with_schema(schema)
+                    .build(receiver.into_stream());
+                Self {
+                    encoder,
+                    marker: AtomicUsize::new(0),
+                }
+            }
+        }
+
+        impl futures::Stream for IpcStream {
+            type Item = Result<FlightData, Status>;
+            fn poll_next(
+                mut self: std::pin::Pin<&mut Self>,
+                cx: &mut std::task::Context<'_>,
+            ) -> std::task::Poll<Option<Self::Item>> {
+                let c = self
+                    .marker
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                log::info!("polled: {c} {cx:?}");
+
+                if c % 2 == 0 {
+                    // todo: why this is require?
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
+                }
+                let recv = self.encoder.poll_next_unpin(cx);
+                recv.map(|v| v.map(|res| res.map_err(|err| Status::unknown(format!("{err}")))))
+            }
+        }
+
+        async fn listen_tasks(
+            controller: TaskControllerRef,
+            agent: Agent,
+            tx: flume::Sender<Result<RecordBatch, FlightError>>,
+        ) -> anyhow::Result<()> {
+            controller.init_agent_worker(agent.id).await;
+            let mut receiver = {
+                let mut agent_tasks = controller.agent_tasks.write().await;
+                let mut listener = agent_tasks.get_mut(&agent.id).unwrap();
+
+                // let current = { listener.current.lock().await.clone() };
+
+                for task in listener.current.iter() {
+                    if let Some(task) = controller.get(*task.key()).await? {
+                        let action: ArrayRef =
+                            Arc::new(StringArray::from_iter_values(["run".to_string()]));
+                        let context: ArrayRef =
+                            Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                                &task,
+                            )
+                            .unwrap()]));
+                        let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
+                            chrono::Utc::now().timestamp_millis(),
+                        ]));
+                        let batch = RecordBatch::try_from_iter(vec![
+                            ("ts", ts),
+                            ("action", action),
+                            ("context", context),
+                        ])
+                        .unwrap();
+
+                        if let Err(err) = tx.send_async(Ok(batch)).await {
+                            dbg!(&err);
+                            log::warn!("Task listener closed");
+                            break;
+                        }
+                    }
+                }
+                listener.receiver.resubscribe()
+            };
+
+            // /* begin test */
+            // let mut tick = tokio::time::interval(Duration::from_millis(500));
+            // loop {
+            //     tick.tick().await;
+            //     let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
+            //         chrono::Utc::now().timestamp_nanos(),
+            //     ]));
+            //     let action: ArrayRef = Arc::new(StringArray::from_iter_values(["run".to_string()]));
+            //     let context: ArrayRef =
+            //         Arc::new(StringArray::from_iter_values(["run".to_string()]));
+            //     let batch = RecordBatch::try_from_iter(vec![
+            //         ("ts", ts),
+            //         ("action", action),
+            //         ("context", context),
+            //     ])
+            //     .unwrap();
+
+            //     if let Err(err) = tx.send_async(Ok(batch)).await {
+            //         dbg!(&err);
+            //         log::warn!("Task listener closed");
+            //         break;
+            //     }
+            //     continue;
+            // } /* end test */
+            loop {
+                log::info!("Waiting for new task");
+                if let Ok(data) = receiver.recv().await {
+                    log::info!("{data:?}");
+
+                    let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        chrono::Utc::now().timestamp_millis(),
+                    ]));
+
+                    match data {
+                        AgentAction::Run(id) => {
+                            let task = controller.get(id).await?;
+                            if let Some(task) = task {
+                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    serde_json::to_string(&task).unwrap(),
+                                ]));
+                                let action: ArrayRef =
+                                    Arc::new(StringArray::from_iter_values(["run".to_string()]));
+                                let batch = RecordBatch::try_from_iter(vec![
+                                    ("ts", ts),
+                                    ("action", action),
+                                    ("context", context),
+                                ])
+                                .unwrap();
+
+                                if let Err(err) = tx.send_async(Ok(batch)).await {
+                                    dbg!(&err);
+                                    log::warn!("Task listener closed");
+                                    break;
+                                }
+                            } else {
+                                // todo!()
+                            }
+                        }
+                        AgentAction::Cancel(id) => {
+                            let task = controller.get(id).await?;
+                            if let Some(task) = task {
+                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
+                                    serde_json::to_string(&task).unwrap(),
+                                ]));
+                                let action: ArrayRef =
+                                    Arc::new(StringArray::from_iter_values(["cancel".to_string()]));
+                                let batch = RecordBatch::try_from_iter(vec![
+                                    ("ts", ts),
+                                    ("action", action),
+                                    ("context", context),
+                                ])
+                                .unwrap();
+
+                                if let Err(err) = tx.send_async(Ok(batch)).await {
+                                    dbg!(&err);
+                                    log::warn!("Task listener closed");
+                                    break;
+                                }
+                            } else {
+                                // todo!()
+                            }
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
+            Ok(())
+        }
+
+        tokio::spawn(listen_tasks(controller, agent, tx));
+
+        Ok(response)
     }
 
     type DoActionStream =
@@ -150,9 +403,63 @@ impl FlightService for FlightServiceImpl {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RpcConfig {
+    pub tcp: Option<SocketAddr>,
+    pub unix: Option<PathBuf>,
+}
+
+impl RpcConfig {
+    /// Start a Flight gRPC server
+    #[framed]
+    pub(super) async fn serve_with_controller(
+        self,
+        controller: TaskControllerRef,
+    ) -> Result<(), anyhow::Error> {
+        if let Some(tcp) = self.tcp {
+            let service = FlightServiceImpl {
+                controller: controller.clone(),
+            };
+            Server::builder()
+                .add_service(FlightServiceServer::new(service))
+                .serve_with_shutdown(tcp, async {
+                    let _ = tokio::signal::ctrl_c().await;
+                    tracing::info!("Ctrl+C invoked, shutdown RPC service")
+                })
+                .await?;
+        }
+        #[cfg(unix)]
+        if let Some(path) = self.unix {
+            let uds = UnixListener::bind(path).unwrap();
+            let stream = UnixListenerStream::new(uds);
+            let service = FlightServiceImpl { controller };
+            Server::builder()
+                .add_service(FlightServiceServer::new(service))
+                .serve_with_incoming_shutdown(stream, async {
+                    let _ = tokio::signal::ctrl_c().await;
+                    tracing::info!("Ctrl+C invoked, shutdown RPC service")
+                })
+                .await?;
+        }
+        Ok(())
+    }
+}
+
+impl Default for RpcConfig {
+    fn default() -> Self {
+        Self {
+            tcp: Some("0.0.0.0:6055".parse().unwrap()),
+            unix: Default::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Arc;
+    use std::task::Poll;
+    use std::time::{Duration, Instant};
 
     use arrow::array::{ArrayRef, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
@@ -161,6 +468,7 @@ mod tests {
         error::ArrowError,
         ipc::{writer::IpcWriteOptions, TimestampBuilder},
     };
+    use arrow_flight::decode::FlightDataDecoder;
     use arrow_flight::{
         encode::{FlightDataEncoder, FlightDataEncoderBuilder},
         error::FlightError,
@@ -168,9 +476,10 @@ mod tests {
         flight_service_server::FlightServiceServer,
         Criteria, FlightData, HandshakeRequest,
     };
-    use futures::TryStreamExt;
+    use futures::{FutureExt, TryStreamExt};
     use tempfile::NamedTempFile;
-    use tokio::net::{UnixListener, UnixStream};
+    use tokio::net::{TcpStream, UnixListener, UnixStream};
+    use tokio::time::Interval;
     use tokio_stream::wrappers::UnixListenerStream;
     use tonic::{
         codegen::Bytes,
@@ -191,8 +500,22 @@ mod tests {
             .unwrap();
         FlightServiceClient::new(channel)
     }
+    async fn client_with_tcp() -> FlightServiceClient<Channel> {
+        // let connector = tower::service_fn(move |_| TcpStream::connect("127.0.0.1:6051"));
+        let channel = Endpoint::try_from("http://127.0.0.1:6051")
+            .unwrap()
+            .connect()
+            .await
+            .unwrap();
+        // .connect_with_connector(connector)
+        // .await
+        // .unwrap();
+        FlightServiceClient::new(channel)
+    }
     #[tokio::test(flavor = "multi_thread")]
     async fn server_client() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "INFO");
+        pretty_env_logger::init();
         let file = NamedTempFile::new().unwrap();
         let path = file.into_temp_path().to_str().unwrap().to_string();
         let _ = std::fs::remove_file(path.clone());
@@ -200,21 +523,21 @@ mod tests {
         let uds = UnixListener::bind(path.clone()).unwrap();
         let stream = UnixListenerStream::new(uds);
 
-        let controller = TaskControllerRef::from_sqlite("sqlite:memory:")
-            .await
-            .unwrap();
+        // let controller = TaskControllerRef::from_sqlite("sqlite:memory:")
+        //     .await
+        //     .unwrap();
 
-        let task = serde_json::from_str(
-            r#"{"from": "pi:///", "agent": "localhost:9090", "to": "taos:///pi"}"#,
-        )?;
-        controller.create(task).await?;
-        let service = FlightServiceImpl { controller };
-        let serve_future = Server::builder()
-            .add_service(FlightServiceServer::new(service))
-            .serve_with_incoming(stream);
+        // let task = serde_json::from_str(
+        //     r#"{"from": "pi:///", "agent": "localhost:9090", "to": "taos:///pi"}"#,
+        // )?;
+        // controller.create(task).await?;
+        // let service = FlightServiceImpl { controller };
+        // let serve_future = Server::builder()
+        //     .add_service(FlightServiceServer::new(service))
+        //     .serve_with_incoming(stream);
 
         let request_future = async {
-            let mut client = client_with_uds(path).await;
+            let mut client = client_with_tcp().await;
             let req = HandshakeRequest::default();
             client
                 .handshake(futures::stream::once(async { req }))
@@ -226,25 +549,41 @@ mod tests {
 
             let mut metadata = MetadataMap::new();
 
-            let schema = Arc::new(Schema::new(vec![Field::new(
-                "ts",
-                DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
-                false,
-            )]));
+            let schema = Arc::new(
+                Schema::new(vec![Field::new(
+                    "ts",
+                    DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
+                    false,
+                )])
+                .with_metadata(HashMap::from_iter([(
+                    "x-task-id".to_string(),
+                    "1".to_string(),
+                )])),
+            );
+            // schema.with_metadata(metadata)
 
             // let ipc = arrow::ipc::reader::StreamReader::try_new();
-            struct FakeStream(SchemaRef);
+            struct FakeStream(SchemaRef, tokio::time::Interval, Instant);
 
             impl futures::Stream for FakeStream {
                 type Item = Result<RecordBatch, FlightError>;
                 fn poll_next(
-                    self: std::pin::Pin<&mut Self>,
-                    _: &mut std::task::Context<'_>,
+                    mut self: std::pin::Pin<&mut Self>,
+                    cx: &mut std::task::Context<'_>,
                 ) -> std::task::Poll<Option<Self::Item>> {
+                    // std::thread::sleep(Duration::from_millis(100));
+                    if Instant::now() > self.2 {
+                        return Poll::Ready(None);
+                    }
+                    match self.1.poll_tick(cx) {
+                        Poll::Ready(_) => (),
+                        Poll::Pending => return Poll::Pending,
+                    }
+                    // fut.poll_unpin(cx);
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1]))
                         as ArrayRef;
                     let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
-
+                    log::info!("{item:?}");
                     std::task::Poll::Ready(Some(item))
                 }
             }
@@ -255,7 +594,11 @@ mod tests {
                 .with_options(
                     IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
                 )
-                .build(FakeStream(schema.clone()));
+                .build(FakeStream(
+                    schema.clone(),
+                    tokio::time::interval(Duration::from_millis(1000)),
+                    Instant::now() + Duration::from_secs(10),
+                ));
 
             struct Data {
                 data: FlightDataEncoder,
@@ -273,30 +616,65 @@ mod tests {
                             u.map(|mut v| {
                                 if v.app_metadata.is_empty() {
                                     v.app_metadata = Bytes::from("request");
-                                    v
+                                    dbg!(v)
                                 } else {
-                                    v
+                                    dbg!(v)
                                 }
                             })
                         })
                 }
             }
-            let stream = client.do_put(Data { data }).await?.into_inner();
+
+            // let mut req = Data { data }.into_streaming_request();
+            // req.metadata_mut().append("x-task-id", "2".parse().unwrap());
+
+            // let stream = client.do_put(req).await.unwrap().into_inner();
+
+            // stream
+            //     .try_for_each(|res| async {
+            //         dbg!(res.app_metadata);
+
+            //         Ok(())
+            //     })
+            //     .await
+            //     .unwrap();
+
+            let mut data = FlightDataEncoderBuilder::new()
+                .with_schema(schema.clone())
+                .with_metadata(Bytes::from("metadata"))
+                .with_options(
+                    IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
+                )
+                .build(FakeStream(
+                    schema.clone(),
+                    tokio::time::interval(Duration::from_millis(1000)),
+                    Instant::now() + Duration::from_secs(10),
+                ));
+
+            let mut req = Data { data }.into_streaming_request();
+
+            let response = client.do_exchange(req).await.unwrap();
+            let stream = FlightDataDecoder::new(
+                response.into_inner().map_err(|err| FlightError::Tonic(err)),
+            );
+            // .into_inner();
 
             stream
-                .try_for_each_concurrent(10, |res| async {
-                    dbg!(res.app_metadata);
+                .try_for_each(|res| async move {
+                    // dbg!(res.app_metadata);
+                    dbg!(&res);
 
                     Ok(())
                 })
                 .await
+                .unwrap();
 
             // client.do_put().await;
         };
 
         tokio::select! {
             _ = request_future => println!("Client finished"),
-            _ = serve_future => println!("Server finished!"),
+            // _ = serve_future => println!("Server finished!"),
         }
         Ok(())
     }

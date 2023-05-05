@@ -11,13 +11,15 @@ use std::{
 use anyhow::{bail, Context};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use dashmap::{DashMap, DashSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::TaskOpts;
-use tokio::sync::OnceCell;
+use tokio::sync::{Mutex, OnceCell};
+use tokio::task::JoinHandle;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tokio_util::sync::CancellationToken;
@@ -95,6 +97,7 @@ mod option_datetime_format {
 
 use self::agent::{
     Agent, AgentActivity, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
+    AgentWorker,
 };
 
 use super::data_sources::DataSourceDefinition;
@@ -103,6 +106,56 @@ static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
 // const TASK_SELECT: &str = "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks";
 
+#[derive(Debug, Clone, Copy)]
+pub enum AgentAction {
+    Run(i64),
+    Cancel(i64),
+}
+pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
+pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;
+pub type AgentTasksError = tokio::sync::broadcast::error::SendError<AgentAction>;
+pub struct AgentTasks {
+    pub current: Arc<DashSet<i64>>,
+    pub sender: AgentTasksSender,
+    pub receiver: AgentTasksReceiver,
+}
+
+impl AgentTasks {
+    pub fn new(current: Vec<TaskDetail>) -> Self {
+        let (sender, receiver) = tokio::sync::broadcast::channel(10);
+        Self {
+            current: Arc::new(DashSet::new()),
+            sender,
+            receiver,
+        }
+    }
+    pub fn spawn_listener(&self) -> JoinHandle<()> {
+        let mut rx = self.sender.subscribe();
+        let current = self.current.clone();
+        tokio::spawn(async move {
+            loop {
+                match rx.recv().await {
+                    Ok(action) => match action {
+                        AgentAction::Run(task) => {
+                            current.insert(task);
+                        }
+                        AgentAction::Cancel(task) => {
+                            current.remove(&task);
+                        }
+                    },
+                    Err(err) => {
+                        log::error!("err: {err}");
+                        break;
+                    }
+                }
+            }
+        })
+    }
+
+    pub fn send(&self, action: AgentAction) -> Result<usize, AgentTasksError> {
+        self.sender.send(action)
+    }
+}
 pub(super) struct TaskController {
     pub pool: SqlitePool,
     pub runtime: Option<Runtime>,
@@ -117,6 +170,9 @@ pub(super) struct TaskController {
     >,
     pub scheduler: Arc<JobScheduler>,
     pub secret: RwLock<Option<Bytes>>,
+    /// An Agent-to-Tasks-Vector hashmap.
+    pub agent_tasks: RwLock<HashMap<i64, AgentTasks>>,
+    // pub agent_workers: RwLock<HashMap<i64, AgentWorker>>
     // tasks: Mutex<Vec<Task>>,
 }
 
@@ -133,54 +189,9 @@ impl Debug for TaskController {
 
 pub(super) async fn start_all_with_schedule(controller: Arc<TaskController>) -> anyhow::Result<()> {
     // log::info!("")
-    let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
-            "select * from task_with_labels where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
-            .bind(Status::Completed)
-            .bind(Status::Failed)
-            .bind(Status::Stopped)
-            .fetch_all(&controller.pool)
-            .await?;
-    // Ok(tasks)
-    for task in &tasks {
-        controller.start_task(task).await?;
-    }
-    let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
-            "select * from task_with_labels where trigger is not null and status != ? and `deleted` != TRUE order by created_at desc")
-            .bind(Status::Stopped)
-            .fetch_all(&controller.pool)
-            .await?;
-    let sched = controller.scheduler.clone();
-    for task in tasks {
-        if let Some(trigger) = task.trigger.as_deref() {
-            let schedule = trigger.trim_start_matches("schedule:");
-            let id = task.id;
-            let controller = controller.clone();
-            match Job::new_async(schedule, move |uuid, mut l| {
-                let controller = controller.clone();
-                Box::pin(async move {
-                    log::info!("waiting for next tick");
-                    let next_tick = l.next_tick_for_job(uuid).await;
-                    match next_tick {
-                        Ok(Some(ts)) => {
-                            log::info!("Next tick is {:?}", ts);
-                            let _ = controller.start(id).await.unwrap();
-                        }
-                        _ => log::warn!("Could not get next tick"),
-                    }
-                })
-            }) {
-                Ok(job) => {
-                    log::debug!("add cron job for task: {task:?}");
-                    sched.add(job).await?;
-                }
-                Err(err) => {
-                    log::error!("Scheduler task error: {err:?}, task:{task:?}");
-                    Err(err).with_context(|| format!("Schedule task error, task:{:?}", task))?;
-                }
-            }
-        }
-    }
-    Ok(())
+    TaskControllerRef(controller)
+        .start_all_with_schedule()
+        .await
 }
 
 #[derive(Debug, Clone)]
@@ -192,7 +203,16 @@ impl TaskControllerRef {
             .await
             .map(|v| Self(Arc::new(v)))
     }
-    pub async fn _start_all_with_schedule(&self) -> anyhow::Result<()> {
+    pub async fn from_sqlite_with_runtime(
+        sqlite: &str,
+        rt: tokio::runtime::Runtime,
+    ) -> anyhow::Result<Self> {
+        TaskController::from_sqlite(sqlite)
+            .await
+            .map(|c| c.with_runtime(rt))
+            .map(|v| Self(Arc::new(v)))
+    }
+    pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
             "select * from task_with_labels where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
             .bind(Status::Completed)
@@ -209,14 +229,12 @@ impl TaskControllerRef {
             .bind(Status::Stopped)
             .fetch_all(&self.pool)
             .await?;
-        // dbg!(&tasks);
         let sched = self.scheduler.clone();
         for task in tasks {
-            // dbg!(&task.trigger);
             if let Some(trigger) = task.trigger.as_deref() {
                 let schedule = trigger.trim_start_matches("schedule:");
                 let id = task.id;
-                let controller = self.0.clone();
+                let controller = self.clone();
                 match Job::new_async(schedule, move |uuid, mut l| {
                     let controller = controller.clone();
                     Box::pin(async move {
@@ -310,6 +328,7 @@ impl TaskController {
             tasks: Default::default(),
             scheduler: Arc::new(scheduler),
             secret: RwLock::new(None),
+            agent_tasks: Default::default(),
         })
     }
 
@@ -317,8 +336,6 @@ impl TaskController {
         self.runtime = Some(rt);
         self
     }
-
-    // async fn add_agent(&self, agent: Agent);
 
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         let id = task.id;
@@ -362,7 +379,28 @@ impl TaskController {
             force: task.force,
             cancel: CancellationToken::new(),
             // port_pool: ONCE,
+            with_agent: None,
         };
+        dbg!(&opts);
+
+        let agent_task_worker = if let Some(id) = task.via {
+            // self.init_agent_worker(id)?;
+            self.init_agent_worker(id).await;
+            Some((
+                task.id,
+                self.agent_tasks
+                    .read()
+                    .await
+                    .get(&id)
+                    .unwrap()
+                    .sender
+                    .clone(),
+                id,
+            ))
+        } else {
+            None
+        };
+        dbg!(&agent_task_worker);
 
         let pool = self.pool.clone();
         let task_handler = async move {
@@ -375,9 +413,15 @@ impl TaskController {
             )
             .execute(&pool)
             .await?;
+            let sender2 = agent_task_worker.clone();
+            let cloned_token2 = cloned_token.clone();
             tokio::select! {
                 _ = cloned_token.cancelled() => {
-                    opts.cancel();
+                    if let Some((id, sender, agent_id)) = agent_task_worker.as_ref() {
+                        let _ = sender.send(AgentAction::Cancel(*id));
+                    } else {
+                        opts.cancel();
+                    }
                     log::debug!("cancel task {id}");
                     let now = Utc::now();
                     let status = Status::Cancelled;
@@ -405,10 +449,9 @@ impl TaskController {
                             .await?;
                         }
                     }
-
                 }
                 result = async {
-                    if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
+                    if agent_task_worker.is_none() && opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
                         let mut restarts = 0;
                         let mut sleep = Duration::from_secs(2);
                         let mut last_restart_time = Instant::now();
@@ -517,7 +560,15 @@ impl TaskController {
                         )
                         .execute(&pool)
                         .await?;
-                        let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
+                        let result = if let Some((id, sender, agent_id)) = &agent_task_worker {
+
+                            let send = sender.send(AgentAction::Run(*id)).map_err(|_| anyhow::format_err!("Unable to start task {id} with agent {agent_id}")).map(|_| ());
+                            dbg!(send);
+                            cloned_token2.cancelled().await;
+                            Ok(())
+                        } else {
+                            opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await
+                        };
                         match result {
                             Ok(_) => {
                                 let now = Utc::now();
@@ -881,9 +932,7 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         let id = res.last_insert_rowid();
-        dbg!(&id);
         let secret = self.jwt_secret().await?;
-        dbg!(&secret);
         self.get_agent_by_id(id)
             .await
             .map(|agent| agent.unwrap().with_token(secret))
@@ -901,6 +950,9 @@ impl TaskController {
     pub async fn get_agent_with_token(&self, token: &AgentToken) -> anyhow::Result<Option<Agent>> {
         let claims = token.jwt_decode(self.jwt_secret().await?)?;
         let agent = self.get_agent_by_id(claims.sub).await?;
+        if agent.is_some() {
+            //
+        }
         Ok(agent)
     }
 
@@ -910,6 +962,19 @@ impl TaskController {
             .fetch_optional(&self.pool)
             .await?;
         Ok(agent)
+    }
+
+    pub async fn get_or_insert_agent_worker(&self, task_id: i64) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    pub async fn init_agent_worker(&self, agent_id: i64) {
+        let exists = { self.agent_tasks.read().await.contains_key(&agent_id) };
+        if !exists {
+            let mut write = self.agent_tasks.write().await;
+            write.insert(agent_id, AgentTasks::new(vec![]));
+            write.get(&agent_id).unwrap().spawn_listener();
+        }
     }
 
     pub async fn agent_connected_with_token(
@@ -989,9 +1054,7 @@ impl TaskController {
         if let Some(secret) = secret {
             Ok(secret)
         } else {
-            dbg!("write guard");
             let mut guard = self.secret.write().await;
-            dbg!("enter guard");
             const SECRET_PREFIX: &str = "XaNeGt";
             if guard.is_none() {
                 let secret: Option<String> = sqlx::query_scalar("select `secret` from `secret`")
@@ -1014,6 +1077,14 @@ impl TaskController {
                 Ok(guard.as_ref().unwrap().clone())
             }
         }
+    }
+
+    pub async fn get_tasks_of_agent(&self, agent_id: i64) -> anyhow::Result<Vec<TaskDetail>> {
+        let mut conn = self.pool.acquire().await?;
+        let trans = self.pool.begin().await?;
+        self.tasks(TaskFilter::default().via(agent_id)).await?;
+        // self
+        todo!()
     }
 }
 
@@ -1105,7 +1176,7 @@ pub struct Task {
 
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    from: String,
+    pub from: String,
 
     /// Cluster identifier for stream from. **Deprecated**, use labels instead.
     #[serde(default)]
@@ -1120,7 +1191,7 @@ pub struct Task {
 
     /// The target of the stream.
     #[schema(example = "local:/path/to/backup/test")]
-    to: String,
+    pub to: String,
 
     /// Cluster identifier for stream to. **Deprecated**, use labels instead.
     #[schema(example = "null")]
@@ -1544,6 +1615,11 @@ pub(super) struct NewTask {
     ///
     /// You can filter tasks by some labels.
     labels: Option<Vec<String>>,
+
+    /// Do not start immediately. Default is false, means start immediately after created.
+    ///
+    #[serde(default)]
+    not_start: bool,
 }
 
 impl NewTask {
@@ -1689,6 +1765,7 @@ pub(super) struct TaskFilter {
     labels: Option<String>,
     any_labels: Option<String>,
     without_labels: Option<String>,
+    via: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
@@ -1699,7 +1776,7 @@ pub struct TaskDecorator {
 }
 
 impl TaskFilter {
-    fn to_sql_conditions(&mut self) -> std::result::Result<String, std::fmt::Error> {
+    pub fn to_sql_conditions(&mut self) -> std::result::Result<String, std::fmt::Error> {
         use std::fmt::Write;
         let mut sql = String::new();
         if !self.with_deleted.unwrap_or_default() {
@@ -1749,6 +1826,9 @@ impl TaskFilter {
         if let Some(val) = self.end_create_time.as_deref() {
             write!(sql, " AND `created_at` <= '{val}'")?;
         }
+        if let Some(val) = self.via.as_ref() {
+            write!(sql, " AND `via` = {val}")?;
+        }
         Ok(sql)
     }
 
@@ -1768,6 +1848,11 @@ impl TaskFilter {
             tasks.retain(|task| !task.contains_any_labels(&labels.split(",").collect_vec()));
         }
     }
+
+    fn via(mut self, agent_id: i64) -> Self {
+        self.via.replace(agent_id);
+        self
+    }
 }
 
 #[cfg(test)]
@@ -1776,9 +1861,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_agent() -> anyhow::Result<()> {
-        std::env::set_var("RUST_LOG", "debug");
-        pretty_env_logger::init();
-        let controller = TaskController::from_sqlite("sqlite:test.db").await?;
+        // std::env::set_var("RUST_LOG", "debug");
+        // pretty_env_logger::init();
+        let controller = TaskController::from_sqlite("sqlite::memory:").await?;
         dbg!(&controller);
         let new: AgentProps = serde_json::from_str(
             r#"
@@ -1851,7 +1936,7 @@ mod tests {
         .unwrap();
         dbg!(&new);
         let agent = controller.create_agent(new).await?;
-        
+
         let detail = controller.get_agent_by_id(agent.id).await?;
         dbg!(&detail);
 
