@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tmsg.h"
 #include "tq.h"
 
 bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
@@ -346,6 +347,10 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
         int32_t nSubmitTbData = taosArrayGetSize(pReader->submit.aSubmitTbData);
         for (int32_t i = 0; i < nSubmitTbData; i++) {
           SSubmitTbData* pData = taosArrayGet(pReader->submit.aSubmitTbData, i);
+          if (pData->pCreateTbReq != NULL) {
+            taosArrayDestroy(pData->pCreateTbReq->ctb.tagName);
+            taosMemoryFreeClear(pData->pCreateTbReq);
+          }
           pData->aRowP = taosArrayDestroy(pData->aRowP);
         }
         pReader->submit.aSubmitTbData = taosArrayDestroy(pReader->submit.aSubmitTbData);
@@ -529,6 +534,8 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
   if (pSubmitTbDataRet) {
     *pSubmitTbDataRet = pSubmitTbData;
   }
+
+  blockDataCleanup(pBlock);
 
   int32_t sversion = pSubmitTbData->sver;
   int64_t suid = pSubmitTbData->suid;

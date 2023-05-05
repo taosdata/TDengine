@@ -1699,8 +1699,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, pRes, true);
         if (pInfo->pRes->info.rows > 0) {
-          qDebug("doQueueScan get data from log %" PRId64 " rows, return, version:%" PRId64, pInfo->pRes->info.rows,
-                 pTaskInfo->streamInfo.currentOffset.version);
           return pInfo->pRes;
         }
       } else if (type == FETCH_TYPE__NONE) {
