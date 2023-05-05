@@ -387,5 +387,5 @@ The `pyl2norm` function finds the second-order norm for all data in the input co
 
 </details>
 
-## Manage and Use User-Defined Functions
+## Manage and Use UDF
 You need to add UDF to TDengine before using it in SQL queries. For more information about how to manage UDF and how to invoke UDF, please see [Manage and Use UDF](../12-taos-sql/26-udf.md).
