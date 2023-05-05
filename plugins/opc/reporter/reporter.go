@@ -154,13 +154,13 @@ func packData(values []*common.NodeValue, schema *arrow.Schema, valueFunc append
 	recordBuilder := array.NewRecordBuilder(memory.NewGoAllocator(), schema)
 	defer recordBuilder.Release()
 
-	field0 := recordBuilder.Field(0).(*array.StringBuilder)
+	field0 := recordBuilder.Field(0).(*array.StringBuilder) // id
 	defer field0.Release()
-	field1 := recordBuilder.Field(1).(*array.TimestampBuilder)
+	field1 := recordBuilder.Field(1).(*array.TimestampBuilder) // ts
 	defer field1.Release()
-	field2 := recordBuilder.Field(2).(*array.TimestampBuilder)
+	field2 := recordBuilder.Field(2).(*array.TimestampBuilder) // now
 	defer field2.Release()
-	field3 := recordBuilder.Field(3)
+	field3 := recordBuilder.Field(3) // value
 	defer field3.Release()
 
 	for _, value := range values {
@@ -229,8 +229,8 @@ func getSchema(valueType common.ValueType) (*arrow.Schema, error) {
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "id", Type: arrow.BinaryTypes.String},
-			{Name: "ts", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},
-			{Name: "now", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},
+			{Name: "ts", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},       // server timestamp
+			{Name: "received", Type: &arrow.TimestampType{Unit: arrow.Millisecond}}, // client timestamp
 			{Name: "value", Type: dataType},
 		},
 		&meta,
