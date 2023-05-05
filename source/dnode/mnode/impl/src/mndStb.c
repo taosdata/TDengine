@@ -933,7 +933,7 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   }
 
   if(pDst->nextColId < 0 && pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
-    terrno = TSDB_CODE_MND_BIG_FIELD_VALUE;
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 
@@ -1165,7 +1165,7 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
   }
 
   if(pNew->nextColId < 0 && pNew->nextColId >= 0x7fff - ntags){
-    terrno = TSDB_CODE_MND_BIG_FIELD_VALUE;
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 
@@ -1477,7 +1477,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
   }
 
   if(pNew->nextColId < 0 && pNew->nextColId >= 0x7fff - ncols){
-    terrno = TSDB_CODE_MND_BIG_FIELD_VALUE;
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 
