@@ -377,12 +377,13 @@ def main():
         print('======== crash_gen run sucess and exit as expected ========')
 
     try:
+        cmd = crash_cmds.split('&')[2]
         text = f'''exit status: {msg_dict[status]} 
-                   git commit :  {git_commit}
-                   hostname: {hostname}
-                   start time: {starttime}
-                   end time: {endtime}
-                   cmd: {crash_cmds}'''
+        git commit :  {git_commit}
+        hostname: {hostname}
+        start time: {starttime}
+        end time: {endtime}
+        cmd: {cmd}'''
         send_msg(get_msg(text))  
     except Exception as e:
         print("exception:", e)
