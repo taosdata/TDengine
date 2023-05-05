@@ -565,6 +565,10 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
     if (blockDataGetNumOfCols(pBlock) > 0) {
       blockDataDestroy(pReader->pResBlock);
       pReader->pResBlock = createDataBlock();
+      pBlock = pReader->pResBlock;
+
+      pBlock->info.id.uid = uid;
+      pBlock->info.version = pReader->msg.ver;
     }
 
     int32_t numOfCols = taosArrayGetSize(pReader->pColIdList);
