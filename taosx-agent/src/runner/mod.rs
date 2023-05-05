@@ -68,9 +68,7 @@ pub fn spawn_runner(
                                 force: task.force,
                                 cancel,
                                 // port_pool: ONCE,
-                                with_agent: task
-                                    .via
-                                    .map(|i| (i, endpoint.to_string(), token.to_string())),
+                                with_agent: Some((task.id, endpoint.to_string(), token.to_string())),
                             };
                             let pool = port_pool.clone();
                             let handle = tokio::spawn(async move { opts.run(&pool).await });
