@@ -120,6 +120,10 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 5   | create_time | TIMESTAMP    | 创建时间       |
 | 6   |  code_len   | INT          | 代码长度       |
 | 7   |   bufsize   | INT          | buffer 大小    |
+| 8   | func_language | BINARY(31) | 自定义函数编程语言 |
+| 9   | func_body     | BINARY(16384) | 函数体定义 |
+| 10  | func_version  | INT           | 函数版本号。初始版本为0，每次替换更新，版本号加1。|
+
 
 ## INS_INDEXES
 
