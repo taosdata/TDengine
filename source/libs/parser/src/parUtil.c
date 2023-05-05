@@ -768,6 +768,25 @@ static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildTableTagReq(SHashObj* pTableTagHash, SArray** pTableTag) {
+  if (NULL != pTableTagHash) {
+    *pTableTag = taosArrayInit(taosHashGetSize(pTableTagHash), sizeof(SUserAuthInfo));
+    if (NULL == *pTableTag) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    void* p = taosHashIterate(pTableTagHash, NULL);
+    while (NULL != p) {
+      size_t len = 0;
+      char*  pKey = taosHashGetKey(p, &len);
+      SName name = {0};
+      tNameFromString(&name, pKey, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+      taosArrayPush(*pTableTag, &name);
+      p = taosHashIterate(pTableTagHash, p);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
   if (NULL != pUdfHash) {
     *pUdf = taosArrayInit(taosHashGetSize(pUdfHash), TSDB_FUNC_NAME_LEN);
@@ -814,7 +833,7 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
     code = buildTableReq(pMetaCache->pTableCfg, &pCatalogReq->pTableCfg);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildTableReq(pMetaCache->pTableTag, &pCatalogReq->pTableTag);
+    code = buildTableTagReq(pMetaCache->pTableTag, &pCatalogReq->pTableTag);
   }
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
@@ -1053,8 +1072,21 @@ int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName,
   return code;
 }
 
+static int32_t reserveTableTagInCacheImpl(const char* pKey, int32_t len, SParseMetaCache* pMetaCache) {
+  if (NULL == pMetaCache->pTableTag) {
+    pMetaCache->pTableTag = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (NULL == pMetaCache->pTableTag) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return taosHashPut(pMetaCache->pTableTag, pKey, len, &nullPointer, POINTER_BYTES);
+}
+
 int32_t reserveTableTagInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
-  return reserveTableReqInDbCache(acctId, pDb, pTable, &pMetaCache->pTableTag);
+  SName name;
+  char  tFName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(toName(acctId, pDb, pTable, &name), tFName);
+  return reserveTableTagInCacheImpl(tFName, strlen(tFName), pMetaCache);
 }
 
 
