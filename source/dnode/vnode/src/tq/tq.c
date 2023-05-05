@@ -1326,7 +1326,9 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   SStreamMeta* pMeta = pTq->pStreamMeta;
+
   taosWLockLatch(&pMeta->lock);
+
   int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pTasks);
   if (numOfTasks == 0) {
     tqInfo("vgId:%d no stream tasks exists", vgId);

@@ -36,6 +36,7 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
 
     if (shouldIdle) {
       taosWLockLatch(&pMeta->lock);
+
       pMeta->walScanCounter -= 1;
       times = pMeta->walScanCounter;
 
