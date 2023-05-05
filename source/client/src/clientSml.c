@@ -1320,17 +1320,15 @@ static int32_t smlInsertData(SSmlHandle *info) {
   if (info->pRequest->dbList == NULL) {
     info->pRequest->dbList = taosArrayInit(1, TSDB_DB_FNAME_LEN);
   }
-  void *data = taosArrayReserve(info->pRequest->dbList, 1);
-  memcpy(data, info->pRequest->pDb,
-         TSDB_DB_FNAME_LEN > strlen(info->pRequest->pDb) ? strlen(info->pRequest->pDb) : TSDB_DB_FNAME_LEN);
+  char *data = (char*)taosArrayReserve(info->pRequest->dbList, 1);
+  SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
+  tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
+  tNameGetFullDbName(&pName, data);
 
   SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, NULL);
   while (oneTable) {
     SSmlTableInfo *tableData = *oneTable;
-
-    SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
-    tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
-    memcpy(pName.tname, tableData->childTableName, strlen(tableData->childTableName));
+    tstrncpy(pName.tname, tableData->sTableName, tableData->sTableNameLen + 1);
 
     if (info->pRequest->tableList == NULL) {
       info->pRequest->tableList = taosArrayInit(1, sizeof(SName));
@@ -1647,7 +1645,8 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
     info->cost.endTime = taosGetTimestampUs();
     info->cost.code = code;
     if (code == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || code == TSDB_CODE_SDB_OBJ_CREATING ||
-        code == TSDB_CODE_PAR_VALUE_TOO_LONG || code == TSDB_CODE_MND_TRANS_CONFLICT) {
+        code == TSDB_CODE_PAR_VALUE_TOO_LONG || code == TSDB_CODE_MND_TRANS_CONFLICT ||
+        code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       if (cnt++ >= 10) {
         uInfo("SML:%" PRIx64 " retry:%d/10 end code:%d, msg:%s", info->id, cnt, code, tstrerror(code));
         break;
