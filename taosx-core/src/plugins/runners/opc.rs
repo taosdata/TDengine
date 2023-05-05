@@ -118,7 +118,7 @@ struct DaConnectConfig {
 #[derive(Debug, serde::Serialize)]
 struct CollectConfig {
     interval: Option<i64>,
-    limit: i64,
+    limit: Option<i64>,
     ua: Option<UaCollectConfig>,
     da: Option<DaCollectConfig>,
 }
@@ -214,7 +214,7 @@ impl OPCConfig {
             _ => unreachable!(),
         }
         let interval = parse_int_at!("interval");
-        let limit = parse_int_at!("limit").unwrap_or(0);
+        let limit = parse_int_at!("limit");
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OpcType::OPCUA;
@@ -827,7 +827,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
         },
         collect: CollectConfig {
             interval: Some(10),
-            limit: 0,
+            limit: Some(10),
             ua: Some(UaCollectConfig {
                 collect_mode: "observe".to_string().parse::<CollectMode>().map_err(|err| OpcError::ParseError("collect_mode", err))?,
                 nodes: vec![UANodeConfig {
@@ -870,7 +870,7 @@ nodes = ["localhost"]
 
 [collect]
 interval = 10
-limit = 0
+limit = 10
 
 [collect.ua]
 collect_mode = "observe"
