@@ -481,11 +481,27 @@ pub async fn tmq_to_td(
         let tmq = TmqBuilder::from_dsn(&from)?;
 
         let mut consumers = Vec::with_capacity(jobs);
+
+        let consumer_timer = std::time::Instant::now();
+
+        let (tx, rx) = flume::bounded(jobs);
+
         for _ in 0..jobs {
+            let tx = tx.clone();
             let mut consumer = tmq.build().await?;
-            consumer.subscribe([&topic.name]).await?;
+            let topic = topic.name.clone();
+            tokio::spawn(async move {
+                consumer.subscribe([&topic]).await?;
+                tx.send(consumer)?;
+                Ok::<(), anyhow::Error>(())
+            });
+        }
+        for _ in 0..jobs {
+            let consumer = rx.recv()?;
             consumers.push(consumer);
         }
+        let duration = consumer_timer.elapsed();
+        log::info!("Setup {} consumers in {:?}", jobs, duration);
 
         for _ in 0..jobs {
             let consumer = consumers.pop().unwrap();
@@ -530,7 +546,12 @@ pub async fn tmq_to_td(
 
     log::info!("stop all consumers({})", task_id);
     for _ in 0..task_id {
-        let _ = consumers_receiver.recv().await;
+        let consumer = consumers_receiver.recv().await;
+        tokio::spawn(async move {
+            if let Some(consumer) = consumer {
+                consumer.unsubscribe().await;
+            }
+        });
     }
     // for consumers in consumers_receiver.
 
