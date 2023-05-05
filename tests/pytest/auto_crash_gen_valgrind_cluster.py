@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 
+import datetime
 import os
 import socket
 import requests
@@ -241,16 +242,7 @@ def start_taosd():
     os.system(start_cmd +">>/dev/null")
 
 def get_cmds(args_list):
-    # build_path = get_path()
-    # if repo == "community":
-    #     crash_gen_path = build_path[:-5]+"community/tests/pytest/"
-    # elif repo == "TDengine":
-    #     crash_gen_path = build_path[:-5]+"/tests/pytest/"
-    # else:
-    #     pass
-
-    # crash_gen_cmd = 'cd %s && ./crash_gen.sh --valgrind -p -t 10 -s 1000 -g 0x32c,0x32d,0x3d3,0x18,0x2501,0x369,0x388,0x061a,0x2550  '%(crash_gen_path)
-
+    
     crash_gen_cmd = get_auto_mix_cmds(args_list,valgrind=valgrind_mode)
     return crash_gen_cmd
 
@@ -342,8 +334,7 @@ def main():
     args = random_args(args_list)
     args = limits(args)
 
-    build_path = get_path()
-    os.system("pip install git+https://github.com/taosdata/taos-connector-python.git >>/dev/null")
+    build_path = get_path()    
     if repo =="community":
         crash_gen_path = build_path[:-5]+"community/tests/pytest/"
     elif repo =="TDengine":
@@ -368,7 +359,9 @@ def main():
     if not os.path.exists(run_dir):
         os.mkdir(run_dir)
     print(crash_cmds)
+    starttime = datetime.datetime.now()
     run_crash_gen(crash_cmds)
+    endtime = datetime.datetime.now()
     status = check_status()
     # back_path = os.path.join(core_path,"valgrind_report")
     
@@ -384,7 +377,12 @@ def main():
         print('======== crash_gen run sucess and exit as expected ========')
 
     try:
-        text = f"crash_gen instance exit status of docker [ {hostname} ] is : {msg_dict[status]}\n  " + f" and git commit : {git_commit}"
+        text = f'''exit status: {msg_dict[status]} 
+                   git commit :  {git_commit}
+                   hostname: {hostname}
+                   start time: {starttime}
+                   end time: {endtime}
+                   cmd: {crash_cmds}'''
         send_msg(get_msg(text))  
     except Exception as e:
         print("exception:", e)
