@@ -118,7 +118,7 @@ typedef enum {
 } ETrnPolicy;
 
 typedef enum {
-  TRN_EXEC_PRARLLEL = 0,
+  TRN_EXEC_PARALLEL = 0,
   TRN_EXEC_SERIAL = 1,
 } ETrnExec;
 
