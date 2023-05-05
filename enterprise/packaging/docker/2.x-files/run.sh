@@ -263,7 +263,7 @@ while ((1))
 do
     check_disk
     # echo "outer loop: $a"
-    output=`timeout $TAOS_TIMEOUT_SECOND taos -k`
+    output=`timeout $TAOS_TIMEOUT_SECOND taos -k | tail -n 1`
     if [ -z "${output}" ]; then
         echo "`date` taos -k error"
         status=""
