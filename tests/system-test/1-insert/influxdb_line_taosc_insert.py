@@ -908,22 +908,24 @@ class TDTestCase:
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
-        input_sql = f'{stb_name}, t0=f,t1="{tdCom.getLongName(4093, "letters")}" 1626006833639000000'
+        stb_name = tdCom.getLongName(8, "letters")
+        input_sql = f'{stb_name},t0=f,t1="{tdCom.getLongName(4091, "letters")}", c0=f 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(2)
-        input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(4084, "letters")}",t2="{tdCom.getLongName(6, "letters")}" c0=f 1626006833639000000'
+        tdSql.checkRows(1)
+        
+        input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(4092, "letters")}", c0=f 1626006833639000000'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
         tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(2)
+        tdSql.checkRows(1)
 
         
-        stb_name = tdCom.getLongName(8, "letters")
+        stb_name = tdCom.getLongName(9, "letters")
         # # * check col，col+ts max in describe ---> 16143
         input_sql = f'{stb_name},t0=t c0=1i32,c1="{tdCom.getLongName(65517, "letters")}" 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -938,7 +940,7 @@ class TDTestCase:
         tdSql.checkRows(1)
 
 
-        stb_name = tdCom.getLongName(9, "letters")        
+        stb_name = tdCom.getLongName(10, "letters")        
         input_sql = f'{stb_name},t0=t c0=1i16,c1="{tdCom.getLongName(49133, "letters")}",c2="{tdCom.getLongName(16384, "letters")}" 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         
