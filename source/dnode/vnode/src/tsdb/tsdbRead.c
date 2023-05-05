@@ -3094,7 +3094,7 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
   SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
 
   while (1) {
-    if (pReader->code == TSDB_CODE_SUCCESS) {
+    if (pReader->code != TSDB_CODE_SUCCESS) {
       tsdbWarn("tsdb reader is stopped ASAP, code:%s, %s", strerror(pReader->code), pReader->idStr);
       return pReader->code;
     }
@@ -3396,7 +3396,7 @@ static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader) {
   STableUidList* pUidList = &pStatus->uidList;
 
   while (1) {
-    if (pReader->code == TSDB_CODE_SUCCESS) {
+    if (pReader->code != TSDB_CODE_SUCCESS) {
       tsdbWarn("tsdb reader is stopped ASAP, code:%s, %s", strerror(pReader->code), pReader->idStr);
       return pReader->code;
     }
