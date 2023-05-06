@@ -75,7 +75,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t committedVer = walGetCommittedVer(pReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pReader->pWal);
   int64_t endVer = pReader->cond.scanUncommited ? lastVer : committedVer;
-  endVer = TMIN(appliedVer, endVer);
+//  endVer = TMIN(appliedVer, endVer);
 
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
          ", applied index:%" PRId64 ", end index:%" PRId64,
