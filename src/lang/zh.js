@@ -701,7 +701,7 @@ export default {
   },
   stream: {
     maxDelayTime: "最大延迟时间",
-    delayTip: "也称为水印，这是在执行查询之前等待无序数据的时间。",
+    delaytip: "也称为水印，这是在执行查询之前等待无序数据的时间。",
     tableType: '表类型',
     subqueryUpper: "子查询",
     databaseUpper: '数据库',

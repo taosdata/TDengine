@@ -116,7 +116,7 @@
           <span>{{ $t("stream.delay") }}&nbsp;</span>
           <el-tooltip
             effect="light"
-            :content="$t('stream.delayTip')"
+            :content="$t('stream.delaytip')"
             placement="top"
           >
             <i class="el-icon-info"></i>

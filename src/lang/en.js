@@ -861,7 +861,7 @@ export default {
   },
   stream: {
     maxDelayTime: "Max Delay Time",
-    delayTip: "watermark, this is the time it takes to wait for unordered data before executing a query",
+    delaytip: "watermark, this is the time it takes to wait for unordered data before executing a query",
     stable: 'Super Table',
     database: 'Database',
     streamOption: "Stream Option",
