@@ -781,12 +781,16 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   tDecoderClear(&decoder);
 
   // 2.save task, use the newest commit version as the initial start version of stream task.
+  taosWLockLatch(&pTq->pStreamMeta->lock);
   code = streamMetaAddDeployedTask(pTq->pStreamMeta, sversion, pTask);
   if (code < 0) {
     tqError("vgId:%d failed to add s-task:%s, total:%d", TD_VID(pTq->pVnode), pTask->id.idStr,
             streamMetaGetNumOfTasks(pTq->pStreamMeta));
+    taosWUnLockLatch(&pTq->pStreamMeta->lock);
     return -1;
   }
+
+  taosWUnLockLatch(&pTq->pStreamMeta->lock);
 
   // 3.go through recover steps to fill history
   if (pTask->fillHistory) {
@@ -1268,7 +1272,8 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
   taosWLockLatch(&pMeta->lock);
-  int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pTasks);
+
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
     tqInfo("vgId:%d no stream tasks exists", vgId);
     taosWUnLockLatch(&pTq->pStreamMeta->lock);

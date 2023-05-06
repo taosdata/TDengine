@@ -1093,6 +1093,5 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   }
 
   taosWUnLockLatch(&pTq->pStreamMeta->lock);
-
   return 0;
 }
