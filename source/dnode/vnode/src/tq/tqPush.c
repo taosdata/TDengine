@@ -206,150 +206,75 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 }
 #endif
 
-typedef struct {
-  void*   pKey;
-  int64_t keyLen;
-} SItem;
-
-static void recordPushedEntry(SArray* cachedKey, void* pIter);
-static void doRemovePushedEntry(SArray* pCachedKeys, STQ* pTq);
-
-static void freeItem(void* param) {
-  SItem* p = (SItem*)param;
-  taosMemoryFree(p->pKey);
-}
-
-static void doPushDataForEntry(void* pIter, STqExecHandle* pExec, STQ* pTq, int64_t ver, int32_t vgId, char* pData,
-                               int32_t dataLen, SArray* pCachedKey) {
-  STqPushEntry* pPushEntry = *(STqPushEntry**)pIter;
-
-  SMqDataRsp* pRsp = pPushEntry->pDataRsp;
-  if (pRsp->reqOffset.version >= ver) {
-    tqDebug("vgId:%d, push entry req version %" PRId64 ", while push version %" PRId64 ", skip", vgId,
-            pRsp->reqOffset.version, ver);
-    return;
-  }
-
-  qTaskInfo_t pTaskInfo = pExec->task;
-
-  // prepare scan mem data
-  SPackedData submit = {.msgStr = pData, .msgLen = dataLen, .ver = ver};
-
-  if (qStreamSetScanMemData(pTaskInfo, submit) != 0) {
-    return;
-  }
-  qStreamSetOpen(pTaskInfo);
-  // here start to scan submit block to extract the subscribed data
-  int32_t totalRows = 0;
-
-  while (1) {
-    SSDataBlock* pDataBlock = NULL;
-    uint64_t     ts = 0;
-    if (qExecTask(pTaskInfo, &pDataBlock, &ts) < 0) {
-      tqDebug("vgId:%d, tq exec error since %s", vgId, terrstr());
-    }
-
-    if (pDataBlock == NULL) {
-      break;
-    }
-
-    tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
-    pRsp->blockNum++;
-    totalRows += pDataBlock->info.rows;
-  }
-
-  tqDebug("vgId:%d, tq handle push, subkey:%s, block num:%d, rows:%d", vgId, pPushEntry->subKey, pRsp->blockNum,
-          totalRows);
-
-  if (pRsp->blockNum > 0) {
-    tqOffsetResetToLog(&pRsp->rspOffset, ver);
-    tqPushDataRsp(pTq, pPushEntry);
-    recordPushedEntry(pCachedKey, pIter);
-  }
-}
-
 int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
-  void*   pReq = POINTER_SHIFT(msg, sizeof(SSubmitReq2Msg));
-  int32_t len = msgLen - sizeof(SSubmitReq2Msg);
-  int32_t vgId = TD_VID(pTq->pVnode);
+//  void*   pReq = POINTER_SHIFT(msg, sizeof(SSubmitReq2Msg));
+//  int32_t len = msgLen - sizeof(SSubmitReq2Msg);
+//  int32_t vgId = TD_VID(pTq->pVnode);
 
   if (msgType == TDMT_VND_SUBMIT) {
+    tqProcessSubmitReqForSubscribe(pTq);
     // lock push mgr to avoid potential msg lost
-    taosWLockLatch(&pTq->lock);
-
-    int32_t numOfRegisteredPush = taosHashGetSize(pTq->pPushMgr);
-    if (numOfRegisteredPush > 0) {
-      tqDebug("vgId:%d tq push msg version:%" PRId64 " type:%s, head:%p, body:%p len:%d, numOfPushed consumers:%d",
-              vgId, ver, TMSG_INFO(msgType), msg, pReq, len, numOfRegisteredPush);
-
-      void* data = taosMemoryMalloc(len);
-      if (data == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        tqError("failed to copy data for stream since out of memory, vgId:%d", vgId);
-        taosWUnLockLatch(&pTq->lock);
-        return -1;
-      }
-
-      memcpy(data, pReq, len);
-
-      SArray* cachedKey = taosArrayInit(0, sizeof(SItem));
-      void*   pIter = NULL;
-
-      while (1) {
-        pIter = taosHashIterate(pTq->pPushMgr, pIter);
-        if (pIter == NULL) {
-          break;
-        }
-
-        STqPushEntry* pPushEntry = *(STqPushEntry**)pIter;
-
-        STqHandle* pHandle = taosHashGet(pTq->pHandle, pPushEntry->subKey, strlen(pPushEntry->subKey));
-        if (pHandle == NULL) {
-          tqDebug("vgId:%d, failed to find handle %s in pushing data to consumer, ignore", pTq->pVnode->config.vgId,
-                  pPushEntry->subKey);
-          continue;
-        }
-
-        STqExecHandle* pExec = &pHandle->execHandle;
-        doPushDataForEntry(pIter, pExec, pTq, ver, vgId, data, len, cachedKey);
-      }
-
-      doRemovePushedEntry(cachedKey, pTq);
-      taosArrayDestroyEx(cachedKey, freeItem);
-      taosMemoryFree(data);
-    }
-
-    // unlock
-    taosWUnLockLatch(&pTq->lock);
+//    taosWLockLatch(&pTq->lock);
+//
+//    int32_t numOfRegisteredPush = taosHashGetSize(pTq->pPushMgr);
+//    if (numOfRegisteredPush > 0) {
+//      tqDebug("vgId:%d tq push msg version:%" PRId64 " type:%s, head:%p, body:%p len:%d, numOfPushed consumers:%d",
+//              vgId, ver, TMSG_INFO(msgType), msg, pReq, len, numOfRegisteredPush);
+//
+//      void* data = taosMemoryMalloc(len);
+//      if (data == NULL) {
+//        terrno = TSDB_CODE_OUT_OF_MEMORY;
+//        tqError("failed to copy data for stream since out of memory, vgId:%d", vgId);
+//        taosWUnLockLatch(&pTq->lock);
+//        return -1;
+//      }
+//
+//      memcpy(data, pReq, len);
+//
+//      SArray* cachedKey = taosArrayInit(0, sizeof(SItem));
+//      void*   pIter = NULL;
+//
+//      while (1) {
+//        pIter = taosHashIterate(pTq->pPushMgr, pIter);
+//        if (pIter == NULL) {
+//          break;
+//        }
+//
+//        STqPushEntry* pPushEntry = *(STqPushEntry**)pIter;
+//
+//        STqHandle* pHandle = taosHashGet(pTq->pHandle, pPushEntry->subKey, strlen(pPushEntry->subKey));
+//        if (pHandle == NULL) {
+//          tqDebug("vgId:%d, failed to find handle %s in pushing data to consumer, ignore", pTq->pVnode->config.vgId,
+//                  pPushEntry->subKey);
+//          continue;
+//        }
+//
+//        STqExecHandle* pExec = &pHandle->execHandle;
+//        doPushDataForEntry(pIter, pExec, pTq, ver, vgId, data, len, cachedKey);
+//      }
+//
+//      doRemovePushedEntry(cachedKey, pTq);
+//      taosArrayDestroyEx(cachedKey, freeItem);
+//      taosMemoryFree(data);
+//    }
+//
+//    // unlock
+//    taosWUnLockLatch(&pTq->lock);
   }
 
-  tqDebug("handle submit, restore:%d, size:%d", pTq->pVnode->restored, (int)taosHashGetSize(pTq->pStreamMeta->pTasks));
+  int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
+  tqDebug("handle submit, restore:%d, size:%d", pTq->pVnode->restored, numOfTasks);
 
   // push data for stream processing:
   // 1. the vnode has already been restored.
   // 2. the vnode should be the leader.
   // 3. the stream is not suspended yet.
   if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode) && pTq->pVnode->restored) {
-    if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) {
+    if (numOfTasks == 0) {
       return 0;
     }
 
     if (msgType == TDMT_VND_SUBMIT) {
-#if 0
-      void* data = taosMemoryMalloc(len);
-      if (data == NULL) {
-        // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then retry
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", vgId);
-        return -1;
-      }
-
-      memcpy(data, pReq, len);
-      SPackedData submit = {.msgStr = data, .msgLen = len, .ver = ver};
-
-      tqDebug("vgId:%d tq copy submit msg:%p len:%d ver:%" PRId64 " from %p for stream", vgId, data, len, ver, pReq);
-      tqProcessSubmitReq(pTq, submit);
-#endif
       SPackedData submit = {0};
       tqProcessSubmitReq(pTq, submit);
     }
@@ -362,83 +287,39 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
   return 0;
 }
 
-int32_t tqRegisterPushHandle(STQ* pTq, void* pHandle, const SMqPollReq* pRequest, SRpcMsg* pRpcMsg, SMqDataRsp* pDataRsp,
-                            int32_t type) {
-  uint64_t   consumerId = pRequest->consumerId;
+
+int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   int32_t    vgId = TD_VID(pTq->pVnode);
-  STqHandle* pTqHandle = pHandle;
-
-  STqPushEntry* pPushEntry = taosMemoryCalloc(1, sizeof(STqPushEntry));
-  if (pPushEntry == NULL) {
-    tqDebug("tmq poll: consumer:0x%" PRIx64 ", vgId:%d failed to malloc, size:%d", consumerId, vgId,
-            (int32_t)sizeof(STqPushEntry));
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+  STqHandle* pHandle = (STqHandle*) handle;
+  if(pHandle->msg == NULL){
+    pHandle->msg = taosMemoryCalloc(1, sizeof(SRpcMsg));
+    memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
+    pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
+  }else{
+    void *tmp = pHandle->msg->pCont;
+    memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
+    pHandle->msg->pCont = tmp;
   }
 
-  pPushEntry->info = pRpcMsg->info;
-  memcpy(pPushEntry->subKey, pTqHandle->subKey, TSDB_SUBSCRIBE_KEY_LEN);
-
-  if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
-    pPushEntry->pDataRsp = taosMemoryCalloc(1, sizeof(STaosxRsp));
-    memcpy(pPushEntry->pDataRsp, pDataRsp, sizeof(STaosxRsp));
-  } else if (type == TMQ_MSG_TYPE__POLL_RSP) {
-    pPushEntry->pDataRsp = taosMemoryCalloc(1, sizeof(SMqDataRsp));
-    memcpy(pPushEntry->pDataRsp, pDataRsp, sizeof(SMqDataRsp));
-  }
-
-  SMqRspHead* pHead = &pPushEntry->pDataRsp->head;
-  pHead->consumerId = consumerId;
-  pHead->epoch = pRequest->epoch;
-  pHead->mqMsgType = type;
-
-  taosHashPut(pTq->pPushMgr, pTqHandle->subKey, strlen(pTqHandle->subKey), &pPushEntry, sizeof(void*));
-
-  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s offset:%" PRId64 ", vgId:%d save handle to push mgr, total:%d",
-          consumerId, pTqHandle->subKey, pDataRsp->reqOffset.version, vgId, taosHashGetSize(pTq->pPushMgr));
+  memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
+  pHandle->msg->contLen = pMsg->contLen;
+  int32_t ret = taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey), &pHandle, POINTER_BYTES);
+  tqDebug("vgId:%d data is over, ret:%d, consumerId:0x%" PRIx64", register to pHandle:%p, pCont:%p, len:%d", vgId, ret, pHandle->consumerId, pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
   return 0;
 }
 
-int32_t tqUnregisterPushHandle(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t consumerId, bool rspConsumer) {
-  int32_t        vgId = TD_VID(pTq->pVnode);
-  STqPushEntry** pEntry = taosHashGet(pTq->pPushMgr, pKey, keyLen);
+int32_t tqUnregisterPushHandle(STQ* pTq, void *handle) {
+  STqHandle *pHandle = (STqHandle*)handle;
+  int32_t    vgId = TD_VID(pTq->pVnode);
 
-  if (pEntry != NULL) {
-    uint64_t cId = (*pEntry)->pDataRsp->head.consumerId;
-    ASSERT(consumerId == cId);
+  int32_t ret = taosHashRemove(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey));
+  tqError("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
+  if(pHandle->msg != NULL) {
+    tqPushDataRsp(pTq, pHandle);
 
-    tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s vgId:%d remove from push mgr, remains:%d", consumerId,
-            (*pEntry)->subKey, vgId, taosHashGetSize(pTq->pPushMgr) - 1);
-
-    if (rspConsumer) {  // rsp the old consumer with empty block.
-      tqPushDataRsp(pTq, *pEntry);
-    }
-
-    taosHashRemove(pTq->pPushMgr, pKey, keyLen);
+    rpcFreeCont(pHandle->msg->pCont);
+    taosMemoryFree(pHandle->msg);
+    pHandle->msg = NULL;
   }
-
   return 0;
-}
-
-void recordPushedEntry(SArray* cachedKey, void* pIter) {
-  size_t kLen = 0;
-  void*  key = taosHashGetKey(pIter, &kLen);
-  SItem  item = {.pKey = strndup(key, kLen), .keyLen = kLen};
-  taosArrayPush(cachedKey, &item);
-}
-
-void doRemovePushedEntry(SArray* pCachedKeys, STQ* pTq) {
-  int32_t vgId = TD_VID(pTq->pVnode);
-  int32_t numOfKeys = (int32_t)taosArrayGetSize(pCachedKeys);
-
-  for (int32_t i = 0; i < numOfKeys; i++) {
-    SItem* pItem = taosArrayGet(pCachedKeys, i);
-    if (taosHashRemove(pTq->pPushMgr, pItem->pKey, pItem->keyLen) != 0) {
-      tqError("vgId:%d, tq push hash remove key error, key: %s", vgId, (char*)pItem->pKey);
-    }
-  }
-
-  if (numOfKeys > 0) {
-    tqDebug("vgId:%d, pushed %d items and remain:%d", vgId, numOfKeys, (int32_t)taosHashGetSize(pTq->pPushMgr));
-  }
 }

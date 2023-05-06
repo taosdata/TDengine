@@ -268,8 +268,9 @@ SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList) {
 }
 
 SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *val, int32_t type, int32_t order) {
-  ASSERT(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
-  ASSERT(pSkipList != NULL);
+  if (order != TSDB_ORDER_ASC && order != TSDB_ORDER_DESC) {
+    return NULL;
+  }
 
   SSkipListIterator *iter = doCreateSkipListIterator(pSkipList, order);
   if (val == NULL) {
@@ -585,7 +586,6 @@ static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList) {
     }
   }
 
-  ASSERT(level <= pSkipList->maxLevel);
   return level;
 }
 

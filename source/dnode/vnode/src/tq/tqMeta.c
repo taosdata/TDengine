@@ -328,7 +328,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       }
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__DB) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
-      handle.execHandle.pTqReader = tqOpenReader(pTq->pVnode);
+      handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
 
       buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta,
                        (SSnapContext**)(&reader.sContext));
@@ -343,7 +343,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
         int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
         tqDebug("vgId:%d, idx %d, uid:%" PRId64, vgId, i, tbUid);
       }
-      handle.execHandle.pTqReader = tqOpenReader(pTq->pVnode);
+      handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
       tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
 

@@ -39,8 +39,6 @@
 
 #define GET_RES_WINDOW_KEY_LEN(_l)     ((_l) + sizeof(uint64_t))
 
-#define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
-
 typedef struct SGroupResInfo {
   int32_t index;
   SArray* pRows;  // SArray<SResKeyPos>

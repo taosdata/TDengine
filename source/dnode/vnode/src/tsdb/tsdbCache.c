@@ -598,6 +598,7 @@ typedef struct {
   SMergeTree         mergeTree;
   SMergeTree        *pMergeTree;
   SSttBlockLoadInfo *pLoadInfo;
+  SLDataIter*        pDataIter;
   int64_t            lastTs;
 } SFSLastNextRowIter;
 
@@ -645,7 +646,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
       }
       tMergeTreeOpen(&state->mergeTree, 1, *state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = state->lastTs, .ekey = TSKEY_MAX},
-                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL, true);
+                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL, true, state->pDataIter);
       state->pMergeTree = &state->mergeTree;
       state->state = SFSLASTNEXTROW_BLOCKROW;
     }
@@ -667,7 +668,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         state->state = SFSLASTNEXTROW_FILESET;
         goto _next_fileset;
       }
-      state->row = tMergeTreeGetRow(&state->mergeTree);
+      state->row = *tMergeTreeGetRow(&state->mergeTree);
       *ppRow = &state->row;
 
       if (TSDBROW_TS(&state->row) <= state->lastTs) {
@@ -1211,7 +1212,7 @@ typedef struct {
 } CacheNextRowIter;
 
 static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
-                               SSttBlockLoadInfo *pLoadInfo, STsdbReadSnap *pReadSnap, SDataFReader **pDataFReader,
+                               SSttBlockLoadInfo *pLoadInfo, SLDataIter* pLDataIter, STsdbReadSnap *pReadSnap, SDataFReader **pDataFReader,
                                SDataFReader **pDataFReaderLast, int64_t lastTs) {
   int code = 0;
 
@@ -1274,6 +1275,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsLastState.pLoadInfo = pLoadInfo;
   pIter->fsLastState.pDataFReader = pDataFReaderLast;
   pIter->fsLastState.lastTs = lastTs;
+  pIter->fsLastState.pDataIter = pLDataIter;
 
   pIter->fsState.state = SFSNEXTROW_FS;
   pIter->fsState.pTsdb = pTsdb;
@@ -1465,7 +1467,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
   TSKEY lastRowTs = TSKEY_MAX;
 
   CacheNextRowIter iter = {0};
-  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader,
+  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pDataIter, pr->pReadSnap, &pr->pDataFReader,
                   &pr->pDataFReaderLast, pr->lastTs);
 
   do {
@@ -1622,7 +1624,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
   TSKEY lastRowTs = TSKEY_MAX;
 
   CacheNextRowIter iter = {0};
-  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader,
+  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pDataIter, pr->pReadSnap, &pr->pDataFReader,
                   &pr->pDataFReaderLast, pr->lastTs);
 
   do {
