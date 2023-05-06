@@ -1858,6 +1858,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   return buf;
 }
 
+#if 0
 void blockDebugShowDataBlock(SSDataBlock* pBlock, const char* flag) {
   SArray* dataBlocks = taosArrayInit(1, sizeof(SSDataBlock*));
   taosArrayPush(dataBlocks, &pBlock);
@@ -1949,7 +1950,7 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
     }
   }
 }
-
+#endif
 
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) {
