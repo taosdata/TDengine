@@ -2103,7 +2103,7 @@ static int32_t mndAddAdjustVnodeHashRangeAction(SMnode *pMnode, STrans *pTrans, 
   return 0;
 }
 
-static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgroup) {
+int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgroup) {
   int32_t  code = -1;
   STrans  *pTrans = NULL;
   SSdbRaw *pRaw = NULL;
