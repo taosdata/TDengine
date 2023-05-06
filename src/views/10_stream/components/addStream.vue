@@ -422,7 +422,7 @@ export default {
                 this.sqlPrefix +
                 "`" +
                 this.info.stream_name +
-                "``12348" +
+                "`" +
                 " TRIGGER " +
                 this.info.trigger +
                 " ";
