@@ -1562,7 +1562,8 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
   do {
     code = smlModifyDBSchemas(info);
     if (code == 0 || code == TSDB_CODE_SML_INVALID_DATA || code == TSDB_CODE_PAR_TOO_MANY_COLUMNS
-        || code == TSDB_CODE_PAR_INVALID_TAGS_NUM) break;
+        || code == TSDB_CODE_PAR_INVALID_TAGS_NUM || code == TSDB_CODE_PAR_INVALID_TAGS_LENGTH
+        || code == TSDB_CODE_PAR_INVALID_ROW_LENGTH) break;
     taosMsleep(100);
     uInfo("SML:0x%" PRIx64 " smlModifyDBSchemas retry code:%s, times:%d", info->id, tstrerror(code), retryNum);
   } while (retryNum++ < taosHashGetSize(info->superTables) * MAX_RETRY_TIMES);
