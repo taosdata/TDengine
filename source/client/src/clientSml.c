@@ -195,6 +195,20 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
   return TSDB_CODE_SUCCESS;
 }
 
+void getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo){
+  char key[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
+  size_t nLen = strlen(tinfo->childTableName);
+  memcpy(key, currElement->measure, currElement->measureLen);
+  memcpy(key + currElement->measureLen + 1, tinfo->childTableName, nLen);
+  void *uid = taosHashGet(info->tableUids, key, currElement->measureLen + 1 + nLen);    // use \0 as separator for stable name and child table name
+  if (uid == NULL) {
+    tinfo->uid = info->uid++;
+    taosHashPut(info->tableUids, key, currElement->measureLen + 1 + nLen, &tinfo->uid, sizeof(uint64_t));
+  }else{
+    tinfo->uid = *(uint64_t*)uid;
+  }
+}
+
 SSmlSTableMeta *smlBuildSTableMeta(bool isDataFormat) {
   SSmlSTableMeta *meta = (SSmlSTableMeta *)taosMemoryCalloc(sizeof(SSmlSTableMeta), 1);
   if (!meta) {
@@ -1142,6 +1156,7 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosHashCleanup(info->pVgHash);
   taosHashCleanup(info->childTables);
   taosHashCleanup(info->superTables);
+  taosHashCleanup(info->tableUids);
 
   for (int i = 0; i < taosArrayGetSize(info->tagJsonArray); i++) {
     cJSON *tags = (cJSON *)taosArrayGetP(info->tagJsonArray, i);
@@ -1192,6 +1207,7 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
 
   info->pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   info->childTables = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  info->tableUids = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   info->superTables = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
 
   info->id = smlGenId();
@@ -1202,7 +1218,7 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->valueJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
 
-  if (NULL == info->pVgHash || NULL == info->childTables || NULL == info->superTables) {
+  if (NULL == info->pVgHash || NULL == info->childTables || NULL == info->superTables || NULL == info->tableUids) {
     uError("create SSmlHandle failed");
     goto cleanup;
   }
@@ -1428,6 +1444,7 @@ int32_t smlClearForRerun(SSmlHandle *info) {
 
   taosHashClear(info->childTables);
   taosHashClear(info->superTables);
+  taosHashClear(info->tableUids);
 
   if (!info->dataFormat) {
     if (unlikely(info->lines != NULL)) {
