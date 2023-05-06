@@ -26,7 +26,9 @@ extern "C" {
 #include "tgrantCfg.h"
 #endif
 
+#ifndef GRANTS_COL_MAX_LEN
 #define GRANTS_COL_MAX_LEN 128
+#endif
 
 typedef enum {
   TSDB_GRANT_ALL,

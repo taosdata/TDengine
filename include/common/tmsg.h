@@ -1233,6 +1233,13 @@ typedef struct {
 } SDnodeEp;
 
 typedef struct {
+  int32_t id;
+  SEp     ep;
+  char    active[TSDB_ACTIVE_KEY_LEN];
+  char    connActive[TSDB_CONN_ACTIVE_KEY_LEN];
+} SDnodeInfo;
+
+typedef struct {
   int64_t   dnodeVer;
   SDnodeCfg dnodeCfg;
   SArray*   pDnodeEps;  // Array of SDnodeEp
