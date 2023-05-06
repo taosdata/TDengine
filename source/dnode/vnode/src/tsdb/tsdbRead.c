@@ -3164,8 +3164,8 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(pBlockIter);
   SLastBlockReader*    pLastBlockReader = pReader->status.fileIter.pLastBlockReader;
 
-  if (pReader->flag == READER_STATUS_SHOULD_STOP) {
-    return TSDB_CODE_SUCCESS;
+  if (pReader->code != TSDB_CODE_SUCCESS) {
+    return pReader->code;
   }
 
   pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
@@ -5083,7 +5083,7 @@ static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
   int32_t              code = TSDB_CODE_SUCCESS;
   SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(&pStatus->blockIter);
 
-  if (pReader->flag == READER_STATUS_SHOULD_STOP) {
+  if (pReader->code != TSDB_CODE_SUCCESS) {
     return NULL;
   }
 
