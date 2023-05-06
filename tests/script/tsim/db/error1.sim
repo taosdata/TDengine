@@ -56,7 +56,7 @@ endi
 
 if $data23 != 0 then
   return -1
-end
+endi
 
 #print ========== stop dnode2
 #system sh/exec.sh -n dnode2 -s stop -x SIGKILL
