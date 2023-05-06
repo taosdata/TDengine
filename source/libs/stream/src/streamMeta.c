@@ -94,6 +94,7 @@ _err:
   if (pMeta->db) tdbClose(pMeta->db);
   // if (pMeta->streamBackend) streamBackendCleanup(pMeta->streamBackend);
   taosMemoryFree(pMeta);
+  qError("failed to open stream meta");
   return NULL;
 }
 

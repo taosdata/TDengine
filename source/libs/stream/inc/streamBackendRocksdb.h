@@ -44,6 +44,7 @@ typedef struct {
   SList*                             list;
   TdThreadMutex                      cfMutex;
   SHashObj*                          cfInst;
+  int64_t                            defaultCfInit;
 } SBackendHandle;
 
 void*      streamBackendInit(const char* path);
