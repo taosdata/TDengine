@@ -133,10 +133,10 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
 
 static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SMqSubscribeObj *pSub,
                                         const SMqRebOutputVg *pRebVg) {
-  if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
-    terrno = TSDB_CODE_MND_INVALID_SUB_OPTION;
-    return -1;
-  }
+//  if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
+//    terrno = TSDB_CODE_MND_INVALID_SUB_OPTION;
+//    return -1;
+//  }
 
   void   *buf;
   int32_t tlen;

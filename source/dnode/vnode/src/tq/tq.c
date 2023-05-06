@@ -539,10 +539,13 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   } else {
     if (pHandle->consumerId == req.newConsumerId) {  // do nothing
       tqInfo("vgId:%d consumer:0x%" PRIx64 " remains, no switch occurs", req.vgId, req.newConsumerId);
+      atomic_add_fetch_32(&pHandle->epoch, 1);
+
     } else {
       tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
              req.newConsumerId);
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
+      atomic_store_32(&pHandle->epoch, 0);
     }
     // kill executing task
     qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
@@ -551,8 +554,6 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     }
 
     taosWLockLatch(&pTq->lock);
-    atomic_add_fetch_32(&pHandle->epoch, 1);
-
     // remove if it has been register in the push manager, and return one empty block to consumer
     tqUnregisterPushHandle(pTq, pHandle);
 
