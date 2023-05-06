@@ -288,7 +288,7 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
 }
 
 
-int32_t tqRegisterPushEntry(STQ* pTq, void* handle, SRpcMsg* pMsg) {
+int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   int32_t    vgId = TD_VID(pTq->pVnode);
   STqHandle* pHandle = (STqHandle*) handle;
   if(pHandle->msg == NULL){
