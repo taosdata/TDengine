@@ -305,8 +305,9 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
 
     if ((pTask->taskLevel == TASK_LEVEL__SOURCE) &&
         (numOfBlocks > STREAM_TASK_INPUT_QUEUEU_CAPACITY || (size >= STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE))) {
-      qError("s-task:%s input queue is full, capacity:%d size:%d MiB, abort", pTask->id.idStr,
-             STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE);
+      qError("s-task:%s input queue is full, capacity(size:%d num:%dMiB), current(size:%d, num:%.2fMiB) abort", pTask->id.idStr,
+             STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE,
+             numOfBlocks, size);
       streamDataSubmitDestroy(pSubmitBlock);
       return -1;
     }
