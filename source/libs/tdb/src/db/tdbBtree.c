@@ -1814,6 +1814,11 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
 
     *ppVal = pVal;
     *vLen = cd.vLen;
+  } else {
+    if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+      tdbTrace("tdb/btree-next2 decoder: %p pVal free: %p", &cd, cd.pVal);
+      tdbFree(cd.pVal);
+    }
   }
 
   ret = tdbBtcMoveToNext(pBtc);

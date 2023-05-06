@@ -165,7 +165,7 @@ void* queryThread(void* arg) {
 int32_t numOfThreads = 1;
 
 void tmq_commit_cb_print(tmq_t* pTmq, int32_t code, void* param) {
-  printf("auto commit success, code:%d\n\n\n\n", code);
+//  printf("auto commit success, code:%d\n", code);
 }
 
 void* doConsumeData(void* param) {
@@ -1059,13 +1059,18 @@ TEST(clientCase, sub_tb_test) {
   ASSERT_NE(pConn, nullptr);
 
   tmq_conf_t* conf = tmq_conf_new();
+
+  int32_t ts = taosGetTimestampMs()%INT32_MAX;
+  char consumerGroupid[128] = {0};
+  sprintf(consumerGroupid, "group_id_%d", ts);
+
   tmq_conf_set(conf, "enable.auto.commit", "true");
-  tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName45");
+  tmq_conf_set(conf, "auto.commit.interval.ms", "2000");
+  tmq_conf_set(conf, "group.id", consumerGroupid);
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
-  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "false");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -1074,7 +1079,7 @@ TEST(clientCase, sub_tb_test) {
 
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
-  tmq_list_append(topicList, "topic_t2");
+  tmq_list_append(topicList, "topic_t1");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
@@ -1086,22 +1091,22 @@ TEST(clientCase, sub_tb_test) {
   int32_t     precision = 0;
   int32_t     totalRows = 0;
   int32_t     msgCnt = 0;
-  int32_t     timeout = 25000;
+  int32_t     timeout = 2500000;
 
   int32_t count = 0;
 
   while (1) {
     TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
     if (pRes) {
-      char buf[1024];
+      char buf[128];
 
       const char* topicName = tmq_get_topic_name(pRes);
-      const char* dbName = tmq_get_db_name(pRes);
-      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
-
-      printf("topic: %s\n", topicName);
-      printf("db: %s\n", dbName);
-      printf("vgroup id: %d\n", vgroupId);
+//      const char* dbName = tmq_get_db_name(pRes);
+//      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
+//
+//      printf("topic: %s\n", topicName);
+//      printf("db: %s\n", dbName);
+//      printf("vgroup id: %d\n", vgroupId);
 
       while (1) {
         TAOS_ROW row = taos_fetch_row(pRes);
@@ -1111,16 +1116,14 @@ TEST(clientCase, sub_tb_test) {
 
         fields = taos_fetch_fields(pRes);
         numOfFields = taos_field_count(pRes);
-        precision = taos_result_precision(pRes);
-        taos_print_row(buf, row, fields, numOfFields);
         totalRows += 1;
-        printf("precision: %d, row content: %s\n", precision, buf);
+//        if (totalRows % 100000 == 0) {
+          taos_print_row(buf, row, fields, numOfFields);
+          printf("row content: %s\n", buf);
+//        }
       }
 
       taos_free_result(pRes);
-      //      if ((++count) > 1) {
-      //        break;
-      //      }
     } else {
       break;
     }

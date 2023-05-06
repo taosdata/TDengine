@@ -30,6 +30,11 @@
 
 #define SYSTABLE_SHOW_TYPE_OFFSET QUERY_NODE_SHOW_DNODES_STMT
 
+typedef struct SRewriteTbNameContext {
+  int32_t          errCode;
+  char*            pTbName;
+} SRewriteTbNameContext;
+
 typedef struct STranslateContext {
   SParseContext*   pParseCxt;
   int32_t          errCode;
@@ -1310,7 +1315,8 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
 }
 
 static EDealRes haveVectorFunction(SNode* pNode, void* pContext) {
-  if (isAggFunc(pNode) || isIndefiniteRowsFunc(pNode) || isWindowPseudoColumnFunc(pNode) || isInterpPseudoColumnFunc(pNode)) {
+  if (isAggFunc(pNode) || isIndefiniteRowsFunc(pNode) || isWindowPseudoColumnFunc(pNode) ||
+      isInterpPseudoColumnFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
   }
@@ -2540,6 +2546,64 @@ static int32_t setTableCacheLastMode(STranslateContext* pCxt, SSelectStmt* pSele
   return code;
 }
 
+static EDealRes doTranslateTbName(SNode** pNode, void* pContext) {
+  switch (nodeType(*pNode)) {
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode *pFunc = (SFunctionNode *)*pNode;
+      if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
+        SRewriteTbNameContext *pCxt = (SRewriteTbNameContext*)pContext;
+        SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+        if (NULL == pVal) {
+          pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+          return DEAL_RES_ERROR;
+        }
+
+        int32_t tbLen = strlen(pCxt->pTbName);
+        pVal->literal = taosStrdup(pCxt->pTbName);
+        if (NULL == pVal->literal) {
+          pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+          return DEAL_RES_ERROR;
+        }
+        pVal->isDuration = false;
+        pVal->translate = true;
+        pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
+        pVal->node.resType.bytes = tbLen + VARSTR_HEADER_SIZE;
+        pVal->datum.p = taosMemoryCalloc(1, tbLen + VARSTR_HEADER_SIZE + 1);
+        varDataSetLen(pVal->datum.p, tbLen);
+        strncpy(varDataVal(pVal->datum.p), pVal->literal, tbLen);
+        strcpy(pVal->node.userAlias, pFunc->node.userAlias);
+        strcpy(pVal->node.aliasName, pFunc->node.aliasName);
+
+        nodesDestroyNode(*pNode);
+        *pNode = (SNode*)pVal;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t replaceTbName(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
+  if (TSDB_CHILD_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType && TSDB_SYSTEM_TABLE != pTable->pMeta->tableType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode** pNode = NULL;
+  SRewriteTbNameContext pRewriteCxt = {0};
+  pRewriteCxt.pTbName = pTable->table.tableName;
+  
+  nodesRewriteExprPostOrder(&pSelect->pWhere, doTranslateTbName, &pRewriteCxt);
+
+  return pRewriteCxt.errCode;
+}
+
 static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   if ((QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
        !isTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) ||
@@ -2577,8 +2641,13 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
           pCxt->stableQuery = true;
         }
-        if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType && isSelectStmt(pCxt->pCurrStmt)) {
-          ((SSelectStmt*)pCxt->pCurrStmt)->isTimeLineResult = false;
+        if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+          if (isSelectStmt(pCxt->pCurrStmt)) {
+            ((SSelectStmt*)pCxt->pCurrStmt)->isTimeLineResult = false;
+          } else if (isDeleteStmt(pCxt->pCurrStmt)) {
+            code = TSDB_CODE_TSC_INVALID_OPERATION;
+            break;
+          }
         }
         code = addNamespace(pCxt, pRealTable);
       }
@@ -3643,6 +3712,10 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = setTableCacheLastMode(pCxt, pSelect);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = replaceTbName(pCxt, pSelect);
+  }
+  
   return code;
 }
 
@@ -4177,6 +4250,34 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
   return TSDB_CODE_SUCCESS;
 }
 
+
+static int32_t checkDbTbPrefixSuffixOptions(STranslateContext* pCxt, int32_t tbPrefix, int32_t tbSuffix) {
+  if (tbPrefix < TSDB_MIN_HASH_PREFIX || tbPrefix > TSDB_MAX_HASH_PREFIX) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option table_prefix: %d valid range: [%d, %d]", tbPrefix,
+                                   TSDB_MIN_HASH_PREFIX, TSDB_MAX_HASH_PREFIX);
+  }
+
+  if (tbSuffix < TSDB_MIN_HASH_SUFFIX || tbSuffix > TSDB_MAX_HASH_SUFFIX) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option table_suffix: %d valid range: [%d, %d]", tbSuffix,
+                                   TSDB_MIN_HASH_SUFFIX, TSDB_MAX_HASH_SUFFIX);
+  }
+
+  if ((tbPrefix * tbSuffix) < 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option table_prefix & table_suffix: mixed usage not allowed");
+  }
+
+  if ((tbPrefix + tbSuffix) >= (TSDB_TABLE_NAME_LEN - 1)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option table_prefix & table_suffix: exceed max table name length");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t daysPerFile = pOptions->daysPerFile;
   int64_t daysToKeep0 = pOptions->keep[0];
@@ -4284,10 +4385,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_STT_TRIGGER, TSDB_MAX_STT_TRIGGER);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "tablePrefix", pOptions->tablePrefix, TSDB_MIN_HASH_PREFIX, TSDB_MAX_HASH_PREFIX);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "tableSuffix", pOptions->tableSuffix, TSDB_MIN_HASH_SUFFIX, TSDB_MAX_HASH_SUFFIX);
+    code = checkDbTbPrefixSuffixOptions(pCxt, pOptions->tablePrefix, pOptions->tableSuffix);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkOptionsDependency(pCxt, pDbName, pOptions);
@@ -6568,22 +6666,40 @@ static int32_t createRealTableForGrantTable(SGrantStmt* pStmt, SRealTableNode** 
 }
 
 static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterUserReq* pReq) {
-  if (NULL == pStmt->pTagCond) {
-    return TSDB_CODE_SUCCESS;
-  }
+  SRealTableNode* pTable = NULL;
   if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "The With clause can only be used for table level privilege");
+    if (pStmt->pTagCond) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "The With clause can only be used for table level privilege");
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
-  pCxt->pCurrStmt = (SNode*)pStmt;
-  SRealTableNode* pTable = NULL;
   int32_t         code = createRealTableForGrantTable(pStmt, &pTable);
   if (TSDB_CODE_SUCCESS == code) {
     SName name;
     code = getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pTable->table.dbName, pTable->table.tableName, &name),
                             &(pTable->pMeta));
+    if (code) {
+      nodesDestroyNode((SNode*)pTable);
+      return code;
+    }
+
+    if (TSDB_SUPER_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType) {
+      nodesDestroyNode((SNode*)pTable);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Only supertable and normal table can be granted");
+    }
   }
+
+  if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTagCond) {
+    nodesDestroyNode((SNode*)pTable);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pCxt->pCurrStmt = (SNode*)pStmt;
+
   if (TSDB_CODE_SUCCESS == code) {
     code = addNamespace(pCxt, pTable);
   }
@@ -6617,6 +6733,7 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
   }
+  tFreeSAlterUserReq(&req);
   return code;
 }
 

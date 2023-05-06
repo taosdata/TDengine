@@ -711,6 +711,7 @@ _return:
 
 int32_t ctgReadDBCfgFromCache(SCatalog *pCtg, const char* dbFName, SDbCfgInfo* pDbCfg) {
   int32_t code = 0;
+
   SCtgDBCache *dbCache = NULL;
   ctgAcquireDBCache(pCtg, dbFName, &dbCache);
   if (NULL == dbCache) {
@@ -746,7 +747,31 @@ _return:
   return code;
 }
 
+int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char **stbName) {
+  *stbName = NULL;
+
+  SCtgDBCache *dbCache = NULL;
+  ctgAcquireDBCache(pCtg, dbFName, &dbCache);
+  if (NULL == dbCache) {
+    ctgDebug("db %s not in cache", dbFName);
+    return TSDB_CODE_SUCCESS;
+  }  
+  
+  char *stb = taosHashAcquire(dbCache->stbCache, &suid, sizeof(suid));
+  if (NULL == stb) {
+    ctgDebug("stb 0x%" PRIx64 " not in cache, dbFName:%s", suid, dbFName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *stbName = taosStrdup(stb);
+
+  taosHashRelease(dbCache->stbCache, stb);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool *inCache, SCtgAuthRsp *pRes) {
+  int32_t code = 0;
   if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
     *inCache = true;
     pRes->pRawRes->pass = true;
@@ -771,7 +796,7 @@ int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool *inCache, 
 
   CTG_LOCK(CTG_READ, &pUser->lock);
   memcpy(&req.authInfo, &pUser->userAuth, sizeof(pUser->userAuth));
-  int32_t code = ctgChkSetAuthRes(pCtg, &req, pRes);
+  code = ctgChkSetAuthRes(pCtg, &req, pRes);
   CTG_UNLOCK(CTG_READ, &pUser->lock);
   CTG_ERR_JRET(code);
 
@@ -785,8 +810,9 @@ _return:
 
   *inCache = false;
   CTG_CACHE_NHIT_INC(CTG_CI_USER, 1);
+  ctgDebug("Get user from cache failed, user:%s, metaNotExists:%d, code:%d", pReq->user, pRes->metaNotExists, code);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void ctgDequeue(SCtgCacheOperation **op) {
@@ -1138,7 +1164,7 @@ int32_t ctgUpdateUserEnqueue(SCatalog *pCtg, SGetUserAuthRsp *pAuth, bool syncOp
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateUserMsg));
     taosMemoryFree(op);
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   msg->pCtg = pCtg;

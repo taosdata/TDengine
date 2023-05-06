@@ -20,16 +20,18 @@
 #include "tmsg.h"
 #include "ttypes.h"
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "tcommon.h"
 #include "thash.h"
 #include "ttime.h"
 
-#include "executorInt.h"
 #include "function.h"
 #include "querynodes.h"
 #include "tdatablock.h"
 #include "tfill.h"
+#include "operator.h"
+#include "querytask.h"
+
 
 #define FILL_POS_INVALID 0
 #define FILL_POS_START   1

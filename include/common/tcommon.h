@@ -212,14 +212,6 @@ enum {
   FETCH_TYPE__NONE,
 };
 
-typedef struct {
-  int8_t       fetchType;
-  union {
-    SSDataBlock data;
-    void*       meta;
-  };
-} SFetchRet;
-
 typedef struct SVarColAttr {
   int32_t* offset;    // start position for each entry in the list
   uint32_t length;    // used buffer size that contain the valid data
@@ -341,6 +333,8 @@ typedef struct {
     float       f;
   };
   size_t length;
+  bool keyEscaped;
+  bool valueEscaped;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
