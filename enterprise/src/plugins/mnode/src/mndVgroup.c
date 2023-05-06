@@ -14,6 +14,8 @@
  */
 
 #include "mndVgroup.h"
+#include "mndDb.h"
+#include "mndPrivilege.h"
 #include "mndTrans.h"
 
 extern int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans);
@@ -66,5 +68,42 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
 
 _OVER:
   mndTransDrop(pTrans);
+  return code;
+}
+
+int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = -1;
+  SVgObj *pVgroup = NULL;
+  SDbObj *pDb = NULL;
+
+  SSplitVgroupReq req = {0};
+  if (tDeserializeSSplitVgroupReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("vgId:%d, start to split", req.vgId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) {
+    goto _OVER;
+  }
+
+  pVgroup = mndAcquireVgroup(pMnode, req.vgId);
+  if (pVgroup == NULL) goto _OVER;
+
+  pDb = mndAcquireDb(pMnode, pVgroup->dbName);
+  if (pDb == NULL) goto _OVER;
+
+  code = mndSplitVgroup(pMnode, pReq, pDb, pVgroup);
+  if (code != 0) {
+    mError("vgId:%d, failed to start to split vgroup since %s, db:%s", pVgroup->vgId, terrstr(), pDb->name);
+    goto _OVER;
+  }
+
+  mInfo("vgId:%d, split vgroup started successfully. db:%s", pVgroup->vgId, pDb->name);
+
+_OVER:
+  mndReleaseVgroup(pMnode, pVgroup);
+  mndReleaseDb(pMnode, pDb);
   return code;
 }
