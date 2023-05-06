@@ -32,7 +32,6 @@ export default {
     };
   },
   created(){
-    console.log(this.docsMap,'kkkk===');
   },
   computed: {
     toolName() {

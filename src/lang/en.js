@@ -861,12 +861,14 @@ export default {
     createNewUseErrCause: 'Description Failed to create a user because the user name is invalid or already exists！'
   },
   stream: {
+    maxDelayTime: "Max Delay Time",
+    delaytip: "watermark, this is the time it takes to wait for unordered data before executing a query",
     stable: 'Super Table',
     database: 'Database',
     streamOption: "Stream Option",
     streamNameError: "Stream name cannot be empty",
     streamNameExist: "Stream name already exists",
-    delay: "Delay",
+    delay: "Watermark",
     slidingTip: "The time step for which the time window moves forward between query calculations.",
     slidingPeriod: "Sliding Period",
     execution: "Execution",
@@ -1088,8 +1090,11 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
+
     agent:'Agent',
     agenttip:'Please select the agent.',
+    typetip:'Please select the source type',
+    nametip:'Please enter the source name',
     name: 'Name',
     type: 'Type',
     target: 'Target',

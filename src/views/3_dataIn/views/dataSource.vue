@@ -107,6 +107,9 @@
         </template>
       </el-table-column>
     </el-table>
+    <div v-if="dialog" >
+      <AddDialog :typeList="typeList" @closeDialog='closeDialog'></AddDialog>
+    </div>
     <el-pagination
       class="pagination"
       layout="total, prev, pager, next"
@@ -116,94 +119,16 @@
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
-    <el-dialog
-      align="center"
-      :title="$t('datasource.addsource')"
-      width="400px"
-      :visible.sync="dialog"
-      @closed="closeDialog"
-    >
-      <div class="switch-agent">
-        <span class="label">{{ $t("enableagent") }}</span>
-        <el-switch v-model="switchVal" @change="changeAgent"></el-switch>
-      </div>
-
-      <el-form
-        :model="ruleForm"
-        ref="ruleForm"
-        size="mini"
-        label-width="auto"
-        label-position="left"
-        class="demo-ruleForm"
-      >
-        <el-form-item :label="$t('datasource.agent')" prop="agent" required v-if="switchVal">
-          <el-select
-            v-model="ruleForm.agent"
-            :placeholder="$t('datasource.agenttip')"
-            @change="selectAgenttype"
-          >
-            <el-option
-              :label="item.name"
-              :value="item.id"
-              v-for="item in agentList"
-              :key="item.id"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('datasource.sourcetype')" prop="type" required>
-          <el-select
-            v-model="ruleForm.type"
-            placeholder="Please Select Source Type"
-          >
-            <el-option
-              :label="item.name"
-              :value="item.id"
-              v-for="item in typeList"
-              :key="item.id"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('datasource.sourcename')" prop="name" required>
-          <el-input v-model="ruleForm.name"></el-input>
-        </el-form-item>
-        <!-- <el-form-item label="Created Time" required>
-          <el-form-item prop="time">
-            <el-date-picker
-              v-model="ruleForm.time"
-              type="datetime"
-              placeholder="Please Select Date And Time"
-            >
-            </el-date-picker>
-          </el-form-item>
-        </el-form-item>-->
-      </el-form>
-      <el-row style="margin-top: 20px">
-        <el-col :span="5" :offset="6">
-          <el-button size="small" @click="dialog = false" class="w100">
-            {{ $t("cancel") }}
-          </el-button>
-        </el-col>
-        <el-col :span="5" :push="4">
-          <el-button
-            size="small"
-            :disabled="confirmStatus"
-            @click="handleAdd"
-            class="w100"
-            type="primary"
-            >{{ $t("confirm") }}</el-button
-          >
-        </el-col>
-      </el-row>
-    </el-dialog>
   </div>
 </template>
 <script>
 import { Message } from "element-ui";
 import { getDatain, getOPC, getPI } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
-import { getAgentsData } from "@/api/explorer/agent";
+import AddDialog from "../components/addDialog.vue";
 export default {
   name: "DataSource",
+  components: { AddDialog },
   props: {
     sourceList: {
       type: Array,
@@ -216,56 +141,30 @@ export default {
       default: "datasource",
     },
   },
-  computed: {
-    confirmStatus() {
-      if (!this.ruleForm.type) {
-        return true;
-      }
-      if (!this.ruleForm.name) {
-        return true;
-      }
-      return false;
-    },
-  },
+  
   data() {
     return {
-      typeList:[],
-      dataTypeMap: new Map([
-        ["tmq", "TDengine Subscription"],
-        ["pi", "PI"],
-        ["opcda", "OPC-DA"],
-        ["opcua", "OPC-UA"],
-      ]),
-      switchVal: false,
+      typeList: [],
+
       dbsource: null,
       pageSize: 10,
       currentPage: 1,
       total: 10,
       dialog: false,
-      ruleForm: {
-        agent:"",
-        type: "",
-        name: "",
-      },
+
+      // rules:{
+      //   agent:[
+      //     {
+      //       required:true,
+      //     }
+      //   ]
+      // },
       topicList: [],
-      agentList:[]
     };
   },
   methods: {
-    selectAgenttype(){
-      this.ruleForm.type=''
-      this.typeList=this.agentList.filter(item=>item.id==this.ruleForm.agent)[0].connectors.map(val=>{
-        return {
-          id:val,
-          name:this.dataTypeMap.get(val)
-        }
-      })
-    },
     handlePageChange() {},
-    closeDialog() {
-      this.$refs.ruleForm.resetFields();
-      this.dialog = false;
-    },
+
     del(data) {
       this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
         confirmButtonText: "Ok",
@@ -306,10 +205,7 @@ export default {
       //   path: `/dataIn/source/${data.data_source_name}`
       // });
     },
-    handleAdd() {
-      localStorage.setItem("datainName", this.ruleForm.name);
-      this.$parent.toggleComponent(this.ruleForm.type, "", "");
-    },
+    
     async getList() {
       try {
         this.topicList = [];
@@ -416,29 +312,17 @@ export default {
           break;
       }
     },
-    async getAgentDataType() {
-      try {
-        this.agentList= await getAgentsData(
-          localStorage.getItem("local_clusterID"),
-          localStorage.getItem("username")
-        );
-        console.log(this.agentList, "代理的列表");
-      } catch (error) {
-        console.log(error);
-      }
-    },
-    changeAgent() {
-      console.log(this.switchVal, "切换");
-      if (this.switchVal) {
-        this.getAgentDataType();
-      }
-    },
+    //显示添加数据源弹窗
+    showAddDialog() {},
+    closeDialog(){
+      this.dialog=false
+    }
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
       this.refresh();
     }
-    this.typeList=this.sourceList
+    this.typeList = this.sourceList;
   },
 };
 </script>
@@ -465,22 +349,5 @@ export default {
 ::v-deep.input.el-input__inner {
   width: 172px !important;
 }
-.switch-agent {
-  display: flex;
-  margin-bottom: 15px;
-  padding-left: 10px;
-  .label {
-    color: #4d6992;
-    font-size: 16px;
-    font-weight: 500;
-  }
-  ::v-deep {
-    .el-switch__core {
-      width: 55px !important;
-    }
-    .el-switch {
-      margin-left: 25px;
-    }
-  }
-}
+
 </style>

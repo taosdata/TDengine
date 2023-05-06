@@ -702,6 +702,8 @@ export default {
     createNewUseErrCause: '创建用户失败,用户名不合法或已经存在！',
   },
   stream: {
+    maxDelayTime: "最大延迟时间",
+    delaytip: "也称为水印，这是在执行查询之前等待无序数据的时间。",
     tableType: '表类型',
     subqueryUpper: "子查询",
     databaseUpper: '数据库',
@@ -710,7 +712,7 @@ export default {
     pageTitle: "流计算",
     column: '列',
     execution: '执行',
-    delay: "延迟",
+    delay: "Watermark",
     slidingPeriod: "滑动时间",
     intervalPeriod: "间隔周期",
     windowClause: "窗口设置",
@@ -862,6 +864,8 @@ export default {
   datasource: {
     agent:'代理',
     agenttip:'请选择代理',
+    typetip:'请选择数据类型',
+    nametip:'请输入数据源名称',
     name: '名称',
     type: '类型',
     target: '目标数据库',
