@@ -2902,6 +2902,14 @@ class TDTestCase:
           tdSql.checkData(i, 0, f'2020-02-01 00:00:{i + 1}.000')
           tdSql.checkData(i, 2, (i + 1) * 2)
 
+        # check duplicate timestamp
+
+        # add duplicate timestamp for different child tables
+        tdSql.execute(f"insert into {dbname}.{ctbname1} values ('2020-02-01 00:00:15', 15, 15, 15, 15, 15.0, 15.0, true, 'varchar', 'nchar')")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:18') every(1s) fill(null)")
+
 
         tdLog.printNoPrefix("======step 14: test interp pseudo columns")
         tdSql.error(f"select _irowts, c6 from {dbname}.{tbname}")
