@@ -2289,20 +2289,22 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkPartitionGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
+static int32_t checkHavingGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == pSelect->pGroupByList && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow) {
+  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow) {
     return code;
   }  
   if (NULL != pSelect->pHaving) {
     code = checkExprForGroupBy(pCxt, &pSelect->pHaving);
   }
+/*
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pProjectionList) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pProjectionList);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pOrderByList) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
+*/  
   return code;
 }
 
@@ -2918,6 +2920,9 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     pCxt->currClause = SQL_CLAUSE_ORDER_BY;
     code = translateExprList(pCxt, pSelect->pOrderByList);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
+  }
   return code;
 }
 
@@ -3036,6 +3041,9 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateProjectionList(pCxt, pSelect);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pProjectionList);
+  }  
   if (TSDB_CODE_SUCCESS == code) {
     code = translateFillValues(pCxt, pSelect);
   }
@@ -3635,10 +3643,10 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateSelectList(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateOrderBy(pCxt, pSelect);
+    code = checkHavingGroupBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkPartitionGroupBy(pCxt, pSelect);
+    code = translateOrderBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAggColCoexist(pCxt, pSelect);
