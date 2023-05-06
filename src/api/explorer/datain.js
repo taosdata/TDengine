@@ -24,6 +24,7 @@ export function getDatain(id){
 export function getUIData(){
     return request({
         baseURL:process.env.VUE_APP_X_API,
+        // baseURL:`http://192.168.17.43:6050`,
         url:'/ds/in',
         method:'get'
     })

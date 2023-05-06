@@ -534,7 +534,7 @@ export default {
       this.loading = true;
       await changeStableStruct(
         params,
-        this.selected_db + "." + this.stable_form.name
+        `\`${this.selected_db }\`. \`${this.stable_form.name}\``
       )
         .then(() => {
           this.$message.success(this.$t("operateSucc"));
