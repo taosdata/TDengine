@@ -8,6 +8,7 @@ import com.taosdata.caches.StatusCache;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.utils.DateUtils;
+import com.taosdata.utils.influxdb.InfluxdbClientPool;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,11 @@ public class MonitorThread implements Runnable {
     private PerformanceConfig performanceConfig = ApplicationContextProvider.getBean(PerformanceConfig.class);
 
     /**
+     * influxdb连接池
+     */
+    private InfluxdbClientPool influxdbClientPool = ApplicationContextProvider.getBean(InfluxdbClientPool.class);
+
+    /**
      * 上次log输出时间
      */
     private Date lastTime;
@@ -51,13 +57,22 @@ public class MonitorThread implements Runnable {
                     this.name = "MonitorThread";
                 }
                 logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
-                // 更新内存队列信息
+                /* 更新内存队列信息 */
                 StatusCache.noteQueue("Bucket", -1, BucketCache.bucketMap.size());
                 StatusCache.noteQueue("Measurement", -1, BucketCache.measurementMap.size());
                 StatusCache.noteQueue("ThreadQueue", performanceConfig.getQueueSizeT(), BucketCache.getBucketDataThreadQueueTotal());
-                StatusCache.noteQueue("DataQueue", performanceConfig.getQueueSizeD(), BucketDataCache.getBucketDataQueueSize());
+                StatusCache.noteQueue("DataQueue", performanceConfig.getQueueSizeD(), BucketDataCache.getBucketDataQueueTotalSize());
                 StatusCache.noteQueue("ReqMessage", -1, MessageCache.getReqMessageQueueSize());
                 StatusCache.noteQueue("ResMessage", -1, MessageCache.getResMessageQueueSize());
+                /* 更新Influxdb连接信息 */
+                // 更新连接数信息
+                StatusCache.noteInfluxdb(influxdbClientPool.getCreatedCount(), influxdbClientPool.getDestroyedCount(), influxdbClientPool.getBorrowedCount(), influxdbClientPool.getReturnedCount());
+                // 连接池关闭或连接数不正常则FAILED，否则NORMAL
+                if (influxdbClientPool.isClosed() || influxdbClientPool.getCreatedCount() <= influxdbClientPool.getDestroyedCount()) {
+                    StatusCache.noteInfluxdb(StatusEnums.FAILED);
+                } else {
+                    StatusCache.noteInfluxdb(StatusEnums.NORMAL);
+                }
                 // TODO 判断线程数量是否正常
 
                 // TODO 判断推送速度是否正常

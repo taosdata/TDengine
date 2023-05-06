@@ -13,8 +13,14 @@ import java.util.concurrent.ConcurrentHashMap;
 @Data
 public class NettyInfo {
 
+    /**
+     * 服务地址
+     */
     private String serverAddr;
 
+    /**
+     * 所有Socket连接
+     */
     private ConcurrentHashMap<String, Connection> connectionMap;
 
     @Data

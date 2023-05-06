@@ -1,5 +1,6 @@
 package com.taosdata.caches;
 
+import com.taosdata.model.dto.bum.InfluxdbInfo;
 import com.taosdata.model.dto.bum.NettyInfo;
 import com.taosdata.model.dto.bum.QueueInfo;
 import com.taosdata.model.dto.bum.ThreadInfo;
@@ -52,6 +53,12 @@ public class StatusCache {
      * 内存队列列表
      */
     private static LinkedHashMap<String, QueueInfo> queueInfoMap = new LinkedHashMap<>();
+
+    /**
+     * Influxdb数据库
+     */
+    @Getter
+    private static InfluxdbInfo influxdbInfo = new InfluxdbInfo();
 
     /**
      * Netty服务端
@@ -118,6 +125,42 @@ public class StatusCache {
         }
         queueInfoMap.get(name).setLimit(limit);
         queueInfoMap.get(name).setLength(length);
+    }
+
+    /**
+     * 记录Influxdb连接信息
+     *
+     * @param url
+     */
+    public static void noteInfluxdb(String url) {
+        influxdbInfo.setServerAddr(url);
+        influxdbInfo.setStatus(StatusEnums.UNKNOWN.getCode());
+        influxdbInfo.setDescription(StatusEnums.UNKNOWN.getDesc());
+    }
+
+    /**
+     * 记录Influxdb连接信息
+     *
+     * @param createdCount
+     * @param destroyedCount
+     * @param borrowedCount
+     * @param returnedCount
+     */
+    public static void noteInfluxdb(long createdCount, long destroyedCount, long borrowedCount, long returnedCount) {
+        influxdbInfo.setCreatedCount(createdCount);
+        influxdbInfo.setDestroyedCount(destroyedCount);
+        influxdbInfo.setBorrowedCount(borrowedCount);
+        influxdbInfo.setReturnedCount(returnedCount);
+    }
+
+    /**
+     * 记录Influxdb连接信息
+     *
+     * @param statusEnums
+     */
+    public static void noteInfluxdb(StatusEnums statusEnums) {
+        influxdbInfo.setStatus(statusEnums.getCode());
+        influxdbInfo.setDescription(statusEnums.getDesc());
     }
 
     /**

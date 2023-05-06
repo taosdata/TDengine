@@ -96,7 +96,7 @@ public class BucketDataThread implements Runnable {
                 }
                 logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 判断内存中数据队列大小
-                if (BucketDataCache.getBucketDataQueueSize() >= performanceConfig.getQueueSizeD()) {
+                if (BucketDataCache.getBucketDataQueueTotalSize() >= performanceConfig.getQueueSizeD()) {
                     // 睡眠后继续
                     sleep(performanceConfig.getThread().getReadBucketFullInterval(), start, StatusEnums.NORMAL);
                     continue;

@@ -4,7 +4,9 @@ import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.threads.BucketDataThread;
 
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -22,7 +24,7 @@ public class BucketCache {
     /**
      * MeasurementName-Entity
      */
-    public static Map<String, InfluxdbMeasurementEntity> measurementMap = new HashMap<>();
+    public static LinkedHashMap<String, InfluxdbMeasurementEntity> measurementMap = new LinkedHashMap<>();
 
     /**
      * BucketName-读取数据任务队列

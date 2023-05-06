@@ -6,6 +6,7 @@ import com.taosdata.caches.StatusCache;
 import com.taosdata.model.dto.DataInfo;
 import com.taosdata.model.dto.ReqDto;
 import com.taosdata.model.dto.ResDto;
+import com.taosdata.model.dto.bum.InfluxdbInfo;
 import com.taosdata.model.dto.bum.NettyInfo;
 import com.taosdata.model.dto.bum.QueueInfo;
 import com.taosdata.model.dto.bum.ThreadInfo;
@@ -157,7 +158,46 @@ public class DashboardController {
     }
 
     /**
-     * 获取连接信息
+     * 获取Influxdb连接信息
+     *
+     * @param reqDto
+     * @param request
+     * @return
+     */
+    @RequestMapping(value = "/getInfluxdbInfo")
+    @ResponseBody
+    public ResDto getInfluxdbInfo(@RequestBody ReqDto reqDto, HttpServletRequest request) {
+        // 定义响应内容
+        ResDto resDto = new ResDto();
+        try {
+            // 获取请求源ip
+            reqDto.setIp(request.getRemoteAddr());
+            // 请求日志
+            sys_user_logger.info(reqDto.toString());
+            // 验证账号等信息
+            // TODO
+            // 获取请求包体（泛型转化）
+            // TODO
+            // 结果数据
+            DataInfo<InfluxdbInfo> dataInfo = new DataInfo<>(new InfluxdbInfo());
+            dataInfo.setData(StatusCache.getInfluxdbInfo());
+            // 封装响应
+            resDto.setCode(ResEnums.SUCCESS.getCode());
+            resDto.setMsg(ResEnums.SUCCESS.getMsg());
+            resDto.setData(dataInfo);
+            // 响应日志
+            sys_user_logger.info(resDto.toString());
+        } catch (Exception e) {
+            logger.error("查询Influxdb连接信息过程中发生异常，exception={}", e.getMessage());
+            // 封装响应
+            resDto.setCode(ResEnums.EXCEPTION.getCode());
+            resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
+        }
+        return resDto;
+    }
+
+    /**
+     * 获取Socket连接信息
      *
      * @param reqDto
      * @param request
@@ -187,7 +227,7 @@ public class DashboardController {
             // 响应日志
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
-            logger.error("查询连接信息过程中发生异常，exception={}", e.getMessage());
+            logger.error("查询Socket连接信息过程中发生异常，exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
@@ -258,6 +298,9 @@ public class DashboardController {
             // TODO
             // 结果数据
             DataInfo<JSONObject> dataInfo = new DataInfo<>(new JSONObject());
+            dataInfo.getData().put("totalTaskEstimated", StatisticCache.totalReadTaskEstimated);
+            dataInfo.getData().put("totalTaskCreated", StatisticCache.createdTaskSet.size());
+            dataInfo.getData().put("completedTask", StatisticCache.completedTaskSet.size());
             dataInfo.getData().put("TotalRead", StatisticCache.totalRead);
             dataInfo.getData().put("TotalPush", StatisticCache.totalPush);
             // 封装响应
@@ -308,7 +351,9 @@ public class DashboardController {
             dataInfo.getData().put("threadInfo", StatusCache.getThreadInfo());
             // 队列信息
             dataInfo.getData().put("queueInfo", StatusCache.getQueueInfo());
-            // 连接信息
+            // Influxdb连接信息
+            dataInfo.getData().put("influxdbInfo", StatusCache.getInfluxdbInfo());
+            // Socket连接信息
             dataInfo.getData().put("nettyInfo", StatusCache.getNettyInfo());
             // 速度信息
             Map<String, Long> speedInfo = new HashMap<>();
@@ -317,6 +362,9 @@ public class DashboardController {
             dataInfo.getData().put("speedInfo", speedInfo);
             // 任务统计
             JSONObject taskStatistic = new JSONObject();
+            taskStatistic.put("totalTaskEstimated", StatisticCache.totalReadTaskEstimated);
+            taskStatistic.put("totalTaskCreated", StatisticCache.createdTaskSet.size());
+            taskStatistic.put("completedTask", StatisticCache.completedTaskSet.size());
             taskStatistic.put("totalRead", StatisticCache.totalRead);
             taskStatistic.put("totalPush", StatisticCache.totalPush);
             dataInfo.getData().put("taskStatistic", taskStatistic);

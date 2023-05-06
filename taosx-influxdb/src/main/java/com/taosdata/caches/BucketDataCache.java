@@ -6,6 +6,7 @@ import io.netty.channel.Channel;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 数据缓存
@@ -130,6 +131,20 @@ public class BucketDataCache {
      */
     public static int getBucketDataQueueSize(String key) {
         return bucketDataQueueMap.getOrDefault(key, new ConcurrentLinkedQueue<>()).size();
+    }
+
+    /**
+     * 获取队列全部大小
+     *
+     * @return
+     */
+    public static int getBucketDataQueueTotalSize() {
+        // 主队列长度
+        AtomicInteger total = new AtomicInteger(bucketDataQueue.size());
+        // 拆分后队列长度
+        bucketDataQueueMap.values().stream().forEach(queue -> total.addAndGet(queue.size()));
+        // 返回总数
+        return total.get();
     }
 
     /**

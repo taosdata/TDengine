@@ -2,6 +2,7 @@ package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketCache;
+import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
@@ -89,6 +90,8 @@ public class BucketThread implements Runnable {
                 BucketCache.measurementMap.forEach((k, v) -> {
                     if (this.bucket.equals(v.getBucket()) && StringUtils.isNotEmpty(v.getMeasurement())) {
                         BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
+                        // 读取数据任务计数
+                        StatisticCache.noteCreatedTask(this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]);
                     }
                 });
                 // 更新序号

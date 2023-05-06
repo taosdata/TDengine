@@ -18,6 +18,7 @@ import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.client.config.NettyClientConfig;
 import com.taosdata.service.InfluxdbService;
 import com.taosdata.threads.*;
+import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -125,14 +126,16 @@ public class PreLoading implements CommandLineRunner {
                 String queueRecords = FileUtils.readResourceFile(RECORD_FILE_RELATIVEPATH, RECORD_FILE_QUEUE);
                 // 将fetchRecords放入过滤集合
                 if (StringUtils.isNotEmpty(fetchRecords)) {
-                    LocalConfig.fetchFilterSet.addAll(Arrays.asList(StringUtils.split(fetchRecords, RECORD_DELIMITER)));
+                    LocalConfig.fetchFilterSet.addAll(Arrays.asList(StringUtils.splitByWholeSeparator(fetchRecords, RECORD_DELIMITER)));
                 }
                 // 将queueRecords写入内存队列
                 if (StringUtils.isNotEmpty(queueRecords)) {
-                    String[] records = StringUtils.split(queueRecords, RECORD_DELIMITER);
+                    String[] records = StringUtils.splitByWholeSeparator(queueRecords, RECORD_DELIMITER);
                     // 遍历转化并写入内存队列
                     for (String record : records) {
-                        BucketDataCache.addBucketData(JSONObject.parseObject(record, InfluxdbBucketDataEntity.class));
+                        if (StringUtils.isNotEmpty(record)) {
+                            BucketDataCache.addBucketData(JSONObject.parseObject(record, InfluxdbBucketDataEntity.class));
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -146,6 +149,8 @@ public class PreLoading implements CommandLineRunner {
      */
     private void initInfluxdb() {
         try {
+            // 记录Influxdb信息
+            StatusCache.noteInfluxdb(influxdbConfig.getUrl());
             // 获取所有bucket
             List<InfluxdbBucketEntity> influxdbBucketEntityList = influxdbService.selectAllBuckets();
             // 跟据参数中的orgId与buckets进行过滤
@@ -190,6 +195,8 @@ public class PreLoading implements CommandLineRunner {
                     logger.error("初始化influxdb及相关线程过程中发生异常", e);
                 }
             });
+            // 估算任务量
+            StatisticCache.totalReadTaskEstimated = estimateTaskAmount();
             // 启动ScheduleThread
             ScheduleThread schedule = new ScheduleThread(performanceConfig.getMaxThread());
             Thread scheduleThread = new Thread(schedule);
@@ -214,6 +221,37 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.noteThread(threadInfo);
         } catch (Exception e) {
             logger.error("初始化influxdb及相关线程过程中发生异常", e);
+        }
+    }
+
+    /**
+     * 预估任务数量
+     *
+     * @return
+     */
+    private int estimateTaskAmount() {
+        try {
+            // Measurement数量
+            int measurementAmount = BucketCache.measurementMap.size();
+            // 任务开始与结束时间
+            Date beginTime = DateUtils.stringToDate(taskConfig.getBeginTime(), DateUtils.DATE_FORMAT_17);
+            Date endTime = StringUtils.isNotEmpty(taskConfig.getEndTime()) ? DateUtils.stringToDate(taskConfig.getEndTime(), DateUtils.DATE_FORMAT_17) : new Date();
+            // 相差毫秒数
+            long diff = endTime.getTime() - beginTime.getTime();
+            // 根据查询窗口类型计算
+            String readWindow = performanceConfig.getReadWindow().toLowerCase();
+            switch (readWindow) {
+                case "d":
+                    return (int) (Math.ceil(diff / (24 * 60 * 60 * 1000) * measurementAmount));
+                case "h":
+                    return (int) (Math.ceil(diff / (60 * 60 * 1000) * measurementAmount));
+                case "m":
+                default:
+                    return (int) (Math.ceil(diff / (60 * 1000) * measurementAmount));
+            }
+        } catch (Exception e) {
+            // 不处理异常，直接返回-1
+            return -1;
         }
     }
 

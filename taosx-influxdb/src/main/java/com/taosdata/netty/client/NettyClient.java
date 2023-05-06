@@ -103,10 +103,10 @@ public class NettyClient {
                     StatusCache.noteThread(threadInfo);
                     logger.info("建立连接并创建发送线程成功，thread: {}", threadName);
                 } else {
-                    // 记录Netty连接信息
-                    StatusCache.noteNetty(clientId, StatusEnums.FAILED);
                     logger.error("建立连接失败，将在5秒后进行重连");
                     listener.channel().eventLoop().schedule(() -> connect(new Bootstrap(), eventLoop, dataSourceKey), 5, TimeUnit.SECONDS);
+                    // 删除Netty连接信息
+                    StatusCache.forgetNetty(clientId);
                 }
             });
             // 监听到结束信号后关闭
