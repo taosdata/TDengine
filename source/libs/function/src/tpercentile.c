@@ -236,7 +236,7 @@ static void resetSlotInfo(tMemBucket *pBucket) {
   }
 }
 
-tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval) {
+tMemBucket *tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval) {
   tMemBucket *pBucket = (tMemBucket *)taosMemoryCalloc(1, sizeof(tMemBucket));
   if (pBucket == NULL) {
     return NULL;

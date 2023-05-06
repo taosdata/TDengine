@@ -287,6 +287,7 @@ python3 ./test.py -f 1-insert/tb_100w_data_order.py -P
 python3 ./test.py -f 1-insert/delete_childtable.py -P
 python3 ./test.py -f 1-insert/delete_normaltable.py -P
 python3 ./test.py -f 1-insert/keep_expired.py -P
+python3 ./test.py -f 1-insert/stmt_error.py -P
 python3 ./test.py -f 1-insert/drop.py -P
 python3 ./test.py -f 2-query/join2.py -P
 python3 ./test.py -f 2-query/union1.py -P

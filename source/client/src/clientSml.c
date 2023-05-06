@@ -558,15 +558,21 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
   return 0;
 }
 
+#define BOUNDARY 1024
 static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
   int32_t result = 1;
-  while (result <= length) {
-    result *= 2;
+  if (length >= BOUNDARY){
+    result = length;
+  }else{
+    while (result <= length) {
+      result <<= 1;
+    }
   }
+
   if (type == TSDB_DATA_TYPE_BINARY && result > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
     result = TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE;
-  } else if (type == TSDB_DATA_TYPE_NCHAR && result > (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-    result = (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+  } else if (type == TSDB_DATA_TYPE_NCHAR && result > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+    result = (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
   }
 
   if (type == TSDB_DATA_TYPE_NCHAR) {
@@ -649,6 +655,17 @@ static int32_t smlBuildFieldsList(SSmlHandle *info, SSchema *schemaField, SHashO
       field->bytes = getBytes(kv->type, kv->length);
     }
   }
+
+  int32_t maxLen = isTag ? TSDB_MAX_TAGS_LEN : TSDB_MAX_BYTES_PER_ROW;
+  int32_t len = 0;
+  for (int j = 0; j < taosArrayGetSize(results); ++j) {
+    SField *field = taosArrayGet(results, j);
+    len += field->bytes;
+  }
+  if (len > maxLen) {
+    return isTag ? TSDB_CODE_PAR_INVALID_TAGS_LENGTH : TSDB_CODE_PAR_INVALID_ROW_LENGTH;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -781,11 +798,15 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       code = smlBuildFieldsList(info, NULL, NULL, sTableData->tags, pTags, 0, true);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " smlBuildFieldsList tag1 failed. %s", info->id, pName.tname);
+        taosArrayDestroy(pColumns);
+        taosArrayDestroy(pTags);
         goto end;
       }
       code = smlBuildFieldsList(info, NULL, NULL, sTableData->cols, pColumns, 0, false);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " smlBuildFieldsList col1 failed. %s", info->id, pName.tname);
+        taosArrayDestroy(pColumns);
+        taosArrayDestroy(pTags);
         goto end;
       }
       code = smlSendMetaMsg(info, &pName, pColumns, pTags, NULL, SCHEMA_ACTION_CREATE_STABLE);
@@ -837,6 +858,23 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
                                   pTableMeta->tableInfo.numOfColumns, true);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlBuildFieldsList tag2 failed. %s", info->id, pName.tname);
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
+          goto end;
+        }
+
+        if (taosArrayGetSize(pTags) + pTableMeta->tableInfo.numOfColumns > TSDB_MAX_COLUMNS) {
+          uError("SML:0x%" PRIx64 " too many columns than 4096", info->id);
+          code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
+          goto end;
+        }
+        if (taosArrayGetSize(pTags) > TSDB_MAX_TAGS) {
+          uError("SML:0x%" PRIx64 " too many tags than 128", info->id);
+          code = TSDB_CODE_PAR_INVALID_TAGS_NUM;
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
           goto end;
         }
 
@@ -891,6 +929,16 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
                                   pTableMeta->tableInfo.numOfColumns, false);
         if (code != TSDB_CODE_SUCCESS) {
           uError("SML:0x%" PRIx64 " smlBuildFieldsList col2 failed. %s", info->id, pName.tname);
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
+          goto end;
+        }
+
+        if (taosArrayGetSize(pColumns) + pTableMeta->tableInfo.numOfTags > TSDB_MAX_COLUMNS) {
+          uError("SML:0x%" PRIx64 " too many columns than 4096", info->id);
+          code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
+          taosArrayDestroy(pColumns);
+          taosArrayDestroy(pTags);
           goto end;
         }
 
@@ -1499,8 +1547,11 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
 
   do {
     code = smlModifyDBSchemas(info);
-    if (code == 0) break;
-    taosMsleep(500);
+    if (code == 0 || code == TSDB_CODE_SML_INVALID_DATA || code == TSDB_CODE_PAR_TOO_MANY_COLUMNS ||
+        code == TSDB_CODE_PAR_INVALID_TAGS_NUM || code == TSDB_CODE_PAR_INVALID_ROW_LENGTH ||
+        code == TSDB_CODE_PAR_INVALID_TAGS_LENGTH)
+      break;
+    taosMsleep(100);
     uInfo("SML:0x%" PRIx64 " smlModifyDBSchemas retry code:%s, times:%d", info->id, tstrerror(code), retryNum);
   } while (retryNum++ < taosHashGetSize(info->superTables) * MAX_RETRY_TIMES);
 

@@ -338,6 +338,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_childtable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stmt_error.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py

@@ -556,7 +556,7 @@ RETRIEVE_FUNC_OVER:
   return code;
 }
 
-static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int16_t len) {
+static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int32_t len) {
   char *msg = "unknown";
   if (type >= sizeof(tDataTypes) / sizeof(tDataTypes[0])) {
     return msg;

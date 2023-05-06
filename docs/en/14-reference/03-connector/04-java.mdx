@@ -40,19 +40,19 @@ Please refer to [version support list](/reference/connector#version-support)
 
 TDengine currently supports timestamp, number, character, Boolean type, and the corresponding type conversion with Java is as follows:
 
-| TDengine DataType | JDBCType  |
-| ----------------- | ---------------------------------- |
-| TIMESTAMP         | java.sql.Timestamp                 |
-| INT               | java.lang.Integer                  |
-| BIGINT            | java.lang.Long                     |
-| FLOAT             | java.lang.Float                    |
-| DOUBLE            | java.lang.Double                   |
-| SMALLINT          | java.lang.Short                    |
-| TINYINT           | java.lang.Byte                     |
-| BOOL              | java.lang.Boolean                  |
-| BINARY            | byte array                         |
-| NCHAR             | java.lang.String                   |
-| JSON              | java.lang.String                   |
+| TDengine DataType | JDBCType           |
+| ----------------- | ------------------ |
+| TIMESTAMP         | java.sql.Timestamp |
+| INT               | java.lang.Integer  |
+| BIGINT            | java.lang.Long     |
+| FLOAT             | java.lang.Float    |
+| DOUBLE            | java.lang.Double   |
+| SMALLINT          | java.lang.Short    |
+| TINYINT           | java.lang.Byte     |
+| BOOL              | java.lang.Boolean  |
+| BINARY            | byte array         |
+| NCHAR             | java.lang.String   |
+| JSON              | java.lang.String   |
 
 **Note**: Only TAG supports JSON types
 
@@ -350,7 +350,12 @@ try (Statement statement = connection.createStatement()) {
 }
 ```
 
-There are three types of error codes that the JDBC connector can report: - Error code of the JDBC driver itself (error code between 0x2301 and 0x2350), - Error code of the native connection method (error code between 0x2351 and 0x2400), and - Error code of other TDengine function modules.
+There are four types of error codes that the JDBC connector can report:
+
+- Error code of the JDBC driver itself (error code between 0x2301 and 0x2350),
+- Error code of the native connection method (error code between 0x2351 and 0x2360)
+- Error code of the consumer method (error code between 0x2371 and 0x2380)
+- Error code of other TDengine function modules.
 
 For specific error codes, please refer to.
 
@@ -965,17 +970,17 @@ The source code of the sample application is under `TDengine/examples/JDBC`:
 
 ## Recent update logs
 
-| taos-jdbcdriver version |                 major changes                  |
-| :---------------------: | :--------------------------------------------: |
-|       3.1.0       |       JDBC REST connection supports subscription over WebSocket |
-|       3.0.1 - 3.0.4        |  fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use other version in the JDK 8 environment    |
-|       3.0.0        |   Support for TDengine 3.0    |
-|       2.0.42        |   fix wasNull interface return value in WebSocket connection  |
-|       2.0.41        |   fix decode method of username and password in REST connection |
-|     2.0.39 - 2.0.40     | Add REST connection/request timeout parameters |
-|         2.0.38          |  JDBC REST connections add bulk pull function  |
-|         2.0.37          |               Support json tags                |
-|         2.0.36          |           Support schemaless writing           |
+| taos-jdbcdriver version |                                                                   major changes                                                                    |
+| :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: |
+|          3.1.0          |                                             JDBC REST connection supports subscription over WebSocket                                              |
+|      3.0.1 - 3.0.4      | fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use other version in the JDK 8 environment |
+|          3.0.0          |                                                              Support for TDengine 3.0                                                              |
+|         2.0.42          |                                             fix wasNull interface return value in WebSocket connection                                             |
+|         2.0.41          |                                           fix decode method of username and password in REST connection                                            |
+|     2.0.39 - 2.0.40     |                                                   Add REST connection/request timeout parameters                                                   |
+|         2.0.38          |                                                    JDBC REST connections add bulk pull function                                                    |
+|         2.0.37          |                                                                 Support json tags                                                                  |
+|         2.0.36          |                                                             Support schemaless writing                                                             |
 
 ## Frequently Asked Questions
 
@@ -999,9 +1004,9 @@ The source code of the sample application is under `TDengine/examples/JDBC`:
 
 4. java.lang.NoSuchMethodError: setByteArray
 
-  **Cause**: taos-jbdcdriver 3.* only supports TDengine 3.0 and later.
+   **Cause**: taos-jbdcdriver 3.\* only supports TDengine 3.0 and later.
 
-  **Solution**: Use taos-jdbcdriver 2.* with your TDengine 2.* deployment.
+   **Solution**: Use taos-jdbcdriver 2.\* with your TDengine 2.\* deployment.
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 
