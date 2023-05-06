@@ -56,18 +56,18 @@ endi
 
 if $data23 != 0 then
   return -1
-endi
+end
 
-print ========== stop dnode2
-system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+#print ========== stop dnode2
+#system sh/exec.sh -n dnode2 -s stop -x SIGKILL
 
-sleep 1000
-print =============== drop database
-sql_error drop database d1
+#sleep 1000
+#print =============== drop database
+sql drop database d1
 
-print ========== start dnode2
-system sh/exec.sh -n dnode2 -s start
-sleep 1000
+#print ========== start dnode2
+#system sh/exec.sh -n dnode2 -s start
+#sleep 1000
 
 print =============== re-create database
 $x = 0
