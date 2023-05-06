@@ -425,7 +425,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       }
     } break;
     case TDMT_VND_ALTER_CONFIRM:
-      vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp);
+      needCommit = pVnode->config.hashChange;
+      if (vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp) < 0) {
+        goto _err;
+      }
       break;
     case TDMT_VND_ALTER_CONFIG:
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
@@ -1472,6 +1475,11 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void
   }
 
   code = vnodeConsolidateAlterHashRange(pVnode, version);
+  if (code < 0) {
+    vError("vgId:%d, failed to consolidate alter hashrange since %s. version:%" PRId64, TD_VID(pVnode), terrstr(),
+           version);
+    goto _exit;
+  }
   pVnode->config.hashChange = false;
 
 _exit:
@@ -1480,7 +1488,7 @@ _exit:
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
-  return 0;
+  return code;
 }
 
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {

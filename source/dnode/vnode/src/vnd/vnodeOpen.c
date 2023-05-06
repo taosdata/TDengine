@@ -236,8 +236,6 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
     return -1;
   }
 
-  // todo vnode compact here
-
   vInfo("vgId:%d, vnode hashrange is altered", info.config.vgId);
   return 0;
 }
