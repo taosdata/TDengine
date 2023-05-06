@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"runtime"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -192,13 +191,13 @@ func (r *ReportConfig) Validate() error {
 		return fmt.Errorf("config error. taosx's address is null")
 	}
 	if r.Concurrent == 0 {
-		r.Concurrent = runtime.NumCPU()
+		r.Concurrent = 1
 	}
 	if r.BatchSize == 0 {
 		r.BatchSize = 1
 	}
 	if r.BatchTimeout == 0 {
-		r.BatchTimeout = 10
+		r.BatchTimeout = 2
 	}
 	return nil
 }
