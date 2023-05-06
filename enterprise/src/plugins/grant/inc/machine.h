@@ -62,6 +62,47 @@
 #define GRANT_STABLE_LIMITS        4102416000
 #define GRANT_TABLE_LIMITS         4102416000
 
+// specific for connectors
+#define GRANT_CONN_NUM_V1              32
+#define GRANT_CONN_NUM                 GRANT_CONN_NUM_V1
+#define GRANT_CONN_ACTIVE_KEY_LEN      108
+#define GRANT_CONN_ACTIVE_RAW_LEN      80
+#define GRANT_CONN_ACTIVE_ENCRYPT_LEN  72
+#define GRANT_CONN_HASH_LEN            (GRANT_CONN_ACTIVE_RAW_LEN - GRANT_CONN_ACTIVE_ENCRYPT_LEN)
+
+// connectors
+typedef enum {
+  CONN_TYPE_OPC_DA = 0,
+  CONN_TYPE_OPC_UA,
+  CONN_TYPE_PI,
+  CONN_TYPE_KAFKA,
+  CONN_TYPE_INFLUXDB,
+  CONN_TYPE_MQTT,
+  CONN_TYPE_MAX
+} EConnType;
+
+typedef struct {
+  int32_t  number;  // connections
+  int16_t  speed;   // transfer speed, unit: MB
+  uint16_t expire;  // unit: day
+} SGrantConnItem;
+
+typedef struct {
+  bool           granted;
+  char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];
+  SGrantConnItem items[GRANT_CONN_NUM];
+} SGrantConnObj;
+
+typedef struct {
+  SGrantConnItem items[GRANT_CONN_NUM];
+} SGrantConnStatus;
+
+typedef struct {
+  int8_t         version;
+  SGrantConnItem items[GRANT_CONN_NUM];
+} SGrantConnMsg;
+
+// server
 typedef struct {
   char     machine[GRANT_MACHINE_KEY_LEN + 1];
   char     clusterId[GRANT_CLUSTER_ID_LEN + 1];
@@ -114,23 +155,24 @@ typedef struct {
 } SGrantStatus;
 
 typedef struct {
-  bool     updateForced;
-  bool     usbDongle;
-  bool     officialVersion;
-  uint32_t expireTimeSec;
-  uint32_t limitStorage;
-  uint32_t limitSpeed;
-  uint64_t limitTimeSeries;
-  uint32_t limitQueryTime;
-  uint32_t limitDbs;
-  uint32_t limitUsers;
-  uint32_t limitConns;
-  uint32_t limitStreams;
-  uint32_t limitAccts;
-  uint32_t limitDnodes;
-  uint32_t limitCpuCores;
-  uint32_t reserveKey1;
-  uint32_t reserveKey2;
+  bool          updateForced;
+  bool          usbDongle;
+  bool          officialVersion;
+  uint32_t      expireTimeSec;
+  uint32_t      limitStorage;
+  uint32_t      limitSpeed;
+  uint64_t      limitTimeSeries;
+  uint32_t      limitQueryTime;
+  uint32_t      limitDbs;
+  uint32_t      limitUsers;
+  uint32_t      limitConns;
+  uint32_t      limitStreams;
+  uint32_t      limitAccts;
+  uint32_t      limitDnodes;
+  uint32_t      limitCpuCores;
+  uint32_t      reserveKey1;
+  uint32_t      reserveKey2;
+  SGrantConnMsg connectors;
 } SGrantMsg;
 
 char *grantGetMachineSerials();
