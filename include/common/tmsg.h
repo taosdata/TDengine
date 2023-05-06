@@ -415,7 +415,7 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
   return pSW;
 }
 
-static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
+static FORCE_INLINE void tDeleteSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper) {
     taosMemoryFree(pSchemaWrapper->pSchema);
     taosMemoryFree(pSchemaWrapper);
@@ -3457,10 +3457,10 @@ typedef struct {
   char     data[];  // SSubmitReq2
 } SSubmitReq2Msg;
 
-int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
-int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2* pReq);
-void    tDestroySSubmitTbData(SSubmitTbData* pTbData, int32_t flag);
-void    tDestroySSubmitReq(SSubmitReq2* pReq, int32_t flag);
+int32_t tEncodeSubmitReq(SEncoder* pCoder, const SSubmitReq2* pReq);
+int32_t tDecodeSubmitReq(SDecoder* pCoder, SSubmitReq2* pReq);
+void    tDestroySubmitTbData(SSubmitTbData* pTbData, int32_t flag);
+void    tDestroySubmitReq(SSubmitReq2* pReq, int32_t flag);
 
 typedef struct {
   int32_t affectedRows;

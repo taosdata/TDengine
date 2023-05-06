@@ -340,6 +340,7 @@ typedef struct SStreamMeta {
   TTB*         pTaskDb;
   TTB*         pCheckpointDb;
   SHashObj*    pTasks;
+  SArray*      pTaskList;   // SArray<task_id*>
   void*        ahandle;
   TXN*         txn;
   FTaskExpand* expandFunc;

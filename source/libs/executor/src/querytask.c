@@ -109,8 +109,8 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
 void cleanupQueriedTableScanInfo(SSchemaInfo* pSchemaInfo) {
   taosMemoryFreeClear(pSchemaInfo->dbname);
   taosMemoryFreeClear(pSchemaInfo->tablename);
-  tDeleteSSchemaWrapper(pSchemaInfo->sw);
-  tDeleteSSchemaWrapper(pSchemaInfo->qsw);
+  tDeleteSchemaWrapper(pSchemaInfo->sw);
+  tDeleteSchemaWrapper(pSchemaInfo->qsw);
 }
 
 int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, const char* dbName, SExecTaskInfo* pTaskInfo) {
@@ -197,7 +197,7 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
   return pqSw;
 }
 
-static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) { tDeleteSSchemaWrapper(pStreamInfo->schema); }
+static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) { tDeleteSchemaWrapper(pStreamInfo->schema); }
 
 static void freeBlock(void* pParam) {
   SSDataBlock* pBlock = *(SSDataBlock**)pParam;

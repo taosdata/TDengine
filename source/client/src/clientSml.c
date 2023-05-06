@@ -195,6 +195,20 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
   return TSDB_CODE_SUCCESS;
 }
 
+void getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo){
+  char key[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
+  size_t nLen = strlen(tinfo->childTableName);
+  memcpy(key, currElement->measure, currElement->measureLen);
+  memcpy(key + currElement->measureLen + 1, tinfo->childTableName, nLen);
+  void *uid = taosHashGet(info->tableUids, key, currElement->measureLen + 1 + nLen);    // use \0 as separator for stable name and child table name
+  if (uid == NULL) {
+    tinfo->uid = info->uid++;
+    taosHashPut(info->tableUids, key, currElement->measureLen + 1 + nLen, &tinfo->uid, sizeof(uint64_t));
+  }else{
+    tinfo->uid = *(uint64_t*)uid;
+  }
+}
+
 SSmlSTableMeta *smlBuildSTableMeta(bool isDataFormat) {
   SSmlSTableMeta *meta = (SSmlSTableMeta *)taosMemoryCalloc(sizeof(SSmlSTableMeta), 1);
   if (!meta) {
@@ -558,10 +572,15 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
   return 0;
 }
 
+#define BOUNDARY 1024
 static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
   int32_t result = 1;
-  while (result <= length) {
-    result *= 2;
+  if (length >= BOUNDARY){
+    result = length;
+  }else{
+    while (result <= length) {
+      result *= 2;
+    }
   }
   if (type == TSDB_DATA_TYPE_BINARY && result > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
     result = TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE;
@@ -657,7 +676,7 @@ static int32_t smlBuildFieldsList(SSmlHandle *info, SSchema *schemaField, SHashO
     len += field->bytes;
   }
   if(len > maxLen){
-    return TSDB_CODE_TSC_INVALID_VALUE;
+    return isTag ? TSDB_CODE_PAR_INVALID_TAGS_LENGTH : TSDB_CODE_PAR_INVALID_ROW_LENGTH;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1137,6 +1156,7 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosHashCleanup(info->pVgHash);
   taosHashCleanup(info->childTables);
   taosHashCleanup(info->superTables);
+  taosHashCleanup(info->tableUids);
 
   for (int i = 0; i < taosArrayGetSize(info->tagJsonArray); i++) {
     cJSON *tags = (cJSON *)taosArrayGetP(info->tagJsonArray, i);
@@ -1187,6 +1207,7 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
 
   info->pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   info->childTables = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  info->tableUids = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   info->superTables = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
 
   info->id = smlGenId();
@@ -1197,7 +1218,7 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->valueJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
 
-  if (NULL == info->pVgHash || NULL == info->childTables || NULL == info->superTables) {
+  if (NULL == info->pVgHash || NULL == info->childTables || NULL == info->superTables || NULL == info->tableUids) {
     uError("create SSmlHandle failed");
     goto cleanup;
   }
@@ -1315,22 +1336,22 @@ static int32_t smlInsertData(SSmlHandle *info) {
   if (info->pRequest->dbList == NULL) {
     info->pRequest->dbList = taosArrayInit(1, TSDB_DB_FNAME_LEN);
   }
-  void *data = taosArrayReserve(info->pRequest->dbList, 1);
-  memcpy(data, info->pRequest->pDb,
-         TSDB_DB_FNAME_LEN > strlen(info->pRequest->pDb) ? strlen(info->pRequest->pDb) : TSDB_DB_FNAME_LEN);
+  char *data = (char*)taosArrayReserve(info->pRequest->dbList, 1);
+  SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
+  tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
+  tNameGetFullDbName(&pName, data);
 
   SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, NULL);
   while (oneTable) {
     SSmlTableInfo *tableData = *oneTable;
-
-    SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
-    tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
-    memcpy(pName.tname, tableData->childTableName, strlen(tableData->childTableName));
+    tstrncpy(pName.tname, tableData->sTableName, tableData->sTableNameLen + 1);
 
     if (info->pRequest->tableList == NULL) {
       info->pRequest->tableList = taosArrayInit(1, sizeof(SName));
     }
     taosArrayPush(info->pRequest->tableList, &pName);
+
+    tstrncpy(pName.tname, tableData->childTableName, strlen(tableData->childTableName) + 1);
 
     SRequestConnInfo conn = {0};
     conn.pTrans = info->taos->pAppInfo->pTransporter;
@@ -1423,6 +1444,7 @@ int32_t smlClearForRerun(SSmlHandle *info) {
 
   taosHashClear(info->childTables);
   taosHashClear(info->superTables);
+  taosHashClear(info->tableUids);
 
   if (!info->dataFormat) {
     if (unlikely(info->lines != NULL)) {
@@ -1557,7 +1579,8 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
   do {
     code = smlModifyDBSchemas(info);
     if (code == 0 || code == TSDB_CODE_SML_INVALID_DATA || code == TSDB_CODE_PAR_TOO_MANY_COLUMNS
-        || code == TSDB_CODE_PAR_INVALID_TAGS_NUM) break;
+        || code == TSDB_CODE_PAR_INVALID_TAGS_NUM || code == TSDB_CODE_PAR_INVALID_TAGS_LENGTH
+        || code == TSDB_CODE_PAR_INVALID_ROW_LENGTH) break;
     taosMsleep(100);
     uInfo("SML:0x%" PRIx64 " smlModifyDBSchemas retry code:%s, times:%d", info->id, tstrerror(code), retryNum);
   } while (retryNum++ < taosHashGetSize(info->superTables) * MAX_RETRY_TIMES);
@@ -1642,7 +1665,8 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
     info->cost.endTime = taosGetTimestampUs();
     info->cost.code = code;
     if (code == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || code == TSDB_CODE_SDB_OBJ_CREATING ||
-        code == TSDB_CODE_PAR_VALUE_TOO_LONG || code == TSDB_CODE_MND_TRANS_CONFLICT) {
+        code == TSDB_CODE_PAR_VALUE_TOO_LONG || code == TSDB_CODE_MND_TRANS_CONFLICT ||
+        code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       if (cnt++ >= 10) {
         uInfo("SML:%" PRIx64 " retry:%d/10 end code:%d, msg:%s", info->id, cnt, code, tstrerror(code));
         break;

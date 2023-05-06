@@ -193,7 +193,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   taosArrayDestroyP(pTask->childEpInfo, taosMemoryFree);
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
-    tDeleteSSchemaWrapper(pTask->tbSink.pSchemaWrapper);
+    tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);
   }
 

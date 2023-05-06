@@ -217,8 +217,8 @@ typedef struct STableInfoForChildTable {
 static void destroySTableInfoForChildTable(void* data) {
   STableInfoForChildTable* pData = (STableInfoForChildTable*)data;
   taosMemoryFree(pData->tableName);
-  tDeleteSSchemaWrapper(pData->schemaRow);
-  tDeleteSSchemaWrapper(pData->tagRow);
+  tDeleteSchemaWrapper(pData->schemaRow);
+  tDeleteSchemaWrapper(pData->tagRow);
 }
 
 static void MoveToSnapShotVersion(SSnapContext* ctx) {

@@ -673,8 +673,8 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   metaUpdateUidIdx(pMeta, &nStbEntry);
   metaULock(pMeta);
 
-  tDeleteSSchemaWrapper(tag);
-  tDeleteSSchemaWrapper(row);
+  tDeleteSchemaWrapper(tag);
+  tDeleteSchemaWrapper(row);
 
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);

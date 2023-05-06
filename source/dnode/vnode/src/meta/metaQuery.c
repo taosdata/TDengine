@@ -639,7 +639,6 @@ tb_uid_t metaStbCursorNext(SMStbCursor *pStbCur) {
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
-  SSchema        *pSchema = NULL;
 
   pSW = metaGetTableSchema(pMeta, uid, sver, lock);
   if (!pSW) return NULL;

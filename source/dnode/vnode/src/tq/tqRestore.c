@@ -36,6 +36,7 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
 
     if (shouldIdle) {
       taosWLockLatch(&pMeta->lock);
+
       pMeta->walScanCounter -= 1;
       times = pMeta->walScanCounter;
 
@@ -80,18 +81,23 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   bool    noNewDataInWal = true;
   int32_t vgId = pStreamMeta->vgId;
 
-  int32_t numOfTasks = taosHashGetSize(pStreamMeta->pTasks);
+  int32_t numOfTasks = taosArrayGetSize(pStreamMeta->pTaskList);
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SArray* pTaskList = NULL;
+  taosWLockLatch(&pStreamMeta->lock);
+  pTaskList = taosArrayDup(pStreamMeta->pTaskList, NULL);
+  taosWUnLockLatch(&pStreamMeta->lock);
+
   tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
-  SArray* pTaskIdList = extractTaskIdList(pStreamMeta, numOfTasks);
 
   // update the new task number
-  numOfTasks = taosArrayGetSize(pTaskIdList);
+  numOfTasks = taosArrayGetSize(pTaskList);
+
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    int32_t*     pTaskId = taosArrayGet(pTaskIdList, i);
+    int32_t*     pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask* pTask = streamMetaAcquireTask(pStreamMeta, *pTaskId);
     if (pTask == NULL) {
       continue;
@@ -165,6 +171,6 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     *pScanIdle = true;
   }
 
-  taosArrayDestroy(pTaskIdList);
+  taosArrayDestroy(pTaskList);
   return 0;
 }

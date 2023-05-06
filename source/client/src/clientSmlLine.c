@@ -312,7 +312,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
   }
 
   smlSetCTableName(tinfo);
-  tinfo->uid = info->uid++;
+  getTableUid(info, currElement, tinfo);
   if (info->dataFormat) {
     info->currSTableMeta->uid = tinfo->uid;
     tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);

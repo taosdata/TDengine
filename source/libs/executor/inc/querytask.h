@@ -59,7 +59,7 @@ typedef struct {
   STqOffsetVal        currentOffset;  // for tmq
   SMqMetaRsp          metaRsp;        // for tmq fetching meta
   int64_t             snapshotVer;
-  SPackedData         submit;  // todo remove it
+//  SPackedData         submit;  // todo remove it
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];   // this is the current scan table: todo refactor
   int8_t              recoverStep;

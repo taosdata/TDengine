@@ -120,6 +120,7 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
     pColumnInfoData->varmeta.length += dataLen;
   } else {
     memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex, pData, pColumnInfoData->info.bytes);
+    colDataClearNull_f(pColumnInfoData->nullbitmap, rowIndex);
   }
 
   return 0;
@@ -1949,12 +1950,11 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
     }
   }
 }
-
 #endif
 
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) {
-  int32_t size = 2048;
+  int32_t size = 2048*1024;
   *pDataBuf = taosMemoryCalloc(size, 1);
   char*   dumpBuf = *pDataBuf;
   char    pBuf[128] = {0};
@@ -1970,7 +1970,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
   if (len >= size - 1) return dumpBuf;
 
   for (int32_t j = 0; j < rows; j++) {
-    len += snprintf(dumpBuf + len, size - len, "%s |", flag);
+    len += snprintf(dumpBuf + len, size - len, "%s %d|", flag, j);
     if (len >= size - 1) return dumpBuf;
 
     for (int32_t k = 0; k < colNum; k++) {
@@ -2374,7 +2374,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
       }
       SRow* pRow = NULL;
       if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
-        tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
       ASSERT(pRow);
@@ -2388,7 +2388,7 @@ _end:
   if (terrno != 0) {
     *ppReq = NULL;
     if (pReq) {
-      tDestroySSubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+      tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
       taosMemoryFreeClear(pReq);
     }
 
