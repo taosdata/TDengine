@@ -839,10 +839,6 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
 
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
 
-  if (isTaskKilled(pTaskInfo)) {
-    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
-  }
-
   for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
     SResKeyPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
     SFilePage*  page = getBufPage(pBuf, pPos->pos.pageId);
