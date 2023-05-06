@@ -197,7 +197,7 @@ static SMqRebInfo *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
   return pRebSub;
 }
 
-static void doRemoveExistedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, const SMqRebInputObj *pInput) {
+static void doRemoveLostConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, const SMqRebInputObj *pInput) {
   int32_t     numOfRemoved = taosArrayGetSize(pInput->pRebInfo->removedConsumers);
   const char *pSubKey = pOutput->pSub->key;
 
@@ -339,7 +339,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
   SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
 
   // 2. check and get actual removed consumers, put their vg into pHash
-  doRemoveExistedConsumers(pOutput, pHash, pInput);
+  doRemoveLostConsumers(pOutput, pHash, pInput);
 
   // 3. if previously no consumer, there are vgs not assigned, put these vg into pHash
   addUnassignedVgroups(pOutput, pHash);

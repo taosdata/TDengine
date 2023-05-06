@@ -262,14 +262,15 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
 //    taosWUnLockLatch(&pTq->lock);
   }
 
-  tqDebug("handle submit, restore:%d, size:%d", pTq->pVnode->restored, (int)taosHashGetSize(pTq->pStreamMeta->pTasks));
+  int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
+  tqDebug("handle submit, restore:%d, size:%d", pTq->pVnode->restored, numOfTasks);
 
   // push data for stream processing:
   // 1. the vnode has already been restored.
   // 2. the vnode should be the leader.
   // 3. the stream is not suspended yet.
   if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode) && pTq->pVnode->restored) {
-    if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) {
+    if (numOfTasks == 0) {
       return 0;
     }
 
@@ -287,7 +288,7 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
 }
 
 
-int32_t tqRegisterPushEntry(STQ* pTq, void* handle, SRpcMsg* pMsg) {
+int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   int32_t    vgId = TD_VID(pTq->pVnode);
   STqHandle* pHandle = (STqHandle*) handle;
   if(pHandle->msg == NULL){

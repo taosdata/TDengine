@@ -353,7 +353,8 @@ def main():
         else:
             core_dir = "none"
             
-        text = f'''exit status: {msg_dict[status]}
+        text = f'''
+        exit status: {msg_dict[status]}
         test scope: crash_gen
         owner: pxiao
         hostname: {hostname}
@@ -362,7 +363,8 @@ def main():
         git commit :  {git_commit}
         log dir: {log_dir}
         core dir: {core_dir}
-        cmd: {cmd}'''
+        cmd: {cmd}
+        '''
                 
         send_msg(get_msg(text))  
     except Exception as e:

@@ -7058,7 +7058,7 @@ void tDeleteSMqDataRsp(SMqDataRsp *pRsp) {
   pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
-  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
   pRsp->blockSchema = NULL;
   taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
   pRsp->blockTbName = NULL;
@@ -7159,7 +7159,7 @@ void tDeleteSTaosxRsp(STaosxRsp *pRsp) {
   pRsp->blockDataLen = NULL;
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
-  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
   pRsp->blockSchema = NULL;
   taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
   pRsp->blockTbName = NULL;
@@ -7332,7 +7332,7 @@ _exit:
   return 0;
 }
 
-int32_t tEncodeSSubmitReq2(SEncoder *pCoder, const SSubmitReq2 *pReq) {
+int32_t tEncodeSubmitReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeU64v(pCoder, taosArrayGetSize(pReq->aSubmitTbData)) < 0) return -1;
@@ -7344,7 +7344,7 @@ int32_t tEncodeSSubmitReq2(SEncoder *pCoder, const SSubmitReq2 *pReq) {
   return 0;
 }
 
-int32_t tDecodeSSubmitReq2(SDecoder *pCoder, SSubmitReq2 *pReq) {
+int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq) {
   int32_t code = 0;
 
   memset(pReq, 0, sizeof(*pReq));
@@ -7387,7 +7387,7 @@ _exit:
   return code;
 }
 
-void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
+void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   if (NULL == pTbData) {
     return;
   }
@@ -7433,14 +7433,14 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   }
 }
 
-void tDestroySSubmitReq(SSubmitReq2 *pReq, int32_t flag) {
+void tDestroySubmitReq(SSubmitReq2 *pReq, int32_t flag) {
   if (pReq->aSubmitTbData == NULL) return;
 
   int32_t        nSubmitTbData = TARRAY_SIZE(pReq->aSubmitTbData);
   SSubmitTbData *aSubmitTbData = (SSubmitTbData *)TARRAY_DATA(pReq->aSubmitTbData);
 
   for (int32_t i = 0; i < nSubmitTbData; i++) {
-    tDestroySSubmitTbData(&aSubmitTbData[i], flag);
+    tDestroySubmitTbData(&aSubmitTbData[i], flag);
   }
   taosArrayDestroy(pReq->aSubmitTbData);
   pReq->aSubmitTbData = NULL;

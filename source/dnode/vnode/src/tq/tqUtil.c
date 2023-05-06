@@ -180,7 +180,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
       dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
     // lock
     taosWLockLatch(&pTq->lock);
-    code = tqRegisterPushEntry(pTq, pHandle, pMsg);
+    code = tqRegisterPushHandle(pTq, pHandle, pMsg);
     taosWUnLockLatch(&pTq->lock);
     tDeleteSMqDataRsp(&dataRsp);
     return code;
