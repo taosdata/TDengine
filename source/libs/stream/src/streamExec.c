@@ -250,6 +250,8 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     void*   pInput = NULL;
 
     // merge multiple input data if possible in the input queue.
+    qDebug("s-task:%s start to extract data block from inputQ", pTask->id.idStr);
+
     while (1) {
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
