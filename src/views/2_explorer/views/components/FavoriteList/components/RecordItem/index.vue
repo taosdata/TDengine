@@ -6,12 +6,12 @@
     ><code class="language-sql" v-text="sql_sketchy"></code></pre>
     <div class="btn">
       <i :title="$t('copy')" @click="copy" class="el-icon-copy-document"></i>
-      <i
+      <!-- <i
         v-if="!isShared"
         :title="$t('share')"
         @click="addSharedFavorite"
         class="el-icon-share"
-      ></i>
+      ></i> -->
       <i class="el-icon-delete" :title="$t('del')" @click.stop="del"></i>
     </div>
   </div>

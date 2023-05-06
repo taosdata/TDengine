@@ -2,7 +2,7 @@
   <el-row class="favorites_wrapper" :gutter="20">
     <el-col :span="12">
       <el-card shadow="always">
-        <div slot="header">{{ $t("console.persionalFavorites") }}</div>
+        <div slot="header">{{ $t("console.sharedFavorites") }}</div>
         <el-empty
           :image-size="imageSize"
           v-if="favorites&&favorites.length === 0"
@@ -16,7 +16,7 @@
         </template>
       </el-card>
     </el-col>
-    <el-col :span="12">
+    <!-- <el-col :span="12">
       <el-card shadow="always">
         <div slot="header">{{ $t("console.sharedFavorites") }}</div>
         <el-empty
@@ -32,7 +32,7 @@
           ></RecordItem>
         </template>
       </el-card>
-    </el-col>
+    </el-col> -->
   </el-row>
 </template>
 
