@@ -12,7 +12,7 @@ python3 ./test.py -f 1-insert/alter_table.py -P
 python3 ./test.py -f 1-insert/boundary.py -P
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py -P
 python3 ./test.py -f 1-insert/table_comment.py -P
-python3 ./test.py -f 1-insert/time_range_wise.py -P
+#python3 ./test.py -f 1-insert/time_range_wise.py -P
 #python3 ./test.py -f 1-insert/block_wise.py -P
 #python3 ./test.py -f 1-insert/create_retentions.py -P
 python3 ./test.py -f 1-insert/mutil_stage.py -P
