@@ -512,4 +512,8 @@ export default {
   justify-content: center;
   align-items: center;
 }
+.language-sql {
+  display: flex;
+  flex-wrap: wrap;
+}
 </style>
