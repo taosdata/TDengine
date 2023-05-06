@@ -1241,7 +1241,7 @@ int32_t taosArrayCompareString(const void *a, const void *b) {
 int32_t comparestrPatternMatch(const void *pLeft, const void *pRight) {
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
 
-  ASSERT(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
+  ASSERT(varDataTLen(pRight) <= TSDB_MAX_FIELD_LEN);
   size_t pLen = varDataLen(pRight);
   size_t sz = varDataLen(pLeft);
 
