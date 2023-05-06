@@ -18,16 +18,15 @@
 static int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle);
 
 // this function should be executed by stream threads.
-// there is a case that the WAL increases more fast than the restore procedure, and this restore procedure
-// will not stop eventually.
+// extract submit block from WAL, and add them into the input queue for the sources tasks.
 int32_t tqStreamTasksScanWal(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int64_t      st = taosGetTimestampMs();
 
   while (1) {
-    int32_t scan = pMeta->walScan;
-    tqDebug("vgId:%d continue check if data in wal are available, scan:%d", vgId, scan);
+    int32_t scan = pMeta->walScanCounter;
+    tqDebug("vgId:%d continue check if data in wal are available, walScanCounter:%d", vgId, scan);
 
     // check all restore tasks
     bool shouldIdle = true;
@@ -37,12 +36,13 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
 
     if (shouldIdle) {
       taosWLockLatch(&pMeta->lock);
-      pMeta->walScan -= 1;
-      times = pMeta->walScan;
 
-      ASSERT(pMeta->walScan >= 0);
+      pMeta->walScanCounter -= 1;
+      times = pMeta->walScanCounter;
 
-      if (pMeta->walScan <= 0) {
+      ASSERT(pMeta->walScanCounter >= 0);
+
+      if (pMeta->walScanCounter <= 0) {
         taosWUnLockLatch(&pMeta->lock);
         break;
       }
@@ -57,42 +57,28 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
   return 0;
 }
 
-static SArray* extractTaskIdList(SStreamMeta* pStreamMeta, int32_t numOfTasks) {
-  SArray* pTaskIdList = taosArrayInit(numOfTasks, sizeof(int32_t));
-  void*   pIter = NULL;
-
-  taosWLockLatch(&pStreamMeta->lock);
-  while (1) {
-    pIter = taosHashIterate(pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    taosArrayPush(pTaskIdList, &pTask->id.taskId);
-  }
-
-  taosWUnLockLatch(&pStreamMeta->lock);
-  return pTaskIdList;
-}
-
 int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   *pScanIdle = true;
   bool    noNewDataInWal = true;
   int32_t vgId = pStreamMeta->vgId;
 
-  int32_t numOfTasks = taosHashGetSize(pStreamMeta->pTasks);
+  int32_t numOfTasks = taosArrayGetSize(pStreamMeta->pTaskList);
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SArray* pTaskList = NULL;
+  taosWLockLatch(&pStreamMeta->lock);
+  pTaskList = taosArrayDup(pStreamMeta->pTaskList, NULL);
+  taosWUnLockLatch(&pStreamMeta->lock);
+
   tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
-  SArray* pTaskIdList = extractTaskIdList(pStreamMeta, numOfTasks);
 
   // update the new task number
-  numOfTasks = taosArrayGetSize(pTaskIdList);
+  numOfTasks = taosArrayGetSize(pTaskList);
+
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    int32_t*     pTaskId = taosArrayGet(pTaskIdList, i);
+    int32_t*     pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask* pTask = streamMetaAcquireTask(pStreamMeta, *pTaskId);
     if (pTask == NULL) {
       continue;
@@ -176,6 +162,6 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     *pScanIdle = true;
   }
 
-  taosArrayDestroy(pTaskIdList);
+  taosArrayDestroy(pTaskList);
   return 0;
 }

@@ -21,10 +21,9 @@
 #define getCurrentKeyInLastBlock(_r) ((_r)->currentKey)
 
 typedef enum {
-   READER_STATUS_SUSPEND = 0x1,
-   READER_STATUS_SHOULD_STOP = 0x2,
-   READER_STATUS_NORMAL = 0x3,
-} EReaderExecStatus;
+  READER_STATUS_SUSPEND = 0x1,
+  READER_STATUS_NORMAL = 0x2,
+} EReaderStatus;
 
 typedef enum {
   EXTERNAL_ROWS_PREV = 0x1,
@@ -184,6 +183,7 @@ typedef struct STsdbReaderAttr {
   STimeWindow   window;
   bool          freeBlock;
   SVersionRange verRange;
+  int16_t       order;
 } STsdbReaderAttr;
 
 typedef struct SResultBlockInfo {
@@ -196,7 +196,8 @@ struct STsdbReader {
   STsdb*             pTsdb;
   SVersionRange      verRange;
   TdThreadMutex      readerMutex;
-  EReaderExecStatus  flag;
+  EReaderStatus      flag;
+  int32_t            code;
   uint64_t           suid;
   int16_t            order;
   EReadMode          readMode;
@@ -2995,10 +2996,9 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
 
   while (1) {
     // only check here, since the iterate data in memory is very fast.
-    if (pReader->flag == READER_STATUS_SHOULD_STOP) {
-      tsdbWarn("tsdb reader is stopped ASAP, %s", pReader->idStr);
-      taosArrayDestroy(pIndexList);
-      return TSDB_CODE_SUCCESS;
+    if (pReader->code != TSDB_CODE_SUCCESS) {
+      tsdbWarn("tsdb reader is stopped ASAP, code:%s, %s", strerror(pReader->code), pReader->idStr);
+      return pReader->code;
     }
 
     bool    hasNext = false;
@@ -3094,9 +3094,9 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
   SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
 
   while (1) {
-    if (pReader->flag == READER_STATUS_SHOULD_STOP) {
-      tsdbWarn("tsdb reader is stopped ASAP, %s", pReader->idStr);
-      return TSDB_CODE_SUCCESS;
+    if (pReader->code != TSDB_CODE_SUCCESS) {
+      tsdbWarn("tsdb reader is stopped ASAP, code:%s, %s", strerror(pReader->code), pReader->idStr);
+      return pReader->code;
     }
 
     // load the last data block of current table
@@ -3251,7 +3251,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     }
   }
 
-  return code;
+  return (pReader->code != TSDB_CODE_SUCCESS)? pReader->code:code;
 }
 
 static int32_t doSumFileBlockRows(STsdbReader* pReader, SDataFReader* pFileReader) {
@@ -3400,6 +3400,11 @@ static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader) {
   STableUidList* pUidList = &pStatus->uidList;
 
   while (1) {
+    if (pReader->code != TSDB_CODE_SUCCESS) {
+      tsdbWarn("tsdb reader is stopped ASAP, code:%s, %s", strerror(pReader->code), pReader->idStr);
+      return pReader->code;
+    }
+
     STableBlockScanInfo** pBlockScanInfo = pStatus->pTableIter;
     initMemDataIterator(*pBlockScanInfo, pReader);
 
@@ -3479,48 +3484,64 @@ static bool fileBlockPartiallyRead(SFileBlockDumpInfo* pDumpInfo, bool asc) {
          ((pDumpInfo->rowIndex > 0 && asc) || (pDumpInfo->rowIndex < (pDumpInfo->totalRows - 1) && (!asc)));
 }
 
+typedef enum {
+  TSDB_READ_RETURN = 0x1,
+  TSDB_READ_CONTINUE = 0x2,
+} ERetrieveType;
+
+static ERetrieveType doReadDataFromLastFiles(STsdbReader* pReader) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SSDataBlock*    pResBlock = pReader->resBlockInfo.pResBlock;
+  SDataBlockIter* pBlockIter = &pReader->status.blockIter;
+
+  while(1) {
+    terrno = 0;
+
+    code = doLoadLastBlockSequentially(pReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      return TSDB_READ_RETURN;
+    }
+
+    if (pResBlock->info.rows > 0) {
+      return TSDB_READ_RETURN;
+    }
+
+    // all data blocks are checked in this last block file, now let's try the next file
+    ASSERT(pReader->status.pTableIter == NULL);
+    code = initForFirstBlockInFile(pReader, pBlockIter);
+
+    // error happens or all the data files are completely checked
+    if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false)) {
+      terrno = code;
+      return TSDB_READ_RETURN;
+    }
+
+    if (pBlockIter->numOfBlocks > 0) { // there are data blocks existed.
+      return TSDB_READ_CONTINUE;
+    } else {  // all blocks in data file are checked, let's check the data in last files
+      resetTableListIndex(&pReader->status);
+    }
+  }
+}
+
 static int32_t buildBlockFromFiles(STsdbReader* pReader) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    asc = ASCENDING_TRAVERSE(pReader->order);
 
   SDataBlockIter* pBlockIter = &pReader->status.blockIter;
+  SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
 
   if (pBlockIter->numOfBlocks == 0) {
-  _begin:
-    code = doLoadLastBlockSequentially(pReader);
-    if (code != TSDB_CODE_SUCCESS || pReader->flag == READER_STATUS_SHOULD_STOP) {
-      return code;
-    }
-
-    if (pReader->resBlockInfo.pResBlock->info.rows > 0) {
-      return TSDB_CODE_SUCCESS;
-    }
-
-    // all data blocks are checked in this last block file, now let's try the next file
-    // ASSERT(pReader->status.pTableIter == NULL);
-    if (pReader->status.pTableIter == NULL) {
-      code = initForFirstBlockInFile(pReader, pBlockIter);
-
-      // error happens or all the data files are completely checked
-      if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false) ||
-          pReader->flag == READER_STATUS_SHOULD_STOP) {
-        return code;
-      }
-
-      // this file does not have data files, let's start check the last block file if exists
-      if (pBlockIter->numOfBlocks == 0) {
-        resetTableListIndex(&pReader->status);
-        goto _begin;
-      }
+    // let's try to extract data from stt files.
+    ERetrieveType type = doReadDataFromLastFiles(pReader);
+    if (type == TSDB_READ_RETURN) {
+      return terrno;
     }
 
     code = doBuildDataBlock(pReader);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS || pResBlock->info.rows > 0) {
       return code;
-    }
-
-    if (pReader->resBlockInfo.pResBlock->info.rows > 0) {
-      return TSDB_CODE_SUCCESS;
     }
   }
 
@@ -3537,31 +3558,22 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
         if (hasNext) {  // check for the next block in the block accessed order list
           initBlockDumpInfo(pReader, pBlockIter);
         } else {
-          if (pReader->status.pCurrentFileset->nSttF > 0) {
-            // data blocks in current file are exhausted, let's try the next file now
-            SBlockData* pBlockData = &pReader->status.fileBlockData;
-            if (pBlockData->uid != 0) {
-              tBlockDataClear(pBlockData);
-            }
+          // all data blocks in files are checked, let's check the data in last files.
+          ASSERT(pReader->status.pCurrentFileset->nSttF > 0);
 
-            tBlockDataReset(pBlockData);
-            resetDataBlockIterator(pBlockIter, pReader->order);
-            resetTableListIndex(&pReader->status);
-            goto _begin;
-          } else {
-            code = initForFirstBlockInFile(pReader, pBlockIter);
+          // data blocks in current file are exhausted, let's try the next file now
+          SBlockData* pBlockData = &pReader->status.fileBlockData;
+          if (pBlockData->uid != 0) {
+            tBlockDataClear(pBlockData);
+          }
 
-            // error happens or all the data files are completely checked
-            if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false) ||
-                pReader->flag == READER_STATUS_SHOULD_STOP) {
-              return code;
-            }
+          tBlockDataReset(pBlockData);
+          resetDataBlockIterator(pBlockIter, pReader->order);
+          resetTableListIndex(&pReader->status);
 
-            // this file does not have blocks, let's start check the last block file
-            if (pBlockIter->numOfBlocks == 0) {
-              resetTableListIndex(&pReader->status);
-              goto _begin;
-            }
+          ERetrieveType type = doReadDataFromLastFiles(pReader);
+          if (type == TSDB_READ_RETURN) {
+            return terrno;
           }
         }
       }
@@ -3569,12 +3581,8 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
       code = doBuildDataBlock(pReader);
     }
 
-    if (code != TSDB_CODE_SUCCESS || pReader->flag == READER_STATUS_SHOULD_STOP) {
+    if (code != TSDB_CODE_SUCCESS || pResBlock->info.rows > 0) {
       return code;
-    }
-
-    if (pReader->resBlockInfo.pResBlock->info.rows > 0) {
-      return TSDB_CODE_SUCCESS;
     }
   }
 }
@@ -4837,8 +4845,8 @@ int32_t tsdbNextDataBlock(STsdbReader* pReader, bool* hasNext) {
 
   *hasNext = false;
 
-  if (isEmptyQueryTimeWindow(&pReader->window) || pReader->step == EXTERNAL_ROWS_NEXT) {
-    return code;
+  if (isEmptyQueryTimeWindow(&pReader->window) || pReader->step == EXTERNAL_ROWS_NEXT || pReader->code != TSDB_CODE_SUCCESS) {
+    return (pReader->code != TSDB_CODE_SUCCESS)? pReader->code:code;
   }
 
   SReaderStatus* pStatus = &pReader->status;
@@ -5449,4 +5457,4 @@ void tsdbReaderSetId(STsdbReader* pReader, const char* idstr) {
   pReader->idStr = taosStrdup(idstr);
 }
 
-void tsdbReaderSetCloseFlag(STsdbReader* pReader) { pReader->flag = READER_STATUS_SHOULD_STOP; }
+void tsdbReaderSetCloseFlag(STsdbReader* pReader) { pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED; }

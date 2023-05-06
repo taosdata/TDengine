@@ -54,6 +54,8 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
 
 // checkstatus
 int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
+  qDebug("s-taks:%s in fill history stage, ver:%"PRId64, pTask->id.idStr, version);
+
   SStreamTaskCheckReq req = {
       .streamId = pTask->id.streamId,
       .upstreamTaskId = pTask->id.taskId,
@@ -63,16 +65,18 @@ int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
 
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+
     req.reqId = tGenIdPI64();
     req.downstreamNodeId = pTask->fixedEpDispatcher.nodeId;
     req.downstreamTaskId = pTask->fixedEpDispatcher.taskId;
     pTask->checkReqId = req.reqId;
 
-    qDebug("task %d at node %d check downstream task %d at node %d", pTask->id.taskId, pTask->nodeId, req.downstreamTaskId,
+    qDebug("s-task:%s at node %d check downstream task %d at node %d", pTask->id.idStr, pTask->nodeId, req.downstreamTaskId,
            req.downstreamNodeId);
-    streamDispatchOneCheckReq(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
+    streamDispatchCheckMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+
     int32_t vgSz = taosArrayGetSize(vgInfo);
     pTask->recoverTryingDownstream = vgSz;
     pTask->checkReqIds = taosArrayInit(vgSz, sizeof(int64_t));
@@ -83,14 +87,15 @@ int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
       taosArrayPush(pTask->checkReqIds, &req.reqId);
       req.downstreamNodeId = pVgInfo->vgId;
       req.downstreamTaskId = pVgInfo->taskId;
-      qDebug("task %d at node %d check downstream task %d at node %d (shuffle)", pTask->id.taskId, pTask->nodeId,
+      qDebug("s-task:%s at node %d check downstream task %d at node %d (shuffle)", pTask->id.idStr, pTask->nodeId,
              req.downstreamTaskId, req.downstreamNodeId);
-      streamDispatchOneCheckReq(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
+      streamDispatchCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
   } else {
-    qDebug("task %d at node %d direct launch recover since no downstream", pTask->id.taskId, pTask->nodeId);
+    qDebug("s-task:%s at node %d direct launch recover since no downstream", pTask->id.idStr, pTask->nodeId);
     streamTaskLaunchRecover(pTask, version);
   }
+
   return 0;
 }
 
@@ -109,14 +114,14 @@ int32_t streamRecheckOneDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp
          req.downstreamTaskId, req.downstreamNodeId);
 
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-    streamDispatchOneCheckReq(pTask, &req, pRsp->downstreamNodeId, &pTask->fixedEpDispatcher.epSet);
+    streamDispatchCheckMsg(pTask, &req, pRsp->downstreamNodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
     int32_t vgSz = taosArrayGetSize(vgInfo);
     for (int32_t i = 0; i < vgSz; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       if (pVgInfo->taskId == req.downstreamTaskId) {
-        streamDispatchOneCheckReq(pTask, &req, pRsp->downstreamNodeId, &pVgInfo->epSet);
+        streamDispatchCheckMsg(pTask, &req, pRsp->downstreamNodeId, &pVgInfo->epSet);
       }
     }
   }
@@ -124,8 +129,8 @@ int32_t streamRecheckOneDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp
   return 0;
 }
 
-int32_t streamProcessTaskCheckReq(SStreamTask* pTask, const SStreamTaskCheckReq* pReq) {
-  return atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__NORMAL;
+int32_t streamTaskCheckStatus(SStreamTask* pTask) {
+  return atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__NORMAL? 1:0;
 }
 
 int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t version) {
@@ -135,7 +140,9 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
   if (pRsp->status == 1) {
     if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       bool found = false;
-      for (int32_t i = 0; i < taosArrayGetSize(pTask->checkReqIds); i++) {
+
+      int32_t numOfReqs = taosArrayGetSize(pTask->checkReqIds);
+      for (int32_t i = 0; i < numOfReqs; i++) {
         int64_t reqId = *(int64_t*)taosArrayGet(pTask->checkReqIds, i);
         if (reqId == pRsp->reqId) {
           found = true;
@@ -149,9 +156,12 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
 
       int32_t left = atomic_sub_fetch_32(&pTask->recoverTryingDownstream, 1);
       ASSERT(left >= 0);
+
       if (left == 0) {
         taosArrayDestroy(pTask->checkReqIds);
         pTask->checkReqIds = NULL;
+
+        qDebug("s-task:%s all downstream tasks:%d are ready, now enter into recover stage", pTask->id.idStr, numOfReqs);
         streamTaskLaunchRecover(pTask, version);
       }
     } else if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
@@ -163,7 +173,10 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
     } else {
       ASSERT(0);
     }
-  } else { // not ready, it should wait for at least 100ms and then retry
+  } else { // not ready, wait for 100ms and retry
+    qDebug("s-task:%s downstream taskId:%d (vgId:%d) not ready, wait for 100ms and retry", pTask->id.idStr,
+        pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+    taosMsleep(100);
     streamRecheckOneDownstream(pTask, pRsp);
   }
 

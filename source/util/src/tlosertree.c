@@ -115,8 +115,6 @@ void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
 }
 
 void tMergeTreeRebuild(SMultiwayMergeTreeInfo* pTree) {
-  ASSERT((pTree->totalSources & 0x1) == 0);
-
   tMergeTreeInit(pTree);
   for (int32_t i = pTree->totalSources - 1; i >= pTree->numOfSources; i--) {
     tMergeTreeAdjust(pTree, i);

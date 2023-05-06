@@ -34,7 +34,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
 
   while (pTask->taskLevel == TASK_LEVEL__SOURCE) {
     int8_t status = atomic_load_8(&pTask->status.taskStatus);
-    if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__RESTORE) {
+    if (status != TASK_STATUS__NORMAL) {
       qError("stream task wait for the end of fill history, s-task:%s, status:%d", pTask->id.idStr,
              atomic_load_8(&pTask->status.taskStatus));
       taosMsleep(2);
@@ -332,6 +332,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       pTask->chkInfo = (SCheckpointInfo) {.version = dataVer, .id = ckId, .currentVer = pTask->chkInfo.currentVer};
 
       taosWLockLatch(&pTask->pMeta->lock);
+
       streamMetaSaveTask(pTask->pMeta, pTask);
       if (streamMetaCommit(pTask->pMeta) < 0) {
         taosWUnLockLatch(&pTask->pMeta->lock);

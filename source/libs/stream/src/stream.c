@@ -216,9 +216,10 @@ int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
 }
 
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
-  qDebug("s-task:%s receive dispatch msg from taskId:%d (vgId:%d)", pTask->id.idStr, pReq->upstreamTaskId,
+  qDebug("s-task:%s receive dispatch msg from taskId:%d(vgId:%d)", pTask->id.idStr, pReq->upstreamTaskId,
          pReq->upstreamNodeId);
 
+  // todo add the input queue buffer limitation
   streamTaskEnqueueBlocks(pTask, pReq, pRsp);
   tDeleteStreamDispatchReq(pReq);
 
@@ -226,10 +227,6 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     if (streamTryExec(pTask) < 0) {
       return -1;
     }
-
-    /*if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {*/
-    /*streamDispatch(pTask);*/
-    /*}*/
   } else {
     streamSchedExec(pTask);
   }

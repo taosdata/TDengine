@@ -169,20 +169,20 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, pRequest, pHandle->execHandle.subType);
 
-  // lock
-  taosWLockLatch(&pTq->lock);
-
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
   if(code != 0) {
     goto end;
   }
 
-  // till now, all data has been transferred to consumer, new data needs to push client once arrived.
+//   till now, all data has been transferred to consumer, new data needs to push client once arrived.
   if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
       dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
-    code = tqRegisterPushHandle(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
+    // lock
+    taosWLockLatch(&pTq->lock);
+    code = tqRegisterPushHandle(pTq, pHandle, pMsg);
     taosWUnLockLatch(&pTq->lock);
+    tDeleteSMqDataRsp(&dataRsp);
     return code;
   }
 
@@ -197,7 +197,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     tFormatOffset(buf, 80, &dataRsp.rspOffset);
     tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, reqId:0x%" PRIx64 " code:%d",
             consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
-    taosWUnLockLatch(&pTq->lock);
+//    taosWUnLockLatch(&pTq->lock);
     tDeleteSMqDataRsp(&dataRsp);
   }
   return code;
@@ -211,6 +211,12 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   SMqMetaRsp metaRsp = {0};
   STaosxRsp taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, pRequest);
+  qTaskInfo_t task = pHandle->execHandle.task;
+  if(qTaskIsExecuting(task)){
+    code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
+    tDeleteSTaosxRsp(&taosxRsp);
+    return code;
+  }
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
