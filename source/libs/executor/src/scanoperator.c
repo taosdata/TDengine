@@ -1636,6 +1636,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
   qDebug("start to exec queue scan, %s", id);
 
+#if 0
   if (pTaskInfo->streamInfo.submit.msgStr != NULL) {
     if (pInfo->tqReader->msg.msgStr == NULL) {
       SPackedData submit = pTaskInfo->streamInfo.submit;
@@ -1649,7 +1650,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
 
     while (tqNextBlockImpl(pInfo->tqReader)) {
-      int32_t code = tqRetrieveDataBlock(pInfo->tqReader->pResBlock, pInfo->tqReader, NULL);
+      int32_t code = tqRetrieveDataBlock(pInfo->tqReader, NULL);
       if (code != TSDB_CODE_SUCCESS || pInfo->tqReader->pResBlock->info.rows == 0) {
         continue;
       }
@@ -1665,6 +1666,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     pTaskInfo->streamInfo.submit = (SPackedData){0};
     return NULL;
   }
+#endif
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
@@ -1682,10 +1684,12 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
       return NULL;
     }
+
     tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pTaskInfo->streamInfo.snapshotVer);
   }
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
+
     while (1) {
       int32_t type = tqNextBlockInWal(pInfo->tqReader);
       SSDataBlock* pRes = pInfo->tqReader->pResBlock;
@@ -2071,7 +2075,7 @@ FETCH_NEXT_BLOCK:
       blockDataCleanup(pInfo->pRes);
 
       while (tqNextBlockImpl(pInfo->tqReader)) {
-        int32_t code = tqRetrieveDataBlock(pInfo->tqReader->pResBlock, pInfo->tqReader, NULL);
+        int32_t code = tqRetrieveDataBlock(pInfo->tqReader, NULL);
         if (code != TSDB_CODE_SUCCESS || pInfo->tqReader->pResBlock->info.rows == 0) {
           continue;
         }
@@ -2109,7 +2113,6 @@ FETCH_NEXT_BLOCK:
     // record the scan action.
     pInfo->numOfExec++;
     pOperator->resultInfo.totalRows += pBlockInfo->rows;
-    // printDataBlock(pInfo->pRes, "stream scan");
 
     qDebug("scan rows: %" PRId64, pBlockInfo->rows);
     if (pBlockInfo->rows > 0) {

@@ -332,6 +332,7 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
     if (pBlockList == NULL || pReader->nextBlk >= taosArrayGetSize(pBlockList)) {
 
       // try next message in wal file
+      // todo always retry to avoid read failure caused by wal file deletion
       if (walNextValidMsg(pWalReader) < 0) {
         return FETCH_TYPE__NONE;
       }
@@ -374,7 +375,7 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
       SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
 
       if (pReader->tbIdHash == NULL) {
-        int32_t code = tqRetrieveDataBlock(pReader->pResBlock, pReader, NULL);
+        int32_t code = tqRetrieveDataBlock(pReader, NULL);
         if (code == TSDB_CODE_SUCCESS && pReader->pResBlock->info.rows > 0) {
           return FETCH_TYPE__DATA;
         }
@@ -384,7 +385,7 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
       if (ret != NULL) {
         tqDebug("tq reader return submit block, uid:%"PRId64", ver:%"PRId64, pSubmitTbData->uid, pReader->msg.ver);
 
-        int32_t code = tqRetrieveDataBlock(pReader->pResBlock, pReader, NULL);
+        int32_t code = tqRetrieveDataBlock(pReader, NULL);
         if (code == TSDB_CODE_SUCCESS && pReader->pResBlock->info.rows > 0) {
           return FETCH_TYPE__DATA;
         }
@@ -396,31 +397,6 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
 
     tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
     pReader->msg.msgStr = NULL;
-  }
-}
-
-int32_t tqNextBlock(STqReader* pReader, SSDataBlock* pBlock) {
-  while (1) {
-    if (pReader->msg.msgStr == NULL) {
-      if (walNextValidMsg(pReader->pWalReader) < 0) {
-        return FETCH_TYPE__NONE;
-      }
-
-      void*   pBody = POINTER_SHIFT(pReader->pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
-      int32_t bodyLen = pReader->pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
-      int64_t ver = pReader->pWalReader->pHead->head.version;
-
-      tqReaderSetSubmitMsg(pReader, pBody, bodyLen, ver);
-    }
-
-    while (tqNextBlockImpl(pReader)) {
-      int32_t code = tqRetrieveDataBlock(pReader->pResBlock, pReader, NULL);
-      if (code != TSDB_CODE_SUCCESS || pBlock->info.rows == 0) {
-        continue;
-      }
-
-      return FETCH_TYPE__DATA;
-    }
   }
 }
 
@@ -527,7 +503,7 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   return 0;
 }
 
-int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbData** pSubmitTbDataRet) {
+int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet) {
   tqDebug("tq reader retrieve data block %p, index:%d", pReader->msg.msgStr, pReader->nextBlk);
 
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk++);
@@ -535,6 +511,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
     *pSubmitTbDataRet = pSubmitTbData;
   }
 
+  SSDataBlock* pBlock = pReader->pResBlock;
   blockDataCleanup(pBlock);
 
   int32_t sversion = pSubmitTbData->sver;
@@ -603,7 +580,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
           SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
           int32_t         code = blockDataAppendColInfo(pBlock, &colInfo);
           if (code != TSDB_CODE_SUCCESS) {
-            goto FAIL;
+            return -1;
           }
           i++;
           j++;
@@ -622,7 +599,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
 
   if (blockDataEnsureCapacity(pBlock, numOfRows) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto FAIL;
+    return -1;
   }
 
   pBlock->info.rows = numOfRows;
@@ -638,7 +615,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
     while (targetIdx < colActual) {
       if (sourceIdx >= numOfCols) {
         tqError("tqRetrieveDataBlock sourceIdx:%d >= numOfCols:%d", sourceIdx, numOfCols);
-        goto FAIL;
+        return -1;
       }
 
       SColData*        pCol = taosArrayGet(pCols, sourceIdx);
@@ -647,7 +624,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
 
       if (pCol->nVal != numOfRows) {
         tqError("tqRetrieveDataBlock pCol->nVal:%d != numOfRows:%d", pCol->nVal, numOfRows);
-        goto FAIL;
+        return -1;
       }
 
       if (pCol->cid < pColData->info.colId) {
@@ -661,14 +638,14 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
               memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
               varDataSetLen(val, colVal.value.nData);
               if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                goto FAIL;
+                return -1;
               }
             } else {
               colDataSetNULL(pColData, i);
             }
           } else {
             if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-              goto FAIL;
+              return -1;
             }
           }
         }
@@ -710,14 +687,14 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
                 memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
                 varDataSetLen(val, colVal.value.nData);
                 if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                  goto FAIL;
+                  return -1;
                 }
               } else {
                 colDataSetNULL(pColData, i);
               }
             } else {
               if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                goto FAIL;
+                return -1;
               }
             }
 
@@ -735,10 +712,6 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbDa
   }
 
   return 0;
-
-FAIL:
-  blockDataFreeRes(pBlock);
-  return -1;
 }
 
 int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet) {
