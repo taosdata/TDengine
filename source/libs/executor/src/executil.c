@@ -454,15 +454,14 @@ static void genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
 }
 
 
-int32_t getColInfoResultForGroupby(void* metaHandle, uint64_t suid, SNodeList* group, STableListInfo* pTableListInfo) {
+int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableListInfo* pTableListInfo) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
   void*        keyBuf = NULL;
   SArray*      groupData = NULL;
   SArray*      pUidTagList = NULL;
-  static T_MD5_CTX lastMd5 = {-1};
-  static SArray*   lastTableList = NULL;
+  SArray*      tableList = NULL;
   static SHashObj *pTableListHash = NULL;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
@@ -498,10 +497,10 @@ int32_t getColInfoResultForGroupby(void* metaHandle, uint64_t suid, SNodeList* g
 
   SArray **pLastTableList = (SArray **)taosHashGet(pTableListHash, context.digest, sizeof(context.digest));
   if (pLastTableList && *pLastTableList) {
-    pTableListInfo->pTableList = taosArrayDup(lastTableList, NULL);
+    pTableListInfo->pTableList = taosArrayDup(*pLastTableList, NULL);
     goto end;
   } else {
-    qError("group not hit, last:%p, lastSize:%d, newSize:%d", lastTableList, (int32_t)taosArrayGetSize(lastTableList), (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
+    qError("group not hit");
   }
   
   pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
@@ -637,8 +636,8 @@ int32_t getColInfoResultForGroupby(void* metaHandle, uint64_t suid, SNodeList* g
     }
   }
   
-  lastTableList = taosArrayDup(pTableListInfo->pTableList, NULL);
-  taosHashPut(pTableListHash, context.digest, sizeof(context.digest), &lastTableList, POINTER_BYTES);
+  tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
+  taosHashPut(pTableListHash, context.digest, sizeof(context.digest), &tableList, POINTER_BYTES);
 
   //  int64_t st2 = taosGetTimestampUs();
   //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
@@ -2046,7 +2045,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       pTableListInfo->numOfOuputGroups = 1;
     }
   } else {
-    code = getColInfoResultForGroupby(pHandle->meta, pScanNode->suid, group, pTableListInfo);
+    code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
