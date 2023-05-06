@@ -74,7 +74,6 @@ import { validEmail, validPassword } from "@/utils/validate.js";
 import { sendSQLReq } from "@/api/gateway/console";
 import { deleteCookieItem } from "@/utils/index";
 import { decrypt } from "@/utils/index";
-import { MessageBox } from "element-ui";
 export default {
   props: {
     needEmail: {

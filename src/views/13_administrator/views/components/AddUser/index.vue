@@ -12,7 +12,20 @@
         <el-input v-model.trim="ruleForm.user"></el-input>
       </el-form-item>
       <el-form-item :label="$t('taosuser.password')" prop="pwd" required>
-        <el-input v-model.trim="ruleForm.pwd" type="password"></el-input>
+        <el-popover trigger="click" placement="right-end">
+        <ol
+          style="list-style: unset; padding-left: 10px"
+          v-html="$t('passwordTip')"
+        ></ol>
+        <el-input
+          slot="reference"
+          clear
+          v-model.trim="ruleForm.pwd"
+          maxlength="16"
+          :show-password="true"
+          minlength="8"
+        ></el-input>
+        </el-popover>
       </el-form-item>
       <div class="line"></div>
 
@@ -77,7 +90,7 @@
 <script>
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
-
+import { validPassword } from "@/utils/validate.js";
 export default {
   props: {
     close: {
@@ -100,15 +113,19 @@ export default {
         if (val) {
           this.ruleForm.user = "";
           this.ruleForm.pwd = "";
-          this.selectedDatabasePrivileges={}
+          this.selectedDatabasePrivileges = {};
           this.selectedTopicPrivileges = {};
         }
-
-        console.log(val,this.selectedTopicPrivileges, "状态值---");
       },
     },
   },
   data() {
+    var checkPassword = async (_, value, callback) => {
+      this.err_msg = "";
+      callback(
+        validPassword(value) ? undefined : new Error(this.$t("passwordError"))
+      );
+    };
     return {
       ruleForm: {
         user: "",
@@ -128,6 +145,7 @@ export default {
             message: this.$t("taosuser.password") + this.$t("requiredMessage"),
             // trigger: "blur",
           },
+          { validator: checkPassword, trigger: "blur" }
         ],
       },
       databaseList: [],
@@ -173,7 +191,6 @@ export default {
       try {
         sendSQLReq(`show topics;`)
           .then((res) => {
-            console.log(res);
             let topicList = res.data.map((data) => {
               return Object.fromEntries(
                 res.column_meta.map((item, index) => {
@@ -205,7 +222,6 @@ export default {
         `GRANT ${privileges} ON \`${dbName}\`.*  to \`${userName}\``
       )
         .then((res) => {
-          console.log(res);
           return Promise.resolve(res);
         })
         .catch((err) => {
@@ -218,7 +234,6 @@ export default {
         `GRANT subscribe ON \`${topicName}\` to \`${userName}\``
       )
         .then((res) => {
-          console.log(res);
           return Promise.resolve(res);
         })
         .catch((err) => {
@@ -260,7 +275,7 @@ export default {
                 //   return;
                 // }
                 // Message.error(this.$t("users.createNewUseErrTip"));
-                err&&err.desc&&Message.error(err.desc)
+                err && err.desc && Message.error(err.desc);
                 this.$emit("close");
                 return Promise.reject(err);
               });

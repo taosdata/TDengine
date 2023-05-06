@@ -1,19 +1,47 @@
 <template>
   <div>
-    <el-form :model="ruleForm" :rules="rules" ref="ruleForm" size="mini" label-width="auto" class="demo-ruleForm">
+    <el-form
+      :model="ruleForm"
+      :rules="rules"
+      ref="ruleForm"
+      size="mini"
+      label-width="auto"
+      class="demo-ruleForm"
+    >
       <el-form-item :label="$t('taosuser.username')" prop="user" required>
         <el-input v-model.trim="ruleForm.user" disabled></el-input>
       </el-form-item>
       <el-form-item :label="$t('taosuser.password')" prop="pwd">
-        <el-input v-model.trim="ruleForm.pwd" type="password"></el-input>
+        <!-- <el-input v-model.trim="ruleForm.pwd" type="password"></el-input> -->
+        <el-popover trigger="click" placement="right-end">
+          <ol
+            style="list-style: unset; padding-left: 10px"
+            v-html="$t('passwordTip')"
+          ></ol>
+          <el-input
+            slot="reference"
+            clear
+            v-model.trim="ruleForm.pwd"
+            maxlength="16"
+            :show-password="true"
+            minlength="8"
+          ></el-input>
+        </el-popover>
       </el-form-item>
       <div class="line"></div>
 
-      <el-form-item :label="$t('taosuser.database')" v-if="this.databaseList.length > 0">
+      <el-form-item
+        :label="$t('taosuser.database')"
+        v-if="this.databaseList.length > 0"
+      >
         <ul>
           <li v-for="(item, index) in this.databaseList" :key="index">
             <label class="db-label">{{ item }}</label>
-            <el-checkbox-group v-model="selectedDatabasePrivileges[item]" class="db-pri" @change="changePri($event)">
+            <el-checkbox-group
+              v-model="selectedDatabasePrivileges[item]"
+              class="db-pri"
+              @change="changePri($event)"
+            >
               <el-checkbox label="Read"></el-checkbox>
               <el-checkbox label="Write"></el-checkbox>
               <!-- <el-checkbox label="All"></el-checkbox> -->
@@ -21,11 +49,17 @@
           </li>
         </ul>
       </el-form-item>
-      <el-form-item :label="$t('taosuser.subscription')" v-if="this.topicList.length > 0">
+      <el-form-item
+        :label="$t('taosuser.subscription')"
+        v-if="this.topicList.length > 0"
+      >
         <ul>
           <li v-for="(item, index) in this.topicList" :key="index">
             <label class="db-label">{{ item }}</label>
-            <el-checkbox-group v-model="selectedTopicPrivileges[item]" class="topic-pri">
+            <el-checkbox-group
+              v-model="selectedTopicPrivileges[item]"
+              class="topic-pri"
+            >
               <el-checkbox label="Subscribe"></el-checkbox>
             </el-checkbox-group>
           </li>
@@ -40,8 +74,14 @@
         }}</el-button>
       </el-col>
       <el-col :span="5" :push="4">
-        <el-button size="small" :disabled="confirmStatus" @click="editUser" class="w100" type="primary">{{ $t("confirm")
-        }}</el-button>
+        <el-button
+          size="small"
+          :disabled="confirmStatus"
+          @click="editUser"
+          class="w100"
+          type="primary"
+          >{{ $t("confirm") }}</el-button
+        >
       </el-col>
     </el-row>
   </div>
@@ -50,17 +90,17 @@
 <script>
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
-import { async } from "q";
+// import { validPassword } from "@/utils/validate.js";
 
 export default {
   props: {
     user: {
       type: String,
-      default: ""
+      default: "",
     },
     close: {
       type: Function,
-      default: () => { },
+      default: () => {},
     },
   },
   watch: {
@@ -74,7 +114,7 @@ export default {
       this.getTopicList();
       this.getUserPrivileges();
       this.getUserTopics();
-    }
+    },
   },
   async created() {
     this.selectedDatabasePrivileges = {};
@@ -87,18 +127,44 @@ export default {
     await this.getUserTopics();
   },
   data() {
+    function validPassword(password) {
+      if (password) {
+        return (
+          /^(?![A-Za-z]+$)(?![A-Z0-9]+$)(?![a-z0-9]+$)(?![a-z\W]+$)(?![A-Z\W]+$)(?![0-9\W]+$)[a-zA-Z0-9\W]{8,16}$/.test(
+            password
+          )
+        );
+      }else{
+        return true
+      }
+    }
+    var checkPassword = async (_, value, callback) => {
+      this.err_msg = "";
+      callback(
+        validPassword(value) ? undefined : new Error(this.$t("passwordError"))
+      );
+    };
     return {
       ruleForm: {
         user: this.user,
-        pwd: ""
+        pwd: "",
       },
       rules: {
         user: [
-          { required: true, message: "Please input user name", trigger: "blur" }
+          {
+            required: true,
+            message: "Please input user name",
+            trigger: "blur",
+          },
         ],
         pwd: [
-          { required: false, message: "Please input password", trigger: "blur" }
-        ]
+          {
+            required: false,
+            message: "Please input password",
+            trigger: "blur",
+          },
+          { validator: checkPassword, trigger: "blur" },
+        ],
       },
       databaseList: [],
       topicList: [],
@@ -106,17 +172,14 @@ export default {
       selectedDatabasePrivileges: {},
       prevTopicPrivileges: {},
       selectedTopicPrivileges: {},
-      confirmStatus: false
+      confirmStatus: false,
     };
   },
   methods: {
-    changePri() {
-    },
+    changePri() {},
     getDatabaseList() {
       try {
-        sendSQLReq(
-          `show databases;`
-        )
+        sendSQLReq(`show databases;`)
           .then((res) => {
             let databaseList = res.data.map((data) => {
               return Object.fromEntries(
@@ -126,14 +189,18 @@ export default {
               );
             });
             databaseList.forEach((item) => {
-              if (["performance_schema", "information_schema"].indexOf(item.name) < 0) {
+              if (
+                ["performance_schema", "information_schema"].indexOf(
+                  item.name
+                ) < 0
+              ) {
                 this.databaseList.push(item.name);
                 this.$set(this.selectedDatabasePrivileges, item.name, []);
               }
             });
           })
           .catch((err) => {
-            this.$emit("close")
+            this.$emit("close");
             return Promise.reject(err);
           });
       } catch (error) {
@@ -142,9 +209,7 @@ export default {
     },
     getTopicList() {
       try {
-        sendSQLReq(
-          `show topics;`
-        )
+        sendSQLReq(`show topics;`)
           .then((res) => {
             let topicList = res.data.map((data) => {
               return Object.fromEntries(
@@ -159,7 +224,7 @@ export default {
             });
           })
           .catch((err) => {
-            this.$emit("close")
+            this.$emit("close");
             // err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
@@ -171,41 +236,50 @@ export default {
     getUserPrivileges() {
       sendSQLReq(
         `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege<>'subscribe';`
-      ).then((res) => {
-        let selectedDatabasePrivileges = {};
-        res.data.map((data) => {
-          if (this.selectedDatabasePrivileges[data[2]] === undefined) {
-            let name = data[2];
-            let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
+      )
+        .then((res) => {
+          let selectedDatabasePrivileges = {};
+          res.data.map((data) => {
+            if (this.selectedDatabasePrivileges[data[2]] === undefined) {
+              let name = data[2];
+              let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
 
-            this.$set(this.selectedDatabasePrivileges, name, [pri]);
-            this.$set(this.prevDatabasePrivileges, name, [pri]);
-          } else {
-            let name = data[2];
-            let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
-            this.selectedDatabasePrivileges[name].push(pri);
-            this.$set(this.selectedDatabasePrivileges, data[2], this.selectedDatabasePrivileges[name]);
-            this.$set(this.prevDatabasePrivileges, data[2], this.selectedDatabasePrivileges[name]);
-          }
-        });
-
-      })
+              this.$set(this.selectedDatabasePrivileges, name, [pri]);
+              this.$set(this.prevDatabasePrivileges, name, [pri]);
+            } else {
+              let name = data[2];
+              let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
+              this.selectedDatabasePrivileges[name].push(pri);
+              this.$set(
+                this.selectedDatabasePrivileges,
+                data[2],
+                this.selectedDatabasePrivileges[name]
+              );
+              this.$set(
+                this.prevDatabasePrivileges,
+                data[2],
+                this.selectedDatabasePrivileges[name]
+              );
+            }
+          });
+        })
         .catch((err) => {
-          this.$emit("close")
+          this.$emit("close");
           return Promise.reject(err);
         });
     },
     getUserTopics() {
       sendSQLReq(
         `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege = 'subscribe';`
-      ).then((res) => {
-        res.data.map((data) => {
-          this.$set(this.selectedTopicPrivileges, data[2], ['Subscribe']);
-          this.prevTopicPrivileges = this.selectedTopicPrivileges;
-        });
-      })
+      )
+        .then((res) => {
+          res.data.map((data) => {
+            this.$set(this.selectedTopicPrivileges, data[2], ["Subscribe"]);
+            this.prevTopicPrivileges = this.selectedTopicPrivileges;
+          });
+        })
         .catch((err) => {
-          this.$emit("close")
+          this.$emit("close");
           return Promise.reject(err);
         });
     },
@@ -216,37 +290,36 @@ export default {
     async grantPrivilege(privileges, dbName) {
       return await sendSQLReq(
         `GRANT ${privileges} ON \`${dbName}\`.*  to \`${this.user}\``
-      ).then((res) => {
-        console.log(res)
-        return Promise.resolve(res);
-      })
+      )
+        .then((res) => {
+          return Promise.resolve(res);
+        })
         .catch((err) => {
-          this.$emit("close")
+          this.$emit("close");
           return Promise.reject(err);
         });
     },
     async grantTopic(topicName, userName) {
       return await sendSQLReq(
         `GRANT subscribe ON \`${topicName}\` to \`${userName}\``
-      ).then((res) => {
-        console.log(res)
-        return Promise.resolve(res);
-      })
+      )
+        .then((res) => {
+          return Promise.resolve(res);
+        })
         .catch((err) => {
-          this.$emit("close")
+          this.$emit("close");
           return Promise.reject(err);
         });
     },
     async alterUser() {
       return await sendSQLReq(
-        `alter USER ${this.user} PASS '${this.ruleForm.pwd}';`
+        `alter USER \`${this.user}\` PASS '${this.ruleForm.pwd}';`
       )
         .then((res) => {
-          console.log(res)
           return Promise.resolve(res);
         })
         .catch((err) => {
-          this.$emit("close")
+          this.$emit("close");
           return Promise.reject(err);
         });
     },
@@ -255,11 +328,10 @@ export default {
         `REVOKE ${privilege} ON \`${dbName}\`.* FROM \`${this.user}\`;`
       )
         .then((res) => {
-          console.log(res)
           return Promise.resolve(res);
         })
         .catch((err) => {
-          this.$emit("close")
+          this.$emit("close");
           return Promise.reject(err);
         });
     },
@@ -268,11 +340,10 @@ export default {
         `REVOKE subscribe ON \`${topicName}\` FROM \`${this.user}\`;`
       )
         .then((res) => {
-          console.log(res)
           return Promise.resolve(res);
         })
         .catch((err) => {
-          this.$emit("close")
+          this.$emit("close");
           return Promise.reject(err);
         });
     },
@@ -292,7 +363,9 @@ export default {
                 });
               } else {
                 privileges.forEach(async (item, index) => {
-                  if (this.selectedDatabasePrivileges[key].indexOf(item) === -1) {
+                  if (
+                    this.selectedDatabasePrivileges[key].indexOf(item) === -1
+                  ) {
                     await this.cancelPrivilege(item, key);
                   }
                 });
@@ -311,7 +384,9 @@ export default {
               if (this.selectedTopicPrivileges[key] === undefined) {
                 await this.cancelTopic(key);
               } else {
-                if (this.selectedTopicPrivileges[key].indexOf('Subscribe') === -1) {
+                if (
+                  this.selectedTopicPrivileges[key].indexOf("Subscribe") === -1
+                ) {
                   await this.cancelTopic(key);
                 }
               }
@@ -326,7 +401,7 @@ export default {
               }
             }
             Message.success(this.$t("operateSucc"));
-            this.$emit("close")
+            this.$emit("close");
           } catch (error) {
             console.log(error);
           }
@@ -335,7 +410,7 @@ export default {
         }
       });
     },
-  }
+  },
 };
 </script>
 
