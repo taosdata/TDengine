@@ -80,6 +80,7 @@
                       @click.stop="add(data, node)"
                     ></i>
                   </el-tooltip>
+
                   <el-tooltip
                     effect="light"
                     placement="top"

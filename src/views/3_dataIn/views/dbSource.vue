@@ -83,6 +83,10 @@ export default {
             this.currentName = "ui";
             this.tagName = "pi";
             break;
+          case 'influxdb':
+            this.currentName = "ui";
+            this.tagName = "influxdb";
+            break;
           case "pitable":
             this.currentName = "dbsource";
             this.tagName = "pi";
