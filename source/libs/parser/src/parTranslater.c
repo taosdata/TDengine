@@ -6141,9 +6141,9 @@ static EDealRes hasVariable(SNode* pNode, void* pContext) {
 }
 
 static int32_t subtableExprHasVariable(SNode* pNode) {
-  bool hasCol = false;
-  nodesWalkExprPostOrder(pNode, hasVariable, &hasCol);
-  return hasCol;
+  bool hasVar = false;
+  nodesWalkExprPostOrder(pNode, hasVariable, &hasVar);
+  return hasVar;
 }
 
 static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
