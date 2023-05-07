@@ -17,7 +17,7 @@
 #include "ttimer.h"
 
 #define STREAM_TASK_INPUT_QUEUEU_CAPACITY 20480
-#define STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE (200)
+#define STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE (100)
 
 int32_t streamInit() {
   int8_t old;
@@ -299,7 +299,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
     int32_t numOfBlocks = taosQueueItemSize(pTask->inputQueue->queue) + 1;
     double size = taosQueueMemorySize(pTask->inputQueue->queue) / 1048576.0;
 
-    qDebug("s-task:%s submit enqueue %p %p msgLen:%dB ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
+    qDebug("s-task:%s submit enqueue %p %p msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
            pItem, pSubmitBlock->submit.msgStr, pSubmitBlock->submit.msgLen,
            pSubmitBlock->submit.ver, numOfBlocks, size);
 

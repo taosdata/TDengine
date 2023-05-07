@@ -128,7 +128,12 @@ static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit2* pDataSubmit)
 }
 
 SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit) {
-  SStreamDataSubmit2* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit2), DEF_QITEM, 0);
+  int32_t len = 0;
+  if (pSubmit->type == STREAM_INPUT__DATA_SUBMIT) {
+    len = pSubmit->submit.msgLen;
+  }
+
+  SStreamDataSubmit2* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit2), DEF_QITEM, len);
   if (pSubmitClone == NULL) {
     return NULL;
   }

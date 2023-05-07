@@ -173,8 +173,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
       batchCnt++;
 
-      qDebug("s-task:%s scan exec block num %d, block limit %d", pTask->id.idStr, batchCnt, batchSz);
-
+      qDebug("s-task:%s scan exec numOfBlocks:%d, limit:%d", pTask->id.idStr, batchCnt, batchSz);
       if (batchCnt >= batchSz) {
         break;
       }
@@ -207,7 +206,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
     }
 
     if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-      qDebug("task %d scan exec dispatch block num %d", pTask->id.taskId, batchCnt);
+      qDebug("s-task:%s scan exec dispatch blocks:%d", pTask->id.idStr, batchCnt);
       streamDispatch(pTask);
     }
 
