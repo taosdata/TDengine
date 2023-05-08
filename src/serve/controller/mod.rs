@@ -314,6 +314,12 @@ static ONCE: OnceCell<PortPool> = OnceCell::const_new();
 
 impl TaskController {
     pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
+        let path = std::path::Path::new(sqlite);
+        if let Some(dir) = path.parent() {
+            if !dir.exists() {
+                std::fs::create_dir_all(&dir).context("Cannot create directory for database")?;
+            }
+        }
         let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
             .create_if_missing(true)
             .busy_timeout(Duration::from_secs(30))

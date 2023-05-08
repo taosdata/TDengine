@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-/etc/default/taosx
+Environment="DATABASE_URL=-/var/lib/taosx/taosx.db"
 ExecStart=/usr/bin/taosx serve -v
 Restart=always
 
