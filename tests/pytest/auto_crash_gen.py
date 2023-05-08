@@ -342,12 +342,28 @@ def main():
         print('======== crash_gen run sucess and exit as expected ========')
 
     try:
-        text = f'''exit status: {msg_dict[status]} 
-                   git commit :  {git_commit}
-                   hostname: {hostname}
-                   start time: {starttime}
-                   end time: {endtime}
-                   cmd: {crash_cmds}'''
+        cmd = crash_cmds.split('&')[2]
+        if status == 0:
+            log_dir = "none"            
+        else:
+            log_dir= "/root/pxiao/crash_gen_logs" 
+        
+        if status == 3:
+            core_dir = "/root/pxiao/crash_gen_logs"
+        else:
+            core_dir = "none"
+            
+        text = f'''exit status: {msg_dict[status]}
+        test scope: crash_gen
+        owner: pxiao
+        hostname: {hostname}
+        start time: {starttime}
+        end time: {endtime}
+        git commit :  {git_commit}
+        log dir: {log_dir}
+        core dir: {core_dir}
+        cmd: {cmd}'''
+                
         send_msg(get_msg(text))  
     except Exception as e:
         print("exception:", e)
