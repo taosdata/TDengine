@@ -13,40 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dev.h"
+#include "inc/tsdbFile.h"
 
 const char *tsdb_ftype_suffix[] = {
-    ".head",  // TSDB_FTYPE_HEAD
-    ".data",  // TSDB_FTYPE_DATA
-    ".sma",   // TSDB_FTYPE_SMA
-    ".tomb",  // TSDB_FTYPE_TOMB
-    NULL,     // TSDB_FTYPE_MAX
-    ".stt",   // TSDB_FTYPE_STT
+    [TSDB_FTYPE_HEAD] = ".head",  //
+    [TSDB_FTYPE_DATA] = ".data",  //
+    [TSDB_FTYPE_SMA] = ".sma",    //
+    [TSDB_FTYPE_TOMB] = ".tomb",  //
+    [TSDB_FTYPE_MAX] = NULL,      //
+    [TSDB_FTYPE_STT] = ".stt",
 };
 
-int32_t tsdbTFileCreate(const struct STFile *config, struct STFile **ppFile) {
-  int32_t code = 0;
-  int32_t lino;
-
-  ppFile[0] = (struct STFile *)taosMemoryCalloc(1, sizeof(struct STFile));
-  if (ppFile[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-
-  ppFile[0][0] = config[0];
-
-_exit:
-  return code;
-}
-
-int32_t tsdbTFileDestroy(struct STFile *pFile) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
-int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile) {
+int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile) {
   SVnode *pVnode = pTsdb->pVnode;
   STfs   *pTfs = pVnode->pTfs;
 
@@ -77,4 +55,7 @@ int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile) {
   return 0;
 }
 
-int32_t tsdbTFileClear(struct STFile *pFile) { return 0; }
+int32_t tsdbTFileClear(STFile *pFile) {
+  // TODO
+  return 0;
+}

@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdbFSet.h"
+
 #ifndef _TSDB_FILE_SYSTEM_H
 #define _TSDB_FILE_SYSTEM_H
-
-#include "tsdbFSet.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,10 +26,8 @@ extern "C" {
 typedef struct STFileSystem STFileSystem;
 
 typedef enum {
-  TSDB_FS_EDIT_NONE = 0,
-  TSDB_FS_EDIT_COMMIT,
-  TSDB_FS_EDIT_MERGE,
-  TSDB_FS_EDIT_MAX,
+  TSDB_FS_EDIT_COMMIT = 1,  //
+  TSDB_FS_EDIT_MERGE
 } tsdb_fs_edit_t;
 
 /* Exposed APIs */
@@ -47,8 +45,8 @@ struct STFileSystem {
   int32_t state;
   tsem_t  canEdit;
   int64_t nextEditId;
-  SArray *aFileSet;  // SArray<struct SFileSet>
-  SArray *nState;    // SArray<struct SFileSet>
+  SArray *cstate;  // current state
+  SArray *nstate;  // next state
 };
 
 #ifdef __cplusplus

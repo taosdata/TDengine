@@ -27,12 +27,12 @@ typedef struct {
   int8_t  sttTrigger;
   SArray *aTbDataP;
   // context
-  TSKEY     nextKey;
-  int32_t   fid;
-  int32_t   expLevel;
-  TSKEY     minKey;
-  TSKEY     maxKey;
-  SFileSet *pFileSet;
+  TSKEY      nextKey;
+  int32_t    fid;
+  int32_t    expLevel;
+  TSKEY      minKey;
+  TSKEY      maxKey;
+  STFileSet *pFileSet;
   // writer
   SArray         *aFileOp;
   SSttFileWriter *pWriter;

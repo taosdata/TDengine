@@ -13,30 +13,45 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dev.h"
+#include "inc/tsdbFS.h"
 
-static int32_t create_file_system(STsdb *pTsdb, struct STFileSystem **ppFS) {
-  if ((ppFS[0] = taosMemoryCalloc(1, sizeof(*ppFS[0]))) == NULL) {
+#define TSDB_FS_EDIT_MIN TSDB_FS_EDIT_COMMIT
+#define TSDB_FS_EDIT_MAX (TSDB_FS_EDIT_MERGE + 1)
+
+enum {
+  TSDB_FS_STATE_NONE = 0,
+  TSDB_FS_STATE_OPEN,
+  TSDB_FS_STATE_EDIT,
+  TSDB_FS_STATE_CLOSE,
+};
+
+static int32_t create_file_system(STsdb *pTsdb, STFileSystem **ppFS) {
+  ppFS[0] = taosMemoryCalloc(1, sizeof(*ppFS[0]));
+  if (ppFS[0] == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if ((ppFS[0]->aFileSet = taosArrayInit(16, sizeof(struct SFileSet))) == NULL ||
-      (ppFS[0]->nState = taosArrayInit(16, sizeof(struct SFileSet))) == NULL) {
-    taosArrayDestroy(ppFS[0]->nState);
-    taosArrayDestroy(ppFS[0]->aFileSet);
+  ppFS[0]->cstate = taosArrayInit(16, sizeof(STFileSet));
+  ppFS[0]->nstate = taosArrayInit(16, sizeof(STFileSet));
+  if (ppFS[0]->cstate == NULL || ppFS[0]->nstate == NULL) {
+    taosArrayDestroy(ppFS[0]->nstate);
+    taosArrayDestroy(ppFS[0]->cstate);
     taosMemoryFree(ppFS[0]);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   ppFS[0]->pTsdb = pTsdb;
+  ppFS[0]->state = TSDB_FS_STATE_NONE;
   tsem_init(&ppFS[0]->canEdit, 0, 1);
+  ppFS[0]->nextEditId = 0;
 
   return 0;
 }
 
-static int32_t destroy_file_system(struct STFileSystem **ppFS) {
+static int32_t destroy_file_system(STFileSystem **ppFS) {
   if (ppFS[0]) {
-    taosArrayDestroy(ppFS[0]->aFileSet);
+    taosArrayDestroy(ppFS[0]->nstate);
+    taosArrayDestroy(ppFS[0]->cstate);
     tsem_destroy(&ppFS[0]->canEdit);
     taosMemoryFree(ppFS[0]);
     ppFS[0] = NULL;
@@ -110,7 +125,7 @@ static int32_t get_current_temp(STsdb *pTsdb, char fname[], tsdb_fs_edit_t etype
   return 0;
 }
 
-static int32_t fs_to_json_str(struct STFileSystem *pFS, char **ppData) {
+static int32_t fs_to_json_str(STFileSystem *pFS, char **ppData) {
   int32_t code = 0;
   int32_t lino;
 
@@ -148,8 +163,8 @@ static int32_t fs_to_json_str(struct STFileSystem *pFS, char **ppData) {
       _exit,                                                      //
       TSDB_CODE_OUT_OF_MEMORY);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pFS->nState); i++) {
-    struct SFileSet *pFileSet = taosArrayGet(pFS->nState, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pFS->nstate); i++) {
+    struct STFileSet *pFileSet = taosArrayGet(pFS->nstate, i);
 
     code = tsdbFileSetToJson(aFileSetJson, pFileSet);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -173,7 +188,7 @@ _exit:
   return code;
 }
 
-static int32_t fs_from_json_str(const char *pData, struct STFileSystem *pFS) {
+static int32_t fs_from_json_str(const char *pData, STFileSystem *pFS) {
   int32_t code = 0;
   int32_t lino;
 
@@ -183,7 +198,7 @@ _exit:
   return code;
 }
 
-static int32_t save_fs_to_file(struct STFileSystem *pFS, const char *fname) {
+static int32_t save_fs_to_file(STFileSystem *pFS, const char *fname) {
   int32_t code = 0;
   int32_t lino;
   char   *pData = NULL;
@@ -234,12 +249,12 @@ _exit:
   return code;
 }
 
-static int32_t load_fs_from_file(const char *fname, struct STFileSystem *pFS) {
+static int32_t load_fs_from_file(const char *fname, STFileSystem *pFS) {
   ASSERTS(0, "TODO: Not implemented yet");
   return 0;
 }
 
-static int32_t commit_edit(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
+static int32_t commit_edit(STFileSystem *pFS, tsdb_fs_edit_t etype) {
   int32_t code;
   char    ofname[TSDB_FILENAME_LEN];
   char    nfname[TSDB_FILENAME_LEN];
@@ -258,7 +273,7 @@ static int32_t commit_edit(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
   return 0;
 }
 
-static int32_t abort_edit(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
+static int32_t abort_edit(STFileSystem *pFS, tsdb_fs_edit_t etype) {
   int32_t code;
   char    fname[TSDB_FILENAME_LEN];
 
@@ -270,23 +285,24 @@ static int32_t abort_edit(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
   return code;
 }
 
-static int32_t scan_file_system(struct STFileSystem *pFS) {
+static int32_t scan_file_system(STFileSystem *pFS) {
   // ASSERTS(0, "TODO: Not implemented yet");
   return 0;
 }
 
-static int32_t scan_and_schedule_merge(struct STFileSystem *pFS) {
+static int32_t scan_and_schedule_merge(STFileSystem *pFS) {
   // ASSERTS(0, "TODO: Not implemented yet");
   return 0;
 }
 
-static int32_t open_file_system(struct STFileSystem *pFS, int8_t rollback) {
+static int32_t open_file_system(STFileSystem *pFS, int8_t rollback) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
   STsdb  *pTsdb = pFS->pTsdb;
 
-  if (0) {
-    ASSERTS(0, "Not implemented yet");
+  bool update = false;  // TODO
+  if (update) {
+    // TODO
   } else {
     char current_json[TSDB_FILENAME_LEN];
     char current_json_commit[TSDB_FILENAME_LEN];
@@ -330,31 +346,25 @@ static int32_t open_file_system(struct STFileSystem *pFS, int8_t rollback) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s",  //
-              TD_VID(pTsdb->pVnode),                    //
-              __func__,                                 //
-              lino,                                     //
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d %s success",   //
-             TD_VID(pTsdb->pVnode),  //
-             __func__);
+    tsdbInfo("vgId:%d %s success", TD_VID(pTsdb->pVnode), __func__);
   }
   return 0;
 }
 
-static int32_t close_file_system(struct STFileSystem *pFS) {
+static int32_t close_file_system(STFileSystem *pFS) {
   ASSERTS(0, "TODO: Not implemented yet");
   return 0;
 }
 
-static int32_t apply_edit(struct STFileSystem *pFS) {
+static int32_t apply_edit(STFileSystem *pFS) {
   int32_t code = 0;
   ASSERTS(0, "TODO: Not implemented yet");
   return code;
 }
 
-static int32_t fset_cmpr_fn(const struct SFileSet *pSet1, const struct SFileSet *pSet2) {
+static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSet *pSet2) {
   if (pSet1->fid < pSet2->fid) {
     return -1;
   } else if (pSet1->fid > pSet2->fid) {
@@ -363,31 +373,31 @@ static int32_t fset_cmpr_fn(const struct SFileSet *pSet1, const struct SFileSet 
   return 0;
 }
 
-static int32_t edit_fs(struct STFileSystem *pFS, const SArray *aFileOp) {
+static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
   int32_t code = 0;
   int32_t lino;
 
-  taosArrayClearEx(pFS->nState, NULL /* TODO */);
+  taosArrayClearEx(pFS->nstate, NULL /* TODO */);
 
   // TODO: copy current state to new state
 
   for (int32_t iop = 0; iop < taosArrayGetSize(aFileOp); iop++) {
     struct SFileOp *pOp = taosArrayGet(aFileOp, iop);
 
-    struct SFileSet tmpSet = {.fid = pOp->fid};
+    struct STFileSet tmpSet = {.fid = pOp->fid};
 
     int32_t idx = taosArraySearchIdx(  //
-        pFS->nState,                   //
+        pFS->nstate,                   //
         &tmpSet,                       //
         (__compar_fn_t)fset_cmpr_fn,   //
         TD_GE);
 
-    struct SFileSet *pSet;
+    struct STFileSet *pSet;
     if (idx < 0) {
       pSet = NULL;
-      idx = taosArrayGetSize(pFS->nState);
+      idx = taosArrayGetSize(pFS->nstate);
     } else {
-      pSet = taosArrayGet(pFS->nState, idx);
+      pSet = taosArrayGet(pFS->nstate, idx);
     }
 
     if (pSet == NULL || pSet->fid != pOp->fid) {
@@ -397,7 +407,7 @@ static int32_t edit_fs(struct STFileSystem *pFS, const SArray *aFileOp) {
           lino,                                       //
           _exit);
 
-      if (taosArrayInsert(pFS->nState, idx, pSet) == NULL) {
+      if (taosArrayInsert(pFS->nstate, idx, pSet) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
@@ -416,7 +426,7 @@ _exit:
   return 0;
 }
 
-int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t rollback) {
+int32_t tsdbOpenFileSystem(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback) {
   int32_t code;
   int32_t lino;
 
@@ -424,34 +434,26 @@ int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t roll
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = open_file_system(ppFS[0], rollback);
-  if (code) {
-    destroy_file_system(ppFS);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  TSDB_CHECK_CODE(code, lino, _exit)
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s",  //
-              TD_VID(pTsdb->pVnode),                    //
-              __func__,                                 //
-              lino,                                     //
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    destroy_file_system(ppFS);
   } else {
-    tsdbInfo("vgId:%d %s success",   //
-             TD_VID(pTsdb->pVnode),  //
-             __func__);
+    tsdbInfo("vgId:%d %s success", TD_VID(pTsdb->pVnode), __func__);
   }
   return 0;
 }
 
-int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS) {
+int32_t tsdbCloseFileSystem(STFileSystem **ppFS) {
   if (ppFS[0] == NULL) return 0;
   close_file_system(ppFS[0]);
   destroy_file_system(ppFS);
   return 0;
 }
 
-int32_t tsdbFileSystemEditBegin(struct STFileSystem *pFS, const SArray *aFileOp, tsdb_fs_edit_t etype) {
+int32_t tsdbFileSystemEditBegin(STFileSystem *pFS, const SArray *aFileOp, tsdb_fs_edit_t etype) {
   int32_t code = 0;
   int32_t lino;
   char    fname[TSDB_FILENAME_LEN];
@@ -486,7 +488,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
+int32_t tsdbFileSystemEditCommit(STFileSystem *pFS, tsdb_fs_edit_t etype) {
   int32_t code = commit_edit(pFS, etype);
   tsem_post(&pFS->canEdit);
   if (code) {
@@ -503,7 +505,7 @@ int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, tsdb_fs_edit_t etype)
   return code;
 }
 
-int32_t tsdbFileSystemEditAbort(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
+int32_t tsdbFileSystemEditAbort(STFileSystem *pFS, tsdb_fs_edit_t etype) {
   int32_t code = abort_edit(pFS, etype);
   if (code) {
     tsdbError("vgId:%d %s failed since %s, etype:%d",  //

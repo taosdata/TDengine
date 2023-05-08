@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdbDef.h"
+
 #ifndef _TSDB_FILE_H
 #define _TSDB_FILE_H
-
-#include "tsdbDef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,12 +33,12 @@ typedef enum {
   TSDB_FTYPE_STT,       // .stt
 } tsdb_ftype_t;
 
-int32_t tsdbTFileCreate(const struct STFile *config, struct STFile **ppFile);
-int32_t tsdbTFileDestroy(struct STFile *pFile);
-int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile);
-int32_t tsdbTFileClear(struct STFile *pFile);
+int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile);
+int32_t tsdbTFileClear(STFile *pFile);
 
 struct STFile {
+  LISTD(STFile) listNode;
+
   char         fname[TSDB_FILENAME_LEN];
   int32_t      ref;
   int32_t      state;
@@ -53,8 +53,6 @@ struct STFile {
       int32_t nSeg;
     } stt;
   };
-
-  LISTD(STFile) listNode;
 };
 
 #ifdef __cplusplus

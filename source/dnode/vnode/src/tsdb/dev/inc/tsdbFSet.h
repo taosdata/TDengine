@@ -13,18 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdbFile.h"
+
 #ifndef _TSDB_FILE_SET_H
 #define _TSDB_FILE_SET_H
-
-#include "tsdbFile.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SFileSet SFileSet;
-typedef struct SFileOp  SFileOp;
-typedef struct SSttLvl  SSttLvl;
+typedef struct STFileSet STFileSet;
+typedef struct SFileOp   SFileOp;
 
 typedef enum {
   TSDB_FOP_NONE = 0,
@@ -34,10 +33,10 @@ typedef enum {
   TSDB_FOP_TRUNCATE,
 } tsdb_fop_t;
 
-int32_t tsdbFileSetCreate(int32_t fid, SFileSet **ppSet);
-int32_t tsdbFileSetEdit(SFileSet *pSet, SFileOp *pOp);
-int32_t tsdbFileSetToJson(SJson *pJson, const SFileSet *pSet);
-int32_t tsdbEditFileSet(SFileSet *pFileSet, const SFileOp *pOp);
+int32_t tsdbFileSetCreate(int32_t fid, STFileSet **ppSet);
+int32_t tsdbFileSetEdit(STFileSet *pSet, SFileOp *pOp);
+int32_t tsdbFileSetToJson(SJson *pJson, const STFileSet *pSet);
+int32_t tsdbEditFileSet(STFileSet *pFileSet, const SFileOp *pOp);
 
 struct SFileOp {
   tsdb_fop_t op;
@@ -46,14 +45,14 @@ struct SFileOp {
   STFile     nState;  // new file state
 };
 
-struct SSttLvl {
-  int32_t level;
-  int32_t nStt;
-  STFile *fSttList;
-  LISTD(SSttLvl) listNode;
-};
+typedef struct SSttLvl {
+  LISTD(struct SSttLvl) listNode;
+  int32_t lvl;   // level
+  int32_t nStt;  // number of .stt files on this level
+  STFile *fStt;  // .stt files
+} SSttLvl;
 
-struct SFileSet {
+struct STFileSet {
   int32_t fid;
   int64_t nextid;
   STFile *farr[TSDB_FTYPE_MAX];  // file array

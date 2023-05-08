@@ -16,8 +16,8 @@
 #include "dev.h"
 
 typedef struct {
-  STsdb    *pTsdb;
-  SFileSet *pSet;
+  STsdb     *pTsdb;
+  STFileSet *pSet;
 
   SBlockData bData;
 
@@ -39,13 +39,13 @@ static int32_t tsdbFileSystemShouldMerge(STsdb *pTsdb) {
   return 0;
 }
 
-static int32_t tsdbFileSetShouldMerge(struct SFileSet *pSet) {
+static int32_t tsdbFileSetShouldMerge(struct STFileSet *pSet) {
   ASSERTS(0, "TODO: not implemented yet");
   // TODO
   return 0;
 }
 
-static int32_t tsdbFileSetMerge(struct SFileSet *pFileSet) {
+static int32_t tsdbFileSetMerge(struct STFileSet *pFileSet) {
   ASSERTS(0, "TODO: not implemented yet");
   // TODO
   return 0;
@@ -94,8 +94,8 @@ int32_t tsdbMerge(STsdb *pTsdb) {
   code = tsdbOpenMerger(pTsdb, &pMerger);
   TSDB_CHECK_CODE(code, lino, _exit)
 
-  for (int32_t i = 0; i < taosArrayGetSize(pTsdb->pFS->aFileSet); i++) {
-    struct SFileSet *pFileSet = taosArrayGet(pTsdb->pFS->aFileSet, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pTsdb->pFS->cstate); i++) {
+    struct STFileSet *pFileSet = taosArrayGet(pTsdb->pFS->cstate, i);
     if (!tsdbFileSetShouldMerge(pFileSet)) {
       continue;
     }
