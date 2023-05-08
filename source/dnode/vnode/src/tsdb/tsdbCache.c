@@ -98,12 +98,19 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
     goto _err3;
   }
 
+  rocksdb_flushoptions_t *flushoptions = rocksdb_flushoptions_create();
+  if (NULL == flushoptions) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err4;
+  }
+
   rocksdb_writebatch_t *writebatch = rocksdb_writebatch_create();
 
   pTsdb->rCache.writebatch = writebatch;
   pTsdb->rCache.options = options;
   pTsdb->rCache.writeoptions = writeoptions;
   pTsdb->rCache.readoptions = readoptions;
+  pTsdb->rCache.flushoptions = flushoptions;
   pTsdb->rCache.db = db;
 
   taosThreadMutexInit(&pTsdb->rCache.rMutex, NULL);
@@ -122,11 +129,26 @@ _err:
 
 static void tsdbCloseRocksCache(STsdb *pTsdb) {
   rocksdb_close(pTsdb->rCache.db);
+  rocksdb_flushoptions_destroy(pTsdb->rCache.flushoptions);
   rocksdb_writebatch_destroy(pTsdb->rCache.writebatch);
   rocksdb_readoptions_destroy(pTsdb->rCache.readoptions);
   rocksdb_writeoptions_destroy(pTsdb->rCache.writeoptions);
   rocksdb_options_destroy(pTsdb->rCache.options);
   taosThreadMutexDestroy(&pTsdb->rCache.rMutex);
+}
+
+int32_t tsdbCacheCommit(STsdb *pTsdb) {
+  int32_t code = 0;
+  char   *err = NULL;
+
+  rocksdb_flush(pTsdb->rCache.db, pTsdb->rCache.flushoptions, &err);
+  if (NULL != err) {
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
+    rocksdb_free(err);
+    code = -1;
+  }
+
+  return code;
 }
 
 SLastCol *tsdbCacheDeserialize(char const *value) {
