@@ -445,6 +445,7 @@ int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
 }
 
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
+  int ret = 0;
   SMqRebVgReq req = {0};
   tDecodeSMqRebVgReq(msg, &req);
 
@@ -463,8 +464,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
     if (req.newConsumerId == -1) {
       tqError("vgId:%d, tq invalid re-balance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
-      taosMemoryFree(req.qmsg);
-      return 0;
+      goto end;
     }
 
     STqHandle tqHandle = {0};
@@ -481,8 +481,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     // TODO version should be assigned and refed during preprocess
     SWalRef* pRef = walRefCommittedVer(pVnode->pWal);
     if (pRef == NULL) {
-      taosMemoryFree(req.qmsg);
-      return -1;
+      ret = -1;
+      goto end;
     }
 
     int64_t ver = pRef->refVer;
@@ -534,49 +534,42 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
     tqDebug("try to persist handle %s consumer:0x%" PRIx64 " , old consumer:0x%" PRIx64, req.subKey,
             pHandle->consumerId, oldConsumerId);
-    if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
-      taosMemoryFree(req.qmsg);
-      return -1;
-    }
+    ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
+    goto end;
   } else {
     if (pHandle->consumerId == req.newConsumerId) {  // do nothing
       tqInfo("vgId:%d consumer:0x%" PRIx64 " remains, no switch occurs", req.vgId, req.newConsumerId);
-      atomic_store_32(&pHandle->epoch, -1);
       atomic_add_fetch_32(&pHandle->epoch, 1);
-      taosMemoryFree(req.qmsg);
-      return tqMetaSaveHandle(pTq, req.subKey, pHandle);
+
     } else {
       tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
              req.newConsumerId);
-
-      // kill executing task
-      qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
-      if (pTaskInfo != NULL) {
-        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
-      }
-
-      taosWLockLatch(&pTq->lock);
-      atomic_store_32(&pHandle->epoch, 0);
-
-      // remove if it has been register in the push manager, and return one empty block to consumer
-      tqUnregisterPushHandle(pTq, pHandle);
-
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
-
-      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-        qStreamCloseTsdbReader(pTaskInfo);
-      }
-
-      taosWUnLockLatch(&pTq->lock);
-      if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
-        taosMemoryFree(req.qmsg);
-        return -1;
-      }
+      atomic_store_32(&pHandle->epoch, 0);
     }
+    // kill executing task
+    qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
+    if (pTaskInfo != NULL) {
+      qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
+    }
+
+    taosWLockLatch(&pTq->lock);
+    // remove if it has been register in the push manager, and return one empty block to consumer
+    tqUnregisterPushHandle(pTq, pHandle);
+
+
+    if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      qStreamCloseTsdbReader(pTaskInfo);
+    }
+
+    taosWUnLockLatch(&pTq->lock);
+    ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
+    goto end;
   }
 
+end:
   taosMemoryFree(req.qmsg);
-  return 0;
+  return ret;
 }
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
