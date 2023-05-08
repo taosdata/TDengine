@@ -239,6 +239,7 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
     }
     seeked = true;
   }
+
   while (1) {
     contLen = taosReadFile(pRead->pLogFile, pRead->pHead, sizeof(SWalCkHead));
     if (contLen == sizeof(SWalCkHead)) {

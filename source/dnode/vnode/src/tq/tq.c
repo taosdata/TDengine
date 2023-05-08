@@ -1082,12 +1082,15 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   taosWLockLatch(&pTq->lock);
-  if(taosHashGetSize(pTq->pPushMgr) > 0){
-    void *pIter = taosHashIterate(pTq->pPushMgr, NULL);
-    while(pIter){
+
+  if (taosHashGetSize(pTq->pPushMgr) > 0) {
+    void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
+
+    while (pIter) {
       STqHandle* pHandle = *(STqHandle**)pIter;
-      tqDebug("vgId:%d start set submit for pHandle:%p, consume id:0x%"PRIx64, vgId, pHandle, pHandle->consumerId);
-      if(ASSERT(pHandle->msg != NULL)){
+      tqDebug("vgId:%d start set submit for pHandle:%p, consumer:0x%" PRIx64, vgId, pHandle, pHandle->consumerId);
+
+      if (ASSERT(pHandle->msg != NULL)) {
         tqError("pHandle->msg should not be null");
         break;
       }else{
@@ -1096,77 +1099,15 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
         taosMemoryFree(pHandle->msg);
         pHandle->msg = NULL;
       }
+
       pIter = taosHashIterate(pTq->pPushMgr, pIter);
     }
+
     taosHashClear(pTq->pPushMgr);
   }
+
   // unlock
   taosWUnLockLatch(&pTq->lock);
-
-  return 0;
-}
-
-int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
-#if 0
-  void* pIter = NULL;
-  SStreamDataSubmit2* pSubmit = streamDataSubmitNew(submit, STREAM_INPUT__DATA_SUBMIT);
-  if (pSubmit == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("failed to create data submit for stream since out of memory");
-    saveOffsetForAllTasks(pTq, submit.ver);
-    return -1;
-  }
-
-  SArray* pInputQueueFullTasks = taosArrayInit(4, POINTER_BYTES);
-
-  while (1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
-      continue;
-    }
-
-    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
-              pTask->status.taskStatus);
-      continue;
-    }
-
-    // check if offset value exists
-    char key[128] = {0};
-    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
-
-    if (tInputQueueIsFull(pTask)) {
-      STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
-
-      int64_t ver = submit.ver;
-      if (pOffset == NULL) {
-        doSaveTaskOffset(pTq->pOffsetStore, key, submit.ver);
-      } else {
-        ver = pOffset->val.version;
-      }
-
-      tqDebug("s-task:%s input queue is full, discard submit block, ver:%" PRId64, pTask->id.idStr, ver);
-      taosArrayPush(pInputQueueFullTasks, &pTask);
-      continue;
-    }
-
-    // check if offset value exists
-    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
-    ASSERT(pOffset == NULL);
-
-    addSubmitBlockNLaunchTask(pTq->pOffsetStore, pTask, pSubmit, key, submit.ver);
-  }
-
-  streamDataSubmitDestroy(pSubmit);
-  taosFreeQitem(pSubmit);
-#endif
-
-  tqStartStreamTasks(pTq);
   return 0;
 }
 
