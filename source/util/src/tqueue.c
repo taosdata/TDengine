@@ -78,7 +78,7 @@ bool taosQueueEmpty(STaosQueue *queue) {
 
   bool empty = false;
   taosThreadMutexLock(&queue->mutex);
-  if (queue->head == NULL && queue->tail == NULL && queue->numOfItems == 0 && queue->memOfItems == 0) {
+  if (queue->head == NULL && queue->tail == NULL && queue->numOfItems == 0 /*&& queue->memOfItems == 0*/) {
     empty = true;
   }
   taosThreadMutexUnlock(&queue->mutex);
@@ -162,7 +162,7 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   pNode->next = NULL;
 
   taosThreadMutexLock(&queue->mutex);
-  if (queue->memLimit > 0 && queue->memOfItems + pNode->size > queue->memLimit) {
+  if (queue->memLimit > 0 && (queue->memOfItems + pNode->size + pNode->dataSize) > queue->memLimit) {
     code = TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY;
     uError("item:%p failed to put into queue:%p, queue mem limit: %" PRId64 ", reason: %s" PRId64, pItem, queue,
            queue->memLimit, tstrerror(code));
@@ -208,7 +208,7 @@ int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {
     queue->head = pNode->next;
     if (queue->head == NULL) queue->tail = NULL;
     queue->numOfItems--;
-    queue->memOfItems -= pNode->size;
+    queue->memOfItems -= (pNode->size + pNode->dataSize);
     if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, 1);
     code = 1;
     uTrace("item:%p is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems,
@@ -413,7 +413,7 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo)
       queue->head = pNode->next;
       if (queue->head == NULL) queue->tail = NULL;
       // queue->numOfItems--;
-      queue->memOfItems -= pNode->size;
+      queue->memOfItems -= (pNode->size + pNode->dataSize);
       atomic_sub_fetch_32(&qset->numOfItems, 1);
       code = 1;
       uTrace("item:%p is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems - 1,
