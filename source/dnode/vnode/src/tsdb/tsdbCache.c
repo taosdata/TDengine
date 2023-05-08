@@ -365,6 +365,21 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsR
       }
 
       // maybe store it back to rocks cache
+      rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
+      char                 *value = NULL;
+      size_t                vlen = 0;
+      tsdbCacheSerialize(pLastCol, &value, &vlen);
+      char   key[ROCKS_KEY_LEN];
+      size_t klen = snprintf(key, ROCKS_KEY_LEN, "%" PRIi64 ":%" PRIi16 ":last", uid, pLastCol->colVal.cid);
+      rocksdb_writebatch_put(wb, key, klen, value, vlen);
+      char *err = NULL;
+      rocksdb_write(pTsdb->rCache.db, pTsdb->rCache.writeoptions, wb, &err);
+      if (NULL != err) {
+        tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
+        rocksdb_free(err);
+      }
+
+      taosMemoryFree(value);
     }
 
     taosArrayPush(pLastArray, pLastCol);
@@ -2256,12 +2271,19 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
     if (lastRowTs == TSKEY_MAX) {
       lastRowTs = rowTs;
 
-      for (int16_t iCol = 0; iCol < nCols; ++iCol) {
+      for (int16_t iCol = noneCol; iCol < nCols; ++iCol) {
         if (iCol >= nLastCol) {
           break;
         }
         SLastCol *pCol = taosArrayGet(pColArray, iCol);
         if (pCol->colVal.cid != pTSchema->columns[slotIds[iCol]].colId) {
+          continue;
+        }
+        if (slotIds[iCol] == 0) {
+          STColumn *pTColumn = &pTSchema->columns[0];
+
+          *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = lastRowTs});
+          taosArraySet(pColArray, 0, &(SLastCol){.ts = lastRowTs, .colVal = *pColVal});
           continue;
         }
         tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
@@ -2336,10 +2358,6 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
     }
   } while (setNoneCol);
 
-  // if (taosArrayGetSize(pColArray) <= 0) {
-  //*ppLastArray = NULL;
-  // taosArrayDestroy(pColArray);
-  //} else {
   if (!hasRow) {
     if (ignoreEarlierTs) {
       taosArrayDestroy(pColArray);
@@ -2349,11 +2367,10 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
     }
   }
   *ppLastArray = pColArray;
-  //}
 
   nextRowIterClose(&iter);
   taosArrayDestroy(aColArray);
-  // taosMemoryFreeClear(pTSchema);
+
   return code;
 
 _err:
