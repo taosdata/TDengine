@@ -6128,7 +6128,7 @@ static bool hasJsonTypeProjection(SSelectStmt* pSelect) {
   return false;
 }
 
-static EDealRes hasVariable(SNode* pNode, void* pContext) {
+static EDealRes hasColumnOrPseudoColumn(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     *(bool*)pContext = true;
     return DEAL_RES_END;
@@ -6140,10 +6140,10 @@ static EDealRes hasVariable(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t subtableExprHasVariable(SNode* pNode) {
-  bool hasVar = false;
-  nodesWalkExprPostOrder(pNode, hasVariable, &hasVar);
-  return hasVar;
+static int32_t subtableExprHasColumnOrPseudoColumn(SNode* pNode) {
+  bool hasColumn = false;
+  nodesWalkExprPostOrder(pNode, hasColumnOrPseudoColumn, &hasColumn);
+  return hasColumn;
 }
 
 static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
@@ -6157,7 +6157,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "SUBTABLE expression must be of VARCHAR type");
   }
-  if (NULL != pSelect->pSubtable && 0 == LIST_LENGTH(pSelect->pPartitionByList) && subtableExprHasVariable(pSelect->pSubtable)) {
+  if (NULL != pSelect->pSubtable && 0 == LIST_LENGTH(pSelect->pPartitionByList) && subtableExprHasColumnOrPseudoColumn(pSelect->pSubtable)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "SUBTABLE expression must not has column when no partition by clause");
   }
