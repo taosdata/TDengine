@@ -25,7 +25,19 @@ enum {
   TSDB_FS_STATE_CLOSE,
 };
 
-static int32_t create_file_system(STsdb *pTsdb, STFileSystem **ppFS) {
+typedef enum {
+  TSDB_FCURRENT = 1,
+  TSDB_FCURRENT_C,
+  TSDB_FCURRENT_M,
+} EFCurrentT;
+
+static const char *gCurrentFname[] = {
+    [TSDB_FCURRENT] = "current.json",
+    [TSDB_FCURRENT_C] = "current.json.0",
+    [TSDB_FCURRENT_M] = "current.json.1",
+};
+
+static int32_t create_fs(STsdb *pTsdb, STFileSystem **ppFS) {
   ppFS[0] = taosMemoryCalloc(1, sizeof(*ppFS[0]));
   if (ppFS[0] == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -48,18 +60,17 @@ static int32_t create_file_system(STsdb *pTsdb, STFileSystem **ppFS) {
   return 0;
 }
 
-static int32_t destroy_file_system(STFileSystem **ppFS) {
-  if (ppFS[0]) {
-    taosArrayDestroy(ppFS[0]->nstate);
-    taosArrayDestroy(ppFS[0]->cstate);
-    tsem_destroy(&ppFS[0]->canEdit);
-    taosMemoryFree(ppFS[0]);
-    ppFS[0] = NULL;
-  }
+static int32_t destroy_fs(STFileSystem **ppFS) {
+  if (ppFS[0] == NULL) return 0;
+  taosArrayDestroy(ppFS[0]->nstate);
+  taosArrayDestroy(ppFS[0]->cstate);
+  tsem_destroy(&ppFS[0]->canEdit);
+  taosMemoryFree(ppFS[0]);
+  ppFS[0] = NULL;
   return 0;
 }
 
-static int32_t get_current_json(STsdb *pTsdb, char fname[]) {
+static int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   if (pTsdb->pVnode->pTfs) {
     snprintf(fname,                                   //
              TSDB_FILENAME_LEN,                       //
@@ -68,60 +79,15 @@ static int32_t get_current_json(STsdb *pTsdb, char fname[]) {
              TD_DIRSEP,                               //
              pTsdb->path,                             //
              TD_DIRSEP,                               //
-             "current.json");
+             gCurrentFname[ftype]);
   } else {
     snprintf(fname,              //
              TSDB_FILENAME_LEN,  //
              "%s%s%s",           //
              pTsdb->path,        //
              TD_DIRSEP,          //
-             "current.json");
+             gCurrentFname[ftype]);
   }
-  return 0;
-}
-
-static int32_t get_current_temp(STsdb *pTsdb, char fname[], tsdb_fs_edit_t etype) {
-  switch (etype) {
-    case TSDB_FS_EDIT_COMMIT:
-      if (pTsdb->pVnode->pTfs) {
-        snprintf(fname,                                   //
-                 TSDB_FILENAME_LEN,                       //
-                 "%s%s%s%s%s",                            //
-                 tfsGetPrimaryPath(pTsdb->pVnode->pTfs),  //
-                 TD_DIRSEP,                               //
-                 pTsdb->path,                             //
-                 TD_DIRSEP,                               //
-                 "current.json.commit");
-      } else {
-        snprintf(fname,              //
-                 TSDB_FILENAME_LEN,  //
-                 "%s%s%s",           //
-                 pTsdb->path,        //
-                 TD_DIRSEP,          //
-                 "current.json.commit");
-      }
-      break;
-    default:
-      if (pTsdb->pVnode->pTfs) {
-        snprintf(fname,                                   //
-                 TSDB_FILENAME_LEN,                       //
-                 "%s%s%s%s%s",                            //
-                 tfsGetPrimaryPath(pTsdb->pVnode->pTfs),  //
-                 TD_DIRSEP,                               //
-                 pTsdb->path,                             //
-                 TD_DIRSEP,                               //
-                 "current.json.t");
-      } else {
-        snprintf(fname,              //
-                 TSDB_FILENAME_LEN,  //
-                 "%s%s%s",           //
-                 pTsdb->path,        //
-                 TD_DIRSEP,          //
-                 "current.json.t");
-      }
-      break;
-  }
-
   return 0;
 }
 
@@ -259,8 +225,8 @@ static int32_t commit_edit(STFileSystem *pFS, tsdb_fs_edit_t etype) {
   char    ofname[TSDB_FILENAME_LEN];
   char    nfname[TSDB_FILENAME_LEN];
 
-  get_current_json(pFS->pTsdb, nfname);
-  get_current_temp(pFS->pTsdb, ofname, etype);
+  current_fname(pFS->pTsdb, nfname, TSDB_FCURRENT);
+  current_fname(pFS->pTsdb, ofname, etype == TSDB_FS_EDIT_COMMIT ? TSDB_FCURRENT_C : TSDB_FCURRENT_M);
 
   code = taosRenameFile(ofname, nfname);
   if (code) {
@@ -277,7 +243,7 @@ static int32_t abort_edit(STFileSystem *pFS, tsdb_fs_edit_t etype) {
   int32_t code;
   char    fname[TSDB_FILENAME_LEN];
 
-  get_current_temp(pFS->pTsdb, fname, etype);
+  current_fname(pFS->pTsdb, fname, etype == TSDB_FS_EDIT_COMMIT ? TSDB_FCURRENT_C : TSDB_FCURRENT_M);
 
   code = taosRemoveFile(fname);
   if (code) code = TAOS_SYSTEM_ERROR(code);
@@ -295,47 +261,50 @@ static int32_t scan_and_schedule_merge(STFileSystem *pFS) {
   return 0;
 }
 
-static int32_t open_file_system(STFileSystem *pFS, int8_t rollback) {
+static int32_t update_fs_if_needed(STFileSystem *pFS) {
+  // TODO
+  return 0;
+}
+
+static int32_t open_fs(STFileSystem *pFS, int8_t rollback) {
   int32_t code = 0;
   int32_t lino = 0;
   STsdb  *pTsdb = pFS->pTsdb;
 
-  bool update = false;  // TODO
-  if (update) {
-    // TODO
-  } else {
-    char current_json[TSDB_FILENAME_LEN];
-    char current_json_commit[TSDB_FILENAME_LEN];
-    char current_json_t[TSDB_FILENAME_LEN];
+  code = update_fs_if_needed(pFS);
+  TSDB_CHECK_CODE(code, lino, _exit)
 
-    get_current_json(pTsdb, current_json);
-    get_current_temp(pTsdb, current_json_commit, TSDB_FS_EDIT_COMMIT);
-    get_current_temp(pTsdb, current_json_t, TSDB_FS_EDIT_MERGE);
+  char fCurrent[TSDB_FILENAME_LEN];
+  char cCurrent[TSDB_FILENAME_LEN];
+  char mCurrent[TSDB_FILENAME_LEN];
 
-    if (taosCheckExistFile(current_json)) {  // current.json exists
-      code = load_fs_from_file(current_json, pFS);
-      TSDB_CHECK_CODE(code, lino, _exit);
+  current_fname(pTsdb, fCurrent, TSDB_FCURRENT);
+  current_fname(pTsdb, cCurrent, TSDB_FCURRENT_C);
+  current_fname(pTsdb, mCurrent, TSDB_FCURRENT_C);
 
-      // check current.json.commit existence
-      if (taosCheckExistFile(current_json_commit)) {
-        if (rollback) {
-          code = commit_edit(pFS, TSDB_FS_EDIT_COMMIT);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        } else {
-          code = abort_edit(pFS, TSDB_FS_EDIT_COMMIT);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      }
+  if (taosCheckExistFile(fCurrent)) {  // current.json exists
+    code = load_fs_from_file(fCurrent, pFS);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-      // check current.json.t existence
-      if (taosCheckExistFile(current_json_t)) {
-        code = abort_edit(pFS, TSDB_FS_EDIT_MERGE);
+    // check current.json.commit existence
+    if (taosCheckExistFile(cCurrent)) {
+      if (rollback) {
+        code = commit_edit(pFS, TSDB_FS_EDIT_COMMIT);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      } else {
+        code = abort_edit(pFS, TSDB_FS_EDIT_COMMIT);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
-    } else {
-      code = save_fs_to_file(pFS, current_json);
+    }
+
+    // check current.json.t existence
+    if (taosCheckExistFile(mCurrent)) {
+      code = abort_edit(pFS, TSDB_FS_EDIT_MERGE);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
+  } else {
+    code = save_fs_to_file(pFS, fCurrent);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   code = scan_file_system(pFS);
@@ -430,16 +399,16 @@ int32_t tsdbOpenFileSystem(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback) {
   int32_t code;
   int32_t lino;
 
-  code = create_file_system(pTsdb, ppFS);
+  code = create_fs(pTsdb, ppFS);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = open_file_system(ppFS[0], rollback);
+  code = open_fs(ppFS[0], rollback);
   TSDB_CHECK_CODE(code, lino, _exit)
 
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
-    destroy_file_system(ppFS);
+    destroy_fs(ppFS);
   } else {
     tsdbInfo("vgId:%d %s success", TD_VID(pTsdb->pVnode), __func__);
   }
@@ -449,7 +418,7 @@ _exit:
 int32_t tsdbCloseFileSystem(STFileSystem **ppFS) {
   if (ppFS[0] == NULL) return 0;
   close_file_system(ppFS[0]);
-  destroy_file_system(ppFS);
+  destroy_fs(ppFS);
   return 0;
 }
 
@@ -458,7 +427,7 @@ int32_t tsdbFileSystemEditBegin(STFileSystem *pFS, const SArray *aFileOp, tsdb_f
   int32_t lino;
   char    fname[TSDB_FILENAME_LEN];
 
-  get_current_temp(pFS->pTsdb, fname, etype);
+  current_fname(pFS->pTsdb, fname, etype == TSDB_FS_EDIT_COMMIT ? TSDB_FCURRENT_C : TSDB_FCURRENT_M);
 
   tsem_wait(&pFS->canEdit);
 

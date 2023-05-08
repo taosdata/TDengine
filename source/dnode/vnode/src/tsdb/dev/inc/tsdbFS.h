@@ -45,8 +45,8 @@ struct STFileSystem {
   int32_t state;
   tsem_t  canEdit;
   int64_t nextEditId;
-  SArray *cstate;  // current state
-  SArray *nstate;  // next state
+  SArray *cstate;  // current state, SArray<STFileSet>
+  SArray *nstate;  // next state, SArray<STFileSet>
 };
 
 #ifdef __cplusplus
