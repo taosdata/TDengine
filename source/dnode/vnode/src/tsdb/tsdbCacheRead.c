@@ -208,7 +208,7 @@ void* tsdbCacherowsReaderClose(void* pReader) {
 
 static void freeItem(void* pItem) {
   SLastCol* pCol = (SLastCol*)pItem;
-  if (IS_VAR_DATA_TYPE(pCol->colVal.type)) {
+  if (IS_VAR_DATA_TYPE(pCol->colVal.type) && pCol->colVal.value.pData) {
     taosMemoryFree(pCol->colVal.value.pData);
   }
 }

@@ -159,7 +159,11 @@ SLastCol *tsdbCacheDeserialize(char const *value) {
   SLastCol *pLastCol = (SLastCol *)value;
   SColVal  *pColVal = &pLastCol->colVal;
   if (IS_VAR_DATA_TYPE(pColVal->type)) {
-    pColVal->value.pData = (char *)value + sizeof(*pLastCol);
+    if (pColVal->value.nData > 0) {
+      pColVal->value.pData = (char *)value + sizeof(*pLastCol);
+    } else {
+      pColVal->value.pData = NULL;
+    }
   }
 
   return pLastCol;
@@ -177,8 +181,10 @@ void tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size) {
   if (IS_VAR_DATA_TYPE(pColVal->type)) {
     uint8_t *pVal = pColVal->value.pData;
     pColVal->value.pData = *value + sizeof(*pLastCol);
-    if (pColVal->value.nData) {
+    if (pColVal->value.nData > 0) {
       memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+    } else {
+      pColVal->value.pData = NULL;
     }
   }
   *size = length;
