@@ -388,11 +388,10 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
-  if (pRequest->syncQuery) {
-    if (pRequest->body.param) {
-      tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
-    }
+  if (pRequest->body.param) {
+    tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
     taosMemoryFree(pRequest->body.param);
+    pRequest->body.param = NULL;
   }
 
   qDestroyQuery(pRequest->pQuery);
