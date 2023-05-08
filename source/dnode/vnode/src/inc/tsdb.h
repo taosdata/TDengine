@@ -346,6 +346,7 @@ struct STsdbFS {
 typedef struct {
   rocksdb_t              *db;
   rocksdb_options_t      *options;
+  rocksdb_flushoptions_t *flushoptions;
   rocksdb_writeoptions_t *writeoptions;
   rocksdb_readoptions_t  *readoptions;
   rocksdb_writebatch_t   *writebatch;
