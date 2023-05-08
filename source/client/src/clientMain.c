@@ -1368,7 +1368,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   tsem_wait(&pParam->sem);
 
 _return:
-  taosArrayDestroy(catalogReq.pTableMeta);
+  taosArrayDestroyEx(catalogReq.pTableMeta, destoryTablesReq);
   destroyRequest(pRequest);
   return code;
 }
