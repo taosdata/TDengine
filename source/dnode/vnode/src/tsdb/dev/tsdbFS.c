@@ -102,7 +102,7 @@ _exit:
 }
 
 static int32_t save_json(const cJSON *json, const char *fname) {
-  int32_t code;
+  int32_t code = 0;
 
   char *data = cJSON_Print(json);
   if (data == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -127,6 +127,43 @@ static int32_t save_json(const cJSON *json, const char *fname) {
 
 _exit:
   taosMemoryFree(data);
+  return code;
+}
+
+static int32_t load_json(const char *fname, cJSON **json) {
+  int32_t code = 0;
+  void   *data = NULL;
+
+  TdFilePtr fp = taosOpenFile(fname, TD_FILE_READ);
+  if (fp == NULL) return TAOS_SYSTEM_ERROR(code);
+
+  int64_t size;
+  if (taosFStatFile(fp, &size, NULL) < 0) {
+    code = TAOS_SYSTEM_ERROR(code);
+    goto _exit;
+  }
+
+  data = taosMemoryMalloc(size);
+  if (data == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  if (taosReadFile(fp, data, size) < 0) {
+    code = TAOS_SYSTEM_ERROR(code);
+    goto _exit;
+  }
+
+  json[0] = cJSON_Parse(data);
+  if (json[0] == NULL) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _exit;
+  }
+
+_exit:
+  taosCloseFile(&fp);
+  if (data) taosMemoryFree(data);
+  if (code) json[0] = NULL;
   return code;
 }
 
@@ -181,9 +218,63 @@ _exit:
   return code;
 }
 
-static int32_t load_fs(const char *fname, STFileSystem *pFS) {
-  ASSERTS(0, "TODO: Not implemented yet");
-  return 0;
+static int32_t load_fs(const char *fname, SArray *aTFileSet, int64_t *eid) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  taosArrayClear(aTFileSet);
+
+  // load json
+  cJSON *json = NULL;
+  code = load_json(fname, &json);
+  TSDB_CHECK_CODE(code, lino, _exit)
+
+  // parse json
+  const cJSON *item;
+
+  /* fmtv */
+  item = cJSON_GetObjectItem(json, "fmtv");
+  if (cJSON_IsNumber(item)) {
+    ASSERT(item->valuedouble == 1);
+  } else {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit)
+  }
+
+  /* eid */
+  item = cJSON_GetObjectItem(json, "eid");
+  if (cJSON_IsNumber(item)) {
+    eid[0] = item->valuedouble;
+  } else {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit)
+  }
+
+  /* fset */
+  item = cJSON_GetObjectItem(json, "fset");
+  if (cJSON_IsArray(item)) {
+    const cJSON *titem;
+    cJSON_ArrayForEach(titem, item) {
+      STFileSet *pFileSet = taosArrayReserve(aTFileSet, 1);
+      if (pFileSet == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+
+      code = tsdbFileSetFromJson(titem, pFileSet);
+      TSDB_CHECK_CODE(code, lino, _exit)
+    }
+  } else {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit)
+  }
+
+_exit:
+  if (code) {
+    tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
+  }
+  if (json) cJSON_Delete(json);
+  return code;
 }
 
 static int32_t commit_edit(STFileSystem *pFS, tsdb_fs_edit_t etype) {
@@ -249,7 +340,7 @@ static int32_t open_fs(STFileSystem *pFS, int8_t rollback) {
   current_fname(pTsdb, mCurrent, TSDB_FCURRENT_M);
 
   if (taosCheckExistFile(fCurrent)) {  // current.json exists
-    code = load_fs(fCurrent, pFS);
+    code = load_fs(fCurrent, pFS->cstate, &pFS->nextEditId);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     // check current.json.commit existence

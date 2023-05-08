@@ -38,6 +38,11 @@ static int32_t stt_lvl_to_json(const SSttLvl *lvl, cJSON *json) {
   return 0;
 }
 
+static int32_t stt_lvl_from_json(const cJSON *json, SSttLvl *lvl) {
+  // TODO
+  return 0;
+}
+
 int32_t tsdbFileSetCreate(int32_t fid, struct STFileSet **ppSet) {
   int32_t code = 0;
 
@@ -89,6 +94,33 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
     if (code) return code;
 
     cJSON_AddItemToArray(ajson, ljson);
+  }
+
+  return 0;
+}
+
+int32_t tsdbFileSetFromJson(const cJSON *json, STFileSet *fset) {
+  const cJSON *item;
+
+  /* fid */
+  item = cJSON_GetObjectItem(json, "fid");
+  if (cJSON_IsNumber(item)) {
+    fset->fid = item->valueint;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    int32_t code = tsdbTFileFromJson(json, ftype, &fset->farr[ftype]);
+    if (code) return code;
+  }
+
+  // each level
+  item = cJSON_GetObjectItem(json, "stt");
+  if (cJSON_IsArray(item)) {
+    // TODO
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
   }
 
   return 0;

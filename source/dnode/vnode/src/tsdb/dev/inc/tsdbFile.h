@@ -36,6 +36,7 @@ typedef enum {
 #define TSDB_FTYPE_MAX (TSDB_FTYPE_TOMB + 1)
 
 int32_t tsdbTFileToJson(const STFile *f, cJSON *json);
+int32_t tsdbTFileFromJson(const cJSON *json, tsdb_ftype_t ftype, STFile **f);
 
 int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile);
 int32_t tsdbTFileClear(STFile *pFile);
@@ -44,7 +45,6 @@ struct STFile {
   LISTD(STFile) listNode;
   char    fname[TSDB_FILENAME_LEN];
   int32_t ref;
-  int32_t state;
 
   tsdb_ftype_t type;
   SDiskID      did;

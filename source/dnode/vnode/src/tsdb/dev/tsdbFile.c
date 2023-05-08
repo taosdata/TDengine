@@ -15,40 +15,54 @@
 
 #include "inc/tsdbFile.h"
 
+// to_json
 static int32_t head_to_json(const STFile *file, cJSON *json);
 static int32_t data_to_json(const STFile *file, cJSON *json);
 static int32_t sma_to_json(const STFile *file, cJSON *json);
 static int32_t tomb_to_json(const STFile *file, cJSON *json);
 static int32_t stt_to_json(const STFile *file, cJSON *json);
 
+// from_json
+static int32_t head_from_json(const cJSON *json, STFile *file);
+static int32_t data_from_json(const cJSON *json, STFile *file);
+static int32_t sma_from_json(const cJSON *json, STFile *file);
+static int32_t tomb_from_json(const cJSON *json, STFile *file);
+static int32_t stt_from_json(const cJSON *json, STFile *file);
+
 static const struct {
   const char *suffix;
   int32_t (*to_json)(const STFile *file, cJSON *json);
+  int32_t (*from_json)(const cJSON *json, STFile *file);
 } g_tfile_info[] = {
-    [TSDB_FTYPE_HEAD] = {"head", head_to_json},  //
-    [TSDB_FTYPE_DATA] = {"data", data_to_json},  //
-    [TSDB_FTYPE_SMA] = {"sma", sma_to_json},     //
-    [TSDB_FTYPE_TOMB] = {"tomb", tomb_to_json},  //
-    [TSDB_FTYPE_STT] = {"stt", stt_to_json},
+    [TSDB_FTYPE_HEAD] = {"head", head_to_json, head_from_json},
+    [TSDB_FTYPE_DATA] = {"data", data_to_json, data_from_json},
+    [TSDB_FTYPE_SMA] = {"sma", sma_to_json, sma_from_json},
+    [TSDB_FTYPE_TOMB] = {"tomb", tomb_to_json, tomb_from_json},
+    [TSDB_FTYPE_STT] = {"stt", stt_to_json, stt_from_json},
 };
 
 static int32_t tfile_to_json(const STFile *file, cJSON *json) {
+  /* did.level */
   if (cJSON_AddNumberToObject(json, "did.level", file->did.level) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  /* did.id */
   if (cJSON_AddNumberToObject(json, "did.id", file->did.id) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  /* fid */
   if (cJSON_AddNumberToObject(json, "fid", file->fid) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  /* cid */
   if (cJSON_AddNumberToObject(json, "cid", file->cid) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  /* size */
   if (cJSON_AddNumberToObject(json, "size", file->size) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -56,24 +70,97 @@ static int32_t tfile_to_json(const STFile *file, cJSON *json) {
   return 0;
 }
 
+static int32_t tfile_from_json(const cJSON *json, STFile *file) {
+  const cJSON *item;
+
+  /* did.level */
+  item = cJSON_GetObjectItem(json, "did.level");
+  if (cJSON_IsNumber(item)) {
+    file->did.level = item->valuedouble;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  /* did.id */
+  item = cJSON_GetObjectItem(json, "did.id");
+  if (cJSON_IsNumber(item)) {
+    file->did.id = item->valuedouble;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  /* fid */
+  item = cJSON_GetObjectItem(json, "fid");
+  if (cJSON_IsNumber(item)) {
+    file->fid = item->valuedouble;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  /* cid */
+  item = cJSON_GetObjectItem(json, "cid");
+  if (cJSON_IsNumber(item)) {
+    file->cid = item->valuedouble;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  /* size */
+  item = cJSON_GetObjectItem(json, "size");
+  if (cJSON_IsNumber(item)) {
+    file->size = item->valuedouble;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  return 0;
+}
+
 static int32_t head_to_json(const STFile *file, cJSON *json) { return tfile_to_json(file, json); }
-
 static int32_t data_to_json(const STFile *file, cJSON *json) { return tfile_to_json(file, json); }
-
 static int32_t sma_to_json(const STFile *file, cJSON *json) { return tfile_to_json(file, json); }
-
 static int32_t tomb_to_json(const STFile *file, cJSON *json) { return tfile_to_json(file, json); }
-
 static int32_t stt_to_json(const STFile *file, cJSON *json) {
   int32_t code = tfile_to_json(file, json);
   if (code) return code;
 
+  /* lvl */
   if (cJSON_AddNumberToObject(json, "lvl", file->stt.lvl) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  /* nseg */
   if (cJSON_AddNumberToObject(json, "nseg", file->stt.nseg) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  return 0;
+}
+
+static int32_t head_from_json(const cJSON *json, STFile *file) { return tfile_from_json(json, file); }
+static int32_t data_from_json(const cJSON *json, STFile *file) { return tfile_from_json(json, file); }
+static int32_t sma_from_json(const cJSON *json, STFile *file) { return tfile_from_json(json, file); }
+static int32_t tomb_from_json(const cJSON *json, STFile *file) { return tfile_from_json(json, file); }
+static int32_t stt_from_json(const cJSON *json, STFile *file) {
+  int32_t code = tfile_from_json(json, file);
+  if (code) return code;
+
+  const cJSON *item;
+
+  /* lvl */
+  item = cJSON_GetObjectItem(json, "lvl");
+  if (cJSON_IsNumber(item)) {
+    file->stt.lvl = item->valuedouble;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  /* nseg */
+  item = cJSON_GetObjectItem(json, "nseg");
+  if (cJSON_IsNumber(item)) {
+    file->stt.nseg = item->valuedouble;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
   }
 
   return 0;
@@ -120,4 +207,24 @@ int32_t tsdbTFileToJson(const STFile *file, cJSON *json) {
   if (tjson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   return g_tfile_info[file->type].to_json(file, tjson);
+}
+
+int32_t tsdbTFileFromJson(const cJSON *json, tsdb_ftype_t ftype, STFile **f) {
+  const cJSON *item = cJSON_GetObjectItem(json, g_tfile_info[ftype].suffix);
+  if (cJSON_IsObject(item)) {
+    f[0] = (STFile *)taosMemoryMalloc(sizeof(*f[0]));
+    if (f[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+    int32_t code = g_tfile_info[ftype].from_json(item, f[0]);
+    if (code) {
+      taosMemoryFree(f[0]);
+      f[0] = NULL;
+      return code;
+    }
+    tsdbTFileInit(NULL /* TODO */, f[0]);
+  } else {
+    f[0] = NULL;
+  }
+
+  return 0;
 }
