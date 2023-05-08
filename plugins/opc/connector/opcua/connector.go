@@ -40,7 +40,7 @@ func NewConnector(config common.Config) (connector.Connector, error) {
 func createReaders(config common.Config) (readers []*reader, err error) {
 	limit := config.Collect.Limit
 	nodes := config.Collect.Ua.Nodes
-	if limit >= len(nodes) { // nodes length is zero on get all points case or no limit
+	if limit == 0 || limit >= len(nodes) { // nodes length is zero on get all points case or no limit
 		r, err := createReader(config, nodes)
 		return []*reader{r}, err
 	}
