@@ -994,6 +994,7 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
   // init stat
   pAppHbMgr->startTime = taosGetTimestampMs();
   pAppHbMgr->connKeyCnt = 0;
+  pAppHbMgr->passKeyCnt = 0;
   pAppHbMgr->reportCnt = 0;
   pAppHbMgr->reportBytes = 0;
   pAppHbMgr->key = taosStrdup(key);
@@ -1154,7 +1155,8 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
   }
 }
 
-void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *param) {
+void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
+  SAppHbMgr    *pAppHbMgr = pTscObj->pAppInfo->pAppHbMgr;
   SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   if (pReq) {
     tFreeClientHbReq(pReq);
@@ -1167,7 +1169,10 @@ void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *param) {
   }
 
   atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
-  if (param) {
+
+  taosThreadMutexLock(&pTscObj->mutex);
+  if (pTscObj->passInfo.fp) {
     atomic_sub_fetch_32(&pAppHbMgr->passKeyCnt, 1);
   }
+  taosThreadMutexUnlock(&pTscObj->mutex);
 }

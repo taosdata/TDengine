@@ -33,8 +33,7 @@
 #define nUser    10
 #define USER_LEN 24
 
-void Test(TAOS *taos, char *qstr);
-void createUers(TAOS *taos, const char *host, char *qstr);
+void createUsers(TAOS *taos, const char *host, char *qstr);
 void passVerTestMulti(const char *host, char *qstr);
 
 int   nPassVerNotified = 0;
@@ -98,14 +97,14 @@ int main(int argc, char *argv[]) {
     printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
     exit(1);
   }
-  createUers(taos, argv[1], qstr);
+  createUsers(taos, argv[1], qstr);
   passVerTestMulti(argv[1], qstr);
 
   taos_close(taos);
   taos_cleanup();
 }
 
-void createUers(TAOS *taos, const char *host, char *qstr) {
+void createUsers(TAOS *taos, const char *host, char *qstr) {
   // users
   for (int i = 0; i < nUser; ++i) {
     sprintf(users[i], "user%d", i);

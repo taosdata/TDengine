@@ -244,7 +244,7 @@ void destroyTscObj(void *pObj) {
   tscTrace("begin to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
-  hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey, pTscObj->passInfo.fp);
+  hbDeregisterConn(pTscObj, connKey);
 
   destroyAllRequests(pTscObj->pRequests);
   taosHashCleanup(pTscObj->pRequests);

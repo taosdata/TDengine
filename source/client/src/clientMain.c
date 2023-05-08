@@ -134,11 +134,15 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
 
   switch (type) {
     case TAOS_NOTIFY_PASSVER: {
+      taosThreadMutexLock(&pObj->mutex);
+      if (fp && !pObj->passInfo.fp) {
+        atomic_add_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
+      } else if (!fp && pObj->passInfo.fp) {
+        atomic_sub_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
+      }
       pObj->passInfo.fp = fp;
       pObj->passInfo.param = param;
-      if (fp) {
-        atomic_add_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
-      }
+      taosThreadMutexUnlock(&pObj->mutex);
       break;
     }
     default: {
