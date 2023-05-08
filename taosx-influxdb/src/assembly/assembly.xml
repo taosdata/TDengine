@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.1.1 https://maven.apache.org/xsd/assembly-2.1.1.xsd">
+    <!-- 配置编号 -->
+    <id>${project.version}</id>
+    <!-- 输出格式 -->
+    <formats>
+        <format>tar.gz</format>
+    </formats>
+    <!-- 解压缩后是否包含根目录 -->
+    <includeBaseDirectory>true</includeBaseDirectory>
+    <!-- 指定要包括在程序集中的文件组 -->
+    <fileSets>
+        <!-- 指定输出target/classes中的配置文件到config目录中 -->
+        <fileSet>
+            <outputDirectory>config</outputDirectory>
+            <includes>
+                <include>*.yml</include>
+                <include>*.xml</include>
+            </includes>
+            <fileMode>0644</fileMode>
+            <directory>${basedir}/target/classes</directory>
+        </fileSet>
+        <!-- 将第三方依赖打包到lib目录中 -->
+        <fileSet>
+            <outputDirectory>lib</outputDirectory>
+            <fileMode>0755</fileMode>
+            <directory>${basedir}/target/lib</directory>
+        </fileSet>
+        <!-- 将项目启动jar打包到root目录中 -->
+        <fileSet>
+            <outputDirectory/>
+            <includes>
+                <include>${project.build.finalName}.jar</include>
+            </includes>
+            <fileMode>0755</fileMode>
+            <directory>${basedir}/target</directory>
+        </fileSet>
+    </fileSets>
+</assembly>

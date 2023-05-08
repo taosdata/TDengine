@@ -1,0 +1,9 @@
+# influx (test based on version 3.0.2.2)
+influx:
+  url: http://192.168.217.130:8086/
+  token: _pvAyLL6gqoupsXEzhvUS6EhETmG-0eE8yRIEdJknmvPos8DTDJ1Tg3K2W6O7qqGEXsg6OkjkRUfQrqpxBS8Gg==
+  orgId: 3233855dc7e37d8d
+  maxTotal: 20
+  maxIdle: 10
+  minIdle: 5
+  initialSize: 5

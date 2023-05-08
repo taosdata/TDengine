@@ -1294,6 +1294,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
         def
     };
     /// This is an example for using doc comment attributes
@@ -1304,6 +1305,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/opc.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
 }
