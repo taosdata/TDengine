@@ -9,7 +9,7 @@
       </el-form>
       <div class="section2">
         <div class="sub_title">{{ $t("data.configParams") }}</div>
-        <el-form size="small" class="form_style_2col" label-position="left" label-width="230px" :model="db_form">
+        <el-form size="small" class="form_style_2col" label-position="left" label-width="230px" :model="db_form" :rules="rules">
           <el-collapse v-model="activeNames">
             <el-collapse-item :title="$t('data.performanceRelatedParameters')" name="1">
               <div class="column1">
@@ -101,6 +101,7 @@
                     size="small"
                     v-model="db_form.pages"
                     :min="64"
+                    :max="999999999999999"
                     controls-position="right"
                     class="form_item"
                     placeholder="256"
@@ -119,6 +120,7 @@
                     v-model="db_form.vgroups"
                     :disabled="isEdit"
                     :min="0"
+                    :max="999999999999999"
                     controls-position="right"
                     class="form_item"
                     placeholder="2"
@@ -181,6 +183,7 @@
                     v-model="db_form.minrows"
                     :disabled="isEdit"
                     :min="0"
+                    :max="999999999999999"
                     controls-position="right"
                     class="form_item"
                     placeholder="100"
@@ -208,7 +211,7 @@
               </div>
               <div class="column2">
                  <!-- Keep -->
-                 <el-form-item>
+                 <el-form-item prop="keep">
                   <span slot="label">
                     KEEP
                     <el-tooltip placement="bottom" effect="light">
@@ -231,12 +234,13 @@
                     v-model="db_form.maxrows"
                     :disabled="isEdit"
                     :min="1"
+                    :max="999999999999999"
                     controls-position="right"
                     class="form_item"
                     placeholder="4096"
                   ></el-input-number>
                 </el-form-item>
-                <el-form-item>
+                <el-form-item prop="retentions">
                   <span slot="label">
                     RETENTIONS
                     <el-tooltip placement="bottom" effect="light">
@@ -261,7 +265,8 @@
                   <el-input-number
                     size="small"
                     v-model="db_form.wal_retention_period"
-                    :min="-1"
+                    :min="0"
+                    :max="999999999999999"
                     :disabled="isEdit"
                     controls-position="right"
                     class="form_item"
@@ -281,6 +286,7 @@
                     v-model="db_form.wal_roll_period"
                     :disabled="isEdit"
                     :min="0"
+                    :max="999999999999999"
                     controls-position="right"
                     class="form_item"
                     placeholder="0s"
@@ -297,7 +303,8 @@
                   <el-input-number
                     size="small"
                     v-model="db_form.wal_retention_size"
-                    :min="-1"
+                    :min="0"
+                    :max="999999999999999"
                     controls-position="right"
                     class="form_item"
                     placeholder="0KB"
@@ -320,6 +327,7 @@
                     v-model="db_form.wal_segment_size"
                     :disabled="isEdit"
                     :min="0"
+                    :max="999999999999999"
                     controls-position="right"
                     class="form_item"
                     placeholder="0KB"
@@ -468,12 +476,12 @@
 
 <script>
   import Icon from "@/components/Icon/index";
-  import { validDatabaseName } from "@/utils/validate";
+  import { validDatabaseName, validUnit, validRetentions } from "@/utils/validate";
   export default {
     data() {
       return {
         requestIng: false,
-        activeNames: ['1']
+        activeNames: ['1'],
       };
     },
     components: { Icon },
@@ -502,6 +510,18 @@
               trigger: "blur",
             },
           ],
+          keep: [
+            { 
+              validator: this.checkKeep,
+              trigger: "blur",  
+            }
+          ],
+          retentions: [
+            { 
+              validator: this.checkRetentions,
+              trigger: "blur",  
+            }
+          ]
         };
       },
       keepMin() {
@@ -540,6 +560,20 @@
       cancel() {
         this.$store.commit("console/CANCEL_DETAIL");
       },
+      checkKeep(_, value, callback) {
+        if (!validUnit(value)) {
+          return callback(new Error(this.$t('formatWrong')));
+        } else {
+          callback()
+        }
+      },
+      checkRetentions(_, value, callback) {
+        if (!validRetentions(value)) {
+          return callback(new Error(this.$t('formatWrong')));
+        } else {
+          callback()
+        }
+      }
     },
   };
 </script>

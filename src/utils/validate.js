@@ -93,3 +93,11 @@ export function validDatabaseName(str) {
 export function isIPUrl(url) {
   return /^((http|https):\/\/)?(\d{1,3}\.){3}\d{1,3}(:\d{1,5})?\/?/.test(url);
 }
+
+export function validUnit(arg) {
+  return /^(([1-9][0-9]*))+(([hdm0-9]))$/g.test(arg)
+}
+
+export function validRetentions(arg) {
+  return /^[1-9]\d*[dhms]:[1-9]\d*[dhms](,[1-9]\d*[dhms]:[1-9]\d*[dhms]){0,2}$/g.test(arg)
+}
