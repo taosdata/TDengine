@@ -210,30 +210,35 @@ def makePackageDirs(dirs):
             os.makedirs(os.path.join(packagingDir, dir), exist_ok=True)
 
 
-def makePackageName(buildOptions, verMode, type) -> str:
+def makePackageName(buildOptions, verMode, type) -> any:
     if buildOptions.get('PAGMODE') is None:
         tmpPagMode = 'full'
     else:
         tmpPagMode = buildOptions['PAGMODE']
+    
     
     if type == 'server':
         if verMode == 'cluster' and tmpPagMode == 'full':
             # TDengine-enterprise-server-3.0.3.1.20230327-Linux-x64
             pkgName = '{0}-{1}-server-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+            folderName = '{0}-{1}-server-{2}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'])
         elif verMode == 'cluster' and tmpPagMode == 'lite':
             pkgName = '{0}-{1}-server-{2}-{6}{3}-{4}-{5}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                                  buildOptions['CPUTYPE'], 'Lite', '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+            folderName = '{0}-{1}-server-{2}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'])
         elif verMode == 'cloud' and tmpPagMode == 'full':
             pkgName = '{0}-{1}-server-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], 'cloud', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+            folderName = '{0}-{1}-server-{2}'.format(buildOptions['CUS_NAME'], 'cloud', buildOptions['VERNUMBER'])
         elif verMode == 'edge' and tmpPagMode == 'full':
             pkgName = '{0}-server-{1}-{4}{2}-{3}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                          buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+            folderName = '{0}-server-{1}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'])
         elif verMode == 'edge' and tmpPagMode == 'lite':
             pkgName = '{0}-server-{1}-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], 'Lite', '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
-
+            folderName = '{0}-server-{1}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'])
         else:
             logging.error("unsupported verMOde:{0} or pagMode".format(
                 verMode, buildOptions['PAGMODE']))
@@ -244,18 +249,23 @@ def makePackageName(buildOptions, verMode, type) -> str:
             # TDengine-enterprise-client-3.0.3.1.20230327-Linux-x64
             pkgName = '{0}-{1}-client-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+            folderName = '{0}-{1}-client-{2}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'])
         elif verMode == 'cluster' and tmpPagMode == 'lite':
             pkgName = '{0}-{1}-client-{2}-{3}-{6}{4}-{5}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                                  buildOptions['CPUTYPE'], 'Lite', '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+            folderName = '{0}-{1}-client-{2}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'])
         elif verMode == 'cloud' and tmpPagMode == 'full':
             pkgName = '{0}-{1}-client-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], 'cloud', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+            folderName = '{0}-{1}-client-{2}'.format(buildOptions['CUS_NAME'], 'cloud', buildOptions['VERNUMBER'])
         elif verMode == 'edge' and tmpPagMode == 'full':
             pkgName = '{0}-client-{1}-{4}{2}-{3}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                          buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+            folderName = '{0}-client-{1}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'])
         elif verMode == 'edge' and tmpPagMode == 'lite':
             pkgName = '{0}-client-{1}-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], 'Lite', '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+            folderName = '{0}-client-{1}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'])
         else:
             logging.error("unsupported verMOde:{0} or pagMode".format(
                 verMode, buildOptions['PAGMODE']))
@@ -266,10 +276,11 @@ def makePackageName(buildOptions, verMode, type) -> str:
         compVersion = buildOptions['VERCOMPATIBLE'].split('.')[0]
         pkgName = '{0}Tools-{1}-{5}{2}-{3}-comp{4}'.format(buildOptions['CUS_PROMPT'], getTaosToolVersion(
         ), buildOptions['OSTYPE'], buildOptions['CPUTYPE'], compVersion, '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
+        folderName = '{0}Tools-{1}'.format(buildOptions['CUS_PROMPT'], getTaosToolVersion())
     else:
         logging.error("unsupported type:{0}".format(type))
         raise Exception("unsupported type:{0}".format(type))
-    return pkgName
+    return {'name': pkgName, 'folder': folderName}
 
 
 def copyDriver(buildOption):
@@ -288,21 +299,22 @@ def copyDriver(buildOption):
                          os.path.join(packagingDir, 'driver'))
 
 
-def copyJDBC(url, tag='3.1.0'):
+def copyJDBC(url, tag='3.2.1'):
     logging.info("building JDBC")
     global packagingDir
-    repoPath = os.path.join(packagingDir, 'driver', 'jdbc')
+    repoPath = os.path.join(packagingDir, 'connector', 'jdbc')
     os.system(f"git clone -b {tag} --depth 1 {url} {repoPath}")
 
-    os.chdir(os.path.join(packagingDir, 'driver', 'jdbc'))
+    os.chdir(os.path.join(packagingDir, 'connector', 'jdbc'))
     executeCommand('mvn clean package -Dmaven.test.skip=true')
     utilCopyFile(os.path.join(repoPath, 'target',
-                 'taos-jdbcdriver-{0}-dist.jar'.format(tag)), os.path.join(packagingDir, 'driver'))
+                 'taos-jdbcdriver-{0}-dist.jar'.format(tag)), os.path.join(packagingDir, 'connector'))
     utilCopyFile(os.path.join(repoPath, 'target',
-                 'taos-jdbcdriver-{0}.jar'.format(tag)), os.path.join(packagingDir, 'driver'))
+                 'taos-jdbcdriver-{0}.jar'.format(tag)), os.path.join(packagingDir, 'connector'))
     utilCopyFile(os.path.join(repoPath, 'target',
-                 'taos-jdbcdriver-{0}-sources.jar'.format(tag)), os.path.join(packagingDir, 'driver'))
+                 'taos-jdbcdriver-{0}-sources.jar'.format(tag)), os.path.join(packagingDir, 'connector'))
     os.chdir(scriptDir)
+
     shutil.rmtree(repoPath)
     logging.info("building and copy JDBC success")
 
@@ -874,7 +886,8 @@ def packageTarGz(packageComponent, buildOptions, verMode, type):
     os.chdir(packagingDir)
 
     logging.info(f"tar {packagingDir} to {tarName}")
-    executeCommand(f'tar -zcv -f {tarName} * --remove-files || :')
+    # raise Exception(f"{os.getcwd()}")
+    executeCommand(f'tar -zcv -f {tarName} ./* --remove-files || :')
 
     os.chdir(scriptDir)
 
@@ -939,15 +952,15 @@ def tarServer(packageComponent, buildOptions, verMode):
     packageTarGz(packageComponent, buildOptions, verMode, 'server')
     collectionTarball(packageComponent, buildOptions, verMode, 'server')
     os.chdir(releaseDir)
-    packageName = makePackageName(buildOptions, verMode, 'server')
+    package = makePackageName(buildOptions, verMode, 'server')
     
-    logging.info(f"rename packaging_dir:{packagingDir} to {os.path.join(releaseDir,packageName)}")   
-    os.rename(packagingDir,os.path.join(releaseDir,packageName))
+    logging.info(f"rename packaging_dir:{packagingDir} to {os.path.join(releaseDir,package['name'])}")   
+    os.rename(packagingDir,os.path.join(releaseDir,package['folder']))
     logging.debug(os.getcwd())
+
+    executeCommand('tar -zcv -f {0}.tar.gz "$(basename {1})" --remove-files || :'.format(package['name'],os.path.join(releaseDir,package['folder'])))
     
-    executeCommand(f'tar -zcv -f ${packageName}.tar.gz "$(basename {os.path.join(releaseDir,packageName)})" --remove-files || :')
-    
-    logging.info(f"packing {packageName}.tar.gz at {releaseDir} done")
+    logging.info(f"packing {package['name']}.tar.gz at {releaseDir} done")
     os.chdir(scriptDir)
 
 def tarClient(packageComponent, buildOptions, verMode):
@@ -956,14 +969,14 @@ def tarClient(packageComponent, buildOptions, verMode):
     packageTarGz(packageComponent, buildOptions, verMode, 'client')
     collectionTarball(packageComponent, buildOptions, verMode, 'client')
     os.chdir(releaseDir)
-    packageName = makePackageName(buildOptions, verMode, 'client')
+    package = makePackageName(buildOptions, verMode, 'client')
     
-    logging.info(f"rename packaging_dir:{packagingDir} to {os.path.join(releaseDir,packageName)}")   
-    os.rename(packagingDir,os.path.join(releaseDir,packageName))
+    logging.info(f"rename packaging_dir:{packagingDir} to {os.path.join(releaseDir,package['name'])}")   
+    os.rename(packagingDir,os.path.join(releaseDir,package['folder']))
     logging.debug(os.getcwd())
    
-    executeCommand(f'tar -zcv -f {packageName}.tar.gz "$(basename {os.path.join(releaseDir,packageName)})" --remove-files || :')
-    logging.info(f"packing {packageName}.tar.gz at {releaseDir} done")
+    executeCommand('tar -zcv -f {0}.tar.gz "$(basename {1})" --remove-files || :'.format(package['name'],os.path.join(releaseDir,package['folder'])))
+    logging.info("packing {0}.tar.gz at {1} done".format(package['name'],releaseDir))
     os.chdir(scriptDir)
 
 def makeTDengineTarball(tarOptions, buildOptions, verMode):
@@ -1220,20 +1233,19 @@ def makeTaosToolsTar(tarTaosToolsOptions, buildOptions, verMode):
     collectTaosToolsTarContent(tarTaosToolsOptions, buildOptions, verMode)
     
     # tar taosTools.tar.gz  
-    taosToolsPackageName = makePackageName(buildOptions, verMode, 'taosTools')
+    taosToolsPackage = makePackageName(buildOptions, verMode, 'taosTools')
     # tar taosTools package
     logging.info(
-        "start tar taos-tools package:{0}".format(taosToolsPackageName))
+        "start tar taos-tools package:{0}".format(taosToolsPackage['name']))
     os.chdir(releaseDir)
     
     if buildOptions['OSTYPE'] != 'Darwin':
         executeCommand(
-            f'tar -zcv -f "$(basename {taosToolsPackageName}).tar.gz" "$(basename {taosToolsInstallDir})" --remove-files || :')
+            'tar -zcv -f "$(basename {taosToolsPackageName}).tar.gz" "$(basename {taosToolsInstallDir})" --remove-files || :'.format(taosToolsPackageName=taosToolsPackage['name'], taosToolsInstallDir=taosToolsInstallDir))
     else:
-        executeCommand(
-            f'tar -zcv -f "$(basename {taosToolsPackageName}).tar.gz" "$(basename {taosToolsInstallDir})" --remove-files || :')
-    
-    logging.info(f"tar taos-tools package {taosToolsPackageName}.tar.gz done")
+        logging.info("not support tar taosTools on macos")
+        
+    logging.info("tar taos-tools package {0}.tar.gz done".format(taosToolsPackage['name']))
     os.chdir(scriptDir)
 
 def makeTaosToolPackages(taosToolsOptions, buildOptions, verMode):
