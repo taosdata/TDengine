@@ -797,6 +797,11 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     return -1;
   }
 
+  if(pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    return -1;
+  }
+
   for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
     SField  *pField = taosArrayGet(pCreate->pColumns, i);
     SSchema *pSchema = &pDst->pColumns[i];
@@ -924,6 +929,11 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   pDst->pTags = taosMemoryCalloc(1, pDst->numOfTags * sizeof(SSchema));
   if (pDst->pColumns == NULL || pDst->pTags == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if(pDst->nextColId < 0 && pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 
@@ -1151,6 +1161,11 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
 
   pNew->numOfTags = pNew->numOfTags + ntags;
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
+    return -1;
+  }
+
+  if(pNew->nextColId < 0 && pNew->nextColId >= 0x7fff - ntags){
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 
@@ -1458,6 +1473,11 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
 
   pNew->numOfColumns = pNew->numOfColumns + ncols;
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
+    return -1;
+  }
+
+  if(pNew->nextColId < 0 && pNew->nextColId >= 0x7fff - ncols){
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 

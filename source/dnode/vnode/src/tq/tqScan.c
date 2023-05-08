@@ -66,9 +66,10 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
 
 int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
   const int32_t MAX_ROWS_TO_RETURN = 4096;
-  int32_t       vgId = TD_VID(pTq->pVnode);
-  int32_t       code = 0;
-  int32_t       totalRows = 0;
+
+  int32_t vgId = TD_VID(pTq->pVnode);
+  int32_t code = 0;
+  int32_t totalRows = 0;
 
   const STqExecHandle* pExec = &pHandle->execHandle;
   qTaskInfo_t          task = pExec->task;

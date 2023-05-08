@@ -185,7 +185,7 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
     queue->tail = pNode;
   }
   queue->numOfItems++;
-  queue->memOfItems += pNode->size;
+  queue->memOfItems += (pNode->size + pNode->dataSize);
   if (queue->qset) atomic_add_fetch_32(&queue->qset->numOfItems, 1);
 
   uTrace("item:%p is put into queue:%p, items:%d mem:%" PRId64, pItem, queue, queue->numOfItems, queue->memOfItems);
