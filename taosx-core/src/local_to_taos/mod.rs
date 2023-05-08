@@ -89,7 +89,6 @@ async fn restore(
     let mut zo = path.to_path_buf();
     zo.set_extension("zo");
     tokio::fs::write(zo, "").await?;
-    drop(taos);
     drop(reader);
 
     log::info!(
