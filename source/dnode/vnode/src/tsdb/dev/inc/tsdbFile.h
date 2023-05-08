@@ -32,22 +32,25 @@ typedef enum {
   TSDB_FTYPE_STT = TSDB_FTYPE_TOMB + 2,  // .stt
 } tsdb_ftype_t;
 
+#define TSDB_FTYPE_MIN TSDB_FTYPE_HEAD
 #define TSDB_FTYPE_MAX (TSDB_FTYPE_TOMB + 1)
+
+int32_t tsdbTFileToJson(const STFile *f, cJSON *json);
 
 int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile);
 int32_t tsdbTFileClear(STFile *pFile);
 
 struct STFile {
   LISTD(STFile) listNode;
+  char    fname[TSDB_FILENAME_LEN];
+  int32_t ref;
+  int32_t state;
 
-  char         fname[TSDB_FILENAME_LEN];
-  int32_t      ref;
-  int32_t      state;
   tsdb_ftype_t type;
   SDiskID      did;
-  int64_t      size;
-  int64_t      cid;
   int32_t      fid;
+  int64_t      cid;
+  int64_t      size;
   union {
     struct {
       int32_t lvl;

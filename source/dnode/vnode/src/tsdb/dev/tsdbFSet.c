@@ -15,6 +15,29 @@
 
 #include "inc/tsdbFSet.h"
 
+static int32_t stt_lvl_to_json(const SSttLvl *lvl, cJSON *json) {
+  if (cJSON_AddNumberToObject(json, "lvl", lvl->lvl) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  cJSON *arr = cJSON_AddArrayToObject(json, "stt");
+  if (arr == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  // TODO: .stt files
+  // STFile *f;
+  // LISTD_FOREACH(&lvl->fstt, f, listNode) {
+  //   cJSON *item = cJSON_CreateObject();
+  //   if (item == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  //   int32_t code = tsdbTFileToJson(f, item);
+  //   if (code) return code;
+
+  //   cJSON_AddItemToArray(arr, item);
+  // }
+
+  return 0;
+}
+
 int32_t tsdbFileSetCreate(int32_t fid, struct STFileSet **ppSet) {
   int32_t code = 0;
 
@@ -36,13 +59,39 @@ int32_t tsdbFileSetEdit(struct STFileSet *pSet, struct SFileOp *pOp) {
   return code;
 }
 
-int32_t tsdbFileSetToJson(SJson *pJson, const struct STFileSet *pSet) {
+int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   int32_t code = 0;
 
-  ASSERTS(0, "TODO: Not implemented yet");
+  // fid
+  if (cJSON_AddNumberToObject(json, "fid", fset->fid) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-_exit:
-  return code;
+  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset->farr[ftype] == NULL) {
+      continue;
+    }
+
+    code = tsdbTFileToJson(fset->farr[ftype], json);
+    if (code) return code;
+  }
+
+  // each level
+  cJSON *ajson = cJSON_AddArrayToObject(json, "stt");
+  if (ajson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  SSttLvl *sttLvl;
+  LISTD_FOREACH(&fset->lvl0, sttLvl, listNode) {
+    cJSON *ljson = cJSON_CreateObject();
+    if (ljson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+    code = stt_lvl_to_json(sttLvl, ljson);
+    if (code) return code;
+
+    cJSON_AddItemToArray(ajson, ljson);
+  }
+
+  return 0;
 }
 
 int32_t tsdbEditFileSet(struct STFileSet *pFileSet, const struct SFileOp *pOp) {

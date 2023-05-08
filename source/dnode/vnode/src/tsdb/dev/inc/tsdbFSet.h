@@ -33,9 +33,10 @@ typedef enum {
   TSDB_FOP_TRUNCATE,
 } tsdb_fop_t;
 
+int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json);
+
 int32_t tsdbFileSetCreate(int32_t fid, STFileSet **ppSet);
 int32_t tsdbFileSetEdit(STFileSet *pSet, SFileOp *pOp);
-int32_t tsdbFileSetToJson(SJson *pJson, const STFileSet *pSet);
 int32_t tsdbEditFileSet(STFileSet *pFileSet, const SFileOp *pOp);
 
 struct SFileOp {
@@ -48,8 +49,8 @@ struct SFileOp {
 typedef struct SSttLvl {
   LISTD(struct SSttLvl) listNode;
   int32_t lvl;   // level
-  int32_t nStt;  // number of .stt files on this level
-  STFile *fStt;  // .stt files
+  int32_t nstt;  // number of .stt files on this level
+  STFile *fstt;  // .stt files
 } SSttLvl;
 
 struct STFileSet {

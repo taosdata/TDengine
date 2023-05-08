@@ -290,7 +290,7 @@ static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
   }
 }
 
-static int32_t load_fs_from_file(const char *fname, STsdbFS *pFS) {
+static int32_t load_fs(const char *fname, STsdbFS *pFS) {
   int32_t  code = 0;
   int32_t  lino = 0;
   uint8_t *pData = NULL;
@@ -724,7 +724,7 @@ int32_t tsdbFSCommit(STsdb *pTsdb) {
   code = tsdbFSCreate(&fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = load_fs_from_file(current, &fs);
+  code = load_fs(current, &fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // apply file change
@@ -769,7 +769,7 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   tsdbGetCurrentFName(pTsdb, current, current_t);
 
   if (taosCheckExistFile(current)) {
-    code = load_fs_from_file(current, &pTsdb->fs);
+    code = load_fs(current, &pTsdb->fs);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (taosCheckExistFile(current_t)) {

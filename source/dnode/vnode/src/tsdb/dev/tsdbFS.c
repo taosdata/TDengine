@@ -27,8 +27,8 @@ enum {
 
 typedef enum {
   TSDB_FCURRENT = 1,
-  TSDB_FCURRENT_C,
-  TSDB_FCURRENT_M,
+  TSDB_FCURRENT_C,  // for commit
+  TSDB_FCURRENT_M,  // for merge
 } EFCurrentT;
 
 static const char *gCurrentFname[] = {
@@ -91,69 +91,6 @@ static int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   return 0;
 }
 
-static int32_t fs_to_json_str(STFileSystem *pFS, char **ppData) {
-  int32_t code = 0;
-  int32_t lino;
-
-  cJSON *pJson = cJSON_CreateObject();
-  if (pJson == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  /* format version */
-  TSDB_CHECK_NULL(                        //
-      cJSON_AddNumberToObject(pJson,      //
-                              "version",  //
-                              1 /* TODO */),
-      code,   //
-      lino,   //
-      _exit,  //
-      TSDB_CODE_OUT_OF_MEMORY);
-
-  /* next edit id */
-  TSDB_CHECK_NULL(                        //
-      cJSON_AddNumberToObject(pJson,      //
-                              "edit id",  //
-                              pFS->nextEditId),
-      code,   //
-      lino,   //
-      _exit,  //
-      TSDB_CODE_OUT_OF_MEMORY);
-
-  /* file sets */
-  cJSON *aFileSetJson;
-  TSDB_CHECK_NULL(                                                //
-      aFileSetJson = cJSON_AddArrayToObject(pJson, "file sets"),  //
-      code,                                                       //
-      lino,                                                       //
-      _exit,                                                      //
-      TSDB_CODE_OUT_OF_MEMORY);
-
-  for (int32_t i = 0; i < taosArrayGetSize(pFS->nstate); i++) {
-    struct STFileSet *pFileSet = taosArrayGet(pFS->nstate, i);
-
-    code = tsdbFileSetToJson(aFileSetJson, pFileSet);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  ppData[0] = cJSON_Print(pJson);
-  if (ppData[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-_exit:
-  cJSON_Delete(pJson);
-  if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s",  //
-              TD_VID(pFS->pTsdb->pVnode),               //
-              __func__,                                 //
-              lino,                                     //
-              tstrerror(code));
-  }
-  return code;
-}
-
 static int32_t fs_from_json_str(const char *pData, STFileSystem *pFS) {
   int32_t code = 0;
   int32_t lino;
@@ -164,58 +101,87 @@ _exit:
   return code;
 }
 
-static int32_t save_fs_to_file(STFileSystem *pFS, const char *fname) {
-  int32_t code = 0;
-  int32_t lino;
-  char   *pData = NULL;
+static int32_t save_json(const cJSON *json, const char *fname) {
+  int32_t code;
 
-  // to json string
-  code = fs_to_json_str(pFS, &pData);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  char *data = cJSON_Print(json);
+  if (data == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  TdFilePtr fd = taosOpenFile(fname,                //
-                              TD_FILE_WRITE         //
-                                  | TD_FILE_CREATE  //
-                                  | TD_FILE_TRUNC);
-  if (fd == NULL) {
+  TdFilePtr fp = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (fp == NULL) {
     code = TAOS_SYSTEM_ERROR(code);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    goto _exit;
   }
 
-  int64_t n = taosWriteFile(fd, pData, strlen(pData) + 1);
-  if (n < 0) {
+  if (taosWriteFile(fp, data, strlen(data) + 1) < 0) {
     code = TAOS_SYSTEM_ERROR(code);
-    taosCloseFile(&fd);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    goto _exit;
   }
 
-  if (taosFsyncFile(fd) < 0) {
+  if (taosFsyncFile(fp) < 0) {
     code = TAOS_SYSTEM_ERROR(code);
-    taosCloseFile(&fd);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    goto _exit;
   }
 
-  taosCloseFile(&fd);
+  taosCloseFile(&fp);
 
 _exit:
-  if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s",  //
-              TD_VID(pFS->pTsdb->pVnode),               //
-              __func__,                                 //
-              lino,                                     //
-              tstrerror(code));
-  } else {
-    tsdbDebug("vgId:%d %s success",        //
-              TD_VID(pFS->pTsdb->pVnode),  //
-              __func__);
-  }
-  if (pData) {
-    taosMemoryFree(pData);
-  }
+  taosMemoryFree(data);
   return code;
 }
 
-static int32_t load_fs_from_file(const char *fname, STFileSystem *pFS) {
+static int32_t save_fs(int64_t eid, SArray *aTFileSet, const char *fname) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  cJSON *json = cJSON_CreateObject();
+  if (json == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  // fmtv
+  if (cJSON_AddNumberToObject(json, "fmtv", 1) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit)
+  }
+
+  // eid
+  if (cJSON_AddNumberToObject(json, "eid", eid) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit)
+  }
+
+  // fset
+  cJSON *ajson = cJSON_AddArrayToObject(json, "fset");
+  if (ajson == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit)
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(aTFileSet); i++) {
+    STFileSet *pFileSet = (STFileSet *)taosArrayGet(aTFileSet, i);
+
+    cJSON *tjson = cJSON_CreateObject();
+    if (tjson == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit)
+    }
+
+    code = tsdbFileSetToJson(pFileSet, tjson);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    cJSON_AddItemToArray(ajson, tjson);
+  }
+
+  code = save_json(json, fname);
+  TSDB_CHECK_CODE(code, lino, _exit)
+
+_exit:
+  if (code) {
+    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  cJSON_Delete(json);
+  return code;
+}
+
+static int32_t load_fs(const char *fname, STFileSystem *pFS) {
   ASSERTS(0, "TODO: Not implemented yet");
   return 0;
 }
@@ -280,10 +246,10 @@ static int32_t open_fs(STFileSystem *pFS, int8_t rollback) {
 
   current_fname(pTsdb, fCurrent, TSDB_FCURRENT);
   current_fname(pTsdb, cCurrent, TSDB_FCURRENT_C);
-  current_fname(pTsdb, mCurrent, TSDB_FCURRENT_C);
+  current_fname(pTsdb, mCurrent, TSDB_FCURRENT_M);
 
   if (taosCheckExistFile(fCurrent)) {  // current.json exists
-    code = load_fs_from_file(fCurrent, pFS);
+    code = load_fs(fCurrent, pFS);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     // check current.json.commit existence
@@ -302,16 +268,16 @@ static int32_t open_fs(STFileSystem *pFS, int8_t rollback) {
       code = abort_edit(pFS, TSDB_FS_EDIT_MERGE);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
+
+    code = scan_file_system(pFS);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = scan_and_schedule_merge(pFS);
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    code = save_fs_to_file(pFS, fCurrent);
+    code = save_fs(0, pFS->nstate, fCurrent);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  code = scan_file_system(pFS);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = scan_and_schedule_merge(pFS);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -427,19 +393,19 @@ int32_t tsdbFileSystemEditBegin(STFileSystem *pFS, const SArray *aFileOp, tsdb_f
   int32_t lino;
   char    fname[TSDB_FILENAME_LEN];
 
-  current_fname(pFS->pTsdb, fname, etype == TSDB_FS_EDIT_COMMIT ? TSDB_FCURRENT_C : TSDB_FCURRENT_M);
+  // current_fname(pFS->pTsdb, fname, etype == TSDB_FS_EDIT_COMMIT ? TSDB_FCURRENT_C : TSDB_FCURRENT_M);
 
-  tsem_wait(&pFS->canEdit);
+  // tsem_wait(&pFS->canEdit);
 
-  TSDB_CHECK_CODE(                   //
-      code = edit_fs(pFS, aFileOp),  //
-      lino,                          //
-      _exit);
+  // TSDB_CHECK_CODE(                   //
+  //     code = edit_fs(pFS, aFileOp),  //
+  //     lino,                          //
+  //     _exit);
 
-  TSDB_CHECK_CODE(                         //
-      code = save_fs_to_file(pFS, fname),  //
-      lino,                                //
-      _exit);
+  // TSDB_CHECK_CODE(                 //
+  //     code = save_fs(pFS, fname),  //
+  //     lino,                        //
+  //     _exit);
 
 _exit:
   if (code) {
