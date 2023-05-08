@@ -435,10 +435,9 @@ export default {
                   id: item.id,
                   name: item.name,
                 };
-              })
+              }).filter(val=>val.id!='tmq')
             : [];
 
-        console.log(this.connectorList, "连接器类型");
       } catch (error) {
         console.log(error);
       }

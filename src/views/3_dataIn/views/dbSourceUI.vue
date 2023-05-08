@@ -51,7 +51,10 @@
               ></div>
             </div>
           </div>
-          <div style="width: 100%" v-if="dbsource[0].options.port&&dbsource[0].options.port.display">
+          <div
+            style="width: 100%"
+            v-if="dbsource[0].options.port && dbsource[0].options.port.display"
+          >
             <span
               :class="[
                 'label',
@@ -111,7 +114,10 @@
             ></div>
           </div>
         </div> -->
-        <div style="width: 100%">
+        <div
+          style="width: 100%"
+          v-if="JSON.stringify(dbsource[0].options.subject) !== '{}'"
+        >
           <span
             :class="[
               'label',
@@ -131,7 +137,10 @@
           </div>
         </div>
       </section>
-      <section class="authentication" v-if="dbsource[0].authentication&&dbsource[0].authentication.display">
+      <section
+        class="authentication"
+        v-if="dbsource[0].authentication && dbsource[0].authentication.display"
+      >
         <div>
           <div class="block-title">
             <span>{{ dbsource[0].authentication.display }}</span>
@@ -204,9 +213,15 @@
             </template>
             <template v-else>
               <div
-                v-for="al in dbsource[0].authentication.alternatives.slice(1)"
+                v-for="al in dbsource[0].authentication.alternatives.filter(
+                  (item) => item.name != 'plain'
+                )"
                 :key="al.name"
-                style="display: flex; align-items: baseline"
+                style="
+                  display: flex;
+                  align-items: baseline;
+                  flex-direction: column;
+                "
               >
                 <span class="label">{{ al.display }}</span>
                 <div
@@ -225,72 +240,117 @@
           </div>
         </div>
       </section>
-      <section :class="['groups-dataset', dbsource[0].datasets?.name]" v-if="dbsource[0]?.datasets">
-            <div style="flex-direction: column; align-items: baseline">
-              <div class="block-title">
-                <span>{{ dbsource[0].datasets.name }}</span>
-              </div>
-              <div
-                class="description"
-                v-html="transforHtml(dbsource[0].datasets.description)"
-              ></div>
-            </div>
-            <template>
-              <el-tabs v-model="activeName" @tab-click="handleClick">
-                <el-tab-pane v-for="(p,pind) in dbsource[0].datasets.categories" :label="p.display" :name="p.category" :key="p.category" lazy>
-                  <div :key="pind">
-                    <div 
-                      class="description"
-                      v-html="transforHtml(p.description)"
-                    ></div>
-                    <div class="target">
-                      <template v-if="p.target.multiple">
-                        <el-select v-model="p.target.value" :multiple="p.target.multiple">
-                          <el-option v-for="(t,tind) in (p.target.value)" :key="tind" :value="tind" disabled>
-                            {{ t }}
-                          </el-option>
-                        </el-select>
-                      </template>
-                      <template v-else>
-                        <el-input v-model="p.target.value"></el-input>             
-                      </template>
-                      <el-button size="medium" @click="handleSelBtn" style="height: 42px;">Select</el-button>
-                    </div>
-                    <div class="configuration" v-if="isShowConfiguration">
-                      <el-input 
-                        placeholder="Regex Pattern Input" 
-                        v-model="p.value" 
-                        @input="searchDatas"
-                        ></el-input>
-                      <div>
-                        <div class="searchList" v-loading="loading">
-                          <div v-for="(c) in configurationdata" :key="c.id" :class="[activeDataSet.id == c.id ? 'actived' : '']" @click="handelDataSet(c)">{{ c.id }}</div>
-                        </div>
-                        <template v-if="Object.hasOwnProperty.call(activeDataSet, 'options')">
-                          <div class="options-wrap">
-                            <div class="option-list">
-                              <div class="option-item" v-for="o in activeDataSet.options " :key="o.name">
-                                <span :class="['label', o.required ? 'required' : '']">
-                                  {{ o.name }}
-                                </span>
-                                <el-input
-                                  placeholder="Please enter "
-                                  v-model="o.value"
-                                />
-                              </div>                     
-                            </div>
-                            <div>
-                              <el-button size="small" type="primary" plain @click="addOption">Add</el-button>
-                            </div>
-                          </div>
-                        </template>
+      <section
+        :class="['groups-dataset', dbsource[0].datasets?.name]"
+        v-if="dbsource[0]?.datasets"
+      >
+        <div style="flex-direction: column; align-items: baseline">
+          <div class="block-title">
+            <span>{{ dbsource[0].datasets.name }}</span>
+          </div>
+          <div
+            class="description"
+            v-html="transforHtml(dbsource[0].datasets.description)"
+          ></div>
+        </div>
+        <template>
+          <el-tabs v-model="activeName" @tab-click="handleClick">
+            <el-tab-pane
+              v-for="(p, pind) in dbsource[0].datasets.categories"
+              :label="p.display"
+              :name="p.category"
+              :key="p.category"
+              lazy
+            >
+              <div :key="pind">
+                <div
+                  class="description"
+                  v-html="transforHtml(p.description)"
+                ></div>
+                <div class="target">
+                  <template v-if="p.target.multiple">
+                    <el-select
+                      v-model="p.target.value"
+                      :multiple="p.target.multiple"
+                    >
+                      <el-option
+                        v-for="(t, tind) in p.target.value"
+                        :key="tind"
+                        :value="tind"
+                        disabled
+                      >
+                        {{ t }}
+                      </el-option>
+                    </el-select>
+                  </template>
+                  <template v-else>
+                    <el-input v-model="p.target.value"></el-input>
+                  </template>
+                  <el-button
+                    size="medium"
+                    @click="handleSelBtn"
+                    style="height: 42px"
+                    >Select</el-button
+                  >
+                </div>
+                <div class="configuration" v-if="isShowConfiguration">
+                  <el-input
+                    placeholder="Regex Pattern Input"
+                    v-model="p.value"
+                    @input="searchDatas"
+                  ></el-input>
+                  <div>
+                    <div class="searchList" v-loading="loading">
+                      <div
+                        v-for="c in configurationdata"
+                        :key="c.id"
+                        :class="[activeDataSet.id == c.id ? 'actived' : '']"
+                        @click="handelDataSet(c)"
+                      >
+                        {{ c.id }}
                       </div>
                     </div>
+                    <template
+                      v-if="
+                        Object.hasOwnProperty.call(activeDataSet, 'options')
+                      "
+                    >
+                      <div class="options-wrap">
+                        <div class="option-list">
+                          <div
+                            class="option-item"
+                            v-for="o in activeDataSet.options"
+                            :key="o.name"
+                          >
+                            <span
+                              :class="['label', o.required ? 'required' : '']"
+                            >
+                              {{ o.name }}
+                            </span>
+                            <el-input
+                              placeholder="Please enter "
+                              v-model="o.value"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <el-button
+                            size="small"
+                            type="primary"
+                            plain
+                            @click="addOption"
+                            >Add</el-button
+                          >
+                        </div>
+                      </div>
+                    </template>
                   </div>
-                </el-tab-pane>             
-              </el-tabs>
-            </template>
-          </section>
+                </div>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        </template>
+      </section>
       <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
@@ -302,7 +362,7 @@
               v-html="transforHtml(item.description)"
             ></div>
           </div>
-          <template v-for="(p,pind) in item.params">
+          <template v-for="(p, pind) in item.params">
             <div :key="pind">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
@@ -345,6 +405,14 @@
                   "
                 >
                   <el-input-number v-model="p.value"></el-input-number>
+                </template>
+                <template v-if="p.hint == 'time'">
+                  <el-date-picker
+                    v-model="p.value"
+                    type="date"
+                    placeholder="Please select the date"
+                  >
+                  </el-date-picker>
                 </template>
                 <div
                   v-html="transforHtml(p.description)"
@@ -421,12 +489,23 @@ export default {
       default: "",
     },
   },
-  filters:{
-    transtozh(val){
-    }
-  },
+  
   data() {
+    const startTimeOption=time=>  {
+      // if(this.dbsource[0].groups)
+      // let end=this.dbsource[0].groups[0].params.filter
+      return time.getTime() < Date.now() || time;
+    };
     return {
+      startOption:{
+        disabledDate:time=>startTimeOption(time)
+      },
+
+      endTimeOption: {
+        disabledDate(time) {
+          return time.getTime() < Date.now();
+        },
+      },
       decryptPwd: "", //解密的密码
       disable: false,
       address: "",
@@ -437,13 +516,13 @@ export default {
       radio: "",
       dblist: [],
       dbname: "",
-      activeName: '',
-      textarea:'',
+      activeName: "",
+      textarea: "",
       isShowConfiguration: false,
       loading: false,
       configurationdata: [],
       activeDataSet: {},
-      dbsource: []
+      dbsource: [],
     };
   },
   created() {
@@ -451,10 +530,12 @@ export default {
     if (this.isEditable) {
       this.dbname = this.dbName;
     }
-    this.dbsource = this.dbsourceList
+    this.dbsource = this.dbsourceList;
   },
   mounted() {
-    this.activeName = this.dbsource[0].datasets.categories[0].category
+    this.activeName = this.dbsource[0].datasets
+      ? this.dbsource[0].datasets.categories[0].category
+      : "";
   },
   watch: {
     dbName: {
@@ -500,7 +581,7 @@ export default {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
-      let enterTip = this.$t("dataIn.enterTip")
+      let enterTip = this.$t("dataIn.enterTip");
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
@@ -526,15 +607,16 @@ export default {
             data.options.host.value ? data.options.host.value : ""
           }
         `;
-        }else{
-          dns +=`://${
-            data.options.host.value ? data.options.host.value : ""
-          }`
+        } else {
+          dns += `://${data.options.host.value ? data.options.host.value : ""}`;
         }
 
         if (data.options.port) {
           dns +=
-            ((Object.is(data.options.port.value, null)||!data.options.port.value) ? "" : ":") +
+            (Object.is(data.options.port.value, null) ||
+            !data.options.port.value
+              ? ""
+              : ":") +
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
         dns += data.options.subject.value
@@ -570,28 +652,32 @@ export default {
         }
 
         if (data.datasets) {
-          for (let index = 0; index < data.datasets.categories.length; index++) {
+          for (
+            let index = 0;
+            index < data.datasets.categories.length;
+            index++
+          ) {
             // 判断必填项 多选时value为数组，单选时为字符串
-            let target = data.datasets.categories[index].target
-            if(
-              Object.hasOwnProperty.call(target,"required") 
-              && target.required
-              && target.value == null
+            let target = data.datasets.categories[index].target;
+            if (
+              Object.hasOwnProperty.call(target, "required") &&
+              target.required &&
+              target.value == null
             ) {
               Message({
                 type: "warning",
                 message: `${enterTip} ${target.name} `,
               });
               return;
-            } else if (target.value){
-              if (Array.isArray(target.value)) {              
-                let str = ""
-                for(let i = 0; i < target.value.length; i++) {
-                  str += `${target.value[i]},`
+            } else if (target.value) {
+              if (Array.isArray(target.value)) {
+                let str = "";
+                for (let i = 0; i < target.value.length; i++) {
+                  str += `${target.value[i]},`;
                 }
-                querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&"
+                querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
               } else {
-                querystr += `${target.name}=${target.value}` + "&"
+                querystr += `${target.name}=${target.value}` + "&";
               }
             }
           }
@@ -614,20 +700,26 @@ export default {
             (this.dbname ? "/" + this.dbname : ""),
           labels: ["type::datain", `cluster-id::${id}`],
         };
-        
+
         if (this.tagName === "datasource") {
           if (this.isEditable) {
-            await EditSource(apiParams, this.editId).then(() => {
-              this.$parent.toggleComponent("tmqtable");
-            }).catch(err=>{
-              err.response.data.message&&Message.error(err.response.data.message)
-            });
+            await EditSource(apiParams, this.editId)
+              .then(() => {
+                this.$parent.toggleComponent("tmqtable");
+              })
+              .catch((err) => {
+                err.response.data.message &&
+                  Message.error(err.response.data.message);
+              });
           } else {
-            await AddSource(apiParams).then((res) => {
-              this.$parent.toggleComponent('tmqtable');
-            }).catch(err=>{
-              err.response.data.message&&Message.error(err.response.data.message)
-            });
+            await AddSource(apiParams)
+              .then((res) => {
+                this.$parent.toggleComponent("tmqtable");
+              })
+              .catch((err) => {
+                err.response.data.message &&
+                  Message.error(err.response.data.message);
+              });
           }
         } else {
           let piParams = {
@@ -648,9 +740,9 @@ export default {
           } else {
             await AddSource(piParams).then((res) => {
               if (res && res.id) {
-              this.$parent.toggleComponent('pitable');
-              Message.success("Operation Successfully!");
-            }
+                this.$parent.toggleComponent("pitable");
+                Message.success("Operation Successfully!");
+              }
             });
           }
           // await AddSource(piParams).then((res) => {
@@ -666,103 +758,103 @@ export default {
     },
 
     handleClick(tab, event) {
-      this.isShowConfiguration = false
-      this.configurationdata = []
-      this.activeDataSet = {}
+      this.isShowConfiguration = false;
+      this.configurationdata = [];
+      this.activeDataSet = {};
       // console.log(tab, event);
     },
 
     handleSelBtn() {
-      this.isShowConfiguration = true
+      this.isShowConfiguration = true;
     },
 
     addOption() {
       // "format": "{id}::{table}::{field}::{type}"
-      let curData = this.configurationdata.filter((item) => item.id === this.activeDataSet.id)
-      let enterTip = this.$t("dataIn.enterTip")
-      let format = curData[0].id
-      let options = curData[0].options
-      for(let i = 0; i < options.length; i++) {
-        if(options[i].required && !options[i].value) {
+      let curData = this.configurationdata.filter(
+        (item) => item.id === this.activeDataSet.id
+      );
+      let enterTip = this.$t("dataIn.enterTip");
+      let format = curData[0].id;
+      let options = curData[0].options;
+      for (let i = 0; i < options.length; i++) {
+        if (options[i].required && !options[i].value) {
           Message({
             type: "warning",
             message: `${enterTip} ${options[i].name}`,
           });
-          return
+          return;
         }
-        format += `::${options[i].value}`
-
+        format += `::${options[i].value}`;
       }
-      let categories = []
-      categories = this.dbsource[0].datasets.categories.map(cate => {
-        if(cate.category == this.activeDataSet.category) {
-          if(Array.isArray(cate.target.value)) {
-            cate.target.value.push(format)
-            cate.target.value = Array.from(new Set(cate.target.value))
+      let categories = [];
+      categories = this.dbsource[0].datasets.categories.map((cate) => {
+        if (cate.category == this.activeDataSet.category) {
+          if (Array.isArray(cate.target.value)) {
+            cate.target.value.push(format);
+            cate.target.value = Array.from(new Set(cate.target.value));
           } else {
-            cate.target.value = format
+            cate.target.value = format;
           }
-        }  
-        return cate     
-      })    
+        }
+        return cate;
+      });
     },
     handelDataSet(data) {
-      this.activeDataSet = data
-      let categories = []
-      if(!Object.hasOwnProperty.call(data, "options")) {
-        categories = this.dbsource[0].datasets.categories.map(cate => {
-          if(cate.category == data.category) {
-            if(Array.isArray(cate.target.value)) {
-              cate.target.value.push(data.id)
-              cate.target.value = Array.from(new Set(cate.target.value))
+      this.activeDataSet = data;
+      let categories = [];
+      if (!Object.hasOwnProperty.call(data, "options")) {
+        categories = this.dbsource[0].datasets.categories.map((cate) => {
+          if (cate.category == data.category) {
+            if (Array.isArray(cate.target.value)) {
+              cate.target.value.push(data.id);
+              cate.target.value = Array.from(new Set(cate.target.value));
             } else {
-              cate.target.value = data.id
+              cate.target.value = data.id;
             }
-          }  
-          return cate     
-        }) 
-        this.dbsource[0].datasets.categories = categories      
+          }
+          return cate;
+        });
+        this.dbsource[0].datasets.categories = categories;
       }
     },
     searchDatas: debounce(function (value) {
       try {
         let data = this.dbsource[0];
-        let host = data.options.host.value ? data.options.host.value : ""
+        let host = data.options.host.value ? data.options.host.value : "";
         let subject = data.options.subject.value
           ? "/" + data.options.subject.value
           : "";
-        let enterTip = this.$t("dataIn.enterTip")
-        if(!host) {
+        let enterTip = this.$t("dataIn.enterTip");
+        if (!host) {
           Message({
             type: "warning",
             message: `${enterTip} ${data.options.host.display}`,
           });
-          return
+          return;
         }
-        if(!subject) {
+        if (!subject) {
           Message({
             type: "warning",
             message: `${enterTip} ${data.options.subject.display}`,
           });
-          return
+          return;
         }
         let params = null;
-          params = {
-            from: `pi://${host}${subject}`,
-            categories: [this.activeName],
-            pattern: value,
-            offset: 1,
-            limit: 10
-          };
-        this.loading = true
+        params = {
+          from: `pi://${host}${subject}`,
+          categories: [this.activeName],
+          pattern: value,
+          offset: 1,
+          limit: 10,
+        };
+        this.loading = true;
         getUaAndDaData(params).then((res) => {
-          this.loading = false
-          this.configurationdata = res
-          });
-        } catch (error) {
-          this.loading = false
-          console.log(error);
-        }
+          this.loading = false;
+          this.configurationdata = res;
+        });
+      } catch (error) {
+        this.loading = false;
+      }
     }, 100),
   },
 };
@@ -943,7 +1035,7 @@ export default {
     }
   }
   .configuration {
-    > div{
+    > div {
       display: flex;
       margin-top: 16px;
     }
@@ -954,28 +1046,28 @@ export default {
     .searchList {
       width: 50%;
       height: 210px;
-      border: 1px solid #DCDFE6;
+      border: 1px solid #dcdfe6;
       overflow-y: auto;
       > div {
-        border-bottom: 1px solid #DCDFE6;
+        border-bottom: 1px solid #dcdfe6;
         line-height: 30px;
       }
       .actived {
-        color: #4259ce; 
+        color: #4259ce;
         border-color: #c6cdf0;
-        background-color: #eceefa;  
+        background-color: #eceefa;
       }
       :hover {
-        cursor: pointer; 
-        color: #4259ce; 
+        cursor: pointer;
+        color: #4259ce;
         border-color: #c6cdf0;
-        background-color: #eceefa;     
+        background-color: #eceefa;
       }
     }
     .options-wrap {
       height: 210px;
       margin-left: 24px;
-      border: 1px solid #DCDFE6;
+      border: 1px solid #dcdfe6;
       padding: 16px 8px;
       flex: 1;
       .option-list {

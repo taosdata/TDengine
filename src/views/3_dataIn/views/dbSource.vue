@@ -4,6 +4,7 @@
       :is="currentName"
       :sourceList="sourceList"
       :dbsourceList="uidata"
+      :dbsource='uidata'
       :editId="editId"
       :dbName="dbName"
       :tagName="tagName"
