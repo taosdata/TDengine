@@ -194,7 +194,7 @@ export default {
         this.$parent.uidata = editDdata;
         localStorage.setItem("datainName", data.name);
         this.$parent.toggleComponent(
-          this.ruleForm.type,
+          '',
           data.from_detail.id,
           data.id,
           dbname

@@ -241,7 +241,7 @@
                   style="width: 100%; margin-top: 10px"
                 >
                   <span class="label">{{ p.display }}</span>
-                  <template v-if="p.hint == 'file'">
+                  <template v-if="p.hint == 'file'||p.hint.type=='file'">
                     <el-input v-model="p.value" type="textarea"></el-input
                   ></template>
                   <template v-if="p.hint.choices">

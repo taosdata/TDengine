@@ -223,12 +223,15 @@
                   flex-direction: column;
                 "
               >
-                <span class="label">{{ al.display }}</span>
+                <!-- <span class="label">{{ al.display }}</span> -->
                 <div
                   v-for="(p, index) in al.params"
                   :key="index"
                   style="width: 100%"
                 >
+                  <p>
+                    <span class="label">{{ p.display }}</span>
+                  </p>
                   <el-input v-model="p.value"></el-input>
                   <div
                     class="description"
@@ -409,7 +412,11 @@
                 <template v-if="p.hint == 'time'">
                   <el-date-picker
                     v-model="p.value"
+                    value-format="yyyy-MM-dd"
                     type="date"
+                    :picker-options="
+                      p.name == 'beginTime' ? startOption : endOption
+                    "
                     placeholder="Please select the date"
                   >
                   </el-date-picker>
@@ -463,6 +470,7 @@ import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt, debounce } from "@/utils/index";
+import {format} from 'date-fns'
 export default {
   name: "DbSourceUI",
   props: {
@@ -489,22 +497,35 @@ export default {
       default: "",
     },
   },
-  
+
   data() {
-    const startTimeOption=time=>  {
-      // if(this.dbsource[0].groups)
-      // let end=this.dbsource[0].groups[0].params.filter
-      return time.getTime() < Date.now() || time;
+    const startTimeOption = (time) => {
+      let end = this.dbsource[0].groups[0].params.filter(
+        (item) => item.name == "endTime"
+      );
+      if (end[0].value) {
+        return time.getTime() > new Date(end[0].value).getTime();
+      } else {
+        return false;
+      }
+    };
+    const endTimeOption = (time) => {
+      let start = this.dbsource[0].groups[0].params.filter(
+        (item) => item.name == "beginTime"
+      );
+      if (start[0].value) {
+        return time.getTime() < new Date(start[0].value).getTime();
+      } else {
+        return false;
+      }
     };
     return {
-      startOption:{
-        disabledDate:time=>startTimeOption(time)
+      startOption: {
+        disabledDate: (time) => startTimeOption(time),
       },
 
-      endTimeOption: {
-        disabledDate(time) {
-          return time.getTime() < Date.now();
-        },
+      endOption: {
+        disabledDate: (time) => endTimeOption(time),
       },
       decryptPwd: "", //解密的密码
       disable: false,
@@ -722,8 +743,9 @@ export default {
               });
           }
         } else {
+          console.log(this.tagName,'this.tagName--===');
           let piParams = {
-            from: "pi" + dns,
+            from: this.tagName=='influxdb'?'influxdb'+dns: "pi" + dns,
             name: localStorage.getItem("datainName"),
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
             // name: localStorage.getItem("datainName"),
