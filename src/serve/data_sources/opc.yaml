@@ -160,8 +160,10 @@ groups:
         description: Timeout for a request in seconds.
         placeholder: 10
 
+
+
   - name: Others
-    display_order: 3
+    display_order: 4
     description: Other configurations.
     params:
       - name: concurrent
@@ -181,3 +183,8 @@ groups:
           type: integer
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
+      - name: use_received_time
+        display: use_received_time
+        hint:
+          type: bool
+        description: use data received time as timestamp not server time

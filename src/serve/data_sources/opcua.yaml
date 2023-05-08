@@ -125,8 +125,41 @@ groups:
         description: Timeout for a request in seconds.
         placeholder: 10
 
-  - name: Others
+  - name: Collect
     display_order: 3
+    description: Some configurations used in connecting step.
+    params:
+      - name: interval
+        display: Collect interval
+        description: |-
+          collect data interval in second
+        hint:
+          type: integer
+
+      - name: limit
+        display: Collect limit
+        description: |-
+          The upper limit of points for one request for registration
+        hint:
+          type: integer
+          min: 0
+          max: 1000
+
+      - name: collect_mode
+        display: Request Timeout
+        description: |-
+          observe or subscribe. default is observe
+        placeholder: observe
+        choices:
+          - name: observe
+            display: OBSERVE
+            description: the timestamp written in TDengine is the timestamp when the data is received
+          - name: subscribe
+            display: SUBSCRIBE
+            description: the timestamp written in TDengine is the timestamp stored in OPC UA server
+
+  - name: Others
+    display_order: 4
     description: Other configurations.
     params:
       - name: concurrent
@@ -146,3 +179,8 @@ groups:
           type: integer
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
+      - name: use_received_time
+        display: use_received_time
+        hint:
+          type: bool
+        description: use data received time as timestamp not server time

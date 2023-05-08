@@ -299,8 +299,9 @@ async fn consume_point_record(
         // process id, ts, value
         let schema = message.schema();
         let id_index = schema.index_of("id")?;
-        let ts_index = schema.index_of("ts")?;
+        let server_ts_index = schema.index_of("ts")?;
         let value_index = schema.index_of("value")?;
+        let received_index = schema.index_of("received")?;
         let id_cv = cv_vec.remove(id_index);
         let table_info = &config.table_info;
         let ts_cloumn = &config.ts_cloumn_name;
@@ -312,11 +313,39 @@ async fn consume_point_record(
                 continue;
             }
             let (table, field, _) = table_info.unwrap();
-            let ts_cloumn_name = ts_cloumn.get(table).unwrap();
-            let sql = if ts_index > value_index {
-                format!("insert into {table} ({field}, {ts_cloumn_name}) values (?, ?)")
+            let (ts_cloumn_name, server_ts_column_name) = ts_cloumn.get(table).unwrap();
+            let sql = if config.use_received_time {
+                let server_ts_column_name = server_ts_column_name.clone().unwrap();
+                if server_ts_index > value_index && server_ts_index > received_index {
+                    if value_index > received_index {
+                        format!("insert into {table} ({ts_cloumn_name}, {field}, {server_ts_column_name}) values (?, ?, ?)")
+                    } else {
+                        format!("insert into {table} ({field}, {ts_cloumn_name}, {server_ts_column_name}) values (?, ?, ?)")
+                    }
+                } else if value_index > server_ts_index && value_index > received_index {
+                    if server_ts_index > received_index {
+                        format!("insert into {table} ({ts_cloumn_name}, {server_ts_column_name}, {field}) values (?, ?, ?)")
+                    } else {
+                        format!("insert into {table} ({server_ts_column_name}, {ts_cloumn_name}, {field}) values (?, ?, ?)")
+                    }
+                } else {
+                    if value_index > server_ts_index {
+                        format!("insert into {table} ({server_ts_column_name}, {field}, {ts_cloumn_name}) values (?, ?, ?)")
+                    } else {
+                        format!("insert into {table} ({field}, {server_ts_column_name}, {ts_cloumn_name}) values (?, ?, ?)")
+                    }
+                }
             } else {
-                format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
+                if id_index < received_index {
+                    cv_vec.remove(received_index - 1);
+                } else {
+                    cv_vec.remove(received_index);
+                }
+                if server_ts_index > value_index {
+                    format!("insert into {table} ({field}, {ts_cloumn_name}) values (?, ?)")
+                } else {
+                    format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
+                }
             };
             debug!("sql: {}", sql);
             stmt.prepare(&sql).unwrap();

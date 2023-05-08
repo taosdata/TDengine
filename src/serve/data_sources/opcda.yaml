@@ -88,3 +88,8 @@ groups:
           type: integer
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
+      - name: use_received_time
+        display: use_received_time
+        hint:
+          type: bool
+        description: use data received time as timestamp not server time
