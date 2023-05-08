@@ -61,7 +61,7 @@ def getGitHead(gitPath, repo):
     else:
         raise Exception(
             "get repo {0} git info failed, reason {1}".format(repo, output))
-    
+
 
 def readOption(filecontent, option):
     options = yamlfile[option]
@@ -189,7 +189,7 @@ def checkAndInitInput(options, version):
             f"pagMode only accept ['full', 'lite'],unsupport pagMode:{options['pagMode']}")
         raise Exception(
             f"pagMode only accept ['full', 'lite'],unsupport pagMode:{options['pagMode']}")
-    elif options['pagMode'] != options['buildOptions']['PAGMODE']:
+    elif options['buildOptions'].get('PAGMODE') is not None and options['pagMode'] != options['buildOptions']['PAGMODE']:
         logging.warning(
             f"pageMode on the top: {options['pagMode']} is not same as build option PAGMODE:{options['buildOptions']['PAGMODE']}, PAGMODE will be overrWritted")
         options['buildOptions']['PAGMODE'] = options['pagMode']
@@ -250,17 +250,18 @@ def prepareDir(options):
             logging.info("mkdir {0}".format(compileDir))
             os.mkdir(compileDir)
         else:
-            shutil.rmtree(compileDir)           
+            shutil.rmtree(compileDir)
             os.mkdir(compileDir)
-            logging.info("clean exist compile dir")    
+            logging.info("clean exist compile dir")
     else:
         logging.error("community dir not found")
         raise Exception("community dir not found")
 
     # mkdir release
     if os.path.exists(packageDir):
-        shutil.rmtree(packageDir)
-        os.mkdir(packageDir)
+        # shutil.rmtree(packageDir)
+        # os.mkdir(packageDir)
+        logging.info(f"{packageDir} exists")
     else:
         os.mkdir(packageDir)
     logging.info(f"make release dir:{packageDir}")
@@ -269,10 +270,10 @@ def prepareDir(options):
     if options['TDenginePackages'].get('rpm') is not None and options['TDenginePackages']['rpm']['enable'] == True:
         logging.info(f"make rpm release dir:{rpmsDir}")
         if os.path.exists(rpmsDir):
-            shutil.rmtree(rpmsDir)
+            # shutil.rmtree(rpmsDir)
             logging.info("remove exist rpm dir")
-            os.mkdir(rpmsDir)
-            logging.info("mkdir {0}".format(rpmsDir))
+            # os.mkdir(rpmsDir)
+            # logging.info("mkdir {0}".format(rpmsDir))
         else:
             logging.info("mkdir dir:{0}".format(rpmsDir))
             os.mkdir(rpmsDir)
@@ -282,8 +283,9 @@ def prepareDir(options):
         logging.info(f"make deb release dir:{debsDir}")
 
         if os.path.exists(debsDir):
-            shutil.rmtree(debsDir)
-            os.mkdir(debsDir)
+            # shutil.rmtree(debsDir)
+            # os.mkdir(debsDir)
+            logging.info(f"{debsDir} exists")
         else:
             os.mkdir(debsDir)
 
@@ -367,8 +369,8 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
             command += f" -DBUILD_HTTP=false "
             logging.info("BUILD_HTTP is false, taosAdapter will not be built")
         else:
-            command += f" -DBUILD_HTTP=${buildOptions['BUILD_HTTP']} "
-            logging.info(f"BUILD_HTTP is ${buildOptions['BUILD_HTTP']}")
+            command += f" -DBUILD_HTTP={buildOptions['BUILD_HTTP']} "
+            logging.info(f"BUILD_HTTP is {buildOptions['BUILD_HTTP']}")
     else:
         logging.error("buildOptions['BUILD_HTTP'] is not set")
         raise Exception("buildOptions['BUILD_HTTP'] is not set")
@@ -381,14 +383,17 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
 
     # 14
     if buildOptions.get('JEMALLOC_ENABLED') is not None and buildOptions['JEMALLOC_ENABLED'] == True:
-        platform = f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']}-{buildOptions['PAGMODE']}"
+        if buildOptions.get('PAGMODE') is not None:
+            platform = f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']}-{buildOptions['PAGMODE']}"
+        else:
+            platform = f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']}-full"
         if platform == 'Linux-x64-full':
             command += f" -DJEMALLOC_ENABLED=true "
         else:
             logging.warning(f"jemalloc is not supported on this {platform}")
     else:
         logging.info("Jemalloc build is not enabled")
-        
+
     # 15
     if buildOptions.get('BUILD_TAOSX') is not None:
         if buildOptions['BUILD_TAOSX'] == True:
@@ -404,7 +409,7 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
         logging.info("BUILD_TAOSX is not set, will not build taosx")
 
     # 16
-    if buildOptions.get('BUILD_TAOSX') is not None:
+    if buildOptions.get('BUILD_CLOUD') is not None:
         if buildOptions['BUILD_CLOUD'] == True:
             if verMode == 'cloud':
                 command += f" -DBUILD_CLOUD=true "
@@ -423,7 +428,7 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
         command += f" -DCUS_PROMPT={buildOptions['CUS_PROMPT']} "
     # 19
         command += f" -DCUS_EMAIL={buildOptions['CUS_EMAIL']} "
-    
+
     # 20
     if buildOptions.get('BUILD_EXPLORER') is not None:
         if buildOptions['BUILD_EXPLORER'] == False:
@@ -442,23 +447,25 @@ def generateCmakeCommand(buildOptions, verMode) -> str:
                 "BUILD_EXPLORER is not supported for this verMode:{}".format(verMode))
     else:
         logging.info("BUILD_EXPLORER is not set, will not build explorer")
-    
+
     # 21
     if buildOptions.get('PAGMODE') is not None:
-        if buildOptions['PAGMODE'] in ['full','lite']:
+        if buildOptions['PAGMODE'] in ['full', 'lite']:
             command += f" -DPAGMODE={buildOptions['PAGMODE']} "
         else:
-            logging.error(f"PAGMODE:{buildOptions['PAGMODE']} is not supported")
-            raise Exception(f"PAGMODE:{buildOptions['PAGMODE']} is not supported")
+            logging.error(
+                f"PAGMODE:{buildOptions['PAGMODE']} is not supported")
+            raise Exception(
+                f"PAGMODE:{buildOptions['PAGMODE']} is not supported")
     else:
         logging.info("PAGMODE is not setted")
-    
+
     # 22
-    if buildOptions.get('GRANT_VALUE') is not None and len(buildOptions['GRANT_VALUE']) > 0:
+    if buildOptions.get('GRANT_VALUE') is not None and type(buildOptions['GRANT_VALUE']) == int:
         command += f" -DGRANT_VALUE={buildOptions['GRANT_VALUE']} "
     else:
         logging.info("GRANT_VALUE is not setted")
-         
+
     logging.info(f"cmake command is {command}")
     return command
 
@@ -469,8 +476,8 @@ def buildInstall(options, verMode):
 
     logging.info(
         f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']} of {'community' if options['verMode']=='edge' else 'enterprise'} will be build.")
-    command = generateCmakeCommand(buildOptions, verMode)   
-    
+    command = generateCmakeCommand(buildOptions, verMode)
+
     os.chdir(compileDir)
     logging.info("compile Dir:{0}".format(compileDir))
     executeCommand(command)
@@ -483,7 +490,7 @@ def buildInstall(options, verMode):
     os.chdir(scriptDir)
 
 
-def makeTDenginePackages(packages, buildOptions, verMode):  
+def makeTDenginePackages(packages, buildOptions, verMode):
     # pack TDengine.tar.gz
     if packages.get('tar.gz') is not None and packages['tar.gz']['enable'] == True:
 
@@ -511,7 +518,7 @@ def makeTDenginePackages(packages, buildOptions, verMode):
     logging.debug(packages)
 
     # pack TDengine.rpm
-    if  packages.get('rpm') is not None and packages['rpm']['enable'] == True:
+    if packages.get('rpm') is not None and packages['rpm']['enable'] == True:
 
         if packages['rpm']['server']['enable'] == True:
             logging.info(
@@ -598,7 +605,8 @@ def makePackages(options, buildOptions, verMode):
 
     # ========= for taos tools ==========
     if options.get('taosToolsPackages') is not None and options['taosToolsPackages']['enable'] == True:
-        mkpkg.makeTaosToolPackages(options['taosToolsPackages'], buildOptions, verMode)
+        mkpkg.makeTaosToolPackages(
+            options['taosToolsPackages'], buildOptions, verMode)
     else:
         logging.warning("Skip making taosTools packages")
 
@@ -649,7 +657,7 @@ def doRelease(options, preActions, postActions, args):
 
     # ================= build and install
 
-    # buildInstall(options, options['verMode'])
+    # # buildInstall(options, options['verMode'])
 
     # ================ making packages
     makePackages(options, options['buildOptions'], options['verMode'])

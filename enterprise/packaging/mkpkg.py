@@ -211,21 +211,26 @@ def makePackageDirs(dirs):
 
 
 def makePackageName(buildOptions, verMode, type) -> str:
+    if buildOptions.get('PAGMODE') is None:
+        tmpPagMode = 'full'
+    else:
+        tmpPagMode = buildOptions['PAGMODE']
+    
     if type == 'server':
-        if verMode == 'cluster' and buildOptions['PAGMODE'] == 'full':
+        if verMode == 'cluster' and tmpPagMode == 'full':
             # TDengine-enterprise-server-3.0.3.1.20230327-Linux-x64
             pkgName = '{0}-{1}-server-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
-        elif verMode == 'cluster' and buildOptions['PAGMODE'] == 'lite':
+        elif verMode == 'cluster' and tmpPagMode == 'lite':
             pkgName = '{0}-{1}-server-{2}-{6}{3}-{4}-{5}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                                  buildOptions['CPUTYPE'], 'Lite', '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
-        elif verMode == 'cloud' and buildOptions['PAGMODE'] == 'full':
+        elif verMode == 'cloud' and tmpPagMode == 'full':
             pkgName = '{0}-{1}-server-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], 'cloud', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
-        elif verMode == 'edge' and buildOptions['PAGMODE'] == 'full':
+        elif verMode == 'edge' and tmpPagMode == 'full':
             pkgName = '{0}-server-{1}-{4}{2}-{3}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                          buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
-        elif verMode == 'edge' and buildOptions['PAGMODE'] == 'lite':
+        elif verMode == 'edge' and tmpPagMode == 'lite':
             pkgName = '{0}-server-{1}-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], 'Lite', '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
 
@@ -235,20 +240,20 @@ def makePackageName(buildOptions, verMode, type) -> str:
             raise Exception("unsupported verMOde:{0} or pagMode".format(
                 verMode, buildOptions['PAGMODE']))
     elif type == 'client':
-        if verMode == 'cluster' and buildOptions['PAGMODE'] == 'full':
+        if verMode == 'cluster' and tmpPagMode == 'full':
             # TDengine-enterprise-client-3.0.3.1.20230327-Linux-x64
             pkgName = '{0}-{1}-client-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
-        elif verMode == 'cluster' and buildOptions['PAGMODE'] == 'lite':
+        elif verMode == 'cluster' and tmpPagMode == 'lite':
             pkgName = '{0}-{1}-client-{2}-{3}-{6}{4}-{5}'.format(buildOptions['CUS_NAME'], 'enterprise', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                                  buildOptions['CPUTYPE'], 'Lite', '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
-        elif verMode == 'cloud' and buildOptions['PAGMODE'] == 'full':
+        elif verMode == 'cloud' and tmpPagMode == 'full':
             pkgName = '{0}-{1}-client-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], 'cloud', buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
-        elif verMode == 'edge' and buildOptions['PAGMODE'] == 'full':
+        elif verMode == 'edge' and tmpPagMode == 'full':
             pkgName = '{0}-client-{1}-{4}{2}-{3}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                          buildOptions['CPUTYPE'], '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
-        elif verMode == 'edge' and buildOptions['PAGMODE'] == 'lite':
+        elif verMode == 'edge' and tmpPagMode == 'lite':
             pkgName = '{0}-client-{1}-{2}-{5}{3}-{4}'.format(buildOptions['CUS_NAME'], buildOptions['VERNUMBER'], buildOptions['OSTYPE'],
                                                              buildOptions['CPUTYPE'], 'Lite', '' if buildOptions['VERTYPE'] == 'stable' else '{}-'.format(buildOptions['VERTYPE']))
         else:
@@ -323,7 +328,7 @@ def copyExamples(packageComponent, buildOptions):
             logging.info("copy examples of {0} into {1} success".format(
                     example, dstExampleDir))
 
-        if buildOptions['PAGMODE'] != 'lite' and buildOptions['CPUTYPE'] != 'aarch32':
+        if buildOptions.get('PAGMODE') is not None and buildOptions['PAGMODE'] != 'lite' and buildOptions['CPUTYPE'] != 'aarch32':
             targetToRemove = [
                 os.path.join(dstExampleDir, 'examples', 'JDBC',
                              'connectionPools', 'target'),
@@ -612,7 +617,7 @@ def initTaosToolsBinFiles(packageComponent):
 
 def initRemoveServerScript(verMode, buildOptions):
     logging.info("init remove.sh ...")
-    if verMode not in ['edge', 'enterprise', 'cloud']:
+    if verMode not in ['edge', 'cluster', 'cloud']:
         raise Exception("unsupported verMode:{0}".format(verMode))
 
     if buildOptions.get('PAGMODE') is not None and buildOptions['PAGMODE'] not in ['full', 'lite']:
@@ -663,7 +668,7 @@ def initRemoveServerScript(verMode, buildOptions):
 
 def initRemoveClientScript(verMode, buildOptions):
     logging.info("init remove_client.sh ...")
-    if verMode not in ['edge', 'enterprise', 'cloud']:
+    if verMode not in ['edge', 'cluster', 'cloud']:
         raise Exception("unsupported verMode:{0}".format(verMode))
 
     if buildOptions.get('PAGMODE') is not None and buildOptions['PAGMODE'] not in ['full', 'lite']:
@@ -712,7 +717,7 @@ def copyInstallServerScript(packageComponent, buildOption, verMode):
         os.chmod(os.path.join(packagingDir, 'install.sh'), 0o755)
         os.remove(os.path.join(packagingDir, 'install_tmp.sh'))
 
-    if buildOption['PAGMODE'] == "cloud":
+    if buildOption.get('PAGMODE') is not None and buildOption['PAGMODE'] == "cloud":
         with open(os.path.join(packagingDir, 'install.sh'), 'r') as f_in,\
                 tempfile.NamedTemporaryFile(mode='w', delete=False) as f_out:
             for line in f_in:
@@ -720,7 +725,7 @@ def copyInstallServerScript(packageComponent, buildOption, verMode):
         os.replace(f_out.name, os.path.join(packagingDir, 'install.sh'))
         os.chmod(os.path.join(packagingDir, 'install.sh'), 0o755)
 
-    if buildOption['PAGMODE'] == "lite":
+    if buildOption.get('PAGMODE') is not None and buildOption['PAGMODE'] == "lite":
         with open(os.path.join(packagingDir, 'install.sh'), 'r') as f_in,\
                 tempfile.NamedTemporaryFile(mode='w', delete=False) as f_out:
             for line in f_in:
@@ -777,7 +782,7 @@ def copyInstallClientScript(packageComponent, buildOption, verMode):
             packagingDir, 'install_client.sh'))
         os.chmod(os.path.join(packagingDir, 'install_client.sh'), 0o755)
 
-    if buildOption['PAGMODE'] == "lite":
+    if buildOption.get('PAGMODE') is not None and buildOption['PAGMODE'] == "lite":
         with open(os.path.join(packagingDir, 'install_client.sh')) as f_in, open(os.path.join(packagingDir, 'install_client_temp.sh'), 'w') as f_out:
             # 将 full 替换为 lite
             for line in f_in:
@@ -940,7 +945,7 @@ def tarServer(packageComponent, buildOptions, verMode):
     os.rename(packagingDir,os.path.join(releaseDir,packageName))
     logging.debug(os.getcwd())
     
-    executeCommand(f'tar -zcv -f "$(basename {packageName}).tar.gz" "$(basename {os.path.join(releaseDir,packageName)})" --remove-files || :')
+    executeCommand(f'tar -zcv -f ${packageName}.tar.gz "$(basename {os.path.join(releaseDir,packageName)})" --remove-files || :')
     
     logging.info(f"packing {packageName}.tar.gz at {releaseDir} done")
     os.chdir(scriptDir)
