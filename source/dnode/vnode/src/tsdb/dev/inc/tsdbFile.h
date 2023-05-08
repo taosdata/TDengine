@@ -25,13 +25,14 @@ extern "C" {
 typedef struct STFile STFile;
 
 typedef enum {
-  TSDB_FTYPE_HEAD = 0,  // .head
-  TSDB_FTYPE_DATA,      // .data
-  TSDB_FTYPE_SMA,       // .sma
-  TSDB_FTYPE_TOMB,      // .tomb
-  TSDB_FTYPE_MAX,       // max
-  TSDB_FTYPE_STT,       // .stt
+  TSDB_FTYPE_HEAD = 0,                   // .head
+  TSDB_FTYPE_DATA,                       // .data
+  TSDB_FTYPE_SMA,                        // .sma
+  TSDB_FTYPE_TOMB,                       // .tomb
+  TSDB_FTYPE_STT = TSDB_FTYPE_TOMB + 2,  // .stt
 } tsdb_ftype_t;
+
+#define TSDB_FTYPE_MAX (TSDB_FTYPE_TOMB + 1)
 
 int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile);
 int32_t tsdbTFileClear(STFile *pFile);
@@ -49,8 +50,8 @@ struct STFile {
   int32_t      fid;
   union {
     struct {
-      int32_t level;
-      int32_t nSeg;
+      int32_t lvl;
+      int32_t nseg;
     } stt;
   };
 };
