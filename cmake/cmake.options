@@ -178,7 +178,6 @@ option(
    "If use dev code" 
    ON 
 )
-
 if (${USE_DEV_CODE})
     add_definitions(-DUSE_DEV_CODE)
 endif(USE_DEV_CODE)

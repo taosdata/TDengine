@@ -69,14 +69,14 @@ static int32_t tsdbCloseMerger(SMerger *pMerger) {
 
   STsdb *pTsdb = pMerger->pTsdb;
 
-  code = tsdbFileSystemEditBegin(pTsdb->pFS, pMerger->aFileOp, TSDB_FS_EDIT_MERGE);
+  code = tsdbFSEditBegin(pTsdb->pFS, pMerger->aFileOp, TSDB_FEDIT_MERGE);
   TSDB_CHECK_CODE(code, lino, _exit)
 
 _exit:
   if (code) {
-    tsdbFileSystemEditAbort(pTsdb->pFS, TSDB_FS_EDIT_MERGE);
+    tsdbFSEditAbort(pTsdb->pFS, TSDB_FEDIT_MERGE);
   } else {
-    tsdbFileSystemEditCommit(pTsdb->pFS, TSDB_FS_EDIT_MERGE);
+    tsdbFSEditCommit(pTsdb->pFS, TSDB_FEDIT_MERGE);
   }
   tsdbDestroyMerger(pMerger);
   return code;

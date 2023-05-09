@@ -26,26 +26,28 @@ extern "C" {
 typedef struct STFileSystem STFileSystem;
 
 typedef enum {
-  TSDB_FS_EDIT_COMMIT = 1,  //
-  TSDB_FS_EDIT_MERGE
-} tsdb_fs_edit_t;
+  TSDB_FEDIT_COMMIT = 1,  //
+  TSDB_FEDIT_MERGE
+} EFEditT;
 
 /* Exposed APIs */
 // open/close
 int32_t tsdbOpenFileSystem(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback);
 int32_t tsdbCloseFileSystem(STFileSystem **ppFS);
 // txn
-int32_t tsdbFileSystemEditBegin(STFileSystem *pFS, const SArray *aFileOp, tsdb_fs_edit_t etype);
-int32_t tsdbFileSystemEditCommit(STFileSystem *pFS, tsdb_fs_edit_t etype);
-int32_t tsdbFileSystemEditAbort(STFileSystem *pFS, tsdb_fs_edit_t etype);
+int32_t tsdbFSEditBegin(STFileSystem *pFS, const SArray *aFileOp, EFEditT etype);
+int32_t tsdbFSEditCommit(STFileSystem *pFS, EFEditT etype);
+int32_t tsdbFSEditAbort(STFileSystem *pFS, EFEditT etype);
 
 /* Exposed Structs */
 struct STFileSystem {
   STsdb  *pTsdb;
   int32_t state;
   tsem_t  canEdit;
-  int64_t nextEditId;
+  int64_t neid;
   SArray *cstate;  // current state, SArray<STFileSet>
+  EFEditT etype;
+  int64_t eid;
   SArray *nstate;  // next state, SArray<STFileSet>
 };
 
