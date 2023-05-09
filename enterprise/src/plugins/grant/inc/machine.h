@@ -63,12 +63,19 @@
 #define GRANT_TABLE_LIMITS         4102416000
 
 // specific for connectors
+#define GRANT_CONN_MAJOR_VER           1 // increase if the definition of data structure or active code changes
+#define GRANT_CONN_MINOR_VER           1
 #define GRANT_CONN_NUM_V1              32
 #define GRANT_CONN_NUM                 GRANT_CONN_NUM_V1
 #define GRANT_CONN_ACTIVE_KEY_LEN      108
 #define GRANT_CONN_ACTIVE_RAW_LEN      80
 #define GRANT_CONN_ACTIVE_ENCRYPT_LEN  72
 #define GRANT_CONN_HASH_LEN            (GRANT_CONN_ACTIVE_RAW_LEN - GRANT_CONN_ACTIVE_ENCRYPT_LEN)
+
+typedef enum {
+  GRANT_OBJ_SERVER = 0,
+  GRANT_OBJ_CONNECTORS,
+} EGrantObj;
 
 // connectors
 typedef enum {
@@ -152,6 +159,7 @@ typedef struct {
   uint32_t curDnodes;
   uint32_t limitDnodes;
   uint32_t limitCpuCores;
+  uint32_t curCpuCores;  // version 2 since 3.0.5.0
 } SGrantStatus;
 
 typedef struct {
@@ -178,6 +186,7 @@ typedef struct {
 char *grantGetMachineSerials();
 bool  grantGenActiveCode(SGrantObj *grant);
 bool  grantParseActiveCode(SGrantObj *grant);
+bool  grantConnParseActiveCode(SGrantConnObj *grant);
 bool  grantCheckMachineCode(SGrantObj *grant);
 bool  grantCheckClusterId(SGrantObj *grant);
 void  grantActiveSystem(const char *cfgFile);

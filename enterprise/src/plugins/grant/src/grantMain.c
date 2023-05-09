@@ -126,7 +126,7 @@ static void     grantRetrieveGrantInfo(SMnode *pMnode);
 static void     grantResetMaster(SMnode *pMnode);
 static void     grantSetClusterInfo(SMnode *pMnode);
 static int32_t  mndProcessGrantHB(SRpcMsg *pReq);
-static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus);
+static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus, SDnodeInfo *pInfo);
 static int32_t  mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, GrantMsg *pGrantMsg,
                                          GrantStatus *pGrantStatus);
 static int32_t  tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, SDnodeInfo *pInfo);
@@ -242,6 +242,16 @@ static FORCE_INLINE void grantSetClusterId(SMnode *pMnode) {
     }
   }
 }
+
+static void grantSetActiveCodes(SDnodeInfo *pInfo) {
+  if (0 != pInfo->active[0] && 0 != strncmp(grantObj.active, pInfo->active, TSDB_ACTIVE_KEY_LEN)) {
+    tstrncpy(grantObj.active, pInfo->active, TSDB_ACTIVE_KEY_LEN);
+  }
+  if (0 != pInfo->connActive[0] && 0 != strncmp(grantConnObj.active, pInfo->connActive, TSDB_CONN_ACTIVE_KEY_LEN)) {
+    tstrncpy(grantConnObj.active, pInfo->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
+  }
+}
+
 /**
  * @brief process grant status msg in dnode and respond with grant msg
  *
@@ -258,8 +268,8 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   }
   // step 1: process grant status from mnode
   GrantStatus grantStatusReq = {0};
-  SDnodeInfo  dndInfo = {0};
-  if (tDeserializeGrantStatus(pMsg->pCont, pMsg->contLen, &grantStatusReq, &dndInfo) != 0) {
+  SDnodeInfo  dnodeInfo = {0};
+  if (tDeserializeGrantStatus(pMsg->pCont, pMsg->contLen, &grantStatusReq, &dnodeInfo) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     uWarn("failed to process grant req in dnode since %s", terrstr());
     goto _err;
@@ -278,7 +288,7 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   // step 3: respond with grant msg
   grantSetClusterIdEx(*(int64_t *)pInfo);
   GrantMsg grantMsg = {0};
-  dmGenerateGrantMsg(&grantMsg, &grantStatusReq);
+  dmGenerateGrantMsg(&grantMsg, &grantStatusReq, &dnodeInfo);
   int32_t contLen = tSerializeGrantMsg(NULL, 0, &grantMsg);
   void   *pCont = rpcMallocCont(contLen);
   if (!pCont) {
@@ -315,7 +325,8 @@ static void dmRefreshGrantCfg() {
   grantActiveSystem(cfgFile);
 }
 
-static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus) {
+static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus, SDnodeInfo *pInfo) {
+  grantSetActiveCodes(pInfo);
 #ifdef GRANTS_CFG
   pGrantMsg->updateForced = tsGrantUpdateForced;
   tsGrantUpdateForced = false;
@@ -647,6 +658,24 @@ static uint32_t grantGetClusterCurTables(SMnode *pMnode) {
   return numOfPoints;
 }
 
+static uint32_t grantGetClusterCurCores(SMnode *pMnode) {
+  SSdb      *pSdb = pMnode->pSdb;
+  SDnodeObj *pDnode = NULL;
+  void      *pIter = NULL;
+  uint32_t   numOfCores = 0;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    numOfCores += (uint32_t)pDnode->numOfCores;
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  return numOfCores;
+}
+
 /**
  * @brief retrieve the statis info
  *
@@ -667,6 +696,7 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   grantStatus.curAccts = grantGetClusterCurAccts(pMnode);
   grantStatus.curDnodes = grantGetClusterCurDnodes(pMnode);
   grantStatus.curDbs = grantGetClusterCurDbs(pMnode);
+  grantStatus.curCpuCores = grantGetClusterCurCores(pMnode);
 #endif
 }
 
@@ -1372,11 +1402,15 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, S
   if (tEncodeU32v(&encoder, pStatus->curUsers) < 0) return -1;
   if (tEncodeU32v(&encoder, pStatus->curAccts) < 0) return -1;
   if (tEncodeU32v(&encoder, pStatus->curDnodes) < 0) return -1;
-
+  // version 2: support curCurCores since 3.0.5.0
+  if (tEncodeU32v(&encoder, pStatus->curCpuCores) < 0) return -1;
 #endif
   // version 2: support activeCode/connectors activeCode since 3.0.5.0
+  int8_t flag = 0;
+  if (tEncodeI8(&encoder, flag) < 0) return -1; // for extend
   if (tEncodeBinary(&encoder, pInfo->active, TSDB_ACTIVE_KEY_LEN - 1) < 0) return -1;
   if (tEncodeBinary(&encoder, pInfo->connActive, TSDB_CONN_ACTIVE_KEY_LEN - 1) < 0) return -1;
+  // end of version 2
 
   tEndEncode(&encoder);
 
@@ -1430,10 +1464,16 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   if (tDecodeU32v(&decoder, &pStatus->curUsers) < 0) return -1;
   if (tDecodeU32v(&decoder, &pStatus->curAccts) < 0) return -1;
   if (tDecodeU32v(&decoder, &pStatus->curDnodes) < 0) return -1;
+  // version 2: support curCurCores since 3.0.5.0
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeU32v(&decoder, &pStatus->curCpuCores) < 0) return -1;
+  }
 #endif
 
   // version 2: support activeCode/connectors activeCode since 3.0.5.0
   if (!tDecodeIsEnd(&decoder)) {
+    int8_t flag = 0;
+    if (tDecodeI8(&decoder, &flag) < 0) return -1;
     if (tDecodeBinary(&decoder, (uint8_t **)&pInfo->active, NULL) < 0) return -1;
     if (tDecodeBinary(&decoder, (uint8_t **)&pInfo->connActive, NULL) < 0) return -1;
   }
