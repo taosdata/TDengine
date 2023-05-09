@@ -1475,15 +1475,15 @@ int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
 
   CTG_CACHE_NUM_INC(CTG_CI_DB, 1);
 
-  SDbCacheInfo vgVersion = {.dbId = newDBCache.dbId, .vgVersion = -1, .stateTs = 0};
-  tstrncpy(vgVersion.dbFName, dbFName, sizeof(vgVersion.dbFName));
+  SDbCacheInfo dbCacheInfo = {.dbId = newDBCache.dbId, .vgVersion = -1, .stateTs = 0, .cfgVersion = -1};
+  tstrncpy(dbCacheInfo.dbFName, dbFName, sizeof(dbCacheInfo.dbFName));
 
   ctgDebug("db added to cache, dbFName:%s, dbId:0x%" PRIx64, dbFName, dbId);
 
   if (!IS_SYS_DBNAME(dbFName)) {
-    CTG_ERR_RET(ctgMetaRentAdd(&pCtg->dbRent, &vgVersion, dbId, sizeof(SDbCacheInfo)));
+    CTG_ERR_RET(ctgMetaRentAdd(&pCtg->dbRent, &dbCacheInfo, dbId, sizeof(SDbCacheInfo)));
 
-    ctgDebug("db added to rent, dbFName:%s, vgVersion:%d, dbId:0x%" PRIx64, dbFName, vgVersion.vgVersion, dbId);
+    ctgDebug("db added to rent, dbFName:%s, vgVersion:%d, dbId:0x%" PRIx64, dbFName, dbCacheInfo.vgVersion, dbId);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1822,8 +1822,8 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
   }
 
   bool         newAdded = false;
-  SDbCacheInfo vgVersion = {
-      .dbId = msg->dbId, .vgVersion = dbInfo->vgVersion, .numOfTable = dbInfo->numOfTable, .stateTs = dbInfo->stateTs};
+  SDbCacheInfo dbCacheInfo = {
+      .dbId = msg->dbId, .vgVersion = dbInfo->vgVersion, .cfgVersion = -1, .numOfTable = dbInfo->numOfTable, .stateTs = dbInfo->stateTs};
 
   SCtgDBCache *dbCache = NULL;
   CTG_ERR_JRET(ctgGetAddDBCache(msg->pCtg, dbFName, msg->dbId, &dbCache));
@@ -1859,20 +1859,24 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
     CTG_DB_NUM_RESET(CTG_CI_DB_VGROUP);
   }
 
+  if (dbCache->cfgCache.cfgInfo) {
+    dbCacheInfo.cfgVersion = dbCache->cfgCache.cfgInfo->cfgVersion;
+  }
+
   vgCache->vgInfo = dbInfo;
   msg->dbInfo = NULL;
   CTG_DB_NUM_SET(CTG_CI_DB_VGROUP);
 
   ctgDebug("db vgInfo updated, dbFName:%s, vgVer:%d, stateTs:%" PRId64 ", dbId:0x%" PRIx64, dbFName,
-           vgVersion.vgVersion, vgVersion.stateTs, vgVersion.dbId);
+           dbCacheInfo.vgVersion, dbCacheInfo.stateTs, dbCacheInfo.dbId);
 
   ctgWUnlockVgInfo(dbCache);
 
   dbCache = NULL;
 
   // if (!IS_SYS_DBNAME(dbFName)) {
-  tstrncpy(vgVersion.dbFName, dbFName, sizeof(vgVersion.dbFName));
-  CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &vgVersion, vgVersion.dbId, sizeof(SDbCacheInfo),
+  tstrncpy(dbCacheInfo.dbFName, dbFName, sizeof(dbCacheInfo.dbFName));
+  CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &dbCacheInfo, dbCacheInfo.dbId, sizeof(SDbCacheInfo),
                                  ctgDbCacheInfoSortCompare, ctgDbCacheInfoSearchCompare));
   //}
 

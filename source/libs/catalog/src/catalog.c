@@ -933,6 +933,23 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogUpdateDbCfg(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SDbCfgInfo* cfgInfo) {
+  CTG_API_ENTER();
+
+  int32_t code = 0;
+
+  if (NULL == pCtg || NULL == dbFName || NULL == cfgInfo) {
+    freeDbCfgInfo(cfgInfo);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  code = ctgUpdateDbCfgEnqueue(pCtg, dbFName, dbId, cfgInfo, false);
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
 int32_t catalogRemoveDB(SCatalog* pCtg, const char* dbFName, uint64_t dbId) {
   CTG_API_ENTER();
 

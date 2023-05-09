@@ -729,7 +729,7 @@ int32_t metaGetCachedTbGroup(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, i
     return TSDB_CODE_FAILED;
   }
 
-  *pList = taosLRUCacheValue(pCache, pHandle);
+  *pList = taosArrayDup(taosLRUCacheValue(pCache, pHandle), NULL);
 
   (*pEntry)->hitTimes += 1;
 

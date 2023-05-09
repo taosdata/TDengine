@@ -178,6 +178,8 @@ int32_t catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* 
 
 int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgInfo* dbInfo);
 
+int32_t catalogUpdateDbCfg(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SDbCfgInfo* cfgInfo);
+
 int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);
 
 int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName);

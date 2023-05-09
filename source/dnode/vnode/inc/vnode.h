@@ -123,6 +123,11 @@ int32_t  metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, in
                                int32_t payloadLen, double selectivityRatio);
 int32_t  metaUidCacheClear(SMeta *pMeta, uint64_t suid);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
+int32_t  metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
+int32_t  metaGetCachedTbGroup(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray** pList);
+int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
+                              int32_t payloadLen);
+
 int64_t  metaGetTbNum(SMeta *pMeta);
 int64_t  metaGetNtbNum(SMeta *pMeta);
 typedef struct {

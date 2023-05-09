@@ -94,47 +94,51 @@ _return:
 static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
   int32_t code = 0;
 
-  SUseDbBatchRsp batchUseRsp = {0};
-  if (tDeserializeSUseDbBatchRsp(value, valueLen, &batchUseRsp) != 0) {
+  SDbHbBatchRsp batchRsp = {0};
+  if (tDeserializeSDbHbBatchRsp(value, valueLen, &batchRsp) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  int32_t numOfBatchs = taosArrayGetSize(batchUseRsp.pArray);
+  int32_t numOfBatchs = taosArrayGetSize(batchRsp.pArray);
   for (int32_t i = 0; i < numOfBatchs; ++i) {
-    SUseDbRsp *rsp = taosArrayGet(batchUseRsp.pArray, i);
-    tscDebug("hb db rsp, db:%s, vgVersion:%d, stateTs:%" PRId64 ", uid:%" PRIx64, rsp->db, rsp->vgVersion, rsp->stateTs,
-             rsp->uid);
-
-    if (rsp->vgVersion < 0) {
-      code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
-    } else {
-      SDBVgInfo *vgInfo = NULL;
-      code = hbGenerateVgInfoFromRsp(&vgInfo, rsp);
-      if (TSDB_CODE_SUCCESS != code) {
-        goto _return;
-      }
-
-      catalogUpdateDBVgInfo(pCatalog, rsp->db, rsp->uid, vgInfo);
-
-      if (IS_SYS_DBNAME(rsp->db)) {
-        code = hbGenerateVgInfoFromRsp(&vgInfo, rsp);
+    SDbHbRsp *rsp = taosArrayGet(batchRsp.pArray, i);
+    if (rsp->useDbRsp) {
+      tscDebug("hb use db rsp, db:%s, vgVersion:%d, stateTs:%" PRId64 ", uid:%" PRIx64, 
+        rsp->useDbRsp->db, rsp->useDbRsp->vgVersion, rsp->useDbRsp->stateTs, rsp->useDbRsp->uid);
+        
+      if (rsp->useDbRsp->vgVersion < 0) {
+        code = catalogRemoveDB(pCatalog, rsp->useDbRsp->db, rsp->useDbRsp->uid);
+      } else {
+        SDBVgInfo *vgInfo = NULL;
+        code = hbGenerateVgInfoFromRsp(&vgInfo, rsp->useDbRsp);
         if (TSDB_CODE_SUCCESS != code) {
           goto _return;
         }
-
-        catalogUpdateDBVgInfo(pCatalog, (rsp->db[0] == 'i') ? TSDB_PERFORMANCE_SCHEMA_DB : TSDB_INFORMATION_SCHEMA_DB, rsp->uid, vgInfo);
+      
+        catalogUpdateDBVgInfo(pCatalog, rsp->useDbRsp->db, rsp->useDbRsp->uid, vgInfo);
+      
+        if (IS_SYS_DBNAME(rsp->useDbRsp->db)) {
+          code = hbGenerateVgInfoFromRsp(&vgInfo, rsp->useDbRsp);
+          if (TSDB_CODE_SUCCESS != code) {
+            goto _return;
+          }
+      
+          catalogUpdateDBVgInfo(pCatalog, (rsp->useDbRsp->db[0] == 'i') ? TSDB_PERFORMANCE_SCHEMA_DB : TSDB_INFORMATION_SCHEMA_DB, rsp->useDbRsp->uid, vgInfo);
+        }
       }
     }
 
-    if (code) {
-      goto _return;
+    if (rsp->cfgRsp) {
+      tscDebug("hb db cfg rsp, db:%s, cfgVersion:%d", rsp->cfgRsp->db, rsp->cfgRsp->cfgVersion);
+      catalogUpdateDbCfg(pCatalog, rsp->cfgRsp->db, rsp->cfgRsp->dbId, rsp->cfgRsp);
+      rsp->cfgRsp = NULL;
     }
   }
 
 _return:
 
-  tFreeSUseDbBatchRsp(&batchUseRsp);
+  tFreeSDbHbBatchRsp(&batchRsp);
   return code;
 }
 
@@ -526,11 +530,12 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
 
   for (int32_t i = 0; i < dbNum; ++i) {
     SDbCacheInfo *db = &dbs[i];
-    tscDebug("the %dth expired dbFName:%s, dbId:%" PRId64 ", vgVersion:%d, numOfTable:%d, startTs:%" PRId64, 
-      i, db->dbFName, db->dbId, db->vgVersion, db->numOfTable, db->stateTs);
+    tscDebug("the %dth expired dbFName:%s, dbId:%" PRId64 ", vgVersion:%d, cfgVersion:%d, numOfTable:%d, startTs:%" PRId64, 
+      i, db->dbFName, db->dbId, db->vgVersion, db->cfgVersion, db->numOfTable, db->stateTs);
 
     db->dbId = htobe64(db->dbId);
     db->vgVersion = htonl(db->vgVersion);
+    db->cfgVersion = htonl(db->cfgVersion);
     db->numOfTable = htonl(db->numOfTable);
     db->stateTs = htobe64(db->stateTs);
   }
