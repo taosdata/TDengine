@@ -66,11 +66,9 @@ def main():
     inputfile = "case_status.txt"
     logfile = open("case_status.txt","r",encoding="utf-8")
     lines = logfile.readlines(1000)
-    i = 0
     for line in lines:
         line=line.strip('\n').split(':')
-        i = i + 1
-        print(f"{i},{line}")
+        # print(f"{line}")
         if line[0] == "result":
             result = line[1]
         elif line[0] == "result_detail":
@@ -92,7 +90,6 @@ def main():
         else:
             print("read all file")
     hostname = socket.gethostname()   
-    print(f"result: {result}") 
     try:
         send_msg(result=result, result_detail=result_detail, test_scope=test_scope, owner=owner, hostname=hostname, start_time=start_time, end_time=end_time, enterprise_commit_id=enterprise_commit_id, community_commit_id=community_commit_id, log_dir=log_dir, others="")
     except Exception as e:

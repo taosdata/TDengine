@@ -239,22 +239,16 @@ pipeline {
             steps {
                 script {
                     run_cases("cases_taosx_fulltest.txt", "/home/m1.json", "3", "1", "-s -o 3600")
-                        }
                 }
-                
-            
+            }
         }
         stage('replica 1 query') {
             when {
                 expression { env.ENABLE_QUERY_REPLICA1 == 'y' }
             }
-            parallel {
-                stage('advanced test') {
-                    steps {
-                        script {
-                            run_cases("cases_query_repilca1.txt", "/home/m.json", "1", "1", "-s -o 7200")
-                        }
-                    }
+            steps {
+                script {
+                    run_cases("cases_query_replica1.txt", "/home/m.json", "1", "1", "-s -o 7200")
                 }
             }
         }
@@ -264,7 +258,7 @@ pipeline {
             }
             steps {
                 script {
-                    run_cases("cases_query_repilca3.txt", "/home/m5.json", "3", "1", "-s -o 7200")
+                    run_cases("cases_query_replica3.txt", "/home/m5.json", "3", "1", "-s -o 7200")
                 }
             }
         }
@@ -274,7 +268,7 @@ pipeline {
             }
             steps {
                 script {
-                    run_cases("cases_query_repilca3.txt", "/home/m5.json", "3", "3", "-s -o 7200")
+                    run_cases("cases_query_replica3.txt", "/home/m5.json", "3", "3", "-s -o 7200")
                 }
             }
         }
