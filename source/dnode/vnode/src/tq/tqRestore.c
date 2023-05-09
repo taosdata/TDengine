@@ -109,6 +109,15 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     // seek the stored version and extract data from WAL
     int32_t code = walReadSeekVer(pTask->exec.pWalReader, pTask->chkInfo.currentVer);
     if (code != TSDB_CODE_SUCCESS) {  // no data in wal, quit
+      SWal *pWal = pTask->exec.pWalReader->pWal;
+      if (pTask->chkInfo.currentVer < pWal->vers.firstVer ) {
+        pTask->chkInfo.currentVer = pWal->vers.firstVer;
+        code = walReadSeekVer(pTask->exec.pWalReader, pTask->chkInfo.currentVer);
+        if (code != TSDB_CODE_SUCCESS) {
+          streamMetaReleaseTask(pStreamMeta, pTask);
+          continue;
+        }
+      }
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
