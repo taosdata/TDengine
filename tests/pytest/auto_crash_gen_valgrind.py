@@ -388,7 +388,8 @@ def main():
         else:
             core_dir = "none"
             
-        text = f'''exit status: {msg_dict[status]}
+        text = f'''
+        exit status: {msg_dict[status]}
         test scope: crash_gen
         owner: pxiao
         hostname: {hostname}
