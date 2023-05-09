@@ -452,7 +452,7 @@ if [ ${send2feishu_enabled} == "True" ] ;then
     fi
 
     result_detail="failed ${failed_cases},successful ${success_cases}"
-    test_scope="${t_file} , querypolicy-[${DATABASE_QUERY_POLICY} , buildNumber-[${BUILD_NUMBER}]"
+    test_scope="${t_file} , querypolicy-[${DATABASE_QUERY_POLICY}] , buildNumber-[${BUILD_NUMBER}]"
     community_commit_id=${community_commit_id}
     enterprise_commit_id=${enterprise_commit_id}
 
