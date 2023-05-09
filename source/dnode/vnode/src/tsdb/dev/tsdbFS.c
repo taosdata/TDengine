@@ -511,68 +511,48 @@ int32_t tsdbCloseFS(STFileSystem **ppFS) {
   return 0;
 }
 
-int32_t tsdbFSEditBegin(STFileSystem *pFS, const SArray *aFileOp, EFEditT etype) {
+int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype) {
   int32_t code = 0;
   int32_t lino;
-  char    fname[TSDB_FILENAME_LEN];
+  char    current_t[TSDB_FILENAME_LEN];
 
-  // current_fname(pFS->pTsdb, fname, etype == TSDB_FEDIT_COMMIT ? TSDB_FCURRENT_C : TSDB_FCURRENT_M);
+  if (etype == TSDB_FEDIT_COMMIT) {
+    current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_C);
+  } else {
+    current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_M);
+  }
 
-  // tsem_wait(&pFS->canEdit);
+  tsem_wait(&fs->canEdit);
 
-  // TSDB_CHECK_CODE(                   //
-  //     code = edit_fs(pFS, aFileOp),  //
-  //     lino,                          //
-  //     _exit);
+  fs->etype = etype;
+  fs->eid = ++fs->neid;
 
-  // TSDB_CHECK_CODE(                 //
-  //     code = save_fs(pFS, fname),  //
-  //     lino,                        //
-  //     _exit);
+  // edit
+  code = edit_fs(fs, aFileOp);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // save fs
+  code = save_fs(fs->eid, fs->nstate, current_t);
+  TSDB_CHECK_CODE(code, lino, _exit)
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s",  //
-              TD_VID(pFS->pTsdb->pVnode),               //
-              __func__,                                 //
-              lino,                                     //
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s, eid:%" PRId64 " etype:%d", TD_VID(fs->pTsdb->pVnode), __func__,
+              lino, tstrerror(code), fs->eid, etype);
   } else {
-    tsdbInfo("vgId:%d %s done, etype:%d",  //
-             TD_VID(pFS->pTsdb->pVnode),   //
-             __func__,                     //
-             etype);
+    tsdbInfo("vgId:%d %s done, eid:%" PRId64 " etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, fs->eid, etype);
   }
   return code;
 }
 
-int32_t tsdbFSEditCommit(STFileSystem *pFS, EFEditT etype) {
-  int32_t code = commit_edit(pFS);
-  tsem_post(&pFS->canEdit);
-  if (code) {
-    tsdbError("vgId:%d %s failed since %s",  //
-              TD_VID(pFS->pTsdb->pVnode),    //
-              __func__,                      //
-              tstrerror(code));
-  } else {
-    tsdbInfo("vgId:%d %s done, etype:%d",  //
-             TD_VID(pFS->pTsdb->pVnode),   //
-             __func__,                     //
-             etype);
-  }
+int32_t tsdbFSEditCommit(STFileSystem *fs) {
+  int32_t code = commit_edit(fs);
+  tsem_post(&fs->canEdit);
   return code;
 }
 
-int32_t tsdbFSEditAbort(STFileSystem *pFS, EFEditT etype) {
-  int32_t code = abort_edit(pFS);
-  if (code) {
-    tsdbError("vgId:%d %s failed since %s, etype:%d",  //
-              TD_VID(pFS->pTsdb->pVnode),              //
-              __func__,                                //
-              tstrerror(code),                         //
-              etype);
-  } else {
-  }
-  tsem_post(&pFS->canEdit);
+int32_t tsdbFSEditAbort(STFileSystem *fs) {
+  int32_t code = abort_edit(fs);
+  tsem_post(&fs->canEdit);
   return code;
 }

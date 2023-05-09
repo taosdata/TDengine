@@ -448,8 +448,7 @@ int32_t tsdbCommitCommit(STsdb *pTsdb) {
   // lock
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  code = tsdbFSEditCommit(pTsdb->pFS,  //
-                          TSDB_FEDIT_COMMIT);
+  code = tsdbFSEditCommit(pTsdb->pFS);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -481,8 +480,7 @@ int32_t tsdbCommitAbort(STsdb *pTsdb) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFSEditAbort(pTsdb->pFS,  //
-                         TSDB_FEDIT_COMMIT);
+  code = tsdbFSEditAbort(pTsdb->pFS);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

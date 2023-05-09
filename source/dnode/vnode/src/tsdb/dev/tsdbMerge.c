@@ -74,9 +74,9 @@ static int32_t tsdbCloseMerger(SMerger *pMerger) {
 
 _exit:
   if (code) {
-    tsdbFSEditAbort(pTsdb->pFS, TSDB_FEDIT_MERGE);
+    tsdbFSEditAbort(pTsdb->pFS);
   } else {
-    tsdbFSEditCommit(pTsdb->pFS, TSDB_FEDIT_MERGE);
+    tsdbFSEditCommit(pTsdb->pFS);
   }
   tsdbDestroyMerger(pMerger);
   return code;

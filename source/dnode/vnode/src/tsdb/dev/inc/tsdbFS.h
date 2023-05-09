@@ -36,8 +36,8 @@ int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback);
 int32_t tsdbCloseFS(STFileSystem **ppFS);
 // txn
 int32_t tsdbFSEditBegin(STFileSystem *pFS, const SArray *aFileOp, EFEditT etype);
-int32_t tsdbFSEditCommit(STFileSystem *pFS, EFEditT etype);
-int32_t tsdbFSEditAbort(STFileSystem *pFS, EFEditT etype);
+int32_t tsdbFSEditCommit(STFileSystem *pFS);
+int32_t tsdbFSEditAbort(STFileSystem *pFS);
 
 /* Exposed Structs */
 struct STFileSystem {
