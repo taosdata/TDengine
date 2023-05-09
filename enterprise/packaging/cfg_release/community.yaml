@@ -1,6 +1,6 @@
-name: Release TDengine enterprise
+name: Release TDengine community package
 type: feature
-logfile: new_release/log/
+logfile: logs/
 
 
 prepareActions:
@@ -43,8 +43,6 @@ postActions:
 
 
 parameters:
-  logfile: log.txt
-  branchName: main
   pagMode: full # may be removable
   verMode: edge
   dockerMode: "no" # push|latest|no
@@ -55,25 +53,22 @@ parameters:
     OSTYPE: Linux
     CPUTYPE: x64
     WEBSOCKET: true
-    BUILD_HTTP: false 
-    BUILD_TOOLS: true
-    BUILD_EXPLORER: false
-    JEMALLOC_ENABLED: true
-    BUILD_TAOSX: false
-    BUILD_CLOUD: false
-    VERNUMBER: 3.0.3.0
-    VERCOMPATIBLE: 3.0.0.0
-    PAGMODE: full
-    SOMODE: dynamic 
+    SOMODE: dynamic
     DBNAME: taos
     VERTYPE: stable
     VERDATE: true 
     GITINFO: community/$(git rev-parse --verify HEAD)
     GITINFOI: enterprise/$(git rev-parse --verify HEAD)
+    VERNUMBER: 3.0.3.0
+    VERCOMPATIBLE: 3.0.0.0
+    PAGMODE: full
+    BUILD_HTTP: false 
+    BUILD_TOOLS: true
+    BUILD_EXPLORER: false
+    JEMALLOC_ENABLED: true
     CUS_NAME: TDengine
     CUS_PROMPT: taos
     CUS_EMAIL: support@taosdata.com
-    GRANT_VALUE: 60
   
   OEMFLAG:
    enable: 
@@ -184,16 +179,14 @@ parameters:
             - nodejs
             - python
             - R
-            - taosbenchmark-json
-
+            - taosbenchmark-json          
           install.sh: *install_server
           connector:
             - dotnet
             - go
             - nodejs
             - python
-            - rust
-            - java
+            - rust          
           share: true
 
       client: 
@@ -265,97 +258,3 @@ parameters:
       enable: true
     rpm:
       enable: true
-
-    # type: [server,client,taoTools]
-    # format: [tar.gz,deb,rpm]
-    # component:
-    #   bin:
-    #     - remove.sh
-    #     - set_core.sh
-    #     - startPre.sh
-    #     - taos
-    #     - taosadapter
-    #     - taosBenchmark
-    #     - taosd
-    #     - taosd-dump-cfg.gdb
-    #     - taosdump
-    #     - taos-explorer
-    #     - taoskeeper
-    #     - taosx
-    #     - tdengine-datasource.zip
-    #     - tdengine-datasource.zip.md5sum
-    #     - TDinsight.sh
-    #     - udfd
-    #   driver:
-    #     - libtaos.so
-    #     - libtaosws.so
-    #     - vercomp.txt
-    #   cfg:
-    #     - taos.cfg
-    #   examples:
-    #     - c
-    #     - C#
-    #     - go
-    #     - JDBC
-    #     - matlab
-    #     - nodejs
-    #     - python
-    #     - R
-    #     - taosbenchmark-json
-    #   connector:
-    #     - dotnet
-    #     - go
-    #     - nodejs
-    #     - python
-    #     - rust
-    #   header:
-    #     - taos.h
-    #     - taosdef.h
-    #     - taoserror.h
-    #     - taosudf.h
-    #     - taosws.h
-    #   inc:
-    #   share:
-    #   init.d:
-    #   jemalloc:
-    # taosToos:
-    #     arvo:
-    #     bin:
-    #      - taosBenchmark
-    #      - taosdump
-    #      - tdengine-datasource.zip
-    #      - tdengine-datasource.zip.md5sum
-    #      - TDinsight.sh
-
-
-#  prepareAction:
-#   name: install_package.sh
-#   param1: rust
-#   param2: go
-
-#  postAction:
-#   name: upload_to_website.py
-#   param1: $PASSWORD_TO_UPLOAD
-#   param2: ../../community/releases
-
-
-  
-
-# taosd:
-#   oemName: oem_a_taosd
-# taos:
-#   oemName: oem_a_taos
-# libtaos: true
-# libtaosws: true
-# taosBenchmark: true
-# taosAdapter: true
-# taosKeeper: true
-# taosdump: true
-# examples: true
-#   isFolder: true
-#   location: 
-#           - ../../community/examples
-#           - install.sh
-#           - uninstall.sh
-#           - taosd.service
-#           - taosadapter.service

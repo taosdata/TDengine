@@ -1,6 +1,6 @@
 name: Release TDengine enterprise
 type: feature
-logfile: new_release/log/
+logfile: logs/
 
 
 prepareActions:
@@ -43,33 +43,26 @@ postActions:
 
 
 parameters:
-  logfile: log.txt
-  branchName: main
   pagMode: full # may be removable
-  verMode: edge
-  dockerMode: "no" # push|latest|no
-  dockerProject: "tdengine"
-  archiveDir: "/nas/TDengine"
+  verMode: cluster
 
   buildOptions:
     OSTYPE: Linux
     CPUTYPE: x64
     WEBSOCKET: true
-    BUILD_HTTP: false 
-    BUILD_TOOLS: true
-    BUILD_EXPLORER: false
-    JEMALLOC_ENABLED: true
-    BUILD_TAOSX: false
-    BUILD_CLOUD: false
-    VERNUMBER: 3.0.3.0
-    VERCOMPATIBLE: 3.0.0.0
-    PAGMODE: full
-    SOMODE: dynamic 
+    BUILD_TAOSX: true
+    SOMODE: dynamic
     DBNAME: taos
     VERTYPE: stable
-    VERDATE: true 
+    VERDATE: true
     GITINFO: community/$(git rev-parse --verify HEAD)
     GITINFOI: enterprise/$(git rev-parse --verify HEAD)
+    VERNUMBER: 3.0.3.0
+    VERCOMPATIBLE: 3.0.0.0
+    BUILD_HTTP: internal 
+    BUILD_TOOLS: true
+    BUILD_EXPLORER: true
+    JEMALLOC_ENABLED: true
     CUS_NAME: TDengine
     CUS_PROMPT: taos
     CUS_EMAIL: support@taosdata.com
@@ -86,29 +79,29 @@ parameters:
        suppoert@power.com
 
   allBins:
-  - &remove communityScriptDir/remove.sh
-  - &set_core communityScriptDir/set_core.sh
-  - &startPre communityScriptDir/startPre.sh
-  - &clientName buildDir/bin/taos
-  - &taosadapter buildDir/bin/taosadapter
-  - &serverName buildDir/bin/taosd
-  - &taosd-dump-cfg communityScriptDir/taosd-dump-cfg.gdb
-  - &taos-explorer buildDir/bin/taos-explorer
-  - &taoskeeper releaseDir/build-taoskeeper/taoskeeper
-  - &udfd buildDir/bin/udfd
-  - &get_client  communityScriptDir/get_client.sh
-  - &remove_client communityScriptDir/remove_client.sh
-  - &install_client communityScriptDir/install_client.sh
-  - &install_server communityScriptDir/install.sh
+    - &remove communityScriptDir/remove.sh
+    - &set_core communityScriptDir/set_core.sh
+    - &startPre communityScriptDir/startPre.sh
+    - &clientName buildDir/bin/taos
+    - &taosadapter buildDir/bin/taosadapter
+    - &serverName buildDir/bin/taosd
+    - &taosd-dump-cfg communityScriptDir/taosd-dump-cfg.gdb
+    - &taos-explorer buildDir/bin/taos-explorer
+    - &taoskeeper releaseDir/build-taoskeeper/taoskeeper
+    - &udfd buildDir/bin/udfd
+    - &get_client  communityScriptDir/get_client.sh
+    - &remove_client communityScriptDir/remove_client.sh
+    - &install_client communityScriptDir/install_client.sh
+    - &install_server communityScriptDir/install.sh
 
   taosxBins:
-  - &taosx buildDir/bin/taosx
+    - &taosx buildDir/bin/taosx
   taosToolsBins:
-  - &taosdump buildDir/bin/taosdump
-  - &taosBenchmark buildDir/bin/taosBenchmark
-  - &tdengine-datasource_zip buildDir/bin/tdengine-datasource.zip
-  - &tdengine-datasource_zip_md5sum buildDir/bin/tdengine-datasource.zip.md5sum
-  - &TDinsight buildDir/bin/TDinsight.sh
+    - &taosdump buildDir/bin/taosdump
+    - &taosBenchmark buildDir/bin/taosBenchmark
+    - &tdengine-datasource_zip buildDir/bin/tdengine-datasource.zip
+    - &tdengine-datasource_zip_md5sum buildDir/bin/tdengine-datasource.zip.md5sum
+    - &TDinsight buildDir/bin/TDinsight.sh
   libs:
     - &libtaos  buildDir/lib/libtaos.so.
     - &libtaows buildDir/lib/libtaosws.so
@@ -148,9 +141,9 @@ parameters:
               - *taosBenchmark
               - *taosd-dump-cfg
               - *taosdump
-              # - *taos-explorer
+              - *taos-explorer
               - *taoskeeper
-              # - *taosx
+              - *taosx
               - *tdengine-datasource_zip
               - *tdengine-datasource_zip_md5sum
               - *TDinsight
@@ -185,7 +178,6 @@ parameters:
             - python
             - R
             - taosbenchmark-json
-
           install.sh: *install_server
           connector:
             - dotnet
@@ -193,7 +185,7 @@ parameters:
             - nodejs
             - python
             - rust
-            - java
+            - jdbc
           share: true
 
       client: 
@@ -220,6 +212,7 @@ parameters:
             - nodejs
             - python
             - rust
+            - jdbc
           driver:
             - *libtaos
             - *libtaows
@@ -265,97 +258,3 @@ parameters:
       enable: true
     rpm:
       enable: true
-
-    # type: [server,client,taoTools]
-    # format: [tar.gz,deb,rpm]
-    # component:
-    #   bin:
-    #     - remove.sh
-    #     - set_core.sh
-    #     - startPre.sh
-    #     - taos
-    #     - taosadapter
-    #     - taosBenchmark
-    #     - taosd
-    #     - taosd-dump-cfg.gdb
-    #     - taosdump
-    #     - taos-explorer
-    #     - taoskeeper
-    #     - taosx
-    #     - tdengine-datasource.zip
-    #     - tdengine-datasource.zip.md5sum
-    #     - TDinsight.sh
-    #     - udfd
-    #   driver:
-    #     - libtaos.so
-    #     - libtaosws.so
-    #     - vercomp.txt
-    #   cfg:
-    #     - taos.cfg
-    #   examples:
-    #     - c
-    #     - C#
-    #     - go
-    #     - JDBC
-    #     - matlab
-    #     - nodejs
-    #     - python
-    #     - R
-    #     - taosbenchmark-json
-    #   connector:
-    #     - dotnet
-    #     - go
-    #     - nodejs
-    #     - python
-    #     - rust
-    #   header:
-    #     - taos.h
-    #     - taosdef.h
-    #     - taoserror.h
-    #     - taosudf.h
-    #     - taosws.h
-    #   inc:
-    #   share:
-    #   init.d:
-    #   jemalloc:
-    # taosToos:
-    #     arvo:
-    #     bin:
-    #      - taosBenchmark
-    #      - taosdump
-    #      - tdengine-datasource.zip
-    #      - tdengine-datasource.zip.md5sum
-    #      - TDinsight.sh
-
-
-#  prepareAction:
-#   name: install_package.sh
-#   param1: rust
-#   param2: go
-
-#  postAction:
-#   name: upload_to_website.py
-#   param1: $PASSWORD_TO_UPLOAD
-#   param2: ../../community/releases
-
-
-  
-
-# taosd:
-#   oemName: oem_a_taosd
-# taos:
-#   oemName: oem_a_taos
-# libtaos: true
-# libtaosws: true
-# taosBenchmark: true
-# taosAdapter: true
-# taosKeeper: true
-# taosdump: true
-# examples: true
-#   isFolder: true
-#   location: 
-#           - ../../community/examples
-#           - install.sh
-#           - uninstall.sh
-#           - taosd.service
-#           - taosadapter.service
