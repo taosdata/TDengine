@@ -294,6 +294,11 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
   return sdbGetSize(pSdb, SDB_DNODE);
 }
 
+int32_t mndGetDbSize(SMnode *pMnode) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbGetSize(pSdb, SDB_DB);
+}
+
 bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
   if (interval > 5000 * (int64_t)tsStatusInterval) {
@@ -589,6 +594,107 @@ _OVER:
   return code;
 }
 
+static int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t restoreType) {
+  int32_t  code = -1;
+  SSdbRaw *pRaw = NULL;
+  STrans  *pTrans = NULL;
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "restore-dnode");
+  if (pTrans == NULL) goto _OVER;
+
+  mndTransSetSerial(pTrans);
+
+  mInfo("trans:%d, used to restore dnode:%s", pTrans->id, pDnode->ep);
+
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
+  if(restoreType == RESTORE_TYPE__ALL || restoreType == RESTORE_TYPE__MNODE)
+  {
+    SMnodeObj *mnodeObj = mndAcquireMnode(pMnode, pDnode->id);
+    if(mnodeObj == NULL){
+      mError("trans:%d, no mnode exist on dnode:%s", pTrans->id, pDnode->ep);
+    }
+    else
+    {
+      SMnodeObj newMnodeObj = {0};
+      newMnodeObj.id = pDnode->id;
+      newMnodeObj.createdTime = taosGetTimestampMs();
+      newMnodeObj.updateTime = newMnodeObj.createdTime;
+      newMnodeObj.role = TAOS_SYNC_ROLE_LEARNER;
+      newMnodeObj.lastIndex = pMnode->applied;
+      if (mndSetRestoreCreateMnodeRedoActions(pMnode, pTrans, pDnode, &newMnodeObj) != 0) goto _OVER;
+      if (mndSetRestoreCreateMnodeRedoLogs(pMnode, pTrans, &newMnodeObj) != 0) goto _OVER;
+
+      SMnodeObj mnodeLeaderObj = {0};
+      mnodeLeaderObj.id = pDnode->id;
+      mnodeLeaderObj.createdTime = taosGetTimestampMs();
+      mnodeLeaderObj.updateTime = mnodeLeaderObj.createdTime;
+      mnodeLeaderObj.role = TAOS_SYNC_ROLE_VOTER;
+      mnodeLeaderObj.lastIndex = pMnode->applied + 1;
+      if (mndSetRestoreAlterMnodeTypeRedoActions(pMnode, pTrans, pDnode, &mnodeLeaderObj) != 0) goto _OVER;
+      if (mndSetRestoreCreateMnodeRedoLogs(pMnode, pTrans, &mnodeLeaderObj) != 0) goto _OVER;
+
+      if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeLeaderObj) != 0) goto _OVER;
+
+      mndReleaseMnode(pMnode, mnodeObj);
+    }
+  }
+
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL; 
+
+  if(restoreType == RESTORE_TYPE__ALL || restoreType == RESTORE_TYPE__VNODE){
+    while (1) {
+      SVgObj *pVgroup = NULL;
+      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+      if (pIter == NULL) break;
+
+      if (mndVgroupInDnode(pVgroup, pDnode->id)) {
+        SDbObj *db = mndAcquireDb(pMnode, pVgroup->dbName);
+        if(db == NULL){
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pVgroup);
+          goto _OVER;
+        }
+        if (mndBuildRestoreAlterVgroupAction(pMnode, pTrans, db, pVgroup, pDnode) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          mndReleaseDb(pMnode, db);
+          sdbRelease(pSdb, pVgroup);
+          goto _OVER;
+        }
+        mndReleaseDb(pMnode, db);
+      }
+
+      sdbRelease(pSdb, pVgroup);
+    }
+  }
+  
+  if(restoreType == RESTORE_TYPE__ALL || restoreType == RESTORE_TYPE__QNODE){
+    pIter = NULL;
+    while (1) {
+      SQnodeObj *pQnode = NULL;
+      pIter = sdbFetch(pSdb, SDB_QNODE, pIter, (void **)&pQnode);
+      if (pIter == NULL) break;
+
+      if (mndQnodeInDnode(pQnode, pDnode->id)) {
+        if (mndSetCreateQnodeCommitLogs(pTrans, pQnode) != 0) goto _OVER;
+        if (mndSetCreateQnodeRedoActions(pTrans, pDnode, pQnode) != 0) goto _OVER;
+      }
+
+      sdbRelease(pSdb, pQnode);
+    }
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  code = 0;
+
+_OVER:
+
+  mndTransDrop(pTrans);
+  sdbFreeRaw(pRaw);
+  return code;
+}
+
 static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SSdb         *pSdb = pMnode->pSdb;
@@ -744,6 +850,63 @@ _OVER:
   mndReleaseDnode(pMnode, pDnode);
   return code;
 }
+
+extern int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq);
+
+int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq){
+  return mndProcessRestoreDnodeReqImpl(pReq);
+}
+
+#ifndef TD_ENTERPRISE
+int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
+  return 0;
+}
+#endif
+
+/*
+static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
+  SMnode       *pMnode = pReq->info.node;
+  int32_t       code = -1;
+  SDnodeObj    *pDnode = NULL;
+  SMnodeObj    *pMObj = NULL;
+  SQnodeObj    *pQObj = NULL;
+  SSnodeObj    *pSObj = NULL;
+  SRestoreDnodeReq restoreReq = {0};
+
+  if (tDeserializeSRestoreDnodeReq(pReq->pCont, pReq->contLen, &restoreReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("dnode:%d, start to restore, ep:%s:%d", restoreReq.dnodeId, restoreReq.fqdn, restoreReq.port);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
+    goto _OVER;
+  }
+
+  pDnode = mndAcquireDnode(pMnode, restoreReq.dnodeId);
+  if (pDnode == NULL) {
+    int32_t err = terrno;
+    char    ep[TSDB_EP_LEN + 1] = {0};
+    snprintf(ep, sizeof(ep), restoreReq.fqdn, restoreReq.port);
+    pDnode = mndAcquireDnodeByEp(pMnode, ep);
+    if (pDnode == NULL) {
+      terrno = err;
+      goto _OVER;
+    }
+  }
+
+  code = mndRestoreDnode(pMnode, pReq, pDnode, restoreReq.restoreType);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("dnode:%d, failed to restore since %s", restoreReq.dnodeId, terrstr());
+  }
+
+  mndReleaseDnode(pMnode, pDnode);
+  return code;
+}
+*/
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
                             SSnodeObj *pSObj, int32_t numOfVnodes, bool force) {
