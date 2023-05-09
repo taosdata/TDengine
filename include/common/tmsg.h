@@ -1634,8 +1634,6 @@ enum {
 
 typedef struct {
   int32_t dnodeId;
-  char    fqdn[TSDB_FQDN_LEN];
-  int32_t port;
   int8_t  restoreType;
 } SRestoreDnodeReq;
 

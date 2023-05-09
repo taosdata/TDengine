@@ -92,6 +92,62 @@ TEST_F(ParserInitialATest, alterDnode) {
   clearCfgDnodeReq();
 }
 
+TEST_F(ParserInitialATest, restoreDnode) {
+  useDb("root", "test");
+
+  SRestoreDnodeReq expect = {0};
+
+  auto clearRestoreDnodeReq = [&]() { memset(&expect, 0, sizeof(SRestoreDnodeReq)); };
+
+  auto setRestoreDnodeReq = [&](int32_t dnodeId, int8_t type) {
+    expect.dnodeId = dnodeId;
+    expect.restoreType = type;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    int32_t expectNodeType = 0;
+    switch (expect.restoreType) {
+      case RESTORE_TYPE__ALL:
+        expectNodeType = QUERY_NODE_RESTORE_DNODE_STMT;
+        break;
+      case RESTORE_TYPE__MNODE:
+        expectNodeType = QUERY_NODE_RESTORE_MNODE_STMT;
+        break;
+      case RESTORE_TYPE__VNODE:
+        expectNodeType = QUERY_NODE_RESTORE_VNODE_STMT;
+        break;
+      case RESTORE_TYPE__QNODE:
+        expectNodeType = QUERY_NODE_RESTORE_QNODE_STMT;
+        break;
+      default:
+        break;
+    }
+    ASSERT_EQ(nodeType(pQuery->pRoot), expectNodeType);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_RESTORE_DNODE);
+    SRestoreDnodeReq req = {0};
+    ASSERT_EQ(tDeserializeSRestoreDnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(req.dnodeId, expect.dnodeId);
+    ASSERT_EQ(req.restoreType, expect.restoreType);
+  });
+
+  setRestoreDnodeReq(1, RESTORE_TYPE__ALL);
+  run("RESTORE DNODE 1");
+  clearRestoreDnodeReq();
+
+  setRestoreDnodeReq(2, RESTORE_TYPE__MNODE);
+  run("RESTORE MNODE ON DNODE 2");
+  clearRestoreDnodeReq();
+
+  setRestoreDnodeReq(1, RESTORE_TYPE__VNODE);
+  run("RESTORE VNODE ON DNODE 1");
+  clearRestoreDnodeReq();
+
+  setRestoreDnodeReq(2, RESTORE_TYPE__QNODE);
+  run("RESTORE QNODE ON DNODE 2");
+  clearRestoreDnodeReq();
+}
+
+
 /*
  * ALTER DATABASE db_name [alter_database_options]
  *

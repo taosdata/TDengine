@@ -1726,8 +1726,6 @@ int32_t tSerializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq *
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->fqdn) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->port) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->restoreType) < 0) return -1;
   tEndEncode(&encoder);
 
@@ -1742,8 +1740,6 @@ int32_t tDeserializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->fqdn) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->port) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->restoreType) < 0) return -1;
   tEndDecode(&decoder);
 
