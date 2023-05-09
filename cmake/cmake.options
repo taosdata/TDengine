@@ -109,7 +109,7 @@ option(
 option(
     BUILD_WITH_ROCKSDB 
     "If build with rocksdb" 
-    OFF
+    ON
 )
 
 option(
