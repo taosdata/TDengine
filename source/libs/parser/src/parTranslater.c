@@ -6130,17 +6130,50 @@ static bool isEventWindowQuery(SSelectStmt* pSelect) {
   return NULL != pSelect->pWindow && QUERY_NODE_EVENT_WINDOW == nodeType(pSelect->pWindow);
 }
 
+static bool hasJsonTypeProjection(SSelectStmt* pSelect) {
+  SNode* pProj = NULL;
+  FOREACH(pProj, pSelect->pProjectionList) {
+    if (TSDB_DATA_TYPE_JSON == ((SExprNode*)pProj)->resType.type) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static EDealRes hasColumnOrPseudoColumn(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsPseudoColumnFunc(((SFunctionNode*)pNode)->funcId)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t subtableExprHasColumnOrPseudoColumn(SNode* pNode) {
+  bool hasColumn = false;
+  nodesWalkExprPostOrder(pNode, hasColumnOrPseudoColumn, &hasColumn);
+  return hasColumn;
+}
+
 static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
   if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
       !pSelect->isTimeLineResult || crossTableWithoutAggOper(pSelect) || NULL != pSelect->pOrderByList ||
-      crossTableWithUdaf(pSelect) || isEventWindowQuery(pSelect)) {
+      crossTableWithUdaf(pSelect) || isEventWindowQuery(pSelect) || hasJsonTypeProjection(pSelect)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
   if (NULL != pSelect->pSubtable && TSDB_DATA_TYPE_VARCHAR != ((SExprNode*)pSelect->pSubtable)->resType.type) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "SUBTABLE expression must be of VARCHAR type");
   }
+  if (NULL != pSelect->pSubtable && 0 == LIST_LENGTH(pSelect->pPartitionByList) && subtableExprHasColumnOrPseudoColumn(pSelect->pSubtable)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                   "SUBTABLE expression must not has column when no partition by clause");
+  }
+
   if (NULL == pSelect->pWindow && STREAM_TRIGGER_AT_ONCE != pStmt->pOptions->triggerType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                    "The trigger mode of non window query can only be AT_ONCE");
