@@ -657,6 +657,15 @@ if $data20 != null then
   return -1
 endi
 
+print =============== error 
+sql create table tb2023(ts timestamp, f int);
+sql_error alter table tb2023 add column v varchar(16375);
+sql_error alter table tb2023 add column v varchar(16385);
+sql_error alter table tb2023 add column v varchar(33100);
+sql alter table tb2023 add column v varchar(16374);
+sql alter table tb2023 drop column v
+sql_error alter table tb2023 add column v nchar(4094);
+sql alter table tb2023 add column v nchar(4093);
 print ======= over
 sql drop database d1
 sql select * from information_schema.ins_databases
