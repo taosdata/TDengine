@@ -1053,9 +1053,9 @@ TEST(clientCase, sub_db_test) {
 }
 
 TEST(clientCase, sub_tb_test) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/tests/dir/cfg/");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 
-  TAOS* pConn = taos_connect("vm116", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
   tmq_conf_t* conf = tmq_conf_new();
@@ -1091,7 +1091,7 @@ TEST(clientCase, sub_tb_test) {
   int32_t     precision = 0;
   int32_t     totalRows = 0;
   int32_t     msgCnt = 0;
-  int32_t     timeout = 25000;
+  int32_t     timeout = 2500000;
 
   int32_t count = 0;
 
@@ -1117,10 +1117,10 @@ TEST(clientCase, sub_tb_test) {
         fields = taos_fetch_fields(pRes);
         numOfFields = taos_field_count(pRes);
         totalRows += 1;
-        if (totalRows % 100000 == 0) {
+//        if (totalRows % 100000 == 0) {
           taos_print_row(buf, row, fields, numOfFields);
           printf("row content: %s\n", buf);
-        }
+//        }
       }
 
       taos_free_result(pRes);

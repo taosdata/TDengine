@@ -1052,23 +1052,18 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  if ((pTaskInfo->execModel != OPTR_EXEC_MODEL_QUEUE) || (pTaskInfo->streamInfo.submit.msgStr != NULL)) {
-    qError("qStreamSetScanMemData err:%d,%p", pTaskInfo->execModel, pTaskInfo->streamInfo.submit.msgStr);
-    terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
-    return -1;
-  }
-  qDebug("set the submit block for future scan");
-
-  pTaskInfo->streamInfo.submit = submit;
-  return 0;
-}
-
 void qStreamSetOpen(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   pOperator->status = OP_NOT_OPENED;
+}
+
+void verifyOffset(void *pWalReader, STqOffsetVal* pOffset){
+  // if offset version is small than first version , let's seek to first version
+  int64_t firstVer = walGetFirstVer(((SWalReader*)pWalReader)->pWal);
+  if (pOffset->version + 1 < firstVer){
+    pOffset->version = firstVer - 1;
+  }
 }
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
@@ -1086,21 +1081,18 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     if (pOperator == NULL) {
       return -1;
     }
+
     SStreamScanInfo* pInfo = pOperator->info;
     STableScanInfo*  pScanInfo = pInfo->pTableScanOp->info;
     STableScanBase*  pScanBaseInfo = &pScanInfo->base;
     STableListInfo*  pTableListInfo = pScanBaseInfo->pTableListInfo;
 
     if (pOffset->type == TMQ_OFFSET__LOG) {
+      // todo refactor: move away
       tsdbReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
-      // let's seek to the next version in wal file
-      int64_t firstVer = walGetFirstVer(pInfo->tqReader->pWalReader->pWal);
-      if (pOffset->version + 1 < firstVer){
-        pOffset->version = firstVer - 1;
-      }
-
+      verifyOffset(pInfo->tqReader->pWalReader, pOffset);
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, id) < 0) {
         qError("tqSeekVer failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
         return -1;
@@ -1221,7 +1213,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
       strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
-      tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
+      tDeleteSchemaWrapper(pTaskInfo->streamInfo.schema);
       pTaskInfo->streamInfo.schema = mtInfo.schema;
 
       qDebug("tmqsnap qStreamPrepareScan snapshot data uid:%" PRId64 " ts %" PRId64 " %s", mtInfo.uid, pOffset->ts, id);

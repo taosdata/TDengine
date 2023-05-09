@@ -133,10 +133,10 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
 
 static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SMqSubscribeObj *pSub,
                                         const SMqRebOutputVg *pRebVg) {
-  if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
-    terrno = TSDB_CODE_MND_INVALID_SUB_OPTION;
-    return -1;
-  }
+//  if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
+//    terrno = TSDB_CODE_MND_INVALID_SUB_OPTION;
+//    return -1;
+//  }
 
   void   *buf;
   int32_t tlen;
@@ -197,7 +197,7 @@ static SMqRebInfo *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
   return pRebSub;
 }
 
-static void doRemoveExistedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, const SMqRebInputObj *pInput) {
+static void doRemoveLostConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, const SMqRebInputObj *pInput) {
   int32_t     numOfRemoved = taosArrayGetSize(pInput->pRebInfo->removedConsumers);
   const char *pSubKey = pOutput->pSub->key;
 
@@ -269,6 +269,18 @@ static void addUnassignedVgroups(SMqRebOutputObj *pOutput, SHashObj *pHash) {
   }
 }
 
+static void putNoTransferToOutput(SMqRebOutputObj *pOutput, SMqConsumerEp *pConsumerEp){
+  for(int i = 0; i < taosArrayGetSize(pConsumerEp->vgs); i++){
+    SMqVgEp       *pVgEp = (SMqVgEp *)taosArrayGetP(pConsumerEp->vgs, i);
+    SMqRebOutputVg outputVg = {
+        .oldConsumerId = pConsumerEp->consumerId,
+        .newConsumerId = pConsumerEp->consumerId,
+        .pVgEp = pVgEp,
+    };
+    taosArrayPush(pOutput->rebVgs, &outputVg);
+  }
+}
+
 static void transferVgroupsForConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t minVgCnt,
                                         int32_t imbConsumerNum) {
   const char *pSubKey = pOutput->pSub->key;
@@ -290,24 +302,19 @@ static void transferVgroupsForConsumers(SMqRebOutputObj *pOutput, SHashObj *pHas
     taosArrayPush(pOutput->modifyConsumers, &pConsumerEp->consumerId);
     if (consumerVgNum > minVgCnt) {
       if (imbCnt < imbConsumerNum) {
-        if (consumerVgNum == minVgCnt + 1) {
-          imbCnt++;
-          continue;
-        } else {
-          // pop until equal minVg + 1
-          while (taosArrayGetSize(pConsumerEp->vgs) > minVgCnt + 1) {
-            SMqVgEp       *pVgEp = *(SMqVgEp **)taosArrayPop(pConsumerEp->vgs);
-            SMqRebOutputVg outputVg = {
-                .oldConsumerId = pConsumerEp->consumerId,
-                .newConsumerId = -1,
-                .pVgEp = pVgEp,
-            };
-            taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg));
-            mInfo("sub:%s mq rebalance remove vgId:%d from consumer:0x%" PRIx64 ",(first scan)", pSubKey, pVgEp->vgId,
-                  pConsumerEp->consumerId);
-          }
-          imbCnt++;
+        // pop until equal minVg + 1
+        while (taosArrayGetSize(pConsumerEp->vgs) > minVgCnt + 1) {
+          SMqVgEp       *pVgEp = *(SMqVgEp **)taosArrayPop(pConsumerEp->vgs);
+          SMqRebOutputVg outputVg = {
+              .oldConsumerId = pConsumerEp->consumerId,
+              .newConsumerId = -1,
+              .pVgEp = pVgEp,
+          };
+          taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg));
+          mInfo("sub:%s mq rebalance remove vgId:%d from consumer:0x%" PRIx64 ",(first scan)", pSubKey, pVgEp->vgId,
+                pConsumerEp->consumerId);
         }
+        imbCnt++;
       } else {
         // all the remain consumers should only have the number of vgroups, which is equalled to the value of minVg
         while (taosArrayGetSize(pConsumerEp->vgs) > minVgCnt) {
@@ -323,6 +330,7 @@ static void transferVgroupsForConsumers(SMqRebOutputObj *pOutput, SHashObj *pHas
         }
       }
     }
+    putNoTransferToOutput(pOutput, pConsumerEp);
   }
 }
 
@@ -339,7 +347,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
   SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
 
   // 2. check and get actual removed consumers, put their vg into pHash
-  doRemoveExistedConsumers(pOutput, pHash, pInput);
+  doRemoveLostConsumers(pOutput, pHash, pInput);
 
   // 3. if previously no consumer, there are vgs not assigned, put these vg into pHash
   addUnassignedVgroups(pOutput, pHash);

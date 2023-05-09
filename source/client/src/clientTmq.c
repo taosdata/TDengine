@@ -864,7 +864,7 @@ static void* tmqFreeRspWrapper(SMqRspWrapper* rspWrapper) {
     taosArrayDestroyP(pRsp->dataRsp.blockData, taosMemoryFree);
     taosArrayDestroy(pRsp->dataRsp.blockDataLen);
     taosArrayDestroyP(pRsp->dataRsp.blockTbName, taosMemoryFree);
-    taosArrayDestroyP(pRsp->dataRsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+    taosArrayDestroyP(pRsp->dataRsp.blockSchema, (FDelete)tDeleteSchemaWrapper);
   } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP) {
     SMqPollRspWrapper* pRsp = (SMqPollRspWrapper*)rspWrapper;
     taosMemoryFreeClear(pRsp->pEpset);
@@ -877,7 +877,7 @@ static void* tmqFreeRspWrapper(SMqRspWrapper* rspWrapper) {
     taosArrayDestroyP(pRsp->taosxRsp.blockData, taosMemoryFree);
     taosArrayDestroy(pRsp->taosxRsp.blockDataLen);
     taosArrayDestroyP(pRsp->taosxRsp.blockTbName, taosMemoryFree);
-    taosArrayDestroyP(pRsp->taosxRsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+    taosArrayDestroyP(pRsp->taosxRsp.blockSchema, (FDelete)tDeleteSchemaWrapper);
     // taosx
     taosArrayDestroy(pRsp->taosxRsp.createTableLen);
     taosArrayDestroyP(pRsp->taosxRsp.createTableReq, taosMemoryFree);

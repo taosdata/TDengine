@@ -36,6 +36,7 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
 
     if (shouldIdle) {
       taosWLockLatch(&pMeta->lock);
+
       pMeta->walScanCounter -= 1;
       times = pMeta->walScanCounter;
 
@@ -56,42 +57,28 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
   return 0;
 }
 
-static SArray* extractTaskIdList(SStreamMeta* pStreamMeta, int32_t numOfTasks) {
-  SArray* pTaskIdList = taosArrayInit(numOfTasks, sizeof(int32_t));
-  void*   pIter = NULL;
-
-  taosWLockLatch(&pStreamMeta->lock);
-  while(1) {
-    pIter = taosHashIterate(pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    taosArrayPush(pTaskIdList, &pTask->id.taskId);
-  }
-
-  taosWUnLockLatch(&pStreamMeta->lock);
-  return pTaskIdList;
-}
-
 int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   *pScanIdle = true;
   bool    noNewDataInWal = true;
   int32_t vgId = pStreamMeta->vgId;
 
-  int32_t numOfTasks = taosHashGetSize(pStreamMeta->pTasks);
+  int32_t numOfTasks = taosArrayGetSize(pStreamMeta->pTaskList);
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SArray* pTaskList = NULL;
+  taosWLockLatch(&pStreamMeta->lock);
+  pTaskList = taosArrayDup(pStreamMeta->pTaskList, NULL);
+  taosWUnLockLatch(&pStreamMeta->lock);
+
   tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
-  SArray* pTaskIdList = extractTaskIdList(pStreamMeta, numOfTasks);
 
   // update the new task number
-  numOfTasks = taosArrayGetSize(pTaskIdList);
+  numOfTasks = taosArrayGetSize(pTaskList);
+
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    int32_t*     pTaskId = taosArrayGet(pTaskIdList, i);
+    int32_t*     pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask* pTask = streamMetaAcquireTask(pStreamMeta, *pTaskId);
     if (pTask == NULL) {
       continue;
@@ -122,6 +109,15 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     // seek the stored version and extract data from WAL
     int32_t code = walReadSeekVer(pTask->exec.pWalReader, pTask->chkInfo.currentVer);
     if (code != TSDB_CODE_SUCCESS) {  // no data in wal, quit
+      SWal *pWal = pTask->exec.pWalReader->pWal;
+      if (pTask->chkInfo.currentVer < pWal->vers.firstVer ) {
+        pTask->chkInfo.currentVer = pWal->vers.firstVer;
+        code = walReadSeekVer(pTask->exec.pWalReader, pTask->chkInfo.currentVer);
+        if (code != TSDB_CODE_SUCCESS) {
+          streamMetaReleaseTask(pStreamMeta, pTask);
+          continue;
+        }
+      }
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
@@ -165,7 +161,7 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     *pScanIdle = true;
   }
 
-  taosArrayDestroy(pTaskIdList);
+  taosArrayDestroy(pTaskList);
   return 0;
 }
 

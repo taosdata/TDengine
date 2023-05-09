@@ -193,7 +193,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode);
 void tqNotifyClose(STQ*);
 void tqClose(STQ*);
 int  tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
-int  tqRegisterPushEntry(STQ* pTq, void* handle, SRpcMsg* pMsg);
+int  tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 int  tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 int  tqStartStreamTasks(STQ* pTq);    // restore all stream tasks after vnode launching completed.
 
@@ -212,7 +212,6 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msg
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit);
 int32_t tqProcessSubmitReqForSubscribe(STQ* pTq);
 int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
