@@ -4851,7 +4851,11 @@ int32_t tsdbNextDataBlock(STsdbReader* pReader, bool* hasNext) {
   qTrace("tsdb/read: %p, take read mutex, code: %d", pReader, code);
 
   if (pReader->flag == READER_STATUS_SUSPEND) {
-    tsdbReaderResume(pReader);
+    code = tsdbReaderResume(pReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      tsdbReleaseReader(pReader);
+      return code;
+    }
   }
 
   if (pReader->innerReader[0] != NULL && pReader->step == 0) {
@@ -5124,11 +5128,17 @@ SSDataBlock* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
 }
 
 int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   qTrace("tsdb/reader-reset: %p, take read mutex", pReader);
   tsdbAcquireReader(pReader);
 
   if (pReader->flag == READER_STATUS_SUSPEND) {
-    tsdbReaderResume(pReader);
+    code = tsdbReaderResume(pReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      tsdbReleaseReader(pReader);
+      return code;
+    }
   }
 
   if (isEmptyQueryTimeWindow(&pReader->window) || pReader->pReadSnap == NULL) {
@@ -5162,8 +5172,6 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   int32_t step = asc ? 1 : -1;
   int64_t ts = asc ? pReader->window.skey - 1 : pReader->window.ekey + 1;
   resetAllDataBlockScanInfo(pStatus->pTableMap, ts, step);
-
-  int32_t code = 0;
 
   // no data in files, let's try buffer in memory
   if (pStatus->fileIter.numOfFiles == 0) {
@@ -5209,7 +5217,11 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   // find the start data block in file
   tsdbAcquireReader(pReader);
   if (pReader->flag == READER_STATUS_SUSPEND) {
-    tsdbReaderResume(pReader);
+    code = tsdbReaderResume(pReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      tsdbReleaseReader(pReader);
+      return code;
+    }
   }
   SReaderStatus* pStatus = &pReader->status;
 
@@ -5277,12 +5289,17 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
 }
 
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
+  int32_t code = TSDB_CODE_SUCCESS;
   int64_t rows = 0;
 
   SReaderStatus* pStatus = &pReader->status;
   tsdbAcquireReader(pReader);
   if (pReader->flag == READER_STATUS_SUSPEND) {
-    tsdbReaderResume(pReader);
+    code = tsdbReaderResume(pReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      tsdbReleaseReader(pReader);
+      return code;
+    }
   }
 
   int32_t iter = 0;
