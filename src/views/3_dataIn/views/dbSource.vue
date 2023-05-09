@@ -3,7 +3,8 @@
     <component
       :is="currentName"
       :sourceList="sourceList"
-      :dbsource="uidata"
+      :dbsourceList="uidata"
+      :dbsource='uidata'
       :editId="editId"
       :dbName="dbName"
       :tagName="tagName"
@@ -82,6 +83,10 @@ export default {
           case "pi":
             this.currentName = "ui";
             this.tagName = "pi";
+            break;
+          case 'influxdb':
+            this.currentName = "ui";
+            this.tagName = "influxdb";
             break;
           case "pitable":
             this.currentName = "dbsource";

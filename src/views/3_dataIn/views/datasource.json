@@ -17,26 +17,40 @@
       }
   },
   "strict": false,
+  "datasets" : {
+    "name": "Data Sets",
+    "display_order": 1,
+    "description": "Choose data sets in the system",
+    "params_old": [
+        {
+            "name": "TemplateForPIPoint",
+            "display": "Template For Point",
+            "description": "Choose one or more templates for data transfer.",
+            "hint": "str"
+        },
+        {
+            "name": "TemplateForAFElement",
+            "display": "Template For AF Element",
+            "description": "Choose one or more templates for data transfer.",
+            "hint": "str"
+        }
+    ],
+    "categories": [
+        {
+            "category": "topics",
+            "display": "Topics",
+            "description": "TDengine topic selection.",
+            "conflicts_with": "topics",
+            "target": {
+                "name": "subject",
+                "description": "Topics",
+                "required": true,
+                "multiple": true
+            }  
+        } 
+    ]
+  },
   "groups": [
-      {
-          "name": "Data Sets",
-          "display_order": 1,
-          "description": "Choose data sets in the system",
-          "params": [
-              {
-                  "name": "TemplateForPIPoint",
-                  "display": "Template For Point",
-                  "description": "Choose one or more templates for data transfer.",
-                  "hint": "str"
-              },
-              {
-                  "name": "TemplateForAFElement",
-                  "display": "Template For AF Element",
-                  "description": "Choose one or more templates for data transfer.",
-                  "hint": "str"
-              }
-          ]
-      },
       {
           "name": "PI System",
           "display_order": 2,

@@ -116,7 +116,7 @@
           <span>{{ $t("stream.delay") }}&nbsp;</span>
           <el-tooltip
             effect="light"
-            :content="$t('stream.delayTip')"
+            :content="$t('stream.delaytip')"
             placement="top"
           >
             <i class="el-icon-info"></i>
@@ -135,6 +135,22 @@
         >
           <el-option
             v-for="item in watermarkUnitList"
+            :key="item.label"
+            v-bind="item"
+          ></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Ignore Expired">
+        <template slot="label">
+          <span>Ignore Expired</span>
+        </template>
+        <el-select
+          v-model="info.ignore_expired"
+          @change="changeIgnoreExpired"
+          placeholder=""
+        >
+          <el-option
+            v-for="item in expiredList"
             :key="item.label"
             v-bind="item"
           ></el-option>
@@ -278,8 +294,19 @@ export default {
         max_delay_unit: "s",
         watermark: 0,
         watermark_unit: "s",
+        ignore_expired: 1,
       },
       watermarkMax: 15 * 60,
+      expiredList: [
+        {
+          label: 1,
+          value: 1,
+        },
+        {
+          label: 0,
+          value: 0,
+        },
+      ],
       watermarkUnitList: [
         {
           label: "second",
@@ -356,6 +383,7 @@ export default {
     },
   },
   methods: {
+    changeIgnoreExpired() {},
     async handlecreateStream() {
       this.errorText = "";
       if (this.requestIng) return;
@@ -402,6 +430,9 @@ export default {
                 " TRIGGER " +
                 this.info.trigger +
                 " ";
+
+              previewSql += `  IGNORE EXPIRED ${this.info.ignore_expired} `;
+
               if (this.info.trigger === "MAX_DELAY") {
                 previewSql +=
                   this.info.max_delay_time + this.info.max_delay_unit;
@@ -412,6 +443,7 @@ export default {
                   this.info.watermark +
                   this.info.watermark_unit;
               }
+
               previewSql +=
                 " INTO `" +
                 this.info.target_db.toLowerCase() +
