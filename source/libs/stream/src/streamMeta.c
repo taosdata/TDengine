@@ -198,7 +198,7 @@ int32_t streamMetaGetNumOfTasks(const SStreamMeta* pMeta) {
   size_t size = taosHashGetSize(pMeta->pTasks);
   ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasks));
 
-  return (int32_t) size;
+  return (int32_t)size;
 }
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
@@ -234,7 +234,7 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
 
-    taosWLockLatch(&pMeta->lock);
+    // taosWLockLatch(&pMeta->lock);
 
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
@@ -242,7 +242,7 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__STOP);
 
     int32_t num = taosArrayGetSize(pMeta->pTaskList);
-    for(int32_t i = 0; i < num; ++i) {
+    for (int32_t i = 0; i < num; ++i) {
       int32_t* pTaskId = taosArrayGet(pMeta->pTaskList, i);
       if (*pTaskId == taskId) {
         taosArrayRemove(pMeta->pTaskList, i);
