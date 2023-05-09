@@ -117,6 +117,15 @@ TEST_F(ParserSelectTest, timelineFunc) {
   run("SELECT LAST(*), FIRST(*) FROM t1 INTERVAL(10s)");
 
   run("SELECT diff(c1) FROM t1");
+
+  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d))", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+
+  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d) order by ts)");
+
+  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d)) WHERE t1.ts = t2.ts", TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
+
+  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d) order by ts) t2 WHERE t1.ts = t2.ts");
+
 }
 
 TEST_F(ParserSelectTest, selectFunc) {
