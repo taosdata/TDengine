@@ -169,7 +169,7 @@ void tqNotifyClose(STQ* pTq) {
       int64_t st = taosGetTimestampMs();
       qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
       int64_t el = taosGetTimestampMs() - st;
-      tqDebug("vgId:%d s-task:%s is closed in %" PRId64 "ms", pTq->pStreamMeta->vgId, pTask->id.idStr, el);
+      tqDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pTq->pStreamMeta->vgId, pTask->id.idStr, el);
     }
 
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
@@ -637,7 +637,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->smaSink.smaSink = smaHandleRes;
   } else if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.vnode = pTq->pVnode;
-    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline2;
+    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline;
 
     int32_t   ver1 = 1;
     SMetaInfo info = {0};
@@ -821,17 +821,19 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // do recovery step 1
-  tqDebug("s-task:%s start recover step 1 scan", pTask->id.idStr);
+  tqDebug("s-task:%s start non-blocking recover stage(step 1) scan", pTask->id.idStr);
   int64_t st = taosGetTimestampMs();
 
   streamSourceRecoverScanStep1(pTask);
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
+    tqDebug("s-task:%s is dropped, abort recover in step1", pTask->id.idStr);
+
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   }
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
-  tqDebug("s-task:%s recover step 1 ended, elapsed time:%.2fs", pTask->id.idStr, el);
+  tqDebug("s-task:%s non-blocking recover stage(step 1) ended, elapsed time:%.2fs", pTask->id.idStr, el);
 
   // build msg to launch next step
   SStreamRecoverStep2Req req;
@@ -842,7 +844,6 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     return 0;
   }
@@ -852,13 +853,14 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
 
   void* serializedReq = rpcMallocCont(len);
   if (serializedReq == NULL) {
+    tqError("s-task:%s failed to prepare the step2 stage, out of memory", pTask->id.idStr);
     return -1;
   }
 
   memcpy(serializedReq, &req, len);
 
   // dispatch msg
-  tqDebug("s-task:%s start recover block stage", pTask->id.idStr);
+  tqDebug("s-task:%s step 1 finished, send msg to start blocking recover stage(step 2)", pTask->id.idStr);
 
   SRpcMsg rpcMsg = {
       .code = 0, .contLen = len, .msgType = TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE, .pCont = serializedReq};
@@ -870,12 +872,16 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
   int32_t code = 0;
 
   SStreamRecoverStep2Req* pReq = (SStreamRecoverStep2Req*)msg;
-  SStreamTask*            pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask == NULL) {
     return -1;
   }
 
   // do recovery step 2
+  int64_t st = taosGetTimestampMs();
+  tqDebug("s-task:%s start step2 recover, ts:%"PRId64, pTask->id.idStr, st);
+
   code = streamSourceRecoverScanStep2(pTask, sversion);
   if (code < 0) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
@@ -895,11 +901,15 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
   }
 
   // set status normal
+  tqDebug("s-task:%s blocking stage completed, set the status to be normal", pTask->id.idStr);
   code = streamSetStatusNormal(pTask);
   if (code < 0) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
+
+  double el = (taosGetTimestampMs() - st)/ 1000.0;
+  tqDebug("s-task:%s step2 recover finished, el:%.2fs", pTask->id.idStr, el);
 
   // dispatch recover finish req to all related downstream task
   code = streamDispatchRecoverFinishReq(pTask);
@@ -912,7 +922,6 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
   streamMetaSaveTask(pTq->pStreamMeta, pTask);
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-
   return 0;
 }
 
@@ -1178,6 +1187,7 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask) {
     tqDebug("vgId:%d s-task:%s set pause flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
+    atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   }
@@ -1188,7 +1198,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask) {
-    streamSetStatusNormal(pTask);
+    atomic_store_8(&pTask->status.taskStatus, pTask->status.keepTaskStatus);
 
     // no lock needs to secure the access of the version
     if (pReq->igUntreated) {  // discard all the data  when the stream task is suspended.
@@ -1325,12 +1335,12 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
   if (pRunReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d failed restore stream tasks, code:%s", vgId, terrstr());
+    tqError("vgId:%d failed to create msg to start wal scanning to launch stream tasks, code:%s", vgId, terrstr());
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
     return -1;
   }
 
-  tqDebug("vgId:%d start wal scan stream tasks, tasks:%d", vgId, numOfTasks);
+  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d", vgId, numOfTasks);
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
   pRunReq->taskId = WAL_READ_TASKS_ID;

@@ -236,7 +236,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
 
     SDB_SET_INT32(pRaw, dataPos, *useDb, _OVER)
-    useDb = taosHashIterate(pUser->writeTbs, useDb);
+    useDb = taosHashIterate(pUser->useDbs, useDb);
   }
 
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)

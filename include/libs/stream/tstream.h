@@ -278,6 +278,7 @@ typedef struct SCheckpointInfo {
 typedef struct SStreamStatus {
   int8_t taskStatus;
   int8_t schedStatus;
+  int8_t keepTaskStatus;
 } SStreamStatus;
 
 struct SStreamTask {
@@ -542,6 +543,7 @@ int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
 int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock);
 bool    streamTaskShouldStop(const SStreamStatus* pStatus);
+bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 

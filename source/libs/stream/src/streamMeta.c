@@ -54,7 +54,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
-  pMeta->pTasks = taosHashInit(64, fp, true, HASH_ENTRY_LOCK);
+  pMeta->pTasks = taosHashInit(64, fp, true, HASH_NO_LOCK);
   if (pMeta->pTasks == NULL) {
     goto _err;
   }
@@ -251,11 +251,13 @@ void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 }
 
 void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
+  taosWLockLatch(&pMeta->lock);
+
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
 
-    taosWLockLatch(&pMeta->lock);
+    // taosWLockLatch(&pMeta->lock);
 
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
@@ -273,8 +275,9 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
     }
 
     streamMetaReleaseTask(pMeta, pTask);
-    taosWUnLockLatch(&pMeta->lock);
   }
+
+  taosWUnLockLatch(&pMeta->lock);
 }
 
 int32_t streamMetaBegin(SStreamMeta* pMeta) {

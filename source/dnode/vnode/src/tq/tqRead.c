@@ -295,7 +295,7 @@ void tqCloseReader(STqReader* pReader) {
 }
 
 int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
-  if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
+  if (walReaderSeekVer(pReader->pWalReader, ver) < 0) {
     return -1;
   }
   tqDebug("wal reader seek to ver:%" PRId64 " %s", ver, id);

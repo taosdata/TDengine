@@ -15,11 +15,17 @@
 
 #include "streamInc.h"
 
-#define STREAM_EXEC_MAX_BATCH_NUM 20480
+#define MAX_STREAM_EXEC_BATCH_NUM 10240
+#define MIN_STREAM_EXEC_BATCH_NUM 16
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*) &pStatus->taskStatus);
   return (status == TASK_STATUS__STOP) || (status == TASK_STATUS__DROPPING);
+}
+
+bool streamTaskShouldPause(const SStreamStatus* pStatus) {
+  int32_t status = atomic_load_8((int8_t*) &pStatus->taskStatus);
+  return (status == TASK_STATUS__PAUSE);
 }
 
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
@@ -141,7 +147,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     int32_t batchCnt = 0;
     while (1) {
-      if (streamTaskShouldStop(&pTask->status)) {
+      if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
         taosArrayDestroy(pRes);
         return 0;
       }
@@ -167,8 +173,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
       batchCnt++;
 
-      qDebug("s-task:%s scan exec block num %d, block limit %d", pTask->id.idStr, batchCnt, batchSz);
-
+      qDebug("s-task:%s scan exec numOfBlocks:%d, limit:%d", pTask->id.idStr, batchCnt, batchSz);
       if (batchCnt >= batchSz) {
         break;
       }
@@ -201,7 +206,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
     }
 
     if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-      qDebug("task %d scan exec dispatch block num %d", pTask->id.taskId, batchCnt);
+      qDebug("s-task:%s scan exec dispatch blocks:%d", pTask->id.idStr, batchCnt);
       streamDispatch(pTask);
     }
 
@@ -255,6 +260,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   while (1) {
     int32_t batchSize = 1;
     void*   pInput = NULL;
+    int16_t times = 0;
 
     // merge multiple input data if possible in the input queue.
     qDebug("s-task:%s start to extract data block from inputQ", pTask->id.idStr);
@@ -262,6 +268,13 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     while (1) {
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
+        if (pTask->taskLevel == TASK_LEVEL__SOURCE && batchSize < MIN_STREAM_EXEC_BATCH_NUM && times < 5) {
+          times++;
+          taosMsleep(1);
+          qDebug("===stream===try agian batchSize:%d", batchSize);
+          continue;
+        }
+
         break;
       }
 
@@ -280,7 +293,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
           batchSize++;
           pInput = newRet;
           streamQueueProcessSuccess(pTask->inputQueue);
-          if (batchSize > STREAM_EXEC_MAX_BATCH_NUM) {
+          if (batchSize > MAX_STREAM_EXEC_BATCH_NUM) {
             break;
           }
         }
