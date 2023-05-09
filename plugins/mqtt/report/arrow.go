@@ -38,7 +38,7 @@ func NewArrowReporter(remote string) (*ArrowReporter, error) {
 	}
 	schema := arrow.NewSchema(
 		[]arrow.Field{
-			{Name: "ts", Type: &arrow.TimestampType{Unit: arrow.Nanosecond}},
+			{Name: "ts", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},
 			{Name: "topic", Type: arrow.BinaryTypes.String},
 			{Name: "qos", Type: &arrow.Uint8Type{}},
 			{Name: "payload", Type: arrow.BinaryTypes.Binary},
