@@ -413,6 +413,7 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsR
 
         if (pTmpColArray && TARRAY_SIZE(pTmpColArray) >= 1) {
           pLastCol = taosArrayGet(pTmpColArray, 0);
+          freeCol = false;
         }
 
         // still null, then make up a none col value
