@@ -208,6 +208,8 @@ The following `launchctl` commands can help you manage TDengine service:
 
 - Check TDengine Server status: `sudo launchctl list | grep taosd`
 
+- Check TDengine Server status details: `launchctl print system/com.tdengine.taosd`
+
 :::info
 - Please use `sudo` to run `launchctl` to manage _com.tdengine.taosd_ with administrator privileges.
 - The administrator privilege is required for service management to enhance security.
