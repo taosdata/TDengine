@@ -188,6 +188,11 @@ int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* 
     return -1;
   }
 
+  if (streamMetaCommit(pMeta) < 0) {
+    tFreeStreamTask(pTask);
+    return -1;
+  }
+
   taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, POINTER_BYTES);
   taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
   return 0;
