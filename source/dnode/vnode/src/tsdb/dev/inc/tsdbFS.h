@@ -32,8 +32,8 @@ typedef enum {
 
 /* Exposed APIs */
 // open/close
-int32_t tsdbOpenFileSystem(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback);
-int32_t tsdbCloseFileSystem(STFileSystem **ppFS);
+int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback);
+int32_t tsdbCloseFS(STFileSystem **ppFS);
 // txn
 int32_t tsdbFSEditBegin(STFileSystem *pFS, const SArray *aFileOp, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *pFS, EFEditT etype);

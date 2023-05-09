@@ -70,7 +70,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
 
 // open tsdb
 #ifdef USE_DEV_CODE
-  if (tsdbOpenFileSystem(pTsdb, &pTsdb->pFS, rollback) < 0) {
+  if (tsdbOpenFS(pTsdb, &pTsdb->pFS, rollback) < 0) {
     goto _err;
   }
 #else
@@ -106,7 +106,7 @@ int tsdbClose(STsdb **pTsdb) {
 #ifndef USE_DEV_CODE
     tsdbFSClose(*pTsdb);
 #else
-    tsdbCloseFileSystem(&(*pTsdb)->pFS);
+    tsdbCloseFS(&(*pTsdb)->pFS);
 #endif
     tsdbCloseCache(*pTsdb);
     taosMemoryFreeClear(*pTsdb);
