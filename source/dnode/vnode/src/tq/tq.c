@@ -445,6 +445,7 @@ int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
 }
 
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
+  int ret = 0;
   SMqRebVgReq req = {0};
   tDecodeSMqRebVgReq(msg, &req);
 
@@ -463,8 +464,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
     if (req.newConsumerId == -1) {
       tqError("vgId:%d, tq invalid re-balance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
-      taosMemoryFree(req.qmsg);
-      return 0;
+      goto end;
     }
 
     STqHandle tqHandle = {0};
@@ -481,8 +481,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     // TODO version should be assigned and refed during preprocess
     SWalRef* pRef = walRefCommittedVer(pVnode->pWal);
     if (pRef == NULL) {
-      taosMemoryFree(req.qmsg);
-      return -1;
+      ret = -1;
+      goto end;
     }
 
     int64_t ver = pRef->refVer;
@@ -534,49 +534,42 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
     tqDebug("try to persist handle %s consumer:0x%" PRIx64 " , old consumer:0x%" PRIx64, req.subKey,
             pHandle->consumerId, oldConsumerId);
-    if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
-      taosMemoryFree(req.qmsg);
-      return -1;
-    }
+    ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
+    goto end;
   } else {
     if (pHandle->consumerId == req.newConsumerId) {  // do nothing
       tqInfo("vgId:%d consumer:0x%" PRIx64 " remains, no switch occurs", req.vgId, req.newConsumerId);
-      atomic_store_32(&pHandle->epoch, -1);
       atomic_add_fetch_32(&pHandle->epoch, 1);
-      taosMemoryFree(req.qmsg);
-      return tqMetaSaveHandle(pTq, req.subKey, pHandle);
+
     } else {
       tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
              req.newConsumerId);
-
-      // kill executing task
-      qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
-      if (pTaskInfo != NULL) {
-        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
-      }
-
-      taosWLockLatch(&pTq->lock);
-      atomic_store_32(&pHandle->epoch, 0);
-
-      // remove if it has been register in the push manager, and return one empty block to consumer
-      tqUnregisterPushHandle(pTq, pHandle);
-
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
-
-      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-        qStreamCloseTsdbReader(pTaskInfo);
-      }
-
-      taosWUnLockLatch(&pTq->lock);
-      if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
-        taosMemoryFree(req.qmsg);
-        return -1;
-      }
+      atomic_store_32(&pHandle->epoch, 0);
     }
+    // kill executing task
+    qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
+    if (pTaskInfo != NULL) {
+      qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
+    }
+
+    taosWLockLatch(&pTq->lock);
+    // remove if it has been register in the push manager, and return one empty block to consumer
+    tqUnregisterPushHandle(pTq, pHandle);
+
+
+    if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      qStreamCloseTsdbReader(pTaskInfo);
+    }
+
+    taosWUnLockLatch(&pTq->lock);
+    ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
+    goto end;
   }
 
+end:
   taosMemoryFree(req.qmsg);
-  return 0;
+  return ret;
 }
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
@@ -1073,12 +1066,15 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   taosWLockLatch(&pTq->lock);
-  if(taosHashGetSize(pTq->pPushMgr) > 0){
-    void *pIter = taosHashIterate(pTq->pPushMgr, NULL);
-    while(pIter){
+
+  if (taosHashGetSize(pTq->pPushMgr) > 0) {
+    void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
+
+    while (pIter) {
       STqHandle* pHandle = *(STqHandle**)pIter;
-      tqDebug("vgId:%d start set submit for pHandle:%p, consume id:0x%"PRIx64, vgId, pHandle, pHandle->consumerId);
-      if(ASSERT(pHandle->msg != NULL)){
+      tqDebug("vgId:%d start set submit for pHandle:%p, consumer:0x%" PRIx64, vgId, pHandle, pHandle->consumerId);
+
+      if (ASSERT(pHandle->msg != NULL)) {
         tqError("pHandle->msg should not be null");
         break;
       }else{
@@ -1087,77 +1083,15 @@ int32_t tqProcessSubmitReqForSubscribe(STQ* pTq) {
         taosMemoryFree(pHandle->msg);
         pHandle->msg = NULL;
       }
+
       pIter = taosHashIterate(pTq->pPushMgr, pIter);
     }
+
     taosHashClear(pTq->pPushMgr);
   }
+
   // unlock
   taosWUnLockLatch(&pTq->lock);
-
-  return 0;
-}
-
-int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
-#if 0
-  void* pIter = NULL;
-  SStreamDataSubmit2* pSubmit = streamDataSubmitNew(submit, STREAM_INPUT__DATA_SUBMIT);
-  if (pSubmit == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("failed to create data submit for stream since out of memory");
-    saveOffsetForAllTasks(pTq, submit.ver);
-    return -1;
-  }
-
-  SArray* pInputQueueFullTasks = taosArrayInit(4, POINTER_BYTES);
-
-  while (1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
-      continue;
-    }
-
-    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
-              pTask->status.taskStatus);
-      continue;
-    }
-
-    // check if offset value exists
-    char key[128] = {0};
-    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
-
-    if (tInputQueueIsFull(pTask)) {
-      STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
-
-      int64_t ver = submit.ver;
-      if (pOffset == NULL) {
-        doSaveTaskOffset(pTq->pOffsetStore, key, submit.ver);
-      } else {
-        ver = pOffset->val.version;
-      }
-
-      tqDebug("s-task:%s input queue is full, discard submit block, ver:%" PRId64, pTask->id.idStr, ver);
-      taosArrayPush(pInputQueueFullTasks, &pTask);
-      continue;
-    }
-
-    // check if offset value exists
-    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
-    ASSERT(pOffset == NULL);
-
-    addSubmitBlockNLaunchTask(pTq->pOffsetStore, pTask, pSubmit, key, submit.ver);
-  }
-
-  streamDataSubmitDestroy(pSubmit);
-  taosFreeQitem(pSubmit);
-#endif
-
-  tqStartStreamTasks(pTq);
   return 0;
 }
 

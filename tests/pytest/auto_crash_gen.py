@@ -363,8 +363,7 @@ def main():
         git commit :  {git_commit}
         log dir: {log_dir}
         core dir: {core_dir}
-        cmd: {cmd}
-        '''
+        cmd: {cmd}'''
                 
         send_msg(get_msg(text))  
     except Exception as e:

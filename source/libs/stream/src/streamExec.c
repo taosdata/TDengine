@@ -250,10 +250,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     void*   pInput = NULL;
 
     // merge multiple input data if possible in the input queue.
+    qDebug("s-task:%s start to extract data block from inputQ", pTask->id.idStr);
+
     while (1) {
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
-//        qDebug("s-task:%s extract data from input queue, queue is empty, abort", pTask->id.idStr);
         break;
       }
 
@@ -298,7 +299,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     }
 
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
-    qDebug("s-task:%s exec begin, numOfBlocks:%d", pTask->id.idStr, batchSize);
+    qDebug("s-task:%s start to execute, numOfBlocks:%d", pTask->id.idStr, batchSize);
 
     streamTaskExecImpl(pTask, pInput, pRes);
 
