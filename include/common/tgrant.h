@@ -48,6 +48,16 @@ typedef enum {
   TSDB_GRANT_TABLE,
 } EGrantType;
 
+#define GRANT_ACTIVE_ON      ((int8_t)0x01)
+#define GRANT_CONN_ACTIVE_ON ((int8_t)0x02)
+
+#define SET_GRANT_ACTIVE_ON(f)      ((f) |= GRANT_ACTIVE_ON)
+#define SET_GRANT_CONN_ACTIVE_ON(f) ((f) |= GRANT_CONN_ACTIVE_ON)
+
+#define IS_GRANT_ACTIVE_CODES_ON(f) ((f) != 0x0)
+#define IS_GRANT_ACTIVE_ON(f)       (((f)&0x01) == GRANT_ACTIVE_ON)
+#define IS_GRANT_CONN_ACTIVE_ON(f)  (((f)&0x02) == GRANT_CONN_ACTIVE_ON)
+
 int32_t grantCheck(EGrantType grant);
 
 #ifndef GRANTS_CFG
