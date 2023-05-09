@@ -2,14 +2,15 @@ use std::{
     collections::HashMap,
     io::{BufRead, Write},
     num::ParseIntError,
-    str::ParseBoolError,
+    str::ParseBoolError, time::Duration,
 };
 
+use anyhow::Context;
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 
-use crate::{utils::port_pool::PortPool, Action};
+use crate::{utils::port_pool::PortPool, Action, plugins::sink};
 
 #[derive(Debug, serde::Serialize)]
 struct MqttConfig {
@@ -126,6 +127,7 @@ pub async fn mqtt_to_taos(
     jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
+    with_agent: Option<(i64, String, String)>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: MQTT");
     if to.subject.is_none() {
@@ -146,13 +148,64 @@ pub async fn mqtt_to_taos(
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-    log::info!(
-        "Using mqtt config file {} \n{}",
-        config_path.display(),
-        toml
-    );
-    // TODO generate mqtt process
-
+    log::info!("Using mqtt config file {} \n{}", config_path.display(), toml);
+    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
+    let ipc = if with_agent.is_none() {
+        sink::listen_tcp_socket(
+            TaosBuilder::from_dsn(&to)?.pool()?,
+            config.remote,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent,
+        )?
+    } else {
+        sink::listen_tcp_socket_with_agent(
+            config.remote,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent.unwrap(),
+        )?
+    };
+    let mqtt= if cfg!(target_os = "windows") {
+        "C:\\TDengine\\xplugins\\mqtt\\taosmqtt.exe"
+    } else {
+        "/usr/local/taos/xplugins/mqtt/taosmqtt"
+    };
+    let mut command = tokio::process::Command::new(mqtt);
+    let mut child = command.arg("-c").arg(&config_path)
+        .stdout(async_process::Stdio::inherit())
+        .stderr(async_process::Stdio::inherit())
+        .spawn()?;
+    tokio::spawn(async move {
+        tokio::select! {
+            status = child.wait() => {
+                let status = status?;
+                log::info!("mqtt exit with status {status}");
+                if !status.success() {
+                    let _ = ipc.send(());
+                    anyhow::bail!("mqtt exit with status {status}");
+                }
+            },
+            err = receiver.recv() => {
+                log::info!("have received worker thread panicked message, terminate child process");
+                if let Some(err) = err {
+                    let _ = ipc.send(());
+                    anyhow::bail!("mqtt writer error: {err}");
+                }
+            },
+            _ = cancel.cancelled() => {
+                log::info!("mqtt task cancelled");
+            }, 
+        };
+        ipc.send(())?;
+        child.kill().await;
+        log::info!("mqtt to taos task done");
+        temp_path.close().unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        Ok(())
+    }).await??;
     Ok(())
 }
 

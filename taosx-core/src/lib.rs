@@ -137,6 +137,7 @@ impl TaskOpts {
                         *jobs,
                         port_pool,
                         cancel.clone(),
+                        with_agent.clone(),
                     )
                     .await?;
                 }
