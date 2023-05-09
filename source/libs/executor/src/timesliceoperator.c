@@ -176,6 +176,10 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
 
 
   int64_t currentTs = *(int64_t*)colDataGetData(pTsCol, curIndex);
+  if (currentTs > pSliceInfo->win.ekey) {
+    return false;
+  }
+
   if ((pSliceInfo->prevTsSet == true) && (currentTs == pSliceInfo->prevTs)) {
     return true;
   }
@@ -183,7 +187,7 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
   pSliceInfo->prevTsSet = true;
   pSliceInfo->prevTs = currentTs;
 
-  if (curIndex < rows - 1) {
+  if (currentTs == pSliceInfo->win.ekey && curIndex < rows - 1) {
     int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, curIndex + 1);
     if (currentTs == nextTs) {
       return true;
