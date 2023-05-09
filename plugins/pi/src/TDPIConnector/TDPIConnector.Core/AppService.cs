@@ -128,12 +128,12 @@ namespace TDPIConnector.Core
             this.pointModeObserver = new PointModeObserver(eventsSender);
             this.elementModeObserver = new ElementModeObserver(eventsSender);
 
-            eventsSender.OnPIEventReceivedListSuccess += (sender, dpEventList) => monitoringService.PublishLastPIEvent(dpEventList);
-            eventsSender.OnAFEventReceivedListSuccess += (sender, dpEventList) => monitoringService.PublishLastAFEvent(dpEventList);
-            eventsSender.OnPIEventReceivedSuccess += (sender, dpEvent) => monitoringService.PublishPIEvent(dpEvent);
-            eventsSender.OnAFEventReceivedSuccess += (sender, dpEvent) => monitoringService.PublishAFEvent(dpEvent);
-            pointModeObserver.OnPIEventReceivedFailure += (sender, ex) => monitoringService.PublishPIException(ex); 
-            elementModeObserver.OnAFEventReceivedFailure += (sender, ex) => monitoringService.PublishPIException(ex);
+            // eventsSender.OnPIEventReceivedListSuccess += (sender, dpEventList) => monitoringService.PublishLastPIEvent(dpEventList);
+            // eventsSender.OnAFEventReceivedListSuccess += (sender, dpEventList) => monitoringService.PublishLastAFEvent(dpEventList);
+            // eventsSender.OnPIEventReceivedSuccess += (sender, dpEvent) => monitoringService.PublishPIEvent(dpEvent);
+            // eventsSender.OnAFEventReceivedSuccess += (sender, dpEvent) => monitoringService.PublishAFEvent(dpEvent);
+            // pointModeObserver.OnPIEventReceivedFailure += (sender, ex) => monitoringService.PublishPIException(ex);
+            // elementModeObserver.OnAFEventReceivedFailure += (sender, ex) => monitoringService.PublishPIException(ex);
         }
         private void ConfigureMonitoring()
         {
