@@ -122,6 +122,8 @@ parameters:
   init.d:
     - &rpm_server communityDir/packaging/rpm/taosd
     - &deb_server communityDir/packaging/deb/taosd
+  folder:
+    - &share_admin webDir/admin
 
   TDenginePackages:
     enable: true
@@ -186,7 +188,18 @@ parameters:
             - python
             - rust
             - jdbc
-          share: true
+          share: 
+            - admin:
+               folder: true
+               src: webDir/admin
+            - etc:
+               folder: true
+               src: buildDir/share/etc
+            - srv:
+               folder: true
+               src: buildDir/share/srv
+            - admin/images:
+                src: webDir/png/taos.png
 
       client: 
         enable: true

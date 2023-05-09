@@ -63,8 +63,8 @@ def getGitHead(gitPath, repo):
             "get repo {0} git info failed, reason {1}".format(repo, output))
 
 
-def readOption(filecontent, option):
-    options = yamlfile[option]
+def readOption(fileContent, option):
+    options = fileContent[option]
     logging.debug(options)
     return options
 
@@ -197,9 +197,6 @@ def checkAndInitInput(options, version):
             f"current BuilOptions of PAGMODE is {options['buildOptions']['PAGMODE']}")
     else:
         logging.info(f"pagMode:{options['pagMode']}")
-
-# this may be removable.
-
 
 def generateLatestDocker():
     if options['dockerMode'] == 'latest' and options['verMode'] == 'cluster':
@@ -483,7 +480,8 @@ def buildInstall(options, verMode):
     executeCommand(command)
 
     logging.info(f"cmake -j {cpuCount} ")
-    executeCommand(f"make -j {cpuCount}")
+    # executeCommand(f"make -j {cpuCount}")
+    executeCommand(f"make")
 
     logging.info(f"making install")
     executeCommand(f"make install")
@@ -657,7 +655,7 @@ def doRelease(options, preActions, postActions, args):
 
     # ================= build and install
 
-    buildInstall(options, options['verMode'])
+    # buildInstall(options, options['verMode'])
 
     # ================ making packages
     makePackages(options, options['buildOptions'], options['verMode'])

@@ -163,10 +163,18 @@ parameters:
             - *libtaows
             - vercomp.txt
           install.sh: *install_server
-          share:
-            srv:
-              - *taosx_service
-              - *taosexplorer_service
+          share: 
+            - admin:
+               folder: true
+               src: webDir/admin
+            - etc:
+               folder: true
+               src: buildDir/share/etc
+            - srv:
+               folder: true
+               src: buildDir/share/srv
+            - admin/images:
+                src: webDir/png/taos.png
 
       client:
         enable: true
