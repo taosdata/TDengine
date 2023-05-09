@@ -194,13 +194,13 @@ static bool checkDuplicateTimestamps(STimeSliceOperatorInfo* pSliceInfo, SColumn
 }
 
 static bool isInterpFunc(SExprInfo* pExprInfo) {
-  char *name = pExprInfo->pExpr->_function.functionName;
-  return (strcasecmp(name, "interp") == 0);
+  int32_t functionType = pExprInfo->pExpr->_function.functionType;
+  return (functionType == FUNCTION_TYPE_INTERP);
 }
 
 static bool isGroupKeyFunc(SExprInfo* pExprInfo) {
-  char *name = pExprInfo->pExpr->_function.functionName;
-  return (strcasecmp(name, "_group_key") == 0);
+  int32_t functionType = pExprInfo->pExpr->_function.functionType;
+  return (functionType == FUNCTION_TYPE_GROUP_KEY);
 }
 
 static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
