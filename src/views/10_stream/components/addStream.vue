@@ -454,7 +454,7 @@ export default {
                 previewSql += ` SUBTABLE(CONCAT('${this.info.subtale}',tbname))`;
               }
               previewSql += " AS " + subquery;
-              if (this.info.parttionSet) {
+              if (this.info.parttionSet && this.info.parttionSet.length > 0) {
                 previewSql += " PARTITION BY " + this.info.parttionSet;
               }
               if (this.info.window_type) {
@@ -544,8 +544,5 @@ export default {
   justify-content: center;
   align-items: center;
 }
-.language-sql {
-  display: flex;
-  flex-wrap: wrap;
-}
+
 </style>
