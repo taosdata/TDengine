@@ -287,13 +287,7 @@ export default {
       let database_id = database
         ? this?.dbList.find((item) => item.name === database)?.name
         : "";
-      if (!database_id) {
-        this.errorText = this.$t("dbNotExists").replace(
-          "{dbname}",
-          database || ""
-        );
-        throw new Error("database not found " + database);
-      }
+        
       return {
         database_id,
         topic_type,

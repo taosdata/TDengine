@@ -332,11 +332,8 @@ export default {
     cacheLast: "缓存配置",
     nameTip: "数据库名称必填!",
     daysTip: "数据文件存储数据的时间跨度，</br> 默认为：10",
-    precisionTip: `时间戳精度识别。<br />
-    ms 为毫秒，us 为微秒，ns 为
-    纳秒。<br />
-    默认值：毫秒`,
-    keepTip: "表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持多级存储功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 <= keep 1 <= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）",
+    precisionTip: "数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒",
+    keepTip: "数据文件的保存天数，缺省值是 3650 天，超出 KEEP 所指定的保存天数的数据文件会被自动删除。支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位。",
     cacheLastTip: `子表last_row是否缓存在内存中<br />
     范围：0-3<br />
     0：关闭；<br />
@@ -349,60 +346,58 @@ export default {
     1：支持整行更新<br />
     2：只支持更新部分列<br />
     默认值：0`,
-    cacheModelTip: `表示是否在内存中缓存子表的最近数据。默认为 none。
+    cacheModelTip: `是否缓存每个子表最近的数据。默认为 NONE。
     <ul>
-    <li>none：表示不缓存。</li>
-    <li>last_row：表示缓存子表最近一行数据。这将显著改善 LAST_ROW 函数的性能表现。</li>
-    <li>last_value：表示缓存子表每一列的最近的非 NULL 值。这将显著改善无特殊影响（WHERE、ORDER BY、GROUP BY、INTERVAL）下的 LAST 函数的性能表现。</li>
-    <li>both: 表示同时打开缓存最近行和列功能。</li>
+    <li>NONE - 表示不缓存。</li>
+    <li>LAST_ROW - 缓存每个子表的最后一条记录。</li>
+    <li>LAST_VALUE - 缓存每个子表每个列的最后一个非 NULL 值。</li>
+    <li>BOTH - 等同于同时打开 LAST_VALUE 和 LAST_ROW， 缺省值是 NONE。</li>
     </ul>
     `,
-    cacheSizeTip: "表示每个 vnode 中用于缓存子表最近数据的内存大小。默认为 1 ，范围是[1, 65536]，单位是 MB。",
-    compTip: `表示数据库文件压缩标志位，缺省值为 2，取值范围为 [0, 2]。
+    cacheSizeTip: "vnode 中缓存每张表最新数据的缓存大小，单位是 MB，缺省值是 1， 最大允许值是 65536",
+    compTip: `数据文件的压缩级别。
     <ul>
-    <li>0：表示不压缩。</li>
-    <li>1：表示一阶段压缩。</li>
-    <li>2：表示两阶段压缩。</li>
+    <li>0 - 不压缩。</li>
+    <li>1 - 一阶段压缩。</li>
+    <li>2 - 两阶段压缩， 缺省值是 2。</li>
     </ul>
     `,
-    vgroupsTip: "数据库中初始 vgroup 的数目",
-    singleStableTip: `表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
+    vgroupsTip: "vgroup 的数量，一般来说更多的 vgroup 意味着更多的处理能力，前提是系统中有足够的资源，默认值是2。",
+    singleStableTip: `数据库中是否只允许创建单个超级表。
     <ul>
-    <li>0：表示可以创建多张超级表。</li>
-    <li>1：表示只可以创建一张超级表。</li>
+    <li> 0 - 可以创建多个超级表。</li>
+    <li> 1 - 只能创建一个超级表，缺省值为0。</li>
     </ul>
     `,
     walLevelTip: `WAL 级别，默认为 1。
     <ul>
-    <li>1：写 WAL，但不执行 fsync。</li>
-    <li>2：写 WAL，而且执行 fsync。</li>
+    <li>1 - 数据写入 WAL 但不执行 fsync。</li>
+    <li>2 - 数据写入 WAL 且执行 fsync。</li>
     </ul>
     `,
-    walRetentionPeriodTip: "为了数据订阅消费，需要WAL日志文件额外保留的最大时长策略。WAL日志清理，不受订阅客户端消费状态影响。单位为 s。默认为 0，表示无需为订阅保留。新建订阅，应先设置恰当的时长策略。",
-    walRetentionSizeTip: "wal 文件的额外保留策略，用于数据订阅。wal 的保存的最大上限，单位为 KB。默认为 0，即落盘后立即删除。-1 表示不删除。",
-    pagesTip: "一个 VNODE 中元数据存储引擎的缓存页个数，默认为 256，最小 64。一个 VNODE 元数据存储占用 PAGESIZE * PAGES，默认情况下为 1MB 内存。",
-    pageSizeTip: "一个 VNODE 中元数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB 到 16 MB。",
-    replicaTip: "表示数据库副本数，取值为 1 或 3，默认为 1。在集群中使用，副本数必须小于或等于 DNODE 的数目。",
-    retentionsTip:
-      "表示数据的聚合周期和保存时长，如 RETENTIONS 15s:7d,1m:21d,15m:50d 表示数据原始采集周期为 15 秒，原始数据保存 7 天；按 1 分钟聚合的数据保存 21 天；按 15 分钟聚合的数据保存 50 天。目前支持且只支持三级存储周期。",
+    walRetentionPeriodTip: "WAL 文件的大保存时长，它决定了能够订阅到的数据，单位是秒，默认值是0，意味着没有没有数据可以消费，如果想订阅数据请设置为合适的正值。",
+    walRetentionSizeTip: "单个 WAL 文件的大小上限，单位是 KB，默认值为0，意味着 TDengine 会自动处理。",
+    pagesTip: "单个 vnode 中缓存元数据的缓存页数，缺省值是 256，该值允许配置的最小值是 64",
+    pageSizeTip: "vnode 中元数据缓存的页大小，单位是 KB ，值域是 [1,16384]，缺省值是 4 KB。",
+    replicaTip: "数据库副本数，取值为 1 或 3，默认为 1。",
+    retentionsTip:"数据的聚合周期和保存时长，如 RETENTIONS 15s:7d,1m:21d,15m:50d 表示数据原始采集周期为 15 秒，原始数据保存 7 天；按 1 分钟聚合的数据保存 21 天；按 15 分钟聚合的数据保存 50 天。目前支持且只支持三级存储周期。",
     strictTip: `表示数据同步的一致性要求，默认为 off。
     <ul>
     <li>on 表示强一致，即运行标准的 raft 协议，半数提交返回成功。</li>
     <li>off 表示弱一致，本地提交即返回成功。</li>
     </ul>
     `,
-    walFsyncPeriodTip: "当 WAL 参数设置为 2 时，落盘的周期。默认为 3000，单位毫秒。最小为 0，表示每次写入立即落盘；最大为 180000，即三分钟。",
-    maxRowsTip: "文件块中记录的最大条数，默认为 4096 条。",
-    minRowsTip: "文件块中记录的最小条数，默认为 100 条。",
-    bufferTip: "一个 VNODE 写入内存池大小，单位为 MB，默认为 96，最小为 3，最大为 16384",
-    durationTip: "数据文件存储数据的时间跨度。可以使用加单位的表示形式，如 DURATION 100h、DURATION 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。不加时间单位时默认单位为天，如 DURATION 50 表示 50 天。",
-    walRollPeriodTip:
-      "wal 文件切换时长，单位为 s。当 wal 文件创建并写入后，经过该时间，会自动创建一个新的 wal 文件。默认为 0，即仅在落盘时创建新文件。",
-    walSegmentSizeTip: "wal 单个文件大小，单位为 KB。当前写入文件大小超过上限后会自动创建一个新的 wal 文件。默认为 0，即仅在落盘时创建新文件。",
-    sttTaiggerTip: "表示落盘文件触发文件合并的个数。默认为 1，范围 1 到 16。对于少表高频场景，此参数建议使用默认配置，或较小的值；而对于多表低频场景，此参数建议配置较大的值。",
-    tsdbPagesizeTip: "一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。",
-    tablePrefixTip: "内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。",
-    tableSuffixTip: "内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。",
+    walFsyncPeriodTip: " 当 WAL_LEVEL 设置为 2 时执行 fynsc 的周期，单位是毫秒，默认值是3000，即3000毫秒。",
+    maxRowsTip: "单个数据块中存储的最大记录数量，缺省值为 4096。",
+    minRowsTip: "单个数据块中存储的最小记录数量，缺省值为 100 。",
+    bufferTip: "每个 vnode 的写入缓存大小，单位为 MB，默认为 96，最小为 3，最大为 16384",
+    durationTip: "每个数据存储所存储的数据的时间跨度，其单位可以是分钟(m)，小时(h)，天(d)，默认单位是天，如 10d, 1000h。",
+    walRollPeriodTip: "单个 WAL 文件中保存的数据时长，单位是秒，默认值为0，意味着 TDengine 会自动处理。",
+    walSegmentSizeTip: "单个 WAL 文件的大小上限，单位是 KB，默认值为0，意味着 TDengine 会自动处理。",
+    sttTaiggerTip: "触发落盘文件合并的文件数量，缺省值是1，可选值是1到16，表数少写入频率越高适用于较小的值，表数多写入频率低适用较大的值。",
+    tsdbPagesizeTip: "vnode 中缓存时序数据的页大小，单位是 KB ，值域是 [1,16384]，缺省值是 4 KB。",
+    tablePrefixTip: `当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的前缀；当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的前缀；例如，假定表名为 "v30001"，当 TABLE_PREFIX = 2 时 使用 "0001" 来决定分配到哪个 vgroup ，当 TABLE_PREFIX = -2 时使用 "v3" 来决定分配到哪个 vgroup。`,
+    tableSuffixTip: `当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的后缀；当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的后缀；例如，假定表名为 "v30001"，当 TABLE_SUFFIX = 2 时 使用 "v300" 来决定分配到哪个 vgroup ，当 TABLE_SUFFIX = -2 时使用 "01" 来决定分配到哪个 vgroup。`,
     stable: "超级表",
     table: "数据表",
     stableName: "超级表名称",
@@ -420,6 +415,10 @@ export default {
     selectAll: "全选",
     checkFail: "请检查字段名或类型",
     tableNameTip: "表名只能由字母、数字和下划线组成，且不能以数字开头，不区分大小写",
+    performanceRelatedParameters: "性能调优相关参数",
+    dataPersistenceParameters: "数据持久化存储参数",
+    walParameters: "WAL 配置参数",
+    specialParameters: "特殊参数" 
   },
   connecter: {
     filterToken: "过滤令牌",
