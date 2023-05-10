@@ -1002,18 +1002,6 @@ static void grantConnStatusAssignLimits(SGrantStatus *p1, SGrantStatus *p2, bool
   if (isCombine) {
     // use larger value
     if (p2->connOfficialVersion) p1->connOfficialVersion = p2->connOfficialVersion;
-    GRANT_ITEM_SET_VAL(p1->expireTimeSec, p2->expireTimeSec, GRANT_EXPIRE_TIME);
-    GRANT_ITEM_SET_VAL(p1->limitStorage, p2->limitStorage, GRANT_STORAGE_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitSpeed, p2->limitSpeed, GRANT_WRITING_SPEED_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitTimeSeries, p2->limitTimeSeries, GRANT_TIME_SERIES_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitQueryTime, p2->limitQueryTime, GRANT_QUERY_TIME_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitDbs, p2->limitDbs, GRANT_DATABASE_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitUsers, p2->limitUsers, GRANT_USER_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitConns, p2->limitConns, GRANT_CONNECTION_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitStreams, p2->limitStreams, GRANT_STREAM_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitAccts, p2->limitAccts, GRANT_ACCT_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitDnodes, p2->limitDnodes, GRANT_DNODE_LIMITS);
-    GRANT_ITEM_SET_VAL(p1->limitCpuCores, p2->limitCpuCores, GRANT_CPU_LIMITS);
     for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
       SGrantConnItem *pItem = p1->items + i;
       SGrantConnItem *qItem = p2->items + i;
@@ -1103,39 +1091,6 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
     COMPARE_SET_VAL(pGrantStatus->limitDbs, pGrantMsg->limitDbs, <);
     COMPARE_SET_VAL(pGrantStatus->limitSTables, pGrantMsg->limitSTables, <);
     COMPARE_SET_VAL(pGrantStatus->limitTables, pGrantMsg->limitTables, <);
-  }
-
-  uint32_t curTime = taosGetTimestampMs() / 1000;
-  if (grantIsValid(pGrantMsg)) {
-    SGrantStatus status = {0};
-    status.connOfficialVersion = pGrantMsg->connectors.officialVersion;
-    // assign the connectors
-    memcpy(status.items, pGrantMsg->connectors.items, sizeof(SGrantConnItem) * GRANT_CONN_NUM);
-
-    taosHashPut(grantHandle.pOfficials, &pDnodeInfo->id, sizeof(TSDB_DATA_TYPE_UINT), &status, sizeof(SGrantStatus));
-
-    // take effect right now when grants upgrade
-    int32_t grantCompare = grantStatusCompare(&grantStatus, &status);
-    if (grantCompare < 0) {
-      if (grantStatus.officialVersion == status.officialVersion) {
-        // use larger value
-        grantStatusAssignLimits(&grantStatus, &status, true);
-      } else {
-        // from trial to official, assign the value directly
-        grantStatusAssignLimits(&grantStatus, &status, false);
-      }
-    }
-    // for connectors
-    grantCompare = grantConnStatusCompare(&grantStatus, &status);
-    if (grantCompare < 0) {
-      if (grantStatus.connOfficialVersion == status.connOfficialVersion) {
-        // use larger value
-        grantConnStatusAssignLimits(&grantStatus, &status, true);
-      } else {
-        // from trial to official, assign the value directly
-        grantConnStatusAssignLimits(&grantStatus, &status, false);
-      }
-    }
   }
 
   uInfo("grant message received from dnode, timeseries:%" PRIu64
