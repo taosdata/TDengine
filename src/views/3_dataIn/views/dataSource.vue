@@ -54,7 +54,7 @@
               <el-tooltip
                 placement="bottom"
                 effect="light"
-                content="Excute Start"
+                :content="$t('datasource.excutestart')"
               >
                 <el-button
                   plain
@@ -68,7 +68,7 @@
               <el-tooltip
                 placement="bottom"
                 effect="light"
-                content="Excute Stop"
+                :content="$t('datasource.excutestop')"
               >
                 <el-button
                   plain
@@ -94,7 +94,11 @@
           <el-button
             type="primay"
             size="small"
-            :disabled="scope.row.from_detail === undefined"
+            :disabled="
+              (scope.row.from_detail === undefined ||
+              scope.row.status.toLowerCase() == 'running') ||
+              !getEditStatus(scope.row.labels)
+            "
             @click="edit(scope.row)"
             icon="el-icon-edit"
           ></el-button>
@@ -107,8 +111,8 @@
         </template>
       </el-table-column>
     </el-table>
-    <div v-if="dialog" >
-      <AddDialog :typeList="typeList" @closeDialog='closeDialog'></AddDialog>
+    <div v-if="dialog">
+      <AddDialog :typeList="typeList" @closeDialog="closeDialog"></AddDialog>
     </div>
     <el-pagination
       class="pagination"
@@ -141,7 +145,7 @@ export default {
       default: "datasource",
     },
   },
-  
+
   data() {
     return {
       typeList: [],
@@ -164,18 +168,39 @@ export default {
   },
   methods: {
     handlePageChange() {},
-
+    //非root用户不能修改root下创建的数据源
+    getEditStatus(data) {
+      console.log(data,'判断状态---');
+      if (data) {
+        let result = data
+          .filter((item) => item.includes("user"))
+          .toString()
+          .split("::");
+          console.log(result,'---00',localStorage.getItem("username"),result[1] == localStorage.getItem("username"));
+        if (result[1] == localStorage.getItem("username")) {
+          return true;
+        } else {
+          return false;
+        }
+      }else{
+        return false
+      }
+    },
     del(data) {
-      this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
-        confirmButtonText: "Ok",
-        cancelButtonText: "Cancel",
-        type: "warning",
-      }).then(async () => {
+      this.$confirm(
+        this.$t("datasource.deletetip") + data.name + "?",
+        this.$t("datasource.warning"),
+        {
+          confirmButtonText: this.$t("datasource.ok"),
+          cancelButtonText: this.$t("datasource.cancel"),
+          type: "warning",
+        }
+      ).then(async () => {
         await excuteDel(data.id)
           .then(() => {
             Message({
               type: "success",
-              message: "Deleted Successfully",
+              message: this.$t("datasource.deleteok"),
             });
             this.refresh();
           })
@@ -193,19 +218,14 @@ export default {
             : "";
         this.$parent.uidata = editDdata;
         localStorage.setItem("datainName", data.name);
-        this.$parent.toggleComponent(
-          '',
-          data.from_detail.id,
-          data.id,
-          dbname
-        );
+        this.$parent.toggleComponent("", data.from_detail.id, data.id, dbname);
       }
 
       // this.$router.push({
       //   path: `/dataIn/source/${data.data_source_name}`
       // });
     },
-    
+
     async getList() {
       try {
         this.topicList = [];
@@ -264,7 +284,8 @@ export default {
     start(data, index) {
       try {
         this.$confirm(
-          `Are you sure to start the ${data.name} task?`,
+          this.$t("datasource.starttip").replace("{dataname}", data.name),
+          // `Are you sure to start the ${data.name} task?`,
           this.$t("warning"),
           {
             confirmButtonText: this.$t("confirm"),
@@ -283,7 +304,7 @@ export default {
     stop(data) {
       try {
         this.$confirm(
-          `Are you sure to stop the ${data.name} task?`,
+          this.$t("datasource.stoptip").replace("{dataname}", data.name),
           this.$t("warning"),
           {
             confirmButtonText: this.$t("confirm"),
@@ -314,9 +335,9 @@ export default {
     },
     //显示添加数据源弹窗
     showAddDialog() {},
-    closeDialog(){
-      this.dialog=false
-    }
+    closeDialog() {
+      this.dialog = false;
+    },
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
@@ -349,5 +370,4 @@ export default {
 ::v-deep.input.el-input__inner {
   width: 172px !important;
 }
-
 </style>

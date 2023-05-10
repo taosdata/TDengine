@@ -37,6 +37,7 @@ export default {
       editId: 0,
       dbName: "",
       isEditable: false,
+      agentID:''
     };
   },
   created() {
@@ -60,7 +61,6 @@ export default {
     },
     toggleComponent(type, id, editid, dbname) {
       // this.currentName = name;
-
       if (type) {
         //新增
 
@@ -119,6 +119,10 @@ export default {
           case "pi":
             this.currentName = "ui";
             this.tagName = "pi";
+            break;
+          case "influxdb":
+            this.currentName = "ui";
+            this.tagName = "influxdb";
             break;
         }
         this.isEditable = true;

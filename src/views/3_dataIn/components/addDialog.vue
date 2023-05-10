@@ -147,7 +147,8 @@ export default {
   methods: {
     handleAdd() {
       localStorage.setItem("datainName", this.ruleForm.name);
-      this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "");
+      this.$parent.$parent.agentID=this.ruleForm.agent
+      this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "","");
     },
     selectAgenttype() {
       this.ruleForm.type = "";
