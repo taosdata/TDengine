@@ -207,8 +207,6 @@ static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
   atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
 }
 
-static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) { return queue->qItem; }
-
 void* streamQueueNextItem(SStreamQueue* queue);
 
 SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit, int32_t type);

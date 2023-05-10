@@ -345,6 +345,8 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
   return 0;
 }
 
+static void* streamQueueCurItem(SStreamQueue* queue) { return queue->qItem; }
+
 void* streamQueueNextItem(SStreamQueue* queue) {
   int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
   if (dequeueFlag == STREAM_QUEUE__FAILED) {

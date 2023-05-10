@@ -66,7 +66,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
 
     SArray* pBlockList = pMerged->submits;
     int32_t numOfBlocks = taosArrayGetSize(pBlockList);
-    qDebug("st-task:%s %p set submit input (merged), batch num:%d", pTask->id.idStr, pTask, numOfBlocks);
+    qDebug("s-task:%s %p set submit input (merged), numOfblocks:%d", pTask->id.idStr, pTask, numOfBlocks);
     qSetMultiStreamInput(pExecutor, pBlockList->pData, numOfBlocks, STREAM_INPUT__MERGED_SUBMIT);
   } else if (pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
     const SStreamRefDataBlock* pRefBlock = (const SStreamRefDataBlock*)data;
@@ -259,8 +259,9 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   int32_t code = 0;
   while (1) {
     int32_t batchSize = 1;
-    void*   pInput = NULL;
     int16_t times = 0;
+
+    SStreamQueueItem* pInput = NULL;
 
     // merge multiple input data if possible in the input queue.
     qDebug("s-task:%s start to extract data block from inputQ", pTask->id.idStr);
@@ -274,6 +275,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
           qDebug("===stream===try agian batchSize:%d", batchSize);
           continue;
         }
+
         qDebug("===stream===break batchSize:%d", batchSize);
         break;
       }
@@ -285,6 +287,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
           break;
         }
       } else {
+        // todo we need to sort the data block, instead of just appending into the array list.
         void* newRet = NULL;
         if ((newRet = streamMergeQueueItem(pInput, qItem)) == NULL) {
           streamQueueProcessFail(pTask->inputQueue);
@@ -304,6 +307,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       if (pInput) {
         streamFreeQitem(pInput);
       }
+
       return 0;
     }
 
@@ -312,14 +316,14 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     }
 
     if (pTask->taskLevel == TASK_LEVEL__SINK) {
-      ASSERT(((SStreamQueueItem*)pInput)->type == STREAM_INPUT__DATA_BLOCK);
+      ASSERT(pInput->type == STREAM_INPUT__DATA_BLOCK);
       qDebug("s-task:%s sink node start to sink result. numOfBlocks:%d", pTask->id.idStr, batchSize);
-      streamTaskOutput(pTask, pInput);
+      streamTaskOutput(pTask, (SStreamDataBlock*)pInput);
       continue;
     }
 
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
-    qDebug("s-task:%s start to execute, numOfBlocks:%d", pTask->id.idStr, batchSize);
+    qDebug("s-task:%s start to execute, block batches:%d", pTask->id.idStr, batchSize);
 
     streamTaskExecImpl(pTask, pInput, pRes);
 
