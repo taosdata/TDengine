@@ -27,7 +27,7 @@
 #include "tmisce.h"
 #include "mndCluster.h"
 
-#define TSDB_DNODE_VER_NUMBER   1
+#define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 64
 
 static const char *offlineReason[] = {
@@ -138,6 +138,10 @@ static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
   SDB_SET_INT64(pRaw, dataPos, pDnode->updateTime, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pDnode->port, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
+
+  SDB_SET_BINARY(pRaw, dataPos, pDnode->active, TSDB_ACTIVE_KEY_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN, _OVER)
+
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
@@ -161,7 +165,7 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
-  if (sver != TSDB_DNODE_VER_NUMBER) {
+  if (sver < 1 || sver > TSDB_DNODE_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -178,6 +182,10 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pDnode->updateTime, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &pDnode->port, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
+  if(sver > 1) {
+    SDB_GET_BINARY(pRaw, dataPos, pDnode->active, TSDB_ACTIVE_KEY_LEN, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN, _OVER)
+  }
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -305,7 +313,7 @@ bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   return true;
 }
 
-void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
+static void mndGetDnodeEps(SMnode *pMnode, SArray *pDnodeEps) {
   SSdb *pSdb = pMnode->pSdb;
 
   int32_t numOfEps = 0;
@@ -327,6 +335,29 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
       dnodeEp.isMnode = 1;
     }
     taosArrayPush(pDnodeEps, &dnodeEp);
+  }
+}
+
+void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  int32_t numOfEps = 0;
+  void   *pIter = NULL;
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    ESdbStatus objStatus = 0;
+    pIter = sdbFetchAll(pSdb, SDB_DNODE, pIter, (void **)&pDnode, &objStatus, true);
+    if (pIter == NULL) break;
+
+    SDnodeInfo dInfo;
+    dInfo.id = pDnode->id;
+    dInfo.ep.port = pDnode->port;
+    tstrncpy(dInfo.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+    tstrncpy(dInfo.active, pDnode->active, TSDB_ACTIVE_KEY_LEN);
+    tstrncpy(dInfo.connActive, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
+    sdbRelease(pSdb, pDnode);
+
+    taosArrayPush(pDnodeInfo, &dInfo);
   }
 }
 
@@ -536,7 +567,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    mndGetDnodeData(pMnode, statusRsp.pDnodeEps);
+    mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
@@ -1077,7 +1108,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         status = "offline";
     }
 
-    char b1[16] = {0};
+    char b1[TSDB_CONN_ACTIVE_KEY_LEN + 2] = {0};
     STR_TO_VARSTR(b1, status);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, b1, false);
@@ -1094,6 +1125,14 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, b, false);
     taosMemoryFreeClear(b);
+
+    STR_TO_VARSTR(b1, pDnode->active);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, b1, false);
+
+    STR_TO_VARSTR(b1, pDnode->connActive);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, b1, false);
 
     numOfRows++;
     sdbRelease(pSdb, pDnode);
