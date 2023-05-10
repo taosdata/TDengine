@@ -760,6 +760,21 @@ static bool isGlobalTimeLineQuery(SNode* pStmt) {
   }
 }
 
+static bool isTimeLineAlignedQuery(SNode* pStmt) {
+  SSelectStmt *pSelect = (SSelectStmt *)pStmt;
+  SSelectStmt *pSub = (SSelectStmt *)((STempTableNode*)pSelect->pFromTable)->pSubquery;
+  if (isGlobalTimeLineQuery((SNode*)pSub)) {
+    return true;
+  }
+  if (!isTimeLineQuery((SNode*)pSub)) {
+    return false;
+  }
+  if (nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
+    return true;
+  }
+  return false;
+}
+
 static bool isPrimaryKeyImpl(SNode* pExpr) {
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     return (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId);
