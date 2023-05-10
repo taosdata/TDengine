@@ -441,6 +441,17 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsR
         reallocVarData(&pLastCol->colVal);
       }
 
+      if (wb) {
+        char *err = NULL;
+        rocksdb_write(pTsdb->rCache.db, pTsdb->rCache.writeoptions, wb, &err);
+        if (NULL != err) {
+          tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
+          rocksdb_free(err);
+        }
+
+        rocksdb_writebatch_clear(wb);
+      }
+
       taosThreadMutexUnlock(&pTsdb->rCache.rMutex);
     }
 
@@ -454,14 +465,6 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsR
   taosMemoryFree(values_list);
   taosMemoryFree(values_list_sizes);
 
-  if (wb) {
-    char *err = NULL;
-    rocksdb_write(pTsdb->rCache.db, pTsdb->rCache.writeoptions, wb, &err);
-    if (NULL != err) {
-      tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
-      rocksdb_free(err);
-    }
-  }
   return code;
 }
 
