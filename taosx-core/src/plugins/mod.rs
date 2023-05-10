@@ -54,7 +54,7 @@ pub struct DataSetsReq {
     limit: usize,
 }
 
-pub async fn list_datasets_from(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet>> {
+pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let from = data.from.clone().into_dsn()?;
     match from.driver.as_str() {
         "tmq" => {
@@ -98,7 +98,7 @@ pub async fn list_datasets_from(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<
         }
         "opc" => {
             // opc
-            return opc_datasets(&from).await;
+            return opc_datasets(data).await;
         }
         _ => {
             bail!("Unsupported data source: {}", from);
