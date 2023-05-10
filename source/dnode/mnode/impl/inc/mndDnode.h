@@ -29,7 +29,7 @@ void       mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode);
 SEpSet     mndGetDnodeEpset(SDnodeObj *pDnode);
 int32_t    mndGetDnodeSize(SMnode *pMnode);
 bool       mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs);
-void       mndGetDnodeInfo(SMnode *pMnode, SArray *pDnodeInfo);
+void       mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo);
 
 #ifdef __cplusplus
 }

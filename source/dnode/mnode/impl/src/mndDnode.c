@@ -138,17 +138,6 @@ static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
   SDB_SET_INT64(pRaw, dataPos, pDnode->updateTime, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pDnode->port, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
-  // debug purpose
-#if 1
-  strncpy(
-      pDnode->active,
-      "4cssi6J+y+GSS7zes2RwBezQc/mabvN9N2maa6ksK6JJWl7OxrPZ2ElaXs7Gs9nYSVpezsaz2di72ZL6EAo0mcYiPlK2dDdmPh3SOVCm1/c=",
-      TSDB_ACTIVE_KEY_LEN);
-  strncpy(
-      pDnode->connActive,
-      "ovTNXauk5suSS7zes2RwBezQc/mabvN9N2maa6ksK6JJWl7OxrPZ2ElaXs7Gs9nYSVpezsaz2di72ZL6EAo0mcYiPlK2dDdmdpKzEXFi4Rs=ovTNXauk5suSS7zes2RwBezQc/mabvN9N2maa6ksK6JJWl7OxrPZ2ElaXs7Gs9nYSVpezsaz2di72ZL6EAo0mcYiPlK2dDdmdpKzEXFi4Rs=",
-      TSDB_CONN_ACTIVE_KEY_LEN);
-#endif
 
   SDB_SET_BINARY(pRaw, dataPos, pDnode->active, TSDB_ACTIVE_KEY_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN, _OVER)
@@ -324,7 +313,7 @@ bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   return true;
 }
 
-static void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
+static void mndGetDnodeEps(SMnode *pMnode, SArray *pDnodeEps) {
   SSdb *pSdb = pMnode->pSdb;
 
   int32_t numOfEps = 0;
@@ -349,7 +338,7 @@ static void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
   }
 }
 
-void mndGetDnodeInfo(SMnode *pMnode, SArray *pDnodeInfo) {
+void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
   SSdb *pSdb = pMnode->pSdb;
 
   int32_t numOfEps = 0;
@@ -578,7 +567,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    mndGetDnodeData(pMnode, statusRsp.pDnodeEps);
+    mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
