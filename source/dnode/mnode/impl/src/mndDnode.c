@@ -58,6 +58,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
+static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
@@ -83,6 +84,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -859,12 +861,6 @@ int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq){
 
 #ifndef TD_ENTERPRISE
 int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
-  return 0;
-}
-#endif
-
-/*
-static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
   SDnodeObj    *pDnode = NULL;
@@ -878,13 +874,14 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("dnode:%d, start to restore, ep:%s:%d", restoreReq.dnodeId, restoreReq.fqdn, restoreReq.port);
+  //mInfo("dnode:%d, start to restore, ep:%s:%d", restoreReq.dnodeId, restoreReq.fqdn, restoreReq.port);
+  mInfo("dnode:%d, start to restore", restoreReq.dnodeId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 
   pDnode = mndAcquireDnode(pMnode, restoreReq.dnodeId);
-  if (pDnode == NULL) {
+  /*if (pDnode == NULL) {
     int32_t err = terrno;
     char    ep[TSDB_EP_LEN + 1] = {0};
     snprintf(ep, sizeof(ep), restoreReq.fqdn, restoreReq.port);
@@ -893,6 +890,10 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
       terrno = err;
       goto _OVER;
     }
+  }
+  */
+  if (pDnode == NULL) {
+    goto _OVER;
   }
 
   code = mndRestoreDnode(pMnode, pReq, pDnode, restoreReq.restoreType);
@@ -906,7 +907,7 @@ _OVER:
   mndReleaseDnode(pMnode, pDnode);
   return code;
 }
-*/
+#endif
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
                             SSnodeObj *pSObj, int32_t numOfVnodes, bool force) {
