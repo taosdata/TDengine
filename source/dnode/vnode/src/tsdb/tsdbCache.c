@@ -1391,9 +1391,10 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
         tBlockDataReset(state->pBlockData);
         TABLEID tid = {.suid = state->suid, .uid = state->uid};
         int     nTmpCols = nCols;
-        /*if (aCols[0] == PRIMARYKEY_TIMESTAMP_COL_ID && nCols == 1) {
+        if (aCols[0] == PRIMARYKEY_TIMESTAMP_COL_ID && nCols == 1) {
           nTmpCols = 0;
-          }*/
+          skipBlock = false;
+        }
         code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, aCols, nTmpCols);
         if (code) goto _err;
 
