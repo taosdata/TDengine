@@ -395,6 +395,7 @@ impl TaskController {
             transform: vec![],
             from,
             to: task.to.parse()?,
+            parser: None,
             jobs: task.jobs as _,
             compression_level: task.compression_level.map(Into::into),
             force: task.force,

@@ -14,4 +14,4 @@ rust-toolchain
 .cargo
 taosx.code-workspace
 *.profraw
-/.idea/
+/.idea/centos7.target

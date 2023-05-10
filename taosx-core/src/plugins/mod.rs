@@ -13,15 +13,17 @@ pub use runners::opc::opc_to_taos;
 pub use runners::opc::OPCConfig;
 pub use sink::IpcStreamWorker;
 
+pub use runners::influxdb::influxdb_to_taos;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
 pub use runners::pi::pi_to_taos;
-pub use runners::influxdb::influxdb_to_taos;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 
 use crate::plugins::runners::pi::pi_datasets;
 pub use taosx_ipc::types::*;
+
+pub use transform::Parser;
 
 // #[derive(Serialize, Deserialize, Clone, Debug)]
 // pub struct DataSet {
@@ -103,8 +105,6 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
             // opc
             return opc_datasets(data).await;
         }
-        _ => {
-            bail!("Unsupported data source: {}", from);
-        }
+        _ => Ok(vec![]),
     }
 }

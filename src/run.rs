@@ -196,7 +196,7 @@ impl Cli {
                 let port_pool = PortPool::default();
                 mqtt_to_taos(
                     args.from,
-                    args.transform,
+                    None,
                     args.to,
                     args.jobs,
                     &port_pool,

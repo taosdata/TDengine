@@ -1,3 +1,1 @@
-pub struct Agent {
-
-}
+pub struct Agent {}

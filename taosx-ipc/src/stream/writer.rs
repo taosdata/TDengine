@@ -23,7 +23,7 @@ use super::components::ListOfStructBuilder;
 
 mod attrs_builder;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IpcDataType {
     Bool,
     UInt8,
@@ -101,6 +101,26 @@ impl IpcDataType {
             IpcDataType::Json => Ty::Json,
         }
     }
+
+    pub fn arrow_data_type(&self) -> DataType {
+        match self {
+            IpcDataType::Bool => DataType::Boolean,
+            IpcDataType::UInt8 => DataType::UInt8,
+            IpcDataType::UInt16 => DataType::UInt16,
+            IpcDataType::UInt32 => DataType::UInt32,
+            IpcDataType::UInt64 => DataType::UInt64,
+            IpcDataType::Int8 => DataType::Int8,
+            IpcDataType::Int16 => DataType::Int16,
+            IpcDataType::Int32 => DataType::Int32,
+            IpcDataType::Int64 => DataType::Int64,
+            IpcDataType::Float32 => DataType::Float32,
+            IpcDataType::Float64 => DataType::Float64,
+            IpcDataType::Timestamp => DataType::Int64,
+            IpcDataType::VarChar(_) => DataType::Binary,
+            IpcDataType::NChar(_) => DataType::Utf8,
+            IpcDataType::Json => DataType::Utf8,
+        }
+    }
 }
 
 impl FromStr for IpcDataType {
@@ -127,6 +147,11 @@ impl FromStr for IpcDataType {
                     (Some(t), Some(l)) => match *t {
                         "binary" | "varchar" => Ok(Self::VarChar(l.parse().unwrap())),
                         "nchar" => Ok(Self::NChar(l.parse().unwrap())),
+                        _ => Err(s.to_string()),
+                    },
+                    (Some(t), None) => match *t {
+                        "binary" | "varchar" => Ok(Self::VarChar(8)),
+                        "nchar" => Ok(Self::NChar(8)),
                         _ => Err(s.to_string()),
                     },
                     _ => Err(s.to_string()),

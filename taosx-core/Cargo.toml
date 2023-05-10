@@ -42,6 +42,11 @@ tokio-util = { version = "0.7" }
 tokio-stream = "*"
 toml = "0.7.2"
 zstd = "0.12.1"
+either = "1.8"
+serde_regex = "1"
+chrono-tz = "0.8"
+tinytemplate = "1.2.1"
+serde_json_path = "0.6.0"
 
 actix-cors = "0.6.4"
 actix-web = "4"

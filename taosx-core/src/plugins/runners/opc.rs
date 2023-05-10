@@ -685,6 +685,7 @@ pub async fn opc_to_taos(
             table_config,
             cancel.clone(),
             with_agent,
+            None,
         )?
     } else {
         sink::listen_tcp_socket_with_agent(
