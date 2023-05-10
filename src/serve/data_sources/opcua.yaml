@@ -146,17 +146,15 @@ groups:
           max: 1000
 
       - name: collect_mode
-        display: Request Timeout
+        display: Collect Mode
         description: |-
           observe or subscribe. default is observe
         placeholder: observe
-        choices:
-          - name: observe
-            display: OBSERVE
-            description: the timestamp written in TDengine is the timestamp when the data is received
-          - name: subscribe
-            display: SUBSCRIBE
-            description: the timestamp written in TDengine is the timestamp stored in OPC UA server
+        hint: 
+          type: str
+          choices:
+            - observe
+            - subscribe
 
   - name: Others
     display_order: 4
