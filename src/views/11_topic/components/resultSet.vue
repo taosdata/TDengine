@@ -98,6 +98,7 @@ import {
   CompareOperator,
   JsonOperator,
   GeneralOperator,
+  RegularOperator
 } from "@/const";
 import { isArray } from "@/utils/validate";
 const fnMap = {
@@ -122,15 +123,15 @@ const fnMapName = new Map([
 ]);
 const getGeneralFn = (type) => {
   return GeneralOperator.filter(
-    (item) => !item.include || !item.include.includes(type)
+    (item) => !type.includes(item.label ) 
   ).map((item) => item.label);
 };
 const conditionMap = {
-  TIMESTAMP: CompareOperator.concat(getGeneralFn("TIMESTAMP")),
-  NUMBER: CompareOperator.concat(getGeneralFn("NUMBER")),
-  STRING: getGeneralFn("STRING"),
-  JSON: JsonOperator.concat(getGeneralFn("JSON")),
-  BOOL: ["=="].concat(getGeneralFn("BOOL")),
+  TIMESTAMP: CompareOperator.concat(getGeneralFn(["TIMESTAMP"])),
+  NUMBER: CompareOperator.concat(getGeneralFn(["NUMBER"])),
+  STRING: RegularOperator.concat(getGeneralFn(["STRING"])),
+  JSON: JsonOperator,
+  BOOL: CompareOperator.concat(getGeneralFn(["NOT BETWEEN AND", "BETWEEN AND" ])),
 };
 export default {
   model: {
@@ -236,6 +237,7 @@ export default {
                 condition: [
                   {
                     value: "",
+                    value1: "",
                     key: 1,
                     operator: "",
                   },

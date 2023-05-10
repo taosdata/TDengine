@@ -1328,9 +1328,9 @@ export const TDengineNumberType = [
   "TINYINT UNSIGNED",
 ];
 // 时间戳可使用的运算符
-export const CompareOperator = [">", "<", ">=", "<=", "!=", "=="];
-export const BooleanOperator = ["=="];
-export const JsonOperator = ["Contains"];
+export const CompareOperator = [">", "<", ">=", "<=", "!=", "="];
+export const BooleanOperator = ["="];
+export const JsonOperator = ["CONTAINS", "IS NULL", "IS NOT NULL"];
 export const GeneralOperator = [
   {
     label: "IN",
@@ -1338,12 +1338,6 @@ export const GeneralOperator = [
   },
   {
     label: "BETWEEN",
-  },
-  {
-    label: "LIKE",
-  },
-  {
-    label: "NOT LIKE",
   },
   {
     label: "NOT IN",
@@ -1358,4 +1352,5 @@ export const GeneralOperator = [
     label: "IS NOT NULL",
   },
 ];
+export const RegularOperator = ["MATCH", "NMATCH", "LIKE", "NOT LIKE"] 
 
