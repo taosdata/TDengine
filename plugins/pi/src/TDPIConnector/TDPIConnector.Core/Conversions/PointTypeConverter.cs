@@ -27,7 +27,7 @@ namespace TDPIConnector.Core.Conversions
                 case "Timestamp":
                     return "TIMESTAMP";
             }
-            throw new Exception("PointType not found.");
+            throw new Exception($"PointType not found.{pointType}");
         }
     }
 }
