@@ -245,6 +245,24 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   vmGenerateVnodeCfg(&req, &vnodeCfg);
 
+  if (vmTsmaAdjustDays(&vnodeCfg, &req) < 0) {
+    dError("vgId:%d, failed to adjust tsma days since %s", req.vgId, terrstr());
+    code = terrno;
+    goto _OVER;
+  }
+
+  vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
+
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
+  if (pVnode != NULL) {
+    dError("vgId:%d, already exist", req.vgId);
+    tFreeSCreateVnodeReq(&req);
+    vmReleaseVnode(pMgmt, pVnode);
+    terrno = TSDB_CODE_VND_ALREADY_EXIST;
+    code = terrno;
+    return 0;
+  }
+
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
 
   if (pMgmt->pTfs) {
@@ -260,26 +278,8 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       return -1;
     }
   }
-
-  if (vmTsmaAdjustDays(&vnodeCfg, &req) < 0) {
-    dError("vgId:%d, failed to adjust tsma days since %s", req.vgId, terrstr());
-    code = terrno;
-    goto _OVER;
-  }
-
-  vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
-
-  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
-  if (pVnode != NULL) {
-    dInfo("vgId:%d, already exist", req.vgId);
-    tFreeSCreateVnodeReq(&req);
-    vmReleaseVnode(pMgmt, pVnode);
-    terrno = TSDB_CODE_VND_ALREADY_EXIST;
-    code = terrno;
-    return 0;
-  }
-
-  if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
+  
+if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
     tFreeSCreateVnodeReq(&req);
     dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     code = terrno;
@@ -359,6 +359,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   ESyncRole role = vnodeGetRole(pVnode->pImpl);
   dInfo("vgId:%d, checking node role:%d", req.vgId, role);
   if(role == TAOS_SYNC_ROLE_VOTER){
+    dError("vgId:%d, failed to alter vnode type since node already is role:%d", req.vgId, role);
     terrno = TSDB_CODE_VND_ALREADY_IS_VOTER;
     vmReleaseVnode(pMgmt, pVnode);
     return -1;

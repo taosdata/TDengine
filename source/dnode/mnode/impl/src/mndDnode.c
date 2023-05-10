@@ -625,7 +625,6 @@ static int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode,
       newMnodeObj.role = TAOS_SYNC_ROLE_LEARNER;
       newMnodeObj.lastIndex = pMnode->applied;
       if (mndSetRestoreCreateMnodeRedoActions(pMnode, pTrans, pDnode, &newMnodeObj) != 0) goto _OVER;
-      if (mndSetRestoreCreateMnodeRedoLogs(pMnode, pTrans, &newMnodeObj) != 0) goto _OVER;
 
       SMnodeObj mnodeLeaderObj = {0};
       mnodeLeaderObj.id = pDnode->id;
@@ -634,7 +633,6 @@ static int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode,
       mnodeLeaderObj.role = TAOS_SYNC_ROLE_VOTER;
       mnodeLeaderObj.lastIndex = pMnode->applied + 1;
       if (mndSetRestoreAlterMnodeTypeRedoActions(pMnode, pTrans, pDnode, &mnodeLeaderObj) != 0) goto _OVER;
-      if (mndSetRestoreCreateMnodeRedoLogs(pMnode, pTrans, &mnodeLeaderObj) != 0) goto _OVER;
 
       if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeLeaderObj) != 0) goto _OVER;
 
@@ -861,51 +859,7 @@ int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq){
 
 #ifndef TD_ENTERPRISE
 int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
-  SMnode       *pMnode = pReq->info.node;
-  int32_t       code = -1;
-  SDnodeObj    *pDnode = NULL;
-  SMnodeObj    *pMObj = NULL;
-  SQnodeObj    *pQObj = NULL;
-  SSnodeObj    *pSObj = NULL;
-  SRestoreDnodeReq restoreReq = {0};
-
-  if (tDeserializeSRestoreDnodeReq(pReq->pCont, pReq->contLen, &restoreReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
-
-  //mInfo("dnode:%d, start to restore, ep:%s:%d", restoreReq.dnodeId, restoreReq.fqdn, restoreReq.port);
-  mInfo("dnode:%d, start to restore", restoreReq.dnodeId);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
-    goto _OVER;
-  }
-
-  pDnode = mndAcquireDnode(pMnode, restoreReq.dnodeId);
-  /*if (pDnode == NULL) {
-    int32_t err = terrno;
-    char    ep[TSDB_EP_LEN + 1] = {0};
-    snprintf(ep, sizeof(ep), restoreReq.fqdn, restoreReq.port);
-    pDnode = mndAcquireDnodeByEp(pMnode, ep);
-    if (pDnode == NULL) {
-      terrno = err;
-      goto _OVER;
-    }
-  }
-  */
-  if (pDnode == NULL) {
-    goto _OVER;
-  }
-
-  code = mndRestoreDnode(pMnode, pReq, pDnode, restoreReq.restoreType);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-_OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("dnode:%d, failed to restore since %s", restoreReq.dnodeId, terrstr());
-  }
-
-  mndReleaseDnode(pMnode, pDnode);
-  return code;
+  return 0;
 }
 #endif
 
