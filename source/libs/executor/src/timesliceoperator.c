@@ -784,6 +784,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
     // restore initial value for next group
     resetTimesliceInfo(pSliceInfo);
+    break;
   }
 
   // restore the value
