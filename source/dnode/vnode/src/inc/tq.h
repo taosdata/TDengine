@@ -107,6 +107,7 @@ typedef struct {
   SMqDataRsp*    pDataRsp;
   char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
   SRpcHandleInfo info;
+  STqHandle*     pHandle;
 } STqPushEntry;
 
 struct STQ {
@@ -146,8 +147,14 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
 // tqExec
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows);
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
+<<<<<<< HEAD
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type);
 int32_t tqPushDataRsp(STQ* pTq, STqHandle* pHandle);
+=======
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
+                      int32_t type, int32_t vgId);
+int32_t tqPushDataRsp(STqPushEntry* pPushEntry, int32_t vgId);
+>>>>>>> enh/3.0
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);
@@ -183,7 +190,17 @@ int32_t tqStreamTasksScanWal(STQ* pTq);
 char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
+int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
+                      int32_t type, int64_t sver, int64_t ever);
 
+<<<<<<< HEAD
+=======
+int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq);
+void    doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver);
+void    saveOffsetForAllTasks(STQ* pTq, int64_t ver);
+void    initOffsetForAllRestoreTasks(STQ* pTq);
+
+>>>>>>> enh/3.0
 #ifdef __cplusplus
 }
 #endif

@@ -33,18 +33,21 @@ typedef struct SCacheRowsScanInfo {
   void*           pLastrowReader;
   SColMatchInfo   matchInfo;
   int32_t*        pSlotIds;
+  int32_t*        pDstSlotIds;
   SExprSupp       pseudoExprSup;
   int32_t         retrieveType;
   int32_t         currentGroupIndex;
   SSDataBlock*    pBufferredRes;
   SArray*         pUidList;
+  SArray*         pCidList;
   int32_t         indexOfBufferedRes;
   STableListInfo* pTableList;
 } SCacheRowsScanInfo;
 
 static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
 static void         destroyCacheScanOperator(void* param);
-static int32_t      extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds);
+static int32_t      extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds,
+                                           int32_t** pDstSlotIds);
 static int32_t      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo);
 
 #define SCAN_ROW_TYPE(_t) ((_t) ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW)
@@ -73,9 +76,16 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     goto _error;
   }
 
+  SArray* pCidList = taosArrayInit(numOfCols, sizeof(int16_t));
+  for (int i = 0; i < TARRAY_SIZE(pInfo->matchInfo.pList); ++i) {
+    SColMatchItem* pColInfo = taosArrayGet(pInfo->matchInfo.pList, i);
+    taosArrayPush(pCidList, &pColInfo->colId);
+  }
+  pInfo->pCidList = pCidList;
+
   removeRedundantTsCol(pScanNode, &pInfo->matchInfo);
 
-  code = extractCacheScanSlotId(pInfo->matchInfo.pList, pTaskInfo, &pInfo->pSlotIds);
+  code = extractCacheScanSlotId(pInfo->matchInfo.pList, pTaskInfo, &pInfo->pSlotIds, &pInfo->pDstSlotIds);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -93,8 +103,8 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
 
     uint64_t suid = tableListGetSuid(pTableListInfo);
     code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
-                                   taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader,
-                                   pTaskInfo->id.str);
+                                   taosArrayGetSize(pInfo->matchInfo.pList), pCidList, pInfo->pSlotIds, suid,
+                                   &pInfo->pLastrowReader, pTaskInfo->id.str);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -162,8 +172,8 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       blockDataCleanup(pInfo->pBufferredRes);
       taosArrayClear(pInfo->pUidList);
 
-      int32_t code =
-          tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pBufferredRes, pInfo->pSlotIds, pInfo->pUidList);
+      int32_t code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pBufferredRes, pInfo->pSlotIds,
+                                           pInfo->pDstSlotIds, pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
@@ -229,8 +239,8 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       }
 
       code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
-                                     taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader,
-                                     pTaskInfo->id.str);
+                                     taosArrayGetSize(pInfo->matchInfo.pList), pInfo->pCidList, pInfo->pSlotIds, suid,
+                                     &pInfo->pLastrowReader, pTaskInfo->id.str);
       if (code != TSDB_CODE_SUCCESS) {
         pInfo->currentGroupIndex += 1;
         taosArrayClear(pInfo->pUidList);
@@ -239,7 +249,8 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
       taosArrayClear(pInfo->pUidList);
 
-      code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);
+      code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
+                                   pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
@@ -282,6 +293,8 @@ void destroyCacheScanOperator(void* param) {
   blockDataDestroy(pInfo->pRes);
   blockDataDestroy(pInfo->pBufferredRes);
   taosMemoryFree(pInfo->pSlotIds);
+  taosMemoryFree(pInfo->pDstSlotIds);
+  taosArrayDestroy(pInfo->pCidList);
   taosArrayDestroy(pInfo->pUidList);
   taosArrayDestroy(pInfo->matchInfo.pList);
   tableListDestroy(pInfo->pTableList);
@@ -294,11 +307,18 @@ void destroyCacheScanOperator(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds) {
+int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds,
+                               int32_t** pDstSlotIds) {
   size_t numOfCols = taosArrayGetSize(pColMatchInfo);
 
   *pSlotIds = taosMemoryMalloc(numOfCols * sizeof(int32_t));
   if (*pSlotIds == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  *pDstSlotIds = taosMemoryMalloc(numOfCols * sizeof(int32_t));
+  if (*pDstSlotIds == NULL) {
+    taosMemoryFree(*pSlotIds);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -307,13 +327,14 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColMatchItem* pColMatch = taosArrayGet(pColMatchInfo, i);
     for (int32_t j = 0; j < pWrapper->nCols; ++j) {
-      if (pColMatch->colId == pWrapper->pSchema[j].colId && pColMatch->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      /*      if (pColMatch->colId == pWrapper->pSchema[j].colId && pColMatch->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         (*pSlotIds)[pColMatch->dstSlotId] = -1;
         break;
-      }
+        }*/
 
       if (pColMatch->colId == pWrapper->pSchema[j].colId) {
-        (*pSlotIds)[pColMatch->dstSlotId] = j;
+        (*pSlotIds)[i] = j;
+        (*pDstSlotIds)[i] = pColMatch->dstSlotId;
         break;
       }
     }

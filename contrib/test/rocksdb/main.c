@@ -116,9 +116,20 @@ int main(int argc, char const *argv[]) {
   rocksdb_options_set_create_if_missing(opt, 1);
   rocksdb_options_set_create_missing_column_families(opt, 1);
 
-  const char *cfName[] = {"default", "cf1"};
-  int         len = sizeof(cfName) / sizeof(cfName[0]);
+  // Read
+  rocksdb_readoptions_t *readoptions = rocksdb_readoptions_create();
+  // rocksdb_readoptions_set_snapshot(readoptions, rocksdb_create_snapshot(db));
+  int    len = 1;
+  char   buf[256] = {0};
+  size_t vallen = 0;
+  char  *val = rocksdb_get(db, readoptions, "key", 3, &vallen, &err);
+  snprintf(buf, vallen + 5, "val:%s", val);
+  printf("%ld %ld %s\n", strlen(val), vallen, buf);
 
+  char **cfName = calloc(len, sizeof(char *));
+  for (int i = 0; i < len; i++) {
+    cfName[i] = "test";
+  }
   const rocksdb_options_t **cfOpt = malloc(len * sizeof(rocksdb_options_t *));
   for (int i = 0; i < len; i++) {
     cfOpt[i] = rocksdb_options_create_copy(opt);
@@ -129,7 +140,7 @@ int main(int argc, char const *argv[]) {
   }
 
   rocksdb_column_family_handle_t **cfHandle = malloc(len * sizeof(rocksdb_column_family_handle_t *));
-  db = rocksdb_open_column_families(opt, path, len, cfName, cfOpt, cfHandle, &err);
+  db = rocksdb_open_column_families(opt, path, len, (const char *const *)cfName, cfOpt, cfHandle, &err);
 
   {
     rocksdb_readoptions_t *rOpt = rocksdb_readoptions_create();

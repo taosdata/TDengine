@@ -54,7 +54,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |first\_ep\_dnode\_id|INT||集群 first ep 的 dnode id|
 |version|VARCHAR||tdengine version。例如：3.0.4.0|
 |master\_uptime|FLOAT||当前 master 节点的uptime。单位：天|
-|monitor_interval|INT||monitor interval。单位：秒|
+|monitor\_interval|INT||monitor interval。单位：秒|
 |dbs\_total|INT||database 总数|
 |tbs\_total|BIGINT||当前集群 table 总数|
 |stbs\_total|INT||当前集群 stable 总数|
@@ -107,17 +107,17 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |cpu\_system|FLOAT||服务器 cpu 使用率，从 `/proc/stat` 读取|
 |cpu\_cores|FLOAT||服务器 cpu 核数|
 |mem\_engine|INT||taosd 内存使用率，从 `/proc/<taosd_pid>/status` 读取|
-|mem\_system|INT||服务器内存使用率|
+|mem\_system|INT||服务器可用内存|
 |mem\_total|INT||服务器内存总量，单位 KB|
 |disk\_engine|INT|||
 |disk\_used|BIGINT||data dir 挂载的磁盘使用量，单位 bytes|
 |disk\_total|BIGINT||data dir 挂载的磁盘总容量，单位 bytes|
-|net\_in|FLOAT||网络吞吐率，从 `/proc/net/dev` 中读取的 received bytes。单位 bytes per second|
-|net\_out|FLOAT||网络吞吐率，从 `/proc/net/dev` 中读取的 transmit bytes。单位 bytes per second|
-|io\_read|FLOAT||io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 rchar 与上次数值计算之后，计算得到速度。单位 bytes per second|
-|io\_write|FLOAT||io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 wchar 与上次数值计算之后，计算得到速度。单位 bytes per second|
-|io\_read\_disk|FLOAT||磁盘 io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 read_bytes。单位 bytes per second|
-|io\_write\_disk|FLOAT||磁盘 io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 write_bytes。单位 bytes per second|
+|net\_in|FLOAT||网络吞吐率，从 `/proc/net/dev` 中读取的 received bytes。单位 kb/s|
+|net\_out|FLOAT||网络吞吐率，从 `/proc/net/dev` 中读取的 transmit bytes。单位 kb/s|
+|io\_read|FLOAT||io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 rchar 与上次数值计算之后，计算得到速度。单位 kb/s|
+|io\_write|FLOAT||io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 wchar 与上次数值计算之后，计算得到速度。单位 kb/s|
+|io\_read\_disk|FLOAT||磁盘 io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 read_bytes。单位 kb/s|
+|io\_write\_disk|FLOAT||磁盘 io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 write_bytes。单位 kb/s|
 |req\_select|INT||两个间隔内发生的查询请求数目|
 |req\_select\_rate|FLOAT||两个间隔内的查询请求速度 = `req_select / monitorInterval`|
 |req\_insert|INT||两个间隔内发生的写入请求，包含的单条数据数目|

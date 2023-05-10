@@ -6,7 +6,7 @@ description: Use Tag Index to Improve Query Performance
 
 ## Introduction
 
-Prior to TDengine 3.0.3.0 (excluded)，only one index is created by default on the first tag of each super talbe, but it's not allowed to dynamically create index on any other tags. From version 3.0.30, you can dynamically create index on any tag of any type. The index created automatically by TDengine is still valid. Query performance can benefit from indexes if you use properly.
+Prior to TDengine 3.0.3.0 (excluded)，only one index is created by default on the first tag of each super table, but it's not allowed to dynamically create index on any other tags. From version 3.0.30, you can dynamically create index on any tag of any type. The index created automatically by TDengine is still valid. Query performance can benefit from indexes if you use properly.
 
 ## Syntax
 

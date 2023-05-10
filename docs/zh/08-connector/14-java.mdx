@@ -40,19 +40,19 @@ REST 连接支持所有能运行 Java 的平台。
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | JDBCType  |
-| ----------------- | ---------------------------------- |
-| TIMESTAMP         | java.sql.Timestamp                 |
-| INT               | java.lang.Integer                  |
-| BIGINT            | java.lang.Long                     |
-| FLOAT             | java.lang.Float                    |
-| DOUBLE            | java.lang.Double                   |
-| SMALLINT          | java.lang.Short                    |
-| TINYINT           | java.lang.Byte                     |
-| BOOL              | java.lang.Boolean                  |
-| BINARY            | byte array                         |
-| NCHAR             | java.lang.String                   |
-| JSON              | java.lang.String                   |
+| TDengine DataType | JDBCType           |
+| ----------------- | ------------------ |
+| TIMESTAMP         | java.sql.Timestamp |
+| INT               | java.lang.Integer  |
+| BIGINT            | java.lang.Long     |
+| FLOAT             | java.lang.Float    |
+| DOUBLE            | java.lang.Double   |
+| SMALLINT          | java.lang.Short    |
+| TINYINT           | java.lang.Byte     |
+| BOOL              | java.lang.Boolean  |
+| BINARY            | byte array         |
+| NCHAR             | java.lang.String   |
+| JSON              | java.lang.String   |
 
 **注意**：JSON 类型仅在 tag 中支持。
 
@@ -82,7 +82,7 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.0.0</version>
+  <version>3.1.0</version>
 </dependency>
 ```
 
@@ -97,7 +97,7 @@ cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
 
-编译后，在 target 目录下会产生 taos-jdbcdriver-3.0.*-dist.jar 的 jar 包，并自动将编译的 jar 文件放在本地的 Maven 仓库中。
+编译后，在 target 目录下会产生 taos-jdbcdriver-3.0.\*-dist.jar 的 jar 包，并自动将编译的 jar 文件放在本地的 Maven 仓库中。
 
 </TabItem>
 </Tabs>
@@ -230,7 +230,7 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFra
 **注意**：
 
 - 应用中设置的 client parameter 为进程级别的，即如果要更新 client 的参数，需要重启应用。这是因为 client parameter 是全局参数，仅在应用程序的第一次设置生效。
-- 以下示例代码基于 taos-jdbcdriver-3.0.0。
+- 以下示例代码基于 taos-jdbcdriver-3.1.0。
 
 ```java
 public Connection getConn() throws Exception{
@@ -272,7 +272,7 @@ properties 中的配置参数如下：
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 5000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 3000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
-此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
+  此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
 
 ### 配置参数的优先级
 
@@ -353,7 +353,12 @@ try (Statement statement = connection.createStatement()) {
 }
 ```
 
-JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间），原生连接方法的报错（错误码在 0x2351 到 0x2400 之间），TDengine 其他功能模块的报错。
+JDBC 连接器可能报错的错误码包括 4 种：
+
+- JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间）
+- 原生连接方法的报错（错误码在 0x2351 到 0x2360 之间）
+- 数据订阅的报错（错误码在 0x2371 到 0x2380 之间）
+- TDengine 其他功能模块的报错。
 
 具体的错误码请参考：
 
@@ -367,7 +372,7 @@ TDengine 的 JDBC 原生连接实现大幅改进了参数绑定方式对数据�
 **注意**：
 
 - JDBC REST 连接目前不支持参数绑定
-- 以下示例代码基于 taos-jdbcdriver-3.0.0
+- 以下示例代码基于 taos-jdbcdriver-3.1.0
 - binary 类型数据需要调用 setString 方法，nchar 类型数据需要调用 setNString 方法
 - setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
 
@@ -635,7 +640,7 @@ TDengine 支持无模式写入功能。无模式写入兼容 InfluxDB 的 行协
 **注意**：
 
 - JDBC REST 连接目前不支持无模式写入
-- 以下示例代码基于 taos-jdbcdriver-3.0.0
+- 以下示例代码基于 taos-jdbcdriver-3.1.0
 
 ```java
 public class SchemalessInsertTest {
@@ -702,7 +707,7 @@ TaosConsumer consumer = new TaosConsumer<>(config);
 - td.connect.type: 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
 - httpConnectTimeout：创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
 - messageWaitTimeout：数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
-其他参数请参考：[Consumer 参数列表](../../../develop/tmq#创建-consumer-以及consumer-group)
+  其他参数请参考：[Consumer 参数列表](../../../develop/tmq#创建-consumer-以及consumer-group)
 
 #### 订阅消费数据
 
@@ -968,17 +973,17 @@ public static void main(String[] args) throws Exception {
 
 ## 最近更新记录
 
-| taos-jdbcdriver 版本 |            主要变化            |
-| :------------------: | :----------------------------: |
-|       3.1.0           |   WebSocket 连接支持订阅功能      |
-|       3.0.1 - 3.0.4        |  修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本    |
-|       3.0.0        |   支持 TDengine 3.0    |
-|       2.0.42        |   修在 WebSocket 连接中 wasNull 接口返回值  |
-|       2.0.41        |   修正 REST 连接中用户名和密码转码方式    |
-|   2.0.39 - 2.0.40    |  增加 REST 连接/请求 超时设置  |
-|        2.0.38        | JDBC REST 连接增加批量拉取功能 |
-|        2.0.37        |      增加对 json tag 支持      |
-|        2.0.36        |   增加对 schemaless 写入支持   |
+| taos-jdbcdriver 版本 |                                            主要变化                                            |
+| :------------------: | :--------------------------------------------------------------------------------------------: |
+|        3.1.0         |                                   WebSocket 连接支持订阅功能                                   |
+|    3.0.1 - 3.0.4     | 修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本 |
+|        3.0.0         |                                       支持 TDengine 3.0                                        |
+|        2.0.42        |                            修在 WebSocket 连接中 wasNull 接口返回值                            |
+|        2.0.41        |                              修正 REST 连接中用户名和密码转码方式                              |
+|   2.0.39 - 2.0.40    |                                  增加 REST 连接/请求 超时设置                                  |
+|        2.0.38        |                                 JDBC REST 连接增加批量拉取功能                                 |
+|        2.0.37        |                                      增加对 json tag 支持                                      |
+|        2.0.36        |                                   增加对 schemaless 写入支持                                   |
 
 ## 常见问题
 
@@ -1002,9 +1007,9 @@ public static void main(String[] args) throws Exception {
 
 4. java.lang.NoSuchMethodError: setByteArray
 
-**原因**：taos-jdbcdriver 3.* 版本仅支持 TDengine 3.0 及以上版本。
+**原因**：taos-jdbcdriver 3.\* 版本仅支持 TDengine 3.0 及以上版本。
 
-**解决方法**： 使用 taos-jdbcdriver 2.* 版本连接 TDengine 2.* 版本。
+**解决方法**： 使用 taos-jdbcdriver 2.\* 版本连接 TDengine 2.\* 版本。
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 
