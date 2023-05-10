@@ -491,7 +491,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   grantSetClusterInfo(pMnode);
 
-  mndGetDnodeInfo(pMnode, pDnodeInfo);
+  mndGetDnodeData(pMnode, pDnodeInfo);
 
   for (int32_t i = 0; i < taosArrayGetSize(pDnodeInfo); ++i) {
     SDnodeInfo *info = (SDnodeInfo *)taosArrayGet(pDnodeInfo, i);
