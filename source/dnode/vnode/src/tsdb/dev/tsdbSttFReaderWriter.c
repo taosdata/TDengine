@@ -549,7 +549,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct SFileOp *op) {
+int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct STFileOp *op) {
   int32_t vgId = TD_VID(ppWriter[0]->config.pTsdb->pVnode);
   int32_t code = 0;
   int32_t lino;

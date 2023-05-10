@@ -58,7 +58,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileSetEdit(struct STFileSet *pSet, struct SFileOp *pOp) {
+int32_t tsdbFileSetEdit(struct STFileSet *pSet, struct STFileOp *pOp) {
   int32_t code = 0;
   // TODO
   return code;
@@ -126,7 +126,7 @@ int32_t tsdbFileSetFromJson(const cJSON *json, STFileSet *fset) {
   return 0;
 }
 
-int32_t tsdbEditFileSet(struct STFileSet *pFileSet, const struct SFileOp *pOp) {
+int32_t tsdbEditFileSet(struct STFileSet *pFileSet, const struct STFileOp *pOp) {
   int32_t code = 0;
   ASSERTS(0, "TODO: Not implemented yet");
   // TODO

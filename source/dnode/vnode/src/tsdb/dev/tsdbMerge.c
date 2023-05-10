@@ -30,7 +30,7 @@ typedef struct {
   SSttFileWriter  *pSttFWriter;
   SDataFileWriter *pDataFWriter;
 
-  SArray *aFileOp;  // SArray<struct SFileOp>
+  SArray *aFileOp;  // SArray<struct STFileOp>
 } SMerger;
 
 static int32_t tsdbFileSystemShouldMerge(STsdb *pTsdb) {

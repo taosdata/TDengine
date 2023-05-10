@@ -47,7 +47,7 @@ typedef struct SSttFileWriter       SSttFileWriter;
 typedef struct SSttFileWriterConfig SSttFileWriterConfig;
 
 int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **ppWriter);
-int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct SFileOp *op);
+int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct STFileOp *op);
 int32_t tsdbSttFWriteTSData(SSttFileWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
 int32_t tsdbSttFWriteDLData(SSttFileWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
 

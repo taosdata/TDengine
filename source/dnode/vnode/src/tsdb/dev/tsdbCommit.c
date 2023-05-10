@@ -13,11 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dev.h"
+#include "inc/tsdbCommit.h"
 
 // extern dependencies
 typedef struct {
   STsdb *pTsdb;
+
   // config
   int32_t minutes;
   int8_t  precision;
@@ -25,7 +26,10 @@ typedef struct {
   int32_t maxRow;
   int8_t  cmprAlg;
   int8_t  sttTrigger;
-  SArray *aTbDataP;
+
+  SArray *aTbDataP;  // SArray<STbData *>
+  SArray *aFileOp;   // SArray<STFileOp>
+
   // context
   TSKEY      nextKey;
   int32_t    fid;
@@ -33,8 +37,8 @@ typedef struct {
   TSKEY      minKey;
   TSKEY      maxKey;
   STFileSet *pFileSet;
+
   // writer
-  SArray         *aFileOp;
   SSttFileWriter *pWriter;
 } SCommitter;
 
@@ -243,7 +247,7 @@ static int32_t end_commit_file_set(SCommitter *pCommitter) {
 
   if (pCommitter->pWriter == NULL) return 0;
 
-  struct SFileOp *pFileOp = taosArrayReserve(pCommitter->aFileOp, 1);
+  struct STFileOp *pFileOp = taosArrayReserve(pCommitter->aFileOp, 1);
   if (pFileOp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -319,17 +323,14 @@ static int32_t open_committer(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *pCom
   pCommitter->minRow = pInfo->info.config.tsdbCfg.minRows;
   pCommitter->maxRow = pInfo->info.config.tsdbCfg.maxRows;
   pCommitter->cmprAlg = pInfo->info.config.tsdbCfg.compression;
-  pCommitter->sttTrigger = 7;  // TODO
+  pCommitter->sttTrigger = 2;  // TODO
 
   pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
-  if (pCommitter->aTbDataP == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  pCommitter->aFileOp = taosArrayInit(16, sizeof(struct SFileOp));
-  if (pCommitter->aFileOp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
+  pCommitter->aFileOp = taosArrayInit(16, sizeof(STFileOp));
+  if (pCommitter->aTbDataP == NULL || pCommitter->aFileOp == NULL) {
+    taosArrayDestroy(pCommitter->aTbDataP);
+    taosArrayDestroy(pCommitter->aFileOp);
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
 
   // start loop
@@ -337,17 +338,9 @@ static int32_t open_committer(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *pCom
 
 _exit:
   if (code) {
-    tsdbError(                                    //
-        "vgId:%d %s failed at line %d since %s",  //
-        TD_VID(pTsdb->pVnode),                    //
-        __func__,                                 //
-        lino,                                     //
-        tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbDebug(                  //
-        "vgId:%d %s done",      //
-        TD_VID(pTsdb->pVnode),  //
-        __func__);
+    tsdbDebug("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
   }
   return code;
 }
@@ -425,16 +418,9 @@ int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s",  //
-              TD_VID(pTsdb->pVnode),                    //
-              __func__,                                 //
-              lino,                                     //
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d %s done, nRow:%" PRId64 " nDel:%" PRId64,  //
-             TD_VID(pTsdb->pVnode),                              //
-             __func__,                                           //
-             pMem->nRow,                                         //
+    tsdbInfo("vgId:%d %s done, nRow:%" PRId64 " nDel:%" PRId64, TD_VID(pTsdb->pVnode), __func__, pMem->nRow,
              pMem->nDel);
   }
   return code;

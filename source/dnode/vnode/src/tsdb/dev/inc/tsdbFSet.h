@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 typedef struct STFileSet STFileSet;
-typedef struct SFileOp   SFileOp;
+typedef struct STFileOp  STFileOp;
 
 typedef enum {
   TSDB_FOP_NONE = 0,
@@ -37,10 +37,10 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json);
 int32_t tsdbFileSetFromJson(const cJSON *json, STFileSet *fset);
 
 int32_t tsdbFileSetCreate(int32_t fid, STFileSet **ppSet);
-int32_t tsdbFileSetEdit(STFileSet *pSet, SFileOp *pOp);
-int32_t tsdbEditFileSet(STFileSet *pFileSet, const SFileOp *pOp);
+int32_t tsdbFileSetEdit(STFileSet *pSet, STFileOp *pOp);
+int32_t tsdbEditFileSet(STFileSet *pFileSet, const STFileOp *pOp);
 
-struct SFileOp {
+struct STFileOp {
   tsdb_fop_t op;
   int32_t    fid;
   STFile     oState;  // old file state

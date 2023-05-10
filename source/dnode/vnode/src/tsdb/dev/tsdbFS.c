@@ -440,7 +440,7 @@ static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
   // TODO: copy current state to new state
 
   for (int32_t iop = 0; iop < taosArrayGetSize(aFileOp); iop++) {
-    struct SFileOp *pOp = taosArrayGet(aFileOp, iop);
+    struct STFileOp *pOp = taosArrayGet(aFileOp, iop);
 
     struct STFileSet tmpSet = {.fid = pOp->fid};
 
