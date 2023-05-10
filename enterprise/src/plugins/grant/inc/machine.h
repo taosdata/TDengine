@@ -26,12 +26,12 @@
 #define GRANT_DEFAULT        60*86400
 #endif
 
-#if 1
+#if 0
 #define GRANT_TOLERENCE      86400  //86400
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
 #define GRANT_HEART_BEAT_MSG 60     //60seconds
 #else
-#define GRANT_DEFAULT        60
+// #define GRANT_DEFAULT        60
 #define GRANT_TOLERENCE      60
 #define GRANT_CHECK_INTERVAL 5
 #define GRANT_HEART_BEAT_MSG 1
@@ -71,6 +71,8 @@
 #define GRANT_CONN_ACTIVE_RAW_LEN      80
 #define GRANT_CONN_ACTIVE_ENCRYPT_LEN  72
 #define GRANT_CONN_HASH_LEN            (GRANT_CONN_ACTIVE_RAW_LEN - GRANT_CONN_ACTIVE_ENCRYPT_LEN)
+#define GRANT_CONN_LIMITS              -1
+#define GRANT_CONN_EXPIRE_LIMITS       65535
 
 typedef enum {
   GRANT_OBJ_SERVER = 0,
@@ -86,7 +88,7 @@ typedef enum {
   CONN_TYPE_INFLUXDB,
   CONN_TYPE_MQTT,
   CONN_TYPE_MAX
-} EConnType;
+} EGrantConnType;
 
 typedef struct {
   int32_t  number;  // connections
@@ -96,6 +98,9 @@ typedef struct {
 
 typedef struct {
   bool           granted;
+  uint8_t        officialVersion;
+  char          *machine;
+  char          *clusterId;
   char           active[GRANT_CONN_ACTIVE_KEY_LEN + 1];
   SGrantConnItem items[GRANT_CONN_NUM];
 } SGrantConnObj;
@@ -105,7 +110,9 @@ typedef struct {
 } SGrantConnStatus;
 
 typedef struct {
-  int8_t         version;
+  bool           officialVersion;
+  int8_t         majorVer;
+  int8_t         minorVer;
   SGrantConnItem items[GRANT_CONN_NUM];
 } SGrantConnMsg;
 
@@ -135,31 +142,33 @@ typedef struct {
 } SGrantObj;
 
 typedef struct {
-  bool     usbDongle;
-  bool     officialVersion;
-  bool     expired;
-  uint32_t expireTimeSec;
-  uint64_t curStorage;
-  uint64_t limitStorage;
-  uint64_t curTimeSeries;
-  uint64_t limitTimeSeries;
-  uint32_t lastCheck;
-  uint32_t curSpeed;
-  uint32_t limitSpeed;
-  uint32_t curQueryTime;
-  uint32_t limitQueryTime;
-  uint32_t curDbs;
-  uint32_t limitDbs;
-  uint32_t curUsers;
-  uint32_t limitUsers;
-  uint32_t limitConns;
-  uint32_t limitStreams;
-  uint32_t curAccts;
-  uint32_t limitAccts;
-  uint32_t curDnodes;
-  uint32_t limitDnodes;
-  uint32_t limitCpuCores;
-  uint32_t curCpuCores;  // version 2 since 3.0.5.0
+  bool           usbDongle;
+  bool           officialVersion;
+  bool           connOfficialVersion;  // version 2 since 3.0.5.0
+  bool           expired;
+  uint32_t       expireTimeSec;
+  uint64_t       curStorage;
+  uint64_t       limitStorage;
+  uint64_t       curTimeSeries;
+  uint64_t       limitTimeSeries;
+  uint32_t       lastCheck;
+  uint32_t       curSpeed;
+  uint32_t       limitSpeed;
+  uint32_t       curQueryTime;
+  uint32_t       limitQueryTime;
+  uint32_t       curDbs;
+  uint32_t       limitDbs;
+  uint32_t       curUsers;
+  uint32_t       limitUsers;
+  uint32_t       limitConns;
+  uint32_t       limitStreams;
+  uint32_t       curAccts;
+  uint32_t       limitAccts;
+  uint32_t       curDnodes;
+  uint32_t       limitDnodes;
+  uint32_t       limitCpuCores;
+  uint32_t       curCpuCores;            // version 2 since 3.0.5.0
+  SGrantConnItem items[GRANT_CONN_NUM];  // version 2 since 3.0.5.0
 } SGrantStatus;
 
 typedef struct {
@@ -186,6 +195,7 @@ typedef struct {
 char *grantGetMachineSerials();
 bool  grantGenActiveCode(SGrantObj *grant);
 bool  grantParseActiveCode(SGrantObj *grant);
+bool  grantConnGenActiveCode(SGrantConnObj *grant);
 bool  grantConnParseActiveCode(SGrantConnObj *grant);
 bool  grantCheckMachineCode(SGrantObj *grant);
 bool  grantCheckClusterId(SGrantObj *grant);

@@ -74,6 +74,8 @@
   } while (0)
 
 #define GRANT_VERSION (grantStatus.officialVersion ? "official" : "trial")
+#define GRANT_CONN_MAJOR_VER 1
+#define GRANT_CONN_MINOR_VER 1
 
 #ifndef min
 #define min(x, y) (x) < (y) ? (x) : (y)
@@ -115,10 +117,12 @@ typedef SGrantStatus GrantStatus;
 typedef SGrantMsg    GrantMsg;
 #endif
 
-extern SGrantObj     grantObj;
-extern char          tsVersionName[16];
-extern int64_t       tsExpireTime;
-extern SGrantConnObj grantConnObj;
+extern SGrantObj grantObj;
+extern char      tsVersionName[16];
+extern int64_t   tsExpireTime;
+
+// for compatibility: grantMain.c could work with machine.o before 3.0.5.0
+SGrantConnObj grantConnObj = {.machine = grantObj.machine, .clusterId = grantObj.clusterId};
 
 static char    *grantSecondsToString(uint32_t seconds);
 static void     dmRefreshGrantCfg();
@@ -395,7 +399,9 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
 
   if (grantConnObj.granted) {
     SGrantConnMsg *pConn = &pGrantMsg->connectors;
-    pConn->version = 1;
+    pConn->officialVersion = grantConnObj.officialVersion;
+    pConn->majorVer = GRANT_CONN_MAJOR_VER;
+    pConn->minorVer = GRANT_CONN_MINOR_VER;
     memcpy(pConn->items, grantConnObj.items, sizeof(SGrantConnItem) * CONN_TYPE_MAX);
   }
 #endif
@@ -722,6 +728,7 @@ static void grantResetMaster(SMnode *pMnode) {
     taosMemoryFree(ts);
   }
 #endif
+  tGrantConnItemsInit(grantStatus.items, GRANT_CONN_NUM);
 }
 
 void grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {
@@ -941,7 +948,12 @@ int32_t grantCheck(EGrantType grant) {
 
 static FORCE_INLINE bool grantIsOfficial(SGrantStatus *pStatus) { return pStatus->officialVersion; }
 
-static FORCE_INLINE bool grantIsValid(SGrantMsg *pStatus) { return pStatus->limitTimeSeries; }
+static FORCE_INLINE bool grantIsValid(SGrantMsg *pStatus) {
+#if 0
+  return pStatus->limitTimeSeries;
+#endif
+  return true;
+}
 
 #ifndef GRANTS_CFG
 static FORCE_INLINE bool grantShouldCheck(int64_t curTime) {
@@ -986,6 +998,35 @@ static void grantStatusAssignLimits(SGrantStatus *p1, SGrantStatus *p2, bool isC
   }
 }
 
+static void grantConnStatusAssignLimits(SGrantStatus *p1, SGrantStatus *p2, bool isCombine) {
+  if (isCombine) {
+    // use larger value
+    if (p2->connOfficialVersion) p1->connOfficialVersion = p2->connOfficialVersion;
+    GRANT_ITEM_SET_VAL(p1->expireTimeSec, p2->expireTimeSec, GRANT_EXPIRE_TIME);
+    GRANT_ITEM_SET_VAL(p1->limitStorage, p2->limitStorage, GRANT_STORAGE_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitSpeed, p2->limitSpeed, GRANT_WRITING_SPEED_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitTimeSeries, p2->limitTimeSeries, GRANT_TIME_SERIES_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitQueryTime, p2->limitQueryTime, GRANT_QUERY_TIME_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitDbs, p2->limitDbs, GRANT_DATABASE_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitUsers, p2->limitUsers, GRANT_USER_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitConns, p2->limitConns, GRANT_CONNECTION_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitStreams, p2->limitStreams, GRANT_STREAM_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitAccts, p2->limitAccts, GRANT_ACCT_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitDnodes, p2->limitDnodes, GRANT_DNODE_LIMITS);
+    GRANT_ITEM_SET_VAL(p1->limitCpuCores, p2->limitCpuCores, GRANT_CPU_LIMITS);
+    for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
+      SGrantConnItem *pItem = p1->items + i;
+      SGrantConnItem *qItem = p2->items + i;
+      GRANT_ITEM_SET_VAL(pItem->number, qItem->number, GRANT_CONN_LIMITS);
+      GRANT_ITEM_SET_VAL(pItem->speed, qItem->speed, GRANT_CONN_LIMITS);
+      GRANT_ITEM_SET_VAL(pItem->expire, qItem->expire, GRANT_CONN_EXPIRE_LIMITS);
+    }
+  } else {
+    p1->connOfficialVersion = p2->connOfficialVersion;
+    memcpy(p1->items, p2->items, sizeof(SGrantConnItem) * GRANT_CONN_NUM);
+  }
+}
+
 static void grantStatusCheck(SMnode *pMnode, uint32_t curTime) {
   SHashObj *pGrants = grantHandle.pOfficials;
   if (taosHashGetSize(pGrants) > 0) {
@@ -993,10 +1034,12 @@ static void grantStatusCheck(SMnode *pMnode, uint32_t curTime) {
     SGrantStatus *iter = taosHashIterate(pGrants, NULL);
     while (iter) {
       grantStatusAssignLimits(&status, iter, true);
+      grantConnStatusAssignLimits(&status, iter, true);
       iter = taosHashIterate(pGrants, iter);
     }
 
     grantStatusAssignLimits(&grantStatus, &status, false);
+    grantConnStatusAssignLimits(&grantStatus, &status, false);
     taosHashClear(pGrants);
     uDebug("grant reset. usbDongle:%d, official:%d, expired:%d, expireTime:%" PRIu32 ", limitTimeSeries:%" PRIu64,
            grantStatus.usbDongle, grantStatus.officialVersion, grantStatus.expired, grantStatus.expireTimeSec,
@@ -1026,7 +1069,22 @@ static int32_t grantStatusCompare(SGrantStatus *p1, SGrantStatus *p2) {
   GRANT_ITEM_COMPARE(p1->limitDbs, p2->limitDbs, GRANT_DATABASE_LIMITS);
   GRANT_ITEM_COMPARE(p1->limitDnodes, p2->limitDnodes, GRANT_DNODE_LIMITS);
   GRANT_ITEM_COMPARE(p1->limitCpuCores, p2->limitCpuCores, GRANT_CPU_LIMITS);
+  return 0;
+}
 
+static int32_t grantConnStatusCompare(SGrantStatus *p1, SGrantStatus *p2) {
+  if (p1->connOfficialVersion < p2->connOfficialVersion) {
+    return -1;
+  } else if (p1->connOfficialVersion > p2->connOfficialVersion) {
+    return 1;
+  }
+  for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
+    SGrantConnItem *pItem = p1->items + i;
+    SGrantConnItem *qItem = p2->items + i;
+    GRANT_ITEM_COMPARE(pItem->number, qItem->number, GRANT_CONN_LIMITS);
+    GRANT_ITEM_COMPARE(pItem->speed, qItem->speed, GRANT_CONN_LIMITS);
+    GRANT_ITEM_COMPARE(pItem->expire, qItem->expire, GRANT_CONN_EXPIRE_LIMITS);
+  }
   return 0;
 }
 
@@ -1045,6 +1103,39 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
     COMPARE_SET_VAL(pGrantStatus->limitDbs, pGrantMsg->limitDbs, <);
     COMPARE_SET_VAL(pGrantStatus->limitSTables, pGrantMsg->limitSTables, <);
     COMPARE_SET_VAL(pGrantStatus->limitTables, pGrantMsg->limitTables, <);
+  }
+
+  uint32_t curTime = taosGetTimestampMs() / 1000;
+  if (grantIsValid(pGrantMsg)) {
+    SGrantStatus status = {0};
+    status.connOfficialVersion = pGrantMsg->connectors.officialVersion;
+    // assign the connectors
+    memcpy(status.items, pGrantMsg->connectors.items, sizeof(SGrantConnItem) * GRANT_CONN_NUM);
+
+    taosHashPut(grantHandle.pOfficials, &pDnodeInfo->id, sizeof(TSDB_DATA_TYPE_UINT), &status, sizeof(SGrantStatus));
+
+    // take effect right now when grants upgrade
+    int32_t grantCompare = grantStatusCompare(&grantStatus, &status);
+    if (grantCompare < 0) {
+      if (grantStatus.officialVersion == status.officialVersion) {
+        // use larger value
+        grantStatusAssignLimits(&grantStatus, &status, true);
+      } else {
+        // from trial to official, assign the value directly
+        grantStatusAssignLimits(&grantStatus, &status, false);
+      }
+    }
+    // for connectors
+    grantCompare = grantConnStatusCompare(&grantStatus, &status);
+    if (grantCompare < 0) {
+      if (grantStatus.connOfficialVersion == status.connOfficialVersion) {
+        // use larger value
+        grantConnStatusAssignLimits(&grantStatus, &status, true);
+      } else {
+        // from trial to official, assign the value directly
+        grantConnStatusAssignLimits(&grantStatus, &status, false);
+      }
+    }
   }
 
   uInfo("grant message received from dnode, timeseries:%" PRIu64
@@ -1069,6 +1160,10 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
     status.limitAccts = pGrantMsg->limitAccts;
     status.limitDnodes = pGrantMsg->limitDnodes;
     status.limitCpuCores = pGrantMsg->limitCpuCores;
+    status.connOfficialVersion = pGrantMsg->connectors.officialVersion;
+
+    // assign the connectors
+    memcpy(status.items, pGrantMsg->connectors.items, sizeof(SGrantConnItem) * GRANT_CONN_NUM);
 
     taosHashPut(grantHandle.pOfficials, &pDnodeInfo->id, sizeof(TSDB_DATA_TYPE_UINT), &status, sizeof(SGrantStatus));
 
@@ -1081,6 +1176,17 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
       } else {
         // from trial to official, assign the value directly
         grantStatusAssignLimits(&grantStatus, &status, false);
+      }
+    }
+    // for connectors
+    grantCompare = grantConnStatusCompare(&grantStatus, &status);
+    if (grantCompare < 0) {
+      if (grantStatus.connOfficialVersion == status.connOfficialVersion) {
+        // use larger value
+        grantConnStatusAssignLimits(&grantStatus, &status, true);
+      } else {
+        // from trial to official, assign the value directly
+        grantConnStatusAssignLimits(&grantStatus, &status, false);
       }
     }
   }
@@ -1122,10 +1228,11 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t numOfRows = 0;
   int32_t cols = 0;
   char   *pWrite = NULL;
-  char    tmp[128] = {0};
-  char    tmp1[128] = {0};
+  char    tmp[192] = {0};
+  char    tmp1[192] = {0};
 
   if (pShow->numOfRows < 1) {
+    SGrantConnItem *pItem = NULL;
 #ifdef GRANTS_CFG
     const char      *src;
     SColumnInfoData *pColInfo;
@@ -1310,38 +1417,51 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     // connectors
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "{\"type\":\"OPC_DA\",\"number\":0,\"speed\":0,\"expire\":\"20375\"}";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    pItem = grantStatus.items + CONN_TYPE_OPC_DA;
+    sprintf(tmp1, "{\"type\":\"OPC_DA\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
+            pItem->speed, pItem->expire);
+
+    STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
     colDataAppend(pColInfo, numOfRows, tmp, false);  // opc_da
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "{\"type\":\"OPC_UA\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    pItem = grantStatus.items + CONN_TYPE_OPC_UA;
+    sprintf(tmp1, "{\"type\":\"OPC_DA\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
+            pItem->speed, pItem->expire);
+    STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
     colDataAppend(pColInfo, numOfRows, tmp, false);  // opc_ua
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "{\"type\":\"Pi\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    pItem = grantStatus.items + CONN_TYPE_PI;
+    sprintf(tmp1, "{\"type\":\"Pi\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
+            pItem->speed, pItem->expire);
+    STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
     colDataAppend(pColInfo, numOfRows, tmp, false);  // pi
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "{\"type\":\"Kafka\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    pItem = grantStatus.items + CONN_TYPE_KAFKA;
+    sprintf(tmp1, "{\"type\":\"Kafka\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
+            pItem->speed, pItem->expire);
+    STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
     colDataAppend(pColInfo, numOfRows, tmp, false);  // kafka
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "{\"type\":\"InfluxDB\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    pItem = grantStatus.items + CONN_TYPE_INFLUXDB;
+    sprintf(tmp1, "{\"type\":\"InfluxDB\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}",
+            pItem->number, pItem->speed, pItem->expire);
+    STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
     colDataAppend(pColInfo, numOfRows, tmp, false);  // influxdb
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "{\"type\":\"MQTT\",\"number\":0,\"speed\":-1,\"expire\":\"30375\"}";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    pItem = grantStatus.items + CONN_TYPE_MQTT;
+    sprintf(tmp1, "{\"type\":\"MQTT\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
+            pItem->speed, pItem->expire);
+    STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
     colDataAppend(pColInfo, numOfRows, tmp, false);  // mqtt
 
 #endif
@@ -1404,6 +1524,7 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, S
   if (tEncodeU32v(&encoder, pStatus->curDnodes) < 0) return -1;
   // version 2: support curCurCores since 3.0.5.0
   if (tEncodeU32v(&encoder, pStatus->curCpuCores) < 0) return -1;
+  if (tEncodeI8(&encoder, pStatus->connOfficialVersion ? 1 : 0) < 0) return -1;
 #endif
   // version 2: support activeCode/connectors activeCode since 3.0.5.0
   int8_t flag = 0;
@@ -1467,6 +1588,7 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   // version 2: support curCurCores since 3.0.5.0
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeU32v(&decoder, &pStatus->curCpuCores) < 0) return -1;
+    if (tDecodeI8(&decoder, (int8_t *)&pStatus->connOfficialVersion) < 0) return -1;
   }
 #endif
 
@@ -1474,8 +1596,11 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   if (!tDecodeIsEnd(&decoder)) {
     int8_t flag = 0;
     if (tDecodeI8(&decoder, &flag) < 0) return -1;
-    if (tDecodeBinary(&decoder, (uint8_t **)&pInfo->active, NULL) < 0) return -1;
-    if (tDecodeBinary(&decoder, (uint8_t **)&pInfo->connActive, NULL) < 0) return -1;
+    char *data = NULL;
+    if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
+    tstrncpy(pInfo->active, data, TSDB_ACTIVE_KEY_LEN);
+    if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
+    tstrncpy(pInfo->connActive, data, TSDB_CONN_ACTIVE_KEY_LEN);
   }
 
   tEndDecode(&decoder);
@@ -1583,7 +1708,9 @@ static int32_t tGrantConnItemsNum(int8_t version) {
 }
 
 static int32_t tSerializeGrantConnMsg(SEncoder *encoder, SGrantConnMsg *pMsg) {
-  if (tEncodeI8(encoder, pMsg->version) < 0) return -1;
+  if (tEncodeI8(encoder, pMsg->majorVer) < 0) return -1;
+  if (tEncodeI8(encoder, pMsg->minorVer) < 0) return -1;
+  if (tEncodeI8(encoder, pMsg->officialVersion ? 1 : 0) < 0) return -1;
   if (tEncodeU8(encoder, CONN_TYPE_MAX) < 0) return -1;
   for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
     SGrantConnItem *pItem = pMsg->items + i;
@@ -1599,16 +1726,25 @@ static int32_t tDeserializeGrantConnMsg(SDecoder *decoder, SGrantConnMsg *pMsg) 
   int32_t maxItems = tGrantConnItemsNum(-1);
 
   if (!tDecodeIsEnd(decoder)) {
-    if (tDecodeI8(decoder, &pMsg->version) < 0) return -1;
-    if (tDecodeU8(decoder, &nItems) < 0) return -1;
-    for (int32_t i = 0; i < nItems; ++i) {
-      SGrantConnItem *pItem = pMsg->items + i;
-      if (tDecodeI32(decoder, &pItem->number) < 0) return -1;
-      if (tDecodeI16(decoder, &pItem->speed) < 0) return -1;
-      if (tDecodeU16(decoder, &pItem->expire) < 0) return -1;
+    if (tDecodeI8(decoder, &pMsg->majorVer) < 0) return -1;
+    if (tDecodeI8(decoder, &pMsg->minorVer) < 0) return -1;
+    if (pMsg->majorVer == GRANT_CONN_MAJOR_VER) {
+      if (tDecodeI8(decoder, (int8_t *)&pMsg->officialVersion) < 0) return -1;
+      if (tDecodeU8(decoder, &nItems) < 0) return -1;
+      if (nItems > maxItems) {
+        nItems = maxItems;
+      }
+      for (int32_t i = 0; i < nItems; ++i) {
+        SGrantConnItem *pItem = pMsg->items + i;
+        if (tDecodeI32(decoder, &pItem->number) < 0) return -1;
+        if (tDecodeI16(decoder, &pItem->speed) < 0) return -1;
+        if (tDecodeU16(decoder, &pItem->expire) < 0) return -1;
+      }
     }
   } else {
-    pMsg->version = 0;
+    pMsg->officialVersion = 0;
+    pMsg->majorVer = 0;
+    pMsg->minorVer = 0;
   }
 
   tGrantConnItemsInit(pMsg->items + nItems, maxItems - nItems);
