@@ -862,6 +862,17 @@ export default {
   },
 
   datasource: {
+    ok:'确定',
+    cancel:'取消',
+    deletetip:'确定删除 ',
+    deleteok:'删除成功',
+    warning:'提醒',
+    successtip:'操作成功',
+    msg:'请输入',
+    starttip:`确定开始{dataname} 任务?`,
+    stoptip:`确定停止{dataname} 任务?`,
+    excutestart: '执行启动',
+    excutestop: '执行停止',
     agent:'代理',
     agenttip:'请选择代理',
     typetip:'请选择数据类型',

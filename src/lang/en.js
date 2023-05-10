@@ -1090,7 +1090,17 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
-
+    ok:'OK',
+    cancel:'Cancel',
+    deletetip:'Are you sure  to delete ',
+    deleteok:'Deleted Successfully',
+    warning:'Warning',
+    successtip:'Operation Successfully',
+    msg:'Please enter',
+    starttip:`Are you sure to start the {dataname} task?`,
+    stoptip:`Are you sure to stop the {dataname} task?`,
+    excutestart: 'Excute Start',
+    excutestop: 'Excute Stop',
     agent:'Agent',
     agenttip:'Please select the agent.',
     typetip:'Please select the source type',

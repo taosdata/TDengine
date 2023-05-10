@@ -470,7 +470,6 @@ import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt, debounce } from "@/utils/index";
-import {format} from 'date-fns'
 export default {
   name: "DbSourceUI",
   props: {
@@ -624,10 +623,30 @@ export default {
         }
         this.decryptPwd = decrypt(localStorage.getItem("pwd"));
         if (this.tagName === "datasource") {
-          dns += `://${localStorage.getItem("username")}:${this.decryptPwd}@${
-            data.options.host.value ? data.options.host.value : ""
-          }
+          if (data.authentication.value == "plain") {
+            let userinfo = data.authentication.alternatives.filter(
+              (item) => item.name == "plain"
+            )[0];
+            let username = window.encodeURIComponent(userinfo.username.value);
+            let pwd = window.encodeURIComponent(userinfo.password.value);
+            dns += `://${username}:${pwd}@${
+              data.options.host.value ? data.options.host.value : ""
+            }
         `;
+          } else if (data.authentication.value == "token") {
+            let userinfo = data.authentication.alternatives.filter(
+              (item) => item.name == "token"
+            )[0];
+            let token = window.encodeURIComponent(userinfo.params[0].value);
+            dns += `://${token}@${
+              data.options.host.value ? data.options.host.value : ""
+            }
+        `;
+          }
+          //   dns += `://${localStorage.getItem("username")}:${this.decryptPwd}@${
+          //     data.options.host.value ? data.options.host.value : ""
+          //   }
+          // `;
         } else {
           dns += `://${data.options.host.value ? data.options.host.value : ""}`;
         }
@@ -719,9 +738,16 @@ export default {
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
-          labels: ["type::datain", `cluster-id::${id}`],
+          labels: [
+            "type::datain",
+            `cluster-id::${id}`,
+            `user::${localStorage.getItem("username")}`,
+          ],
         };
-
+        console.log(this.$parent,'this.$parent---kkk');
+        if (this.$parent.agentID) {
+          apiParams["via"] = this.$parent.agentID;
+        }
         if (this.tagName === "datasource") {
           if (this.isEditable) {
             await EditSource(apiParams, this.editId)
@@ -743,9 +769,8 @@ export default {
               });
           }
         } else {
-          console.log(this.tagName,'this.tagName--===');
           let piParams = {
-            from: this.tagName=='influxdb'?'influxdb'+dns: "pi" + dns,
+            from: this.tagName == "influxdb" ? "influxdb" + dns : "pi" + dns,
             name: localStorage.getItem("datainName"),
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
             // name: localStorage.getItem("datainName"),
@@ -753,8 +778,16 @@ export default {
               "taos+" +
               localStorage.getItem("base_url") +
               (this.dbname ? "/" + this.dbname : ""),
-            labels: ["type::datain", `cluster-id::${id}`],
+            labels: [
+              "type::datain",
+              `cluster-id::${id}`,
+              `user::${localStorage.getItem("username")}`,
+            ],
           };
+          console.log(this.$parent,this.$parent.agentID,'this.$parent.agentID');
+          if (this.$parent.agentID) {
+            piParams["via"] = this.$parent.agentID;
+          }
           if (this.isEditable) {
             await EditSource(piParams, this.editId).then(() => {
               this.$parent.toggleComponent("pitable");

@@ -476,7 +476,7 @@ export default {
           ) {
             Message({
               type: "warning",
-              message: `Please enter ${data.options[key].display} `,
+              message: this.$t('datasource.msg:') +`${data.options[key].display} `,
             });
             return;
           }
@@ -522,7 +522,7 @@ export default {
             ) {
               Message({
                 type: "warning",
-                message: `Please enter ${data.groups[index].params[g].name} `,
+                message: this.$t('datasource.msg:')+`${data.groups[index].params[g].name} `,
               });
               return;
             } else {
@@ -556,7 +556,7 @@ export default {
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
-          labels: ["type::datain", `cluster-id::${id}`],
+          labels: ["type::datain", `cluster-id::${id}`,`user::${localStorage.getItem('username')}`],
         };
         if (this.isEditable) {
           await EditSource(piParams, this.editId).then(() => {
@@ -566,7 +566,7 @@ export default {
           await AddSource(piParams).then((res) => {
             if (res && res.id) {
               this.$parent.toggleComponent("opctable", "");
-              Message.success("Operation Successfully!");
+              Message.success(this.$t('datasource.successtip'));
             }
           });
         }
