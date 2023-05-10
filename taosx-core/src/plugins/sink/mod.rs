@@ -557,7 +557,6 @@ impl<'a> IpcStreamWorker<'a> {
             let mut i = 0;
             loop {
                 info!("metadata sql: {sql}");
-                // rt.block_on(taos.exec(&sql))?;
                 let res = self.taos.exec(&sql).await;
                 if let Err(err) = res {
                     tracing::error!("Query error with {sql}: {err:?}");
@@ -764,7 +763,7 @@ pub fn listen_tcp_socket_with_agent(
 
                     runtime.spawn(async move {
                         let client = addr.as_socket_ipv4().unwrap().to_string();
-                        let res: Result<(), anyhow::Error> =
+                        let res =
                             ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
                                 .await;
                         if let Err(err) = res {
