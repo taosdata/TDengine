@@ -500,10 +500,10 @@ static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
    */
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
-  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
+  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows && !IS_VAR_DATA_TYPE(pInputCol->info.type)) {
     numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
   } else {
-    if (pInputCol->hasNull) {
+    if (!pInput->colDataSMAIsSet && pInputCol->hasNull) {
       for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
         if (colDataIsNull(pInputCol, pInput->totalRows, i, NULL)) {
           continue;
@@ -511,6 +511,9 @@ static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
         numOfElem += 1;
       }
     } else {
+      if (IS_VAR_DATA_TYPE(pInputCol->info.type) && pInputCol->pData == NULL) {
+        return 0;
+      }
       // when counting on the primary time stamp column and no statistics data is presented, use the size value
       // directly.
       numOfElem = pInput->numOfRows;
