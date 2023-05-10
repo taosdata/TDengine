@@ -62,7 +62,7 @@ func (conn *Connector) connect(conf *config.MQTT) {
 	opts.Password = conf.Password
 	opts.CleanSession = conf.CleanSession
 	opts.KeepAlive = conf.KeepAlive
-	if strings.HasPrefix(conf.Address, "ssl") {
+	if strings.HasPrefix(conf.Address, "ssl") || strings.HasPrefix(conf.Address, "wss") {
 		tlsConfig, err := newTLSConfig(conf)
 		if err != nil {
 			conn.logger.WithError(err).Fatal("wrong tls info")

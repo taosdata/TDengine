@@ -49,7 +49,7 @@ func main() {
 		logger.WithField("message", message).Debugln("got message")
 		m := message
 		messages.Add(&report.Message{
-			TS:      time.Now().UnixNano(),
+			TS:      time.Now().UnixMilli(),
 			Message: m,
 		})
 	})
