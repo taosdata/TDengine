@@ -343,6 +343,16 @@ struct STsdbFS {
   SArray   *aDFileSet;  // SArray<SDFileSet>
 };
 
+typedef struct {
+  rocksdb_t              *db;
+  rocksdb_options_t      *options;
+  rocksdb_flushoptions_t *flushoptions;
+  rocksdb_writeoptions_t *writeoptions;
+  rocksdb_readoptions_t  *readoptions;
+  rocksdb_writebatch_t   *writebatch;
+  TdThreadMutex           rMutex;
+} SRocksCache;
+
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
@@ -355,6 +365,7 @@ struct STsdb {
   TdThreadMutex  lruMutex;
   SLRUCache     *biCache;
   TdThreadMutex  biMutex;
+  SRocksCache    rCache;
 };
 
 struct TSDBKEY {
@@ -777,6 +788,8 @@ typedef struct SCacheRowsReader {
   uint64_t           suid;
   char             **transferBuf;  // todo remove it soon
   int32_t            numOfCols;
+  SArray            *pCidList;
+  int32_t           *pSlotIds;
   int32_t            type;
   int32_t            tableIndex;  // currently returned result tables
   STableKeyInfo     *pTableList;  // table id list
@@ -796,6 +809,10 @@ typedef struct {
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
+int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *row);
+int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int32_t ltype);
+int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
+
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, TSDBROW *row, bool dup);
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);

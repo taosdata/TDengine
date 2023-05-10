@@ -538,7 +538,8 @@ static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* p
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_PROJECT: {
       SProjectLogicNode *pLogicNode = (SProjectLogicNode*)pNode;
-      if (pMerge->node.pLimit || pMerge->node.pSlimit) {
+      if (pLogicNode->ignoreGroupId && (pMerge->node.pLimit || pMerge->node.pSlimit)) {
+        pMerge->ignoreGroupId = true;
         pLogicNode->ignoreGroupId = false;
       }
       break;
