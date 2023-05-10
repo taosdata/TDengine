@@ -15,7 +15,6 @@
 #include "machine.h"
 
 SGrantObj     grantObj;
-SGrantConnObj grantConnObj = {0};
 
 void grantActiveSystem(const char *inputCfgFile) {
   grantObj.granted = true;

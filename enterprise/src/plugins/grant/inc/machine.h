@@ -26,12 +26,12 @@
 #define GRANT_DEFAULT        60*86400
 #endif
 
-#if 0
+#if 1
 #define GRANT_TOLERENCE      86400  //86400
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
 #define GRANT_HEART_BEAT_MSG 60     //60seconds
 #else
-// #define GRANT_DEFAULT        60
+#define GRANT_DEFAULT        60
 #define GRANT_TOLERENCE      60
 #define GRANT_CHECK_INTERVAL 5
 #define GRANT_HEART_BEAT_MSG 1
