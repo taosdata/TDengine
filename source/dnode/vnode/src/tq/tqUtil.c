@@ -165,12 +165,19 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
                                                    SRpcMsg* pMsg, STqOffsetVal* pOffset) {
   uint64_t consumerId = pRequest->consumerId;
   int32_t  vgId = TD_VID(pTq->pVnode);
+  int      code = 0;
 
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, pRequest, pHandle->execHandle.subType);
+  qTaskInfo_t task = pHandle->execHandle.task;
+  if(qTaskIsExecuting(task)){
+    code = tqSendDataRsp(pTq, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
+    tDeleteSMqDataRsp(&dataRsp);
+    return code;
+  }
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
-  int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
+  code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
   if(code != 0) {
     goto end;
   }

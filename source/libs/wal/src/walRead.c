@@ -37,7 +37,7 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
   if (cond) {
     pReader->cond = *cond;
   } else {
-    pReader->cond.scanUncommited = 0;
+//    pReader->cond.scanUncommited = 0;
     pReader->cond.scanNotApplied = 0;
     pReader->cond.scanMeta = 0;
     pReader->cond.enableRef = 0;
@@ -74,13 +74,18 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t lastVer = walGetLastVer(pReader->pWal);
   int64_t committedVer = walGetCommittedVer(pReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pReader->pWal);
-  int64_t endVer = pReader->cond.scanUncommited ? lastVer : committedVer;
-  endVer = TMIN(appliedVer, endVer);
+  while(appliedVer < committedVer){   // wait apply ver equal to commit ver, otherwise may lost data when consume data [TD-24010]
+    wDebug("vgId:%d, wal apply ver:%"PRId64" smaller than commit ver:%"PRId64", so sleep 1ms", pReader->pWal->cfg.vgId, appliedVer, committedVer);
+    taosMsleep(1);
+    appliedVer = walGetAppliedVer(pReader->pWal);
+  }
+//  int64_t endVer = pReader->cond.scanUncommited ? lastVer : committedVer;
+//  endVer = TMIN(appliedVer, endVer);
 
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
-         ", applied index:%" PRId64 ", end index:%" PRId64,
-         pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer, endVer);
-  while (fetchVer <= endVer) {
+         ", applied index:%" PRId64,
+         pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer);
+  while (fetchVer <= committedVer) {
     if (walFetchHeadNew(pReader, fetchVer) < 0) {
       return -1;
     }
