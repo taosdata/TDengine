@@ -60,19 +60,19 @@ int vnodeCheckCfg(const SVnodeCfg *pCfg) {
 const char* vnodeRoleToStr(ESyncRole role) {
   switch (role) {
     case TAOS_SYNC_ROLE_VOTER:
-      return "voter";
+      return "true";
     case TAOS_SYNC_ROLE_LEARNER:
-      return "learner";
+      return "false";
     default:
       return "unknown";
   }
 }
 
 const ESyncRole vnodeStrToRole(char* str) {
-  if(strcmp(str, "voter") == 0){
+  if(strcmp(str, "true") == 0){
     return TAOS_SYNC_ROLE_VOTER;
   }
-  if(strcmp(str, "learner") == 0){
+  if(strcmp(str, "false") == 0){
     return TAOS_SYNC_ROLE_LEARNER;
   }
 
@@ -134,12 +134,12 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "hashChange", pCfg->hashChange) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashPrefix", pCfg->hashPrefix) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashSuffix", pCfg->hashSuffix) < 0) return -1;
 
   if (tjsonAddIntegerToObject(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "syncCfg.totalReplicaNum", pCfg->syncCfg.totalReplicaNum) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex) < 0) return -1;
 
   if (tjsonAddIntegerToObject(pJson, "vndStats.stables", pCfg->vndStats.numOfSTables) < 0) return -1;
@@ -161,7 +161,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     if (tjsonAddStringToObject(info, "nodeFqdn", pNode->nodeFqdn) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "nodeId", pNode->nodeId) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "clusterId", pNode->clusterId) < 0) return -1;
-    if (tjsonAddStringToObject(info, "nodeRole", vnodeRoleToStr(pNode->nodeRole)) < 0) return -1;
+    if (tjsonAddStringToObject(info, "isReplica", vnodeRoleToStr(pNode->nodeRole)) < 0) return -1;
     if (tjsonAddItemToArray(nodeInfo, info) < 0) return -1;
     vDebug("vgId:%d, encode config, replica:%d ep:%s:%u dnode:%d", pCfg->vgId, i, pNode->nodeFqdn, pNode->nodePort,
            pNode->nodeId);
@@ -250,6 +250,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashEnd", pCfg->hashEnd, code);
   if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "hashChange", pCfg->hashChange, code);
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashMethod", pCfg->hashMethod, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashPrefix", pCfg->hashPrefix, code);
@@ -258,8 +260,6 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) pCfg->hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
 
   tjsonGetNumberValue(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum, code);
-  if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "syncCfg.totalReplicaNum", pCfg->syncCfg.totalReplicaNum, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex, code);
   if (code < 0) return -1;
@@ -277,10 +277,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");
   int    arraySize = tjsonGetArraySize(nodeInfo);
-  if(pCfg->syncCfg.totalReplicaNum == 0 && pCfg->syncCfg.replicaNum > 0){
-    pCfg->syncCfg.totalReplicaNum = pCfg->syncCfg.replicaNum;
-  }
-  if (arraySize != pCfg->syncCfg.totalReplicaNum) return -1;
+  pCfg->syncCfg.totalReplicaNum = arraySize;
 
   vDebug("vgId:%d, decode config, replicas:%d totalReplicas:%d selfIndex:%d", pCfg->vgId, pCfg->syncCfg.replicaNum,
          pCfg->syncCfg.totalReplicaNum, pCfg->syncCfg.myIndex);
@@ -296,7 +293,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);
     if (code < 0) return -1;
     char role[10] = {0};
-    code = tjsonGetStringValue(info, "nodeRole", role);
+    code = tjsonGetStringValue(info, "isReplica", role);
     if (code < 0) return -1;
     if(strlen(role) != 0){
       pNode->nodeRole = vnodeStrToRole(role);

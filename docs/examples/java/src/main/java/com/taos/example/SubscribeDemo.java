@@ -1,5 +1,6 @@
 package com.taos.example;
 
+import com.taosdata.jdbc.tmq.ConsumerRecord;
 import com.taosdata.jdbc.tmq.ConsumerRecords;
 import com.taosdata.jdbc.tmq.TMQConstants;
 import com.taosdata.jdbc.tmq.TaosConsumer;
@@ -64,7 +65,8 @@ public class SubscribeDemo {
                 consumer.subscribe(Collections.singletonList(TOPIC));
                 while (!shutdown.get()) {
                     ConsumerRecords<Meters> meters = consumer.poll(Duration.ofMillis(100));
-                    for (Meters meter : meters) {
+                    for (ConsumerRecord<Meters> recode : meters) {
+                        Meters meter = recode.value();
                         System.out.println(meter);
                     }
                 }

@@ -358,6 +358,17 @@ The charset that takes effect is UTF-8.
 | Value Range | 0-4096                                     |
 | Default Value | 2x the CPU cores                                                    |
 
+## Performance Tuning
+
+### numOfCommitThreads
+
+| Attribute     | Description                         |
+| ------------- | ----------------------------------- |
+| Applicable    | Server Only                         |
+| Meaning       | Maximum number of threads to commit |
+| Value Range   | 0-1024                              |
+| Default Value |                                     |
+
 ## Log Parameters
 
 ### logDir

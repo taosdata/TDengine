@@ -712,7 +712,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
 
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON: {
-      int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
+      uint16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);
       } else {
@@ -1115,6 +1115,7 @@ int32_t shellExecute() {
     }
 
     if (shell.conn == NULL) {
+      printf("failed to connect to server, reason: %s\n", taos_errstr(NULL));
       fflush(stdout);
       return -1;
     }

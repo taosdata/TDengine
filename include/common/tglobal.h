@@ -24,6 +24,12 @@
 extern "C" {
 #endif
 
+#define SLOW_LOG_TYPE_QUERY  0x1
+#define SLOW_LOG_TYPE_INSERT 0x2
+#define SLOW_LOG_TYPE_OTHERS 0x4
+#define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
+
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -119,6 +125,8 @@ extern int32_t tsRedirectMaxPeriod;
 extern int32_t tsMaxRetryWaitTime;
 extern bool    tsUseAdapter;
 extern int32_t tsMetaCacheMaxSize;
+extern int32_t tsSlowLogThreshold;
+extern int32_t tsSlowLogScope;
 
 // client
 extern int32_t tsMinSlidingTime;

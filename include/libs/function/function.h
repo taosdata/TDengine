@@ -99,11 +99,11 @@ typedef struct SSubsidiaryResInfo {
 } SSubsidiaryResInfo;
 
 typedef struct SResultDataInfo {
-  int16_t precision;
-  int16_t scale;
-  int16_t type;
-  int16_t bytes;
-  int32_t interBufSize;
+  int16_t  precision;
+  int16_t  scale;
+  int16_t  type;
+  uint16_t bytes;
+  int32_t  interBufSize;
 } SResultDataInfo;
 
 #define GET_RES_INFO(ctx)        ((ctx)->resultInfo)

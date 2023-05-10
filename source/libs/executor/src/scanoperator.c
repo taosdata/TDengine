@@ -2512,6 +2512,51 @@ _error:
   return NULL;
 }
 
+static void doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes, int32_t count, SMetaReader* mr) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  STagScanInfo* pInfo = pOperator->info;
+  SExprInfo*    pExprInfo = &pOperator->exprSupp.pExprInfo[0];
+
+  STableKeyInfo* item = tableListGetInfo(pInfo->pTableListInfo, pInfo->curPos);
+  int32_t        code = metaGetTableEntryByUid(mr, item->uid);
+  tDecoderClear(&(*mr).coder);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", item->uid, tstrerror(terrno),
+           GET_TASKID(pTaskInfo));
+    metaReaderClear(mr);
+    T_LONG_JMP(pTaskInfo->env, terrno);
+  }
+
+  char str[512];
+  for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
+    SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
+
+    // refactor later
+    if (fmIsScanPseudoColumnFunc(pExprInfo[j].pExpr->_function.functionId)) {
+      STR_TO_VARSTR(str, (*mr).me.name);
+      colDataSetVal(pDst, (count), str, false);
+    } else {  // it is a tag value
+      STagVal val = {0};
+      val.cid = pExprInfo[j].base.pParam[0].pCol->colId;
+      const char* p = metaGetTableTagVal((*mr).me.ctbEntry.pTags, pDst->info.type, &val);
+
+      char* data = NULL;
+      if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
+        data = tTagValToData((const STagVal*)p, false);
+      } else {
+        data = (char*)p;
+      }
+      colDataSetVal(pDst, (count), data,
+                    (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
+
+      if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
+          data != NULL) {
+        taosMemoryFree(data);
+      }
+    }
+  }
+}
+
 static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -2536,47 +2581,21 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   metaReaderInit(&mr, pInfo->readHandle.meta, 0);
 
   while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
-    STableKeyInfo* item = tableListGetInfo(pInfo->pTableListInfo, pInfo->curPos);
-    int32_t        code = metaGetTableEntryByUid(&mr, item->uid);
-    tDecoderClear(&mr.coder);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", item->uid, tstrerror(terrno),
-             GET_TASKID(pTaskInfo));
-      metaReaderClear(&mr);
-      T_LONG_JMP(pTaskInfo->env, terrno);
-    }
-
-    for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
-      SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
-
-      // refactor later
-      if (fmIsScanPseudoColumnFunc(pExprInfo[j].pExpr->_function.functionId)) {
-        STR_TO_VARSTR(str, mr.me.name);
-        colDataSetVal(pDst, count, str, false);
-      } else {  // it is a tag value
-        STagVal val = {0};
-        val.cid = pExprInfo[j].base.pParam[0].pCol->colId;
-        const char* p = metaGetTableTagVal(mr.me.ctbEntry.pTags, pDst->info.type, &val);
-
-        char* data = NULL;
-        if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
-          data = tTagValToData((const STagVal*)p, false);
-        } else {
-          data = (char*)p;
-        }
-        colDataSetVal(pDst, count, data,
-                      (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
-
-        if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
-            data != NULL) {
-          taosMemoryFree(data);
-        }
-      }
-    }
-
-    count += 1;
+    doTagScanOneTable(pOperator, pRes, count, &mr);
+    ++count;
     if (++pInfo->curPos >= size) {
       setOperatorCompleted(pOperator);
+    }
+    // each table with tbname is a group, hence its own block, but only group when slimit exists for performance reason.
+    if (pInfo->pSlimit != NULL) {
+      if (pInfo->curPos < pInfo->pSlimit->offset) {
+        continue;
+      }
+      pInfo->pRes->info.id.groupId = calcGroupId(mr.me.name, strlen(mr.me.name));
+      if (pInfo->curPos >= (pInfo->pSlimit->offset + pInfo->pSlimit->limit) - 1) {
+        setOperatorCompleted(pOperator);
+      }
+      break;
     }
   }
 
@@ -2628,6 +2647,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   pInfo->readHandle = *pReadHandle;
   pInfo->curPos = 0;
+  pInfo->pSlimit = (SLimitNode*)pPhyNode->node.pSlimit; //TODO: slimit now only indicate group
 
   setOperatorInfo(pOperator, "TagScanOperator", QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
