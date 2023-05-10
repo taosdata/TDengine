@@ -196,11 +196,11 @@ typedef struct SMavgInfo {
 } SMavgInfo;
 
 typedef struct SSampleInfo {
-  int32_t samples;
-  int32_t totalPoints;
-  int32_t numSampled;
-  uint8_t colType;
-  int16_t colBytes;
+  int32_t  samples;
+  int32_t  totalPoints;
+  int32_t  numSampled;
+  uint8_t  colType;
+  uint16_t colBytes;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;
@@ -220,7 +220,7 @@ typedef struct STailInfo {
   int32_t     numAdded;
   int32_t     offset;
   uint8_t     colType;
-  int16_t     colBytes;
+  uint16_t    colBytes;
   STailItem** pItems;
 } STailInfo;
 
@@ -233,7 +233,7 @@ typedef struct SUniqueItem {
 typedef struct SUniqueInfo {
   int32_t   numOfPoints;
   uint8_t   colType;
-  int16_t   colBytes;
+  uint16_t  colBytes;
   bool      hasNull;  // null is not hashable, handle separately
   SHashObj* pHash;
   char      pItems[];
@@ -247,13 +247,13 @@ typedef struct SModeItem {
 
 typedef struct SModeInfo {
   uint8_t   colType;
-  int16_t   colBytes;
+  uint16_t  colBytes;
   SHashObj* pHash;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;
 
-  char*     buf; // serialize data buffer
+  char* buf;  // serialize data buffer
 } SModeInfo;
 
 typedef struct SDerivInfo {

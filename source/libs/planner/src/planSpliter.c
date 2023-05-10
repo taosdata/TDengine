@@ -532,6 +532,25 @@ static int32_t stbSplGetNumOfVgroups(SLogicNode* pNode) {
   return 0;
 }
 
+static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* pNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_PROJECT: {
+      SProjectLogicNode *pLogicNode = (SProjectLogicNode*)pNode;
+      if (pLogicNode->ignoreGroupId && (pMerge->node.pLimit || pMerge->node.pSlimit)) {
+        pMerge->ignoreGroupId = true;
+        pLogicNode->ignoreGroupId = false;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  return code;
+}
+
 static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pSplitNode,
                                      SNodeList* pMergeKeys, SLogicNode* pPartChild, bool groupSort) {
   SMergeLogicNode* pMerge = (SMergeLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE);
@@ -562,6 +581,9 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
     }
     ((SLimitNode*)pSplitNode->pLimit)->limit += ((SLimitNode*)pSplitNode->pLimit)->offset;
     ((SLimitNode*)pSplitNode->pLimit)->offset = 0;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = stbSplRewriteFromMergeNode(pMerge, pSplitNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == pSubplan) {

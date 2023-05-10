@@ -236,7 +236,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       PROCESS_SLASH(value, valueLen)
     }
 
-    if (unlikely(valueLen > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
+    if (unlikely(valueLen > (TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
       return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
     }
 

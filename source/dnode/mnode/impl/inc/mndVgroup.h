@@ -50,6 +50,8 @@ void *mndBuildCreateVnodeReq(SMnode *, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *p
 void *mndBuildDropVnodeReq(SMnode *, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen);
 bool  mndVgroupInDb(SVgObj *pVgroup, int64_t dbUid);
 
+int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgroup);
+
 #ifdef __cplusplus
 }
 #endif

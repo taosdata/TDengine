@@ -134,11 +134,15 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
 
   switch (type) {
     case TAOS_NOTIFY_PASSVER: {
+      taosThreadMutexLock(&pObj->mutex);
+      if (fp && !pObj->passInfo.fp) {
+        atomic_add_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
+      } else if (!fp && pObj->passInfo.fp) {
+        atomic_sub_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
+      }
       pObj->passInfo.fp = fp;
       pObj->passInfo.param = param;
-      if (fp) {
-        atomic_add_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
-      }
+      taosThreadMutexUnlock(&pObj->mutex);
       break;
     }
     default: {
@@ -1338,6 +1342,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     goto _return;
   }
 
+  pRequest->syncQuery = true;
+
   STscObj *pTscObj = pRequest->pTscObj;
   code = transferTableNameList(tableNameList, pTscObj->acctId, pTscObj->db, &catalogReq.pTableMeta);
   if (code) {
@@ -1364,7 +1370,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   tsem_wait(&pParam->sem);
 
 _return:
-  taosArrayDestroy(catalogReq.pTableMeta);
+  taosArrayDestroyEx(catalogReq.pTableMeta, destoryTablesReq);
   destroyRequest(pRequest);
   return code;
 }

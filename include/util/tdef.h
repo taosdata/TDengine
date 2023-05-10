@@ -232,13 +232,7 @@ typedef enum ELogicConditionType {
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
 
-/**
- *  In some scenarios uint16_t (0~65535) is used to store the row len.
- *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
- *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
- *    the final value is 65531-(4096-1)*4 = 49151.
- */
-#define TSDB_MAX_BYTES_PER_ROW 49151
+#define TSDB_MAX_BYTES_PER_ROW 65531  // 49151:65531
 #define TSDB_MAX_TAGS_LEN      16384
 #define TSDB_MAX_TAGS          128
 
@@ -410,9 +404,9 @@ typedef enum ELogicConditionType {
 #define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16 * 1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
-#define TSDB_MAX_FIELD_LEN             16384
-#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
-#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
+#define TSDB_MAX_FIELD_LEN             65519               // 16384:65519
+#define TSDB_MAX_BINARY_LEN            TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_NCHAR_LEN             TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
