@@ -612,6 +612,13 @@ static int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode,
 
   if(restoreType == RESTORE_TYPE__ALL || restoreType == RESTORE_TYPE__MNODE)
   {
+    int32_t totalMnodes = sdbGetSize(pMnode->pSdb, SDB_MNODE);
+    if (totalMnodes == 2) {
+        mError("cant't restore mnode, since a mnode on it and replica is 2");
+        terrno = TSDB_CODE_MNODE_ONLY_TWO_MNODE;
+        return -1;
+    }
+    
     SMnodeObj *mnodeObj = mndAcquireMnode(pMnode, pDnode->id);
     if(mnodeObj == NULL){
       mError("trans:%d, no mnode exist on dnode:%s", pTrans->id, pDnode->ep);

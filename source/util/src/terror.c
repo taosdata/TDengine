@@ -320,6 +320,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QNODE_NOT_DEPLOYED,           "Qnode not deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NOT_FOUND,              "Snode not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_ALREADY_DEPLOYED,       "Snode already deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NOT_DEPLOYED,           "Snode not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NOT_CATCH_UP,           "Mnode didn't catch the leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ALREADY_IS_VOTER,       "Mnode already is a leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ONLY_TWO_MNODE,         "Only two mnodes exist")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")

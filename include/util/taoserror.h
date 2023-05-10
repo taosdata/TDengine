@@ -406,6 +406,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_SNODE_NOT_DEPLOYED            TAOS_DEF_ERROR_CODE(0, 0x0411)
 #define TSDB_CODE_MNODE_NOT_CATCH_UP            TAOS_DEF_ERROR_CODE(0, 0x0412) // internal
 #define TSDB_CODE_MNODE_ALREADY_IS_VOTER        TAOS_DEF_ERROR_CODE(0, 0x0413) // internal
+#define TSDB_CODE_MNODE_ONLY_TWO_MNODE          TAOS_DEF_ERROR_CODE(0, 0x0414) // internal
 
 // vnode
 // #define TSDB_CODE_VND_ACTION_IN_PROGRESS     TAOS_DEF_ERROR_CODE(0, 0x0500) // 2.x
