@@ -106,13 +106,14 @@ export function handleColumnData(data) {
   data.map(item => {
     let result = {};
     result.name = item.field;
+    result.field = item.field;
     // 此处不展示标签，在表格详细信息中进行展示
     if (item.note) {
       result.typeName = "tag";
     } else {
       result.typeName = "column";
     }
-    result.dataType = handleBinaryType(item.type, item.length);
+    result.type = handleBinaryType(item.type, item.length);
     result["node-key"] = result.name + result.dataType;
     result.leaf = true;
     res.push(result);

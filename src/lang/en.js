@@ -398,47 +398,41 @@ export default {
     Days: "Days",
     days: "days",
     precision: "Precision",
-    bufferTip: "specifies the size (in MB) of the write buffer for each vnode. Enter a value between 3 and 16384. The default value is 96.",
+    bufferTip: "The size of cache for writing of a vnode, default is 96MB.",
     cacheModelTip: `specifies how the latest data in subtables is stored in the cache. The default value is none.
     <ul>
-    <li>none：The latest data is not cached.</li>
-    <li>last_row：The last row of each subtable is cached. This option significantly improves the performance of the LAST_ROW function.</li>
-    <li>last_value：The last non-null value of each column in each subtable is cached. This option significantly improves the performance of the LAST function under normal circumstances, such as statements including the WHERE, ORDER BY, GROUP BY, and INTERVAL keywords.</li>
-    <li>both: The last row of each subtable and the last non-null value of each column in each subtable are cached.</li>
+    <li>NONE - no caching.</li>
+    <li>LAST_ROW - the last row of each table is cached and can significantly improve the performance of last_row() function.</li>
+    <li>LAST_VALUE - the last non-NULL value of each column of each table is cached and can significantly improve the performance of last() without WHERE, ORDER BY, GROUP BY and INTERVAL.</li>
+    <li>BOTH - equal to enabling LAST_VALUE and LAST_ROW together, the default value is NONE.</li>
     </ul>
     `,
-    cacheSizeTip: "specifies the amount (in MB) of memory used for subtable caching on each vnode. Enter a value between 1 and 65536. The default value is 1.",
-    compTip: `specifies how databases are compressed. The default value is 2.
+    cacheSizeTip: "The size of cache for the latest data of each table in a vnode, the unit is MB, the default value is 1, maximum allowed value is 65536.",
+    compTip: `The compression level of data file.
     <ul>
-    <li>0: Compression is disabled.</li>
-    <li>1: One-pass compression is enabled.</li>
-    <li>2: Two-pass compression is enabled.</li>
+    <li>0 means no compression.</li>
+    <li>1 means one phase compression.</li>
+    <li>2 means two phase compression, the dfault value is 2.</li>
     </ul>
     `,
-    durationTip:
-      "specifies the time period contained in each data file. After the time specified by this parameter has elapsed, TDengine creates a new data file to store incoming data. You can use m (minutes), h (hours), and d (days) as the unit, for example DURATION 100h or DURATION 10d. If you do not include a unit, d is used by default.",
-    walFsyncPeriodTip: "specifies the interval (in milliseconds) at which data is written from the WAL to disk. This parameter takes effect only when the WAL parameter is set to 2. The default value is 3000. Enter a value between 0 and 180000. The value 0 indicates that incoming data is immediately written to disk.",
-    maxRowsTip: "specifies the maximum number of rows recorded in a block. The default value is 4096.",
-    minRowsTip: "specifies the minimum number of rows recorded in a block. The default value is 100.",
-
+    durationTip: "The time range of data stored in a single file, its unit can be minute(m), hour(h), day(d), e.g. 50d, 100h， the default unit is day(d).",
+    walFsyncPeriodTip: "The time interval of performing sync when WAL_LEVEL is set to 2, the unit is millisecond(ms), the default value is 3,000, i.e. 3000 milliseconds.",
+    maxRowsTip: "The maximum number of rows stored in single data block, default value 4,096.",
+    minRowsTip: "The minimum number of rows stored in single data block, default value is 100.",
     cacheLast: "CacheLast",
     nameTip: "Name format error!",
     daysTip: "DAYS is the time span for a data file to store data,<br />default: 10",
-    precisionTip: `timestamp precision identification.<br />
-    ms for milliseconds, us for microseconds and ns for
-    nanosecond.<br />
-    default: ms`,
-    keepTip: `specifies the time for which data is retained. Enter a value between 1 and 365000. The default value is 3650. The value of the KEEP parameter must be greater than or equal to the value of the DURATION parameter. TDengine automatically deletes data that is older than the value of the KEEP parameter. You can use m (minutes), h (hours), and d (days) as the unit, for example KEEP 100h or KEEP 10d. If you do not include a unit, d is used by default. The Enterprise Edition supports Tiered Storage function, thus multiple KEEP values (comma separated and up to 3 values supported, and meet keep 0 <= keep 1 <= keep 2, e.g. KEEP 100h,100d,3650d) are supported; the Community Edition does not support Tiered Storage function (although multiple keep values are configured, they do not take effect, only the maximum keep value is used as KEEP).`,
+    precisionTip: `The precision at which a database records timestamps, ms for milliseconds, us for microseconds, or ns for nanoseconds, the default value is ms`,
+    keepTip: `The number of days for keeping the data files, the default value is 3,650, the data files that have last over KEEP would be deleted automatically.You can use m (minutes), h (hours), and d (days) as the unit.`,
     updateTip: `data update level<br />
     0: data update is not supported<br />
     1: support update of entire row<br />
     2: support update only some columns<br />
     default: 0`,
-    pagesTip: "specifies the number of pages in the metadata storage engine cache on each vnode. Enter a value greater than or equal to 64. The default value is 256. The space occupied by metadata storage on each vnode is equal to the product of the values of the PAGESIZE and PAGES parameters. The space occupied by default is 1 MB.",
-    pageSizeTip: "specifies the size (in KB) of each page in the metadata storage engine cache on each vnode. The default value is 4. Enter a value between 1 and 16384.",
-    replicaTip: "specifies the number of replicas that are made of the database. Enter 1 or 3. The default value is 1. The value of the REPLICA parameter cannot exceed the number of dnodes in the cluster.",
-    retentionsTip:
-      "specifies the retention period for data aggregated at various intervals. For example, RETENTIONS 15s:7d,1m:21d,15m:50d indicates that data aggregated every 15 seconds is retained for 7 days, data aggregated every 1 minute is retained for 21 days, and data aggregated every 15 minutes is retained for 50 days. You must enter three aggregation intervals and corresponding retention periods.",
+    pagesTip: "The number of pages for caching meta data in a single vnode, the default value is 256 and the minimum allowed value is 64.",
+    pageSizeTip: "The size of single page for caching meta data, the unit is KB, the value can be from 1 to 16,384, the default value is 4 KB.",
+    replicaTip: "The number of replicas of the database, it can be set to 1 or 3, the default value is 1.",
+    retentionsTip: "The time interval for aggregating and keeping data, for example 15s:7d,1m:21d,15m:50d indicates that data aggregated every 15 seconds is retained for 7 days, data aggregated every 1 minute is retained for 21 days, and data aggregated every 15 minutes is retained for 50 days. You must enter three aggregation intervals and corresponding retention periods.",
     strictTip: `表示数据同步的一致性要求，默认为 off。
     <ul>
     <li>on 表示强一致，即运行标准的 raft 协议，半数提交返回成功。</li>
@@ -447,27 +441,25 @@ export default {
     `,
     walLevelTip: `specifies whether fsync is enabled. The default value is 1.
     <ul>
-    <li>1: WAL is enabled but fsync is disabled.</li>
-    <li>2: WAL and fsync are both enabled.</li>
+    <li>1 - Write data to WAL without fsync.</li>
+    <li>2 - Write data to WAL with fsync.</li>
     </ul>
     `,
-    vgroupsTip: "specifies the initial number of vgroups when a database is created.",
-    singleStableTip: `specifies whether the database can contain more than one supertable.
+    vgroupsTip: "The number of vgroups of the database to be created, normally more vgroups means more processing capability but it is also limited by your system resources, the default value is 2.",
+    singleStableTip: `whether the database can contain more than one supertable.
     <ul>
-    <li>0: The database can contain multiple supertables.</li>
-    <li>1: The database can contain only one supertable.</li>
+    <li>0 - The database can contain multiple supertables.</li>
+    <li> 1 - The database can contain only one supertable, the default value is 0.</li>
     </ul>
     `,
-    walRetentionPeriodTip:
-      "specifies the time after which WAL files are deleted. This parameter is used for data subscription. Enter a time in seconds. The default value is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted.",
-    walRetentionSizeTip: "specifies the maximum total size of which WAL files are to be kept for consumption. This parameter is used for data subscription. Enter a size in KB. The default value is 0. A value of 0 indicates that the total size of WAL files to keep for consumption has no upper limit.",
-    walSegmentSizeTip: "specifies the maximum size of a WAL file. After the current WAL file reaches this size, a new WAL file is created. The default value is 0. A value of 0 indicates that a new WAL file is created only after TSDB data in memory are flushed to disk.",
-    walRollPeriodTip:
-      "specifies the time after which WAL files are rotated. After this period elapses, a new WAL file is created. The defaulspecifies the maximum size of a WAL file. After the current WAL file reaches this size, a new WAL file is created. The default value is 0. A value of 0 indicates that a new WAL file is created only after TSDB data in memory are flushed to disk.wal 单个文件大小，单位为 KB。当前写入文件大小超过上限后会自动创建一个新的 wal 文件。默认为 0，即仅在落盘时创建新文件。",
-    sttTaiggerTip: "specifies the number of file merges triggered by flushed files. The default is 8, ranging from 1 to 16. For high-frequency scenarios with few tables, it is recommended to use the default configuration or a smaller value for this parameter; For multi-table low-frequency scenarios, it is recommended to configure this parameter with a larger value.",
-    tsdbPagesizeTip: "The page size of the data storage engine in a vnode. The unit is KB. The default is 4 KB. The range is 1 to 16384, that is, 1 KB to 16 MB.",
-    tablePrefixTip: "The prefix length in the table name that is ignored when distributing table to vnode based on table name.",
-    tableSuffixTip: "The suffix length in the table name that is ignored when distributing table to vnode based on table name.",
+    walRetentionPeriodTip: "The time length of keeping WAL files, it determines the data that can be consumed, the unit is second, the default value is 0 which means no data can be consumed，please set to a proper positive value if you want to consume data.",
+    walRetentionSizeTip: "The size of a single WAL file, the unit is KB, the default value is 0, which means it's handled automatically by TDengine.",
+    walSegmentSizeTip: "The size of a single WAL file, the unit is KB, the default value is 0, which means it's handled automatically by TDengine.",
+    walRollPeriodTip: "The time length of a single WAL file, the unit is second, the default value is 0, which means it's handled automatically by TDengine。",
+    sttTaiggerTip: "The number of files that triggers data file merging, the default value is 1, the available range is from 1 to 16, lower value is suitable for fewer tables with high writing frequency but higher value is suitable for large number of tables with low writing frequency.",
+    tsdbPagesizeTip: "The size of single page for caching time series data, the unit is KB, the value can be from 1 to 16,384, the default value is 4 KB.",
+    tablePrefixTip: `The prefix in the table name that is ignored when distributing a table to a vgroup when it's a positive number, or only the prefix is used when distributing a table to a vgroup, the default value is 0; For example, if the table name v30001, then "0001" is used if TABLE_PREFIX is set to 2 but "v3" is used if TABLE_PREFIX is set to -2; It can help you to control the distribution of tables`,
+    tableSuffixTip: `The suffix in the table name that is ignored when distributing a table to a vgroup when it's a positive number, or only the suffix is used when distributing a table to a vgroup, the default value is 0; For example, if the table name v30001, then "v300" is used if TABLE_SUFFIX is set to 2,  but "01" is used if TABLE_SUFFIX is set to -2; It can help you to control the distribution of tables`,
     stable: "STable",
     table: "Table",
     stableName: "STable Name",
@@ -486,6 +478,10 @@ export default {
     checkFail: "Please check the field name or type",
     tableNameTip: "Table names can only consist of letters, numbers and underscores, and cannot start with numbers, and are not case-sensitive",
     runSqlTip: "Run SQL statement",
+    performanceRelatedParameters: "Performance Related Parameters",
+    dataPersistenceParameters: "Data Persistence Parameters",
+    walParameters: "WAL Parameters",
+    specialParameters: "Special Parameters" 
   },
   dataIn: {
     connector: "Connectors",
