@@ -275,6 +275,8 @@
                     <el-select
                       v-model="p.target.value"
                       :multiple="p.target.multiple"
+                      allow-create
+                      filterable
                     >
                       <el-option
                         v-for="(t, tind) in p.target.value"
