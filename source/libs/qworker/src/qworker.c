@@ -764,8 +764,10 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     atomic_store_8((int8_t *)&ctx->queryInQueue, 0);
     atomic_store_8((int8_t *)&ctx->queryContinue, 0);
 
-    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop));
-
+    if (!queryStop) {
+      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop));
+    }
+    
     if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       SOutputData sOutput = {0};
       QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
