@@ -440,7 +440,7 @@ TDengine has significantly improved the bind APIs to support data writing (INSER
 - JDBC REST connections do not currently support bind interface
 - The following sample code is based on taos-jdbcdriver-3.2.1
 - The setString method should be called for binary type data, and the setNString method should be called for nchar type data
-- Do not use `db.?` in prepareStatement, should directly use `?`, then specify the database in setTableName, for example: `prepareStatement.setTableName("db.t1")`.
+- Do not use `db.?` in prepareStatement when specify the database with the table name, should directly use `?`, then specify the database in setTableName, for example: `prepareStatement.setTableName("db.t1")`.
 
 <Tabs defaultValue="native">
 <TabItem value="native" label="native connection">
