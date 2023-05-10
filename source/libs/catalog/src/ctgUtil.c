@@ -196,6 +196,7 @@ void ctgFreeMetaRent(SCtgRentMgmt* mgmt) {
   }
 
   taosMemoryFreeClear(mgmt->slots);
+  mgmt->rentCacheSize = 0;
 }
 
 void ctgFreeStbMetaCache(SCtgDBCache* dbCache) {
@@ -208,12 +209,26 @@ void ctgFreeStbMetaCache(SCtgDBCache* dbCache) {
   dbCache->stbCache = NULL;
 }
 
-void ctgFreeTbCacheImpl(SCtgTbCache* pCache) {
-  qDebug("tbMeta freed, p:%p", pCache->pMeta);
-  taosMemoryFreeClear(pCache->pMeta);
+void ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock) {
+  if (pCache->pMeta) {
+    if (lock) { 
+      CTG_LOCK(CTG_WRITE, &pCache->metaLock);
+    }
+    taosMemoryFreeClear(pCache->pMeta);
+    if (lock) { 
+      CTG_UNLOCK(CTG_WRITE, &pCache->metaLock);
+    }
+  }
+
   if (pCache->pIndex) {
+    if (lock) { 
+      CTG_LOCK(CTG_WRITE, &pCache->indexLock);
+    }
     taosArrayDestroyEx(pCache->pIndex->pIndex, tFreeSTableIndexInfo);
     taosMemoryFreeClear(pCache->pIndex);
+    if (lock) { 
+      CTG_UNLOCK(CTG_WRITE, &pCache->indexLock);
+    }
   }
 }
 
@@ -225,7 +240,7 @@ void ctgFreeTbCache(SCtgDBCache* dbCache) {
   int32_t      tblNum = taosHashGetSize(dbCache->tbCache);
   SCtgTbCache* pCache = taosHashIterate(dbCache->tbCache, NULL);
   while (NULL != pCache) {
-    ctgFreeTbCacheImpl(pCache);
+    ctgFreeTbCacheImpl(pCache, false);
     pCache = taosHashIterate(dbCache->tbCache, pCache);
   }
   taosHashCleanup(dbCache->tbCache);
@@ -311,21 +326,82 @@ void ctgFreeHandle(SCatalog* pCtg) {
   ctgInfo("handle freed, clusterId:0x%" PRIx64, clusterId);
 }
 
+void ctgClearHandleMeta(SCatalog* pCtg, int64_t *pClearedSize, int64_t *pCleardNum, bool *roundDone) {
+  int64_t cacheSize = 0;
+  void* pIter = taosHashIterate(pCtg->dbCache, NULL);
+  while (pIter) {
+    SCtgDBCache* dbCache = pIter;
+    
+    SCtgTbCache* pCache = taosHashIterate(dbCache->tbCache, NULL);
+    while (NULL != pCache) {
+      size_t len = 0;
+      void*  key = taosHashGetKey(pCache, &len);
+
+      if (pCache->pMeta && TSDB_SUPER_TABLE == pCache->pMeta->tableType) {
+        continue;
+      }
+      
+      taosHashRemove(dbCache->tbCache, key, len);
+      cacheSize = len + sizeof(SCtgTbCache) + ctgGetTbMetaCacheSize(pCache->pMeta) + ctgGetTbIndexCacheSize(pCache->pIndex);
+      atomic_sub_fetch_64(&dbCache->dbCacheSize, cacheSize);
+      *pClearedSize += cacheSize;
+      (*pCleardNum)++;
+      
+      ctgFreeTbCacheImpl(pCache, true);
+
+      if (*pCleardNum >= CTG_CLEAR_CACHE_ROUND_TB_NUM) {
+        goto _return;
+      }
+            
+      pCache = taosHashIterate(dbCache->tbCache, pCache);
+    }
+
+    pIter = taosHashIterate(pCtg->dbCache, pIter);
+  }
+
+_return:
+
+  if (*pCleardNum >= CTG_CLEAR_CACHE_ROUND_TB_NUM) {
+    *roundDone = true;
+  }
+}
+
+void ctgClearAllHandleMeta(bool *roundDone) {
+  int64_t clearedSize = 0;
+  int64_t clearedNum = 0;
+  SCatalog *pCtg = NULL;
+
+  void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
+  while (pIter) {
+    pCtg = *(SCatalog **)pIter;
+
+    if (pCtg) {
+      ctgClearHandleMeta(pCtg, &clearedSize, &clearedNum, roundDone);
+      if (*roundDone) {
+        taosHashCancelIterate(gCtgMgmt.pCluster, pIter);
+        break;
+      }
+    }
+
+    pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
+  }
+}
+
 void ctgClearHandle(SCatalog* pCtg) {
   if (NULL == pCtg) {
     return;
   }
 
   uint64_t clusterId = pCtg->clusterId;
-
+  
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
 
-  ctgMetaRentInit(&pCtg->dbRent, gCtgMgmt.cfg.dbRentSec, CTG_RENT_DB);
-  ctgMetaRentInit(&pCtg->stbRent, gCtgMgmt.cfg.stbRentSec, CTG_RENT_STABLE);
+  ctgMetaRentInit(&pCtg->dbRent, gCtgMgmt.cfg.dbRentSec, CTG_RENT_DB, sizeof(SDbVgVersion));
+  ctgMetaRentInit(&pCtg->stbRent, gCtgMgmt.cfg.stbRentSec, CTG_RENT_STABLE, sizeof(SSTableVersion));
 
   pCtg->dbCache = taosHashInit(gCtgMgmt.cfg.maxDBCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false,
                                HASH_ENTRY_LOCK);
@@ -1562,6 +1638,130 @@ void catalogFreeMetaData(SMetaData* pData) {
 }
 #endif
 
+uint64_t ctgGetTbIndexCacheSize(STableIndex *pIndex) {
+  if (NULL == pIndex) {
+    return 0;
+  }
+
+  return sizeof(*pIndex) + pIndex->indexSize;
+}
+
+FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta *pMeta) {
+  if (NULL == pMeta) {
+    return 0;
+  }
+
+  switch (pMeta->tableType) {
+    case TSDB_SUPER_TABLE:
+      return sizeof(*pMeta) + (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) * sizeof(SSchema);
+    case TSDB_CHILD_TABLE:
+      return sizeof(SCTableMeta);
+    default:
+      return sizeof(*pMeta) + pMeta->tableInfo.numOfColumns * sizeof(SSchema);
+  }
+
+  return 0;
+}
+
+uint64_t ctgGetDbVgroupCacheSize(SDBVgInfo *pVg) {
+  if (NULL == pVg) {
+    return 0;
+  }
+
+  return sizeof(*pVg) + taosHashGetSize(pVg->vgHash) * (sizeof(SVgroupInfo) + sizeof(int32_t)) 
+    + taosArrayGetSize(pVg->vgArray) * sizeof(SVgroupInfo);
+}
+
+uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
+  if (NULL == pAuth) {
+    return 0;
+  }
+
+  uint64_t cacheSize = 0;
+  char* p = taosHashIterate(pAuth->createdDbs, NULL);
+  while (p != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(p, &len);
+    cacheSize += len + strlen(p);
+
+    p = taosHashIterate(pAuth->createdDbs, p);
+  }
+
+  p = taosHashIterate(pAuth->readDbs, NULL);
+  while (p != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(p, &len);
+    cacheSize += len + strlen(p);
+
+    p = taosHashIterate(pAuth->readDbs, p);
+  }  
+
+  p = taosHashIterate(pAuth->writeDbs, NULL);
+  while (p != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(p, &len);
+    cacheSize += len + strlen(p);
+
+    p = taosHashIterate(pAuth->writeDbs, p);
+  } 
+
+  p = taosHashIterate(pAuth->readTbs, NULL);
+  while (p != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(p, &len);
+    cacheSize += len + strlen(p);
+
+    p = taosHashIterate(pAuth->readTbs, p);
+  } 
+
+  p = taosHashIterate(pAuth->writeTbs, NULL);
+  while (p != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(p, &len);
+    cacheSize += len + strlen(p);
+
+    p = taosHashIterate(pAuth->writeTbs, p);
+  } 
+
+  int32_t *ref = taosHashIterate(pAuth->useDbs, NULL);
+  while (ref != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(ref, &len);
+    cacheSize += len + sizeof(*ref);
+
+    ref = taosHashIterate(pAuth->useDbs, ref);
+  } 
+
+  return cacheSize;
+}
+
+uint64_t ctgGetClusterCacheSize(SCatalog *pCtg) {
+  uint64_t cacheSize = sizeof(SCatalog);
+  
+  SCtgUserAuth* pAuth = taosHashIterate(pCtg->userCache, NULL);
+  while (pAuth != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(pAuth, &len);
+    cacheSize += len + sizeof(SCtgUserAuth) + atomic_load_64(&pAuth->userCacheSize);
+
+    pAuth = taosHashIterate(pCtg->userCache, pAuth);
+  }
+
+  SCtgDBCache* pDb = taosHashIterate(pCtg->dbCache, NULL);
+  while (pDb != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(pDb, &len);
+    cacheSize += len + sizeof(SCtgDBCache) + atomic_load_64(&pDb->dbCacheSize);
+
+    pDb = taosHashIterate(pCtg->dbCache, pDb);
+  }
+
+  cacheSize += pCtg->dbRent.rentCacheSize;
+  cacheSize += pCtg->stbRent.rentCacheSize;
+
+  return cacheSize;
+}
+
 void ctgGetClusterCacheStat(SCatalog* pCtg) {
   for (int32_t i = 0; i < CTG_CI_MAX_VALUE; ++i) {
     if (0 == (gCtgStatItem[i].flag & CTG_CI_FLAG_LEVEL_DB)) {
@@ -1627,10 +1827,22 @@ void ctgGetGlobalCacheStat(SCtgCacheStat* pStat) {
   memcpy(pStat, &gCtgMgmt.statInfo.cache, sizeof(gCtgMgmt.statInfo.cache));
 }
 
-void ctgGetGlobalCacheUsedSize(uint64_t *pSize) {
-  SCtgCacheStat stat;
-  ctgGetGlobalCacheStat(&stat);
-  do;
-  
+void ctgGetGlobalCacheSize(uint64_t *pSize) {
+  *pSize = 0;
+
+  SCatalog* pCtg = NULL;
+  void*     pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
+  while (pIter) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(pIter, &len);
+    *pSize += len + POINTER_BYTES; 
+    
+    pCtg = *(SCatalog**)pIter;
+    if (pCtg) {
+      *pSize += ctgGetClusterCacheSize(pCtg);
+    }
+
+    pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
+  }
 }
 
