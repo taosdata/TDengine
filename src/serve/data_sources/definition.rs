@@ -108,6 +108,10 @@ pub enum Hint {
         r#type: String,
         #[serde(skip_serializing_if = "Vec::is_empty", default)]
         choices: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min: Option<i64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max: Option<i64>,
     },
 }
 
@@ -152,6 +156,10 @@ pub struct HintDefinition {
     pub r#type: String,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub choices: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
