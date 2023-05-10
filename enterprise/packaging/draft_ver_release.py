@@ -9,30 +9,8 @@ import time
 import argparse
 import mkpkg
 import multiprocessing
+import sys
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(lineno)d - %(message)s ',
-                    level=logging.INFO,filename='draftlog.txt')
-# console = logging.StreamHandler()
-# console.setLevel(logging.INFO)
-# formatter = logging.Formatter('%(levelname)-8s %(message)s')
-# console.setFormatter(formatter)
-# logging.getLogger('').addHandler(console)
-
-def setLogLevel(level):
-    if level == 'debug':
-        logging.getLogger().setLevel(logging.DEBUG)
-    else:
-        logging.getLogger().setLevel(logging.INFO)
-
-def getGitHead(gitPath, repo):
-    os.chdir(gitPath)
-    logging.info(f"gitPath:{gitPath}")
-    code, output = subprocess.getstatusoutput('git rev-parse --verify HEAD')
-    if code == 0:
-        return output
-    else:
-        raise Exception(
-            "get repo {0} git info failed, reason {1}".format(repo, output))
 
 cpuCount = multiprocessing.cpu_count()
 # TDinternal/enterprise/packaging
@@ -48,18 +26,48 @@ communityDir = os.path.join(topDir, 'community')
 enterpriseDir = os.path.join(topDir, 'enterprise')
 
 # TDinternal/community/debug
-compileDir = os.path.join(communityDir,'debug')
+compileDir = os.path.join(communityDir, 'debug')
 
 buildTime = time.strftime("%Y-%m-%d %H:%M", time.localtime())
 
-internalGitInfo = getGitHead(topDir, "TDinternal")
-communityGitInfo = getGitHead(communityDir, "Community(TDengine)")
+# internalGitInfo = getGitHead(topDir, "TDinternal")
+# communityGitInfo = getGitHead(communityDir, "Community(TDengine)")
+
+logfile = f'release_py_{buildTime}.txt'
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(lineno)d - %(message)s ',
+                    level=logging.INFO, filename=logfile)
+
+# console = logging.StreamHandler()
+# console.setLevel(logging.INFO)
+# formatter = logging.Formatter('%(levelname)-8s %(message)s')
+# console.setFormatter(formatter)
+# logging.getLogger('').addHandler(console)
 
 
-def readOption(filecontent,option):
-    options = yamlfile[option]
+def setLogLevel(level):
+    if level == 'debug':
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.INFO)
+
+
+def getGitHead(gitPath, repo):
+    os.chdir(gitPath)
+    logging.info(f"gitPath:{gitPath}")
+    code, output = subprocess.getstatusoutput('git rev-parse --verify HEAD')
+    if code == 0:
+        os.chdir(scriptDir)
+        return output
+    else:
+        raise Exception(
+            "get repo {0} git info failed, reason {1}".format(repo, output))
+
+
+def readOption(fileContent, option):
+    options = fileContent[option]
     logging.debug(options)
     return options
+
 
 def getTaosToolVersion():
     code, output = subprocess.getstatusoutput(
@@ -70,13 +78,15 @@ def getTaosToolVersion():
         raise Exception(
             "get taosTools's version failed, reason {1}".format(output))
 
+
 def executeCommand(command):
     logging.info(">>>>>>>>>>> {0}".format(command))
     ret = subprocess.run(command, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT,shell=True, encoding='utf-8')
+                         stderr=subprocess.STDOUT, shell=True, encoding='utf-8')
     logging.info(ret.stdout)
     ret.check_returncode()
     logging.info(">>>>>>>>>>> {0} done".format(command))
+
 
 def executeExpensiveCommand(command):
     logging.info(">>>>>>>>>>> {0}".format(command))
@@ -85,8 +95,9 @@ def executeExpensiveCommand(command):
     logging.info(ret.stdout)
     logging.info(">>>>>>>>>>>")
     ret.check_returncode()
-    
-def validVersion(version,comVersion):
+
+
+def validVersion(version, comVersion):
     # version = options['buildOptions']['VERNUMBER']
     # comVersion = options['buildOptions']['VERCOMPATIBLE']
     if len(version) == 0:
@@ -97,7 +108,7 @@ def validVersion(version,comVersion):
         raise Exception('invalid empty compatible version number')
     verReg = re.search('^([0-9]+\.){3,4}(\*|[0-9]+)$', version)
     verComReg = re.search('^([0-9]+\.){3,4}(\*|[0-9]+)$', comVersion)
- 
+
     if not verComReg or not verReg or checkVersionCompatible(version, comVersion) == 2:
         logging.error("invalid version number :{0} or version uncompatible with {1}".format(
             version, comVersion))
@@ -107,48 +118,56 @@ def validVersion(version,comVersion):
         logging.info("release version number:{0} , compatible version number:{1}".format(
             version, comVersion))
 
+
 def initOEMParameter(options):
-    if len(options['OEMFLAG']['CUS_NAME'])>0:
+    if len(options['OEMFLAG']['CUS_NAME']) > 0:
         options['buildOptions']['CUS_NAME'] = options['OEMFLAG']['CUS_NAME']
     else:
         logging.error(f"OEM cust name can't be an empty string")
         raise Exception("OEM cust name can't be an empty string")
-    
-    if len(options['OEMFLAG']['CUS_PROMPT'])>0:
+
+    if len(options['OEMFLAG']['CUS_PROMPT']) > 0:
         options['buildOptions']['CUS_PROMPT'] = options['OEMFLAG']['CUS_PROMPT']
     else:
         logging.error(f"OEM cust promt can't be an empty string")
         raise Exception("OEM cust promt can't be an empty string")
-    
-    if len(options['OEMFLAG']['CUS_EMAIL'])>0:
+
+    if len(options['OEMFLAG']['CUS_EMAIL']) > 0:
         options['buildOptions']['CUS_EMAIL'] = options['OEMFLAG']['CUS_EMAIL']
     else:
         logging.error("OEM cust email can't be an empty string")
         raise Exception("OEM cust email can't be an empty string")
-    
-    logging.info(f"OEM Rlease info custName:{options['OEMFLAG']['CUS_NAME']} custPromt:{options['OEMFLAG']['CUS_PROMPT']} custEmail:{options['OEMFLAG']['CUS_EMAIL']}")
 
-def checkAndInitInput(options,version):
+    logging.info(
+        f"OEM Rlease info custName:{options['OEMFLAG']['CUS_NAME']} custPromt:{options['OEMFLAG']['CUS_PROMPT']} custEmail:{options['OEMFLAG']['CUS_EMAIL']}")
+
+
+def checkAndInitInput(options, version):
     logging.info("checking input paramerters")
     currentOS = platform.system()
 
     # check version
     if version is not None and version != options['buildOptions']['VERNUMBER']:
-        logging.warning(f"CLI input version:{version} not euqal to buildOption[VERNUMBER]:{options['buildOptions']['VERNUMBER']},will overwrite buildOption[VERNUMBER]")
+        logging.warning(
+            f"CLI input version:{version} not euqal to buildOption[VERNUMBER]:{options['buildOptions']['VERNUMBER']},will overwrite buildOption[VERNUMBER]")
         options['buildOptions']['VERNUMBER'] = version
-        logging.info(f"current release version:{options['buildOptions']['VERNUMBER']}")
+        logging.info(
+            f"current release version:{options['buildOptions']['VERNUMBER']}")
     else:
-        logging.info(f"current release version:{options['buildOptions']['VERNUMBER']}")
-    
+        logging.info(
+            f"current release version:{options['buildOptions']['VERNUMBER']}")
+
     # check version valid
-    validVersion(options['buildOptions']['VERNUMBER'],options['buildOptions']['VERCOMPATIBLE'])
-        
+    validVersion(options['buildOptions']['VERNUMBER'],
+                 options['buildOptions']['VERCOMPATIBLE'])
+
     # check OS
     if currentOS != options['buildOptions']['OSTYPE']:
         logging.warning(
             "current os is {0} but expect {1}".format(currentOS, options['buildOptions']['OSTYPE']))
     else:
-        logging.info("currentOS:{0}, targetOS:{1}".format(currentOS, options['buildOptions']['OSTYPE']))
+        logging.info("currentOS:{0}, targetOS:{1}".format(
+            currentOS, options['buildOptions']['OSTYPE']))
 
     # check verMode
     if options['verMode'] not in ['edge', 'cluster', 'cloud']:
@@ -158,26 +177,27 @@ def checkAndInitInput(options,version):
             f"verMode only accept ['edge','cluster','cloud'],unsupport vermode:{options['verMode']}")
     else:
         logging.info(f"verMode:{options['verMode']}")
-        
+
     if options['verMode'] == 'cluster' and options['OEMFLAG']['enable'] == True:
         logging.info(f"This is a OEM release, initing OEM parameters...")
         initOEMParameter(options)
-    
+
     # check pagMode
     logging.debug(f"{options}")
     if options['pagMode'] not in ['full', 'lite']:
         logging.error(
             f"pagMode only accept ['full', 'lite'],unsupport pagMode:{options['pagMode']}")
         raise Exception(
-             f"pagMode only accept ['full', 'lite'],unsupport pagMode:{options['pagMode']}")
-    elif options['pagMode']!=options['buildOptions']['PAGMODE']:
-        logging.warning(f"pageMode on the top: {options['pagMode']} is not same as build option PAGMODE:{options['buildOptions']['PAGMODE']}, PAGMODE will be overrWritted")
+            f"pagMode only accept ['full', 'lite'],unsupport pagMode:{options['pagMode']}")
+    elif options['buildOptions'].get('PAGMODE') is not None and options['pagMode'] != options['buildOptions']['PAGMODE']:
+        logging.warning(
+            f"pageMode on the top: {options['pagMode']} is not same as build option PAGMODE:{options['buildOptions']['PAGMODE']}, PAGMODE will be overrWritted")
         options['buildOptions']['PAGMODE'] = options['pagMode']
-        logging.info(f"current BuilOptions of PAGMODE is {options['buildOptions']['PAGMODE']}")
+        logging.info(
+            f"current BuilOptions of PAGMODE is {options['buildOptions']['PAGMODE']}")
     else:
         logging.info(f"pagMode:{options['pagMode']}")
 
-# this may be removable.
 def generateLatestDocker():
     if options['dockerMode'] == 'latest' and options['verMode'] == 'cluster':
         logging.info("generate_docker_enterprise.sh will be running...")
@@ -215,53 +235,59 @@ def checkVersionCompatible(ver1, ver2):
             return 2
 
 
-def prepareDir():
+def prepareDir(options):
     packageDir = os.path.join(communityDir, 'release')
     rpmsDir = os.path.join(communityDir, 'rpms')
     debsDir = os.path.join(communityDir, 'debs')
     logging.info("Prepare the release directories.")
-    
+
     # check dir clear path
-    
     if os.path.exists(communityDir):
-        os.chdir(communityDir)
         if not os.path.exists(compileDir):
             logging.info("mkdir {0}".format(compileDir))
             os.mkdir(compileDir)
+        else:
+            shutil.rmtree(compileDir)
+            os.mkdir(compileDir)
+            logging.info("clean exist compile dir")
     else:
+        logging.error("community dir not found")
         raise Exception("community dir not found")
 
     # mkdir release
     if os.path.exists(packageDir):
-        shutil.rmtree(packageDir)
-        os.mkdir(packageDir)
+        # shutil.rmtree(packageDir)
+        # os.mkdir(packageDir)
+        logging.info(f"{packageDir} exists")
     else:
         os.mkdir(packageDir)
     logging.info(f"make release dir:{packageDir}")
-    
-     # mkdir for rmp package
-    if options['TDenginePackages']['rpm']['enable'] == True:
+
+    # mkdir for rmp package
+    if options['TDenginePackages'].get('rpm') is not None and options['TDenginePackages']['rpm']['enable'] == True:
         logging.info(f"make rpm release dir:{rpmsDir}")
         if os.path.exists(rpmsDir):
-            shutil.rmtree(rpmsDir)
+            # shutil.rmtree(rpmsDir)
             logging.info("remove exist rpm dir")
-            os.mkdir(rpmsDir)
-            logging.info("mkdir {0}".format(rpmsDir))
+            # os.mkdir(rpmsDir)
+            # logging.info("mkdir {0}".format(rpmsDir))
         else:
             logging.info("mkdir dir:{0}".format(rpmsDir))
             os.mkdir(rpmsDir)
 
     # mkdir for deb package
-    if options['TDenginePackages']['rpm']['enable'] == True:
+    if options['TDenginePackages'].get('deb') is not None and options['TDenginePackages']['deb']['enable'] == True:
         logging.info(f"make deb release dir:{debsDir}")
-        
+
         if os.path.exists(debsDir):
-            shutil.rmtree(debsDir)
-            os.mkdir(debsDir)
+            # shutil.rmtree(debsDir)
+            # os.mkdir(debsDir)
+            logging.info(f"{debsDir} exists")
         else:
             os.mkdir(debsDir)
 
-def generateCmakeCommand(buildOptions,verMode)->str:
+
+def generateCmakeCommand(buildOptions, verMode) -> str:
     command = ''
     if verMode == 'edge':
         command = 'cmake ../'
@@ -272,240 +298,316 @@ def generateCmakeCommand(buildOptions,verMode)->str:
     else:
         logging.error("verMode is not supported")
     # 1
-    if buildOptions['CPUTYPE'] in ['x64','arm64','mips64']:
+    if buildOptions.get('CPUTYPE') is not None and buildOptions['CPUTYPE'] in ['x64', 'arm64', 'mips64']:
         command += f" -DCPUTYPE={buildOptions['CPUTYPE']} "
     else:
-        logging.error(f"{buildOptions['CPUTYPE']} is not supported")
-        raise Exception(f"{buildOptions['CPUTYPE']} is not supported")
-    # 2    
-    if buildOptions['OSTYPE'] in ['Linux','Darwin','Windows']:
+        logging.error("buildOptions['CPUTYPE'] is not supported or not set")
+        raise Exception("buildOptions['CPUTYPE'] is not supported or not set")
+    # 2
+    if buildOptions.get('OSTYPE') is not None and buildOptions['OSTYPE'] in ['Linux', 'Darwin', 'Windows']:
         command += f" -DOSTYPE={buildOptions['OSTYPE']} "
     else:
-        logging.error(f"{buildOptions['OSTYPE']} is not supported")
-        raise Exception(f"{buildOptions['OSTYPE']} is not supported")
+        logging.error("buildOptions['OSTYPE'] is not supported or set")
+        raise Exception("buildOptions['OSTYPE'] is not supported or set")
     # 3
-    if buildOptions['WEBSOCKET'] == True:
+    if buildOptions.get('WEBSOCKET') is not None and buildOptions['WEBSOCKET'] == True:
         command += f" -DWEBSOCKET=true "
     else:
         command += f" -DWEBSOCKET=false "
-        logging.info("WEBSOCKET is false, libtaows will not be built")
+        logging.info("libtaows will not be built")
     # 4
-    if buildOptions['SOMODE'] in ['dynamic','static']:
+    if buildOptions.get('SOMODE') is not None and buildOptions['SOMODE'] in ['dynamic', 'static']:
         command += f" -DSOMODE={buildOptions['SOMODE']} "
     else:
-        logging.error(f"{buildOptions['SOMODE']} is not supported")
+        logging.error("buildOptions['SOMODE'] is not supported or not set")
     # 5
-    if len(buildOptions['DBNAME']) > 0 :
+    if buildOptions.get('DBNAME') is not None and len(buildOptions['DBNAME']) > 0:
         command += f" -DDBNAME={buildOptions['DBNAME']} "
     else:
-        logging.error("DBNAME is empty")
+        logging.error("buildOptions('DBNAME') is empty or not set")
+        raise Exception("buildOptions('DBNAME') is empty or not set")
     # 6
-    if  buildOptions['VERTYPE']  in ['stable','beta']:
+    if buildOptions.get('DBNAME') is not None and buildOptions['VERTYPE'] in ['stable', 'beta']:
         command += f" -DVERTYPE={buildOptions['VERTYPE']} "
     else:
-        logging.error(f"{buildOptions['VERTYPE']} is not supported")
-    
+        logging.error("buildOptions['VERTYPE'] is not supported")
+
     # 7
     command += f" -DVERDATE='{buildTime}' "
-    
+
     # 8
+    communityGitInfo = getGitHead(communityDir, "Community(TDengine)")
     command += f" -DGITINFO={communityGitInfo} "
-    
+
     # 9
-    command += f" -DGITINFOI={internalGitInfo} "
-    
+    if verMode == 'cluster' or verMode == 'cloud':
+        internalGitInfo = getGitHead(topDir, "TDinternal")
+        command += f" -DGITINFOI={internalGitInfo} "
+    else:
+        command += f" -DGITINFOI=NULL "
+
     # 10
-    if len(buildOptions['VERNUMBER']) > 0:
+    if buildOptions.get('VERNUMBER') is not None and len(buildOptions['VERNUMBER']) > 0:
         command += f" -DVERNUMBER={buildOptions['VERNUMBER']} "
     else:
-        raise Exception("VERNUMBER is empty")
+        raise Exception("buildOptions[VERNUMBER] is empty or not set")
 
     # 11
-    if len(buildOptions['VERCOMPATIBLE']) > 0:
+    if buildOptions.get('VERCOMPATIBLE') is not None and len(buildOptions['VERCOMPATIBLE']) > 0:
         command += f" -DVERCOMPATIBLE={buildOptions['VERCOMPATIBLE']} "
     else:
-        raise Exception("VERCOMPATIBLE is empty")
+        raise Exception("buildOptions[VERCOMPATIBLE] is empty")
     # 12
-    if buildOptions['BUILD_HTTP']==True:
-        command += f" -DBUILD_HTTP=true "
+    if buildOptions.get('BUILD_HTTP') is not None:
+        if buildOptions['BUILD_HTTP'] == True:
+            command += f" -DBUILD_HTTP=true "
+            logging.info("BUILD_HTTP is true, taosAdapter will be built")
+        elif buildOptions['BUILD_HTTP'] == False:
+            command += f" -DBUILD_HTTP=false "
+            logging.info("BUILD_HTTP is false, taosAdapter will not be built")
+        else:
+            command += f" -DBUILD_HTTP={buildOptions['BUILD_HTTP']} "
+            logging.info(f"BUILD_HTTP is {buildOptions['BUILD_HTTP']}")
     else:
-        command += f" -DBUILD_HTTP=false "
-        logging.info("BUILD_HTTP is false, taosAdapter will not be built")
-    
+        logging.error("buildOptions['BUILD_HTTP'] is not set")
+        raise Exception("buildOptions['BUILD_HTTP'] is not set")
     # 13
-    if buildOptions['BUILD_TOOLS']==True:
+    if buildOptions.get('BUILD_TOOLS') is not None and buildOptions['BUILD_TOOLS'] == True:
         command += f" -DBUILD_TOOLS=true "
     else:
         command += f" -DBUILD_TOOLS=false "
-        logging.INFO("BUILD_TOOLS is false, tools will not be built")
-    
+        logging.info("taoTools will not be built")
+
     # 14
-    if buildOptions['JEMALLOC_ENABLED']==True:
-        if f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']}" == 'Linux-x64':
+    if buildOptions.get('JEMALLOC_ENABLED') is not None and buildOptions['JEMALLOC_ENABLED'] == True:
+        if buildOptions.get('PAGMODE') is not None:
+            platform = f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']}-{buildOptions['PAGMODE']}"
+        else:
+            platform = f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']}-full"
+        if platform == 'Linux-x64-full':
             command += f" -DJEMALLOC_ENABLED=true "
         else:
-            logging.warning("jemalloc is not supported on this platform")
+            logging.warning(f"jemalloc is not supported on this {platform}")
     else:
-        command += f" -DJEMALLOC_ENABLED=false "
-        logging.INFO("JEMALLOC_ENABLED is false, jemalloc will not be built")
-    
-    # 20
-    if buildOptions['BUILD_EXPLORER'] == False:
-        command += f" -DBUILD_EXPLORER=false "
-        logging.info("BUILD_EXPLORER is false, explorer will not be built")
-    elif verMode in ['cluster','cloud'] and buildOptions['BUILD_EXPLORER'] == False:
-        command += f" -DBUILD_EXPLORER=false "
-        logging.warning("BUILD_EXPLORER is true, but verMode is not cluster or cloud")
-    elif verMode in ['cluster','cloud','cluster'] and buildOptions['BUILD_EXPLORER'] == True:
-        command += f" -DBUILD_EXPLORER=true "
-    else:
-        logging.error("BUILD_EXPLORER is not supported for this verMode:{}".format(verMode))
-        raise Exception("BUILD_EXPLORER is not supported for this verMode:{}".format(verMode))    
-        
+        logging.info("Jemalloc build is not enabled")
+
     # 15
-    if buildOptions['BUILD_TAOSX'] == True :
-        if verMode in ['cluster','cloud']:
-            command += f" -DBUILD_TAOSX=true "
+    if buildOptions.get('BUILD_TAOSX') is not None:
+        if buildOptions['BUILD_TAOSX'] == True:
+            if verMode in ['cluster', 'cloud']:
+                command += f" -DBUILD_TAOSX=true "
+            else:
+                command += f" -DBUILD_TAOSX=true "
+                logging.warning("will build taosx in community mode")
         else:
-            command += f" -DBUILD_TAOSX=true "
-            logging.warning("will build taosx in community mode")
+            command += f" -DBUILD_TAOSX=false "
+            logging.info("BUILD_TAOSX is false, taosx will not be built")
     else:
-        command += f" -DBUILD_TAOSX=false "
-        logging.info("BUILD_TAOSX is false, taosx will not be built")
-    
+        logging.info("BUILD_TAOSX is not set, will not build taosx")
+
     # 16
-    if buildOptions['BUILD_CLOUD'] == True:
-        if verMode == 'cloud':
-            command += f" -DBUILD_CLOUD=true "
+    if buildOptions.get('BUILD_CLOUD') is not None:
+        if buildOptions['BUILD_CLOUD'] == True:
+            if verMode == 'cloud':
+                command += f" -DBUILD_CLOUD=true "
+            else:
+                logging.error("BUILD_CLOUD is true, cloud release")
         else:
-            logging.error("BUILD_CLOUD is true, cloud release")
+            command += f" -DBUILD_CLOUD=false "
+            logging.info("BUILD_CLOUD is false, not for cloud release.")
     else:
-        command += f" -DBUILD_CLOUD=false "
-        logging.info("BUILD_CLOUD is false, not for cloud release.")
-    
+        logging.info("BUILD_CLOUD is not set, will not build cloud release.")
 
     if verMode == 'cluster':
-    # 17
+        # 17
         command += f" -DCUS_NAME={buildOptions['CUS_NAME']} "
     # 18
-        command += f" -DCUS_PROMPT={buildOptions['CUS_PROMPT']} "    
+        command += f" -DCUS_PROMPT={buildOptions['CUS_PROMPT']} "
     # 19
-        command += f" -DCUS_EMAIL={buildOptions['CUS_EMAIL']} "    
+        command += f" -DCUS_EMAIL={buildOptions['CUS_EMAIL']} "
+
+    # 20
+    if buildOptions.get('BUILD_EXPLORER') is not None:
+        if buildOptions['BUILD_EXPLORER'] == False:
+            command += f" -DBUILD_EXPLORER=false "
+            logging.info("BUILD_EXPLORER is false, explorer will not be built")
+        elif verMode in ['cluster', 'cloud'] and buildOptions['BUILD_EXPLORER'] == False:
+            command += f" -DBUILD_EXPLORER=false "
+            logging.warning(
+                "BUILD_EXPLORER is true, but verMode is not cluster or cloud")
+        elif verMode in ['cluster', 'cloud', 'cluster'] and buildOptions['BUILD_EXPLORER'] == True:
+            command += f" -DBUILD_EXPLORER=true "
+        else:
+            logging.error(
+                "BUILD_EXPLORER is not supported for this verMode:{}".format(verMode))
+            raise Exception(
+                "BUILD_EXPLORER is not supported for this verMode:{}".format(verMode))
+    else:
+        logging.info("BUILD_EXPLORER is not set, will not build explorer")
+
+    # 21
+    if buildOptions.get('PAGMODE') is not None:
+        if buildOptions['PAGMODE'] in ['full', 'lite']:
+            command += f" -DPAGMODE={buildOptions['PAGMODE']} "
+        else:
+            logging.error(
+                f"PAGMODE:{buildOptions['PAGMODE']} is not supported")
+            raise Exception(
+                f"PAGMODE:{buildOptions['PAGMODE']} is not supported")
+    else:
+        logging.info("PAGMODE is not setted")
+
+    # 22
+    if buildOptions.get('GRANT_VALUE') is not None and type(buildOptions['GRANT_VALUE']) == int:
+        command += f" -DGRANT_VALUE={buildOptions['GRANT_VALUE']} "
+    else:
+        logging.info("GRANT_VALUE is not setted")
+
     logging.info(f"cmake command is {command}")
     return command
 
-def buildInstall(buildOptions,verMode):
-    prepareDir()
+
+def buildInstall(options, verMode):
+    buildOptions = options['buildOptions']
+    prepareDir(options)
+
+    logging.info(
+        f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']} of {'community' if options['verMode']=='edge' else 'enterprise'} will be build.")
+    command = generateCmakeCommand(buildOptions, verMode)
+
     os.chdir(compileDir)
-    logging.info(f"{buildOptions['OSTYPE']}-{buildOptions['CPUTYPE']} of {'community' if options['verMode']=='edge' else 'enterprise'} will be build.")
-    logging.info("compile Dir:{0}".format(os))
-    command = generateCmakeCommand(buildOptions,verMode)
+    logging.info("compile Dir:{0}".format(compileDir))
     executeCommand(command)
 
     logging.info(f"cmake -j {cpuCount} ")
-    executeCommand(f"make -j {cpuCount}")
-    
+    # executeCommand(f"make -j {cpuCount}")
+    executeCommand(f"make")
+
     logging.info(f"making install")
     executeCommand(f"make install")
     os.chdir(scriptDir)
 
-def makeTDenginePackages(packages,buildOptions,verMode):
+
+def makeTDenginePackages(packages, buildOptions, verMode):
     # pack TDengine.tar.gz
-    if packages['tar.gz']['enable'] == True:
-        
+    if packages.get('tar.gz') is not None and packages['tar.gz']['enable'] == True:
+
         if packages['tar.gz']['server']['enable'] == True:
-            logging.info(f"making TDengine-{options['verMode']}-server-{options['buildOptions']['VERNUMBER'] }-tar.gz")
-            mkpkg.mkServerTar(packages['tar.gz'],options['buildOptions'],options['verMode'])
+            logging.info(
+                f"making TDengine-{verMode}-server-{buildOptions['VERNUMBER'] }-tar.gz")
+            mkpkg.makeServerTar(
+                packages['tar.gz'], buildOptions, verMode)
         else:
-            logging.warning(f"Skip packing TDengine-{options['verMode']}-server-{options['buildOptions']['VERNUMBER'] }-tar.gz")
+            logging.warning(
+                f"Skip packing TDengine-{verMode}-server-{buildOptions['VERNUMBER'] }-tar.gz")
 
         if packages['tar.gz']['client']['enable'] == True:
-            logging.info(f"making TDengine-{options['verMode']}-client-{options['buildOptions']['VERNUMBER'] }-tar.gz")
-            mkpkg.makeTarClient(packages['tar.gz'],options['buildOptions'],options['verMode'])
+            logging.info(
+                f"making TDengine-{verMode}-client-{buildOptions['VERNUMBER'] }-tar.gz")
+            mkpkg.makeTarClient(
+                packages['tar.gz'], buildOptions, verMode)
         else:
-            logging.warning(f"Skip packing TDengine-{options['verMode']}-client-{options['buildOptions']['VERNUMBER'] }-tar.gz")    
+            logging.warning(
+                f"Skip packing TDengine-{verMode}-client-{buildOptions['VERNUMBER'] }-tar.gz")
     else:
-        logging.warning(f"Skip packing TDengine-{options['verMode']}-{options['buildOptions']['VERNUMBER'] } tar.gz packages")
-    
+        logging.warning(
+            f"Skip packing TDengine-{verMode}-{buildOptions['VERNUMBER'] } tar.gz packages")
+
     logging.debug(packages)
-    
+
     # pack TDengine.rpm
-    if packages['rpm']['enable'] == True:
-        
+    if packages.get('rpm') is not None and packages['rpm']['enable'] == True:
+
         if packages['rpm']['server']['enable'] == True:
-            logging.info(f"making TDengine-{options['verMode']}-server-{options['buildOptions']['VERNUMBER'] }.rpm")
-            os.chdir(os.path.join(communityDir,"packaging",'deb'))
-            mkpkg.makeServeRpm(buildOptions,verMode)
-            os.chdir(scriptDir)            
+            logging.info(
+                f"making TDengine-{verMode}-server-{buildOptions['VERNUMBER']}.rpm")
+            os.chdir(os.path.join(communityDir, "packaging", 'deb'))
+            mkpkg.makeServeRpm(buildOptions, verMode)
+            os.chdir(scriptDir)
         else:
-            logging.warning(f"Skip packing TDengine-{options['verMode']}-server-{options['buildOptions']['VERNUMBER'] }.rpm")
-        
+            logging.warning(
+                f"Skip packing TDengine-{verMode}-server-{buildOptions['VERNUMBER']}.rpm")
+
         if packages['rpm']['client']['enable'] == True:
-            logging.info(f"making TDengine-{options['verMode']}-client-{options['buildOptions']['VERNUMBER'] }.rpm")
-            os.chdir(os.path.join(communityDir,"packaging",'rpm'))
+            logging.info(
+                f"making TDengine-{verMode}-client-{buildOptions['VERNUMBER']}.rpm")
+            os.chdir(os.path.join(communityDir, "packaging", 'rpm'))
             mkpkg.makeClientRpm(buildOptions)
             os.chdir(scriptDir)
         else:
-            logging.warning(f"Skip packing TDengine-{options['verMode']}-client-{options['buildOptions']['VERNUMBER'] }.rpm")    
+            logging.warning(
+                f"Skip packing TDengine-{verMode}-client-{buildOptions['VERNUMBER'] }.rpm")
     else:
-        logging.warning(f"Skip packing TDengine-{options['verMode']}-{options['buildOptions']['VERNUMBER'] } rpm packages")
-    
+        logging.warning(
+            f"Skip packing TDengine-{verMode}-{buildOptions['VERNUMBER'] } rpm packages")
+
     # pack TDengine.deb
-    if packages['deb']['enable'] == True:
-        
+    if packages.get('deb') is not None and packages['deb']['enable'] == True:
+
         if packages['deb']['server']['enable'] == True:
-            logging.info(f"making TDengine-{options['verMode']}-server-{options['buildOptions']['VERNUMBER'] }.deb")
-            os.chdir(os.path.join(communityDir,"packaging",'deb'))
-            mkpkg.makeServerDeb(buildOptions,verMode)
+            logging.info(
+                f"making TDengine-{verMode}-server-{buildOptions['VERNUMBER'] }.deb")
+            os.chdir(os.path.join(communityDir, "packaging", 'deb'))
+            mkpkg.makeServerDeb(buildOptions, verMode)
             os.chdir(scriptDir)
         else:
-            logging.warning(f"Skip packing TDengine-{options['verMode']}-server-{options['buildOptions']['VERNUMBER'] }.deb")
-        
+            logging.warning(
+                f"Skip packing TDengine-{verMode}-server-{buildOptions['VERNUMBER'] }.deb")
+
         if packages['deb']['client']['enable'] == True:
-            logging.info(f"making TDengine-{options['verMode']}-client-{options['buildOptions']['VERNUMBER'] }.deb")
-            os.chdir(os.path.join(communityDir,"packaging",'deb'))
+            logging.info(
+                f"making TDengine-{verMode}-client-{buildOptions['VERNUMBER'] }.deb")
+            os.chdir(os.path.join(communityDir, "packaging", 'deb'))
             mkpkg.makeClientDeb(buildOptions)
             os.chdir(scriptDir)
         else:
-            logging.warning(f"Skip packing TDengine-{options['verMode']}-client-{options['buildOptions']['VERNUMBER'] }.deb")    
+            logging.warning(
+                f"Skip packing TDengine-{verMode}-client-{buildOptions['VERNUMBER'] }.deb")
     else:
-        logging.warning(f"Skip packing TDengine-{options['verMode']}-{options['buildOptions']['VERNUMBER'] } deb packages")
-    
-def makeTaosToolsPackages(taosToolsPackages,buildOptions,verMode):
+        logging.warning(
+            f"Skip packing TDengine-{verMode}-{buildOptions['VERNUMBER'] } deb packages")
+
+
+def makeTaosToolsPackages(taosToolsPackages, buildOptions, verMode):
     # pack taosTools.tar.gz
     if taosToolsPackages['enable'] == True:
         if taosToolsPackages['tar.gz']['enable'] == True:
             logging.info(f"making taosToolstar.gz")
-            mkpkg.makeTaosToolsTar(taosToolsPackages['tar.gz'],options['buildOptions'],options['verMode'])
+            mkpkg.makeTaosToolsTar(
+                taosToolsPackages['tar.gz'], options['buildOptions'], options['verMode'])
         else:
             logging.warning(f"Skip packing taosTools.tar.gz")
-        
+
         if taosToolsPackages['rpm']['enable'] == True:
             logging.info(f"making taosTools-{getTaosToolVersion()}.rpm")
-            mkpkg.makeTaosToolsRpm(buildOptions,verMode)
+            mkpkg.makeTaosToolsRpm(buildOptions, verMode)
         else:
-            logging.warning(f"Skip packing taosTools-{getTaosToolVersion()}.rpm")
-        
+            logging.warning(
+                f"Skip packing taosTools-{getTaosToolVersion()}.rpm")
+
         if taosToolsPackages['deb']['enable'] == True:
             logging.info(f"making taosTools-{getTaosToolVersion()}.deb")
-            mkpkg.makeTaosToolsDeb(buildOptions,verMode)
+            mkpkg.makeTaosToolsDeb(buildOptions, verMode)
     else:
         logging.info("Skip making taosTools packages")
-        
-def makePackages(options,buildOptions,verMode):
+
+
+def makePackages(options, buildOptions, verMode):
     # =====================for TDengine =========================
-    if options['TDenginePackages']['enable'] == True:
-        logging.info("making TDengine packages like TDengine-server or TDengine-client") 
-        makeTDenginePackages(options['TDenginePackages'],buildOptions,verMode)
+    if options.get('TDenginePackages') is not None and options['TDenginePackages']['enable'] == True:
+        logging.info(
+            "making TDengine packages like TDengine-server or TDengine-client")
+        mkpkg.makePackages(options['TDenginePackages'], buildOptions, verMode)
     else:
         logging.warning("Skip making TDengine packages")
-    
+
     # ========= for taos tools ==========
-    if options['taosToolsPackages']['enable'] == True:
-        makeTaosToolsPackages(options['taosToolsPackages'],buildOptions,verMode)
+    if options.get('taosToolsPackages') is not None and options['taosToolsPackages']['enable'] == True:
+        mkpkg.makeTaosToolPackages(
+            options['taosToolsPackages'], buildOptions, verMode)
     else:
         logging.warning("Skip making taosTools packages")
-    
+
     logging.info("will do post acotions.")
     logging.info("Release done")
 
@@ -518,33 +620,18 @@ def doActions(parePareOptions):
         keys = action.keys()
         for key in keys:
             values = action[key]
-            logging.info('action name:{0} command:{1} will be executed'.format(key,' '.join(values)))
+            logging.info('action name:{0} command:{1} will be executed'.format(
+                key, ' '.join(values)))
             executeCommand(' '.join(values))
-            
-if __name__ == "__main__":
-    parse = argparse.ArgumentParser(description='manual to this script')
-    parse.add_argument('--file', type=str, default='enterprise.yaml',help='Config file name,default enterprise.yaml',required=True)
-    parse.add_argument('--version', type=str, default=None,help='Release version',required=False)
-    parse.add_argument('--vermode', type=str, default='cluster',help='Release version mode,edge or cluster',required=False)
-    parse.add_argument('--loglevel', type=str, default='info',required=False)
 
-    args = parse.parse_args()
-    
-    setLogLevel(args.loglevel)
-    
-    logging.info(
-        f"base on config yaml {args.file} release for version:{args.version}")
 
-    with open(os.path.join(scriptDir, args.file), 'r') as file:
-        yamlfile = yaml.safe_load(file)
-    options = readOption(yamlfile,'parameters')
-
+def doRelease(options, preActions, postActions, args):
     targets = []
-    if options['TDenginePackages']['tar.gz']['enable'] == True:
+    if options['TDenginePackages'].get('tar.gz') is not None and options['TDenginePackages']['tar.gz']['enable'] == True:
         targets.append('tar.gz')
-    if options['TDenginePackages']['rpm']['enable'] == True:
+    if options['TDenginePackages'].get('rpm') is not None and options['TDenginePackages']['rpm']['enable'] == True:
         targets.append('rpm')
-    if options['TDenginePackages']['tar.gz']['enable'] == True:
+    if options['TDenginePackages'].get('deb') is not None and options['TDenginePackages']['deb']['enable'] == True:
         targets.append('deb')
 
     logging.info("{0}-{1}-{2} packages [{4}] version {3} will be released".format(
@@ -555,32 +642,86 @@ if __name__ == "__main__":
         ','.join(targets))
     )
 
-    checkAndInitInput(options,args.version)
-    
-    # ================do parepare acotions 
-    if  yamlfile['prepareActions']['enable'] == True:
+    checkAndInitInput(options, args.version)
+
+    # ================do parepare acotions
+    logging.info(preActions)
+    if preActions['enable'] == True:
         logging.info("will do parepare acotions.")
-        doActions(readOption(yamlfile,'prepareActions'))
+        doActions(readOption(options, 'prepareActions'))
         logging.info("parepare acotions done.")
     else:
-        logging.info("No post acotions.")    
+        logging.info("No post acotions.")
 
-    # build && install and packaging
-    
-    # ================= build and install 
-    
-    buildInstall(options['buildOptions'],options['verMode'])
-    
-    # ================ making packages 
-    makePackages(options,options['buildOptions'],options['verMode'])
-    
+    # ================= build and install
+
+    # buildInstall(options, options['verMode'])
+
+    # ================ making packages
+    makePackages(options, options['buildOptions'], options['verMode'])
+
     # ================do post acotions
-    if  yamlfile['postActions']['enable'] == True:
+    if postActions['enable'] == True:
         logging.info("will do post acotions.")
-        doActions(readOption(yamlfile,'postActions'))
+        doActions(readOption(options, 'postActions'))
         logging.info("post acotions done.")
     else:
         logging.info("No post acotions.")
-    
-    
 
+
+def readConfigFile(configFile, args):
+    with open(os.path.join(scriptDir, configFile), 'r') as file:
+        yamlfile = yaml.safe_load(file)
+
+    if yamlfile.get('name') is not None:
+        logging.info(f"{yamlfile['name']}")
+    else:
+        logging.warning(f"{configFile} name is empty")
+
+    if yamlfile.get('type') is not None:
+        if yamlfile['type'] == 'workflow':
+            logging.info("This is a workflow config file")
+            if yamlfile.get('tasks') is not None:
+
+                for task in yamlfile['tasks']:
+                    logging.info(f"task:{task}")
+                    readConfigFile(task['task'], args)
+            else:
+                logging.warning("tasks are empty")
+                return
+        elif yamlfile['type'] == 'feature':
+            logging.info(
+                f"config file:{configFile} verMode:{yamlfile['parameters']['verMode']}")
+            doRelease(
+                yamlfile['parameters'], yamlfile['prepareActions'], yamlfile['postActions'], args)
+        else:
+            logging.error(
+                f"unsupport config {configFile}'s type {yamlfile['type']}")
+            sys.exit(1)
+    else:
+        logging.error("config file type is empty")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    parse = argparse.ArgumentParser(description='manual to this script')
+    parse.add_argument('--file', type=str, default='enterprise.yaml',
+                       help='Config file name,default enterprise.yaml', required=True)
+    parse.add_argument('--version', type=str, default=None,
+                       help='Release version, if empty will use version number define in config file.', required=False)
+    parse.add_argument('--vermode', type=str, default='enterprise',
+                       help='Release version mode enterprise or community, default enterprise.', required=False)
+    parse.add_argument('--loglevel', type=str, default='info',
+                       help="default info, extra support debug", required=False)
+
+    args = parse.parse_args()
+
+    setLogLevel(args.loglevel)
+
+    logging.info(
+        f"base on config yaml {args.file}")
+
+    # with open(os.path.join(scriptDir, args.file), 'r') as file:
+    #     yamlfile = yaml.safe_load(file)
+    # options = readOption(yamlfile,'parameters')
+    readConfigFile(args.file, args)
