@@ -180,11 +180,12 @@ void tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size) {
   *(SLastCol *)(*value) = *pLastCol;
   if (IS_VAR_DATA_TYPE(pColVal->type)) {
     uint8_t *pVal = pColVal->value.pData;
-    pColVal->value.pData = *value + sizeof(*pLastCol);
+    SColVal *pDColVal = &((SLastCol *)(*value))->colVal;
+    pDColVal->value.pData = *value + sizeof(*pLastCol);
     if (pColVal->value.nData > 0) {
-      memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+      memcpy(pDColVal->value.pData, pVal, pColVal->value.nData);
     } else {
-      pColVal->value.pData = NULL;
+      pDColVal->value.pData = NULL;
     }
   }
   *size = length;
@@ -438,6 +439,15 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsR
         if (NULL != err) {
           tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
           rocksdb_free(err);
+        }
+      } else {
+        SColVal *pColVal = &pLastCol->colVal;
+        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          uint8_t *pVal = pColVal->value.pData;
+          pColVal->value.pData = taosMemoryMalloc(pColVal->value.nData);
+          if (pColVal->value.nData) {
+            memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+          }
         }
       }
 
@@ -1381,7 +1391,12 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
         *pIgnoreEarlierTs = false;
         tBlockDataReset(state->pBlockData);
         TABLEID tid = {.suid = state->suid, .uid = state->uid};
-        code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, aCols, nCols);
+        int     nTmpCols = nCols;
+        if (aCols[0] == PRIMARYKEY_TIMESTAMP_COL_ID && nCols == 1) {
+          nTmpCols = 0;
+          skipBlock = false;
+        }
+        code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, aCols, nTmpCols);
         if (code) goto _err;
 
         code = tsdbReadDataBlock(*state->pDataFReader, &block, state->pBlockData);
