@@ -1484,16 +1484,18 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  int32_t numOfSelectFunc = 0;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
     if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
       p = &pCtx[i];
+      numOfSelectFunc++;
     }
   }
 
-  if (p != NULL) {
+  if (p != NULL && numOfSelectFunc == 1) {
     p->subsidiaries.pCtx = pValCtx;
     p->subsidiaries.num = num;
   } else {
