@@ -207,6 +207,8 @@ Active: inactive (dead)
 
 - 查看服务状态：`sudo launchctl list | grep taosd`
 
+- 查看服务详细信息：`launchctl print system/com.tdengine.taosd`
+
 :::info
 
 - `launchctl` 命令管理`com.tdengine.taosd`需要管理员权限，务必在前面加 `sudo` 来增强安全性。

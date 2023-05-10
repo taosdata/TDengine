@@ -180,11 +180,12 @@ void tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size) {
   *(SLastCol *)(*value) = *pLastCol;
   if (IS_VAR_DATA_TYPE(pColVal->type)) {
     uint8_t *pVal = pColVal->value.pData;
-    pColVal->value.pData = *value + sizeof(*pLastCol);
+    SColVal *pDColVal = &((SLastCol *)(*value))->colVal;
+    pDColVal->value.pData = *value + sizeof(*pLastCol);
     if (pColVal->value.nData > 0) {
-      memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+      memcpy(pDColVal->value.pData, pVal, pColVal->value.nData);
     } else {
-      pColVal->value.pData = NULL;
+      pDColVal->value.pData = NULL;
     }
   }
   *size = length;
@@ -1389,9 +1390,10 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
         tBlockDataReset(state->pBlockData);
         TABLEID tid = {.suid = state->suid, .uid = state->uid};
         int     nTmpCols = nCols;
-        /*if (aCols[0] == PRIMARYKEY_TIMESTAMP_COL_ID && nCols == 1) {
+        if (aCols[0] == PRIMARYKEY_TIMESTAMP_COL_ID && nCols == 1) {
           nTmpCols = 0;
-          }*/
+          skipBlock = false;
+        }
         code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, aCols, nTmpCols);
         if (code) goto _err;
 
