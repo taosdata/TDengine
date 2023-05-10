@@ -16,6 +16,7 @@
 #include "tq.h"
 
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
+#define NO_POLL_CNT 5
 
 static int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqMetaRsp* pRsp);
 
@@ -185,12 +186,18 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   //   till now, all data has been transferred to consumer, new data needs to push client once arrived.
   if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
       dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
-    // lock
-    taosWLockLatch(&pTq->lock);
-    code = tqRegisterPushHandle(pTq, pHandle, pMsg);
-    taosWUnLockLatch(&pTq->lock);
-    tDeleteSMqDataRsp(&dataRsp);
-    return code;
+    if(pHandle->noDataPollCnt >= NO_POLL_CNT){  // send poll result to client if no data 5 times to avoid lost data
+      pHandle->noDataPollCnt = 0;
+      // lock
+      taosWLockLatch(&pTq->lock);
+      code = tqRegisterPushHandle(pTq, pHandle, pMsg);
+      taosWUnLockLatch(&pTq->lock);
+      tDeleteSMqDataRsp(&dataRsp);
+      return code;
+    }
+    else{
+      pHandle->noDataPollCnt++;
+    }
   }
 
 
