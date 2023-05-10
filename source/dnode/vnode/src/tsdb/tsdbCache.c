@@ -180,11 +180,12 @@ void tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size) {
   *(SLastCol *)(*value) = *pLastCol;
   if (IS_VAR_DATA_TYPE(pColVal->type)) {
     uint8_t *pVal = pColVal->value.pData;
-    pColVal->value.pData = *value + sizeof(*pLastCol);
+    SColVal *pDColVal = &((SLastCol *)(*value))->colVal;
+    pDColVal->value.pData = *value + sizeof(*pLastCol);
     if (pColVal->value.nData > 0) {
-      memcpy(pColVal->value.pData, pVal, pColVal->value.nData);
+      memcpy(pDColVal->value.pData, pVal, pColVal->value.nData);
     } else {
-      pColVal->value.pData = NULL;
+      pDColVal->value.pData = NULL;
     }
   }
   *size = length;
