@@ -2565,7 +2565,9 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       doDeleteWindows(pOperator, &pInfo->interval, pBlock, delWins, pInfo->pUpdatedMap);
       if (IS_FINAL_OP(pInfo)) {
         addRetriveWindow(delWins, pInfo);
-        taosArrayAddAll(pInfo->pDelWins, delWins);
+        if (pBlock->info.type != STREAM_CLEAR) {
+          taosArrayAddAll(pInfo->pDelWins, delWins);
+        }
         taosArrayDestroy(delWins);
         continue;
       }
@@ -2577,6 +2579,11 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       if (pInfo->pDelRes->info.rows != 0) {
         // process the rest of the data
         printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+        if (pBlock->info.type == STREAM_CLEAR) {
+          pInfo->pDelRes->info.type = STREAM_CLEAR;
+        } else {
+          pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
+        }
         return pInfo->pDelRes;
       }
 

@@ -274,7 +274,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
           qDebug("===stream===try agian batchSize:%d", batchSize);
           continue;
         }
-
+        qDebug("===stream===break batchSize:%d", batchSize);
         break;
       }
 
