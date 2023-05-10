@@ -83,7 +83,7 @@ pub fn spawn_runner(
                         Action::Cancel(id) => {
                             if let Some(cancellation) = tasks.get(&id) {
                                 cancellation.cancel();
-                                // tokio::time::sleep(Duration::from_millis(500)).await;
+                                drop(cancellation);
                                 if let Some((id, worker)) = tasks.remove(&id) {
                                     info!(
                                         id = id,

@@ -479,7 +479,7 @@ async fn ipc_process<R: Read, W: Write>(
         loop {
             info!("[{client}] {sql}");
             // rt.block_on(taos.exec(&sql))?;
-            let res = taos.exec(&sql).await;
+            let res: Result<usize, taos::Error> = taos.exec(&sql).await;
             if let Err(err) = res {
                 tracing::error!("Query error with {sql}: {err:?}");
                 i += 1;
@@ -551,6 +551,25 @@ impl<'a> IpcStreamWorker<'a> {
         stmt: &mut Stmt,
         record: RecordBatch,
     ) -> anyhow::Result<usize> {
+        if let Some(sql) = self.parser.metadata().init_sql_string() {
+            let guard = self.lock.lock().await;
+            let max_retries = 10;
+            let mut i = 0;
+            loop {
+                info!("metadata sql: {sql}");
+                let res = self.taos.exec(&sql).await;
+                if let Err(err) = res {
+                    tracing::error!("Query error with {sql}: {err:?}");
+                    i += 1;
+                    if i > max_retries {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+            drop(guard);
+        }
         // let stmt = unsafe { &mut *self.stmt.get() };
         match self.parser.metadata().stream_type() {
             StreamType::Line => {
