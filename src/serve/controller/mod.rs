@@ -646,6 +646,16 @@ impl TaskController {
     }
 
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
+        let _: Dsn = task
+            .from
+            .parse()
+            .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+
+        let to: Dsn = task
+            .to
+            .parse()
+            .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
+
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -659,7 +669,6 @@ impl TaskController {
         };
 
         if task.clear {
-            let to: Dsn = task.to.parse()?;
             if to.driver == "taos" {
                 taosx_core::utils::clear_database(&to)
                     .await
