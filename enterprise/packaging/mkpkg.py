@@ -508,22 +508,31 @@ def copyInstallScript(packageComponent, buildOption, verMode, type):
             "fail to copy install.sh, since type:{0} is not client or server".format(type))
 
 
-def copyShares():
+def copyShares(packageComponent):
     logging.info("copying web files")
+    global packagingDir, webDir
+    logging.debug(packageComponent)
+    items = packageComponent['share']
+    for item in items:
+        for k in item:   
+            dstDir = os.path.join(packagingDir, 'share', *(k.split('/')))
+            if not os.path.exists(dstDir):
+                os.makedirs(dstDir, exist_ok=True)
+            else:
+                shutil.rmtree(dstDir)
+                os.makedirs(dstDir, exist_ok=True)
 
-    if os.path.isdir(os.path.join(webDir, 'admin')):
-        # os.makedirs(os.path.join(installDir, 'share'), exist_ok=True)
-        os.makedirs(os.path.join(packagingDir, 'share',
-                    'admin', 'images'), exist_ok=True)
-        shutil.copytree(os.path.join(webDir, 'admin'), os.path.join(
-            packagingDir, 'share'), symlinks=True, copy_function=shutil.copy2, dirs_exist_ok=True)
-        utilCopyFile(os.path.join(webDir, 'png', 'taos.png'),
-                     os.path.join(packagingDir, 'share', 'admin', 'images'))
-        logging.info("copy web files success")
-    else:
-        logging.warning("fail to copy web files for enterprise release, since webDir:{0} is not exist".format(
-            os.path.join(webDir, 'admin')))
-
+            tmpDir = item[k]['src'].split('/')
+            tmp = globals()[tmpDir[0]]
+            tmpDir[0] = tmp
+            
+            srcDir = os.path.join(*(tmpDir))
+            
+            logging.info("copy {0} to {1}".format (srcDir,dstDir))
+            if item[k].get('folder') is not None and item[k]['folder'] == True:
+                shutil.copytree(srcDir, dstDir, symlinks=True, copy_function=shutil.copy2, dirs_exist_ok=True)
+            else:
+                utilCopyFile(srcDir, dstDir)
 
 def initBinFiles(packageComponent, buildOptions, verMode):
     global binFiles
@@ -939,7 +948,7 @@ def collectionTarball(packageComponent, buildOptions, verMode, type):
     # share
     if packageComponent['component'].get('share') is not None:
         # copy share
-        copyShares()
+        copyShares(packageComponent['component'])
     else:
         logging.warning(
             "no share will be packed,since ['component']['share'] is not set")
