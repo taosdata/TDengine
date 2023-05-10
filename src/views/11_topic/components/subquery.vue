@@ -220,7 +220,15 @@
           if (!item.checked) return;
           // 处理result
           const result = item.result;
-          const condition = item.condition.filter(ite => ite.operator && ite.value);
+          const condition = item.condition.filter(ite => {
+            if (["IS NULL", "IS NOT NULL"].includes(ite.operator)) {
+              return ite
+            } else if (['BETWEEN', 'NOT BETWEEN'].includes(ite.operator)) {
+              return ite.value && ite.value1
+            } else {
+              return ite.operator && ite.value
+            } 
+          });
           if (result.fn) {
             isResultSet = true;
             const fnList = item.fnList.map(item=>item.options).flat(1) || [];
@@ -259,7 +267,13 @@
             conditionSet.push(
               condition
                 .reduce((pre, cur) => {
-                  pre.push(`${item.field} ${cur.operator} ${cur.value}`);
+                  if(cur.operator == 'BETWEEN' || cur.operator == 'NOT BETWEEN') {
+                    pre.push(`${item.field} ${cur.operator} ${cur.value} AND ${cur.value1}`)
+                  } else if(cur.operator == 'IN' || cur.operator == 'NOT IN') {
+                    pre.push(`${item.field} ${cur.operator} (${cur.value})`);
+                  }else {
+                    pre.push(`${item.field} ${cur.operator} ${cur.value}`);
+                  }
                   return pre;
                 }, [])
                 .join(" AND ")
