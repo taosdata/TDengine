@@ -160,9 +160,11 @@ void doSetTaskId(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pStreamScanInfo = pOperator->info;
-    STableScanInfo*  pScanInfo = pStreamScanInfo->pTableScanOp->info;
-    if (pScanInfo->base.dataReader != NULL) {
-      tsdbReaderSetId(pScanInfo->base.dataReader, pTaskInfo->id.str);
+    if (pStreamScanInfo->pTableScanOp != NULL) {
+      STableScanInfo* pScanInfo = pStreamScanInfo->pTableScanOp->info;
+      if (pScanInfo->base.dataReader != NULL) {
+        tsdbReaderSetId(pScanInfo->base.dataReader, pTaskInfo->id.str);
+      }
     }
   } else {
     doSetTaskId(pOperator->pDownstream[0]);
