@@ -214,9 +214,19 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   pWrapper = &pDnode->wrappers[ntype];
 
+  if(pWrapper->func.nodeRoleFp != NULL){
+    ESyncRole role = (*pWrapper->func.nodeRoleFp)(pWrapper->pMgmt);
+    dInfo("node:%s, checking node role:%d", pWrapper->name, role);
+    if(role == TAOS_SYNC_ROLE_VOTER){
+      terrno = TSDB_CODE_MNODE_ALREADY_IS_VOTER;
+      return -1;
+    }
+  }
+
   if(pWrapper->func.isCatchUpFp != NULL){
     dInfo("node:%s, checking node catch up", pWrapper->name);
-    if(!(*pWrapper->func.isCatchUpFp)(pWrapper->pMgmt) == 0){
+    if((*pWrapper->func.isCatchUpFp)(pWrapper->pMgmt) != 1){
+      terrno = TSDB_CODE_MNODE_NOT_CATCH_UP;
       return -1;
     }
   }

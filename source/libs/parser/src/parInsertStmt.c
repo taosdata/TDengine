@@ -252,7 +252,7 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
       goto _return;
     }
 
-    if (bind[c].buffer_type != pColSchema->type) {
+    if ((!(rowNum == 1 && bind[c].is_null && *bind[c].is_null)) && bind[c].buffer_type != pColSchema->type) { // for rowNum ==1 , connector may not set buffer_type
       code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
       goto _return;
     }

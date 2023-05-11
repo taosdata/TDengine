@@ -54,7 +54,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   }
 
   if (pNode->restoreFinish && index - pBuf->commitIndex >= TSDB_SYNC_NEGOTIATION_WIN) {
-    terrno = TSDB_CODE_SYN_NEGO_WIN_EXCEEDED;
+    terrno = TSDB_CODE_SYN_NEGOTIATION_WIN_FULL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64 ", commit-index:%" PRId64, pNode->vgId, terrstr(),
            index, pBuf->commitIndex);
     goto _err;

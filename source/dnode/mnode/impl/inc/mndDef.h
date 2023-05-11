@@ -118,7 +118,7 @@ typedef enum {
 } ETrnPolicy;
 
 typedef enum {
-  TRN_EXEC_PRARLLEL = 0,
+  TRN_EXEC_PARALLEL = 0,
   TRN_EXEC_SERIAL = 1,
 } ETrnExec;
 
@@ -177,6 +177,7 @@ typedef struct {
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
   int64_t     mTraceId;
+  TdThreadMutex    mutex;
 } STrans;
 
 typedef struct {
@@ -280,6 +281,7 @@ typedef struct {
   int8_t    reserve;
   int32_t   acctId;
   int32_t   authVersion;
+  int32_t   passVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;

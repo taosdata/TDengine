@@ -84,6 +84,7 @@ target_include_directories(
     PUBLIC "inc"
     PUBLIC "src/inc"
     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
 )
 target_link_libraries(
     vnode
@@ -100,6 +101,7 @@ target_link_libraries(
 
     # PUBLIC bdb
     # PUBLIC scalar
+    PUBLIC rocksdb
     PUBLIC transport
     PUBLIC stream
     PUBLIC index

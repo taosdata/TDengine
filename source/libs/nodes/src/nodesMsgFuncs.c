@@ -2514,7 +2514,8 @@ enum {
   PHY_MERGE_CODE_TARGETS,
   PHY_MERGE_CODE_NUM_OF_CHANNELS,
   PHY_MERGE_CODE_SRC_GROUP_ID,
-  PHY_MERGE_CODE_GROUP_SORT
+  PHY_MERGE_CODE_GROUP_SORT,
+  PHY_MERGE_CODE_IGNORE_GROUP_ID,
 };
 
 static int32_t physiMergeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2535,6 +2536,9 @@ static int32_t physiMergeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_MERGE_CODE_GROUP_SORT, pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_MERGE_CODE_IGNORE_GROUP_ID, pNode->ignoreGroupId);
   }
 
   return code;
@@ -2564,6 +2568,9 @@ static int32_t msgToPhysiMergeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_MERGE_CODE_GROUP_SORT:
         code = tlvDecodeBool(pTlv, &pNode->groupSort);
+        break;
+      case PHY_MERGE_CODE_IGNORE_GROUP_ID:
+        code = tlvDecodeBool(pTlv, &pNode->ignoreGroupId);
         break;
       default:
         break;

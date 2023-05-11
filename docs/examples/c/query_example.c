@@ -6,7 +6,7 @@
 #include <string.h>
 #include <taos.h>
 
-typedef int16_t VarDataLenT;
+typedef uint16_t VarDataLenT;
 
 #define TSDB_NCHAR_SIZE sizeof(int32_t)
 #define VARSTR_HEADER_SIZE sizeof(VarDataLenT)

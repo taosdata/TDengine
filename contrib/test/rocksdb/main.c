@@ -25,10 +25,12 @@ int main(int argc, char const *argv[]) {
 
   // Read
   rocksdb_readoptions_t *readoptions = rocksdb_readoptions_create();
-  rocksdb_readoptions_set_snapshot(readoptions, rocksdb_create_snapshot(db));
+//rocksdb_readoptions_set_snapshot(readoptions, rocksdb_create_snapshot(db));
+  char buf[256] = {0};
   size_t vallen = 0;
   char * val = rocksdb_get(db, readoptions, "key", 3, &vallen, &err);
-  printf("val:%s\n", val);
+  snprintf(buf, vallen+5, "val:%s", val);
+  printf("%ld %ld %s\n", strlen(val), vallen, buf);
 
   // Update
   // rocksdb_put(db, writeoptions, "key", 3, "eulav", 5, &err);

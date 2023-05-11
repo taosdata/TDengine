@@ -366,6 +366,7 @@ typedef struct STagScanInfo {
   int32_t         curPos;
   SReadHandle     readHandle;
   STableListInfo* pTableListInfo;
+  SLimitNode*     pSlimit;
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
@@ -427,7 +428,6 @@ typedef struct STimeWindowAggSupp {
 } STimeWindowAggSupp;
 
 typedef struct SStreamScanInfo {
-  uint64_t      tableUid;  // queried super table uid
   SExprInfo*    pPseudoExpr;
   int32_t       numOfPseudoExpr;
   SExprSupp     tbnameCalSup;

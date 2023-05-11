@@ -389,6 +389,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
       break;
+    case TDMT_VND_TMQ_SEEK_TO_OFFSET:
+      if (tqProcessSeekReq(pVnode->pTq, version, pReq, pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        goto _err;
+      }
+      break;
     case TDMT_VND_TMQ_ADD_CHECKINFO:
       if (tqProcessAddCheckInfoReq(pVnode->pTq, version, pReq, len) < 0) {
         goto _err;
@@ -420,7 +425,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       }
     } break;
     case TDMT_VND_ALTER_CONFIRM:
-      vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp);
+      needCommit = pVnode->config.hashChange;
+      if (vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp) < 0) {
+        goto _err;
+      }
       break;
     case TDMT_VND_ALTER_CONFIG:
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
@@ -539,6 +547,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetBatchMeta(pVnode, pMsg);
     case TDMT_VND_TMQ_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
+    case TDMT_VND_TMQ_VG_WALINFO:
+      return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
@@ -1446,15 +1456,39 @@ int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen) {
   return vnodeProcessCreateTSmaReq(pVnode, 1, pCont, contLen, NULL);
 }
 
+static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t version) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  vInfo("vgId:%d, trim meta of tables per hash range [%" PRIu32 ", %" PRIu32 "]. apply-index:%" PRId64, TD_VID(pVnode),
+        pVnode->config.hashBegin, pVnode->config.hashEnd, version);
+
+  // TODO: trim meta of tables from TDB per hash range [pVnode->config.hashBegin, pVnode->config.hashEnd]
+
+  return code;
+}
+
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  vInfo("vgId:%d, vnode management handle msgType:alter-confirm, alter replica confim msg is processed", 
-          TD_VID(pVnode));
+  vInfo("vgId:%d, vnode handle msgType:alter-confirm, alter confim msg is processed", TD_VID(pVnode));
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!pVnode->config.hashChange) {
+    goto _exit;
+  }
+
+  code = vnodeConsolidateAlterHashRange(pVnode, version);
+  if (code < 0) {
+    vError("vgId:%d, failed to consolidate alter hashrange since %s. version:%" PRId64, TD_VID(pVnode), terrstr(),
+           version);
+    goto _exit;
+  }
+  pVnode->config.hashChange = false;
+
+_exit:
   pRsp->msgType = TDMT_VND_ALTER_CONFIRM_RSP;
-  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->code = code;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
-  return 0;
+  return code;
 }
 
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {

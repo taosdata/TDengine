@@ -440,7 +440,7 @@ class TDSql:
                 time.sleep(1)
                 continue
 
-    def execute(self, sql,queryTimes=10):
+    def execute(self, sql,queryTimes=30):
         self.sql = sql
         i=1
         while i <= queryTimes:

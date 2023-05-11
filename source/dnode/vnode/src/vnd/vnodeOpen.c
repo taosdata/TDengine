@@ -198,6 +198,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   info.config.vgId = pReq->dstVgId;
   info.config.hashBegin = pReq->hashBegin;
   info.config.hashEnd = pReq->hashEnd;
+  info.config.hashChange = true;
   info.config.walCfg.vgId = pReq->dstVgId;
 
   SSyncCfg *pCfg = &info.config.syncCfg;
@@ -234,8 +235,6 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
            tstrerror(terrno));
     return -1;
   }
-
-  // todo vnode compact here
 
   vInfo("vgId:%d, vnode hashrange is altered", info.config.vgId);
   return 0;
@@ -429,6 +428,10 @@ int32_t vnodeStart(SVnode *pVnode) { return vnodeSyncStart(pVnode); }
 
 int32_t vnodeIsCatchUp(SVnode *pVnode){
   return syncIsCatchUp(pVnode->sync);
+}
+
+ESyncRole vnodeGetRole(SVnode *pVnode){
+  return syncGetRole(pVnode->sync);
 }
 
 void vnodeStop(SVnode *pVnode) {}

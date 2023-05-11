@@ -322,7 +322,8 @@ static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans,
       .pCont = pReq,
       .contLen = contLen,
       .msgType = TDMT_DND_ALTER_MNODE_TYPE,
-      .acceptableCode = TSDB_CODE_MNODE_ALREADY_DEPLOYED,
+      .retryCode = TSDB_CODE_MNODE_NOT_CATCH_UP,
+      .acceptableCode = TSDB_CODE_MNODE_ALREADY_IS_VOTER,
   };
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {

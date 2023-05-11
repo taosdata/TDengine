@@ -42,7 +42,7 @@ SAppInfo appInfo;
 int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
-int32_t  clientStop = 0;
+int32_t  clientStop = -1;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -69,7 +69,6 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 }
 
 static void deregisterRequest(SRequestObj *pRequest) {
-  const static int64_t SLOW_QUERY_INTERVAL = 3000000L;  // todo configurable
   if (pRequest == NULL) {
     tscError("pRequest == NULL");
     return;
@@ -80,6 +79,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
 
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
+  int32_t reqType = SLOW_LOG_TYPE_OTHERS;
 
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
   tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64
@@ -95,6 +95,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
                duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
                pRequest->metric.planCostUs, pRequest->metric.execCostUs);
       atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
+      reqType = SLOW_LOG_TYPE_INSERT;
     } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
       tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
                "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
@@ -102,12 +103,16 @@ static void deregisterRequest(SRequestObj *pRequest) {
                pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
       atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
+      reqType = SLOW_LOG_TYPE_QUERY;
     }
   }
 
-  if (duration >= SLOW_QUERY_INTERVAL) {
+  if (duration >= (tsSlowLogThreshold * 1000000UL)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
-    tscWarnL("slow query: %s, duration:%" PRId64, pRequest->sqlstr, duration);
+    if (tsSlowLogScope & reqType) {
+      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s", 
+        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration, pRequest->sqlstr);
+    }
   }
 
   releaseTscObj(pTscObj->id);
@@ -239,7 +244,7 @@ void destroyTscObj(void *pObj) {
   tscTrace("begin to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
-  hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
+  hbDeregisterConn(pTscObj, connKey);
 
   destroyAllRequests(pTscObj->pRequests);
   taosHashCleanup(pTscObj->pRequests);
@@ -427,8 +432,12 @@ static void *tscCrashReportThreadFp(void *param) {
   }
 #endif
 
+  if (-1 != atomic_val_compare_exchange_32(&clientStop, -1, 0)) {
+    return NULL;
+  }
+
   while (1) {
-    if (clientStop) break;
+    if (clientStop > 0) break;
     if (loopTimes++ < reportPeriodNum) {
       taosMsleep(sleepTime);
       continue;
@@ -466,7 +475,7 @@ static void *tscCrashReportThreadFp(void *param) {
     loopTimes = 0;
   }
 
-  clientStop = -1;
+  clientStop = -2;
   return NULL;
 }
 

@@ -100,7 +100,8 @@ sudo apt-get install tdengine
 
 :::tip
 apt-get 方式只适用于 Debian 或 Ubuntu 系统。
-::::
+:::
+
 </TabItem>
 <TabItem label="Windows 安装" value="windows">
 
@@ -205,6 +206,8 @@ Active: inactive (dead)
 - 停止服务进程：`sudo launchctl stop com.tdengine.taosd`
 
 - 查看服务状态：`sudo launchctl list | grep taosd`
+
+- 查看服务详细信息：`launchctl print system/com.tdengine.taosd`
 
 :::info
 
