@@ -806,13 +806,20 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     temp_path.close()?;
     // let json = String::from_utf8_lossy(&output.stdout);
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    dbg!(&res);
+    // dbg!(&res);
     if let Some(pattern) = req.pattern.as_deref() {
         let regex = regex::Regex::from_str(pattern)?;
         // regex.is_match(text)
         let res = res
             .into_iter()
-            .filter(|set| regex.is_match(&set.id))
+            .filter(|set| {
+                regex.is_match(&set.id)
+                    || set
+                        .name
+                        .as_deref()
+                        .map(|s| regex.is_match(s))
+                        .unwrap_or(false)
+            })
             .skip(req.offset)
             .take(req.limit)
             .collect_vec();

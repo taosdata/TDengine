@@ -10,11 +10,13 @@ use std::{
 use arrow::{
     array::{ArrayRef, StringArray, TimestampMillisecondArray, TimestampMillisecondBuilder},
     datatypes::{Field, Fields, Schema},
+    error::ArrowError,
     record_batch::RecordBatch,
 };
 use async_backtrace::framed;
 use futures::{Stream, StreamExt, TryStreamExt};
 use serde::Deserialize;
+use taosx_core::{DataSetsReq, ListResponse};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 #[cfg(unix)]
@@ -23,6 +25,7 @@ use tokio_util::codec::BytesCodec;
 use tonic::{transport::Server, IntoStreamingRequest, Request, Response, Status, Streaming};
 
 use arrow_flight::{
+    decode::FlightDataDecoder,
     encode::{FlightDataEncoder, FlightDataEncoderBuilder},
     error::FlightError,
     flight_service_server::{FlightService, FlightServiceServer},
@@ -191,9 +194,99 @@ impl FlightService for FlightServiceImpl {
         // }"#).unwrap();
 
         let (tx, rx) = flume::bounded(100);
+
+        let sender = tx.clone();
+        let controller_runner = controller.clone();
+        let agent_id = agent.id;
+        tokio::spawn(async move {
+            // let agent = controller_runner.get_agent_by_id(agent_id).await?;
+            let schema = Arc::new(Schema::new(Fields::from(vec![
+                Field::new(
+                    "ts",
+                    arrow::datatypes::DataType::Timestamp(
+                        arrow::datatypes::TimeUnit::Millisecond,
+                        None,
+                    ),
+                    false,
+                ),
+                Field::new("action", arrow::datatypes::DataType::Utf8, false),
+                Field::new("context", arrow::datatypes::DataType::Utf8, false),
+            ])));
+            let encoder = FlightDataDecoder::new(req.map_err(FlightError::Tonic));
+            let _ = encoder
+                .try_for_each_concurrent(1, |data| async {
+                    let payload = data.payload;
+                    match payload {
+                        arrow_flight::decode::DecodedPayload::None => (),
+                        arrow_flight::decode::DecodedPayload::Schema(_) => (),
+                        arrow_flight::decode::DecodedPayload::RecordBatch(res) => {
+                            // dbg!(&res);
+                            let rows = res.num_rows();
+                            debug_assert!(rows == 1);
+
+                            let ts = res
+                                .column(0)
+                                .as_any()
+                                .downcast_ref::<TimestampMillisecondArray>()
+                                .unwrap();
+                            let action = res
+                                .column(1)
+                                .as_any()
+                                .downcast_ref::<StringArray>()
+                                .unwrap();
+                            let context = res
+                                .column(2)
+                                .as_any()
+                                .downcast_ref::<StringArray>()
+                                .unwrap();
+                            for _ in 0..rows {
+                                let (ts, action, context) = (
+                                    ts.value_as_datetime_with_tz(
+                                        0,
+                                        ts.timezone().unwrap_or("UTC").parse().unwrap(),
+                                    )
+                                    .unwrap(),
+                                    action.value(0),
+                                    context.value(0),
+                                );
+
+                                log::info!("At [{ts}] action `{action}` triggered with: {context}");
+                                match action {
+                                    "list" => {
+                                        let req: ListResponse = serde_json::from_str(&context).unwrap();
+                                        dbg!(&req);
+
+                                        if let Some((_, sender)) = controller_runner
+                                            .agent_tasks
+                                            .read()
+                                            .await
+                                            .get(&agent_id)
+                                            .unwrap()
+                                            .datasets
+                                            .remove(&req.req)
+                                        {
+                                            let _ = sender.send(req.res).unwrap();
+                                        }
+                                    }
+                                    "heartbeat" => {
+                                        //
+                                    }
+                                    _ => unreachable!(),
+                                }
+                            }
+                            // batch.
+                            // todo: send data to controller.
+                        }
+                    }
+                    Ok(())
+                })
+                .await;
+            Ok::<_, anyhow::Error>(())
+        });
         let stream: Self::DoExchangeStream = Box::pin(IpcStream::new(rx));
         let response = tonic::Response::from_parts(meta, stream, extension);
         struct IpcStream {
+            // request: Streaming<FlightData>,
             encoder: FlightDataEncoder,
             marker: AtomicUsize,
         }
@@ -219,6 +312,7 @@ impl FlightService for FlightServiceImpl {
                     .with_schema(schema)
                     .build(receiver.into_stream());
                 Self {
+                    // request,
                     encoder,
                     marker: AtomicUsize::new(0),
                 }
@@ -369,6 +463,28 @@ impl FlightService for FlightServiceImpl {
                                 // todo!()
                             }
                         }
+                        AgentAction::ListDataSets(dataset, _) => {
+                            let context: ArrayRef =
+                                Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                                    &dataset,
+                                )
+                                .unwrap()]));
+                            let action: ArrayRef =
+                                Arc::new(StringArray::from_iter_values(["list".to_string()]));
+                            let batch = RecordBatch::try_from_iter(vec![
+                                ("ts", ts),
+                                ("action", action),
+                                ("context", context),
+                            ])
+                            .unwrap();
+
+                            if let Err(err) = tx.send_async(Ok(batch)).await {
+                                dbg!(&err);
+                                log::warn!("Task listener closed");
+                                break;
+                            }
+                        }
+                        _ => todo!(),
                     }
                 } else {
                     break;

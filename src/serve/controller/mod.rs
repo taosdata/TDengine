@@ -12,12 +12,13 @@ use anyhow::{bail, Context};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use dashmap::{DashMap, DashSet};
+use flume::Sender;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::TaskOpts;
+use taosx_core::{DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::{Mutex, OnceCell};
 use tokio::task::JoinHandle;
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -106,16 +107,20 @@ static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
 // const TASK_SELECT: &str = "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks";
 
-#[derive(Debug, Clone, Copy)]
+type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
+#[derive(Debug, Clone)]
 pub enum AgentAction {
     Run(i64),
     Cancel(i64),
+    ListDataSets(DataSetsReq, AgentDataSetsSender),
+    RetrieveDataSets(DataSetsReq, Vec<DataSet>),
 }
 pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
 pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;
 pub type AgentTasksError = tokio::sync::broadcast::error::SendError<AgentAction>;
 pub struct AgentTasks {
     pub current: Arc<DashSet<i64>>,
+    pub datasets: Arc<DashMap<DataSetsReq, AgentDataSetsSender>>,
     pub sender: AgentTasksSender,
     pub receiver: AgentTasksReceiver,
 }
@@ -125,6 +130,7 @@ impl AgentTasks {
         let (sender, receiver) = tokio::sync::broadcast::channel(10);
         Self {
             current: Arc::new(DashSet::new()),
+            datasets: Arc::new(DashMap::new()),
             sender,
             receiver,
         }
@@ -132,6 +138,7 @@ impl AgentTasks {
     pub fn spawn_listener(&self) -> JoinHandle<()> {
         let mut rx = self.sender.subscribe();
         let current = self.current.clone();
+        let datasets = self.datasets.clone();
         tokio::spawn(async move {
             loop {
                 match rx.recv().await {
@@ -141,6 +148,14 @@ impl AgentTasks {
                         }
                         AgentAction::Cancel(task) => {
                             current.remove(&task);
+                        }
+                        AgentAction::ListDataSets(req, sender) => {
+                            datasets.insert(req, sender);
+                        }
+                        AgentAction::RetrieveDataSets(req, sets) => {
+                            if let Some(sender) = datasets.remove(&req) {
+                                let _ = sender.1.send(Ok(sets));
+                            }
                         }
                     },
                     Err(err) => {
@@ -1100,6 +1115,22 @@ impl TaskController {
         self.tasks(TaskFilter::default().via(agent_id)).await?;
         // self
         todo!()
+    }
+
+    pub async fn list_datasets_via_agent(
+        &self,
+        agent_id: i64,
+        req: DataSetsReq,
+    ) -> anyhow::Result<Vec<DataSet>> {
+        let (sender, recv) = flume::bounded(1);
+        let agent_tasks = self.agent_tasks.read().await;
+        let agent = agent_tasks
+            .get(&agent_id)
+            .ok_or_else(|| anyhow::format_err!("Unknown agent id {agent_id}"))?;
+
+        agent.send(AgentAction::ListDataSets(req, sender))?;
+        let data = recv.recv_async().await??;
+        Ok(data)
     }
 }
 
