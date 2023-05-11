@@ -191,7 +191,7 @@
       title="SQL"
     >
       <pre :key="previewSql" v-highlight>
-          <code class="language-sql">{{previewSql}}</code>
+          <code class="language-sql" style="display:flex;flex-wrap:wrap;">{{previewSql}}</code>
         </pre>
       <section class="flexEnd">
         <el-button type="primary" size="mini" @click="dialog = false">{{

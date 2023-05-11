@@ -612,7 +612,7 @@ export default {
           ) {
             Message({
               type: "warning",
-              message: `Please enter ${data.options[key].display} `,
+              message: this.$t('datasource.msg:') +`${data.options[key].display} `,
             });
             return;
           }
@@ -658,7 +658,7 @@ export default {
             ) {
               Message({
                 type: "warning",
-                message: `${enterTip} ${data.groups[index].params[g].name} `,
+                message: this.$t('datasource.msg:')+`${data.groups[index].params[g].name} `,
               });
               return;
             } else {
@@ -718,6 +718,7 @@ export default {
           }
         }
          dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+
         let piParams = {
           from:
             "opc" +this.protocol+
@@ -732,8 +733,11 @@ export default {
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
-          labels: ["type::datain", `cluster-id::${id}`],
+          labels: ["type::datain", `cluster-id::${id}`,`user::${localStorage.getItem('username')}`],
         };
+        if (this.$parent.agentID) {
+            piParams["via"] = this.$parent.agentID;
+          }
         if (this.isEditable) {
           await EditSource(piParams, this.editId).then(() => {
             this.$parent.toggleComponent("opctable",this.protocol);
@@ -742,7 +746,7 @@ export default {
           await AddSource(piParams).then((res) => {
             if (res && res.id) {
               this.$parent.toggleComponent("opctable", "");
-              Message.success("Operation Successfully!");
+              Message.success(this.$t('datasource.successtip'));
             }
           });
         }
@@ -860,7 +864,7 @@ export default {
         params = {
           from: `opc${this.protocol}${dns}`,
           categories: [this.activeName],
-          via: '',
+          via: this.$parent.agentID,
           pattern: value,
           offset: 1,
           limit: 10,

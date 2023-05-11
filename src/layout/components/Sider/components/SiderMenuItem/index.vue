@@ -12,6 +12,7 @@
         @contextmenu.native.prevent="menuRight(item.path)"
         :disabled="!isDisabled(item.path)"
         class="menuItem"
+        @click="menuClick(item.title)"
       >
         <div :aria-data="item.path">
           <span>
@@ -21,11 +22,7 @@
               :class="{ menuItem_icon_unfold: opened }"
             ></Icon>
           </span>
-          <span
-            class="menuItem_title"
-            v-if="opened"
-            @click="menuClick(item.title)"
-          >
+          <span class="menuItem_title" v-if="opened">
             {{ item.title }}
           </span>
         </div>
@@ -55,20 +52,20 @@ export default {
     menuRight(path) {
       OpenNewTab(path);
     },
-     open2() {
-        this.$notify({
-          title: '警告',
-          dangerouslyUseHTMLString:true,
-          duration: 0,
-          message: `<div>
-          ${this.$t('dashboard.warnigtip')}
+    open2() {
+      this.$notify({
+        title: "警告",
+        dangerouslyUseHTMLString: true,
+        duration: 0,
+        message: `<div>
+          ${this.$t("dashboard.warnigtip")}
           </div>`,
-          type: 'warning'
-        });
-      },
+        type: "warning",
+      });
+    },
     menuClick(val) {
       let url = localStorage.getItem("local_grafana");
-      if (val === "Dashboard"||val==='面板') {
+      if (val === "Dashboard" || val === "面板") {
         // window.open('https://docs.taosdata.com/reference/tdinsight/#','_blank')
         if (url) {
           OpenNewTab(url);

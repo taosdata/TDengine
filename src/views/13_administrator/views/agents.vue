@@ -213,6 +213,7 @@
       width="600px"
       :visible.sync="copyDialog"
       :destroy-on-close="true"
+      :close-on-click-modal="false"
     >
       <div style="display: flex" class="agentcopy">
         <span class="agent-token">{{ agenttoken }}</span>

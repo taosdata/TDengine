@@ -373,7 +373,7 @@
                 {{ p.display ? p.display : p.name }}
               </span>
               <div class="label-value">
-                <template v-if="p.hint === 'str' || p.hint === 'timeout'">
+                <template v-if="p.hint === 'str' || p.hint === 'timeout'||p.hint.type=='timeout'">
                   <el-input
                     v-model="p.value"
                     placeholder="Please enter "
@@ -472,7 +472,6 @@ import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt, debounce } from "@/utils/index";
-import {format} from 'date-fns'
 export default {
   name: "DbSourceUI",
   props: {
@@ -529,7 +528,6 @@ export default {
       endOption: {
         disabledDate: (time) => endTimeOption(time),
       },
-      decryptPwd: "", //解密的密码
       disable: false,
       address: "",
       port: "",
@@ -624,13 +622,33 @@ export default {
             return;
           }
         }
-        this.decryptPwd = decrypt(localStorage.getItem("pwd"));
         if (this.tagName === "datasource") {
-          dns += `://${localStorage.getItem("username")}:${this.decryptPwd}@${
-            data.options.host.value ? data.options.host.value : ""
-          }
+          if (data.authentication.value == "plain") {
+            let userinfo = data.authentication.alternatives.filter(
+              (item) => item.name == "plain"
+            )[0];
+            let username = window.encodeURIComponent(userinfo.username.value);
+            let pwd = window.encodeURIComponent(userinfo.password.value);
+            dns += `://${username}:${pwd}@${
+              data.options.host.value ? data.options.host.value : ""
+            }
         `;
-        } else {
+          } else if (data.authentication.value == "token") {
+            let userinfo = data.authentication.alternatives.filter(
+              (item) => item.name == "token"
+            )[0];
+            let token = window.encodeURIComponent(userinfo.params[0].value);
+            dns += `://${token}@${
+              data.options.host.value ? data.options.host.value : ""
+            }
+        `;
+          }
+          //   dns += `://${localStorage.getItem("username")}:${this.decryptPwd}@${
+          //     data.options.host.value ? data.options.host.value : ""
+          //   }
+          // `;
+        } 
+        else {
           dns += `://${data.options.host.value ? data.options.host.value : ""}`;
         }
 
@@ -642,12 +660,14 @@ export default {
               : ":") +
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
+       
         dns += data.options.subject.value
           ? "/" + data.options.subject.value
           : "";
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
+         
         for (let index = 0; index < data.groups.length; index++) {
           //   for (let j = 0; j < data.groups[index].params.length; j++) {
           for (let g of Object.keys(data.groups[index].params)) {
@@ -705,6 +725,12 @@ export default {
             }
           }
         }
+        if(this.tagName=='influxdb'){
+          let orginfo=data.authentication.alternatives[0].params
+          let orgId=orginfo.filter(item=>item.name=='orgId')[0].value
+          let token=orginfo.filter(item=>item.name=='token')[0].value
+          querystr+=`&orgId=${orgId}&token=${token}`
+        }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
 
         let apiParams = {
@@ -721,9 +747,15 @@ export default {
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
-          labels: ["type::datain", `cluster-id::${id}`],
+          labels: [
+            "type::datain",
+            `cluster-id::${id}`,
+            `user::${localStorage.getItem("username")}`,
+          ],
         };
-
+        if (this.$parent.agentID) {
+          apiParams["via"] = this.$parent.agentID;
+        }
         if (this.tagName === "datasource") {
           if (this.isEditable) {
             await EditSource(apiParams, this.editId)
@@ -745,9 +777,8 @@ export default {
               });
           }
         } else {
-          console.log(this.tagName,'this.tagName--===');
           let piParams = {
-            from: this.tagName=='influxdb'?'influxdb'+dns: "pi" + dns,
+            from: this.tagName == "influxdb" ? "influxdb" + dns : "pi" + dns,
             name: localStorage.getItem("datainName"),
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
             // name: localStorage.getItem("datainName"),
@@ -755,8 +786,16 @@ export default {
               "taos+" +
               localStorage.getItem("base_url") +
               (this.dbname ? "/" + this.dbname : ""),
-            labels: ["type::datain", `cluster-id::${id}`],
+            labels: [
+              "type::datain",
+              `cluster-id::${id}`,
+              `user::${localStorage.getItem("username")}`,
+            ],
           };
+          console.log(this.$parent,this.$parent.agentID,'this.$parent.agentID');
+          if (this.$parent.agentID) {
+            piParams["via"] = this.$parent.agentID;
+          }
           if (this.isEditable) {
             await EditSource(piParams, this.editId).then(() => {
               this.$parent.toggleComponent("pitable");
@@ -867,6 +906,7 @@ export default {
         params = {
           from: `pi://${host}${subject}`,
           categories: [this.activeName],
+          via: this.$parent.agentID,
           pattern: value,
           offset: 1,
           limit: 10,
