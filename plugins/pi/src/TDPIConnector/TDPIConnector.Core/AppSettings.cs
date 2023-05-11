@@ -14,7 +14,7 @@ namespace TDPIConnector.Core
         public class TomlConfig {
             public int MaxWaitLen { get; set; } = 1000;
             public int UpdateInterval { get; set; } = 10000;
-            public double MaxBackfillRangeDays { get; set; } = 1;
+            public int MaxBackfillRangeDays { get; set; } = 1;
             public string PIServerName { get; set; }
             public string PISystemName { get; set; }
             public string AFDatabaseName { get; set; }
@@ -90,7 +90,7 @@ namespace TDPIConnector.Core
                 tomlConfig.AFDatabaseName = GetStringFromAppSettings("AFDatabaseName");
                 tomlConfig.AFDataPipesInstances = GetIntegerFromAppSettings("AFDataPipesInstances", 1);
                 tomlConfig.PIDataPipesInstances = GetIntegerFromAppSettings("PIDataPipesInstances", 1);
-                tomlConfig.MaxBackfillRangeDays = GetDoubleFromAppSettings("MaxBackfillRangeDays");
+                tomlConfig.MaxBackfillRangeDays = GetIntegerFromAppSettings("MaxBackfillRangeDays");
                 try
                 {
                     tomlConfig.TemplateForPIPoint = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates1.csv").Distinct().ToList();
