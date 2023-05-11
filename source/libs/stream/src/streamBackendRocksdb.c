@@ -846,7 +846,6 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     if (err != NULL) {
       qError("failed to create cf:%s_%s, reason:%s", pState->pTdbState->idstr, ginitDict[i].key, err);
       taosMemoryFreeClear(err);
-      // return -1;
     }
   }
   pState->pTdbState->rocksdb = handle->db;

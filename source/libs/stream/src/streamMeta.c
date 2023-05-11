@@ -19,6 +19,13 @@
 #include "tref.h"
 #include "ttimer.h"
 
+static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
+static int32_t      streamBackendId = 0;
+static void         streamMetaEnvInit() { streamBackendId = taosOpenRef(20, streamBackendCleanup); }
+
+void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
+void streamMetaCleanup() { taosCloseRef(streamBackendId); }
+
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
   int32_t      code = -1;
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
@@ -85,8 +92,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   pMeta->streamBackend = streamBackendInit(statePath);
-  pMeta->streamBackendId = taosOpenRef(20, streamBackendCleanup);
-  pMeta->streamBackendRid = taosAddRef(pMeta->streamBackendId, pMeta->streamBackend);
+  pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
   taosMemoryFree(statePath);
 
@@ -129,9 +135,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
   }
 
   taosHashCleanup(pMeta->pTasks);
-  taosRemoveRef(pMeta->streamBackendId, pMeta->streamBackendRid);
-  // streamBackendCleanup(pMeta->streamBackend);
-  taosCloseRef(pMeta->streamBackendId);
+  taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
   pMeta->pTaskList = taosArrayDestroy(pMeta->pTaskList);
   taosMemoryFree(pMeta->path);
   taosMemoryFree(pMeta);

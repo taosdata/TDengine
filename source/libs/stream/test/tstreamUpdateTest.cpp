@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "streamBackendRocksdb.h"
+#include "tstream.h"
 #include "tstreamUpdate.h"
 #include "ttime.h"
 
@@ -9,21 +11,16 @@ using namespace std;
 class StreamStateEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
-    // initLog();
-    //  taosRemoveDir(path);
-    //  SIndexOpts opts;
-    //  opts.cacheSize = 1024 * 1024 * 4;
-    //  int ret = indexOpen(&opts, path, &index);
-    //  assert(ret == 0);
+    streamMetaInit();
+    backend = streamBackendInit(path);
   }
   virtual void TearDown() {
+    streamMetaCleanup();
     // indexClose(index);
   }
 
   const char *path = TD_TMP_DIR_PATH "stream";
-
-  // SIndexOpts* opts;
-  // SIndex*     index;
+  void       *backend;
 };
 
 bool equalSBF(SScalableBf *left, SScalableBf *right) {
@@ -212,7 +209,7 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
   // updateInfoDestroy(pSU7);
 }
 // TEST()
-TEST_F(StreamStateEnv, test1) {}
+TEST(StreamStateEnv, test1) {}
 // int main(int argc, char *argv[]) {
 //   testing::InitGoogleTest(&argc, argv);
 //   return RUN_ALL_TESTS();
