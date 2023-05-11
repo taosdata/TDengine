@@ -114,14 +114,14 @@ pub struct Task {
     /// Task trigger events, default will be oneshot.
     pub trigger: Option<String>,
 
-    /// Labels for a task.
-    ///
-    /// You can use k-v style label such as `key::value` or key-only label `key`.
-    ///
-    /// You can filter tasks by some labels.
+    // / Labels for a task.
+    // /
+    // / You can use k-v style label such as `key::value` or key-only label `key`.
+    // /
+    // / You can filter tasks by some labels.
     // #[serde(deserialize_with = "labels_serde::deserialize")]
-    #[serde(default)]
-    labels: Vec<(String, Option<String>)>,
+    // #[serde(default)]
+    // labels: Vec<(String, Option<String>)>,
 }
 
 impl Client {
@@ -293,4 +293,11 @@ impl Client {
 
         Ok(())
     }
+}
+
+#[test]
+fn test_deserialize() {
+    let context = "{\"id\":21,\"from\":\"pi://WIN-2OA23UM12TN/test-jcy?PointList=test_float64,test_int16,test_int32\",\"oneshot_topic\":null,\"to\":\"taos+http://192.168.0.201:56041/pi\",\"to_cluster\":null,\"jobs\":0,\"via\":3,\"compression_level\":null,\"created_at\":\"2023-05-11T01:22:14.996Z\",\"last_modified_at\":\"2023-05-11T01:22:15.002Z\",\"status\":\"running\",\"reason\":null,\"completed\":false,\"name\":\"pitest\",\"labels\":[\"cluster_id::123\"],\"from_expand\":null,\"to_expand\":null}";
+    let task: Task = serde_json::from_str(&context).unwrap();
+    dbg!(&task);
 }
