@@ -2517,6 +2517,31 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       *numOfAssignment = num;
     }
 
+    for (int32_t j = 0; j < (*numOfAssignment); ++j) {
+      tmq_topic_assignment* p = &(*assignment)[j];
+
+      for(int32_t i = 0; i < taosArrayGetSize(pTopic->vgs); ++i) {
+        SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, i);
+        if (pClientVg->vgId != p->vgId) {
+          continue;
+        }
+
+        SVgOffsetInfo* pOffsetInfo = &pClientVg->offsetInfo;
+
+        pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
+
+        char offsetBuf[80] = {0};
+        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
+
+        tscDebug("vgId:%d offset is update to:%s", p->vgId, offsetBuf);
+
+        pOffsetInfo->walVerBegin = p->begin;
+        pOffsetInfo->walVerEnd = p->end;
+        pOffsetInfo->currentOffset.version = p->currentOffset;
+        pOffsetInfo->committedOffset.version = p->currentOffset;
+      }
+    }
+
     destroyCommonInfo(pCommon);
     return code;
   } else {
