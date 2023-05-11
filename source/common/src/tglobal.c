@@ -84,7 +84,7 @@ bool     tsMonitorComp = false;
 // telem
 bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
-char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
+char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
