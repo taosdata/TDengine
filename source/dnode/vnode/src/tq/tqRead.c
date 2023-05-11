@@ -504,7 +504,7 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
 }
 
 int32_t tqRetrieveDataBlock(STqReader* pReader, const char* idstr) {
-  tqDebug("tq reader retrieve data block %p, index:%d, total:%d, %s", pReader->msg.msgStr, pReader->nextBlk,
+  tqDebug("tq reader retrieve data block %p, index:%d/%d, %s", pReader->msg.msgStr, pReader->nextBlk,
           (int32_t)taosArrayGetSize(pReader->submit.aSubmitTbData), idstr);
 
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk++);
