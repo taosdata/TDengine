@@ -45,7 +45,9 @@
                 "name": "subject",
                 "description": "Topics",
                 "required": true,
-                "multiple": true
+                "multiple": true,
+                "editable": true,
+                "selectable": true
             }  
         } 
     ]
