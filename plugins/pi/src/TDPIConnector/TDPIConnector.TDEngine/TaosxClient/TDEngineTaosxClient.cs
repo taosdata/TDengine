@@ -135,7 +135,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
             }
            
             builder.AddRecord(table, record.Timestamp, valDic, statusDic);
-            log.Info($"Stable:{builder.stableName} new recored add list, wait Len:{builder.tableNameArrowArray.Length}");
         }
 
         // write data
@@ -208,7 +207,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
         internal void AddAFElementTableTag(string tdEngineTableName, List<KeyValuePair<string, string>> tags)
         {
             builder.tagVals.Add(tdEngineTableName, tags);
-            // TODO tab message
         }
 
         internal void AddPointTableTag(string tdEngineTableName, int pointId)
