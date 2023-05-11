@@ -5,11 +5,13 @@ package opcda
 
 import (
 	"collector/common"
+	"container/list"
 	"context"
 	"errors"
 	"fmt"
 	"log"
 	"os/signal"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -35,6 +37,8 @@ type reader struct {
 	valueTypes map[string]common.ValueType
 	state      state
 	interval   time.Duration
+	pointLimit int
+	pointRegex *regexp.Regexp
 	mutex      sync.Mutex
 	done       chan struct{}
 	debug      bool
@@ -59,6 +63,14 @@ func newReader(config common.Config) (*reader, error) {
 		}
 		valueTypes[tag.Tag] = vt
 	}
+	var pointRegex *regexp.Regexp
+	if len(config.Points.Regex) > 0 {
+		reg, err := regexp.Compile(config.Points.Regex)
+		if err != nil {
+			return nil, fmt.Errorf("invalid points regex: %w", err)
+		}
+		pointRegex = reg
+	}
 
 	r := reader{
 		server:     config.Connect.Da.Server,
@@ -66,6 +78,8 @@ func newReader(config common.Config) (*reader, error) {
 		valueTypes: valueTypes,
 		tags:       tags,
 		interval:   time.Duration(config.Collect.Interval) * time.Second,
+		pointLimit: config.Points.Limit,
+		pointRegex: pointRegex,
 		done:       make(chan struct{}, 1),
 		debug:      config.Debug,
 	}
@@ -179,22 +193,36 @@ func (r *reader) getAllTags(ctx context.Context) ([]common.Point, error) {
 		return nil, fmt.Errorf("create browser error %v", err)
 	}
 
-	return r.browseRecursive(tree), nil
+	return r.browse(tree), nil
 }
 
-func (r *reader) browseRecursive(tree *opc.Tree) []common.Point {
-	tags := make([]common.Point, 0, len(tree.Leaves))
-	for _, l := range tree.Leaves {
-		tags = append(tags, common.Point{
-			ID:   l.Tag,
-			Name: l.Name,
-		})
-	}
+func (r *reader) browse(tree *opc.Tree) (points []common.Point) {
+	l := list.New()
+	l.PushBack(tree)
 
-	for _, l := range tree.Branches {
-		branchTags := r.browseRecursive(l)
-		tags = append(tags, branchTags...)
-	}
+	for {
+		front := l.Front()
+		if front == nil {
+			break
+		}
 
-	return tags
+		t := front.Value.(*opc.Tree)
+		for _, leave := range t.Leaves {
+			if r.pointRegex != nil && !r.pointRegex.MatchString(leave.Name) {
+				continue
+			}
+
+			points = append(points, common.Point{
+				ID:   leave.Tag,
+				Name: leave.Name,
+			})
+			if len(points) >= r.pointLimit {
+				return
+			}
+		}
+		for _, b := range t.Branches {
+			l.PushBack(b)
+		}
+	}
+	return
 }

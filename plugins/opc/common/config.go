@@ -21,6 +21,7 @@ type Config struct {
 	OpcType string        `json:"opc_type,omitempty" yaml:"opc_type" toml:"opc_type"` // metric type, `opcua` or `opcda`(only for windows)
 	Debug   bool          `json:"debug,omitempty" yaml:"debug" toml:"debug"`          // debug mode, default is false. only for debug, should be false in production
 	Connect ConnectConfig `json:"connect,omitempty" yaml:"connect" toml:"connect"`
+	Points  PointsConfig  `json:"points,omitempty" yaml:"points" toml:"points"`
 	Collect CollectConfig `json:"collect,omitempty" yaml:"collect" toml:"collect"`
 	Report  ReportConfig  `json:"report,omitempty" yaml:"report" toml:"report"`
 }
@@ -46,6 +47,12 @@ type UaConnectConfig struct {
 type DaConnectConfig struct {
 	Server string   `json:"server,omitempty" yaml:"server" toml:"server"` // opc server name
 	Nodes  []string `json:"nodes,omitempty" yaml:"nodes" toml:"nodes"`    // nodes to collect
+}
+
+// PointsConfig is used for collecting points
+type PointsConfig struct {
+	Limit int    `json:"limit,omitempty" yaml:"limit" toml:"limit"`
+	Regex string `json:"regex,omitempty" yaml:"regex" toml:"regex"`
 }
 
 type CollectConfig struct {

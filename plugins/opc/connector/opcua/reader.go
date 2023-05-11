@@ -2,6 +2,7 @@ package opcua
 
 import (
 	"collector/common"
+	"container/list"
 	"context"
 	"crypto/rsa"
 	"crypto/tls"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"os/signal"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -31,12 +33,14 @@ type reader struct {
 	connectTimeout time.Duration
 	requestTimeout time.Duration
 	interval       time.Duration
+	pointsLimit    int
+	pointRegex     *regexp.Regexp
 	done           chan struct{}
 	debug          bool
 	mutex          sync.Mutex
 }
 
-func newReader(debug bool, connectConfig common.UaConnectConfig, collectMode string, nodes []common.NodeConfig, interval int64) (*reader, error) {
+func newReader(debug bool, connectConfig common.UaConnectConfig, pointConfig common.PointsConfig, collectMode string, nodes []common.NodeConfig, interval int64) (*reader, error) {
 	r := &reader{
 		connectConfig:  connectConfig,
 		collectMode:    collectMode,
@@ -45,9 +49,18 @@ func newReader(debug bool, connectConfig common.UaConnectConfig, collectMode str
 		interval:       time.Duration(interval) * time.Second,
 		connectTimeout: time.Duration(connectConfig.ConnectTimeout) * time.Second,
 		requestTimeout: time.Duration(connectConfig.RequestTimeout) * time.Second,
+		pointsLimit:    pointConfig.Limit,
 		done:           make(chan struct{}, 1),
 		debug:          debug,
 	}
+	if len(pointConfig.Regex) > 0 {
+		reg, err := regexp.Compile(pointConfig.Regex)
+		if err != nil {
+			return nil, fmt.Errorf("invalid points regex: %w", err)
+		}
+		r.pointRegex = reg
+	}
+
 	if err := r.initNodeMetricMapping(); err != nil {
 		return nil, err
 	}
@@ -120,6 +133,9 @@ func (r *reader) stop(ctx context.Context) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if r.state == opcua.Disconnected {
+		return
+	}
+	if r.client == nil {
 		return
 	}
 	if err := r.client.CloseWithContext(ctx); err != nil {
@@ -524,49 +540,79 @@ func (r *reader) getAllNodes(ctx context.Context) (nodes []common.Point, err err
 		return nil, err
 	}
 	rootNode := r.client.Node(rootId)
-	return r.browseRecursive(ctx, rootNode, 0)
+	nodes, err = r.browse(ctx, rootNode)
+	return
 }
 
-func (r *reader) browseRecursive(ctx context.Context, root *opcua.Node, level int) ([]common.Point, error) {
-	if level > 5 {
-		return nil, nil
+func (r *reader) browse(ctx context.Context, root *opcua.Node) (points []common.Point, err error) {
+	l := list.New()
+	l.PushBack(root)
+
+	pointMap := make(map[string]common.Point)
+
+BK:
+	for {
+		front := l.Front()
+		if front == nil { // no more nodes
+			break
+		}
+
+		node := l.Remove(front).(*opcua.Node)
+		leaves, nodes, err := r.browseChildrenNode(ctx, node)
+		if err != nil {
+			return nil, fmt.Errorf("get child for node %s error %v", root.String(), err)
+		}
+
+		for _, n := range leaves {
+			point := r.nodeToPoint(ctx, n)
+			if r.pointRegex != nil && !r.pointRegex.MatchString(point.Name) {
+				continue
+			}
+
+			pointMap[point.ID] = point
+			if r.pointsLimit > 0 && len(pointMap) >= r.pointsLimit {
+				break BK
+			}
+		}
+
+		for _, n := range nodes {
+			l.PushBack(n)
+		}
 	}
-	childrenNodes, err := root.ChildrenWithContext(ctx, 0, ua.NodeClassAll)
+
+	points = make([]common.Point, 0, len(pointMap))
+	for _, point := range pointMap {
+		points = append(points, point)
+	}
+
+	return
+}
+
+func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leaves []*opcua.Node, nodes []*opcua.Node, err error) {
+	childrenNodes, err := node.ChildrenWithContext(ctx, 0, ua.NodeClassAll)
 	if err != nil {
-		return nil, fmt.Errorf("get child for node %s error %v", root.String(), err)
+		return nil, nil, fmt.Errorf("get child for node %s error %v", node.String(), err)
 	}
 
-	var nodeMap = make(map[string]common.Point, len(childrenNodes))
-	for _, node := range childrenNodes {
-		nodeClass, err := node.NodeClassWithContext(ctx)
+	for _, child := range childrenNodes {
+		nodeClass, err := child.NodeClassWithContext(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("get node class for node %s error %v", node.String(), err)
+			return nil, nil, fmt.Errorf("get node class for node %s error %v", child.String(), err)
 		}
-
 		if nodeClass == ua.NodeClassVariable {
-			var name string
-			if browseName, err := node.BrowseNameWithContext(ctx); err == nil {
-				name = browseName.Name
-			}
-
-			nodeMap[node.String()] = common.Point{
-				ID:   node.String(),
-				Name: name,
-			}
+			leaves = append(leaves, child)
 		}
-		recursiveNodes, err := r.browseRecursive(ctx, node, level+1)
-		if err != nil {
-			return nil, err
-		}
-		for _, recursiveNode := range recursiveNodes {
-			nodeMap[recursiveNode.ID] = recursiveNode
-		}
+		nodes = append(nodes, child)
 	}
 
-	nodes := make([]common.Point, 0, len(nodeMap))
-	for _, node := range nodeMap {
-		nodes = append(nodes, node)
+	return
+}
+
+func (r *reader) nodeToPoint(ctx context.Context, node *opcua.Node) common.Point {
+	var name string
+	if browseName, err := node.BrowseNameWithContext(ctx); err == nil {
+		name = browseName.Name
 	}
 
-	return nodes, nil
+	return common.Point{ID: node.String(), Name: name}
 }
