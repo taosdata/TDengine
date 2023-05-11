@@ -503,13 +503,11 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   return 0;
 }
 
-int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet) {
-  tqDebug("tq reader retrieve data block %p, index:%d", pReader->msg.msgStr, pReader->nextBlk);
+int32_t tqRetrieveDataBlock(STqReader* pReader, const char* idstr) {
+  tqDebug("tq reader retrieve data block %p, index:%d, total:%d, %s", pReader->msg.msgStr, pReader->nextBlk,
+          (int32_t)taosArrayGetSize(pReader->submit.aSubmitTbData), idstr);
 
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk++);
-  if (pSubmitTbDataRet) {
-    *pSubmitTbDataRet = pSubmitTbData;
-  }
 
   SSDataBlock* pBlock = pReader->pResBlock;
   blockDataCleanup(pBlock);
@@ -672,8 +670,6 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, j);
         while (1) {
           SColVal colVal;
-          tqDebug("start to extract column id:%d, index:%d", pColData->info.colId, sourceIdx);
-
           tRowGet(pRow, pTSchema, sourceIdx, &colVal);
           if (colVal.cid < pColData->info.colId) {
             tqDebug("colIndex:%d column id:%d in row, ignore, the required colId:%d, total cols in schema:%d",

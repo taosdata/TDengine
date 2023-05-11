@@ -272,7 +272,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
         if (pTask->taskLevel == TASK_LEVEL__SOURCE && batchSize < MIN_STREAM_EXEC_BATCH_NUM && times < 5) {
           times++;
           taosMsleep(1);
-          qDebug("===stream===try agian batchSize:%d", batchSize);
+          qDebug("===stream===try again batchSize:%d", batchSize);
           continue;
         }
 

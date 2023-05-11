@@ -2078,7 +2078,7 @@ FETCH_NEXT_BLOCK:
       blockDataCleanup(pInfo->pRes);
 
       while (tqNextBlockImpl(pInfo->tqReader)) {
-        int32_t code = tqRetrieveDataBlock(pInfo->tqReader, NULL);
+        int32_t code = tqRetrieveDataBlock(pInfo->tqReader, pTaskInfo->id.str);
         if (code != TSDB_CODE_SUCCESS || pInfo->tqReader->pResBlock->info.rows == 0) {
           continue;
         }
