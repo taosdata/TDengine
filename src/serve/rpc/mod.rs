@@ -347,8 +347,8 @@ impl FlightService for FlightServiceImpl {
         ) -> anyhow::Result<()> {
             controller.init_agent_worker(agent.id).await;
             let mut receiver = {
-                let mut agent_tasks = controller.agent_tasks.write().await;
-                let mut listener = agent_tasks.get_mut(&agent.id).unwrap();
+                let mut agent_tasks = controller.agent_tasks.read().await;
+                let listener = agent_tasks.get(&agent.id).unwrap();
 
                 // let current = { listener.current.lock().await.clone() };
 
