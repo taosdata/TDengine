@@ -181,7 +181,8 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT16(pRaw, dataPos, &pDnode->port, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
-  if(sver > 1) {
+  if (sver > 1) {
+    // update the sver to process upgrade compatibility if increase the active_key len
     SDB_GET_BINARY(pRaw, dataPos, pDnode->active, TSDB_ACTIVE_KEY_LEN, _OVER)
     SDB_GET_BINARY(pRaw, dataPos, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN, _OVER)
   }
@@ -1075,6 +1076,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   ESdbStatus objStatus = 0;
   SDnodeObj *pDnode = NULL;
   int64_t    curMs = taosGetTimestampMs();
+  char       buf[TSDB_CONN_ACTIVE_KEY_LEN + VARSTR_HEADER_SIZE];  // make sure TSDB_CONN_ACTIVE_KEY_LEN >= TSDB_EP_LEN
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode, &objStatus, true);
@@ -1086,7 +1088,6 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->id, false);
 
-    char buf[tListLen(pDnode->ep) + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1111,10 +1112,9 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         status = "offline";
     }
 
-    char b1[TSDB_CONN_ACTIVE_KEY_LEN + 2] = {0};
-    STR_TO_VARSTR(b1, status);
+    STR_TO_VARSTR(buf, status);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, b1, false);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false);
@@ -1129,13 +1129,15 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataSetVal(pColInfo, numOfRows, b, false);
     taosMemoryFreeClear(b);
 
-    STR_TO_VARSTR(b1, pDnode->active);
+#ifdef TD_ENTERPRISE
+    STR_TO_VARSTR(buf, pDnode->active);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, b1, false);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
 
-    STR_TO_VARSTR(b1, pDnode->connActive);
+    STR_TO_VARSTR(buf, pDnode->connActive);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, b1, false);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+#endif
 
     numOfRows++;
     sdbRelease(pSdb, pDnode);
