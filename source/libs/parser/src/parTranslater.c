@@ -5435,6 +5435,29 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   return buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
 }
 
+static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentNodeStmt* pStmt) {
+  SRestoreDnodeReq restoreReq = {0};
+  restoreReq.dnodeId = pStmt->dnodeId;
+  switch (nodeType((SNode*)pStmt)) {
+    case QUERY_NODE_RESTORE_DNODE_STMT:
+      restoreReq.restoreType = RESTORE_TYPE__ALL;
+      break;
+    case QUERY_NODE_RESTORE_QNODE_STMT:
+      restoreReq.restoreType = RESTORE_TYPE__QNODE;
+      break;
+    case QUERY_NODE_RESTORE_MNODE_STMT:
+      restoreReq.restoreType = RESTORE_TYPE__MNODE;
+      break;
+    case QUERY_NODE_RESTORE_VNODE_STMT:
+      restoreReq.restoreType = RESTORE_TYPE__VNODE;
+      break;
+    default:
+      return -1;
+  }
+  return buildCmdMsg(pCxt, TDMT_MND_RESTORE_DNODE, (FSerializeFunc)tSerializeSRestoreDnodeReq, &restoreReq);
+}
+
+
 static int32_t getSmaIndexDstVgId(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
                                   int32_t* pVgId) {
   SVgroupInfo vg = {0};
@@ -6919,6 +6942,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       code = translateShowCreateTable(pCxt, (SShowCreateTableStmt*)pNode);
+      break;
+    case QUERY_NODE_RESTORE_DNODE_STMT:
+    case QUERY_NODE_RESTORE_QNODE_STMT:
+    case QUERY_NODE_RESTORE_MNODE_STMT:
+    case QUERY_NODE_RESTORE_VNODE_STMT:
+      code = translateRestoreDnode(pCxt, (SRestoreComponentNodeStmt*)pNode);
       break;
     default:
       break;

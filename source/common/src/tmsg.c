@@ -1720,6 +1720,33 @@ int32_t tDeserializeSDropDnodeReq(void *buf, int32_t bufLen, SDropDnodeReq *pReq
   return 0;
 }
 
+int32_t tSerializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->restoreType) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSRestoreDnodeReq(void *buf, int32_t bufLen, SRestoreDnodeReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->restoreType) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tSerializeSMCfgDnodeReq(void *buf, int32_t bufLen, SMCfgDnodeReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
