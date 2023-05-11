@@ -249,11 +249,12 @@ static FORCE_INLINE void grantSetClusterId(SMnode *pMnode) {
 }
 
 static void grantSetActiveCodes(SDnodeInfo *pInfo) {
-  if (0 != pInfo->active[0] && 0 != strncmp(grantObj.active, pInfo->active, TSDB_ACTIVE_KEY_LEN)) {
-    tstrncpy(grantObj.active, pInfo->active, TSDB_ACTIVE_KEY_LEN);
+  if (0 != pInfo->active[0] && 0 != strncmp(grantObj.active, pInfo->active, GRANT_ACTIVE_KEY_LEN + 1)) {
+    tstrncpy(grantObj.active, pInfo->active, GRANT_ACTIVE_KEY_LEN + 1);
   }
-  if (0 != pInfo->connActive[0] && 0 != strncmp(grantConnObj.active, pInfo->connActive, TSDB_CONN_ACTIVE_KEY_LEN)) {
-    tstrncpy(grantConnObj.active, pInfo->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
+  if (0 != pInfo->connActive[0] &&
+      0 != strncmp(grantConnObj.active, pInfo->connActive, GRANT_CONN_ACTIVE_KEY_LEN + 1)) {
+    tstrncpy(grantConnObj.active, pInfo->connActive, GRANT_CONN_ACTIVE_KEY_LEN + 1);
   }
 }
 
@@ -1383,7 +1384,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     pItem = grantStatus.items + CONN_TYPE_OPC_UA;
-    sprintf(tmp1, "{\"type\":\"OPC_DA\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
+    sprintf(tmp1, "{\"type\":\"OPC_UA\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
             pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
     colDataAppend(pColInfo, numOfRows, tmp, false);  // opc_ua
