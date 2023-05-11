@@ -4,7 +4,7 @@
       :is="currentName"
       :sourceList="sourceList"
       :dbsourceList="uidata"
-      :dbsource='uidata'
+      :dbsource="uidata"
       :editId="editId"
       :dbName="dbName"
       :tagName="tagName"
@@ -37,7 +37,7 @@ export default {
       editId: 0,
       dbName: "",
       isEditable: false,
-      agentID:''
+      agentID: "",
     };
   },
   created() {
@@ -84,7 +84,7 @@ export default {
             this.currentName = "ui";
             this.tagName = "pi";
             break;
-          case 'influxdb':
+          case "influxdb":
             this.currentName = "ui";
             this.tagName = "influxdb";
             break;
@@ -155,7 +155,7 @@ export default {
             targetObj["value"] =
               targetObj.alternatives && targetObj.alternatives.length > 0
                 ? targetObj.alternatives[0].name
-                : "";
+                : undefined;
           }
           if (keys === "protocol") {
             targetObj.protocol["value"] = targetObj.protocol.choices.filter(
@@ -165,14 +165,14 @@ export default {
         } else {
           targetObj[keys] = source[keys];
           if (!targetObj.hasOwnProperty.call("value")) {
-            targetObj["value"] = null;
+            targetObj["value"] = undefined;
           }
         }
       });
       return targetObj;
     },
     reloadTable() {
-      if (this.currentName == "dbsource" && this.$refs.table) {
+      if (this.currentName == "dbsource") {
         this.$nextTick(() => {
           this.$refs.table.refresh();
         });

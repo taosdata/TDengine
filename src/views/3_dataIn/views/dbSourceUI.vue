@@ -373,7 +373,7 @@
                 {{ p.display ? p.display : p.name }}
               </span>
               <div class="label-value">
-                <template v-if="p.hint === 'str' || p.hint === 'timeout'">
+                <template v-if="p.hint === 'str' || p.hint === 'timeout'||p.hint.type=='timeout'">
                   <el-input
                     v-model="p.value"
                     placeholder="Please enter "
@@ -528,7 +528,6 @@ export default {
       endOption: {
         disabledDate: (time) => endTimeOption(time),
       },
-      decryptPwd: "", //解密的密码
       disable: false,
       address: "",
       port: "",
@@ -623,7 +622,6 @@ export default {
             return;
           }
         }
-        this.decryptPwd = decrypt(localStorage.getItem("pwd"));
         if (this.tagName === "datasource") {
           if (data.authentication.value == "plain") {
             let userinfo = data.authentication.alternatives.filter(
@@ -649,7 +647,8 @@ export default {
           //     data.options.host.value ? data.options.host.value : ""
           //   }
           // `;
-        } else {
+        } 
+        else {
           dns += `://${data.options.host.value ? data.options.host.value : ""}`;
         }
 
@@ -661,12 +660,14 @@ export default {
               : ":") +
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
+       
         dns += data.options.subject.value
           ? "/" + data.options.subject.value
           : "";
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
+         
         for (let index = 0; index < data.groups.length; index++) {
           //   for (let j = 0; j < data.groups[index].params.length; j++) {
           for (let g of Object.keys(data.groups[index].params)) {
@@ -724,6 +725,12 @@ export default {
             }
           }
         }
+        if(this.tagName=='influxdb'){
+          let orginfo=data.authentication.alternatives[0].params
+          let orgId=orginfo.filter(item=>item.name=='orgId')[0].value
+          let token=orginfo.filter(item=>item.name=='token')[0].value
+          querystr+=`&orgId=${orgId}&token=${token}`
+        }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
 
         let apiParams = {
@@ -746,7 +753,6 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
-        console.log(this.$parent,'this.$parent---kkk');
         if (this.$parent.agentID) {
           apiParams["via"] = this.$parent.agentID;
         }

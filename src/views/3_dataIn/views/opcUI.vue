@@ -542,6 +542,7 @@ export default {
           })
          }
          dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+
         let piParams = {
           from:
             "opc" +this.protocol+
@@ -558,6 +559,9 @@ export default {
             (this.dbname ? "/" + this.dbname : ""),
           labels: ["type::datain", `cluster-id::${id}`,`user::${localStorage.getItem('username')}`],
         };
+        if (this.$parent.agentID) {
+            piParams["via"] = this.$parent.agentID;
+          }
         if (this.isEditable) {
           await EditSource(piParams, this.editId).then(() => {
             this.$parent.toggleComponent("opctable",this.protocol);

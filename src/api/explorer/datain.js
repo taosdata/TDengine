@@ -7,20 +7,8 @@ export function getDatain(id){
         method: "get"
     });
 }
- export function getPI(id){
-    return request({
-        baseURL:process.env.VUE_APP_X_API,
-        url: `/tasks?detail=true&labels=type::datain,cluster-id::${id}`,
-        method: "get"
-    });
- }
- export function getOPC(id){
-    return request({
-        baseURL:process.env.VUE_APP_X_API,
-        url: `/tasks?detail=true&labels=type::datain,cluster-id::${id}`,
-        method: "get"
-    });
- }
+
+
 export function getUIData(){
     return request({
         baseURL:process.env.VUE_APP_X_API,
