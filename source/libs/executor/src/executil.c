@@ -1484,18 +1484,25 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t numOfSelectFunc = 0;
+  SHashObj *pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
     if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
-      p = &pCtx[i];
-      numOfSelectFunc++;
+      void* data = taosHashGet(pSelectFuncs, &pName, strlen(pName));
+      if (taosHashGetSize(pSelectFuncs) != 0 && data == NULL) {
+        p = NULL;
+        break;
+      } else {
+        taosHashPut(pSelectFuncs, pName, strlen(pName), &num, sizeof(num));
+        p = &pCtx[i];
+      }
     }
   }
+  taosHashCleanup(pSelectFuncs);
 
-  if (p != NULL && numOfSelectFunc == 1) {
+  if (p != NULL) {
     p->subsidiaries.pCtx = pValCtx;
     p->subsidiaries.num = num;
   } else {
