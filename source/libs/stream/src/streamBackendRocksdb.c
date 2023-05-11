@@ -15,6 +15,7 @@
 
 // #include "streamStateRocksdb.h"
 #include "streamBackendRocksdb.h"
+#include "executor.h"
 #include "tcommon.h"
 
 typedef struct SCompactFilteFactory {
