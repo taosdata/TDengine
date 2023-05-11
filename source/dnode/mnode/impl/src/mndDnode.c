@@ -356,6 +356,11 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     tstrncpy(dInfo.active, pDnode->active, TSDB_ACTIVE_KEY_LEN);
     tstrncpy(dInfo.connActive, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
     sdbRelease(pSdb, pDnode);
+    if (mndIsMnode(pMnode, pDnode->id)) {
+      dInfo.isMnode = 1;
+    } else {
+      dInfo.isMnode = 0;
+    }
 
     taosArrayPush(pDnodeInfo, &dInfo);
   }
