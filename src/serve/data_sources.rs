@@ -1,6 +1,12 @@
 use std::collections::BTreeMap;
 
-use actix_web::{get, http::header::ContentType, post, web::Json, HttpResponse, Responder};
+use actix_web::{
+    get,
+    http::header::ContentType,
+    post,
+    web::{Data, Json},
+    HttpResponse, Responder,
+};
 use serde::{Deserialize, Serialize};
 
 use taosx_core::{list_datasets_from, DataSetsReq};
@@ -9,7 +15,7 @@ use utoipa::*;
 mod definition;
 pub use definition::*;
 
-use crate::serve::task::Failed;
+use crate::serve::{controller::TaskControllerRef, task::Failed};
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSourceInput {
@@ -107,8 +113,6 @@ pub(super) struct DataSets {
     r#type: Option<String>,
 }
 
-
-
 // impl DataSetsReq {
 //     pub fn datasets(&self) -> anyhow::Result<Vec<DataSets>> {
 //         let dsn: Dsn = data.from.parse()?;
@@ -116,13 +120,22 @@ pub(super) struct DataSets {
 // }
 #[utoipa::path(
     tag = "data sources",
+    request_body = DataSetsReq,
     responses(
         (status = 200, description = "Available data sources", body = Vec<DataSets>),
     ),
 )]
 #[post("/ds/in/sets")]
-pub(super) async fn data_source_collection(data: Json<DataSetsReq>) -> impl Responder {
-    match list_datasets_from(&data).await {
+pub(super) async fn data_source_collection(
+    controller: Data<TaskControllerRef>,
+    data: Json<DataSetsReq>,
+) -> impl Responder {
+    let data = data.into_inner();
+    match if let Some(agent) = data.via {
+        controller.list_datasets_via_agent(agent, data).await
+    } else {
+        list_datasets_from(&data).await
+    } {
         Ok(data) => HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(&data),

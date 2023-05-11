@@ -20,39 +20,41 @@ use serde::{Deserialize, Serialize};
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 
 use crate::plugins::runners::pi::pi_datasets;
+pub use taosx_ipc::types::*;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct DataSet {
-    id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    r#type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    options: Option<Vec<OptionSet>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    format: Option<String>,
-}
+// #[derive(Serialize, Deserialize, Clone, Debug)]
+// pub struct DataSet {
+//     id: String,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     name: Option<String>,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     category: Option<String>,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     r#type: Option<String>,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     options: Option<Vec<OptionSet>>,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     format: Option<String>,
+// }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct OptionSet {
-    name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-    required: bool,
-}
+// #[derive(Serialize, Deserialize, Clone, Debug)]
+// pub struct OptionSet {
+//     name: String,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     description: Option<String>,
+//     required: bool,
+// }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct DataSetsReq {
-    from: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pattern: Option<String>,
-    categories: Vec<String>,
-    offset: usize,
-    limit: usize,
-}
+// #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
+// pub struct DataSetsReq {
+//     from: String,
+//     pub via: Option<i64>,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pattern: Option<String>,
+//     categories: Vec<String>,
+//     offset: usize,
+//     limit: usize,
+// }
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let from = data.from.clone().into_dsn()?;
@@ -96,7 +98,7 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
             // pi
             return pi_datasets(data).await;
         }
-        "opc" => {
+        "opc" | "opcua" | "opcda" => {
             // opc
             return opc_datasets(data).await;
         }

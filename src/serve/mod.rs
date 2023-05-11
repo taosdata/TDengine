@@ -10,7 +10,8 @@ use actix_web::{
     web::{Data, ServiceConfig},
     App, HttpServer,
 };
-use utoipa::OpenApi;
+use serde::Deserialize;
+use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
 use task::*;
@@ -30,6 +31,20 @@ use crate::serve::controller::agent::{
 };
 
 use self::agent::{create_agent, delete_agent, get_agents, update_agent};
+
+
+#[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, ToSchema)]
+pub struct DataSetsReq {
+    from: String,
+    pub via: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pattern: Option<String>,
+    categories: Vec<String>,
+    offset: usize,
+    limit: usize,
+}
+
+
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
     /// Listen to ip:port address.
@@ -121,6 +136,9 @@ impl Cli {
                     AgentWithToken,
                     AgentStatus,
                     AgentConnectors,
+                    DataSetsReq,
+                    // DataSet,
+
                 ),
                 responses(
                 )

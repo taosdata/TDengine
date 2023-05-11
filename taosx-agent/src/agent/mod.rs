@@ -20,8 +20,10 @@ use arrow_flight::{
     FlightData,
 };
 use chrono::{DateTime, NaiveDate, Utc};
-use futures::TryStreamExt;
+use flume::Receiver;
+use futures::{FutureExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
+use taosx_core::{list_datasets_from, DataSet, DataSetsReq, Fail, ListResponse, RespAction};
 use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
 
@@ -153,10 +155,12 @@ impl Client {
     }
 
     pub async fn wait_tasks(&mut self, sender: flume::Sender<Action>) -> Result<()> {
-        // schema.with_metadata(metadata)
-
-        // let ipc = arrow::ipc::reader::StreamReader::try_new();
-        struct FakeStream(SchemaRef, tokio::time::Interval, Instant);
+        struct FakeStream(
+            SchemaRef,
+            tokio::time::Interval,
+            Instant,
+            Receiver<RespAction>,
+        );
 
         impl futures::Stream for FakeStream {
             type Item = Result<RecordBatch, FlightError>;
@@ -164,24 +168,74 @@ impl Client {
                 mut self: std::pin::Pin<&mut Self>,
                 cx: &mut std::task::Context<'_>,
             ) -> std::task::Poll<Option<Self::Item>> {
-                // if Instant::now() > self.2 {
-                //     return Poll::Ready(None);
-                // }
                 match self.1.poll_tick(cx) {
                     Poll::Ready(_) => (),
-                    Poll::Pending => return Poll::Pending,
+                    Poll::Pending => {
+                        let action = self.3.recv_async().poll_unpin(cx);
+                        match action {
+                            Poll::Ready(resp) => match resp {
+                                Ok(action) => match action {
+                                    RespAction::Heartbeat => todo!(),
+                                    RespAction::TaskError(_) => todo!(),
+                                    RespAction::ListError(_, _) => todo!(),
+                                    RespAction::ListOk(sets) => {
+                                        let val =
+                                            Arc::new(TimestampMillisecondArray::from_iter_values([
+                                                Utc::now().timestamp_millis(),
+                                            ]))
+                                                as ArrayRef;
+                                        let context: ArrayRef =
+                                            Arc::new(StringArray::from_iter_values([
+                                                serde_json::to_string(&sets).unwrap(),
+                                            ]));
+                                        let action: ArrayRef =
+                                            Arc::new(StringArray::from_iter_values([
+                                                "list".to_string()
+                                            ]));
+                                        let item = RecordBatch::try_from_iter(vec![
+                                            ("ts", val),
+                                            ("action", action),
+                                            ("context", context),
+                                        ])
+                                        .map_err(Into::into);
+                                        log::info!("{item:?}");
+                                        // cx.waker().wake_by_ref();
+                                        return std::task::Poll::Ready(Some(item));
+                                    }
+                                },
+                                Err(_) => {
+                                    // cx.waker().wake_by_ref();
+                                    return Poll::Pending;
+                                }
+                            },
+                            Poll::Pending => {
+                                // cx.waker().wake_by_ref();
+                                return Poll::Pending;
+                            }
+                        }
+                    }
                 }
                 // fut.poll_unpin(cx);
                 let val = Arc::new(TimestampMillisecondArray::from_iter_values([
                     Utc::now().timestamp_millis()
                 ])) as ArrayRef;
-                let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
+                let context: ArrayRef = Arc::new(StringArray::from_iter([Option::<String>::None]));
+                let action: ArrayRef =
+                    Arc::new(StringArray::from_iter_values(["heartbeat".to_string()]));
+                let item = RecordBatch::try_from_iter(vec![
+                    ("ts", val),
+                    ("action", action),
+                    ("context", context),
+                ])
+                .map_err(Into::into);
                 log::info!("{item:?}");
+                cx.waker().wake_by_ref();
                 std::task::Poll::Ready(Some(item))
             }
         }
         struct Data {
             data: FlightDataEncoder,
+
             counter: AtomicU64,
         }
         impl futures::Stream for Data {
@@ -211,16 +265,21 @@ impl Client {
         }
 
         let schema = Arc::new(
-            Schema::new(vec![Field::new(
-                "ts",
-                DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
-                false,
-            )])
+            Schema::new(vec![
+                Field::new(
+                    "ts",
+                    DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
+                    false,
+                ),
+                Field::new("action", DataType::Utf8, false),
+                Field::new("context", DataType::Utf8, true),
+            ])
             .with_metadata(HashMap::from_iter([(
                 "x-task-id".to_string(),
                 "1".to_string(),
             )])),
         );
+        let (resp_tx, resp_rx) = flume::unbounded();
         let data = FlightDataEncoderBuilder::new()
             .with_schema(schema.clone())
             .with_options(
@@ -230,6 +289,7 @@ impl Client {
                 schema.clone(),
                 tokio::time::interval(Duration::from_secs(60)),
                 Instant::now(),
+                resp_rx,
             ));
 
         let req = Data {
@@ -241,7 +301,7 @@ impl Client {
         // .into_inner();
 
         while let Some(res) = stream.try_next().await? {
-            dbg!(&res);
+            // dbg!(&res);
             let rows = res.num_rows();
             let ts = res
                 .column(0)
@@ -282,6 +342,11 @@ impl Client {
                         info!("Stop task {}", task.id);
                         sender.send(Action::Cancel(task.id)).unwrap();
                         // let task:
+                    }
+                    "list" => {
+                        let req: DataSetsReq = serde_json::from_str(&context).unwrap();
+                        let sets = list_datasets_from(&req).await.map_err(Fail::new);
+                        let _ = resp_tx.send(RespAction::ListOk(ListResponse { req, res: sets }));
                     }
                     "heartbeat" => {
                         //

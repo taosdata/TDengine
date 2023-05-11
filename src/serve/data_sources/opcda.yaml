@@ -46,7 +46,6 @@ datasets:
       selectable: true
 
 groups:
-
   - name: Connection
     display_order: 2
     description: Some configurations used in connecting step.

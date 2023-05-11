@@ -2,6 +2,8 @@ pub mod ack;
 
 pub mod stream;
 
+pub mod types;
+
 pub(crate) mod constants {
     pub const __TYPE__: &str = "__type__";
     pub const __TABLES__: &str = "__tables__";
