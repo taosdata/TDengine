@@ -21,7 +21,7 @@ static int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq
 
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
   char buf[128] = {0};
-  sprintf(buf, "0x%" PRIx64 "-%d", streamId, taskId);
+  sprintf(buf, "0x%" PRIx64 "-0x%x", streamId, taskId);
   return taosStrdup(buf);
 }
 

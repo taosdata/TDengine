@@ -672,8 +672,8 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, const char* idstr) {
           SColVal colVal;
           tRowGet(pRow, pTSchema, sourceIdx, &colVal);
           if (colVal.cid < pColData->info.colId) {
-            tqDebug("colIndex:%d column id:%d in row, ignore, the required colId:%d, total cols in schema:%d",
-                    sourceIdx, colVal.cid, pColData->info.colId, pTSchema->numOfCols);
+//            tqDebug("colIndex:%d column id:%d in row, ignore, the required colId:%d, total cols in schema:%d",
+//                    sourceIdx, colVal.cid, pColData->info.colId, pTSchema->numOfCols);
             sourceIdx++;
             continue;
           } else if (colVal.cid == pColData->info.colId) {

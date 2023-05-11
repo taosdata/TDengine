@@ -2110,7 +2110,7 @@ FETCH_NEXT_BLOCK:
     pInfo->numOfExec++;
     pOperator->resultInfo.totalRows += pBlockInfo->rows;
 
-    qDebug("scan rows: %" PRId64, pBlockInfo->rows);
+    qDebug("scan rows: %" PRId64", %s", pBlockInfo->rows, pTaskInfo->id.str);
     if (pBlockInfo->rows > 0) {
       return pInfo->pRes;
     }
