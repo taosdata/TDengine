@@ -784,7 +784,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
     // restore initial value for next group
     resetTimesliceInfo(pSliceInfo);
-    break;
+    if (pResBlock->info.rows >= 4096) {
+      break;
+    }
   }
 
   // restore the value
