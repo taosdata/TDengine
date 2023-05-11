@@ -42,6 +42,14 @@ int32_t tsdbSttFSegReadStatisBlock(SSttFSegReader *pSegReader, const void *pBloc
 int32_t tsdbSttFSegReadDelBlock(SSttFSegReader *pSegReader, const void *pBlock);
 int32_t tsdbSttFSegReadSttBlock(SSttFSegReader *pSegReader, const void *pBlock);
 
+struct SSttFileReaderConfig {
+  STsdb    *pTsdb;
+  SSkmInfo *pSkmTb;
+  SSkmInfo *pSkmRow;
+  uint8_t **aBuf;
+  // TODO
+};
+
 // SSttFWriter ==========================================
 typedef struct SSttFileWriter       SSttFileWriter;
 typedef struct SSttFileWriterConfig SSttFileWriterConfig;
@@ -51,7 +59,6 @@ int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct STFi
 int32_t tsdbSttFWriteTSData(SSttFileWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
 int32_t tsdbSttFWriteDLData(SSttFileWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
 
-/* ------------------------------------------------- */
 struct SSttFileWriterConfig {
   STsdb    *pTsdb;
   STFile    file;
@@ -61,14 +68,6 @@ struct SSttFileWriterConfig {
   SSkmInfo *pSkmTb;
   SSkmInfo *pSkmRow;
   uint8_t **aBuf;
-};
-
-struct SSttFileReaderConfig {
-  STsdb    *pTsdb;
-  SSkmInfo *pSkmTb;
-  SSkmInfo *pSkmRow;
-  uint8_t **aBuf;
-  // TODO
 };
 
 #ifdef __cplusplus

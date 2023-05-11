@@ -132,3 +132,9 @@ int32_t tsdbEditFileSet(struct STFileSet *pFileSet, const struct STFileOp *pOp) 
   // TODO
   return code;
 }
+
+int32_t tsdbFSetCmprFn(const STFileSet *pSet1, const STFileSet *pSet2) {
+  if (pSet1->fid < pSet2->fid) return -1;
+  if (pSet1->fid > pSet2->fid) return 1;
+  return 0;
+}

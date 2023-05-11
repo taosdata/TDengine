@@ -48,8 +48,8 @@ struct STFile {
 
   tsdb_ftype_t type;
   SDiskID      did;
-  int32_t      fid;
-  int64_t      cid;
+  int32_t      fid;  // file id
+  int64_t      cid;  // commit id
   int64_t      size;
   union {
     struct {

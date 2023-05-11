@@ -35,9 +35,12 @@ typedef enum {
 int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback);
 int32_t tsdbCloseFS(STFileSystem **ppFS);
 // txn
-int32_t tsdbFSEditBegin(STFileSystem *pFS, const SArray *aFileOp, EFEditT etype);
+int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid);
+int32_t tsdbFSEditBegin(STFileSystem *fs, int64_t eid, const SArray *aFileOp, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *pFS);
 int32_t tsdbFSEditAbort(STFileSystem *pFS);
+// other
+int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **ppFSet);
 
 /* Exposed Structs */
 struct STFileSystem {

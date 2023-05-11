@@ -29,14 +29,15 @@ typedef struct {
 
   SArray *aTbDataP;  // SArray<STbData *>
   SArray *aFileOp;   // SArray<STFileOp>
+  int64_t eid;       // edit id
 
   // context
-  TSKEY      nextKey;
-  int32_t    fid;
-  int32_t    expLevel;
-  TSKEY      minKey;
-  TSKEY      maxKey;
-  STFileSet *pFileSet;
+  TSKEY            nextKey;
+  int32_t          fid;
+  int32_t          expLevel;
+  TSKEY            minKey;
+  TSKEY            maxKey;
+  const STFileSet *pFileSet;
 
   // writer
   SSttFileWriter *pWriter;
@@ -44,14 +45,14 @@ typedef struct {
 
 static int32_t open_committer_writer(SCommitter *pCommitter) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
+  STsdb  *pTsdb = pCommitter->pTsdb;
+  int32_t vid = TD_VID(pTsdb->pVnode);
 
-  STsdb *pTsdb = pCommitter->pTsdb;
-
-  SSttFileWriterConfig conf = {
+  SSttFileWriterConfig config = {
       .pTsdb = pCommitter->pTsdb,
       .maxRow = pCommitter->maxRow,
-      .szPage = pCommitter->pTsdb->pVnode->config.tsdbPageSize,
+      .szPage = pTsdb->pVnode->config.tsdbPageSize,
       .cmprAlg = pCommitter->cmprAlg,
       .pSkmTb = NULL,
       .pSkmRow = NULL,
@@ -59,41 +60,39 @@ static int32_t open_committer_writer(SCommitter *pCommitter) {
   };
 
   if (pCommitter->pFileSet) {
-    ASSERTS(0, "TODO: Not implemented yet");
+    // TODO
+    ASSERT(0);
   } else {
-    conf.file.type = TSDB_FTYPE_STT;
+    config.file.type = TSDB_FTYPE_STT;
 
-    if (tfsAllocDisk(pTsdb->pVnode->pTfs, pCommitter->expLevel, &conf.file.did) < 0) {
+    if (tfsAllocDisk(pTsdb->pVnode->pTfs, pCommitter->expLevel, &config.file.did) < 0) {
       code = TSDB_CODE_FS_NO_VALID_DISK;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    conf.file.size = 0;
-    conf.file.cid = 1;
-    conf.file.fid = pCommitter->fid;
+    config.file.fid = pCommitter->fid;
+    config.file.cid = pCommitter->eid;
+    config.file.size = 0;
+    config.file.stt.lvl = 0;
+    config.file.stt.nseg = 0;
 
-    tsdbTFileInit(pTsdb, &conf.file);
+    tsdbTFileInit(pTsdb, &config.file);
   }
 
-  code = tsdbSttFWriterOpen(&conf, &pCommitter->pWriter);
+  code = tsdbSttFWriterOpen(&config, &pCommitter->pWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    tsdbError(                                            //
-        "vgId:%d %s failed at line %d since %s, fid:%d",  //
-        TD_VID(pCommitter->pTsdb->pVnode),                //
-        __func__,                                         //
-        lino,                                             //
-        tstrerror(code),                                  //
-        pCommitter->fid);
+    tsdbError("vgId:%d %s failed at line %d since %s, fid:%d", vid, __func__, lino, tstrerror(code), pCommitter->fid);
   }
   return code;
 }
 
 static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, TABLEID *tbid, TSDBROW *pRow) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
+  int32_t vid = TD_VID(pCommitter->pTsdb->pVnode);
 
   if (pCommitter->pWriter == NULL) {
     code = open_committer_writer(pCommitter);
@@ -105,20 +104,10 @@ static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, TABLEID *tbid, TSDB
 
 _exit:
   if (code) {
-    tsdbError(                                 //
-        "vgId:%d failed at line %d since %s",  //
-        TD_VID(pCommitter->pTsdb->pVnode),     //
-        lino,                                  //
-        tstrerror(code));
+    tsdbError("vgId:%d failed at line %d since %s", vid, lino, tstrerror(code));
   } else {
-    tsdbTrace("vgId:%d %s done, fid:%d suid:%" PRId64 " uid:%" PRId64 " ts:%" PRId64 " version:%" PRId64,  //
-              TD_VID(pCommitter->pTsdb->pVnode),                                                           //
-              __func__,                                                                                    //
-              pCommitter->fid,                                                                             //
-              tbid->suid,                                                                                  //
-              tbid->uid,                                                                                   //
-              TSDBROW_KEY(pRow).ts,                                                                        //
-              TSDBROW_KEY(pRow).version);
+    tsdbTrace("vgId:%d %s done, fid:%d suid:%" PRId64 " uid:%" PRId64 " ts:%" PRId64 " version:%" PRId64, vid, __func__,
+              pCommitter->fid, tbid->suid, tbid->uid, TSDBROW_KEY(pRow).ts, TSDBROW_KEY(pRow).version);
   }
   return 0;
 }
@@ -131,15 +120,14 @@ static int32_t tsdbCommitWriteDelData(SCommitter *pCommitter, int64_t suid, int6
 }
 
 static int32_t commit_timeseries_data(SCommitter *pCommitter) {
-  int32_t code = 0;
-  int32_t lino;
-
+  int32_t    code = 0;
+  int32_t    lino = 0;
   int64_t    nRow = 0;
-  SMemTable *pMem = pCommitter->pTsdb->imem;
+  STsdb     *pTsdb = pCommitter->pTsdb;
+  int32_t    vid = TD_VID(pTsdb->pVnode);
+  SMemTable *pMem = pTsdb->imem;
 
-  if (pMem->nRow == 0) {  // no time-series data to commit
-    goto _exit;
-  }
+  if (pMem->nRow == 0) goto _exit;
 
   TSDBKEY from = {.ts = pCommitter->minKey, .version = VERSION_MIN};
   for (int32_t iTbData = 0; iTbData < taosArrayGetSize(pCommitter->aTbDataP); iTbData++) {
@@ -165,19 +153,9 @@ static int32_t commit_timeseries_data(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError(                                    //
-        "vgId:%d %s failed at line %d since %s",  //
-        TD_VID(pCommitter->pTsdb->pVnode),        //
-        __func__,                                 //
-        lino,                                     //
-        tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
   } else {
-    tsdbDebug(                                    //
-        "vgId:%d %s done, fid:%d nRow:%" PRId64,  //
-        TD_VID(pCommitter->pTsdb->pVnode),        //
-        __func__,                                 //
-        pCommitter->fid,                          //
-        nRow);
+    tsdbDebug("vgId:%d %s done, fid:%d nRow:%" PRId64, vid, __func__, pCommitter->fid, nRow);
   }
   return code;
 }
@@ -185,6 +163,8 @@ _exit:
 static int32_t commit_delete_data(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino;
+
+  return 0;
 
   ASSERTS(0, "TODO: Not implemented yet");
 
@@ -221,29 +201,27 @@ _exit:
   return code;
 }
 
-static int32_t start_commit_file_set(SCommitter *pCommitter) {
+static int32_t commit_fset_start(SCommitter *pCommitter) {
+  STsdb  *pTsdb = pCommitter->pTsdb;
+  int32_t vid = TD_VID(pTsdb->pVnode);
+
   pCommitter->fid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
   tsdbFidKeyRange(pCommitter->fid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
                   &pCommitter->maxKey);
-  pCommitter->expLevel = tsdbFidLevel(pCommitter->fid, &pCommitter->pTsdb->keepCfg, taosGetTimestampSec());
+  pCommitter->expLevel = tsdbFidLevel(pCommitter->fid, &pTsdb->keepCfg, taosGetTimestampSec());
   pCommitter->nextKey = TSKEY_MAX;
 
-  pCommitter->pFileSet = NULL;  // TODO: need to search the file system
+  tsdbFSGetFSet(pTsdb->pFS, pCommitter->fid, &pCommitter->pFileSet);
 
-  tsdbDebug(                                                                        //
-      "vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64 " expLevel:%d",  //
-      TD_VID(pCommitter->pTsdb->pVnode),                                            //
-      __func__,                                                                     //
-      pCommitter->fid,                                                              //
-      pCommitter->minKey,                                                           //
-      pCommitter->maxKey,                                                           //
-      pCommitter->expLevel);
+  tsdbDebug("vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64 " expLevel:%d", vid, __func__, pCommitter->fid,
+            pCommitter->minKey, pCommitter->maxKey, pCommitter->expLevel);
   return 0;
 }
 
-static int32_t end_commit_file_set(SCommitter *pCommitter) {
+static int32_t commit_fset_end(SCommitter *pCommitter) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
+  int32_t vid = TD_VID(pCommitter->pTsdb->pVnode);
 
   if (pCommitter->pWriter == NULL) return 0;
 
@@ -253,60 +231,43 @@ static int32_t end_commit_file_set(SCommitter *pCommitter) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  TSDB_CHECK_CODE(                 //
-      code = tsdbSttFWriterClose(  //
-          &pCommitter->pWriter,    //
-          0,                       //
-          pFileOp),                //
-      lino,                        //
-      _exit);
+  code = tsdbSttFWriterClose(&pCommitter->pWriter, 0, pFileOp);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    tsdbError(                                 //
-        "vgId:%d failed at line %d since %s",  //
-        TD_VID(pCommitter->pTsdb->pVnode),     //
-        lino,                                  //
-        tstrerror(code));
+    tsdbError("vgId:%d failed at line %d since %s", vid, lino, tstrerror(code));
   } else {
-    tsdbDebug(                              //
-        "vgId:%d %s done, fid:%d",          //
-        TD_VID(pCommitter->pTsdb->pVnode),  //
-        __func__,                           //
-        pCommitter->fid);
+    tsdbDebug("vgId:%d %s done, fid:%d", vid, __func__, pCommitter->fid);
   }
   return code;
 }
 
-static int32_t commit_next_file_set(SCommitter *pCommitter) {
+static int32_t commit_fset(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t vid = TD_VID(pCommitter->pTsdb->pVnode);
 
   // fset commit start
-  code = start_commit_file_set(pCommitter);
+  code = commit_fset_start(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // commit fset
   code = commit_timeseries_data(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  /* TODO
   code = commit_delete_data(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
-  */
 
   // fset commit end
-  code = end_commit_file_set(pCommitter);
+  code = commit_fset_end(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    tsdbError(                                    //
-        "vgId:%d %s failed at line %d since %s",  //
-        TD_VID(pCommitter->pTsdb->pVnode),        //
-        __func__,                                 //
-        lino,                                     //
-        tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+  } else {
+    tsdbDebug("vgId:%d %s done", vid, __func__);
   }
   return code;
 }
@@ -332,6 +293,7 @@ static int32_t open_committer(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *pCom
     taosArrayDestroy(pCommitter->aFileOp);
     TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
+  tsdbFSAllocEid(pTsdb->pFS, &pCommitter->eid);
 
   // start loop
   pCommitter->nextKey = pTsdb->imem->minKey;  // TODO
@@ -347,35 +309,27 @@ _exit:
 
 static int32_t close_committer(SCommitter *pCommiter, int32_t eno) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
+  int32_t vid = TD_VID(pCommiter->pTsdb->pVnode);
 
   if (eno == 0) {
-    TSDB_CHECK_CODE(                //
-        code = tsdbFSEditBegin(     //
-            pCommiter->pTsdb->pFS,  //
-            pCommiter->aFileOp,     //
-            TSDB_FEDIT_COMMIT),
-        lino,  //
-        _exit);
+    code = tsdbFSEditBegin(pCommiter->pTsdb->pFS, pCommiter->eid, pCommiter->aFileOp, TSDB_FEDIT_COMMIT);
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    ASSERTS(0, "TODO: Not implemented yet");
+    // TODO
+    ASSERT(0);
   }
 
-  // TODO: clear the committer
+  ASSERT(pCommiter->pWriter == NULL);
+  taosArrayDestroy(pCommiter->aTbDataP);
+  taosArrayDestroy(pCommiter->aFileOp);
 
 _exit:
   if (code) {
-    tsdbError(                                    //
-        "vgId:%d %s failed at line %d since %s",  //
-        TD_VID(pCommiter->pTsdb->pVnode),         //
-        __func__,                                 //
-        lino,                                     //
-        tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s, eid:%" PRId64, vid, __func__, lino, tstrerror(code),
+              pCommiter->eid);
   } else {
-    tsdbDebug(                             //
-        "vgId:%d %s done",                 //
-        TD_VID(pCommiter->pTsdb->pVnode),  //
-        __func__);
+    tsdbDebug("vgId:%d %s done, eid:%" PRId64, vid, __func__, pCommiter->eid);
   }
   return code;
 }
@@ -408,8 +362,11 @@ int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
 
     while (committer.nextKey != TSKEY_MAX) {
-      code = commit_next_file_set(&committer);
-      if (code) break;
+      code = commit_fset(&committer);
+      if (code) {
+        lino = __LINE__;
+        break;
+      }
     }
 
     code = close_committer(&committer, code);
@@ -427,37 +384,28 @@ _exit:
 }
 
 int32_t tsdbCommitCommit(STsdb *pTsdb) {
-  int32_t    code = 0;
-  int32_t    lino = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t vid = TD_VID(pTsdb->pVnode);
+
+  if (pTsdb->imem == NULL) goto _exit;
+
   SMemTable *pMemTable = pTsdb->imem;
-
-  // lock
   taosThreadRwlockWrlock(&pTsdb->rwLock);
-
   code = tsdbFSEditCommit(pTsdb->pFS);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
   pTsdb->imem = NULL;
-
-  // unlock
   taosThreadRwlockUnlock(&pTsdb->rwLock);
-  if (pMemTable) {
-    tsdbUnrefMemTable(pMemTable, NULL, true);
-  }
+  tsdbUnrefMemTable(pMemTable, NULL, true);
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s",  //
-              TD_VID(pTsdb->pVnode),                     //
-              __func__,                                  //
-              lino,                                      //
-              tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d %s done",  //
-             TD_VID(pTsdb->pVnode), __func__);
+    tsdbInfo("vgId:%d %s done", vid, __func__);
   }
   return code;
 }
@@ -465,21 +413,18 @@ _exit:
 int32_t tsdbCommitAbort(STsdb *pTsdb) {
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t vid = TD_VID(pTsdb->pVnode);
+
+  if (pTsdb->imem == NULL) goto _exit;
 
   code = tsdbFSEditAbort(pTsdb->pFS);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s",  //
-              TD_VID(pTsdb->pVnode),                     //
-              __func__,                                  //
-              lino,                                      //
-              tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d %s done",      //
-             TD_VID(pTsdb->pVnode),  //
-             __func__);
+    tsdbInfo("vgId:%d %s done", vid, __func__);
   }
   return code;
 }

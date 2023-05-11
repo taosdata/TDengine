@@ -470,27 +470,20 @@ static int32_t destroy_stt_fwriter(SSttFileWriter *pWriter) {
 
 static int32_t open_stt_fwriter(SSttFileWriter *pWriter) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
+  int32_t vid = TD_VID(pWriter->config.pTsdb->pVnode);
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};
 
   int32_t flag = TD_FILE_READ | TD_FILE_WRITE;
   if (pWriter->tFile.size == 0) {
-    flag |= TD_FILE_CREATE | TD_FILE_TRUNC;
+    flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
   }
 
-  code = tsdbOpenFile(             //
-      pWriter->config.file.fname,  //
-      pWriter->config.szPage,      //
-      flag,                        //
-      &pWriter->pFd);
+  code = tsdbOpenFile(pWriter->config.file.fname, pWriter->config.szPage, flag, &pWriter->pFd);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pWriter->tFile.size == 0) {
-    code = tsdbWriteFile(  //
-        pWriter->pFd,      //
-        0,                 //
-        hdr,               //
-        sizeof(hdr));
+    code = tsdbWriteFile(pWriter->pFd, 0, hdr, sizeof(hdr));
     TSDB_CHECK_CODE(code, lino, _exit);
 
     pWriter->tFile.size += sizeof(hdr);
@@ -498,23 +491,11 @@ static int32_t open_stt_fwriter(SSttFileWriter *pWriter) {
 
 _exit:
   if (code) {
-    if (pWriter->pFd) {
-      tsdbCloseFile(&pWriter->pFd);
-    }
-    tsdbError(                                    //
-        "vgId:%d %s failed at line %d since %s",  //
-        TD_VID(pWriter->config.pTsdb->pVnode),    //
-        __func__,                                 //
-        lino,                                     //
-        tstrerror(code));
+    if (pWriter->pFd) tsdbCloseFile(&pWriter->pFd);
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
   } else {
-    tsdbDebug(                                      //
-        "vgId:%d %s done, fname:%s size:%" PRId64,  //
-        TD_VID(pWriter->config.pTsdb->pVnode),      //
-        __func__,                                   //
-        pWriter->config.file.fname,                 //
-        pWriter->config.file.size                   //
-    );
+    tsdbDebug("vgId:%d %s done, fname:%s size:%" PRId64, vid, __func__, pWriter->config.file.fname,
+              pWriter->config.file.size);
   }
   return code;
 }
@@ -526,7 +507,8 @@ static int32_t close_stt_fwriter(SSttFileWriter *pWriter) {
 
 int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *pConf, SSttFileWriter **ppWriter) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
+  int32_t vid = TD_VID(pConf->pTsdb->pVnode);
 
   code = create_stt_fwriter(pConf, ppWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -536,15 +518,11 @@ int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *pConf, SSttFileWriter **p
 
 _exit:
   if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
     if (ppWriter[0]) {
       destroy_stt_fwriter(ppWriter[0]);
+      ppWriter[0] = NULL;
     }
-    tsdbError(                                    //
-        "vgId:%d %s failed at line %d since %s",  //
-        TD_VID(pConf->pTsdb->pVnode),             //
-        __func__,                                 //
-        lino,                                     //
-        tstrerror(code));
   }
   return code;
 }
@@ -552,59 +530,41 @@ _exit:
 int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct STFileOp *op) {
   int32_t vgId = TD_VID(ppWriter[0]->config.pTsdb->pVnode);
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
 
   if (!abort) {
     if (ppWriter[0]->bData.nRow > 0) {
-      TSDB_CHECK_CODE(                                 //
-          code = write_timeseries_block(ppWriter[0]),  //
-          lino,                                        //
-          _exit);
+      code = write_timeseries_block(ppWriter[0]);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (ppWriter[0]->sData.nRow > 0) {
-      TSDB_CHECK_CODE(                                 //
-          code = write_statistics_block(ppWriter[0]),  //
-          lino,                                        //
-          _exit);
+      code = write_statistics_block(ppWriter[0]);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (ppWriter[0]->dData.nRow > 0) {
-      TSDB_CHECK_CODE(                             //
-          code = write_delete_block(ppWriter[0]),  //
-          lino,                                    //
-          _exit);
+      code = write_delete_block(ppWriter[0]);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    TSDB_CHECK_CODE(                        //
-        code = write_stt_blk(ppWriter[0]),  //
-        lino,                               //
-        _exit);
+    code = write_stt_blk(ppWriter[0]);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-    TSDB_CHECK_CODE(                               //
-        code = write_statistics_blk(ppWriter[0]),  //
-        lino,                                      //
-        _exit);
+    code = write_statistics_blk(ppWriter[0]);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-    TSDB_CHECK_CODE(                        //
-        code = write_del_blk(ppWriter[0]),  //
-        lino,                               //
-        _exit);
+    code = write_del_blk(ppWriter[0]);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-    TSDB_CHECK_CODE(                            //
-        code = write_file_footer(ppWriter[0]),  //
-        lino,                                   //
-        _exit);
+    code = write_file_footer(ppWriter[0]);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-    TSDB_CHECK_CODE(                            //
-        code = write_file_header(ppWriter[0]),  //
-        lino,                                   //
-        _exit);
+    code = write_file_header(ppWriter[0]);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-    TSDB_CHECK_CODE(                             //
-        code = tsdbFsyncFile(ppWriter[0]->pFd),  //
-        lino,                                    //
-        _exit);
+    code = tsdbFsyncFile(ppWriter[0]->pFd);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     if (op) {
       op->fid = ppWriter[0]->config.file.fid;
@@ -618,10 +578,8 @@ int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct STFi
     }
   }
 
-  TSDB_CHECK_CODE(                            //
-      code = close_stt_fwriter(ppWriter[0]),  //
-      lino,                                   //
-      _exit);
+  code = close_stt_fwriter(ppWriter[0]);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   destroy_stt_fwriter(ppWriter[0]);
   ppWriter[0] = NULL;

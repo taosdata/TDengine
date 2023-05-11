@@ -69,8 +69,8 @@ static int32_t tsdbCloseMerger(SMerger *pMerger) {
 
   STsdb *pTsdb = pMerger->pTsdb;
 
-  code = tsdbFSEditBegin(pTsdb->pFS, pMerger->aFileOp, TSDB_FEDIT_MERGE);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  // code = tsdbFSEditBegin(pTsdb->pFS, pMerger->aFileOp, TSDB_FEDIT_MERGE);
+  // TSDB_CHECK_CODE(code, lino, _exit)
 
 _exit:
   if (code) {

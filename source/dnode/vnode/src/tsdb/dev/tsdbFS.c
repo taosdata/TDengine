@@ -435,50 +435,17 @@ static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
   int32_t code = 0;
   int32_t lino;
 
-  taosArrayClearEx(pFS->nstate, NULL /* TODO */);
-
-  // TODO: copy current state to new state
-
+  STFileSet *pSet = NULL;
   for (int32_t iop = 0; iop < taosArrayGetSize(aFileOp); iop++) {
-    struct STFileOp *pOp = taosArrayGet(aFileOp, iop);
+    struct STFileOp *op = taosArrayGet(aFileOp, iop);
 
-    struct STFileSet tmpSet = {.fid = pOp->fid};
-
-    int32_t idx = taosArraySearchIdx(  //
-        pFS->nstate,                   //
-        &tmpSet,                       //
-        (__compar_fn_t)fset_cmpr_fn,   //
-        TD_GE);
-
-    struct STFileSet *pSet;
-    if (idx < 0) {
-      pSet = NULL;
-      idx = taosArrayGetSize(pFS->nstate);
-    } else {
-      pSet = taosArrayGet(pFS->nstate, idx);
+    if (pSet == NULL || pSet->fid != op->fid) {
+      STFileSet fset = {.fid = op->fid};
+      pSet = taosArraySearch(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_EQ);
     }
 
-    if (pSet == NULL || pSet->fid != pOp->fid) {
-      ASSERTS(pOp->op == TSDB_FOP_CREATE, "BUG: Invalid file operation");
-      TSDB_CHECK_CODE(                                //
-          code = tsdbFileSetCreate(pOp->fid, &pSet),  //
-          lino,                                       //
-          _exit);
-
-      if (taosArrayInsert(pFS->nstate, idx, pSet) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    }
-
-    // do opration on file set
-    TSDB_CHECK_CODE(                        //
-        code = tsdbFileSetEdit(pSet, pOp),  //
-        lino,                               //
-        _exit);
+    // TODO
   }
-
-  // TODO: write new state to file
 
 _exit:
   return 0;
@@ -511,7 +478,12 @@ int32_t tsdbCloseFS(STFileSystem **ppFS) {
   return 0;
 }
 
-int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype) {
+int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid) {
+  eid[0] = ++pFS->neid;  // TODO: use atomic operation
+  return 0;
+}
+
+int32_t tsdbFSEditBegin(STFileSystem *fs, int64_t eid, const SArray *aFileOp, EFEditT etype) {
   int32_t code = 0;
   int32_t lino;
   char    current_t[TSDB_FILENAME_LEN];
@@ -525,7 +497,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype) 
   tsem_wait(&fs->canEdit);
 
   fs->etype = etype;
-  fs->eid = ++fs->neid;
+  fs->eid = eid;
 
   // edit
   code = edit_fs(fs, aFileOp);
@@ -555,4 +527,10 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
   int32_t code = abort_edit(fs);
   tsem_post(&fs->canEdit);
   return code;
+}
+
+int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **ppFSet) {
+  STFileSet fset = {.fid = fid};
+  ppFSet[0] = taosArraySearch(fs->cstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_EQ);
+  return 0;
 }

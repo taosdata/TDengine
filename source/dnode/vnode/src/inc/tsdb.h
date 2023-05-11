@@ -354,21 +354,19 @@ typedef struct {
 } SRocksCache;
 
 struct STsdb {
-  char          *path;
-  SVnode        *pVnode;
-  STsdbKeepCfg   keepCfg;
-  TdThreadRwlock rwLock;
-  SMemTable     *mem;
-  SMemTable     *imem;
-  STsdbFS        fs;
-  SLRUCache     *lruCache;
-  TdThreadMutex  lruMutex;
-  SLRUCache     *biCache;
-  TdThreadMutex  biMutex;
-#ifdef USE_DEV_CODE
+  char                *path;
+  SVnode              *pVnode;
+  STsdbKeepCfg         keepCfg;
+  TdThreadRwlock       rwLock;
+  SMemTable           *mem;
+  SMemTable           *imem;
+  STsdbFS              fs;
+  SLRUCache           *lruCache;
+  TdThreadMutex        lruMutex;
+  SLRUCache           *biCache;
+  TdThreadMutex        biMutex;
   struct STFileSystem *pFS;
-#endif
-  SRocksCache rCache;
+  SRocksCache          rCache;
 };
 
 struct TSDBKEY {
