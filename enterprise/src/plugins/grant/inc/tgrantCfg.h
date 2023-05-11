@@ -22,7 +22,7 @@ extern "C" {
 
 #include <machine.h>
 
-#define GRANTS_COL_MAX_LEN 128
+#define GRANTS_COL_MAX_LEN 196
 
 #define GRANTS_SCHEMA                                                                                         \
   static const SSysDbTableSchema grantsSchema[] = {                                                           \
