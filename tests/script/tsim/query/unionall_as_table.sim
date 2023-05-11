@@ -35,4 +35,11 @@ endi
 if $data00 != 4 then
   return -1
 endi
+sql select count(*) from (select * from ct1 union select * from ct2)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
