@@ -15,6 +15,7 @@
 
 #include "tstreamFileState.h"
 
+#include "query.h"
 #include "streamBackendRocksdb.h"
 #include "taos.h"
 #include "tcommon.h"
@@ -154,9 +155,7 @@ void streamFileStateClear(SStreamFileState* pFileState) {
   clearExpiredRowBuff(pFileState, 0, true);
 }
 
-bool needClearDiskBuff(SStreamFileState* pFileState) {
-  return pFileState->flushMark > 0;
-}
+bool needClearDiskBuff(SStreamFileState* pFileState) { return pFileState->flushMark > 0; }
 
 void popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, uint64_t max, bool used) {
   uint64_t  i = 0;
