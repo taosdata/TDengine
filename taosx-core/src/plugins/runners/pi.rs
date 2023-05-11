@@ -57,8 +57,8 @@ struct PiConfig {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     template_for_af_element: Vec<String>,
     #[serde(rename = "PointList")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    point_list: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    point_list: Vec<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -132,15 +132,15 @@ impl PiConfig {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect_vec();
-        // let point_list = dsn.remove("Points").map(|s| Path::new(&s).to_path_buf());
-        let point_list = super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(",")).map_err(|err| PiError::ParseKeyValueError("PointList", err))?;
+        let point_list = super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(",")).map_err(|err| PiError::ParseKeyValueError("PointList", err))?.unwrap_or_default().split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect_vec();
 
         let ipc_stream = format!("127.0.0.1:{ipc}");
         let sql_api = format!("http://127.0.0.1:{sql}");
 
-        // let point_list
-
-        // dsn.addresses
         Ok(Self {
             server_name,
             system_name,
