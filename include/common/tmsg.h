@@ -1625,6 +1625,21 @@ typedef struct {
 int32_t tSerializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
 int32_t tDeserializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
 
+enum {
+  RESTORE_TYPE__ALL = 1,
+  RESTORE_TYPE__MNODE,
+  RESTORE_TYPE__VNODE,
+  RESTORE_TYPE__QNODE,
+};
+
+typedef struct {
+  int32_t dnodeId;
+  int8_t  restoreType;
+} SRestoreDnodeReq;
+
+int32_t tSerializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
+int32_t tDeserializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
+
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
