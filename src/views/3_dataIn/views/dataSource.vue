@@ -127,7 +127,7 @@
 </template>
 <script>
 import { Message } from "element-ui";
-import { getDatain, getOPC, getPI } from "@/api/explorer/datain";
+import { getDatain } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 export default {
@@ -170,13 +170,11 @@ export default {
     handlePageChange() {},
     //非root用户不能修改root下创建的数据源
     getEditStatus(data) {
-      console.log(data,'判断状态---');
       if (data) {
         let result = data
           .filter((item) => item.includes("user"))
           .toString()
           .split("::");
-          console.log(result,'---00',localStorage.getItem("username"),result[1] == localStorage.getItem("username"));
         if (result[1] == localStorage.getItem("username")) {
           return true;
         } else {
@@ -244,43 +242,8 @@ export default {
         return Promise.reject(err);
       }
     },
-    async getOPCList() {
-      try {
-        this.topicList = [];
-        let id = localStorage.getItem("local_clusterID");
-        await getOPC(id).then((res) => {
-          if (res) {
-            this.topicList = res.map((item) => {
-              item["localname"] = item.name ? item.name : "opc+" + item.id;
-              item["localtype"] = item.from_detail ? item.from_detail.name : "";
-              item["target"] = item.to_expand ? item.to_expand.subject : "";
-              return item;
-            });
-          }
-        });
-      } catch (err) {
-        // err.desc && Message.error(err.desc);
-        return Promise.reject(err);
-      }
-    },
-    async getPIList() {
-      try {
-        this.topicList = [];
-        let id = localStorage.getItem("local_clusterID");
-        await getPI(id).then((res) => {
-          if (res) {
-            this.topicList = res.map((item) => {
-              item["localname"] = item.name ? item.name : "pi+" + item.id;
-              item["localtype"] = item.from_detail ? item.from_detail.name : "";
-              item["target"] = item.to_expand ? item.to_expand.subject : "";
-              return item;
-            });
-          }
-        });
-      } catch (err) {
-        return Promise.reject(err);
-      }
-    },
+    
+   
     start(data, index) {
       try {
         this.$confirm(
@@ -321,17 +284,7 @@ export default {
       }
     },
     refresh() {
-      switch (this.tagName) {
-        case "datasource":
-          this.getList();
-          break;
-        case "pi":
-          this.getPIList();
-          break;
-        case "opc":
-          this.getOPCList();
-          break;
-      }
+      this.getList();
     },
     //显示添加数据源弹窗
     showAddDialog() {},
