@@ -1979,7 +1979,7 @@ int32_t streamStateGetBatchSize(void* pBatch) {
 void    streamStateClearBatch(void* pBatch) { rocksdb_writebatch_clear((rocksdb_writebatch_t*)pBatch); }
 void    streamStateDestroyBatch(void* pBatch) { rocksdb_writebatch_destroy((rocksdb_writebatch_t*)pBatch); }
 int32_t streamStatePutBatch(SStreamState* pState, const char* cfName, rocksdb_writebatch_t* pBatch, void* key,
-                            void* val, int32_t vlen) {
+                            void* val, int32_t vlen, int64_t ttl) {
   int i = streamGetInit(cfName);
 
   if (i < 0) {
@@ -1990,7 +1990,7 @@ int32_t streamStatePutBatch(SStreamState* pState, const char* cfName, rocksdb_wr
   int32_t klen = ginitDict[i].enFunc((void*)key, buf);
 
   char*                           ttlV = NULL;
-  int32_t                         ttlVLen = ginitDict[i].enValueFunc(val, vlen, 0, &ttlV);
+  int32_t                         ttlVLen = ginitDict[i].enValueFunc(val, vlen, ttl, &ttlV);
   rocksdb_column_family_handle_t* pCf = pState->pTdbState->pHandle[ginitDict[i].idx];
   rocksdb_writebatch_put_cf((rocksdb_writebatch_t*)pBatch, pCf, buf, (size_t)klen, ttlV, (size_t)ttlVLen);
   taosMemoryFree(ttlV);

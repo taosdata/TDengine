@@ -355,7 +355,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     }
 
     SStateKey sKey = {.key = *((SWinKey*)pPos->pKey), .opNum = ((SStreamState*)pFileState->pFileStore)->number};
-    code = streamStatePutBatch(pFileState->pFileStore, "state", batch, &sKey, pPos->pRowBuff, pFileState->rowSize);
+    code = streamStatePutBatch(pFileState->pFileStore, "state", batch, &sKey, pPos->pRowBuff, pFileState->rowSize, 0);
     qDebug("===stream===put %" PRId64 " to disc, res %d", sKey.key.ts, code);
   }
   if (streamStateGetBatchSize(batch) > 0) {
@@ -371,7 +371,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       int32_t len = 0;
       sprintf(keyBuf, "%s:%" PRId64 "", taskKey, ((SStreamState*)pFileState->pFileStore)->checkPointId);
       streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
-      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
+      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
       taosMemoryFree(valBuf);
     }
     {
@@ -380,7 +380,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       int32_t len = 0;
       memcpy(keyBuf, taskKey, strlen(taskKey));
       len = sprintf(valBuf, "%" PRId64 "", ((SStreamState*)pFileState->pFileStore)->checkPointId);
-      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
+      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
     }
     streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
