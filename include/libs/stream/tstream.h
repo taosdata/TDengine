@@ -20,7 +20,6 @@
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tqueue.h"
-#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
