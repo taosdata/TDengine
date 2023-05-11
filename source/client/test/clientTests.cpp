@@ -1122,6 +1122,8 @@ TEST(clientCase, sub_tb_test) {
     return;
   }
 
+  tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgId, 0);
+
   while (1) {
     TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
     if (pRes != NULL) {
