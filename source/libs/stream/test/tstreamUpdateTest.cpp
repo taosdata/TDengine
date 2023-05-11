@@ -21,6 +21,7 @@ class StreamStateEnv : public ::testing::Test {
   }
 
   const char *path = TD_TMP_DIR_PATH "stream";
+
   // SIndexOpts* opts;
   // SIndex*     index;
 };
