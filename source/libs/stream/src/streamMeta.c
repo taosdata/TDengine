@@ -81,6 +81,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->vgId = vgId;
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
+  pMeta->streamBackendId = streamBackendId;
 
   char* statePath = taosMemoryCalloc(1, len);
   sprintf(statePath, "%s/%s", pMeta->path, "state");
