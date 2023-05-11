@@ -695,7 +695,6 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, SHashObj* ids) {
       memcpy(cfNames[0], "default", strlen("default"));
       continue;
     }
-    qDebug("cf name %s", idstr);
 
     GEN_COLUMN_FAMILY_NAME(cfNames[i], idstr, ginitDict[(i - 1) % (cfLen)].key);
     if (i % cfLen == 0) {
