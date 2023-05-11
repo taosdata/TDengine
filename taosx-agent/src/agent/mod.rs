@@ -114,14 +114,14 @@ pub struct Task {
     /// Task trigger events, default will be oneshot.
     pub trigger: Option<String>,
 
-    /// Labels for a task.
-    ///
-    /// You can use k-v style label such as `key::value` or key-only label `key`.
-    ///
-    /// You can filter tasks by some labels.
+    // / Labels for a task.
+    // /
+    // / You can use k-v style label such as `key::value` or key-only label `key`.
+    // /
+    // / You can filter tasks by some labels.
     // #[serde(deserialize_with = "labels_serde::deserialize")]
-    #[serde(default)]
-    labels: Vec<(String, Option<String>)>,
+    // #[serde(default)]
+    // labels: Vec<(String, Option<String>)>,
 }
 
 impl Client {
