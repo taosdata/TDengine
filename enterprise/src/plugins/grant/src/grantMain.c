@@ -160,6 +160,7 @@ SGrantHandle grantHandle = {0};
 SGrantStatus grantStatus = {false,
                             false,
                             false,
+                            false,
                             GRANT_EXPIRE_TIME,
                             0,
                             (int64_t)(GRANT_STORAGE_LIMITS)*1073741824L,
