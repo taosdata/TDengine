@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 #ifndef GRANTS_COL_MAX_LEN
-#define GRANTS_COL_MAX_LEN 128
+#define GRANTS_COL_MAX_LEN 196
 #endif
 
 typedef enum {
