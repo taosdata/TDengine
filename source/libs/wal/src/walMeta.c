@@ -463,15 +463,8 @@ int walCheckAndRepairMeta(SWal* pWal) {
         wError("failed to scan wal last ver since %s", terrstr());
         return -1;
       }
-      // remove the empty wal log, and its idx
-      wInfo("vgId:%d, wal remove empty file %s", pWal->cfg.vgId, fnameStr);
-      taosRemoveFile(fnameStr);
-      walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
-      wInfo("vgId:%d, wal remove empty file %s", pWal->cfg.vgId, fnameStr);
-      taosRemoveFile(fnameStr);
-      // remove its meta entry
-      taosArrayRemove(pWal->fileInfoSet, fileIdx);
-      continue;
+      // empty log file
+      lastVer = pFileInfo->firstVer - 1;
     }
 
     // update lastVer
