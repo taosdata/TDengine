@@ -275,7 +275,7 @@
                     <el-select
                       v-model="p.target.value"
                       :multiple="p.target.multiple"
-                      allow-create
+                      :allow-create="p.target.editable"
                       filterable
                     >
                       <el-option
@@ -409,7 +409,7 @@
                     p.hint === 'integer'
                   "
                 >
-                  <el-input-number v-model="p.value"></el-input-number>
+                  <el-input-number v-model="p.value" :min="p.hint.min" :max="p.hint.max"></el-input-number>
                 </template>
                 <template v-if="p.hint == 'time'">
                   <el-date-picker
