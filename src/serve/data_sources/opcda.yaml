@@ -30,10 +30,26 @@ options:
 
 strict: false
 
+datasets:
+  name: Data Sets
+  description: Data points in OPC server to collect.
+  categories:
+  - category: tags
+    display: DA Tags
+    description: A OPC DA tags list.
+    target:
+      name: da.tags
+      description: A OPC DA tags list.
+      required: false
+      multiple: true
+      editable: true
+      selectable: true
+
 groups:
-  - name: Data Sets
-    display_order: 1
-    description: "Data points in OPC server to collect."
+
+  - name: Connection
+    display_order: 2
+    description: Some configurations used in connecting step.
     params:
       - name: nodes
         display: DA Nodes
@@ -41,17 +57,7 @@ groups:
         hint:
           type: str
         placeholder: localhost
-      - name: da.tags
-        display: DA Tags
-        description: A OPC DA tags list separated by ','.
-        placeholder: ns=2;i=2, ns=2;i=3
-        hint:
-          type: str
 
-  - name: Connection
-    display_order: 2
-    description: Some configurations used in connecting step.
-    params:
       - name: connect_timeout
         display: Connect Timeout
         description: |-
@@ -78,7 +84,7 @@ groups:
           type: integer
       - name: batch_size
         display: Batch Size
-        hint: 
+        hint:
           type: integer
         description: Max batch size for each record batch while reporting to target.
         placeholder: 100

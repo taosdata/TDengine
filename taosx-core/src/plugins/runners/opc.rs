@@ -7,7 +7,8 @@ use anyhow::Context;
 use itertools::Itertools;
 use taos::{
     taos_query::{block_in_place_or_global, helpers::ColumnMeta},
-    AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, Taos, TaosBuilder, Ty};
+    AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, Taos, TaosBuilder, Ty,
+};
 use taosx_ipc::prelude::IpcDataType;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
@@ -15,7 +16,7 @@ use tracing::instrument;
 use crate::{
     plugins::sink,
     utils::{port_pool::PortPool, stop_thread},
-    Action, DataSet,
+    Action, DataSet, DataSetsReq,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -133,7 +134,7 @@ struct UaCollectConfig {
 #[serde(rename_all = "lowercase")]
 enum CollectMode {
     OBSERVE,
-    SUBSCRIBE,    
+    SUBSCRIBE,
 }
 
 impl FromStr for CollectMode {
@@ -269,7 +270,7 @@ impl OPCConfig {
                     ua: Some(connect_ua_config),
                     da: None,
                 };
-                
+
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
@@ -303,7 +304,9 @@ impl OPCConfig {
                 }
                 let collect_mode = dsn.remove("collect_mode").unwrap_or("observe".to_string());
                 let collect_ua_config = UaCollectConfig {
-                    collect_mode: collect_mode.parse::<CollectMode>().map_err(|err| OpcError::ParseError("collect_mode", err))?,
+                    collect_mode: collect_mode
+                        .parse::<CollectMode>()
+                        .map_err(|err| OpcError::ParseError("collect_mode", err))?,
                     nodes: ua_node_config_vec,
                 };
                 collect = CollectConfig {
@@ -404,7 +407,6 @@ impl OPCConfig {
             false
         };
 
-
         let report = ReportConfig {
             remote,
             concurrent,
@@ -430,11 +432,20 @@ impl OPCConfig {
             if res.is_err() {
                 // table not exists, will create normal table
                 let mut sql = if self.use_received_time {
-                    ts_cloumn_name_map.insert(table_name.clone(), (String::from(DEFAULT_TS_COLUMN_NAME), Some(String::from(DEFAULT_SERVER_TS_COLUMN_NAME))));
+                    ts_cloumn_name_map.insert(
+                        table_name.clone(),
+                        (
+                            String::from(DEFAULT_TS_COLUMN_NAME),
+                            Some(String::from(DEFAULT_SERVER_TS_COLUMN_NAME)),
+                        ),
+                    );
                     log::info!("table {table_name} use `ts` as ts column, use `server_ts` as second ts column");
                     format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP, {DEFAULT_SERVER_TS_COLUMN_NAME} TIMESTAMP ")
                 } else {
-                    ts_cloumn_name_map.insert(table_name.clone(), (String::from(DEFAULT_TS_COLUMN_NAME), None));
+                    ts_cloumn_name_map.insert(
+                        table_name.clone(),
+                        (String::from(DEFAULT_TS_COLUMN_NAME), None),
+                    );
                     log::info!("table {table_name} use `ts` as ts column");
                     format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP")
                 };
@@ -459,8 +470,15 @@ impl OPCConfig {
                     if desc.len() < 2 || desc[1].ty != Ty::Timestamp {
                         anyhow::bail!("table: {} column type not match[len < 2 or second column is not timestamp]", table_name);
                     }
-                    log::info!("table {table_name} use `{}` as ts column, use `{}` as sever ts column", desc[0].field, desc[1].field);
-                    ts_cloumn_name_map.insert(table_name.clone(), (desc[0].field.clone(), Some(desc[1].field.clone())));
+                    log::info!(
+                        "table {table_name} use `{}` as ts column, use `{}` as sever ts column",
+                        desc[0].field,
+                        desc[1].field
+                    );
+                    ts_cloumn_name_map.insert(
+                        table_name.clone(),
+                        (desc[0].field.clone(), Some(desc[1].field.clone())),
+                    );
                 } else {
                     log::info!("table {table_name} use `{}` as ts column", desc[0].field);
                     ts_cloumn_name_map.insert(table_name.clone(), (desc[0].field.clone(), None));
@@ -490,8 +508,10 @@ impl OPCConfig {
                         if field_get.is_none() {
                             // column not exists and alter table
                             columns_to_add.insert(field, field_type);
-                        } else if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase())
-                        {
+                        } else if !check_field_type(
+                            field_get.unwrap(),
+                            field_type.to_ascii_lowercase(),
+                        ) {
                             anyhow::bail!(
                                 "field: {} type: {} not match in normal table: {} which type is {} ",
                                 field,
@@ -753,7 +773,9 @@ pub struct OpcTableConfig {
     pub(crate) use_received_time: bool,
 }
 
-pub async fn opc_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
+pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
+    let from: Dsn = req.from.parse().unwrap();
+
     let config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points)?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -781,10 +803,23 @@ pub async fn opc_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     // dbg!(output);
     log::info!("OPC exit with status {}", output.status);
 
+    temp_path.close()?;
     // let json = String::from_utf8_lossy(&output.stdout);
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    temp_path.close()?;
-    Ok(res)
+    dbg!(&res);
+    if let Some(pattern) = req.pattern.as_deref() {
+        let regex = regex::Regex::from_str(pattern)?;
+        // regex.is_match(text)
+        let res = res
+            .into_iter()
+            .filter(|set| regex.is_match(&set.id))
+            .skip(req.offset)
+            .take(req.limit)
+            .collect_vec();
+        Ok(res)
+    } else {
+        Ok(res.into_iter().skip(req.offset).take(req.limit).collect())
+    }
 }
 
 #[tokio::test]
@@ -824,7 +859,10 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
             interval: Some(10),
             limit: Some(10),
             ua: Some(UaCollectConfig {
-                collect_mode: "observe".to_string().parse::<CollectMode>().map_err(|err| OpcError::ParseError("collect_mode", err))?,
+                collect_mode: "observe"
+                    .to_string()
+                    .parse::<CollectMode>()
+                    .map_err(|err| OpcError::ParseError("collect_mode", err))?,
                 nodes: vec![UANodeConfig {
                     id: String::from("1"),
                     value_type: String::from("DOUBLE"),

@@ -29,14 +29,14 @@ groups:
       type: str
   - name: PIDataPipesInstances
     display: PI Data Pipes Instances
-    hint: 
+    hint:
       type: integer
     description: |
       Default 1.
     placeholder: 1
   - name: AFDataPipesInstances
     display: AF Data Pipes Instances
-    hint: 
+    hint:
       type: integer
     description: |
       Default 1.
@@ -56,7 +56,7 @@ groups:
       max: 10000
   - name: UpdateInterval
     display: Update Interval (in ms)
-    hint: 
+    hint:
       type: integer
       min: 100
       max: 60000
@@ -64,7 +64,7 @@ groups:
     placeholder: 10000
   - name: MaxBackfillRangeDays
     display: Max Backfill Range(in days)
-    hint: 
+    hint:
       type: integer
     description: Max backfill time range in days.
     placeholder: 1
@@ -72,7 +72,7 @@ groups:
 datasets:
   name: Data Sets
   description: PI System template and points
-  categories: 
+  categories:
   - category: PointList
     display: Point List
     description: |
@@ -83,6 +83,8 @@ datasets:
       description: Pi System Point List
       required: false
       multiple: true
+      editable: true
+      selectable: true
   - category: TemplateForPIPoint
     display: Template For PI Point
     description: |
@@ -93,6 +95,8 @@ datasets:
       description: Database datasets.
       required: false
       multiple: true
+      editable: true
+      selectable: true
   - category: TemplateForAFElement
     display: Template For AF Element
     description: |
@@ -103,3 +107,5 @@ datasets:
       description: Database datasets.
       required: false
       multiple: true
+      editable: true
+      selectable: true

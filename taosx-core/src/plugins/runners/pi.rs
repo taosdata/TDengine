@@ -299,7 +299,7 @@ fn terminate_child_process(id: u32) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn pi_datasets(data: &Json<DataSetsReq>) -> anyhow::Result<Vec<DataSet>> {
+pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     println!("# loading plugin: PI");
     #[cfg(not(target_os = "windows"))]
     {
