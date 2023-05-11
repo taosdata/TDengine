@@ -572,6 +572,10 @@ end:
   return ret;
 }
 
+void freePtr(void *ptr) {
+  taosMemoryFree(*(void**)ptr);
+}
+
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   int32_t vgId = TD_VID(pTq->pVnode);
   pTask->id.idStr = createStreamTaskIdStr(pTask->id.streamId, pTask->id.taskId);
@@ -646,6 +650,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     if (pTask->tbSink.pTSchema == NULL) {
       return -1;
     }
+    pTask->tbSink.pTblInfo = tSimpleHashInit(10240, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    tSimpleHashSetFreeFp(pTask->tbSink.pTblInfo, freePtr);
   }
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {

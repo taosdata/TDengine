@@ -195,6 +195,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
     tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);
+    tSimpleHashCleanup(pTask->tbSink.pTblInfo);
   }
 
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
