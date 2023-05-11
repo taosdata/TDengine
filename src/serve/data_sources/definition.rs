@@ -204,6 +204,8 @@ pub struct Target {
     pub multiple: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<serde_json::Value>,
+    pub editable: bool,
+    pub selectable: bool,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode)]
