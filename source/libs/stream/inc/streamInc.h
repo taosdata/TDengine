@@ -17,6 +17,7 @@
 #define _STREAM_INC_H_
 
 #include "executor.h"
+#include "query.h"
 #include "tstream.h"
 
 #ifdef __cplusplus

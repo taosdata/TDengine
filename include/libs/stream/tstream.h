@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include "query.h"
 #include "streamState.h"
 #include "tdatablock.h"
 #include "tdbInt.h"
