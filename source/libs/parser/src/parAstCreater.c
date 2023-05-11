@@ -259,7 +259,15 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       strcpy(pExpr->userAlias, ((SColumnNode*)pExpr)->colName);
     } else {
       int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
-      strncpy(pExpr->aliasName, pRawExpr->p, len);
+
+      // See TS-3398.
+      // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
+      // If aliasName is truncated, hash value of aliasName could be the same.
+      T_MD5_CTX ctx;
+      tMD5Init(&ctx);
+      tMD5Update(&ctx, (uint8_t*)pRawExpr->p, pRawExpr->n);
+      tMD5Final(&ctx);
+      memcpy(pExpr->aliasName, ctx.digest, tListLen(ctx.digest));
       pExpr->aliasName[len] = '\0';
       strncpy(pExpr->userAlias, pRawExpr->p, len);
       pExpr->userAlias[len] = '\0';
