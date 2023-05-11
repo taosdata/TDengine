@@ -194,8 +194,12 @@ int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* 
     return -1;
   }
 
-  taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, POINTER_BYTES);
-  taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+  void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
+  if (p == NULL) {
+    taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+  }
+
+  taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, POINTER_BYTES);
   return 0;
 }
 
@@ -333,14 +337,17 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       return -1;
     }
 
-    if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
+    void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
+    if (p == NULL) {
+      taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+    }
+
+    if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
-
-    taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
 
     if (pTask->fillHistory) {
       pTask->status.taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
