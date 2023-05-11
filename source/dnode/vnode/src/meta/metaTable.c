@@ -837,22 +837,50 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
   return 0;
 }
 
+static void metaDropTables(SMeta *pMeta, SArray *tbUids) {
+  metaWLock(pMeta);
+  for (int i = 0; i < TARRAY_SIZE(tbUids); ++i) {
+    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
+    metaDropTableByUid(pMeta, uid, NULL);
+    metaDebug("batch drop table:%" PRId64, uid);
+  }
+  metaULock(pMeta);
+}
+
+int metaTrimTables(SMeta *pMeta, int64_t version) {
+  int32_t code = 0;
+
+  SArray *tbUids = taosArrayInit(8, sizeof(int64_t));
+  if (tbUids == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  // code = metaFilterTableByHash(pMeta, /*ttl, */ tbUids);
+  if (code != 0) {
+    goto end;
+  }
+  if (TARRAY_SIZE(tbUids) == 0) {
+    goto end;
+  }
+
+  metaDropTables(pMeta, tbUids);
+
+end:
+  taosArrayDestroy(tbUids);
+
+  return code;
+}
+
 int metaTtlDropTable(SMeta *pMeta, int64_t ttl, SArray *tbUids) {
   int ret = metaTtlSmaller(pMeta, ttl, tbUids);
   if (ret != 0) {
     return ret;
   }
-  if (taosArrayGetSize(tbUids) == 0) {
+  if (TARRAY_SIZE(tbUids) == 0) {
     return 0;
   }
 
-  metaWLock(pMeta);
-  for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
-    tb_uid_t *uid = (tb_uid_t *)taosArrayGet(tbUids, i);
-    metaDropTableByUid(pMeta, *uid, NULL);
-    metaDebug("ttl drop table:%" PRId64, *uid);
-  }
-  metaULock(pMeta);
+  metaDropTables(pMeta, tbUids);
   return 0;
 }
 
