@@ -367,6 +367,11 @@ export default {
     }
   }
 }
+.language-sql {
+  white-space: normal;
+  word-break: break-all;
+  word-wrap: break-word;
+}
 </style>
 <style>
 .show-topic-sql .pre-code {
