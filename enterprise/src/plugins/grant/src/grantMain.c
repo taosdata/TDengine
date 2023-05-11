@@ -1698,10 +1698,6 @@ static int32_t tDeserializeGrantConnMsg(SDecoder *decoder, SGrantConnMsg *pMsg) 
         if (tDecodeU16(decoder, &pItem->expire) < 0) return -1;
       }
     }
-  } else {
-    pMsg->officialVersion = 0;
-    pMsg->majorVer = 0;
-    pMsg->minorVer = 0;
   }
 
   tGrantConnItemsInit(pMsg->items + nItems, maxItems - nItems);
