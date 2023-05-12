@@ -109,6 +109,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_INT8(pRaw, dataPos, pTopic->withMeta, TOPIC_ENCODE_OVER);
 
   SDB_SET_INT64(pRaw, dataPos, pTopic->stbUid, TOPIC_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->stbName, TSDB_TABLE_FNAME_LEN, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->astLen, TOPIC_ENCODE_OVER);
@@ -196,6 +197,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pTopic->withMeta, TOPIC_DECODE_OVER);
 
   SDB_GET_INT64(pRaw, dataPos, &pTopic->stbUid, TOPIC_DECODE_OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pTopic->stbName, TSDB_TABLE_FNAME_LEN, TOPIC_DECODE_OVER);
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
   pTopic->sql = taosMemoryCalloc(pTopic->sqlLen, sizeof(char));
   if (pTopic->sql == NULL) {
@@ -460,6 +462,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       return -1;
     }
 
+    strcpy(topicObj.stbName, pCreate->subStbName);
     topicObj.stbUid = pStb->uid;
     mndReleaseStb(pMnode, pStb);
   }
@@ -830,6 +833,43 @@ int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
   return 0;
 }
 
+static void schemaToJson(SSchema *schema, int32_t nCols, char *schemaJson){
+  char*  string = NULL;
+  cJSON* columns = cJSON_CreateArray();
+  if (columns == NULL) {
+    return;
+  }
+  for (int i = 0; i < nCols; i++) {
+    cJSON*   column = cJSON_CreateObject();
+    SSchema* s = schema + i;
+    cJSON*   cname = cJSON_CreateString(s->name);
+    cJSON_AddItemToObject(column, "name", cname);
+    cJSON* ctype = cJSON_CreateString(tDataTypes[s->type].name);
+    cJSON_AddItemToObject(column, "type", ctype);
+    int32_t length = 0;
+    if (s->type == TSDB_DATA_TYPE_BINARY) {
+      length = s->bytes - VARSTR_HEADER_SIZE;
+    } else if (s->type == TSDB_DATA_TYPE_NCHAR || s->type == TSDB_DATA_TYPE_JSON) {
+      length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+    } else{
+      length = s->bytes;
+    }
+    cJSON*  cbytes = cJSON_CreateNumber(length);
+    cJSON_AddItemToObject(column, "length", cbytes);
+    cJSON_AddItemToArray(columns, column);
+  }
+  string = cJSON_PrintUnformatted(columns);
+  cJSON_Delete(columns);
+
+  size_t len = strlen(string);
+  if(string && len <= TSDB_SHOW_SCHEMA_JSON_LEN){
+    STR_TO_VARSTR(schemaJson, string);
+  }else{
+    mError("mndRetrieveTopic build schema error json:%p, json len:%zu", string, len);
+  }
+  taosMemoryFree(string);
+}
+
 static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
   SMnode      *pMnode = pReq->info.node;
   SSdb        *pSdb = pMnode->pSdb;
@@ -867,6 +907,47 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
+
+    char schemaJson[TSDB_SHOW_SCHEMA_JSON_LEN + VARSTR_HEADER_SIZE] = {0};
+    if(pTopic->subType == TOPIC_SUB_TYPE__COLUMN){
+      schemaToJson(pTopic->schema.pSchema, pTopic->schema.nCols, schemaJson);
+    }else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
+      SStbObj *pStb = mndAcquireStb(pMnode, pTopic->stbName);
+      if (pStb == NULL) {
+        terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+        return -1;
+      }
+      schemaToJson(pStb->pColumns, pStb->numOfColumns, schemaJson);
+
+      mndReleaseStb(pMnode, pStb);
+    }else{
+      STR_TO_VARSTR(schemaJson, "NULL");
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)schemaJson, false);
+
+    char mete[4 + VARSTR_HEADER_SIZE] = {0};
+    if(pTopic->withMeta){
+      STR_TO_VARSTR(mete, "yes");
+    }else{
+      STR_TO_VARSTR(mete, "no");
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)mete, false);
+
+    char type[8 + VARSTR_HEADER_SIZE] = {0};
+    if(pTopic->subType == TOPIC_SUB_TYPE__COLUMN){
+      STR_TO_VARSTR(type, "column");
+    }else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
+      STR_TO_VARSTR(type, "stable");
+    }else{
+      STR_TO_VARSTR(type, "db");
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)type, false);
 
     numOfRows++;
     sdbRelease(pSdb, pTopic);

@@ -1513,6 +1513,13 @@ const char *mndGetDbStr(const char *src) {
   return pos;
 }
 
+const char *mndGetStableStr(const char *src) {
+  char *pos = strstr(src, TS_PATH_DELIMITER);
+  if (pos != NULL) ++pos;
+  if (pos == NULL) return src;
+  return mndGetDbStr(pos);
+}
+
 static int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   int64_t v = 0;
   switch (unit) {
