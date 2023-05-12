@@ -326,7 +326,7 @@
                     placeholder="Regex Pattern Input"
                     v-model="p.value"
                     :disable="p.target.selectable"
-                    @input="searchDatas"
+                    @change="searchDatas"
                   ></el-input>
                   <div>
                     <div class="searchList" v-loading="loading" v-if="configurationdata.length > 0">
@@ -866,16 +866,26 @@ export default {
         params = {
           from: `opc${this.protocol}${dns}`,
           categories: [this.activeName],
-          via: this.$parent.agentID,
           pattern: value,
           offset: 1,
           limit: 10,
         };
+        const viaObj = {
+          via: this.$parent.agentID,
+        }
+        if(viaObj.via) {
+          Object.assign(params,viaObj)
+        }
         this.loading = true;
         getUaAndDaData(params).then((res) => {
           this.loading = false;
           this.configurationdata = res;
-        });
+        }).catch((err) => {
+            Message({
+            type: 'error',
+            message: err
+          })
+        })
       } catch (error) {
         this.loading = false;
       }
