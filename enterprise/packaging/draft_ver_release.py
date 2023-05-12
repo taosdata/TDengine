@@ -624,8 +624,19 @@ def doActions(parePareOptions):
                 key, ' '.join(values)))
             executeCommand(' '.join(values))
 
+def doWindowsRelease(options):
+    logging.info("windows release ...")
+    logging.info('python3 win_release.py --version cluster --number 3.9.9.9 -N Power -M power@support.com -P power')
+    # executeCommand('python3 win_release.py --version cluster --number 3.9.9.9 -N Power -M power@support.com -P power ')
 
-def doRelease(options, preActions, postActions, args):
+def doMacosRelease(options):
+     logging.info("macos release ...")
+     logging.info("./release_mac.sh -b 3.0 -c x64 -n 3.9.9.9 -l full -v edge -V stable -d no ")
+     logging.info("./release_mac.sh -b 3.0 -c arm64 -n 3.9.9.9 -l full -v edge -V stable -d no")
+    # executeCommand("")
+
+def doLinuxRelease(options,args):
+    logging.info("linux release ...")
     targets = []
     if options['TDenginePackages'].get('tar.gz') is not None and options['TDenginePackages']['tar.gz']['enable'] == True:
         targets.append('tar.gz')
@@ -633,7 +644,6 @@ def doRelease(options, preActions, postActions, args):
         targets.append('rpm')
     if options['TDenginePackages'].get('deb') is not None and options['TDenginePackages']['deb']['enable'] == True:
         targets.append('deb')
-
     logging.info("{0}-{1}-{2} packages [{4}] version {3} will be released".format(
         options['verMode'],
         options['buildOptions']['OSTYPE'],
@@ -641,9 +651,15 @@ def doRelease(options, preActions, postActions, args):
         options['buildOptions']['VERNUMBER'],
         ','.join(targets))
     )
-
     checkAndInitInput(options, args.version)
+    # ================= build and install
+    # buildInstall(options, options['verMode'])
+    # ================ making packages
+    makePackages(options, options['buildOptions'], options['verMode'])
+     
 
+def doRelease(options, preActions, postActions, args):
+    
     # ================do parepare acotions
     logging.info(preActions)
     if preActions['enable'] == True:
@@ -653,13 +669,18 @@ def doRelease(options, preActions, postActions, args):
     else:
         logging.info("No post acotions.")
 
-    # ================= build and install
 
-    # buildInstall(options, options['verMode'])
-
-    # ================ making packages
-    makePackages(options, options['buildOptions'], options['verMode'])
-
+    # ================do release acotions
+    if options.get('target') is not None and options['target'] == 'windows':
+        doWindowsRelease(options)
+    elif options.get('target') is not None and options['target'] == 'macos':
+        doMacosRelease(options)
+    elif options.get('target') is None or options['target'] == 'linux':
+        doLinuxRelease(options,args)
+    else:
+        logging.error("unsupport target:{0}".format(options['target']))
+        raise Exception("unsupport target:{0}".format(options['target']))
+    
     # ================do post acotions
     if postActions['enable'] == True:
         logging.info("will do post acotions.")

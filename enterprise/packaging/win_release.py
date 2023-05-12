@@ -414,7 +414,7 @@ def os_check():
 
 if __name__ == "__main__":
     set_win_dev_env()
-    os_check()
+    # os_check()
     logging.info("Release tdengine on windows start...")
     parse_arguments()
     set_package_name()
