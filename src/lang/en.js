@@ -892,6 +892,7 @@ export default {
     learnMoreTip: `To learn more about stream processing, please check <a target='_blank' href="docsUrl">documentation</a>`,
     delayTip: "The watermark is the amount of time to wait for out-of-order data before executing a query.",
     stableUpperRequired: "The STABLE cannot be empty",
+    tableUpperRequired: "The TABLE cannot be empty"
   },
   topic: {
     agent:'Agent',
@@ -998,6 +999,9 @@ export default {
     subscribeTime: "Subscribe Time",
     rebalanceTime: "Rebalance Time",
     learnMoreTip: `To learn more about data subscription, please check <a target='_blank' href="docsUrl">documentation</a>`,
+    user_name_required: "Please select User Name",
+    topicNameError: "Please enter Topic Name",
+    topicNameExist: "Topic Name already exists",
   },
 
   landing: {

@@ -191,7 +191,7 @@
       title="SQL"
     >
       <pre :key="previewSql" v-highlight>
-          <code class="language-sql" style="display:flex;flex-wrap:wrap;">{{previewSql}}</code>
+          <code class="language-sql">{{previewSql}}</code>
         </pre>
       <section class="flexEnd">
         <el-button type="primary" size="mini" @click="dialog = false">{{
@@ -241,6 +241,14 @@ export default {
           // validator: validateTargetStb, 
           required: true,
           message: this.$t("stream.stableUpperRequired") 
+        }],
+        stbName: [{
+          required: true,
+          message: this.$t("stream.stableUpperRequired") 
+        }],
+        tbName: [{
+          required: true,
+          message: this.$t("stream.tableUpperRequired") 
         }],
       },
       cmOptions: {
@@ -527,6 +535,11 @@ export default {
     justify-content: center;
     align-items: center;
   }
+}
+.language-sql {
+  white-space: normal;
+  word-break: break-all;
+  word-wrap: break-word;
 }
 </style>
 <style>

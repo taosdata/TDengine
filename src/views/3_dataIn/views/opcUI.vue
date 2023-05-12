@@ -260,6 +260,122 @@
           </div>
         </div>
       </section>
+      <section
+        :class="['groups-dataset', dbsource[0].datasets?.name]"
+        v-if="dbsource[0]?.datasets"
+      >
+        <div style="flex-direction: column; align-items: baseline">
+          <div class="block-title">
+            <span>{{ dbsource[0].datasets.name }}</span>
+          </div>
+          <div
+            class="description"
+            v-html="transforHtml(dbsource[0].datasets.description)"
+          ></div>
+        </div>
+        <template>
+          <el-tabs v-model="activeName" @tab-click="handleClick">
+            <el-tab-pane
+              v-for="(p, pind) in dbsource[0].datasets.categories"
+              :label="p.display"
+              :name="p.category"
+              :key="p.category"
+              lazy
+            >
+              <div :key="pind">
+                <div
+                  class="description"
+                  v-html="transforHtml(p.description)"
+                ></div>
+                <div class="target">
+                  <template v-if="p.target.multiple">
+                    <el-select
+                      v-model="p.target.value"
+                      :multiple="p.target.multiple"
+                      :allow-create="p.target.editable"
+                      :placeholder="p.target.placeholder"
+                      filterable
+                      default-first-option
+                    >
+                      <el-option
+                        v-for="(t, tind) in p.target.value"
+                        :key="tind"
+                        :value="tind"
+                        disabled
+                      >
+                        {{ t }}
+                      </el-option>
+                    </el-select>
+                  </template>
+                  <template v-else>
+                    <el-input v-model="p.target.value"></el-input>
+                  </template>
+                  <el-button
+                    size="medium"
+                    @click="handleSelBtn"
+                    style="height: 42px"
+                    >Select</el-button
+                  >
+                </div>
+                <div class="configuration" v-if="isShowConfiguration">
+                  <el-input
+                    placeholder="Regex Pattern Input"
+                    v-model="p.value"
+                    :disable="p.target.selectable"
+                    @change="searchDatas"
+                  ></el-input>
+                  <div>
+                    <div class="searchList" v-loading="loading" v-if="configurationdata.length > 0">
+                      <div
+                        v-for="c in configurationdata"
+                        :key="c.id"
+                        :class="[activeDataSet.id == c.id ? 'actived' : '']"
+                        @click="handelDataSet(c)"
+                      >
+                        {{ c.id }}
+                      </div>
+                    </div>
+                    <template
+                      v-if="
+                        Object.hasOwnProperty.call(activeDataSet, 'options')
+                      "
+                    >
+                      <div class="options-wrap">
+                        <div class="option-list">
+                          <div
+                            class="option-item"
+                            v-for="o in activeDataSet.options"
+                            :key="o.name"
+                          >
+                            <span
+                              :class="['label', o.required ? 'required' : '']"
+                            >
+                              {{ o.name }}
+                            </span>
+                            <el-input
+                              placeholder="Please enter "
+                              v-model="o.value"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <el-button
+                            size="small"
+                            type="primary"
+                            plain
+                            @click="addOption"
+                            >Add</el-button
+                          >
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        </template>
+      </section>
       <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
@@ -737,16 +853,26 @@ export default {
         params = {
           from: `opc${this.protocol}${dns}`,
           categories: [this.activeName],
-          via: this.$parent.agentID,
           pattern: value,
           offset: 1,
           limit: 10,
         };
+        const viaObj = {
+          via: this.$parent.agentID,
+        }
+        if(viaObj.via) {
+          Object.assign(params,viaObj)
+        }
         this.loading = true;
         getUaAndDaData(params).then((res) => {
           this.loading = false;
           this.configurationdata = res;
-        });
+        }).catch((err) => {
+            Message({
+            type: 'error',
+            message: err
+          })
+        })
       } catch (error) {
         this.loading = false;
       }

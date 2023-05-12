@@ -156,6 +156,14 @@ export default {
       sqlPrefix: "CREATE TOPIC ",
       rules: {
         topic_name: [{ validator: validateTopicName, trigger: "blur" }],
+        stbName: [{
+          required: true,
+          message: this.$t("stream.stableUpperRequired") 
+        }],
+        tbName: [{
+          required: true,
+          message: this.$t("stream.tableUpperRequired") 
+        }],
       },
 
       sqlStr: "",
@@ -366,6 +374,11 @@ export default {
       color: #c0c4cc;
     }
   }
+}
+.language-sql {
+  white-space: normal;
+  word-break: break-all;
+  word-wrap: break-word;
 }
 </style>
 <style>

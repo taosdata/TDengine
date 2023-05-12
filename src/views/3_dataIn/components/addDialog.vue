@@ -33,7 +33,7 @@
           @change="selectAgenttype"
         >
           <el-option
-            :label="item.name"
+            :label="`${item.id}. ${item.name}`"
             :value="item.id"
             v-for="item in agentList"
             :key="item.id"

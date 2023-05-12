@@ -4,7 +4,7 @@
       <el-button
         class="big-button"
         plain
-        @click="dialog = true"
+        @click="addShareTopicUser"
         size="small"
         icon="el-icon-plus"
         >{{ $t("topic.addShareTopicUser") }}</el-button
@@ -62,8 +62,9 @@
         ref="ruleForm"
         label-width="120px"
         class="demo-ruleForm"
+        :rules="rules"
       >
-        <el-form-item :label="$t('topic.user_name')" prop="user_name" required>
+        <el-form-item :label="$t('topic.user_name')" prop="user_name">
           <el-select v-model="ruleForm.user_name" style="width: 100%">
             <el-option
               v-for="item in userList"
@@ -122,20 +123,23 @@ export default {
         user_name: "",
         expire_time: "",
       },
+      rules: {
+        user_name: [{ 
+          required: true,
+          message: this.$t("topic.user_name_required") 
+        }],
+      },
       currentUser: {}
     };
   },
   mounted() {
-    // this.getData();
     this.getUserData()
     this.getCurrentUser();
-    this.getUserList();
   },
   watch: {
     topicId: {
       deep: true,
       handler(val) {
-        // this.getData();
         this.getUserData()
       },
     },
@@ -145,45 +149,6 @@ export default {
        this.$store.dispatch("app/getUserInfo").then((res) => {
          this.currentUser = res;
        });
-    },
-    async getData() {
-      try {
-        await sendSQLReq(
-          `select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and db_name in ('${this.topicId}', 'all');`
-        ).then((res) => {
-          this.subscriptionList = res.data.map((data) => {
-            return Object.fromEntries(
-              res.column_meta.map((item, index) => {
-                return [item[0], data[index]];
-              })
-            );
-          });
-        });
-      } catch (error) {
-        console.log(error);
-      }
-    },
-
-    async getUserList() {
-      try {
-        await sendSQLReq(`show users;`)
-          .then((res) => {
-            this.userList = res.data
-              .map((data) => {
-                return Object.fromEntries(
-                  res.column_meta.map((item, index) => {
-                    return [item[0], data[index]];
-                  })
-                );
-              })
-              .filter((val) => val.name != "root");
-          })
-          .catch((err) => {
-            return Promise.reject(err);
-          });
-      } catch (error) {
-        Message.error(error.desc);
-      }
     },
 
     async addUser() {
@@ -264,16 +229,25 @@ export default {
           item.super = user.super
           return item
         })
+        let noSubscriptionList = usersMap.filter((item) => {
+          return privilegeMap.every((data) => data.user_name != item.name );     
+        })
         let rootUserIndex = permissionMap.findIndex((item, k) => item.user_name === 'root');
         let rooUser = permissionMap[rootUserIndex];
         rooUser.user_name = "*" + rooUser.user_name;
         permissionMap.unshift(rooUser);
         permissionMap.splice(++rootUserIndex, 1);  
-        this.subscriptionList = permissionMap;         
+        this.subscriptionList = permissionMap;  
+        this.userList = noSubscriptionList  
       } catch (error) {
         console.log(error);
       }
     },
+    addShareTopicUser() {
+      this.dialog = true
+      this.ruleForm.user_name = ''
+      this.getUserData()
+    }
   },
 };
 </script>

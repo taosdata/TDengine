@@ -276,7 +276,9 @@
                       v-model="p.target.value"
                       :multiple="p.target.multiple"
                       :allow-create="p.target.editable"
+                      :placeholder="p.target.placeholder"
                       filterable
+                      default-first-option
                     >
                       <el-option
                         v-for="(t, tind) in p.target.value"
@@ -302,10 +304,10 @@
                   <el-input
                     placeholder="Regex Pattern Input"
                     v-model="p.value"
-                    @input="searchDatas"
+                    @change="searchDatas"
                   ></el-input>
                   <div>
-                    <div class="searchList" v-loading="loading">
+                    <div class="searchList" v-loading="loading" v-if="configurationdata.length > 0">
                       <div
                         v-for="c in configurationdata"
                         :key="c.id"
@@ -906,16 +908,26 @@ export default {
         params = {
           from: `pi://${host}${subject}`,
           categories: [this.activeName],
-          via: this.$parent.agentID,
           pattern: value,
           offset: 1,
           limit: 10,
         };
+        const viaObj = {
+          via: this.$parent.agentID,
+        }
+        if(viaObj.via) {
+          Object.assign(params,viaObj)
+        }
         this.loading = true;
         getUaAndDaData(params).then((res) => {
           this.loading = false;
           this.configurationdata = res;
-        });
+        }).catch((err) => {
+            Message({
+            type: 'error',
+            message: err
+          })
+        })
       } catch (error) {
         this.loading = false;
       }
