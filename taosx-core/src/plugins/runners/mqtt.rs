@@ -82,9 +82,9 @@ impl MqttConfig {
             let qos = pair[1]
                 .parse::<u8>()
                 .map_err(|err| MqttConfigError::ParseIntError("qos", pair[1].to_string(), err))?;
-            let table = String::from(pair[2]);
-            let field = String::from(pair[3]);
-            let value_type = String::from(pair[4]);
+            // let table = String::from(pair[2]);
+            // let field = String::from(pair[3]);
+            // let value_type = String::from(pair[4]);
             topics.insert(topic, qos);
         }
         Ok(MqttConfig {

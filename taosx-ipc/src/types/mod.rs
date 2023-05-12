@@ -31,10 +31,10 @@ pub struct DataSet {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OptionSet {
-    name: String,
+    pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-    required: bool,
+    pub description: Option<String>,
+    pub required: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
