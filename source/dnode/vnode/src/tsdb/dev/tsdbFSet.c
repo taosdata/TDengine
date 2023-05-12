@@ -58,12 +58,6 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileSetEdit(struct STFileSet *pSet, struct STFileOp *pOp) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
 int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   int32_t code = 0;
 
@@ -126,15 +120,13 @@ int32_t tsdbFileSetFromJson(const cJSON *json, STFileSet *fset) {
   return 0;
 }
 
-int32_t tsdbEditFileSet(struct STFileSet *pFileSet, const struct STFileOp *pOp) {
-  int32_t code = 0;
-  ASSERTS(0, "TODO: Not implemented yet");
-  // TODO
-  return code;
-}
-
 int32_t tsdbFSetCmprFn(const STFileSet *pSet1, const STFileSet *pSet2) {
   if (pSet1->fid < pSet2->fid) return -1;
   if (pSet1->fid > pSet2->fid) return 1;
+  return 0;
+}
+
+int32_t tsdbFSetEdit(STFileSet *pSet, const STFileOp *pOp) {
+  // TODO
   return 0;
 }

@@ -433,7 +433,7 @@ static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSe
 
 static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
 
   STFileSet *pSet = NULL;
   for (int32_t iop = 0; iop < taosArrayGetSize(aFileOp); iop++) {
@@ -444,7 +444,13 @@ static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
       pSet = taosArraySearch(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_EQ);
     }
 
-    // TODO
+    if (pSet == NULL) {
+      ASSERT(op->oState.size == 0 && op->nState.size > 0);
+      // TODO
+    }
+
+    code = tsdbFSetEdit(pSet, op);
+    TSDB_CHECK_CODE(code, lino, _exit)
   }
 
 _exit:
