@@ -908,13 +908,14 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
 
-    char schemaJson[TSDB_SHOW_SCHEMA_JSON_LEN + VARSTR_HEADER_SIZE] = {0};
+    char *schemaJson = taosMemoryMalloc(TSDB_SHOW_SCHEMA_JSON_LEN + VARSTR_HEADER_SIZE);
     if(pTopic->subType == TOPIC_SUB_TYPE__COLUMN){
       schemaToJson(pTopic->schema.pSchema, pTopic->schema.nCols, schemaJson);
     }else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
       SStbObj *pStb = mndAcquireStb(pMnode, pTopic->stbName);
       if (pStb == NULL) {
         terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+        taosMemoryFree(schemaJson);
         return -1;
       }
       schemaToJson(pStb->pColumns, pStb->numOfColumns, schemaJson);
@@ -926,6 +927,7 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)schemaJson, false);
+    taosMemoryFree(schemaJson);
 
     char mete[4 + VARSTR_HEADER_SIZE] = {0};
     if(pTopic->withMeta){
