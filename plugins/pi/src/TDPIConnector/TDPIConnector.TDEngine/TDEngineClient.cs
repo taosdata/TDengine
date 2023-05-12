@@ -429,6 +429,7 @@ namespace TDPIConnector.TDEngine
 
                     if (insertCount >= 5000)
                     {
+                        tableList.Add(sb);
                         sqlCommand = CreateSqlCommandForInsertingAFValues(tableList);
                         Task t = MakeHttpRequest(sqlCommand, database);
                         tasks.Add(t);
