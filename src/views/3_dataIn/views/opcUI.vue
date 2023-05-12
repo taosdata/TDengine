@@ -171,11 +171,7 @@
             </template>
           </el-radio-group>
           <div class="authen-details">
-            <template
-              v-if="
-                dbsource[0].authentication.value == 'plain'
-              "
-            >
+            <template v-if="dbsource[0].authentication.value == 'plain'">
               <div class="plain">
                 <div class="plain-item">
                   <span class="label">{{
@@ -241,7 +237,7 @@
                   style="width: 100%; margin-top: 10px"
                 >
                   <span class="label">{{ p.display }}</span>
-                  <template v-if="p.hint == 'file'||p.hint.type=='file'">
+                  <template v-if="p.hint == 'file' || p.hint.type == 'file'">
                     <el-input v-model="p.value" type="textarea"></el-input
                   ></template>
                   <template v-if="p.hint.choices">
@@ -264,7 +260,7 @@
           </div>
         </div>
       </section>
-      <template v-for="(item) in dbsource[0].groups">
+      <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
@@ -276,9 +272,7 @@
             ></div>
           </div>
           <template v-for="(p, pind) in item.params">
-            <div
-              :key="pind"
-            >
+            <div :key="pind">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -374,9 +368,13 @@ import { decrypt } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   props: {
-    protocol:{
-      type:String,
-      default:'ua'
+    tagName: {
+      type: String,
+      default: "opcua",
+    },
+    protocol: {
+      type: String,
+      default: "ua",
     },
     dbsource: {
       type: Array,
@@ -476,23 +474,24 @@ export default {
           ) {
             Message({
               type: "warning",
-              message: this.$t('datasource.msg:') +`${data.options[key].display} `,
+              message:
+                this.$t("datasource.msg:") + `${data.options[key].display} `,
             });
             return;
           }
         }
         this.decryptPwd = decrypt(localStorage.getItem("pwd"));
-         if(data.authentication.value=='plain'){
-          if(data.authentication.alternatives[1].username.value){
-            dns += `://${data.authentication.alternatives[1].username.value}`
+        if (data.authentication.value == "plain") {
+          if (data.authentication.alternatives[1].username.value) {
+            dns += `://${data.authentication.alternatives[1].username.value}`;
           }
-          if(data.authentication.alternatives[1].password.value){
-            dns += `:${data.authentication.alternatives[1].password.value}`
+          if (data.authentication.alternatives[1].password.value) {
+            dns += `:${data.authentication.alternatives[1].password.value}`;
           }
-          dns +=`@`
-         }else{
-          dns +=`://`
-         }
+          dns += `@`;
+        } else {
+          dns += `://`;
+        }
         if (
           data.options.endpoint &&
           JSON.stringify(data.options.endpoint) !== "{}"
@@ -522,7 +521,9 @@ export default {
             ) {
               Message({
                 type: "warning",
-                message: this.$t('datasource.msg:')+`${data.groups[index].params[g].name} `,
+                message:
+                  this.$t("datasource.msg:") +
+                  `${data.groups[index].params[g].name} `,
               });
               return;
             } else {
@@ -536,16 +537,16 @@ export default {
           //   }
         }
 
-        if(data.authentication.value=='certificates'){
-          data.authentication.alternatives[2].params.forEach(val=>{
-            querystr += val.value?`${val.name}=${val.value}&`:''
-          })
-         }
-         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        if (data.authentication.value == "certificates") {
+          data.authentication.alternatives[2].params.forEach((val) => {
+            querystr += val.value ? `${val.name}=${val.value}&` : "";
+          });
+        }
+        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
 
         let piParams = {
           from:
-            "opc" +this.protocol+
+            (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
             // (data.protocol
             //   ? Object.is(data.protocol.value, "--")
             //     ? ""
@@ -557,20 +558,24 @@ export default {
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
-          labels: ["type::datain", `cluster-id::${id}`,`user::${localStorage.getItem('username')}`],
+          labels: [
+            "type::datain",
+            `cluster-id::${id}`,
+            `user::${localStorage.getItem("username")}`,
+          ],
         };
         if (this.$parent.agentID) {
-            piParams["via"] = this.$parent.agentID;
-          }
+          piParams["via"] = this.$parent.agentID;
+        }
         if (this.isEditable) {
           await EditSource(piParams, this.editId).then(() => {
-            this.$parent.toggleComponent("opctable",this.protocol);
+            this.$parent.toggleComponent("opctable", this.protocol);
           });
         } else {
           await AddSource(piParams).then((res) => {
             if (res && res.id) {
               this.$parent.toggleComponent("opctable", "");
-              Message.success(this.$t('datasource.successtip'));
+              Message.success(this.$t("datasource.successtip"));
             }
           });
         }
