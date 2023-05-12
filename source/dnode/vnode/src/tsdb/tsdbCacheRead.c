@@ -199,9 +199,17 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     }
   }
 
-  int32_t numOfStt = ((SVnode*)pVnode)->config.sttTrigger;
+  SVnodeCfg* pCfg = &((SVnode*)pVnode)->config;
+
+  int32_t numOfStt = pCfg->sttTrigger;
   p->pLoadInfo = tCreateLastBlockLoadInfo(p->pSchema, NULL, 0, numOfStt);
   if (p->pLoadInfo == NULL) {
+    tsdbCacherowsReaderClose(p);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  p->pDataIter = taosMemoryCalloc(pCfg->sttTrigger, sizeof(SLDataIter));
+  if (p->pDataIter == NULL) {
     tsdbCacherowsReaderClose(p);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -227,6 +235,7 @@ void* tsdbCacherowsReaderClose(void* pReader) {
     taosMemoryFree(p->pSchema);
   }
 
+  taosMemoryFreeClear(p->pDataIter);
   taosMemoryFree(p->pCurrSchema);
 
   destroyLastBlockLoadInfo(p->pLoadInfo);

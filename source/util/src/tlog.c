@@ -347,7 +347,6 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
 
   char    name[LOG_FILE_NAME_LEN + 50] = "\0";
   int32_t logstat0_mtime, logstat1_mtime;
-  int32_t size;
 
   tsLogObj.maxLines = maxLines;
   tsLogObj.fileNum = maxFileNum;
@@ -395,8 +394,7 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
     printf("\nfailed to fstat log file:%s, reason:%s\n", fileName, strerror(errno));
     return -1;
   }
-  size = (int32_t)filesize;
-  tsLogObj.lines = size / 60;
+  tsLogObj.lines = (int32_t)(filesize / 60);
 
   taosLSeekFile(tsLogObj.logHandle->pFile, 0, SEEK_END);
 

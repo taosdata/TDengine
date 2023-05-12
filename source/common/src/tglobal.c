@@ -84,7 +84,7 @@ bool     tsMonitorComp = false;
 // telem
 bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
-char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
+char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
@@ -198,7 +198,7 @@ int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointTickInterval = 1;
 int32_t tsTtlUnit = 86400;
-int32_t tsTtlPushInterval = 86400;
+int32_t tsTtlPushInterval = 3600;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits

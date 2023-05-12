@@ -142,7 +142,7 @@ typedef enum {
   CONSUMER_UPDATE__REMOVE,
   CONSUMER_UPDATE__LOST,
   CONSUMER_UPDATE__RECOVER,
-  CONSUMER_UPDATE__MODIFY,      // subscribe req need change consume topic
+  CONSUMER_UPDATE__REBALANCE,      // subscribe req need change consume topic
 } ECsmUpdateType;
 
 typedef struct {

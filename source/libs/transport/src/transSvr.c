@@ -314,7 +314,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
 
-  tWarn("%s conn %p read error:%s", transLabel(pTransInst), conn, uv_err_name(nread));
+  tDebug("%s conn %p read error:%s", transLabel(pTransInst), conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
     if (conn->status == ConnAcquire) {

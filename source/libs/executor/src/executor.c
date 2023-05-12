@@ -14,9 +14,10 @@
  */
 
 #include "executor.h"
-#include <vnode.h>
-#include "executorimpl.h"
+#include "executorInt.h"
+#include "operator.h"
 #include "planner.h"
+#include "querytask.h"
 #include "tdatablock.h"
 #include "tref.h"
 #include "tudf.h"
@@ -138,7 +139,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       }
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
-      ASSERT(numOfBlocks == 1);
       taosArrayPush(pInfo->pBlockLists, input);
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
@@ -249,7 +249,7 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
                                      uint64_t id) {
   if (msg == NULL) {  // create raw scan
-    SExecTaskInfo* pTaskInfo = doCreateExecTaskInfo(0, id, vgId, OPTR_EXEC_MODEL_QUEUE, "");
+    SExecTaskInfo* pTaskInfo = doCreateTask(0, id, vgId, OPTR_EXEC_MODEL_QUEUE);
     if (NULL == pTaskInfo) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
@@ -312,7 +312,6 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
   qTaskInfo_t pTaskInfo = NULL;
   code = qCreateExecTask(readers, vgId, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
@@ -717,8 +716,6 @@ void qRemoveTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo) {
     taosArrayRemove(pTaskInfo->stopInfo.pStopInfo, idx);
   }
   taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
-
-  return;
 }
 
 void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
@@ -802,7 +799,11 @@ void qDestroyTask(qTaskInfo_t qTaskHandle) {
     return;
   }
 
-  qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
+  if (pTaskInfo->pRoot != NULL) {
+    qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
+  } else {
+    qDebug("%s execTask completed", GET_TASKID(pTaskInfo));
+  }
 
   printTaskExecCostInLog(pTaskInfo);  // print the query cost summary
   doDestroyTask(pTaskInfo);
@@ -855,15 +856,6 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
-#if 0
-int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
-  taosWriteQitem(pTaskInfo->streamInfo.inputQueue->queue, pItem);
-  return 0;
-}
-#endif
-
 int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
@@ -898,8 +890,7 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
       SStreamIntervalOperatorInfo* pInfo = pOperator->info;
       ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
              pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
-      ASSERT(pInfo->twAggSup.calTriggerSaved == 0);
-      ASSERT(pInfo->twAggSup.deleteMarkSaved == 0);
+      ASSERT(pInfo->twAggSup.calTriggerSaved == 0 && pInfo->twAggSup.deleteMarkSaved == 0);
 
       qInfo("save stream param for interval: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
 
@@ -915,9 +906,8 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
       SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
       ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
              pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
-      ASSERT(pInfo->twAggSup.calTriggerSaved == 0);
-      ASSERT(pInfo->twAggSup.deleteMarkSaved == 0);
 
+      ASSERT(pInfo->twAggSup.calTriggerSaved == 0 && pInfo->twAggSup.deleteMarkSaved == 0);
       qInfo("save stream param for session: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
 
       pInfo->twAggSup.calTriggerSaved = pInfo->twAggSup.calTrigger;
@@ -930,8 +920,7 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
       SStreamStateAggOperatorInfo* pInfo = pOperator->info;
       ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
              pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);
-      ASSERT(pInfo->twAggSup.calTriggerSaved == 0);
-      ASSERT(pInfo->twAggSup.deleteMarkSaved == 0);
+      ASSERT(pInfo->twAggSup.calTriggerSaved == 0 && pInfo->twAggSup.deleteMarkSaved == 0);
 
       qInfo("save stream param for state: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
 
@@ -992,7 +981,6 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
     if (pOperator->numOfDownstream != 1 || pOperator->pDownstream[0] == NULL) {
       if (pOperator->numOfDownstream > 1) {
         qError("unexpected stream, multiple downstream");
-        /*ASSERT(0);*/
         return -1;
       }
       return 0;
@@ -1064,23 +1052,18 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  if ((pTaskInfo->execModel != OPTR_EXEC_MODEL_QUEUE) || (pTaskInfo->streamInfo.submit.msgStr != NULL)) {
-    qError("qStreamSetScanMemData err:%d,%p", pTaskInfo->execModel, pTaskInfo->streamInfo.submit.msgStr);
-    terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
-    return -1;
-  }
-  qDebug("set the submit block for future scan");
-
-  pTaskInfo->streamInfo.submit = submit;
-  return 0;
-}
-
 void qStreamSetOpen(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   pOperator->status = OP_NOT_OPENED;
+}
+
+void verifyOffset(void *pWalReader, STqOffsetVal* pOffset){
+  // if offset version is small than first version , let's seek to first version
+  int64_t firstVer = walGetFirstVer(((SWalReader*)pWalReader)->pWal);
+  if (pOffset->version + 1 < firstVer){
+    pOffset->version = firstVer - 1;
+  }
 }
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
@@ -1098,21 +1081,18 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     if (pOperator == NULL) {
       return -1;
     }
+
     SStreamScanInfo* pInfo = pOperator->info;
     STableScanInfo*  pScanInfo = pInfo->pTableScanOp->info;
     STableScanBase*  pScanBaseInfo = &pScanInfo->base;
     STableListInfo*  pTableListInfo = pScanBaseInfo->pTableListInfo;
 
     if (pOffset->type == TMQ_OFFSET__LOG) {
+      // todo refactor: move away
       tsdbReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
-      // let's seek to the next version in wal file
-      int64_t firstVer = walGetFirstVer(pInfo->tqReader->pWalReader->pWal);
-      if (pOffset->version + 1 < firstVer){
-        pOffset->version = firstVer - 1;
-      }
-
+      verifyOffset(pInfo->tqReader->pWalReader, pOffset);
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, id) < 0) {
         qError("tqSeekVer failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
         return -1;
@@ -1233,7 +1213,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
       strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
-      tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
+      tDeleteSchemaWrapper(pTaskInfo->streamInfo.schema);
       pTaskInfo->streamInfo.schema = mtInfo.schema;
 
       qDebug("tmqsnap qStreamPrepareScan snapshot data uid:%" PRId64 " ts %" PRId64 " %s", mtInfo.uid, pOffset->ts, id);
@@ -1302,4 +1282,26 @@ SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
 
   taosArrayDestroy(plist);
   return pUidList;
+}
+
+static void extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pScanInfo = pOperator->info;
+    STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
+    taosArrayPush(pList, &pTableScanInfo->base.pTableListInfo);
+  } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pScanInfo = pOperator->info;
+    taosArrayPush(pList, &pScanInfo->base.pTableListInfo);
+  } else {
+    if (pOperator->pDownstream != NULL && pOperator->pDownstream[0] != NULL) {
+      extractTableList(pList, pOperator->pDownstream[0]);
+    }
+  }
+}
+
+SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo) {
+  SArray*        pArray = taosArrayInit(0, POINTER_BYTES);
+  SOperatorInfo* pOperator = pTaskInfo->pRoot;
+  extractTableList(pArray, pOperator);
+  return pArray;
 }

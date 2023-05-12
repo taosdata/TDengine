@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -30,6 +30,8 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
+#include "operator.h"
+#include "querytask.h"
 
 int32_t scanDebug = 0;
 
@@ -156,7 +158,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
         break;
       }
 
-      assert(w.skey < pBlockInfo->window.skey);
+      ASSERT(w.skey < pBlockInfo->window.skey);
       if (pBlockInfo->window.skey <= TMIN(w.ekey, pBlockInfo->window.ekey)) {
         return true;
       }
@@ -1650,7 +1652,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   pInfo->pRes->info.dataLoad = 1;
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
-  blockDataFreeRes((SSDataBlock*)pBlock);
+//  blockDataFreeRes((SSDataBlock*)pBlock);
 
   calBlockTbName(pInfo, pInfo->pRes);
   return 0;
@@ -1663,8 +1665,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
   qDebug("start to exec queue scan, %s", id);
 
+#if 0
   if (pTaskInfo->streamInfo.submit.msgStr != NULL) {
-    if (pInfo->tqReader->msg2.msgStr == NULL) {
+    if (pInfo->tqReader->msg.msgStr == NULL) {
       SPackedData submit = pTaskInfo->streamInfo.submit;
       if (tqReaderSetSubmitMsg(pInfo->tqReader, submit.msgStr, submit.msgLen, submit.ver) < 0) {
         qError("submit msg messed up when initing stream submit block %p", submit.msgStr);
@@ -1675,25 +1678,24 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     blockDataCleanup(pInfo->pRes);
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
 
-    while (tqNextDataBlock(pInfo->tqReader)) {
-      SSDataBlock block = {0};
-
-      int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader, NULL);
-      if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
+    while (tqNextBlockImpl(pInfo->tqReader)) {
+      int32_t code = tqRetrieveDataBlock(pInfo->tqReader, NULL);
+      if (code != TSDB_CODE_SUCCESS || pInfo->tqReader->pResBlock->info.rows == 0) {
         continue;
       }
 
-      setBlockIntoRes(pInfo, &block, true);
+      setBlockIntoRes(pInfo, pInfo->tqReader->pResBlock, true);
 
       if (pBlockInfo->rows > 0) {
         return pInfo->pRes;
       }
     }
 
-    pInfo->tqReader->msg2 = (SPackedData){0};
+    pInfo->tqReader->msg = (SPackedData){0};
     pTaskInfo->streamInfo.submit = (SPackedData){0};
     return NULL;
   }
+#endif
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
@@ -1711,28 +1713,28 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
       return NULL;
     }
+
     tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pTaskInfo->streamInfo.snapshotVer);
   }
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
-    while (1) {
-      SFetchRet ret = {0};
-      tqNextBlock(pInfo->tqReader, &ret);
-      tqOffsetResetToLog(
-          &pTaskInfo->streamInfo.currentOffset,
-          pInfo->tqReader->pWalReader->curVersion - 1);  // curVersion move to next, so currentOffset = curVersion - 1
 
-      if (ret.fetchType == FETCH_TYPE__DATA) {
-        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, ret.data.info.rows,
+    while (1) {
+      int32_t type = tqNextBlockInWal(pInfo->tqReader);
+      SSDataBlock* pRes = pInfo->tqReader->pResBlock;
+
+      // curVersion move to next, so currentOffset = curVersion - 1
+      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion - 1);
+
+      if (type == FETCH_TYPE__DATA) {
+        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
-        setBlockIntoRes(pInfo, &ret.data, true);
+        setBlockIntoRes(pInfo, pRes, true);
         if (pInfo->pRes->info.rows > 0) {
-          qDebug("doQueueScan get data from log %" PRId64 " rows, return, version:%" PRId64, pInfo->pRes->info.rows,
-                 pTaskInfo->streamInfo.currentOffset.version);
           return pInfo->pRes;
         }
-      } else if (ret.fetchType == FETCH_TYPE__NONE) {
+      } else if (type == FETCH_TYPE__NONE) {
         qDebug("doQueueScan get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
         return NULL;
       }
@@ -1884,7 +1886,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
         if (pSDB) {
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-          uint64_t        version = getReaderMaxVersion(pTableScanInfo->base.dataReader);
+          uint64_t        version = tsdbGetReaderMaxVersion(pTableScanInfo->base.dataReader);
           updateInfoSetScanRange(pInfo->pUpdateInfo, &pTableScanInfo->base.cond.twindows, pInfo->groupId, version);
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
           checkUpdateData(pInfo, true, pSDB, false);
@@ -2050,7 +2052,7 @@ FETCH_NEXT_BLOCK:
         SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
         if (pSDB) {
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-          uint64_t        version = getReaderMaxVersion(pTableScanInfo->base.dataReader);
+          uint64_t        version = tsdbGetReaderMaxVersion(pTableScanInfo->base.dataReader);
           updateInfoSetScanRange(pInfo->pUpdateInfo, &pTableScanInfo->base.cond.twindows, pInfo->groupId, version);
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
           checkUpdateData(pInfo, true, pSDB, false);
@@ -2082,7 +2084,7 @@ FETCH_NEXT_BLOCK:
 
   NEXT_SUBMIT_BLK:
     while (1) {
-      if (pInfo->tqReader->msg2.msgStr == NULL) {
+      if (pInfo->tqReader->msg.msgStr == NULL) {
         if (pInfo->validBlockIndex >= totBlockNum) {
           updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           doClearBufferedBlocks(pInfo);
@@ -2101,16 +2103,13 @@ FETCH_NEXT_BLOCK:
 
       blockDataCleanup(pInfo->pRes);
 
-      while (tqNextDataBlock(pInfo->tqReader)) {
-        SSDataBlock block = {0};
-
-        int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader, NULL);
-
-        if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
+      while (tqNextBlockImpl(pInfo->tqReader)) {
+        int32_t code = tqRetrieveDataBlock(pInfo->tqReader, NULL);
+        if (code != TSDB_CODE_SUCCESS || pInfo->tqReader->pResBlock->info.rows == 0) {
           continue;
         }
 
-        setBlockIntoRes(pInfo, &block, false);
+        setBlockIntoRes(pInfo, pInfo->tqReader->pResBlock, false);
 
         if (updateInfoIgnore(pInfo->pUpdateInfo, &pInfo->pRes->info.window, pInfo->pRes->info.id.groupId,
                              pInfo->pRes->info.version)) {
@@ -2143,7 +2142,6 @@ FETCH_NEXT_BLOCK:
     // record the scan action.
     pInfo->numOfExec++;
     pOperator->resultInfo.totalRows += pBlockInfo->rows;
-    // printDataBlock(pInfo->pRes, "stream scan");
 
     qDebug("scan rows: %" PRId64, pBlockInfo->rows);
     if (pBlockInfo->rows > 0) {
@@ -2219,7 +2217,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
     }
     qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
-    tDeleteSSchemaWrapper(mtInfo.schema);
+    tDeleteSchemaWrapper(mtInfo.schema);
     return NULL;
   } else if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_META) {
     SSnapContext* sContext = pInfo->sContext;
@@ -2334,7 +2332,7 @@ static void destroyStreamScanOperatorInfo(void* param) {
   SStreamScanInfo* pStreamScan = (SStreamScanInfo*)param;
 
   if (pStreamScan->pTableScanOp && pStreamScan->pTableScanOp->info) {
-    destroyOperatorInfo(pStreamScan->pTableScanOp);
+    destroyOperator(pStreamScan->pTableScanOp);
   }
 
   if (pStreamScan->tqReader) {
@@ -2456,7 +2454,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
     if (pHandle->initTqReader) {
       ASSERT(pHandle->tqReader == NULL);
-      pInfo->tqReader = tqOpenReader(pHandle->vnode);
+      pInfo->tqReader = tqReaderOpen(pHandle->vnode);
       ASSERT(pInfo->tqReader);
     } else {
       ASSERT(pHandle->tqReader);

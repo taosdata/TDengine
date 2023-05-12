@@ -1024,12 +1024,28 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
     case DB_OPTION_STT_TRIGGER:
       pDbOptions->sstTrigger = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_TABLE_PREFIX:
-      pDbOptions->tablePrefix = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+    case DB_OPTION_TABLE_PREFIX: {
+      SValueNode *pNode = (SValueNode *)pVal;
+      if (TSDB_DATA_TYPE_BIGINT == pNode->node.resType.type || TSDB_DATA_TYPE_UBIGINT == pNode->node.resType.type) {
+        pDbOptions->tablePrefix = taosStr2Int32(pNode->literal, NULL, 10);
+      } else {
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table_prefix data type");
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;        
+      }
+      nodesDestroyNode((SNode*)pNode);
       break;
-    case DB_OPTION_TABLE_SUFFIX:
-      pDbOptions->tableSuffix = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+    }
+    case DB_OPTION_TABLE_SUFFIX:{
+      SValueNode *pNode = (SValueNode *)pVal;
+      if (TSDB_DATA_TYPE_BIGINT == pNode->node.resType.type || TSDB_DATA_TYPE_UBIGINT == pNode->node.resType.type) {
+        pDbOptions->tableSuffix = taosStr2Int32(pNode->literal, NULL, 10);
+      } else {
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table_suffix data type");
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;        
+      }
+      nodesDestroyNode((SNode*)pNode);
       break;
+    }
     default:
       break;
   }

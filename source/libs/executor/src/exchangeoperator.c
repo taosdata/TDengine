@@ -13,17 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
+#include "index.h"
+#include "operator.h"
 #include "os.h"
+#include "query.h"
+#include "querytask.h"
+#include "tdatablock.h"
+#include "thash.h"
+#include "tmsg.h"
 #include "tname.h"
 #include "tref.h"
-#include "tdatablock.h"
-#include "tmsg.h"
-#include "executorimpl.h"
-#include "index.h"
-#include "query.h"
-#include "thash.h"
 
 typedef struct SFetchRspHandleWrapper {
   uint32_t exchangeId;

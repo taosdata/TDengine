@@ -256,10 +256,13 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
     pDb = mndAcquireDb(pMnode, db);
     if (pDb == NULL) {
-      terrno = TSDB_CODE_MND_INVALID_DB;
-      mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
-              terrstr());
-      goto _OVER;
+      if (0 != strcmp(connReq.db, TSDB_INFORMATION_SCHEMA_DB) &&
+          (0 != strcmp(connReq.db, TSDB_PERFORMANCE_SCHEMA_DB))) {
+        terrno = TSDB_CODE_MND_INVALID_DB;
+        mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
+                terrstr());
+        goto _OVER;
+      }
     }
 
     if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) != 0) {

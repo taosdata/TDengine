@@ -672,7 +672,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         }
         SRow* pRow = NULL;
         if ((terrno = tRowBuild(pVals, (STSchema*)pTSchema, &pRow)) < 0) {
-          tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+          tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
           goto _end;
         }
         ASSERT(pRow);
@@ -681,7 +681,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
 
       SSubmitReq2 submitReq = {0};
       if (!(submitReq.aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
-        tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
 
@@ -690,28 +690,28 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       // encode
       int32_t len;
       int32_t code;
-      tEncodeSize(tEncodeSSubmitReq2, &submitReq, len, code);
+      tEncodeSize(tEncodeSubmitReq, &submitReq, len, code);
       SEncoder encoder;
       len += sizeof(SSubmitReq2Msg);
       pBuf = rpcMallocCont(len);
       if (NULL == pBuf) {
-        tDestroySSubmitReq2(&submitReq, TSDB_MSG_FLG_ENCODE);
+        tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
       ((SSubmitReq2Msg*)pBuf)->header.vgId = TD_VID(pVnode);
       ((SSubmitReq2Msg*)pBuf)->header.contLen = htonl(len);
       ((SSubmitReq2Msg*)pBuf)->version = htobe64(1);
       tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-      if (tEncodeSSubmitReq2(&encoder, &submitReq) < 0) {
+      if (tEncodeSubmitReq(&encoder, &submitReq) < 0) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         tqError("failed to encode submit req since %s", terrstr());
         tEncoderClear(&encoder);
         rpcFreeCont(pBuf);
-        tDestroySSubmitReq2(&submitReq, TSDB_MSG_FLG_ENCODE);
+        tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
         continue;
       }
       tEncoderClear(&encoder);
-      tDestroySSubmitReq2(&submitReq, TSDB_MSG_FLG_ENCODE);
+      tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
 
       SRpcMsg msg = {
           .msgType = TDMT_VND_SUBMIT,

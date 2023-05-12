@@ -100,6 +100,8 @@ typedef struct {
   SWalRef*      pRef;
   STqPushHandle pushHandle;    // push
   STqExecHandle execHandle;    // exec
+  SRpcMsg*      msg;
+  int32_t       noDataPollCnt;
 } STqHandle;
 
 typedef struct {
@@ -113,7 +115,7 @@ struct STQ {
   char*           path;
   int64_t         walLogLastVer;
   SRWLatch        lock;
-  SHashObj*       pPushMgr;    // consumerId -> STqPushEntry
+  SHashObj*       pPushMgr;    // subKey -> STqHandle
   SHashObj*       pHandle;     // subKey -> STqHandle
   SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
   STqOffsetStore* pOffsetStore;
@@ -146,7 +148,7 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows);
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type);
-int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry);
+int32_t tqPushDataRsp(STQ* pTq, STqHandle* pHandle);
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);

@@ -16,6 +16,7 @@
 #include "tq.h"
 
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
+#define NO_POLL_CNT 5
 
 static int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqMetaRsp* pRsp);
 
@@ -165,25 +166,38 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
                                                    SRpcMsg* pMsg, STqOffsetVal* pOffset) {
   uint64_t consumerId = pRequest->consumerId;
   int32_t  vgId = TD_VID(pTq->pVnode);
+  int      code = 0;
 
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, pRequest, pHandle->execHandle.subType);
-
-  // lock
-  taosWLockLatch(&pTq->lock);
+  qTaskInfo_t task = pHandle->execHandle.task;
+  if(qTaskIsExecuting(task)){
+    code = tqSendDataRsp(pTq, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
+    tDeleteSMqDataRsp(&dataRsp);
+    return code;
+  }
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
-  int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
+  code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
   if(code != 0) {
     goto end;
   }
 
-  // till now, all data has been transferred to consumer, new data needs to push client once arrived.
+  //   till now, all data has been transferred to consumer, new data needs to push client once arrived.
   if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
       dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
-    code = tqRegisterPushHandle(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
-    taosWUnLockLatch(&pTq->lock);
-    return code;
+    if(pHandle->noDataPollCnt >= NO_POLL_CNT){  // send poll result to client if no data 5 times to avoid lost data
+      pHandle->noDataPollCnt = 0;
+      // lock
+      taosWLockLatch(&pTq->lock);
+      code = tqRegisterPushHandle(pTq, pHandle, pMsg);
+      taosWUnLockLatch(&pTq->lock);
+      tDeleteSMqDataRsp(&dataRsp);
+      return code;
+    }
+    else{
+      pHandle->noDataPollCnt++;
+    }
   }
 
 
@@ -197,7 +211,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     tFormatOffset(buf, 80, &dataRsp.rspOffset);
     tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, reqId:0x%" PRIx64 " code:%d",
             consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
-    taosWUnLockLatch(&pTq->lock);
+//    taosWUnLockLatch(&pTq->lock);
     tDeleteSMqDataRsp(&dataRsp);
   }
   return code;
@@ -211,6 +225,12 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   SMqMetaRsp metaRsp = {0};
   STaosxRsp taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, pRequest);
+  qTaskInfo_t task = pHandle->execHandle.task;
+  if(qTaskIsExecuting(task)){
+    code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
+    tDeleteSTaosxRsp(&taosxRsp);
+    return code;
+  }
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
@@ -240,6 +260,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
 
   if (offset->type == TMQ_OFFSET__LOG) {
+    verifyOffset(pHandle->pWalReader, offset);
     int64_t fetchVer = offset->version + 1;
     pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
@@ -355,11 +376,10 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
   // this is a normal subscribe requirement
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
     return extractDataAndRspForNormalSubscribe(pTq, pHandle, pRequest, pMsg, &offset);
+  } else { // todo handle the case where re-balance occurs.
+    // for taosx
+    return extractDataAndRspForDbStbSubscribe(pTq, pHandle, pRequest, pMsg, &offset);
   }
-
-  // todo handle the case where re-balance occurs.
-  // for taosx
-  return extractDataAndRspForDbStbSubscribe(pTq, pHandle, pRequest, pMsg, &offset);
 }
 
 int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqMetaRsp* pRsp) {

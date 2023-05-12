@@ -132,7 +132,7 @@ typedef struct {
 } SWalRef;
 
 typedef struct {
-  int8_t scanUncommited;
+//  int8_t scanUncommited;
   int8_t scanNotApplied;
   int8_t scanMeta;
   int8_t enableRef;
@@ -147,8 +147,6 @@ typedef struct SWalReader {
   int64_t        curFileFirstVer;
   int64_t        curVersion;
   int64_t        capacity;
-//  int8_t         curInvalid;
-//  int8_t         curStopped;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
   // TODO remove it
