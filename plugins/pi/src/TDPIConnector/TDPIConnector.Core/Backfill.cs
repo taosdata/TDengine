@@ -80,25 +80,42 @@ namespace TDPIConnector.Core
             }
             List<string> piPointNames = points.Select(p => p.Name).ToList();
             List<PIPointWrapper> piPoints = piServerManager.FindPIPoints(piPointNames);
-            Stopwatch stopwatch = new Stopwatch();
-
+            int all = piPoints.Count;
+            int finished = 0;
             foreach (var point in piPoints)
             {
-                stopwatch.Start();
-                DateTime pointStartTime = startTime;
-                while (pointStartTime != DateTime.MaxValue)
-                {
-                    List<AFValueWrapper> afValues = PISystemManager.GetPIPointRecordedValues(point, ref pointStartTime, endTime, 5000);
-                    log.Info($"PI point {point.Name}, {afValues.Count} values retrived in {stopwatch.ElapsedMilliseconds} ms");
-                    stopwatch.Reset();
-                    stopwatch.Start();
-                    List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).ToList();
-                    string supetableName = TableNameConvert.GetPIPointSuperTableName(point);
-                    tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, supetableName, point.Name, tdValues);
-                    log.Info($"TDEngine point {point.Name}, {tdValues.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
-                }
-                stopwatch.Reset();
+                BackfillPIPoint(tdDatabaseName, startTime, endTime, point);
+                finished++;
+                log.Info($"Backfill BackfillPIPointsFromLastRecordedValue finished {finished}/{all}.");
             }
+            log.Info($"Backfill BackfillPIPoints finished.");
+        }
+
+        public void BackfillPIPoint(string tdDatabaseName, DateTime startTime, DateTime endTime, PIPointWrapper point)
+        {
+            Stopwatch stopwatch = new Stopwatch();
+            int count = 0;
+            DateTime pointStartTime = startTime;
+            string supetableName = TableNameConvert.GetPIPointSuperTableName(point);
+            while (pointStartTime != DateTime.MaxValue)
+            {
+                stopwatch.Reset();
+                stopwatch.Start();
+                List<AFValueWrapper> afValues = PISystemManager.GetPIPointRecordedValues(point, ref pointStartTime, endTime, 50000);
+                if (afValues.Count == 0) break;
+                log.Info($"PI point {point.Name}, {afValues.Count} values got in {stopwatch.ElapsedMilliseconds} ms");
+                List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).Where(v => v != null).ToList();
+                stopwatch.Reset();
+                stopwatch.Start();
+                log.Info($"PI point {point.Name}, {afValues.Count} values saved in {stopwatch.ElapsedMilliseconds} ms");
+                tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, supetableName, point.Name, tdValues);
+                count += tdValues.Count;
+                if (tdValues.Count < 10)
+                {
+                    break;
+                }
+            }
+            log.Info($"Backfill TDEngine point {point.Name} finished, {count} values written.");
         }
 
         public async Task<Dictionary<string, DateTime>> GetTDTableLastRecordedValueFromPIPoints(string tdDatabaseName, List<TDTable> piPointTables)

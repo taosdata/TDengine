@@ -33,6 +33,10 @@ namespace TDPIConnector.Core
             public string PIServerUser { get; set; }
             public string PIServerPassword { get; set; }
             public string PIServerDomain { get; internal set; }
+            public bool FromTDengineLastTime { get; set; }
+            public bool ToTDengineFirstTime { get; set; }
+            public DateTime BackfillStartTime { get; set; }
+            public DateTime BackfillEndTime { get; set; }
 
             public string ConfigString()
             {
@@ -47,6 +51,10 @@ namespace TDPIConnector.Core
                 sb.AppendLine($"AFDataPipesInstances={AFDataPipesInstances}");
                 sb.AppendLine($"IPCStream={IPCStream}");
                 sb.AppendLine($"SQLAPI={SQLAPI}");
+                sb.AppendLine($"FromTDengineLastTime={FromTDengineLastTime}");
+                sb.AppendLine($"ToTDengineFirstTime={ToTDengineFirstTime}");
+                sb.AppendLine($"BackfillStartTime={BackfillStartTime}");
+                sb.AppendLine($"BackfillEndTime={BackfillEndTime}");
 
                 if (TemplateForPIPoint != null && TemplateForPIPoint.Any())
                 {
@@ -62,6 +70,14 @@ namespace TDPIConnector.Core
                     sb.AppendLine($"PointList={string.Join(", ", PointList)}");
                 }
                 return sb.ToString();
+            }
+
+            public void SetBackfillOption(bool backfillToFirstRecorded, bool backfillFromLastRecorded, DateTime start, DateTime end)
+            {
+                FromTDengineLastTime = backfillFromLastRecorded;
+                ToTDengineFirstTime = backfillToFirstRecorded;
+                BackfillStartTime = start;
+                BackfillEndTime = end;
             }
         }
 

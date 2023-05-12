@@ -123,7 +123,9 @@ namespace TDPIConnector.Core
             {
                 return;
             }
-                  
+
+            int all = piPoints.Count;
+            int finished = 0;
             if (fromLastRecorded)
             {
                 Dictionary<string, DateTime> pointsTimestamps = await backfill.GetTDTableLastRecordedValueFromPIPoints(tdDatabaseName, piPoints);
@@ -132,21 +134,30 @@ namespace TDPIConnector.Core
                 foreach (var pointsTimestamp in pointsTimestamps)
                 {
                     PIPointWrapper piPoint = piPointList.Where(p => p.Name.ToLower() == pointsTimestamp.Key.ToLower()).Single();
-                    piPointsTimestamps.Add(piPoint, pointsTimestamp.Value);
+                    var pointStartTime = startTime > pointsTimestamp.Value ? startTime : pointsTimestamp.Value.AddMilliseconds(1);
+                    backfill.BackfillPIPoint(tdDatabaseName, pointStartTime, endTime, piPoint);
+                    finished++;
+                    log.Info($"Backfill BackfillPIPointsFromLastRecordedValue finished {finished}/{all}.");
                 }
-                await backfill.BackfillPIPointsFromLastRecordedValue(tdDatabaseName, piPointsTimestamps);
             }
             else if (toFirstRecorded)
             {
                 Dictionary<string, DateTime> pointsTimestamps = await backfill.GetTDPointsFirstRecordedValueFromPIPoints(tdDatabaseName, piPoints);
-                await backfill.BackfillPIPointsToFirstRecordedValue(tdDatabaseName, pointsTimestamps);
+                List<PIPointWrapper> piPointList = piServerManager.FindPIPoints(pointsTimestamps.Keys.ToList());
+                foreach (var pointsTimestamp in pointsTimestamps)
+                {
+                    PIPointWrapper piPoint = piPointList.Where(p => p.Name.ToLower() == pointsTimestamp.Key.ToLower()).Single();
+                    var pointEndTime = endTime < pointsTimestamp.Value ? endTime : pointsTimestamp.Value.AddMilliseconds(-1);
+                    backfill.BackfillPIPoint(tdDatabaseName, startTime, pointEndTime, piPoint);
+                    finished++;
+                    log.Info($"Backfill BackfillPIPointsFromLastRecordedValue finished {finished}/{all}.");
+                }
             }
             else
             {
                 backfill.BackfillPIPoints(tdDatabaseName, startTime, endTime, piPoints);
             }
-            log.Info("completed");
-
+            log.Info("BackfillPIPointsFromTool completed");
         }
 
         public async Task BackfillAFElementsFromTool(string tdDatabaseName, string afDatabaseName, List<string> elementTemplateNames, DateTime startTime, DateTime endTime, bool toFirstRecorded, bool fromLastRecorded, bool dropTables)
