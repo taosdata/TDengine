@@ -237,6 +237,7 @@ public class StatusCache {
         sb.append("系统启动时间：" + startTime + "\n");
         sb.append("系统状态：" + status + ", " + description + "\n");
         sb.append("线程信息：" + threadInfoMap + "\n");
+        sb.append("InfluxDB信息：" + influxdbInfo + "\n");
         sb.append("Netty信息：" + nettyInfo + "\n");
         sb.append("Read Speed：" + FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).getSpeed() + "\n");
         sb.append("Push Speed：" + FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).getSpeed() + "\n");

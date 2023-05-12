@@ -14,18 +14,8 @@ task:
   mode: resume
   # empty is all, follow this principle
   buckets:
-    - bucket: influxdb
-      measurements:
-        - measurement: 1a
-          cols: 1a
-        - measurement: 2a
-          cols: 2a
-    - bucket: test
-      measurements:
-        - measurement: 3a
-          cols: 3a
-        - measurement: 4a
-          cols: 4a
+    - influxdb
+    - test
   beginTime: 2023-04-01
   # empty is now
   endTime: 2023-04-05

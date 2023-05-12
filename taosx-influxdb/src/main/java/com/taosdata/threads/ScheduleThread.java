@@ -146,10 +146,12 @@ public class ScheduleThread implements Runnable {
                 // 取出一个子线程
                 BucketDataThread bucketDataThread = BucketCache.getBucketDataThread(key);
                 // 正常则启动
-                if (bucketDataThread != null && !LocalConfig.fetchFilterSet.contains(bucketDataThread.getKey())) {
-                    this.threadPoolExecutor.execute(bucketDataThread);
-                } else {
-                    logger.info(this.name + "#忽略读取数据任务{}", bucketDataThread);
+                if (bucketDataThread != null) {
+                    if (!LocalConfig.fetchFilterSet.contains(bucketDataThread.getKey())) {
+                        this.threadPoolExecutor.execute(bucketDataThread);
+                    } else {
+                        logger.info(this.name + "#忽略读取数据任务{}", bucketDataThread);
+                    }
                 }
             }
         });

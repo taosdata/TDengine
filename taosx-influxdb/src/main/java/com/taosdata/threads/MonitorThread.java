@@ -8,7 +8,7 @@ import com.taosdata.caches.StatusCache;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.utils.DateUtils;
-import com.taosdata.utils.influxdb.InfluxdbClientPool;
+import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +40,7 @@ public class MonitorThread implements Runnable {
     /**
      * influxdb连接池
      */
-    private InfluxdbClientPool influxdbClientPool = ApplicationContextProvider.getBean(InfluxdbClientPool.class);
+    private InfluxdbPoolAutoConfig influxdbPool = ApplicationContextProvider.getBean(InfluxdbPoolAutoConfig.class);
 
     /**
      * 上次log输出时间
@@ -66,9 +66,9 @@ public class MonitorThread implements Runnable {
                 StatusCache.noteQueue("ResMessage", -1, MessageCache.getResMessageQueueSize());
                 /* 更新Influxdb连接信息 */
                 // 更新连接数信息
-                StatusCache.noteInfluxdb(influxdbClientPool.getCreatedCount(), influxdbClientPool.getDestroyedCount(), influxdbClientPool.getBorrowedCount(), influxdbClientPool.getReturnedCount());
+                StatusCache.noteInfluxdb(influxdbPool.getPool().getCreatedCount(), influxdbPool.getPool().getDestroyedCount(), influxdbPool.getPool().getBorrowedCount(), influxdbPool.getPool().getReturnedCount());
                 // 连接池关闭或连接数不正常则FAILED，否则NORMAL
-                if (influxdbClientPool.isClosed() || influxdbClientPool.getCreatedCount() <= influxdbClientPool.getDestroyedCount()) {
+                if (influxdbPool.getPool().isClosed() || influxdbPool.getPool().getCreatedCount() <= influxdbPool.getPool().getDestroyedCount()) {
                     StatusCache.noteInfluxdb(StatusEnums.FAILED);
                 } else {
                     StatusCache.noteInfluxdb(StatusEnums.NORMAL);

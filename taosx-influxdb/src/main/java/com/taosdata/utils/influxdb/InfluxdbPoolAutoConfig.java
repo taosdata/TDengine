@@ -3,9 +3,7 @@ package com.taosdata.utils.influxdb;
 import com.influxdb.client.InfluxDBClient;
 import com.taosdata.config.InfluxdbConfig;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
@@ -15,7 +13,7 @@ import javax.annotation.Resource;
  *
  * @author ZYP
  */
-@Configuration
+@Component
 public class InfluxdbPoolAutoConfig {
 
     @Resource
@@ -23,21 +21,35 @@ public class InfluxdbPoolAutoConfig {
 
     private InfluxdbClientPool pool;
 
-    @ConditionalOnClass({InfluxdbPooledObjectFactory.class})
-    @Bean("influxdbClientPool")
-    protected InfluxdbClientPool createInluxdbClientPool() {
+    /**
+     * 获取连接池
+     *
+     * @return
+     */
+    public InfluxdbClientPool getPool() {
+        // 判断连接池状态
+        if (this.pool == null || this.pool.isClosed()) {
+            createInluxdbClientPool();
+        }
+        return this.pool;
+    }
+
+    /**
+     * 创建连接池
+     */
+    public void createInluxdbClientPool() {
         InfluxdbPooledObjectFactory factory = new InfluxdbPooledObjectFactory();
         // 设置连接参数
-        factory.setUrl(influxdbConfig.getUrl());
-        factory.setToken(influxdbConfig.getToken());
+        factory.setUrl(this.influxdbConfig.getUrl());
+        factory.setToken(this.influxdbConfig.getToken());
         // 设置对象池相关参数
         GenericObjectPoolConfig<InfluxDBClient> poolConfig = new GenericObjectPoolConfig<>();
         // 最大空闲
-        poolConfig.setMaxIdle(influxdbConfig.getMaxIdle());
+        poolConfig.setMaxIdle(this.influxdbConfig.getMaxIdle());
         // 最大总数
-        poolConfig.setMaxTotal(influxdbConfig.getMaxTotal());
+        poolConfig.setMaxTotal(this.influxdbConfig.getMaxTotal());
         // 最小空闲
-        poolConfig.setMinIdle(influxdbConfig.getMinIdle());
+        poolConfig.setMinIdle(this.influxdbConfig.getMinIdle());
         poolConfig.setBlockWhenExhausted(true);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
@@ -46,10 +58,9 @@ public class InfluxdbPoolAutoConfig {
         //一定要关闭jmx，不然springboot启动会报已经注册了某个jmx的错误
         poolConfig.setJmxEnabled(false);
         // 新建一个对象池，传入对象工厂和配置
-        pool = new InfluxdbClientPool(factory, poolConfig);
+        this.pool = new InfluxdbClientPool(factory, poolConfig);
         // 初始化连接池
-        initPool(influxdbConfig.getInitialSize(), influxdbConfig.getMaxIdle());
-        return pool;
+        initPool(this.influxdbConfig.getInitialSize(), this.influxdbConfig.getMaxIdle());
     }
 
     /**
@@ -65,7 +76,7 @@ public class InfluxdbPoolAutoConfig {
         int size = Math.min(initialSize, maxIdle);
         for (int i = 0; i < size; i++) {
             try {
-                pool.addObject();
+                this.pool.addObject();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -74,8 +85,8 @@ public class InfluxdbPoolAutoConfig {
 
     @PreDestroy
     public void destroy() {
-        if (pool != null) {
-            pool.close();
+        if (this.pool != null) {
+            this.pool.close();
         }
     }
 }

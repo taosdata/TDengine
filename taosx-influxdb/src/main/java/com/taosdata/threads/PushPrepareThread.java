@@ -67,6 +67,7 @@ public class PushPrepareThread implements Runnable {
                 /* 1.按Bucket/Measurement/Table拆分队列 */
                 filter(influxdbBucketDataEntityList);
                 /* 2.清理空队列及其对应的socket与thread */
+                /* 2023.05.12 不主动断开socket连接
                 // 获取数据为空的key集合
                 Set<String> bucketDataEmptyKeySet = BucketDataCache.getBucketDataEmptyKeySet();
                 // 遍历关闭连接并清理内存
@@ -78,7 +79,7 @@ public class PushPrepareThread implements Runnable {
                     }
                     // 从BucketDataCache中删除
                     BucketDataCache.removeBucketDataKey(key);
-                });
+                });*/
                 /* 3.为新队列创建socket与thread */
                 // 内存中所有队列
                 Set<String> bucketDataKeySet = BucketDataCache.getBucketDataKeySet();
