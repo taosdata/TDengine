@@ -190,9 +190,9 @@ STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo);
 
-int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType);
+void verifyOffset(void *pWalReader, STqOffsetVal* pOffset);
 
-int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit);
+int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType);
 
 void qStreamSetOpen(qTaskInfo_t tinfo);
 

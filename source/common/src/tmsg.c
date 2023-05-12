@@ -5329,9 +5329,9 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
 int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
 
-  SMsgHead *pHead = buf;
-  pHead->vgId = pReq->head.vgId;
-  pHead->contLen = pReq->head.contLen;
+//  SMsgHead *pHead = buf;
+//  pHead->vgId = pReq->head.vgId;
+//  pHead->contLen = pReq->head.contLen;
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
@@ -6839,10 +6839,8 @@ int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) 
     if (tEncodeI64(pEncoder, pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
     if (tEncodeI64(pEncoder, pOffsetVal->version) < 0) return -1;
-  } else if (pOffsetVal->type < 0) {
-    // do nothing
   } else {
-    ASSERT(0);
+    // do nothing
   }
   return 0;
 }
@@ -6854,10 +6852,8 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
     if (tDecodeI64(pDecoder, &pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
     if (tDecodeI64(pDecoder, &pOffsetVal->version) < 0) return -1;
-  } else if (pOffsetVal->type < 0) {
-    // do nothing
   } else {
-    ASSERT(0);
+    // do nothing
   }
   return 0;
 }
@@ -7062,7 +7058,7 @@ void tDeleteSMqDataRsp(SMqDataRsp *pRsp) {
   pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
-  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
   pRsp->blockSchema = NULL;
   taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
   pRsp->blockTbName = NULL;
@@ -7163,7 +7159,7 @@ void tDeleteSTaosxRsp(STaosxRsp *pRsp) {
   pRsp->blockDataLen = NULL;
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
-  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
   pRsp->blockSchema = NULL;
   taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
   pRsp->blockTbName = NULL;
@@ -7336,7 +7332,7 @@ _exit:
   return 0;
 }
 
-int32_t tEncodeSSubmitReq2(SEncoder *pCoder, const SSubmitReq2 *pReq) {
+int32_t tEncodeSubmitReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeU64v(pCoder, taosArrayGetSize(pReq->aSubmitTbData)) < 0) return -1;
@@ -7348,7 +7344,7 @@ int32_t tEncodeSSubmitReq2(SEncoder *pCoder, const SSubmitReq2 *pReq) {
   return 0;
 }
 
-int32_t tDecodeSSubmitReq2(SDecoder *pCoder, SSubmitReq2 *pReq) {
+int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq) {
   int32_t code = 0;
 
   memset(pReq, 0, sizeof(*pReq));
@@ -7391,7 +7387,7 @@ _exit:
   return code;
 }
 
-void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
+void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   if (NULL == pTbData) {
     return;
   }
@@ -7437,14 +7433,14 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   }
 }
 
-void tDestroySSubmitReq(SSubmitReq2 *pReq, int32_t flag) {
+void tDestroySubmitReq(SSubmitReq2 *pReq, int32_t flag) {
   if (pReq->aSubmitTbData == NULL) return;
 
   int32_t        nSubmitTbData = TARRAY_SIZE(pReq->aSubmitTbData);
   SSubmitTbData *aSubmitTbData = (SSubmitTbData *)TARRAY_DATA(pReq->aSubmitTbData);
 
   for (int32_t i = 0; i < nSubmitTbData; i++) {
-    tDestroySSubmitTbData(&aSubmitTbData[i], flag);
+    tDestroySubmitTbData(&aSubmitTbData[i], flag);
   }
   taosArrayDestroy(pReq->aSubmitTbData);
   pReq->aSubmitTbData = NULL;

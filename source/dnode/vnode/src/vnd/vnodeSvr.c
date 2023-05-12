@@ -448,7 +448,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   walApplyVer(pVnode->pWal, version);
 
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
-    /*vInfo("vgId:%d, push msg end", pVnode->config.vgId);*/
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
@@ -487,8 +486,13 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY) && !syncIsReadyForRead(pVnode->sync)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME) && !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
+
+  if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !pVnode->restored) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
     return 0;
   }
 
@@ -499,6 +503,8 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_QUERY_CONTINUE:
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
+    case TDMT_VND_TMQ_CONSUME:
+      return tqProcessPollReq(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -508,14 +514,9 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
-       pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TMQ_CONSUME) &&
+       pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
-    return 0;
-  }
-
-  if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !pVnode->restored) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
     return 0;
   }
 
@@ -537,8 +538,6 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
-    case TDMT_VND_TMQ_CONSUME:
-      return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
@@ -1007,7 +1006,7 @@ static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   }
   tdSTSRowIterInit(&pCxt->rowIter, pCxt->pTbSchema);
 
-  tDestroySSubmitTbData(pCxt->pTbData, TSDB_MSG_FLG_ENCODE);
+  tDestroySubmitTbData(pCxt->pTbData, TSDB_MSG_FLG_ENCODE);
   if (NULL == pCxt->pTbData) {
     pCxt->pTbData = taosMemoryCalloc(1, sizeof(SSubmitTbData));
     if (NULL == pCxt->pTbData) {
@@ -1039,7 +1038,7 @@ static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
 
 static void vnodeDestroySubmitReqConvertCxt(SSubmitReqConvertCxt *pCxt) {
   taosMemoryFreeClear(pCxt->pTbSchema);
-  tDestroySSubmitTbData(pCxt->pTbData, TSDB_MSG_FLG_ENCODE);
+  tDestroySubmitTbData(pCxt->pTbData, TSDB_MSG_FLG_ENCODE);
   taosMemoryFreeClear(pCxt->pTbData);
   taosArrayDestroy(pCxt->pColValues);
 }
@@ -1149,7 +1148,7 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   int32_t  code = TSDB_CODE_SUCCESS;
   char    *pMsg = NULL;
   uint32_t msglen = 0;
-  tEncodeSize(tEncodeSSubmitReq2, pSubmitReq, msglen, code);
+  tEncodeSize(tEncodeSubmitReq, pSubmitReq, msglen, code);
   if (TSDB_CODE_SUCCESS == code) {
     pMsg = taosMemoryMalloc(msglen);
     if (NULL == pMsg) {
@@ -1159,7 +1158,7 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     tEncoderInit(&encoder, pMsg, msglen);
-    code = tEncodeSSubmitReq2(&encoder, pSubmitReq);
+    code = tEncodeSubmitReq(&encoder, pSubmitReq);
     tEncoderClear(&encoder);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -1199,7 +1198,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     len -= sizeof(SSubmitReq2Msg);
     SDecoder dc = {0};
     tDecoderInit(&dc, pReq, len);
-    if (tDecodeSSubmitReq2(&dc, pSubmitReq) < 0) {
+    if (tDecodeSubmitReq(&dc, pSubmitReq) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
@@ -1388,7 +1387,7 @@ _exit:
 
   // clear
   taosArrayDestroy(newTbUids);
-  tDestroySSubmitReq(pSubmitReq, 0 == pMsg->version ? TSDB_MSG_FLG_CMPT : TSDB_MSG_FLG_DECODE);
+  tDestroySubmitReq(pSubmitReq, 0 == pMsg->version ? TSDB_MSG_FLG_CMPT : TSDB_MSG_FLG_DECODE);
   tDestroySSubmitRsp2(pSubmitRsp, TSDB_MSG_FLG_ENCODE);
 
   if (code) terrno = code;

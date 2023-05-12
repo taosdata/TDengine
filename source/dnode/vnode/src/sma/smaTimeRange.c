@@ -303,7 +303,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   }
 
   // encode
-  tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
+  tEncodeSize(tEncodeSSubmitReq, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
@@ -316,7 +316,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     ((SSubmitReq2Msg *)pBuf)->header.contLen = htonl(len);
     ((SSubmitReq2Msg *)pBuf)->version = htobe64(1);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    if (tEncodeSSubmitReq2(&encoder, pReq) < 0) {
+    if (tEncodeSSubmitReq(&encoder, pReq) < 0) {
       tEncoderClear(&encoder);
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -328,7 +328,7 @@ _exit:
   taosArrayDestroy(tagArray);
   taosArrayDestroy(pVals);
   if (pReq) {
-    tDestroySSubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+    tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pReq);
   }
 

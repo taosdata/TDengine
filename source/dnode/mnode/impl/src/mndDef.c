@@ -225,7 +225,7 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_L
   memcpy(pConsumer->cgroup, cgroup, TSDB_CGROUP_LEN);
 
   pConsumer->epoch = 0;
-  pConsumer->status = MQ_CONSUMER_STATUS__MODIFY;
+  pConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
   pConsumer->hbStatus = 0;
 
   taosInitRWLatch(&pConsumer->lock);
