@@ -54,7 +54,7 @@ REST 连接支持所有能运行 Java 的平台。
 
 **注**：REST 连接中增加 `batchfetch` 参数并设置为 true，将开启 WebSocket 连接。
 
-### 处理异常
+## 处理异常
 
 在报错后，通过 SQLException 可以获取到错误的信息和错误码：
 
@@ -443,6 +443,7 @@ TDengine 的 JDBC 原生连接实现大幅改进了参数绑定方式对数据�
 - JDBC REST 连接目前不支持参数绑定
 - 以下示例代码基于 taos-jdbcdriver-3.2.1
 - binary 类型数据需要调用 setString 方法，nchar 类型数据需要调用 setNString 方法
+- 预处理语句中指定数据库与子表名称不要使用 `db.?`，应直接使用 `?`，然后在 setTableName 中指定数据库，如：`prepareStatement.setTableName("db.t1")`。
 
 <Tabs defaultValue="native">
 <TabItem value="native" label="原生连接">
@@ -864,7 +865,7 @@ public class ParameterBindingDemo {
 
 用于设定 TAGS 取值的方法总共有：
 
-````java
+```java
 public void setTagNull(int index, int type)
 public void setTagBoolean(int index, boolean value)
 public void setTagInt(int index, int value)

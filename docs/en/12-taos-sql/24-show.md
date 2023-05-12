@@ -129,6 +129,14 @@ SHOW QNODES;
 
 Shows information about qnodes in the system.
 
+## SHOW QUERIES
+
+```sql
+SHOW QUERIES;
+```
+
+Shows the queries in progress in the system.
+
 ## SHOW SCORES
 
 ```sql
