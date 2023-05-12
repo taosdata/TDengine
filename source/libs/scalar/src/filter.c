@@ -3942,8 +3942,162 @@ _return:
   FLT_RET(code);
 }
 
+// compare ranges, null < min < val < max. null=null, min=min, max=max
+typedef enum {
+  FLT_SCL_DATUM_KIND_NULL,
+  FLT_SCL_DATUM_KIND_MIN,
+  FLT_SCL_DATUM_KIND_INT64,
+  FLT_SCL_DATUM_KIND_UINT64,
+  FLT_SCL_DATUM_KIND_FLOAT64,
+  FLT_SCL_DATUM_KIND_VARCHAR,
+  FLT_SCL_DATUM_KIND_NCHAR,
+  FLT_SCL_DATUM_KIND_MAX,
+} SFltSclDatumKind;
+
+typedef struct {
+  SFltSclDatumKind kind;
+  union {
+    int64_t  val; // may be int64, uint64 and double
+    struct {
+      uint32_t nData;
+      uint8_t *pData;
+    }; // maybe varchar, nchar
+  } datum;
+} SFltSclDatum;
+
+typedef struct {
+  SFltSclDatum val;
+  bool excl;
+  bool start;
+} SFltSclPoint;
+
+typedef struct {
+  SFltSclDatum low;
+  SFltSclDatum high;
+  bool lowExcl;
+  bool highExcl;
+} SFltSclRange;
+
+int32_t fltSclCompareDatum(SFltSclDatum* val1, SFltSclDatum* val2) {
+}
+
+bool fltSclLessPoint(SFltSclPoint* pt1, SFltSclPoint* pt2) {
+  // first value compare
+  int32_t cmp = fltSclCompareDatum(&pt1->val, &pt2->val);
+  if (cmp != 0) {
+    return cmp < 0 ;
+  }
+
+  if (pt1->start && pt2->start) {
+      return !pt1->excl && pt2->excl;
+    } else if (pt1->start) {
+      return pt1->excl && !pt2->excl;
+    } else if (pt2->start) {
+      return pt1->excl || pt2->excl;
+    }
+  return pt1->excl && !pt2->excl;
+}
+
+int32_t fltSclMergeSort(SArray* pts1, SArray* pts2, SArray* result) {
+  size_t len1 = taosArrayGetSize(pts1);
+  size_t len2 = taosArrayGetSize(pts2);
+  size_t i = 0;
+  size_t j = 0;
+  while (i < len1 && j < len2) {
+      SFltSclPoint* pt1 = taosArrayGet(pts1, i);
+      SFltSclPoint* pt2 = taosArrayGet(pts2, j);
+      bool less = fltSclLessPoint(pt1, pt2);
+      if (less) {
+      taosArrayPush(result, pt1);
+      ++i;
+      } else {
+      taosArrayPush(result, pt2);
+      ++j;
+      }
+  }
+  if (i < len1) {
+      for (; i < len1; ++i) {
+      SFltSclPoint* pt1 = taosArrayGet(pts1, i);
+      taosArrayPush(result, pt1);
+      }
+  }
+  if (j < len2) {
+      for (; j < len2; ++j) {
+      SFltSclPoint *pt2 = taosArrayGet(pts2, j);
+      taosArrayPush(result, pt2);
+      }
+  }
+  return 0;
+}
+
+// pts1 and pts2 must be ordered and de-duplicated and each range can not be a range of another range
+int32_t fltSclMerge(SArray* pts1, SArray* pts2, bool isUnion, SArray* merged) {
+  size_t len1 = taosArrayGetSize(pts1);
+  size_t len2 = taosArrayGetSize(pts2);
+  //first merge sort pts1 and pts2
+  SArray* all = taosArrayInit(len1 + len2, sizeof(SFltSclPoint));
+  fltSclMergeSort(pts1, pts2, all);
+  int32_t countRequired = (isUnion) ? 1 : 2;
+  int32_t count = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(all); ++i) {
+      SFltSclPoint* pt = taosArrayGet(pts1, i);
+      if (pt->start) {
+        ++count;
+        if (count == countRequired) {
+          taosArrayPush(merged, pt);
+        }
+      } else {
+        if (count == countRequired) {
+          taosArrayPush(merged, pt);
+        }
+        --count;
+      }
+  }
+  taosArrayDestroy(all);
+  return 0;
+}
+
+
+int32_t fltSclIntersect(SArray* pts1, SArray* pts2, SArray* merged) {
+  return fltSclMerge(pts1, pts2, false, merged);
+}
+
+int32_t fltSclUnion(SArray* pts1, SArray* pts2, SArray* merged) {
+  return fltSclMerge(pts1, pts2, true, merged);
+}
+
+
+typedef struct {
+  SColumnNode* colNode;
+  SValueNode* valNode;
+  EOperatorType type;
+} SFltSclScalarFunc;
+
+typedef struct {
+  SColumnNode* colNode;
+
+} SFltSclConstColumn;
+
+typedef struct {
+  SValueNode* value;
+} SFltSclConstant;
+
+typedef struct {
+  bool useRange;
+  SHashObj* colRanges;
+
+} SFltSclOptCtx;
+
+static EDealRes fltSclMayBeOptimed(SNode* pNode, void* pCtx) {
+  SFltSclOptCtx* ctx = (SFltSclOptCtx*)pCtx;
+
+}
+
+
 int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
-  // TODO
+  SFltSclOptCtx ctx;
+  nodesWalkExprPostOrder(*pNode, fltSclMayBeOptimed, &ctx);
+
   return TSDB_CODE_SUCCESS;
 }
 
