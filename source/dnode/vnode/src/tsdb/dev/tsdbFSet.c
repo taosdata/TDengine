@@ -43,21 +43,6 @@ static int32_t stt_lvl_from_json(const cJSON *json, SSttLvl *lvl) {
   return 0;
 }
 
-int32_t tsdbFileSetCreate(int32_t fid, struct STFileSet **ppSet) {
-  int32_t code = 0;
-
-  ppSet[0] = taosMemoryCalloc(1, sizeof(struct STFileSet));
-  if (ppSet[0] == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-  ppSet[0]->fid = fid;
-  ppSet[0]->nextid = 1;  // TODO
-
-_exit:
-  return code;
-}
-
 int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   int32_t code = 0;
 
@@ -126,7 +111,53 @@ int32_t tsdbFSetCmprFn(const STFileSet *pSet1, const STFileSet *pSet2) {
   return 0;
 }
 
-int32_t tsdbFSetEdit(STFileSet *pSet, const STFileOp *pOp) {
+int32_t tsdbFSetEdit(STFileSet *fset, const STFileOp *op) {
+  ASSERT(fset->fid == op->fid);
+
+  if (op->oState.size == 0) {
+    // create
+    STFile *f = taosMemoryMalloc(sizeof(STFile));
+    if (f == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+    f[0] = op->nState;
+
+    if (f[0].type == TSDB_FTYPE_STT) {
+      SSttLvl *lvl;
+      LISTD_FOREACH(&fset->lvl0, lvl, listNode) {
+        if (lvl->lvl == f[0].stt.lvl) {
+          break;
+        }
+      }
+
+      if (lvl == NULL) {
+        // TODO: create the level
+      }
+
+      // TODO: add the stt file to the level
+    } else {
+      fset->farr[f[0].type] = f;
+    }
+  } else if (op->nState.size == 0) {
+    // delete
+  } else {
+    // modify
+  }
+  return 0;
+}
+
+int32_t tsdbFileSetInit(STFileSet *pSet) {
+  for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ftype++) {
+    pSet->farr[ftype] = NULL;
+  }
+
+  LISTD_INIT(&pSet->lvl0, listNode);
+  pSet->lvl0.lvl = 0;
+  pSet->lvl0.nstt = 0;
+  pSet->lvl0.fstt = NULL;
+  return 0;
+}
+
+int32_t tsdbFileSetClear(STFileSet *pSet) {
   // TODO
   return 0;
 }

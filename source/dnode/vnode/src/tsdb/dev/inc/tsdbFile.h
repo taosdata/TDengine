@@ -38,6 +38,11 @@ typedef enum {
 int32_t tsdbTFileToJson(const STFile *f, cJSON *json);
 int32_t tsdbTFileFromJson(const cJSON *json, tsdb_ftype_t ftype, STFile **f);
 
+// create/destroy
+int32_t tsdbTFileCreate(STsdb *pTsdb, STFile *pFile, STFile **f);
+int32_t tsdbTFileDestroy(STFile *pFile);
+
+// init/clear
 int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile);
 int32_t tsdbTFileClear(STFile *pFile);
 

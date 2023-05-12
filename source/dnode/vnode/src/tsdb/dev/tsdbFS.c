@@ -444,9 +444,22 @@ static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
       pSet = taosArraySearch(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_EQ);
     }
 
+    // create fset if need
     if (pSet == NULL) {
       ASSERT(op->oState.size == 0 && op->nState.size > 0);
-      // TODO
+
+      STFileSet fset = {.fid = op->fid};
+      int32_t   idx = taosArraySearchIdx(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GT);
+
+      if (idx < 0) idx = taosArrayGetSize(pFS->nstate);
+
+      pSet = taosArrayInsert(pFS->nstate, idx, &fset);
+      if (pSet == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _exit)
+      }
+
+      tsdbFileSetInit(pSet);
     }
 
     code = tsdbFSetEdit(pSet, op);
