@@ -467,8 +467,8 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
   getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
 
   if (!osTempSpaceAvailable()) {
-    code = TSDB_CODE_NO_AVAIL_DISK;
-    qError("Init stream agg supporter failed since %s, %s", terrstr(code), pKey);
+    code = TSDB_CODE_NO_DISKSPACE;
+    qError("Init stream agg supporter failed since %s, key:%s, tempDir:%s", terrstr(code), pKey, tsTempDir);
     return code;
   }
 

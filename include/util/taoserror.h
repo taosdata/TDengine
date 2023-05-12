@@ -406,6 +406,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_SNODE_NOT_DEPLOYED            TAOS_DEF_ERROR_CODE(0, 0x0411)
 #define TSDB_CODE_MNODE_NOT_CATCH_UP            TAOS_DEF_ERROR_CODE(0, 0x0412) // internal
 #define TSDB_CODE_MNODE_ALREADY_IS_VOTER        TAOS_DEF_ERROR_CODE(0, 0x0413) // internal
+#define TSDB_CODE_MNODE_ONLY_TWO_MNODE          TAOS_DEF_ERROR_CODE(0, 0x0414) // internal
 
 // vnode
 // #define TSDB_CODE_VND_ACTION_IN_PROGRESS     TAOS_DEF_ERROR_CODE(0, 0x0500) // 2.x
@@ -442,6 +443,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_VND_QUERY_BUSY                TAOS_DEF_ERROR_CODE(0, 0x0531)
 #define TSDB_CODE_VND_NOT_CATCH_UP              TAOS_DEF_ERROR_CODE(0, 0x0532) // internal
 #define TSDB_CODE_VND_ALREADY_IS_VOTER          TAOS_DEF_ERROR_CODE(0, 0x0533) // internal
+#define TSDB_CODE_VND_DIR_ALREADY_EXIST         TAOS_DEF_ERROR_CODE(0, 0x0534)
 
 // tsdb
 #define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)

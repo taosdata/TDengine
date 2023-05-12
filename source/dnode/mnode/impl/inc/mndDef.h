@@ -118,7 +118,7 @@ typedef enum {
 } ETrnPolicy;
 
 typedef enum {
-  TRN_EXEC_PRARLLEL = 0,
+  TRN_EXEC_PARALLEL = 0,
   TRN_EXEC_SERIAL = 1,
 } ETrnExec;
 
@@ -177,6 +177,7 @@ typedef struct {
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
   int64_t     mTraceId;
+  TdThreadMutex    mutex;
 } STrans;
 
 typedef struct {
@@ -205,6 +206,8 @@ typedef struct {
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
   char       ep[TSDB_EP_LEN];
+  char       active[TSDB_ACTIVE_KEY_LEN];
+  char       connActive[TSDB_CONN_ACTIVE_KEY_LEN];
 } SDnodeObj;
 
 typedef struct {

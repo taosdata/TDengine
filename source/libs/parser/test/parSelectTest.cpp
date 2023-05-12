@@ -239,6 +239,19 @@ TEST_F(ParserSelectTest, groupBySemanticCheck) {
   run("SELECT COUNT(*) cnt, c2 FROM t1 WHERE c1 > 0 GROUP BY c1", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
 }
 
+TEST_F(ParserSelectTest, havingCheck) {
+  useDb("root", "test");
+
+  run("select tbname,count(*) from st1 partition by tbname having c1>0", TSDB_CODE_PAR_INVALID_OPTR_USAGE);
+
+  run("select tbname,count(*) from st1 group by tbname having c1>0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+
+  run("select max(c1) from st1 group by tbname having c1>0");
+
+  run("select max(c1) from st1 partition by tbname having c1>0");
+}
+
+
 TEST_F(ParserSelectTest, orderBy) {
   useDb("root", "test");
 

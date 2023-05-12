@@ -1114,7 +1114,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
   bool    masterScan = true;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
-  int16_t bytes = pStateColInfoData->info.bytes;
+  int32_t bytes = pStateColInfoData->info.bytes;
 
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;

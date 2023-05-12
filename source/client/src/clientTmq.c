@@ -2517,6 +2517,31 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       *numOfAssignment = num;
     }
 
+    for (int32_t j = 0; j < (*numOfAssignment); ++j) {
+      tmq_topic_assignment* p = &(*assignment)[j];
+
+      for(int32_t i = 0; i < taosArrayGetSize(pTopic->vgs); ++i) {
+        SMqClientVg* pClientVg = taosArrayGet(pTopic->vgs, i);
+        if (pClientVg->vgId != p->vgId) {
+          continue;
+        }
+
+        SVgOffsetInfo* pOffsetInfo = &pClientVg->offsetInfo;
+
+        pOffsetInfo->currentOffset.type = TMQ_OFFSET__LOG;
+
+        char offsetBuf[80] = {0};
+        tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffsetInfo->currentOffset);
+
+        tscDebug("vgId:%d offset is update to:%s", p->vgId, offsetBuf);
+
+        pOffsetInfo->walVerBegin = p->begin;
+        pOffsetInfo->walVerEnd = p->end;
+        pOffsetInfo->currentOffset.version = p->currentOffset;
+        pOffsetInfo->committedOffset.version = p->currentOffset;
+      }
+    }
+
     destroyCommonInfo(pCommon);
     return code;
   } else {
@@ -2564,7 +2589,8 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   }
 
   if (offset < pOffsetInfo->walVerBegin || offset > pOffsetInfo->walVerEnd) {
-    tscError("consumer:0x%" PRIx64 " invalid seek params, offset:%" PRId64, tmq->consumerId, offset);
+    tscError("consumer:0x%" PRIx64 " invalid seek params, offset:%" PRId64 ", valid range:[%" PRId64 ", %" PRId64 "]",
+             tmq->consumerId, offset, pOffsetInfo->walVerBegin, pOffsetInfo->walVerEnd);
     return TSDB_CODE_INVALID_PARA;
   }
 

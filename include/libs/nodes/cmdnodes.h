@@ -350,6 +350,11 @@ typedef struct SDropComponentNodeStmt {
   int32_t   dnodeId;
 } SDropComponentNodeStmt;
 
+typedef struct SRestoreComponentNodeStmt {
+  ENodeType type;
+  int32_t   dnodeId;
+} SRestoreComponentNodeStmt;
+
 typedef struct SCreateTopicStmt {
   ENodeType type;
   char      topicName[TSDB_TABLE_NAME_LEN];

@@ -1559,6 +1559,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SMergeLogicNode* pM
   pMerge->numOfChannels = pMergeLogicNode->numOfChannels;
   pMerge->srcGroupId = pMergeLogicNode->srcGroupId;
   pMerge->groupSort = pMergeLogicNode->groupSort;
+  pMerge->ignoreGroupId = pMergeLogicNode->ignoreGroupId;
 
   int32_t code = addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc);
 
