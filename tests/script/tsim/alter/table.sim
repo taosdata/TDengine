@@ -665,8 +665,8 @@ sql_error alter table tb2023 add column v varchar(65530);
 sql alter table tb2023 add column v varchar(16374);
 sql desc tb2023
 sql alter table tb2023 drop column v
-sql_error alter table tb2023 add column v nchar(4094);
-sql alter table tb2023 add column v nchar(4093);
+sql_error alter table tb2023 add column v nchar(16384);
+sql alter table tb2023 add column v nchar(16374);
 sql desc tb2023
 print ======= over
 sql drop database d1
