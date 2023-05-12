@@ -35,8 +35,8 @@ namespace TDPIConnector.Core
             public string PIServerDomain { get; internal set; }
             public bool FromTDengineLastTime { get; set; }
             public bool ToTDengineFirstTime { get; set; }
-            public DateTime BackfillStartTime { get; set; }
-            public DateTime BackfillEndTime { get; set; }
+            public DateTime BackfillStartTime { get; set; } = DateTime.MinValue;
+            public DateTime BackfillEndTime { get; set; } = DateTime.MaxValue;
 
             public string ConfigString()
             {

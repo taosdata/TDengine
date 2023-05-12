@@ -64,6 +64,7 @@ namespace TDPIConnector.Core
                 var elementName = dpEvent.Value.Attribute.Element.Name;
                 var stableName = TableNameConvert.GetAFPointSuperTableName(dpEvent.Value.Attribute.Element.Template);
                 var tdValue = dpEvent.Value.ToTDValue();
+                if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;
 
                 var attributeName = dpEvent.Value.Attribute.Name;
@@ -144,6 +145,7 @@ namespace TDPIConnector.Core
             {
                 var pointName = dpEvent.Value.PIPoint.Name;
                 var tdValue = dpEvent.Value.ToTDValue();
+                if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;
 
                 tdValue.Name = pointName;
@@ -153,7 +155,8 @@ namespace TDPIConnector.Core
                     var table = tables[pointName];
                     if (table.ContainsKey(timestamp))
                     {
-                        table[timestamp].Add(tdValue);
+                        // not support different value at the same one timestamp, use the last one.
+                        table[timestamp] = new List<TDValue>() { tdValue };
                     }
                     else
                     {

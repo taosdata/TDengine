@@ -145,10 +145,10 @@ namespace TDBackfill
                         backfillManager.BackfillAFElementsFromTool(AppSettings.tomlConfig.TDDataBase,
                                 AppSettings.tomlConfig.AFDatabaseName,
                                 AppSettings.tomlConfig.TemplateForAFElement,
-                                options.Start,
-                                options.End,
-                                options.BackfillToFirstRecorded,
-                                options.BackfillFromLastRecorded,
+                                AppSettings.tomlConfig.BackfillStartTime,
+                                AppSettings.tomlConfig.BackfillEndTime,
+                                AppSettings.tomlConfig.ToTDengineFirstTime,
+                                AppSettings.tomlConfig.FromTDengineLastTime,
                                 options.DropTables).Wait();
                     }
 

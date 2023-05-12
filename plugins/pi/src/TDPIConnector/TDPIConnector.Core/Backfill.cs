@@ -26,50 +26,19 @@ namespace TDPIConnector.Core
         }
 
 
-        public async Task BackfillPIPointsFromLastRecordedValue(string tdDatabaseName, Dictionary<PIPointWrapper, DateTime> lastValueTimestamps)
+        public void BackfillPIPointsFromLastRecordedValue(string tdDatabaseName, Dictionary<PIPointWrapper, DateTime> lastValueTimestamps, DateTime endTime)
         {
-            Stopwatch stopwatch = new Stopwatch();
+            int all = lastValueTimestamps.Count;
+            int finished = 0;
             foreach (var lastTDValue in lastValueTimestamps)
             {
-                stopwatch.Start();
                 PIPointWrapper piPoint = lastTDValue.Key;
-                DateTimeWrapper startTime = new DateTimeWrapper { Value = lastTDValue.Value };
-                while (startTime.Value != DateTime.MaxValue)
-                {
-                    List<AFValueWrapper> afValues = await PISystemManager.GetPIPointRecordedValuesByCountForward(piPoint, startTime, 5000);
-                    log.Info($"Backfill PI point {piPoint.Name}, {afValues.Count} values retrieved in {stopwatch.ElapsedMilliseconds} ms");
-                    stopwatch.Reset();
-                    stopwatch.Start();
-                    List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).ToList();
-                    tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, TableNameConvert.GetPIPointSuperTableName(piPoint), piPoint.Name, tdValues);
-                    log.Info($"Backfill TDEngine point {piPoint.Name}, {tdValues.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
-                }
-                stopwatch.Reset();
+                DateTime startTime = lastTDValue.Value.AddMilliseconds(1);
+                BackfillPIPoint(tdDatabaseName, startTime, endTime, piPoint);
+                finished++;
+                log.Info($"Backfill BackfillPIPointsFromLastRecordedValue finished {finished}/{all}.");
             }
-        }
-
-
-        public async Task BackfillPIPointsToFirstRecordedValue(string tdDatabaseName, Dictionary<string, DateTime> firstValueTimestamps)
-        {
-            Stopwatch stopwatch = new Stopwatch();
-
-            foreach (var lastTDValue in firstValueTimestamps)
-            {
-                stopwatch.Start();
-                PIPointWrapper piPoint = piServerManager.FindPIPoint(lastTDValue.Key);
-                DateTimeWrapper startTime = new DateTimeWrapper { Value = lastTDValue.Value };
-                while (startTime.Value != DateTime.MaxValue)
-                {
-                    List<AFValueWrapper> afValues = await PISystemManager.GetPIPointRecordedValuesByCountReverse(piPoint, startTime, 5000);
-                    log.Info($"Backfill PI point {piPoint.Name}, {afValues.Count} values retrieved in {stopwatch.ElapsedMilliseconds} ms");
-                    stopwatch.Reset();
-                    stopwatch.Start();
-                    List<TDValue> tdValues = afValues.Select(afValue => afValue.ToTDValue()).ToList();
-                    tdEngineProxy.InsertBackfillValuesForPI(tdDatabaseName, TableNameConvert.GetPIPointSuperTableName(piPoint), piPoint.Name, tdValues);
-                    log.Info($"Backfill TDEngine point {piPoint.Name}, {tdValues.Count} values written in {stopwatch.ElapsedMilliseconds} ms");
-                }
-                stopwatch.Reset();
-            }
+            log.Info($"Backfill BackfillPIPointsFromLastRecordedValue finished.");
         }
 
         public void BackfillPIPoints(string tdDatabaseName, DateTime startTime, DateTime endTime, List<TDTable> points)
@@ -212,6 +181,7 @@ namespace TDPIConnector.Core
             {
                 var value = values[i];
                 var tdValue = value.ToTDValue();
+                if (tdValue == null) continue;
                 var timestamp = tdValue.TimestampString;
                 tdValue.Name = attribute.Name;
 

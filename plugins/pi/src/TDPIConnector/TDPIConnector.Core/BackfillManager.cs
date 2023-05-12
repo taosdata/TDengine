@@ -61,7 +61,7 @@ namespace TDPIConnector.Core
 
                     if (pointsToBackfillChecked.Count > 0)
                     {
-                        await backfill.BackfillPIPointsFromLastRecordedValue(tdDatabaseName, pointsToBackfillChecked);
+                        backfill.BackfillPIPointsFromLastRecordedValue(tdDatabaseName, pointsToBackfillChecked, endTime);
                     }
                 }
                 catch (Exception e)
@@ -200,7 +200,7 @@ namespace TDPIConnector.Core
                 var tableNameList = elementLookup.Keys.ToList();
                 if (fromLastRecorded)
                     elementsTimestamps = await backfill.GetTDTableLastRecordedValueFromAFElements(tdDatabaseName, tableNameList, elementTemplateNames);
-                if (toFirstRecorded)
+                else if (toFirstRecorded)
                     elementsTimestamps = await backfill.GetTDPointsFirstRecordedValue(tdDatabaseName, tableNameList);
 
                 //backfill points if needed
@@ -210,12 +210,14 @@ namespace TDPIConnector.Core
                     {
                         var element = elementLookup[elementTimestamp.Key];
                         if (fromLastRecorded)
-                            backfill.BackfillElement(tdDatabaseName, element, elementTimestamp.Value, endTime);
+                            backfill.BackfillElement(tdDatabaseName, element,
+                                elementTimestamp.Value >= startTime ? elementTimestamp.Value.AddMilliseconds(1) : startTime,
+                                endTime);
 
-
-                        if (toFirstRecorded)
-                            //end time and start time are swaped to retrieve data in reverse order
-                            backfill.BackfillElement(tdDatabaseName, element, elementTimestamp.Value, startTime);
+                        else if (toFirstRecorded)
+                            backfill.BackfillElement(tdDatabaseName, element,
+                                startTime,
+                                elementTimestamp.Value <= endTime ? elementTimestamp.Value.AddMilliseconds(-1) : endTime);
                     }
                 }
             }
