@@ -76,6 +76,11 @@
 #define GRANT_VERSION (grantStatus.officialVersion ? "official" : "trial")
 #define GRANT_CONN_MAJOR_VER 1
 #define GRANT_CONN_MINOR_VER 1
+#define GRANT_FLAG_TDENGINE ((int8_t)0x01)
+#define GRANT_FLAG_CONNECTORS ((int8_t)0x02)
+
+#define IS_GRANT_TDENGINE(s) (((s)->flag & 0x01) == GRANT_FLAG_TDENGINE)
+#define IS_GRANT_CONNECTORS(s) (((s)->flag & 0x02) == GRANT_FLAG_CONNECTORS)
 
 #ifndef min
 #define min(x, y) (x) < (y) ? (x) : (y)
@@ -88,22 +93,25 @@ extern void *tsMnodeTmr;
 #include "tgrantCfg.h"
 
 typedef struct {
-  bool     updateForced;
-  uint64_t limitTimeSeries;
-  uint32_t limitDbs;
-  uint32_t limitSTables;
-  uint32_t limitTables;
+  bool          updateForced;
+  int8_t        flag;  // version 2 since 3.0.5.0
+  uint64_t      limitTimeSeries;
+  uint32_t      limitDbs;
+  uint32_t      limitSTables;
+  uint32_t      limitTables;
+  SGrantConnMsg connectors;  // version 2 since 3.0.5.0
 } SCloudGrantMsg;
 
 typedef struct {
-  uint64_t curTimeSeries;
-  uint64_t limitTimeSeries;
-  uint32_t curDbs;
-  uint32_t limitDbs;
-  uint32_t curSTables;
-  uint32_t limitSTables;
-  uint32_t curTables;
-  uint32_t limitTables;
+  uint64_t       curTimeSeries;
+  uint64_t       limitTimeSeries;
+  uint32_t       curDbs;
+  uint32_t       limitDbs;
+  uint32_t       curSTables;
+  uint32_t       limitSTables;
+  uint32_t       curTables;
+  uint32_t       limitTables;
+  SGrantConnItem items[GRANT_CONN_NUM];  // version 2 since 3.0.5.0
 } SCloudGrantStatus;
 
 SCloudGrantStatus cloudGrantStatus = {0, GRANT_TIME_SERIES_LIMITS, 0, GRANT_DATABASE_LIMITS,
@@ -166,7 +174,7 @@ SGrantStatus grantStatus = {false,
                             (int64_t)(GRANT_STORAGE_LIMITS)*1073741824L,
                             0,
                             GRANT_TIME_SERIES_LIMITS,
-                            GRANT_EXPIRE_TIME,
+                            0,
                             0,
                             GRANT_WRITING_SPEED_LIMITS,
                             0,
@@ -181,7 +189,8 @@ SGrantStatus grantStatus = {false,
                             GRANT_ACCT_LIMITS,
                             0,
                             GRANT_DNODE_LIMITS,
-                            GRANT_CPU_LIMITS};
+                            GRANT_CPU_LIMITS,
+                            0};
 
 // extern SSysTableMeta infosMeta[];
 #ifdef GRANTS_CFG
@@ -376,10 +385,13 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
   pGrantMsg->limitDbs = cloudGrantStatus.limitDbs;
   pGrantMsg->limitSTables = cloudGrantStatus.limitSTables;
   pGrantMsg->limitTables = cloudGrantStatus.limitTables;
+  pGrantMsg->flag |= GRANT_FLAG_TDENGINE;
+  pGrantMsg->flag |= GRANT_FLAG_CONNECTORS;
 #else
   // refresh
   dmRefreshGrantCfg();
   if (grantObj.granted) {
+    pGrantMsg->flag |= GRANT_FLAG_TDENGINE;
     pGrantMsg->usbDongle = grantObj.usbDongle;
     pGrantMsg->updateForced = grantObj.updateForced;
     pGrantMsg->officialVersion = grantObj.officialVersion;
@@ -400,6 +412,7 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
   }
 
   if (grantConnObj.granted) {
+    pGrantMsg->flag |= GRANT_FLAG_CONNECTORS;
     SGrantConnMsg *pConn = &pGrantMsg->connectors;
     pConn->officialVersion = grantConnObj.officialVersion;
     pConn->majorVer = GRANT_CONN_MAJOR_VER;
@@ -897,7 +910,13 @@ static int32_t grantCheckGrantSpeed() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckQueryTime() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckConns() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckStreams() { return TSDB_CODE_SUCCESS; }
-static int32_t grantCheckCpuCores() { return TSDB_CODE_SUCCESS; }
+static int32_t grantCheckCpuCores() {
+  if (grantStatus.limitCpuCores == GRANT_CPU_LIMITS || grantStatus.curCpuCores < grantStatus.limitCpuCores) {
+    return 0;
+  }
+  uError("grant failed to create dnode, exist:%" PRIu32 ", reason:grant cpu cores limited", grantStatus.curCpuCores);
+  return TSDB_CODE_GRANT_CPU_LIMITED;
+}
 
 #endif
 
@@ -950,12 +969,8 @@ int32_t grantCheck(EGrantType grant) {
 
 static FORCE_INLINE bool grantIsOfficial(SGrantStatus *pStatus) { return pStatus->officialVersion; }
 
-static FORCE_INLINE bool grantIsValid(SGrantMsg *pStatus) {
-#if 0
-  return pStatus->limitTimeSeries;
-#endif
-  return true;
-}
+static FORCE_INLINE bool grantIsValid(SGrantMsg *pStatus) { return IS_GRANT_TDENGINE(pStatus); }
+static FORCE_INLINE bool grantConnIsValid(SGrantMsg *pStatus) { return IS_GRANT_CONNECTORS(pStatus); }
 
 #ifndef GRANTS_CFG
 static FORCE_INLINE bool grantShouldCheck(int64_t curTime) {
@@ -1101,51 +1116,55 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
 #else
   // process grant status from mnode
   uint32_t curTime = taosGetTimestampMs() / 1000;
-  if (grantIsValid(pGrantMsg)) {
+  if (grantIsValid(pGrantMsg) || grantConnIsValid(pGrantMsg)) {
     SGrantStatus status = {0};
-    status.usbDongle = pGrantMsg->usbDongle;
-    status.officialVersion = pGrantMsg->officialVersion;
-    status.expireTimeSec = pGrantMsg->expireTimeSec;
-    status.limitStorage = (uint64_t)(pGrantMsg->limitStorage) * (uint64_t)1073741824;
-    status.limitSpeed = pGrantMsg->limitSpeed;
-    status.limitTimeSeries = pGrantMsg->limitTimeSeries;
-    status.limitQueryTime = pGrantMsg->limitQueryTime;
-    status.limitDbs = pGrantMsg->limitDbs;
-    status.limitUsers = pGrantMsg->limitUsers;
-    status.limitConns = pGrantMsg->limitConns;
-    status.limitStreams = pGrantMsg->limitStreams;
-    status.limitAccts = pGrantMsg->limitAccts;
-    status.limitDnodes = pGrantMsg->limitDnodes;
-    status.limitCpuCores = pGrantMsg->limitCpuCores;
-    status.connOfficialVersion = pGrantMsg->connectors.officialVersion;
+    if (grantIsValid(pGrantMsg)) {
+      status.usbDongle = pGrantMsg->usbDongle;
+      status.officialVersion = pGrantMsg->officialVersion;
+      status.expireTimeSec = pGrantMsg->expireTimeSec;
+      status.limitStorage = (uint64_t)(pGrantMsg->limitStorage) * (uint64_t)1073741824;
+      status.limitSpeed = pGrantMsg->limitSpeed;
+      status.limitTimeSeries = pGrantMsg->limitTimeSeries;
+      status.limitQueryTime = pGrantMsg->limitQueryTime;
+      status.limitDbs = pGrantMsg->limitDbs;
+      status.limitUsers = pGrantMsg->limitUsers;
+      status.limitConns = pGrantMsg->limitConns;
+      status.limitStreams = pGrantMsg->limitStreams;
+      status.limitAccts = pGrantMsg->limitAccts;
+      status.limitDnodes = pGrantMsg->limitDnodes;
+      status.limitCpuCores = pGrantMsg->limitCpuCores;
+      status.connOfficialVersion = pGrantMsg->connectors.officialVersion;
+
+      // take effect right now when grants upgrade
+      int32_t grantCompare = grantStatusCompare(&grantStatus, &status);
+      if (grantCompare < 0) {
+        if (grantStatus.officialVersion == status.officialVersion) {
+          // use larger value
+          grantStatusAssignLimits(&grantStatus, &status, true);
+        } else {
+          // from trial to official, assign the value directly
+          grantStatusAssignLimits(&grantStatus, &status, false);
+        }
+      }
+    }
 
     // assign the connectors
-    memcpy(status.items, pGrantMsg->connectors.items, sizeof(SGrantConnItem) * GRANT_CONN_NUM);
+    if (grantConnIsValid(pGrantMsg)) {
+      memcpy(status.items, pGrantMsg->connectors.items, sizeof(SGrantConnItem) * GRANT_CONN_NUM);
+      // take effect right now when grants upgrade
+      int32_t grantCompare = grantConnStatusCompare(&grantStatus, &status);
+      if (grantCompare < 0) {
+        if (grantStatus.connOfficialVersion == status.connOfficialVersion) {
+          // use larger value
+          grantConnStatusAssignLimits(&grantStatus, &status, true);
+        } else {
+          // from trial to official, assign the value directly
+          grantConnStatusAssignLimits(&grantStatus, &status, false);
+        }
+      }
+    }
 
     taosHashPut(grantHandle.pOfficials, &pDnodeInfo->id, sizeof(TSDB_DATA_TYPE_UINT), &status, sizeof(SGrantStatus));
-
-    // take effect right now when grants upgrade
-    int32_t grantCompare = grantStatusCompare(&grantStatus, &status);
-    if (grantCompare < 0) {
-      if (grantStatus.officialVersion == status.officialVersion) {
-        // use larger value
-        grantStatusAssignLimits(&grantStatus, &status, true);
-      } else {
-        // from trial to official, assign the value directly
-        grantStatusAssignLimits(&grantStatus, &status, false);
-      }
-    }
-    // for connectors
-    grantCompare = grantConnStatusCompare(&grantStatus, &status);
-    if (grantCompare < 0) {
-      if (grantStatus.connOfficialVersion == status.connOfficialVersion) {
-        // use larger value
-        grantConnStatusAssignLimits(&grantStatus, &status, true);
-      } else {
-        // from trial to official, assign the value directly
-        grantConnStatusAssignLimits(&grantStatus, &status, false);
-      }
-    }
   }
 
   bool shouldCheck = grantShouldCheck(curTime);
@@ -1300,7 +1319,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     if (grantStatus.limitDbs != GRANT_DATABASE_LIMITS) {
-      sprintf(tmp1, "%u/%u", grantGetClusterCurDbs(pMnode), grantStatus.limitDbs);
+      sprintf(tmp1, "%u/%u", grantStatus.curDbs, grantStatus.limitDbs);
       src = tmp1;
     } else {
       src = "unlimited";
@@ -1333,7 +1352,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     if (grantStatus.limitDnodes != GRANT_DNODE_LIMITS) {
-      sprintf(tmp1, "%u/%u", grantGetClusterCurDnodes(pMnode), grantStatus.limitDnodes);
+      sprintf(tmp1, "%u/%u", grantStatus.curDnodes, grantStatus.limitDnodes);
       src = tmp1;
     } else {
       src = "unlimited";
@@ -1355,7 +1374,12 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
+    if (grantStatus.limitCpuCores != GRANT_ACCT_LIMITS) {
+      sprintf(tmp1, "%u/%u", grantStatus.curCpuCores, grantStatus.limitCpuCores);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);  // cpu_cores
 
@@ -1485,7 +1509,7 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, S
 #endif
   // version 2: support activeCode/connectors activeCode since 3.0.5.0
   int8_t flag = 0;
-  if (tEncodeI8(&encoder, flag) < 0) return -1; // for extend
+  if (tEncodeI8(&encoder, flag) < 0) return -1;  // for extend
   if (tEncodeBinary(&encoder, pInfo->active, TSDB_ACTIVE_KEY_LEN - 1) < 0) return -1;
   if (tEncodeBinary(&encoder, pInfo->connActive, TSDB_CONN_ACTIVE_KEY_LEN - 1) < 0) return -1;
   // end of version 2
@@ -1599,7 +1623,8 @@ int32_t tSerializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
   if (tEncodeU32(&encoder, pMsg->reserveKey2) < 0) return -1;
 #endif
 
-  tSerializeGrantConnMsg(&encoder, &pMsg->connectors);
+  if (tEncodeI8(&encoder, pMsg->flag) < 0) return -1;   // version 2 since 3.0.5.0
+  tSerializeGrantConnMsg(&encoder, &pMsg->connectors);  // version 2 since 3.0.5.0
 
   tEndEncode(&encoder);
 
@@ -1642,7 +1667,12 @@ int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
   if (tDecodeU32(&decoder, &pMsg->reserveKey2) < 0) return -1;
 #endif
 
-  tDeserializeGrantConnMsg(&decoder, &pMsg->connectors);
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pMsg->flag) < 0) return -1;    // version 2 since 3.0.5.0
+    tDeserializeGrantConnMsg(&decoder, &pMsg->connectors);  // version 2 since 3.0.5.0
+  } else {
+    pMsg->flag |= GRANT_FLAG_TDENGINE;                      // version 1 only support activeCode for TDengine
+  }
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

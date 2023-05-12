@@ -175,6 +175,7 @@ typedef struct {
   bool          updateForced;
   bool          usbDongle;
   bool          officialVersion;
+  int8_t        flag;
   uint32_t      expireTimeSec;
   uint32_t      limitStorage;
   uint32_t      limitSpeed;
