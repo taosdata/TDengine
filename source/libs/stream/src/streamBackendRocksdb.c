@@ -111,6 +111,9 @@ void* streamBackendInit(const char* path) {
       taosMemoryFreeClear(err);
     }
   } else {
+    /*
+      list all cf and get prefix
+    */
     int64_t   streamId;
     int32_t   taskId, dummpy = 0;
     SHashObj* tbl = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -650,10 +653,7 @@ const char* compactFilteFactoryName(void* arg) {
 void          destroyCompactFilte(void* arg) { (void)arg; }
 unsigned char compactFilte(void* arg, int level, const char* key, size_t klen, const char* val, size_t vlen,
                            char** newval, size_t* newvlen, unsigned char* value_changed) {
-  if (streamStateValueIsStale((char*)val)) {
-    return 1;
-  }
-  return 0;
+  return streamStateValueIsStale((char*)val) ? 1 : 0
 }
 const char* compactFilteName(void* arg) { return "stream_filte"; }
 
