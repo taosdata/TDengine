@@ -141,6 +141,17 @@ impl TaskOpts {
                     )
                     .await?;
                 }
+                ("influxdb", "taos") => {
+                    plugins::influxdb_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                    ).await?;
+                }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
             Ok(())
