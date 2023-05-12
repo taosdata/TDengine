@@ -102,6 +102,7 @@ typedef struct {
   STqExecHandle execHandle;    // exec
   SRpcMsg*      msg;
   int32_t       noDataPollCnt;
+  int8_t        exec;
 } STqHandle;
 
 typedef struct {

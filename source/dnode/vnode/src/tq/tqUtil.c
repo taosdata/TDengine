@@ -162,6 +162,10 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   return 0;
 }
 
+static bool isHandleExecuting(STqHandle* pHandle){
+  return 1 == atomic_load_8(&pHandle->exec);
+}
+
 static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                    SRpcMsg* pMsg, STqOffsetVal* pOffset) {
   uint64_t consumerId = pRequest->consumerId;
@@ -170,12 +174,19 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, pRequest);
-  qTaskInfo_t task = pHandle->execHandle.task;
-  if (qTaskIsExecuting(task)) {
-    code = tqSendDataRsp(pHandle, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_RSP, vgId);
-    tDeleteMqDataRsp(&dataRsp);
-    return code;
+//  qTaskInfo_t task = pHandle->execHandle.task;
+//  if (qTaskIsExecuting(task)) {
+//    code = tqSendDataRsp(pHandle, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_RSP, vgId);
+//    tDeleteMqDataRsp(&dataRsp);
+//    return code;
+//  }
+
+  while(isHandleExecuting(pHandle)){
+    tqInfo("sub is executing, pHandle:%p", pHandle);
+    taosMsleep(5);
   }
+
+  atomic_store_8(&pHandle->exec, 1);
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
@@ -193,6 +204,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
       code = tqRegisterPushHandle(pTq, pHandle, pMsg);
       taosWUnLockLatch(&pTq->lock);
       tDeleteMqDataRsp(&dataRsp);
+      atomic_store_8(&pHandle->exec, 0);
       return code;
     } else {
       pHandle->noDataPollCnt++;
@@ -202,36 +214,43 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   // NOTE: this pHandle->consumerId may have been changed already.
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP, vgId);
 
-end : {
-  char buf[80] = {0};
-  tFormatOffset(buf, 80, &dataRsp.rspOffset);
-  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, reqId:0x%" PRIx64
-          " code:%d",
-          consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
-  //    taosWUnLockLatch(&pTq->lock);
-  tDeleteMqDataRsp(&dataRsp);
-}
+  end:
+  {
+    char buf[80] = {0};
+    tFormatOffset(buf, 80, &dataRsp.rspOffset);
+    tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, reqId:0x%" PRIx64 " code:%d",
+            consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
+    tDeleteMqDataRsp(&dataRsp);
+  }
+
+  atomic_store_8(&pHandle->exec, 0);
   return code;
 }
 
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg, STqOffsetVal *offset) {
-  int code = 0;
+  int          code = 0;
   int32_t      vgId = TD_VID(pTq->pVnode);
   SWalCkHead*  pCkHead = NULL;
   SMqMetaRsp metaRsp = {0};
   STaosxRsp taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, pRequest);
-  qTaskInfo_t task = pHandle->execHandle.task;
-  if(qTaskIsExecuting(task)){
-    code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
-    tDeleteSTaosxRsp(&taosxRsp);
-    return code;
+//  qTaskInfo_t task = pHandle->execHandle.task;
+//  if(qTaskIsExecuting(task)){
+//    code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
+//    tDeleteSTaosxRsp(&taosxRsp);
+//    return code;
+//  }
+
+  while(isHandleExecuting(pHandle)){
+    tqInfo("sub is executing, pHandle:%p", pHandle);
+    taosMsleep(5);
   }
+  atomic_store_8(&pHandle->exec, 1);
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
-      tDeleteSTaosxRsp(&taosxRsp);
-      return -1;
+      code = -1;
+      goto end;
     }
 
     if (metaRsp.metaRspLen > 0) {
@@ -239,8 +258,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       tqDebug("tmq poll: consumer:0x%" PRIx64 " subkey:%s vgId:%d, send meta offset type:%d,uid:%" PRId64 ",ts:%" PRId64,
               pRequest->consumerId, pHandle->subKey, vgId, metaRsp.rspOffset.type, metaRsp.rspOffset.uid, metaRsp.rspOffset.ts);
       taosMemoryFree(metaRsp.metaRsp);
-      tDeleteSTaosxRsp(&taosxRsp);
-      return code;
+      goto end;
     }
 
     tqDebug("taosx poll: consumer:0x%" PRIx64 " subkey:%s vgId:%d, send data blockNum:%d, offset type:%d,uid:%" PRId64
@@ -259,9 +277,9 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     int64_t fetchVer = offset->version + 1;
     pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
-      tDeleteSTaosxRsp(&taosxRsp);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+      code = -1;
+      goto end;
     }
     walSetReaderCapacity(pHandle->pWalReader, 2048);
     int totalRows = 0;
@@ -277,9 +295,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
-        tDeleteSTaosxRsp(&taosxRsp);
-        taosMemoryFreeClear(pCkHead);
-        return code;
+        goto end;
       }
 
       SWalCont* pHead = &pCkHead->head;
@@ -291,9 +307,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         if(totalRows > 0) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer - 1);
           code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
-          tDeleteSTaosxRsp(&taosxRsp);
-          taosMemoryFreeClear(pCkHead);
-          return code;
+          goto end;
         }
 
         tqDebug("fetch meta msg, ver:%" PRId64 ", type:%s", pHead->version, TMSG_INFO(pHead->msgType));
@@ -301,17 +315,8 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         metaRsp.resMsgType = pHead->msgType;
         metaRsp.metaRspLen = pHead->bodyLen;
         metaRsp.metaRsp = pHead->body;
-        if (tqSendMetaPollRsp(pHandle, pMsg, pRequest, &metaRsp, vgId) < 0) {
-          code = -1;
-          taosMemoryFreeClear(pCkHead);
-          tDeleteSTaosxRsp(&taosxRsp);
-          return code;
-        }
-
-        code = 0;
-        taosMemoryFreeClear(pCkHead);
-        tDeleteSTaosxRsp(&taosxRsp);
-        return code;
+        code = tqSendMetaPollRsp(pHandle, pMsg, pRequest, &metaRsp, vgId);
+        goto end;
       }
 
       // process data
@@ -321,29 +326,28 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           .ver = pHead->version,
       };
 
-      if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp, &totalRows) < 0) {
-        tqError("tmq poll: tqTaosxScanLog error %" PRId64 ", in vgId:%d, subkey %s", pRequest->consumerId, vgId,
-                pRequest->subKey);
-        taosMemoryFreeClear(pCkHead);
-        tDeleteSTaosxRsp(&taosxRsp);
-        return -1;
+      code = tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp, &totalRows);
+      if (code < 0) {
+        tqError("tmq poll: tqTaosxScanLog error %" PRId64 ", in vgId:%d, subkey %s", pRequest->consumerId, vgId, pRequest->subKey);
+        goto end;
       }
 
       if (totalRows >= 4096 || taosxRsp.createTableNum > 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
-        tDeleteSTaosxRsp(&taosxRsp);
-        taosMemoryFreeClear(pCkHead);
-        return code;
+        goto end;
       } else {
         fetchVer++;
       }
     }
   }
 
+end:
+  atomic_store_8(&pHandle->exec, 0);
+
   tDeleteSTaosxRsp(&taosxRsp);
   taosMemoryFreeClear(pCkHead);
-  return 0;
+  return code;
 }
 
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg) {
