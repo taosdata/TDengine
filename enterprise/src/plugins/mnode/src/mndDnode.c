@@ -143,7 +143,7 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
 
   //mInfo("dnode:%d, start to restore, ep:%s:%d", restoreReq.dnodeId, restoreReq.fqdn, restoreReq.port);
   mInfo("dnode:%d, start to restore, restore type:%d", restoreReq.dnodeId, restoreReq.restoreType);
-  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE) != 0) {
     goto _OVER;
   }
 
@@ -160,6 +160,12 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
   }
   */
   if (pDnode == NULL) {
+    goto _OVER;
+  }
+
+  if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
+    terrno = TSDB_CODE_DNODE_OFFLINE;
+    mError("dnode:%d, failed to restore since %s", pDnode->id, terrstr());
     goto _OVER;
   }
 
