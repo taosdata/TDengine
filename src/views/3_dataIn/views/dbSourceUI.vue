@@ -729,7 +729,7 @@ export default {
           let orginfo=data.authentication.alternatives[0].params
           let orgId=orginfo.filter(item=>item.name=='orgId')[0].value
           let token=orginfo.filter(item=>item.name=='token')[0].value
-          querystr+=`&orgId=${orgId}&token=${token}`
+          querystr+=`orgId=${orgId}&token=${token}`
         }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
 
