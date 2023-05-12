@@ -242,6 +242,14 @@ export default {
           required: true,
           message: this.$t("stream.stableUpperRequired") 
         }],
+        stbName: [{
+          required: true,
+          message: this.$t("stream.stableUpperRequired") 
+        }],
+        tbName: [{
+          required: true,
+          message: this.$t("stream.tableUpperRequired") 
+        }],
       },
       cmOptions: {
         tabSize: 2,

@@ -156,6 +156,14 @@ export default {
       sqlPrefix: "CREATE TOPIC ",
       rules: {
         topic_name: [{ validator: validateTopicName, trigger: "blur" }],
+        stbName: [{
+          required: true,
+          message: this.$t("stream.stableUpperRequired") 
+        }],
+        tbName: [{
+          required: true,
+          message: this.$t("stream.tableUpperRequired") 
+        }],
       },
 
       sqlStr: "",
