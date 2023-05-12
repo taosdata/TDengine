@@ -297,7 +297,9 @@
                       v-model="p.target.value"
                       :multiple="p.target.multiple"
                       :allow-create="p.target.editable"
+                      :placeholder="p.target.placeholder"
                       filterable
+                      default-first-option
                     >
                       <el-option
                         v-for="(t, tind) in p.target.value"
@@ -327,7 +329,7 @@
                     @input="searchDatas"
                   ></el-input>
                   <div>
-                    <div class="searchList" v-loading="loading">
+                    <div class="searchList" v-loading="loading" v-if="configurationdata.length > 0">
                       <div
                         v-for="c in configurationdata"
                         :key="c.id"
