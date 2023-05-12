@@ -27,23 +27,6 @@
 #include "executorimpl.h"
 #include "tcompression.h"
 
-typedef struct STableListIdInfo {
-  uint64_t suid;
-  uint64_t uid;
-  int32_t  tableType;
-} STableListIdInfo;
-
-// If the numOfOutputGroups is 1, the data blocks that belongs to different groups will be provided randomly
-// The numOfOutputGroups is specified by physical plan. and will not be affect by numOfGroups
-struct STableListInfo {
-  bool             oneTableForEachGroup;
-  int32_t          numOfOuputGroups;  // the data block will be generated one by one
-  int32_t*         groupOffset;       // keep the offset value for each group in the tableList
-  SArray*          pTableList;
-  SHashObj*        map;     // speedup acquire the tableQueryInfo by table uid
-  STableListIdInfo idInfo;  // this maybe the super table or ordinary table
-};
-
 typedef struct tagFilterAssist {
   SHashObj* colHash;
   int32_t   index;
