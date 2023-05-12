@@ -37,7 +37,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
         public StructType tableType { get; set; }
         public StructType tagStruct { get; set; }
 
-        public ArrayList records1 = new ArrayList();
         public ArrayList subTables = new ArrayList();
         public List<StructType> records = new List<StructType>();
 
@@ -271,12 +270,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
                     .Nullable(false))
                 .Metadata(Metadata.ToDictionary())
                 .Build();
-        }
-
-        internal void AddRecord(string key, DateTime ts, Dictionary<string, string> valDic, Dictionary<string, int> statusDic)
-        {
-            records1.Add(new RawRecord(key, ts, valDic, statusDic));
-            return;
         }
 
         public StructType subTableType()

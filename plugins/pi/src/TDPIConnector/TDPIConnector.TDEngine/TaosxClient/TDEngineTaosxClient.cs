@@ -112,29 +112,23 @@ namespace TDPIConnector.TDEngine.TaosxClient
         }
 
         public void AddPointValue(string table, TDValue record) {
-            Dictionary<string, string> valDic = new Dictionary<string, string>();
-            Dictionary<string, int> statusDic = new Dictionary<string, int>();
-
             builder.tableNameArrowArray.Append(table.ToTDEngineNamingPattern());
             builder.tsArrowArray.Append(record.Timestamp);
             if (record.Quality == 0)
             {
                 builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append($"{record.ValueString}");
                 builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append("0");
-
-                valDic[TDEngineTableFormat.PointValColomn()] = $"{record.ValueString}";
-                statusDic[TDEngineTableFormat.PointStatusColomn()] = 0;
             }
             else
             {
                 builder.valArrowArrayList[TDEngineTableFormat.PointValColomn()].Append(null);
                 builder.statusArrowArrayList[TDEngineTableFormat.PointStatusColomn()].Append(record.Quality.ToString());
-
-                valDic[TDEngineTableFormat.PointValColomn()] = null;
-                statusDic[TDEngineTableFormat.PointStatusColomn()] = record.Quality;
             }
            
-            builder.AddRecord(table, record.Timestamp, valDic, statusDic);
+            if (builder.tsArrowArray.Length > maxWaitLength)
+            {
+                send();
+            }
         }
 
         // write data
@@ -197,8 +191,6 @@ namespace TDPIConnector.TDEngine.TaosxClient
                                 objRow.Value.Append(null);
                             }
                         }
-
-                        builder.AddRecord(table.Key, ts, valDic, statusDic);
                     }
                 }
             }
