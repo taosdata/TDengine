@@ -18,8 +18,7 @@ if $rows != 2 then
 endi
 
 print =============== create child table
-sql create table ct1 using stb tags("BeiJing", "ChaoYang");
-sql create table ct_1 using stb1 tags("BeiJing", "ChaoYang");
+sql create table ct1 using stb tags("BeiJing", "ChaoYang") ct_1 using stb1 tags("BeiJing", "ChaoYang");
 
 sql show tables
 if $rows != 2 then

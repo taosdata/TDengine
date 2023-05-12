@@ -755,6 +755,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_RSMA_FS_REF                    TAOS_DEF_ERROR_CODE(0, 0x3161)
 #define TSDB_CODE_RSMA_FS_SYNC                   TAOS_DEF_ERROR_CODE(0, 0x3162)
 #define TSDB_CODE_RSMA_FS_UPDATE                 TAOS_DEF_ERROR_CODE(0, 0x3163)
+#define TSDB_CODE_RSMA_RESULT                    TAOS_DEF_ERROR_CODE(0, 0x3164)
 
 //index
 #define TSDB_CODE_INDEX_REBUILDING               TAOS_DEF_ERROR_CODE(0, 0x3200)
