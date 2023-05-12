@@ -293,7 +293,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
       }
       SRow *pRow = NULL;
       if ((code = tRowBuild(pVals, (STSchema *)pTSchema, &pRow)) < 0) {
-        tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
       taosArrayPush(tbData.aRowP, &pRow);
@@ -303,7 +303,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   }
 
   // encode
-  tEncodeSize(tEncodeSSubmitReq, pReq, len, code);
+  tEncodeSize(tEncodeSubmitReq, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
@@ -316,7 +316,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     ((SSubmitReq2Msg *)pBuf)->header.contLen = htonl(len);
     ((SSubmitReq2Msg *)pBuf)->version = htobe64(1);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    if (tEncodeSSubmitReq(&encoder, pReq) < 0) {
+    if (tEncodeSubmitReq(&encoder, pReq) < 0) {
       tEncoderClear(&encoder);
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);

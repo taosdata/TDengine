@@ -660,7 +660,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
 
       if (pReq && tdProcessSubmitReq(sinkTsdb, output->info.version, pReq) < 0) {
         code = terrno ? terrno : TSDB_CODE_RSMA_RESULT;
-        tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+        tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
         taosMemoryFree(pReq);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
