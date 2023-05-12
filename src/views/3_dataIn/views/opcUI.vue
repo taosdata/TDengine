@@ -171,11 +171,7 @@
             </template>
           </el-radio-group>
           <div class="authen-details">
-            <template
-              v-if="
-                dbsource[0].authentication.value == 'plain'
-              "
-            >
+            <template v-if="dbsource[0].authentication.value == 'plain'">
               <div class="plain">
                 <div class="plain-item">
                   <span class="label">{{
@@ -241,7 +237,7 @@
                   style="width: 100%; margin-top: 10px"
                 >
                   <span class="label">{{ p.display }}</span>
-                  <template v-if="p.hint == 'file'||p.hint.type=='file'">
+                  <template v-if="p.hint == 'file' || p.hint.type == 'file'">
                     <el-input v-model="p.value" type="textarea"></el-input
                   ></template>
                   <template v-if="p.hint.choices">
@@ -264,121 +260,7 @@
           </div>
         </div>
       </section>
-      <section
-        :class="['groups-dataset', dbsource[0].datasets?.name]"
-        v-if="dbsource[0]?.datasets"
-      >
-        <div style="flex-direction: column; align-items: baseline">
-          <div class="block-title">
-            <span>{{ dbsource[0].datasets.name }}</span>
-          </div>
-          <div
-            class="description"
-            v-html="transforHtml(dbsource[0].datasets.description)"
-          ></div>
-        </div>
-        <template>
-          <el-tabs v-model="activeName" @tab-click="handleClick">
-            <el-tab-pane
-              v-for="(p, pind) in dbsource[0].datasets.categories"
-              :label="p.display"
-              :name="p.category"
-              :key="p.category"
-              lazy
-            >
-              <div :key="pind">
-                <div
-                  class="description"
-                  v-html="transforHtml(p.description)"
-                ></div>
-                <div class="target">
-                  <template v-if="p.target.multiple">
-                    <el-select
-                      v-model="p.target.value"
-                      :multiple="p.target.multiple"
-                      :allow-create="p.target.editable"
-                      filterable
-                    >
-                      <el-option
-                        v-for="(t, tind) in p.target.value"
-                        :key="tind"
-                        :value="tind"
-                        disabled
-                      >
-                        {{ t }}
-                      </el-option>
-                    </el-select>
-                  </template>
-                  <template v-else>
-                    <el-input v-model="p.target.value"></el-input>
-                  </template>
-                  <el-button
-                    size="medium"
-                    @click="handleSelBtn"
-                    style="height: 42px"
-                    >Select</el-button
-                  >
-                </div>
-                <div class="configuration" v-if="isShowConfiguration">
-                  <el-input
-                    placeholder="Regex Pattern Input"
-                    v-model="p.value"
-                    :disable="p.target.selectable"
-                    @input="searchDatas"
-                  ></el-input>
-                  <div>
-                    <div class="searchList" v-loading="loading">
-                      <div
-                        v-for="c in configurationdata"
-                        :key="c.id"
-                        :class="[activeDataSet.id == c.id ? 'actived' : '']"
-                        @click="handelDataSet(c)"
-                      >
-                        {{ c.id }}
-                      </div>
-                    </div>
-                    <template
-                      v-if="
-                        Object.hasOwnProperty.call(activeDataSet, 'options')
-                      "
-                    >
-                      <div class="options-wrap">
-                        <div class="option-list">
-                          <div
-                            class="option-item"
-                            v-for="o in activeDataSet.options"
-                            :key="o.name"
-                          >
-                            <span
-                              :class="['label', o.required ? 'required' : '']"
-                            >
-                              {{ o.name }}
-                            </span>
-                            <el-input
-                              placeholder="Please enter "
-                              v-model="o.value"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <el-button
-                            size="small"
-                            type="primary"
-                            plain
-                            @click="addOption"
-                            >Add</el-button
-                          >
-                        </div>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </div>
-            </el-tab-pane>
-          </el-tabs>
-        </template>
-      </section>
-      <template v-for="(item) in dbsource[0].groups">
+      <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
@@ -390,9 +272,7 @@
             ></div>
           </div>
           <template v-for="(p, pind) in item.params">
-            <div
-              :key="pind"
-            >
+            <div :key="pind">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -419,6 +299,20 @@
                     </el-select>
                   </template>
                   <el-input v-else v-model="p.value"></el-input>
+                </template>
+                <template v-if="(p.hint === 'bool' || p.hint.type === 'bool')&&p.name=='clean_session'">
+                  <el-radio-group v-model="p.value" v-if="p.choices">
+                    <el-radio v-for="c in p.choices" :key="c" :label="c">
+                      {{ c }}
+                    </el-radio>
+                  </el-radio-group>
+                  <template v-else>
+                    <el-checkbox
+                      v-model="p.value"
+                      true-label="true"
+                      false-label="false"
+                    ></el-checkbox>
+                  </template>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'bool'">
                   <!-- <el-radio-group v-model="p.value">
@@ -493,9 +387,13 @@ export default {
     'p-three-checkbox': PThreeCheckbox,
   },
   props: {
-    protocol:{
-      type:String,
-      default:'ua'
+    tagName: {
+      type: String,
+      default: "opcua",
+    },
+    protocol: {
+      type: String,
+      default: "ua",
     },
     dbsource: {
       type: Array,
@@ -612,23 +510,24 @@ export default {
           ) {
             Message({
               type: "warning",
-              message: this.$t('datasource.msg:') +`${data.options[key].display} `,
+              message:
+                this.$t("datasource.msg:") + `${data.options[key].display} `,
             });
             return;
           }
         }
         this.decryptPwd = decrypt(localStorage.getItem("pwd"));
-         if(data.authentication.value=='plain'){
-          if(data.authentication.alternatives[1].username.value){
-            dns += `://${data.authentication.alternatives[1].username.value}`
+        if (data.authentication.value == "plain") {
+          if (data.authentication.alternatives[1].username.value) {
+            dns += `://${data.authentication.alternatives[1].username.value}`;
           }
-          if(data.authentication.alternatives[1].password.value){
-            dns += `:${data.authentication.alternatives[1].password.value}`
+          if (data.authentication.alternatives[1].password.value) {
+            dns += `:${data.authentication.alternatives[1].password.value}`;
           }
-          dns +=`@`
-         }else{
-          dns +=`://`
-         }
+          dns += `@`;
+        } else {
+          dns += `://`;
+        }
         if (
           data.options.endpoint &&
           JSON.stringify(data.options.endpoint) !== "{}"
@@ -658,7 +557,9 @@ export default {
             ) {
               Message({
                 type: "warning",
-                message: this.$t('datasource.msg:')+`${data.groups[index].params[g].name} `,
+                message:
+                  this.$t("datasource.msg:") +
+                  `${data.groups[index].params[g].name} `,
               });
               return;
             } else {
@@ -680,48 +581,16 @@ export default {
           //   }
         }
 
-        if(data.authentication.value=='certificates'){
-          data.authentication.alternatives[2].params.forEach(val=>{
-            querystr += val.value?`${val.name}=${val.value}&`:''
-          })
-         }
-        
-        if (data.datasets) {
-          for (
-            let index = 0;
-            index < data.datasets.categories.length;
-            index++
-          ) {
-            // 判断必填项 多选时value为数组，单选时为字符串
-            let target = data.datasets.categories[index].target;
-            if (
-              Object.hasOwnProperty.call(target, "required") &&
-              target.required &&
-              target.value == null
-            ) {
-              Message({
-                type: "warning",
-                message: `${enterTip} ${target.name} `,
-              });
-              return;
-            } else if (target.value) {
-              if (Array.isArray(target.value)) {
-                let str = "";
-                for (let i = 0; i < target.value.length; i++) {
-                  str += `${target.value[i]},`;
-                }
-                querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
-              } else {
-                querystr += `${target.name}=${target.value}` + "&";
-              }
-            }
-          }
+        if (data.authentication.value == "certificates") {
+          data.authentication.alternatives[2].params.forEach((val) => {
+            querystr += val.value ? `${val.name}=${val.value}&` : "";
+          });
         }
-         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
 
         let piParams = {
           from:
-            "opc" +this.protocol+
+            (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
             // (data.protocol
             //   ? Object.is(data.protocol.value, "--")
             //     ? ""
@@ -733,20 +602,24 @@ export default {
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
-          labels: ["type::datain", `cluster-id::${id}`,`user::${localStorage.getItem('username')}`],
+          labels: [
+            "type::datain",
+            `cluster-id::${id}`,
+            `user::${localStorage.getItem("username")}`,
+          ],
         };
         if (this.$parent.agentID) {
-            piParams["via"] = this.$parent.agentID;
-          }
+          piParams["via"] = this.$parent.agentID;
+        }
         if (this.isEditable) {
           await EditSource(piParams, this.editId).then(() => {
-            this.$parent.toggleComponent("opctable",this.protocol);
+            this.$parent.toggleComponent("opctable", this.protocol);
           });
         } else {
           await AddSource(piParams).then((res) => {
             if (res && res.id) {
               this.$parent.toggleComponent("opctable", "");
-              Message.success(this.$t('datasource.successtip'));
+              Message.success(this.$t("datasource.successtip"));
             }
           });
         }
@@ -895,6 +768,7 @@ export default {
     white-space: pre-wrap;
   }
   .left-ui {
+    overflow: auto;
     section:not(:first-child) {
       border: 1px solid #e3e4e6;
       margin-bottom: 20px;
