@@ -9,7 +9,6 @@ import com.taosdata.config.InfluxdbConfig;
 import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
-import com.taosdata.config.dto.BucketConfig;
 import com.taosdata.model.dto.bum.ThreadInfo;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
@@ -20,13 +19,18 @@ import com.taosdata.service.InfluxdbService;
 import com.taosdata.threads.*;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.FileUtils;
+import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+import org.tomlj.Toml;
+import org.tomlj.TomlArray;
+import org.tomlj.TomlParseResult;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -41,7 +45,7 @@ public class PreLoading implements CommandLineRunner {
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
 
-    private final String RECORD_FILE_RELATIVEPATH = "statics/temp";
+    // private final String RECORD_FILE_RELATIVEPATH = "statics/temp";
     private final String RECORD_FILE_FETCH = "record_fetch";
     private final String RECORD_FILE_QUEUE = "record_queue";
     private final String RECORD_DELIMITER = "__;__";
@@ -59,6 +63,9 @@ public class PreLoading implements CommandLineRunner {
     private NettyClientConfig nettyClientConfig;
 
     @Resource
+    private InfluxdbPoolAutoConfig influxdbPool;
+
+    @Resource
     private InfluxdbService influxdbService;
 
     @Override
@@ -70,6 +77,10 @@ public class PreLoading implements CommandLineRunner {
             // 加载中状态
             StatusCache.setStatus(StatusEnums.LOADING.getCode());
             StatusCache.setDescription(StatusEnums.LOADING.getDesc());
+            // 加载toml配置文件，覆盖默认配置，第一个参数是外部配置文件路径，配置不正确则默认退出
+            loadToml(args[0]);
+            // 创建influxdb连接池
+            this.influxdbPool.createInluxdbClientPool();
             // 启动线程MonitorThread
             MonitorThread monitor = new MonitorThread();
             Thread monitorThread = new Thread(monitor);
@@ -107,6 +118,41 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setStatus(StatusEnums.NORMAL.getCode());
             StatusCache.setDescription(StatusEnums.NORMAL.getDesc());
         } catch (Exception e) {
+            logger.error("系统启动过程中发生异常，启动失败", e);
+            // 状态异常
+            StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
+            StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
+            // 启动失败
+            System.exit(1);
+        }
+    }
+
+    /**
+     * 加载toml配置文件
+     */
+    private void loadToml(String externalConfigFile) {
+        try {
+            // 读取外部toml文件
+            String tomlConfig = FileUtils.readAbsoluteFile(externalConfigFile);
+            // 解析配置内容
+            TomlParseResult tomlParseResult = Toml.parse(tomlConfig);
+            // 逐项替换默认配置
+            this.influxdbConfig.setUrl((String) tomlParseResult.get("influx.url"));
+            this.influxdbConfig.setToken((String) tomlParseResult.get("influx.token"));
+            this.influxdbConfig.setOrgId((String) tomlParseResult.get("influx.orgId"));
+            this.nettyClientConfig.setHost((String) tomlParseResult.get("taosx.host"));
+            this.nettyClientConfig.setPort(((Long) tomlParseResult.get("taosx.port")).intValue());
+            this.taskConfig.setMode((String) tomlParseResult.get("task.mode"));
+            List<String> buckets = new ArrayList<>();
+            TomlArray tomlArray = (TomlArray) tomlParseResult.get("task.buckets");
+            for (int i = 0; i < tomlArray.size(); i++) {
+                buckets.add((String) tomlArray.get(i));
+            }
+            this.taskConfig.setBuckets(buckets);
+            this.taskConfig.setBeginTime((String) tomlParseResult.get("task.beginTime"));
+            this.taskConfig.setEndTime((String) tomlParseResult.get("task.endTime"));
+        } catch (Exception e) {
+            logger.error("加载Toml文件过程中发生异常，启动失败", e);
             // 状态异常
             StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
             StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
@@ -122,8 +168,11 @@ public class PreLoading implements CommandLineRunner {
         // 断点续传，需要本地的“读取记录”与“内存队列持久化”两个文件
         if ("resume".equals(this.taskConfig.getMode())) {
             try {
-                String fetchRecords = FileUtils.readResourceFile(RECORD_FILE_RELATIVEPATH, RECORD_FILE_FETCH);
-                String queueRecords = FileUtils.readResourceFile(RECORD_FILE_RELATIVEPATH, RECORD_FILE_QUEUE);
+                // 操作系统临时目录
+                String temporaryPath = System.getProperty("java.io.tmpdir");
+                // 读取“读取记录”与“内存队列持久化”
+                String fetchRecords = FileUtils.readAbsoluteFile(temporaryPath, RECORD_FILE_FETCH);
+                String queueRecords = FileUtils.readAbsoluteFile(temporaryPath, RECORD_FILE_QUEUE);
                 // 将fetchRecords放入过滤集合
                 if (StringUtils.isNotEmpty(fetchRecords)) {
                     LocalConfig.fetchFilterSet.addAll(Arrays.asList(StringUtils.splitByWholeSeparator(fetchRecords, RECORD_DELIMITER)));
@@ -161,8 +210,8 @@ public class PreLoading implements CommandLineRunner {
                 return false;
             }).filter(influxdbBucketEntity -> {
                 if (taskConfig.getBuckets() != null && taskConfig.getBuckets().size() > 0) {
-                    for (BucketConfig bucketConfig : taskConfig.getBuckets()) {
-                        if (influxdbBucketEntity.getBucketName().equals(bucketConfig.getBucket())) {
+                    for (String bucket : taskConfig.getBuckets()) {
+                        if (influxdbBucketEntity.getBucketName().equals(bucket)) {
                             return true;
                         }
                     }
@@ -280,10 +329,12 @@ public class PreLoading implements CommandLineRunner {
         } catch (Exception e) {
             logger.error("系统安全退出时判断数据变化失败", e);
         }
+        // 操作系统临时目录
+        String temporaryPath = System.getProperty("java.io.tmpdir");
         // 将数据读取记录写入文件
         try {
             String fetchRecords = StringUtils.join(StatisticCache.completedTaskSet.toArray(), RECORD_DELIMITER);
-            FileUtils.writeResourceFile(RECORD_FILE_RELATIVEPATH, RECORD_FILE_FETCH, fetchRecords);
+            FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_FETCH, fetchRecords);
         } catch (Exception e) {
             logger.error("系统安全退出时保存读取记录失败", e);
         }
@@ -296,7 +347,7 @@ public class PreLoading implements CommandLineRunner {
             for (InfluxdbBucketDataEntity influxdbBucketDataEntity : influxdbBucketDataEntityList) {
                 sb.append(influxdbBucketDataEntity.toString() + RECORD_DELIMITER);
             }
-            FileUtils.writeResourceFile(RECORD_FILE_RELATIVEPATH, RECORD_FILE_QUEUE, sb.toString());
+            FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_QUEUE, sb.toString());
         } catch (Exception e) {
             logger.error("系统安全退出时保存读取记录失败", e);
         }

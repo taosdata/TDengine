@@ -14,7 +14,7 @@ import com.taosdata.model.enums.ResEnums;
 import com.taosdata.service.InfluxdbService;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.exception.ArtificialException;
-import com.taosdata.utils.influxdb.InfluxdbClientPool;
+import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -30,7 +30,7 @@ import java.util.*;
 public class InfluxdbServiceImpl implements InfluxdbService {
 
     @Resource
-    InfluxdbClientPool influxdbClientPool;
+    InfluxdbPoolAutoConfig influxdbPool;
 
     /**
      * 获取influxdb中所有bucket
@@ -44,7 +44,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         InfluxDBClient influxDBClient = null;
         try {
             // 连接池中获取客户端
-            influxDBClient = influxdbClientPool.borrowObject();
+            influxDBClient = influxdbPool.getPool().borrowObject();
             // 返回列表
             List<InfluxdbBucketEntity> influxdbBucketEntityList = new ArrayList<>();
             // 获取所有bucket列表
@@ -70,7 +70,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), new Exception());
         } finally {
             if (influxDBClient != null) {
-                influxdbClientPool.returnObject(influxDBClient);
+                influxdbPool.getPool().returnObject(influxDBClient);
             }
         }
     }
@@ -87,7 +87,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         InfluxDBClient influxDBClient = null;
         try {
             // 连接池中获取客户端
-            influxDBClient = influxdbClientPool.borrowObject();
+            influxDBClient = influxdbPool.getPool().borrowObject();
             // 返回结果
             List<InfluxdbMeasurementEntity> influxdbMeasurementEntityList = new ArrayList<>();
             // TODO 好像只支持token方式认证，所以在创建连接时屏蔽掉了username/password方式
@@ -146,7 +146,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
             if (influxDBClient != null) {
-                influxdbClientPool.returnObject(influxDBClient);
+                influxdbPool.getPool().returnObject(influxDBClient);
             }
         }
     }
@@ -170,7 +170,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
         InfluxDBClient influxDBClient = null;
         try {
             // 连接池中获取客户端
-            influxDBClient = influxdbClientPool.borrowObject();
+            influxDBClient = influxdbPool.getPool().borrowObject();
             // 返回列表
             List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
             // 查询语句
@@ -216,7 +216,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
             if (influxDBClient != null) {
-                influxdbClientPool.returnObject(influxDBClient);
+                influxdbPool.getPool().returnObject(influxDBClient);
             }
         }
     }

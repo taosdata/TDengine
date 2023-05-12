@@ -1,6 +1,5 @@
 package com.taosdata.config;
 
-import com.taosdata.config.dto.BucketConfig;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -18,7 +17,7 @@ import java.util.List;
 public class TaskConfig {
 
     private String mode = "normal";
-    private List<BucketConfig> buckets;
+    private List<String> buckets;
     private String beginTime;
     private String endTime;
     private int assignmentType = 1;
