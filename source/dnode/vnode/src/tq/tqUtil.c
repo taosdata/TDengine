@@ -163,7 +163,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
 }
 
 static bool isHandleExecuting(STqHandle* pHandle){
-  return 0 == atomic_load_8(&pHandle->sendRsp);
+  return 1 == atomic_load_8(&pHandle->exec);
 }
 
 static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
@@ -185,7 +185,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     tqInfo("sub is executing, pHandle:%p", pHandle);
     taosMsleep(5);
   }
-  atomic_store_8(&pHandle->sendRsp, 0);
+  atomic_store_8(&pHandle->exec, 1);
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
@@ -203,7 +203,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
       code = tqRegisterPushHandle(pTq, pHandle, pMsg);
       taosWUnLockLatch(&pTq->lock);
       tDeleteSMqDataRsp(&dataRsp);
-      atomic_store_8(&pHandle->sendRsp, 1);
+      atomic_store_8(&pHandle->exec, 0);
       return code;
     }
     else{
@@ -224,7 +224,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 //    taosWUnLockLatch(&pTq->lock);
     tDeleteSMqDataRsp(&dataRsp);
   }
-  atomic_store_8(&pHandle->sendRsp, 1);
+  atomic_store_8(&pHandle->exec, 0);
 
   return code;
 }
@@ -248,7 +248,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     tqInfo("sub is executing, pHandle:%p", pHandle);
     taosMsleep(5);
   }
-  atomic_store_8(&pHandle->sendRsp, 0);
+  atomic_store_8(&pHandle->exec, 1);
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
@@ -345,7 +345,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   }
 
 end:
-  atomic_store_8(&pHandle->sendRsp, 1);
+  atomic_store_8(&pHandle->exec, 0);
 
   tDeleteSTaosxRsp(&taosxRsp);
   taosMemoryFreeClear(pCkHead);
