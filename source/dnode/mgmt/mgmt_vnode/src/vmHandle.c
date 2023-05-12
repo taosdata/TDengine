@@ -396,7 +396,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   SReplica *pReplica = NULL;
-  if(req.selfIndex > 0){
+  if(req.selfIndex != -1){
     pReplica = &req.replicas[req.selfIndex];
   }
   else{
