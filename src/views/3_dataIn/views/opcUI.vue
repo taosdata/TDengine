@@ -171,11 +171,7 @@
             </template>
           </el-radio-group>
           <div class="authen-details">
-            <template
-              v-if="
-                dbsource[0].authentication.value == 'plain'
-              "
-            >
+            <template v-if="dbsource[0].authentication.value == 'plain'">
               <div class="plain">
                 <div class="plain-item">
                   <span class="label">{{
@@ -241,7 +237,7 @@
                   style="width: 100%; margin-top: 10px"
                 >
                   <span class="label">{{ p.display }}</span>
-                  <template v-if="p.hint == 'file'||p.hint.type=='file'">
+                  <template v-if="p.hint == 'file' || p.hint.type == 'file'">
                     <el-input v-model="p.value" type="textarea"></el-input
                   ></template>
                   <template v-if="p.hint.choices">
@@ -380,7 +376,7 @@
           </el-tabs>
         </template>
       </section>
-      <template v-for="(item) in dbsource[0].groups">
+      <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
@@ -392,9 +388,7 @@
             ></div>
           </div>
           <template v-for="(p, pind) in item.params">
-            <div
-              :key="pind"
-            >
+            <div :key="pind">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -421,6 +415,20 @@
                     </el-select>
                   </template>
                   <el-input v-else v-model="p.value"></el-input>
+                </template>
+                <template v-if="(p.hint === 'bool' || p.hint.type === 'bool')&&p.name=='clean_session'">
+                  <el-radio-group v-model="p.value" v-if="p.choices">
+                    <el-radio v-for="c in p.choices" :key="c" :label="c">
+                      {{ c }}
+                    </el-radio>
+                  </el-radio-group>
+                  <template v-else>
+                    <el-checkbox
+                      v-model="p.value"
+                      true-label="true"
+                      false-label="false"
+                    ></el-checkbox>
+                  </template>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'bool'">
                   <!-- <el-radio-group v-model="p.value">
@@ -495,9 +503,13 @@ export default {
     'p-three-checkbox': PThreeCheckbox,
   },
   props: {
-    protocol:{
-      type:String,
-      default:'ua'
+    tagName: {
+      type: String,
+      default: "opcua",
+    },
+    protocol: {
+      type: String,
+      default: "ua",
     },
     dbsource: {
       type: Array,
@@ -614,23 +626,24 @@ export default {
           ) {
             Message({
               type: "warning",
-              message: this.$t('datasource.msg:') +`${data.options[key].display} `,
+              message:
+                this.$t("datasource.msg:") + `${data.options[key].display} `,
             });
             return;
           }
         }
         this.decryptPwd = decrypt(localStorage.getItem("pwd"));
-         if(data.authentication.value=='plain'){
-          if(data.authentication.alternatives[1].username.value){
-            dns += `://${data.authentication.alternatives[1].username.value}`
+        if (data.authentication.value == "plain") {
+          if (data.authentication.alternatives[1].username.value) {
+            dns += `://${data.authentication.alternatives[1].username.value}`;
           }
-          if(data.authentication.alternatives[1].password.value){
-            dns += `:${data.authentication.alternatives[1].password.value}`
+          if (data.authentication.alternatives[1].password.value) {
+            dns += `:${data.authentication.alternatives[1].password.value}`;
           }
-          dns +=`@`
-         }else{
-          dns +=`://`
-         }
+          dns += `@`;
+        } else {
+          dns += `://`;
+        }
         if (
           data.options.endpoint &&
           JSON.stringify(data.options.endpoint) !== "{}"
@@ -660,7 +673,9 @@ export default {
             ) {
               Message({
                 type: "warning",
-                message: this.$t('datasource.msg:')+`${data.groups[index].params[g].name} `,
+                message:
+                  this.$t("datasource.msg:") +
+                  `${data.groups[index].params[g].name} `,
               });
               return;
             } else {
@@ -682,48 +697,16 @@ export default {
           //   }
         }
 
-        if(data.authentication.value=='certificates'){
-          data.authentication.alternatives[2].params.forEach(val=>{
-            querystr += val.value?`${val.name}=${val.value}&`:''
-          })
-         }
-        
-        if (data.datasets) {
-          for (
-            let index = 0;
-            index < data.datasets.categories.length;
-            index++
-          ) {
-            // 判断必填项 多选时value为数组，单选时为字符串
-            let target = data.datasets.categories[index].target;
-            if (
-              Object.hasOwnProperty.call(target, "required") &&
-              target.required &&
-              target.value == null
-            ) {
-              Message({
-                type: "warning",
-                message: `${enterTip} ${target.name} `,
-              });
-              return;
-            } else if (target.value) {
-              if (Array.isArray(target.value)) {
-                let str = "";
-                for (let i = 0; i < target.value.length; i++) {
-                  str += `${target.value[i]},`;
-                }
-                querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
-              } else {
-                querystr += `${target.name}=${target.value}` + "&";
-              }
-            }
-          }
+        if (data.authentication.value == "certificates") {
+          data.authentication.alternatives[2].params.forEach((val) => {
+            querystr += val.value ? `${val.name}=${val.value}&` : "";
+          });
         }
-         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
 
         let piParams = {
           from:
-            "opc" +this.protocol+
+            (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
             // (data.protocol
             //   ? Object.is(data.protocol.value, "--")
             //     ? ""
@@ -735,20 +718,24 @@ export default {
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
-          labels: ["type::datain", `cluster-id::${id}`,`user::${localStorage.getItem('username')}`],
+          labels: [
+            "type::datain",
+            `cluster-id::${id}`,
+            `user::${localStorage.getItem("username")}`,
+          ],
         };
         if (this.$parent.agentID) {
-            piParams["via"] = this.$parent.agentID;
-          }
+          piParams["via"] = this.$parent.agentID;
+        }
         if (this.isEditable) {
           await EditSource(piParams, this.editId).then(() => {
-            this.$parent.toggleComponent("opctable",this.protocol);
+            this.$parent.toggleComponent("opctable", this.protocol);
           });
         } else {
           await AddSource(piParams).then((res) => {
             if (res && res.id) {
               this.$parent.toggleComponent("opctable", "");
-              Message.success(this.$t('datasource.successtip'));
+              Message.success(this.$t("datasource.successtip"));
             }
           });
         }
@@ -907,6 +894,7 @@ export default {
     white-space: pre-wrap;
   }
   .left-ui {
+    overflow: auto;
     section:not(:first-child) {
       border: 1px solid #e3e4e6;
       margin-bottom: 20px;

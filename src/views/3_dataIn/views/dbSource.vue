@@ -99,6 +99,12 @@ export default {
           case "opctable":
             this.currentName = "dbsource";
             this.tagName = "opc";
+            break;
+          case "mqtt":
+            console.log('新增mqtt----');
+            this.currentName = "opcui";
+            this.tagName = "mqtt";
+            break;
         }
       } else {
         switch (id) {
@@ -123,6 +129,10 @@ export default {
           case "influxdb":
             this.currentName = "ui";
             this.tagName = "influxdb";
+            break;
+          case "mqtt":
+            this.currentName = "opcui";
+            this.tagName = "mqtt";
             break;
         }
         this.isEditable = true;
@@ -164,7 +174,7 @@ export default {
           }
         } else {
           targetObj[keys] = source[keys];
-          if (!targetObj.hasOwnProperty.call("value")) {
+          if (!Object.hasOwnProperty.call(targetObj,"value")) {
             targetObj["value"] = undefined;
           }
         }
