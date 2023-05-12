@@ -131,7 +131,7 @@ export default {
             this.tagName = "influxdb";
             break;
           case "mqtt":
-            this.currentName = "ui";
+            this.currentName = "opcui";
             this.tagName = "mqtt";
             break;
         }
