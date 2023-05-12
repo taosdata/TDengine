@@ -91,7 +91,6 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
 }
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
-  qWarn("open stream state, %s", path);
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -112,13 +111,11 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     tstrncpy(statePath, path, 1024);
   }
 #ifdef USE_ROCKSDB
-  qWarn("open stream state1");
   int code = streamInitBackend(pState, statePath);
   if (code == -1) {
     taosMemoryFree(pState);
     pState = NULL;
   }
-  qWarn("open stream state2, %s", statePath);
   pState->pTdbState->pOwner = pTask;
   pState->pFileState = NULL;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
