@@ -2791,7 +2791,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
   STableBlockScanInfo* pBlockScanInfo = NULL;
   if (pBlockInfo != NULL) {
-    if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pBlockScanInfo->uid, sizeof(pBlockScanInfo->uid))) {
+    if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pBlockInfo->uid, sizeof(pBlockInfo->uid))) {
       setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
       return code;
     }

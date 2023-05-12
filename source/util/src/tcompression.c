@@ -916,7 +916,7 @@ FORCE_INLINE uint64_t decodeDoubleValue(const char *const input, int32_t *const 
   uint64_t diff = 0ul;
   int32_t  nbytes = (flag & 0x7) + 1;
   for (int32_t i = 0; i < nbytes; i++) {
-    diff |= ((0xffff & input[(*ipos)++]) << BITS_PER_BYTE * i);
+    diff |= (((uint64_t)0xffff & input[(*ipos)++]) << BITS_PER_BYTE * i);
   }
   int32_t shift_width = (LONG_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
   diff <<= shift_width;
