@@ -751,7 +751,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SDnodeObj      *pDnode = NULL;
   SCreateDnodeReq createReq = {0};
 
-  if ((terrno = grantCheck(TSDB_GRANT_DNODE)) != 0) {
+  if ((terrno = grantCheck(TSDB_GRANT_DNODE)) != 0 || (terrno = grantCheck(TSDB_GRANT_CPU_CORES)) != 0) {
     code = terrno;
     goto _OVER;
   }
