@@ -9,7 +9,7 @@ use taos::{
     taos_query::{block_in_place_or_global, helpers::ColumnMeta},
     AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, Taos, TaosBuilder, Ty,
 };
-use taosx_ipc::prelude::IpcDataType;
+use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
@@ -810,6 +810,23 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     // let json = String::from_utf8_lossy(&output.stdout);
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
     log::trace!("opc datasets : {}", serde_json::to_string(&res).unwrap_or("".to_string()));
+    let options = vec![OptionSet {
+        name: "table".to_string(),
+        description: Some("Table name".to_string()),
+        required: true
+    },
+    OptionSet {
+        name: "field".to_string(),
+        description: Some("Field name".to_string()),
+        required: true
+    },
+    OptionSet {
+        name: "type".to_string(),
+        description: Some("Field type".to_string()),
+        required: true
+    },
+    ];
+    let format = Some("{id}::{table}::{field}::{type}".to_string());
     if let Some(pattern) = req.pattern.as_deref() {
         let regex = regex::Regex::from_str(pattern)?;
         // regex.is_match(text)
@@ -825,6 +842,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
             })
             .map(|mut set| {
                 set.category = Some(req.categories[0].clone());
+                set.options = Some(options.clone());
+                set.format = format.clone();
                 set
             })
             .skip(req.offset)
@@ -835,6 +854,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         Ok(res.into_iter()
         .map(|mut set| {
             set.category = Some(req.categories[0].clone());
+            set.options = Some(options.clone());
+            set.format = format.clone();
             set
         })
         .skip(req.offset).take(req.limit).collect())
