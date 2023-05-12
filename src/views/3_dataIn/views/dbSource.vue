@@ -101,8 +101,10 @@ export default {
             this.tagName = "opc";
             break;
           case "mqtt":
+            console.log('新增mqtt----');
             this.currentName = "dbsource";
             this.tagName = "mqtt";
+            break
         }
       } else {
         switch (id) {
