@@ -300,13 +300,19 @@
                   </template>
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
-                <template v-if="p.hint === 'bool'||p.hint.type === 'bool'">
+                <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
                   <el-radio-group v-model="p.value" v-if="p.choices">
                     <el-radio v-for="c in p.choices" :key="c" :label="c">
                       {{ c }}
                     </el-radio>
                   </el-radio-group>
-                  <el-checkbox v-model="p.value" v-else></el-checkbox>
+                  <template v-else>
+                    <el-checkbox
+                      v-model="p.value"
+                      true-label="true"
+                      false-label="false"
+                    ></el-checkbox>
+                  </template>
                 </template>
                 <template
                   v-if="
@@ -607,7 +613,7 @@ export default {
     white-space: pre-wrap;
   }
   .left-ui {
-    overflow:auto;
+    overflow: auto;
     section:not(:first-child) {
       border: 1px solid #e3e4e6;
       margin-bottom: 20px;
