@@ -1490,7 +1490,7 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
     if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
       pValCtx[num++] = &pCtx[i];
     } else if (fmIsSelectFunc(pCtx[i].functionId)) {
-      void* data = taosHashGet(pSelectFuncs, &pName, strlen(pName));
+      void* data = taosHashGet(pSelectFuncs, pName, strlen(pName));
       if (taosHashGetSize(pSelectFuncs) != 0 && data == NULL) {
         p = NULL;
         break;
