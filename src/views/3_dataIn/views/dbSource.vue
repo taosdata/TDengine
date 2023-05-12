@@ -102,9 +102,9 @@ export default {
             break;
           case "mqtt":
             console.log('新增mqtt----');
-            this.currentName = "dbsource";
+            this.currentName = "opcui";
             this.tagName = "mqtt";
-            break
+            break;
         }
       } else {
         switch (id) {
