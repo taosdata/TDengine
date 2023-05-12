@@ -83,6 +83,5 @@ pub type Response<T, C = String> = std::result::Result<T, Fail<C>>;
 pub enum RespAction {
     Heartbeat,
     TaskError(i64),
-    ListError(DataSetsReq, String),
     ListOk(ListResponse),
 }

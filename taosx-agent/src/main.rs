@@ -147,7 +147,16 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         _ = runner => {
             tracing::info!("Runner stopped");
         }
-        _ = client.wait_tasks(sender) => {
+        _ = async {
+            loop {
+                let sender = sender.clone();
+                if let Err(err) = client.wait_tasks(sender).await {
+                    tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
+                }
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+            // Ok::<_, anyhow::Error>(())
+         } => {
             tracing::info!("Task listener stopped");
         }
     }

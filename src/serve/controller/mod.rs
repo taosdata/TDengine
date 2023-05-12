@@ -1126,7 +1126,7 @@ impl TaskController {
         let agent_tasks = self.agent_tasks.read().await;
         let agent = agent_tasks
             .get(&agent_id)
-            .ok_or_else(|| anyhow::format_err!("Unknown agent id {agent_id}"))?;
+            .ok_or_else(|| anyhow::format_err!("Unknown or inactive agent {agent_id}"))?;
 
         agent.send(AgentAction::ListDataSets(req, sender))?;
         let data = recv.recv_async().await??;
