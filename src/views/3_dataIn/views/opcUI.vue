@@ -300,7 +300,7 @@
                   </template>
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
-                <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
+                <template v-if="(p.hint === 'bool' || p.hint.type === 'bool')&&p.name=='clean_session'">
                   <el-radio-group v-model="p.value" v-if="p.choices">
                     <el-radio v-for="c in p.choices" :key="c" :label="c">
                       {{ c }}
@@ -314,13 +314,21 @@
                     ></el-checkbox>
                   </template>
                 </template>
+                <template v-if="p.hint.type && p.hint.type === 'bool'">
+                  <!-- <el-radio-group v-model="p.value">
+                    <el-radio v-for="c in p.choices" :key="c" :label="c">
+                      {{ c }}
+                    </el-radio>
+                  </el-radio-group> -->
+                  <p-three-checkbox :data="checkboxData" v-model="p.value" />
+                </template>
                 <template
                   v-if="
                     (p.hint.type && p.hint.type === 'integer') ||
                     p.hint === 'integer'
                   "
                 >
-                  <el-input-number v-model="p.value"></el-input-number>
+                  <el-input-number v-model="p.value" :min="p.hint.min" :max="p.hint.max"></el-input-number>
                 </template>
                 <div
                   v-html="transforHtml(p.description)"
@@ -367,13 +375,17 @@
 </template>
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource } from "@/api/explorer/datain";
+import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
-import { decrypt } from "@/utils/index";
+import { decrypt, debounce } from "@/utils/index";
+import PThreeCheckbox from '../components/pThreeCheckbox.vue';
 
 export default {
   name: "DbSourceUI",
+  components: {
+    'p-three-checkbox': PThreeCheckbox,
+  },
   props: {
     tagName: {
       type: String,
@@ -415,6 +427,16 @@ export default {
       radio: "",
       dblist: [],
       dbname: "",
+      isShowConfiguration: false,
+      loading: false,
+      configurationdata: [],
+      activeDataSet: {},
+      activeName: "",
+      checkboxData: {
+        label: '',
+        disabled: false,
+      },
+      // dbsource: [],
     };
   },
   created() {
@@ -422,6 +444,12 @@ export default {
     if (this.isEditable) {
       this.dbname = this.dbName;
     }
+  },
+  mounted() {
+    this.activeName = this.dbsource[0].datasets
+      ? this.dbsource[0].datasets.categories[0].category
+      : "";
+      console.log('dd',this.dbsource[0]);
   },
   watch: {
     dbName: {
@@ -467,6 +495,7 @@ export default {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
+      let enterTip = this.$t("dataIn.enterTip");
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
@@ -535,9 +564,17 @@ export default {
               return;
             } else {
               if (data.groups[index].params[g].value) {
-                querystr +=
-                  `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                  "&";
+                if(data.groups[index].params[g].name === 'use_received_time') {
+                  if(data.groups[index].params[g].value !== 0) {
+                    let value = data.groups[index].params[g].value === 1
+                    querystr +=
+                    `${data.groups[index].params[g].name}=${value}` + "&";
+                  }
+                } else {
+                  querystr +=
+                    `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                    "&";
+                }
               }
             }
           }
@@ -596,6 +633,124 @@ export default {
         console.log(error);
       }
     },
+    handleClick(tab, event) {
+      this.isShowConfiguration = false;
+      this.configurationdata = [];
+      this.activeDataSet = {};
+      // console.log(tab, event);
+    },
+
+    handleSelBtn() {
+      this.isShowConfiguration = true;
+    },
+    addOption() {
+      // "format": "{id}::{table}::{field}::{type}"
+      let curData = this.configurationdata.filter(
+        (item) => item.id === this.activeDataSet.id
+      );
+      let enterTip = this.$t("dataIn.enterTip");
+      let format = curData[0].id;
+      let options = curData[0].options;
+      for (let i = 0; i < options.length; i++) {
+        if (options[i].required && !options[i].value) {
+          Message({
+            type: "warning",
+            message: `${enterTip} ${options[i].name}`,
+          });
+          return;
+        }
+        format += `::${options[i].value}`;
+      }
+      let categories = [];
+      categories = this.dbsource[0].datasets.categories.map((cate) => {
+        if (cate.category == this.activeDataSet.category) {
+          if (Array.isArray(cate.target.value)) {
+            cate.target.value.push(format);
+            cate.target.value = Array.from(new Set(cate.target.value));
+          } else {
+            cate.target.value = format;
+          }
+        }
+        return cate;
+      });
+    },
+    handelDataSet(data) {
+      this.activeDataSet = data;
+      let categories = [];
+      if (!Object.hasOwnProperty.call(data, "options")) {
+        categories = this.dbsource[0].datasets.categories.map((cate) => {
+          if (cate.category == data.category) {
+            if (Array.isArray(cate.target.value)) {
+              cate.target.value.push(data.id);
+              cate.target.value = Array.from(new Set(cate.target.value));
+            } else {
+              cate.target.value = data.id;
+            }
+          }
+          return cate;
+        });
+        this.dbsource[0].datasets.categories = categories;
+      }
+    },
+    searchDatas: debounce(function (value) {
+      try {
+        let data = this.dbsource[0];
+        let endpoint = data.options.endpoint.value
+        let enterTip = this.$t("dataIn.enterTip");
+        if (!endpoint) {
+          Message({
+            type: "warning",
+            message: `${enterTip} ${data.options.endpoint.display}`,
+          });
+          return;
+        }
+       
+        let dns = ""
+        let querystr = ""
+        if(data.authentication.value=='certificates'){
+          data.authentication.alternatives[2].params.forEach(val=>{
+            querystr += val.value?`${val.name}=${val.value}&`:''
+          })
+        }
+         if(data.authentication.value=='plain'){
+          if(data.authentication.alternatives[1].username.value){
+            dns += `://${data.authentication.alternatives[1].username.value}`
+          }
+          if(data.authentication.alternatives[1].password.value){
+            dns += `:${data.authentication.alternatives[1].password.value}`
+          }
+          dns +=`@`
+         }else{
+          dns +=`://`
+         }
+        if (
+          data.options.endpoint &&
+          JSON.stringify(data.options.endpoint) !== "{}"
+        ) {
+          dns += `${
+            data.options.endpoint.value ? data.options.endpoint.value : "/"
+          }`;
+        }
+        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        
+        let params = null;
+        params = {
+          from: `opc${this.protocol}${dns}`,
+          categories: [this.activeName],
+          via: this.$parent.agentID,
+          pattern: value,
+          offset: 1,
+          limit: 10,
+        };
+        this.loading = true;
+        getUaAndDaData(params).then((res) => {
+          this.loading = false;
+          this.configurationdata = res;
+        });
+      } catch (error) {
+        this.loading = false;
+      }
+    }, 100),
   },
 };
 </script>
@@ -761,6 +916,82 @@ export default {
       display: flex;
       justify-content: center;
       align-items: center;
+    }
+  }
+  
+  .target {
+    display: flex;
+    margin-top: 24px;
+    .el-input {
+      width: 50%;
+      margin-right: 24px;
+    }
+    .el-select {
+      width: 50%;
+      margin-right: 24px;
+    }
+  }
+  .configuration {
+    > div {
+      display: flex;
+      margin-top: 16px;
+    }
+    margin-top: 24px;
+    .el-input {
+      width: 50%;
+    }
+    .searchList {
+      width: 50%;
+      height: 210px;
+      border: 1px solid #dcdfe6;
+      overflow-y: auto;
+      > div {
+        border-bottom: 1px solid #dcdfe6;
+        line-height: 30px;
+      }
+      .actived {
+        color: #4259ce;
+        border-color: #c6cdf0;
+        background-color: #eceefa;
+      }
+      :hover {
+        cursor: pointer;
+        color: #4259ce;
+        border-color: #c6cdf0;
+        background-color: #eceefa;
+      }
+    }
+    .options-wrap {
+      height: 210px;
+      margin-left: 24px;
+      border: 1px solid #dcdfe6;
+      padding: 16px 8px;
+      flex: 1;
+      .option-list {
+        overflow-y: auto;
+        height: 150px;
+        padding-left: 10px;
+        .option-item {
+          display: flex;
+          white-space: nowrap;
+          align-items: baseline;
+          margin-bottom: 8px;
+          .label {
+            font-size: 14px;
+            color: #4259ce;
+            align-items: center;
+            width: 100px;
+            display: block;
+          }
+          .el-input {
+            flex: 1;
+          }
+        }
+      }
+      :last-child {
+        display: flex;
+        justify-content: flex-end;
+      }
     }
   }
 }

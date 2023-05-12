@@ -216,8 +216,8 @@ async fn x_api(
     let url = format!("{x}/{api}?{}", req.query_string());
     let client = awc::Client::builder().wrap(Tracing).finish();
     let method = req.method();
+    let client = client.request(method.clone(), url).timeout(Duration::from_secs(std::u64::MAX));
     let mut resp = client
-        .request(method.clone(), url)
         .content_type(req.content_type())
         .send_body(bytes)
         .await?;
@@ -239,7 +239,8 @@ async fn x_api_doc(
     let url = format!("{x}/api-doc/openapi.json");
     let client = awc::Client::new();
     let method = req.method();
-    let mut resp = client.request(method.clone(), url).send_body(bytes).await?;
+    let client = client.request(method.clone(), url).timeout(Duration::from_secs(std::u64::MAX));
+    let mut resp = client.send_body(bytes).await?;
     let mut api: serde_json::Value = resp.json().await?;
     if let Some(paths) = api.get_mut("paths") {
         assert!(paths.is_object());
