@@ -164,7 +164,6 @@ int32_t     metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType);
 #endif
 
 // tsdb
-// typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
 #define TSDB_DEFAULT_STT_FILE  8
@@ -193,7 +192,10 @@ int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo
 int64_t      tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 void        *tsdbGetIdx(SMeta *pMeta);
 void        *tsdbGetIvtIdx(SMeta *pMeta);
-uint64_t     getReaderMaxVersion(STsdbReader *pReader);
+uint64_t     tsdbGetReaderMaxVersion(STsdbReader *pReader);
+int32_t      tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
+void         tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
+void         tsdbReaderSetCloseFlag(STsdbReader *pReader);
 
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
@@ -235,26 +237,22 @@ typedef struct SSnapContext {
 } SSnapContext;
 
 typedef struct STqReader {
-  SPackedData msg2;
-
-  SSubmitReq2 submit;
-  int32_t     nextBlk;
-
-  int64_t lastBlkUid;
-
-  SWalReader *pWalReader;
-
-  SMeta    *pVnodeMeta;
-  SHashObj *tbIdHash;
-  SArray   *pColIdList;  // SArray<int16_t>
-
+  SPackedData     msg;
+  SSubmitReq2     submit;
+  int32_t         nextBlk;
+  int64_t         lastBlkUid;
+  SWalReader     *pWalReader;
+  SMeta          *pVnodeMeta;
+  SHashObj       *tbIdHash;
+  SArray         *pColIdList;  // SArray<int16_t>
   int32_t         cachedSchemaVer;
   int64_t         cachedSchemaSuid;
+  int64_t         cachedSchemaUid;
   SSchemaWrapper *pSchemaWrapper;
-  STSchema       *pSchema;
+  SSDataBlock    *pResBlock;
 } STqReader;
 
-STqReader *tqOpenReader(SVnode *pVnode);
+STqReader *tqReaderOpen(SVnode *pVnode);
 void       tqCloseReader(STqReader *);
 
 void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
@@ -263,17 +261,14 @@ int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
-void    tqNextBlock(STqReader *pReader, SFetchRet *ret);
-int32_t extractSubmitMsgFromWal(SWalReader *pReader, SPackedData *pPackedData);
+int32_t tqNextBlockInWal(STqReader* pReader);
+bool    tqNextBlockImpl(STqReader *pReader);
 
+int32_t extractSubmitMsgFromWal(SWalReader *pReader, SPackedData *pPackedData);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
-// int32_t tqReaderSetDataMsg(STqReader *pReader, const SSubmitReq *pMsg, int64_t ver);
-bool    tqNextDataBlock(STqReader *pReader);
-bool    tqNextDataBlockFilterOut2(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock2(SSDataBlock *pBlock, STqReader *pReader, SSubmitTbData **pSubmitTbDataRet);
-int32_t tqRetrieveTaosxBlock2(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
-// int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
-// int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas);
+bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
+int32_t tqRetrieveDataBlock(STqReader *pReader, SSubmitTbData **pSubmitTbDataRet);
+int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
 
 int32_t vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
 

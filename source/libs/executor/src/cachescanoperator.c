@@ -20,7 +20,9 @@
 #include "tdatablock.h"
 #include "tmsg.h"
 
-#include "executorimpl.h"
+#include "executorInt.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"

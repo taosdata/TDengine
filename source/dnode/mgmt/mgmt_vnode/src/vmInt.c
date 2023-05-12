@@ -119,6 +119,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
         pVnode->pFetchQ->threadId);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
 
+  tqNotifyClose(pVnode->pImpl->pTq);
   dInfo("vgId:%d, wait for vnode stream queue:%p is empty", pVnode->vgId, pVnode->pStreamQ);
   while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
 
@@ -141,7 +142,6 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   dInfo("vgId:%d, vnode is closed", pVnode->vgId);
 
   if (commitAndRemoveWal) {
-    char path[TSDB_FILENAME_LEN] = {0};
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d%swal", TD_DIRSEP, pVnode->vgId, TD_DIRSEP);
     dInfo("vgId:%d, remove all wals, path:%s", pVnode->vgId, path);
     tfsRmdir(pMgmt->pTfs, path);

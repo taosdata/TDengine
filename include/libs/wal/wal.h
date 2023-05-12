@@ -147,8 +147,6 @@ typedef struct SWalReader {
   int64_t        curFileFirstVer;
   int64_t        curVersion;
   int64_t        capacity;
-//  int8_t         curInvalid;
-//  int8_t         curStopped;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
   // TODO remove it

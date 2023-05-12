@@ -197,7 +197,7 @@ show table distributed d0\G;
  <summary> Show Example </summary>
  <pre><code>
 *************************** 1.row ***************************
-_block_dist: Total_Blocks=[5] Total_Size=[93.65 Kb] Average_size=[18.73 Kb] Compression_Ratio=[23.98 %]
+_block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Compression_Ratio=[23.98 %]
 
 Total_Blocks :  Table `d0` contains total 5 blocks
 

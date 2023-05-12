@@ -24,7 +24,8 @@
 #include "ttime.h"
 
 #include "executil.h"
-#include "executorimpl.h"
+#include "executorInt.h"
+#include "querytask.h"
 #include "tcompression.h"
 
 typedef struct STableListIdInfo {
@@ -88,7 +89,6 @@ void resetResultRow(SResultRow* pResultRow, size_t entrySize) {
 
 // TODO refactor: use macro
 SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset) {
-  assert(index >= 0 && offset != NULL);
   return (SResultRowEntryInfo*)((char*)pRow->pEntryInfo + offset[index]);
 }
 
