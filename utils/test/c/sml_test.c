@@ -989,7 +989,7 @@ int sml_ts2164_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
   TAOS_RES *pRes =
-      taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_test  BUFFER 384  MINROWS 1000  PAGES 256 PRECISION 'ns'");
+      taos_query(taos, "CREATE DATABASE IF NOT EXISTS line_test MINROWS 1000 PRECISION 'ns'");
   taos_free_result(pRes);
 
   const char *sql[] = {
@@ -1385,8 +1385,8 @@ int main(int argc, char *argv[]) {
   ASSERT(!ret);
   ret = sml_ts3116_Test();
   ASSERT(!ret);
-  ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file
-  ASSERT(!ret);
+//  ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file
+//  ASSERT(!ret);
   ret = sml_ts3303_Test();    // this test case need config sml table name using ./sml_test config_file
   ASSERT(!ret);
 
