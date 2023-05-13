@@ -64,11 +64,29 @@ class TDTestCase:
         self._async_raise(thread.ident, SystemExit)
 
 
-    def insertData(self,dbname,tableCount,rowsPerCount,vgroups):
-        # tableCount : create table number
-        # rowsPerCount :  rows per table
+    def insertData(self,countstart,countstop):
         # fisrt add data : db\stable\childtable\general table
-        os.system(f"taosBenchmark  -d {dbname} -n {tableCount} -t {rowsPerCount} -v {vgroups} -z 1 -k 10000 -y ")
+
+        for couti in range(countstart,countstop):
+            tdLog.debug("drop database if exists db%d" %couti)
+            tdSql.execute("drop database if exists db%d" %couti)
+            print("create database if not exists db%d replica 1 duration 300" %couti)
+            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
+            tdSql.execute("use db%d" %couti)
+            tdSql.execute(
+            '''create table stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+            )
+            tdSql.execute(
+                '''
+                create table t1
+                (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+                '''
+            )
+            for i in range(4):
+                tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
 
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
@@ -76,29 +94,29 @@ class TDTestCase:
         paraDict = {'dbName':     'db0_0',
                     'dropFlag':   1,
                     'event':      '',
-                    'vgroups':    6,
+                    'vgroups':    4,
                     'replica':    1,
-                    'stbName':    'meters',
-                    'stbNumbers': 1,
+                    'stbName':    'stb',
+                    'stbNumbers': 2,
                     'colPrefix':  'c',
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
-                    'ctbNum':     10000,
+                    'ctbNum':     1000,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    "rowsPerTbl": 10000,
+                    "rowsPerTbl": 100,
                     "batchNum": 5000
                     }
 
-        dnodeNumbers=int(dnodeNumbers)
-        mnodeNums=int(mnodeNums)
+        dnodeNumbers = int(dnodeNumbers)
+        mnodeNums = int(mnodeNums)
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allctbNumbers=(paraDict['stbNumbers']*paraDict["ctbNum"])
-        rowsPerStb=paraDict["ctbNum"]*paraDict["rowsPerTbl"]
-        rowsall=rowsPerStb*paraDict['stbNumbers']
+        allctbNumbers = (paraDict['stbNumbers']*paraDict["ctbNum"])
+        rowsPerStb = paraDict["ctbNum"]*paraDict["rowsPerTbl"]
+        rowsall = rowsPerStb*paraDict['stbNumbers']
         dbNumbers = 1
-
+        replica3 = 3
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
@@ -117,6 +135,7 @@ class TDTestCase:
         clusterComCheck.checkDnodes(dnodeNumbers)
 
         # create database and stable
+        clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
         tdLog.info("Take turns stopping Mnodes ")
 
         tdDnodes=cluster.dnodes
@@ -124,7 +143,19 @@ class TDTestCase:
         threads=[]
 
         # create stable:stb_0
-        threads.append(threading.Thread(target=self.insertData, args=(paraDict["dbName"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["vgroups"])))
+        stableName= paraDict['stbName']
+        newTdSql=tdCom.newTdSql()
+        clusterComCreate.create_stables(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])
+        #create child table:ctb_0
+        for i in range(paraDict['stbNumbers']):
+            stableName= '%s_%d'%(paraDict['stbName'],i)
+            newTdSql=tdCom.newTdSql()
+            clusterComCreate.create_ctable(newTdSql, paraDict["dbName"],stableName,stableName, paraDict['ctbNum'])
+        #insert date
+        for i in range(paraDict['stbNumbers']):
+            stableName= '%s_%d'%(paraDict['stbName'],i)
+            newTdSql=tdCom.newTdSql()
+            threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
         for tr in threads:
             tr.start()
         TdSqlEx=tdCom.newTdSql()
@@ -178,10 +209,7 @@ class TDTestCase:
         #     stableName= '%s.%s_%d'%(paraDict["dbName"],paraDict['stbName'],i)
         #     tdSql.query("select count(*) from %s"%stableName)
         #     tdSql.checkData(0,0,rowsPerStb)
-        stableName= '%s.%s'%(paraDict["dbName"],paraDict['stbName'])
-        tdSql.query("select count(*) from %s"%stableName)
-        tdSql.checkData(0,0,rowsall)
-        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=3,db_name=paraDict["dbName"],count_number=240)             
+        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=replica3,db_name=paraDict["dbName"],count_number=240)        
     def run(self):
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=4,stopRole='dnode')

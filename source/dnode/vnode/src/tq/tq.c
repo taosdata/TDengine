@@ -396,8 +396,12 @@ int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) 
   }
 
   // save the new offset value
-  tqDebug("vgId:%d sub:%s seek to %" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey, pOffset->val.version,
-          pSavedOffset->val.version);
+  if (pSavedOffset != NULL) {
+    tqDebug("vgId:%d sub:%s seek to:%" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey, pOffset->val.version,
+            pSavedOffset->val.version);
+  } else {
+    tqDebug("vgId:%d sub:%s seek to:%"PRId64" not saved yet", vgId, pOffset->subKey, pOffset->val.version);
+  }
 
   if (tqOffsetWrite(pTq->pOffsetStore, pOffset) < 0) {
     tqError("failed to save offset, vgId:%d sub:%s seek to %" PRId64, vgId, pOffset->subKey, pOffset->val.version);

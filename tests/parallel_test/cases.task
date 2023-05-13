@@ -57,9 +57,9 @@
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 ,,y,script,./test.sh -f tsim/dnode/vnode_clean.sim
-,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim 
-,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim 
-,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim 
+,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim
 ,,y,script,./test.sh -f tsim/import/basic.sim
 ,,y,script,./test.sh -f tsim/import/commit.sim
 ,,y,script,./test.sh -f tsim/import/large.sim
@@ -332,9 +332,9 @@
 ,,y,script,./test.sh -f tsim/catalog/alterInCurrent.sim
 ,,y,script,./test.sh -f tsim/scalar/in.sim
 ,,y,script,./test.sh -f tsim/scalar/scalar.sim
-,,y,script,./test.sh -f tsim/scalar/filter.sim 
-,,y,script,./test.sh -f tsim/scalar/caseWhen.sim 
-,,y,script,./test.sh -f tsim/scalar/tsConvert.sim 
+,,y,script,./test.sh -f tsim/scalar/filter.sim
+,,y,script,./test.sh -f tsim/scalar/caseWhen.sim
+,,y,script,./test.sh -f tsim/scalar/tsConvert.sim
 ,,y,script,./test.sh -f tsim/alter/cached_schema_after_alter.sim
 ,,y,script,./test.sh -f tsim/alter/dnode.sim
 ,,y,script,./test.sh -f tsim/alter/table.sim
@@ -811,7 +811,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
-#,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
+#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
+,,n,system-test,python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3

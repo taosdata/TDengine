@@ -459,6 +459,11 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SInsertStmt));
     case QUERY_NODE_QUERY:
       return makeNode(type, sizeof(SQuery));
+    case QUERY_NODE_RESTORE_DNODE_STMT:
+    case QUERY_NODE_RESTORE_QNODE_STMT:
+    case QUERY_NODE_RESTORE_MNODE_STMT:
+    case QUERY_NODE_RESTORE_VNODE_STMT:
+      return makeNode(type, sizeof(SRestoreComponentNodeStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -1058,6 +1063,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pQuery->pPrepareRoot);
       break;
     }
+    case QUERY_NODE_RESTORE_DNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_QNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_MNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_VNODE_STMT:   // no pointer field
+      break;
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);

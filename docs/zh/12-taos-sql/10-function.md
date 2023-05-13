@@ -888,7 +888,7 @@ INTERP(expr)
 - INTERP 的输出时间范围根据 RANGE(timestamp1,timestamp2)字段来指定，需满足 timestamp1 <= timestamp2。其中 timestamp1（必选值）为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)，1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值.
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
-- INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 partition by tbname 一起使用。
+- INTERP 作用于超级表时, 会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
 - INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.2.0版本以后支持)。
 - INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(3.0.3.0版本以后支持)。
 

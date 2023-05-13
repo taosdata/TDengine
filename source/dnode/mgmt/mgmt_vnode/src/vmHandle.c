@@ -255,7 +255,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
   if (pVnode != NULL) {
-    dInfo("vgId:%d, already exist", req.vgId);
+    dError("vgId:%d, already exist", req.vgId);
     tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
     terrno = TSDB_CODE_VND_ALREADY_EXIST;
@@ -264,7 +264,22 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
-  if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
+
+  if (pMgmt->pTfs) {
+    if (tfsDirExistAt(pMgmt->pTfs, path, (SDiskID){0})) {
+      terrno = TSDB_CODE_VND_DIR_ALREADY_EXIST;
+      dError("vgId:%d, failed to restore vnode since %s", req.vgId, terrstr());
+      return -1;
+    }
+  } else {
+    if (taosDirExist(path)) {
+      terrno = TSDB_CODE_VND_DIR_ALREADY_EXIST;
+      dError("vgId:%d, failed to restore vnode since %s", req.vgId, terrstr());
+      return -1;
+    }
+  }
+  
+if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
     tFreeSCreateVnodeReq(&req);
     dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     code = terrno;
@@ -344,6 +359,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   ESyncRole role = vnodeGetRole(pVnode->pImpl);
   dInfo("vgId:%d, checking node role:%d", req.vgId, role);
   if(role == TAOS_SYNC_ROLE_VOTER){
+    dError("vgId:%d, failed to alter vnode type since node already is role:%d", req.vgId, role);
     terrno = TSDB_CODE_VND_ALREADY_IS_VOTER;
     vmReleaseVnode(pMgmt, pVnode);
     return -1;
@@ -380,7 +396,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   SReplica *pReplica = NULL;
-  if(req.selfIndex > 0){
+  if(req.selfIndex != -1){
     pReplica = &req.replicas[req.selfIndex];
   }
   else{

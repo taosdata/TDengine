@@ -1234,6 +1234,14 @@ typedef struct {
 } SDnodeEp;
 
 typedef struct {
+  int32_t id;
+  int8_t  isMnode;
+  SEp     ep;
+  char    active[TSDB_ACTIVE_KEY_LEN];
+  char    connActive[TSDB_CONN_ACTIVE_KEY_LEN];
+} SDnodeInfo;
+
+typedef struct {
   int64_t   dnodeVer;
   SDnodeCfg dnodeCfg;
   SArray*   pDnodeEps;  // Array of SDnodeEp
@@ -1625,6 +1633,21 @@ typedef struct {
 
 int32_t tSerializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
 int32_t tDeserializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
+
+enum {
+  RESTORE_TYPE__ALL = 1,
+  RESTORE_TYPE__MNODE,
+  RESTORE_TYPE__VNODE,
+  RESTORE_TYPE__QNODE,
+};
+
+typedef struct {
+  int32_t dnodeId;
+  int8_t  restoreType;
+} SRestoreDnodeReq;
+
+int32_t tSerializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
+int32_t tDeserializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;

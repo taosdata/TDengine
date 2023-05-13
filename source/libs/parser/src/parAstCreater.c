@@ -1674,6 +1674,14 @@ SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, cons
   return (SNode*)pStmt;
 }
 
+SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRestoreComponentNodeStmt* pStmt = (SRestoreComponentNodeStmt*)nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  return (SNode*)pStmt;
+}
+
 SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTopicName(pCxt, pTopicName)) {

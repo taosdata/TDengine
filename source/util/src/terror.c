@@ -321,6 +321,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QNODE_NOT_DEPLOYED,           "Qnode not deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NOT_FOUND,              "Snode not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_ALREADY_DEPLOYED,       "Snode already deployed")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NOT_DEPLOYED,           "Snode not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NOT_CATCH_UP,           "Mnode didn't catch the leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ALREADY_IS_VOTER,       "Mnode already is a leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ONLY_TWO_MNODE,         "Only two mnodes exist")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -336,6 +339,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_AVAIL_BUFPOOL,         "No availabe buffer po
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_STOPPED,                  "Vnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_DUP_REQUEST,              "Duplicate write request")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_QUERY_BUSY,               "Query busy")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_CATCH_UP,             "Vnode didn't catch up its leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_IS_VOTER,         "Vnode already is a voter")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_DIR_ALREADY_EXIST,        "Vnode directory already exist")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -399,9 +405,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QWORKER_QUIT,             "Vnode/Qnode is quitti
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DNODE_LIMITED,          "DNode creation limited by licence")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DNODE_LIMITED,          "DNode creation limited by license")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ACCT_LIMITED,           "Account creation limited by license")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TIMESERIES_LIMITED,     "Table creation limited by license")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TIMESERIES_LIMITED,     "Time series limited by license")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_LIMITED,             "DB creation limited by license")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_USER_LIMITED,           "User creation limited by license")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CONN_LIMITED,           "Conn creation limited by license")
@@ -595,23 +601,16 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SML_INTERNAL_ERROR,             "Internal error")
 //tsma
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INIT_FAILED,               "Tsma init failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_ALREADY_EXIST,             "Tsma already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_META,          "No tsma index in meta")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_ENV,               "Invalid tsma env")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_STAT,              "Invalid tsma state")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PTR,               "Invalid tsma pointer")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PARA,              "Invalid tsma parameters")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_CACHE,         "No tsma index in cache")
 
 //rsma
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_STAT,              "Invalid rsma state")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_QTASKINFO_CREATE,          "Rsma qtaskinfo creation error")
-TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_COMMIT,                 "Rsma fs commit error")
-TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_REMOVE_EXISTS,             "Rsma remove exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FETCH_MSG_MSSED_UP,        "Rsma fetch msg is messed up")
-TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_EMPTY_INFO,                "Rsma info is empty")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_SCHEMA,            "Rsma invalid schema")
-TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_REGEX_MATCH,               "Rsma regex match")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_OPEN,         "Rsma stream state open")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_COMMIT,       "Rsma stream state commit")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_REF,                    "Rsma fs ref error")
