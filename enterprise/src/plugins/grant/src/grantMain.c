@@ -79,8 +79,8 @@
 #define GRANT_FLAG_TDENGINE ((int8_t)0x01)
 #define GRANT_FLAG_CONNECTORS ((int8_t)0x02)
 
-#define SET_GRANT_TDENGINE(s) (((s)->flag |= GRANT_FLAG_TDENGINE)
-#define SET_GRANT_CONNECTORS(s) (((s)->flag |= GRANT_FLAG_CONNECTORS)
+#define SET_GRANT_TDENGINE(s) ((s)->flag |= GRANT_FLAG_TDENGINE)
+#define SET_GRANT_CONNECTORS(s) ((s)->flag |= GRANT_FLAG_CONNECTORS)
 #define IS_GRANT_TDENGINE(s) (((s)->flag & 0x01) == GRANT_FLAG_TDENGINE)
 #define IS_GRANT_CONNECTORS(s) (((s)->flag & 0x02) == GRANT_FLAG_CONNECTORS)
 
