@@ -653,7 +653,7 @@ const char* compactFilteFactoryName(void* arg) {
 void          destroyCompactFilte(void* arg) { (void)arg; }
 unsigned char compactFilte(void* arg, int level, const char* key, size_t klen, const char* val, size_t vlen,
                            char** newval, size_t* newvlen, unsigned char* value_changed) {
-  return streamStateValueIsStale((char*)val) ? 1 : 0
+  return streamStateValueIsStale((char*)val) ? 1 : 0;
 }
 const char* compactFilteName(void* arg) { return "stream_filte"; }
 
