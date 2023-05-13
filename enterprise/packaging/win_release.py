@@ -20,11 +20,11 @@ timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 logname =f"{timestamp}.log" 
 print(f"log file:{logname}")
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
-                    level=logging.INFO,filename=logname) 
-
 # logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
-#                     level=logging.DEBUG) 
+#                     level=logging.INFO,filename=logname) 
+
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                    level=logging.DEBUG) 
 class Customer:
     def __init__(self, name, email, prompt, grantValue):
         self.Name = name
@@ -137,10 +137,15 @@ def parse_arguments():
 
 def generate_community_dir():
     logging.info("generate community package directory ...")
-    if os.path.exists(install_info.community_dir):
-        if os.path.exists(release_dir):
-            shutil.rmtree(release_dir)
-        os.mkdir(release_dir)
+    if not os.path.exists(install_info.community_dir):
+        if os.path.exists(os.path.join(install_info.internal_dir,'debug')):
+            shutil.rmtree(os.path.join(install_info.internal_dir,'debug'))
+
+        os.makedirs(os.path.join(install_info.internal_dir,'debug'))
+        os.chdir(os.path.join(install_info.internal_dir,'debug'))
+        
+        subprocess.check_call("cmake ..")
+        os.chdir(scrip_dir)
     else:
         logging.error(f"community_dir:{install_info.community_dir} not exist, please download community dir first.")
 
@@ -414,14 +419,14 @@ def os_check():
 
 if __name__ == "__main__":
     set_win_dev_env()
-    # os_check()
+    os_check()
     logging.info("Release tdengine on windows start...")
     parse_arguments()
     set_package_name()
+    generate_community_dir()
     set_release_path()
     print_param()
-    generate_community_dir()
-
+    
     if test_process != '':
         testHanle(test_process)
         sys.exit()
