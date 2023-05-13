@@ -1478,13 +1478,8 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
         makeTopicVgroupKey(vgKey, pTopicCur->topicName, pVgCur->vgId);
 
         char buf[80];
-<<<<<<< HEAD
-        tFormatOffset(buf, 80, &pVgCur->currentOffset);
-        tscDebug("consumer:0x%" PRIx64 ", doUpdateLocalEp current vg, epoch:%d vgId:%d vgKey:%s, offset:%s", tmq->consumerId, tmq->epoch, pVgCur->vgId,
-=======
         tFormatOffset(buf, 80, &pVgCur->offsetInfo.currentOffset);
         tscDebug("consumer:0x%" PRIx64 ", epoch:%d vgId:%d vgKey:%s, offset:%s", tmq->consumerId, epoch, pVgCur->vgId,
->>>>>>> enh/3.0
                  vgKey, buf);
 
         SVgroupSaveInfo info = {.offset = pVgCur->offsetInfo.currentOffset, .numOfRows = pVgCur->numOfRows};
@@ -1693,12 +1688,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
     return handleErrorBeforePoll(pVg, pTmq);
   }
 
-<<<<<<< HEAD
-  sendInfo->msgInfo = (SDataBuf){ .pData = msg, .len = msgSize, .handle = NULL };
-
-=======
   sendInfo->msgInfo = (SDataBuf){.pData = msg, .len = msgSize, .handle = NULL};
->>>>>>> enh/3.0
   sendInfo->requestId = req.reqId;
   sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
@@ -1816,16 +1806,10 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
           pVg->epSet = *pollRspWrapper->pEpset;
         }
 
-<<<<<<< HEAD
-        if(pDataRsp->rspOffset.type != 0){    // if offset is validate
-          pVg->currentOffset = pDataRsp->rspOffset;          // update the local offset value only for the returned values.
-        }
-=======
         // update the local offset value only for the returned values.
         pVg->offsetInfo.currentOffset = pDataRsp->rspOffset;
 
         // update the status
->>>>>>> enh/3.0
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
 
         // update the valid wal version range
@@ -1869,13 +1853,9 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
       if (pollRspWrapper->metaRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
-<<<<<<< HEAD
         if(pollRspWrapper->metaRsp.rspOffset.type != 0){    // if offset is validate
-          pVg->currentOffset = pollRspWrapper->metaRsp.rspOffset;
+          pVg->offsetInfo.currentOffset = pollRspWrapper->metaRsp.rspOffset;
         }
-=======
-        pVg->offsetInfo.currentOffset = pollRspWrapper->metaRsp.rspOffset;
->>>>>>> enh/3.0
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         // build rsp
         SMqMetaRspObj* pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);
@@ -1893,13 +1873,9 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
       if (pollRspWrapper->taosxRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
-<<<<<<< HEAD
         if(pollRspWrapper->taosxRsp.rspOffset.type != 0){    // if offset is validate
-          pVg->currentOffset = pollRspWrapper->taosxRsp.rspOffset;
+          pVg->offsetInfo.currentOffset = pollRspWrapper->taosxRsp.rspOffset;
         }
-=======
-        pVg->offsetInfo.currentOffset = pollRspWrapper->taosxRsp.rspOffset;
->>>>>>> enh/3.0
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
 
         if (pollRspWrapper->taosxRsp.blockNum == 0) {

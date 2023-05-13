@@ -71,21 +71,10 @@ static void destroyTqHandle(void* data) {
     walCloseReader(pData->pWalReader);
     tqCloseReader(pData->execHandle.pTqReader);
   }
-<<<<<<< HEAD
   if(pData->msg != NULL) {
     rpcFreeCont(pData->msg->pCont);
     taosMemoryFree(pData->msg);
     pData->msg = NULL;
-=======
-}
-
-static void tqPushEntryFree(void* data) {
-  STqPushEntry* p = *(void**)data;
-  if (p->pDataRsp->head.mqMsgType == TMQ_MSG_TYPE__POLL_RSP) {
-    tDeleteMqDataRsp(p->pDataRsp);
-  } else if (p->pDataRsp->head.mqMsgType == TMQ_MSG_TYPE__TAOSX_RSP) {
-    tDeleteSTaosxRsp((STaosxRsp*)p->pDataRsp);
->>>>>>> enh/3.0
   }
 }
 
@@ -162,7 +151,6 @@ void tqClose(STQ* pTq) {
   taosMemoryFree(pTq);
 }
 
-<<<<<<< HEAD
 void tqNotifyClose(STQ* pTq) {
   if (pTq != NULL) {
     taosWLockLatch(&pTq->pStreamMeta->lock);
@@ -194,7 +182,7 @@ static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqData
   int32_t code = 0;
 
   if (type == TMQ_MSG_TYPE__POLL_RSP) {
-    tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
+    tEncodeSize(tEncodeMqDataRsp, pRsp, len, code);
   } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
     tEncodeSize(tEncodeSTaosxRsp, (STaosxRsp*)pRsp, len, code);
   }
@@ -219,7 +207,7 @@ static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqData
   tEncoderInit(&encoder, abuf, len);
 
   if (type == TMQ_MSG_TYPE__POLL_RSP) {
-    tEncodeSMqDataRsp(&encoder, pRsp);
+    tEncodeMqDataRsp(&encoder, pRsp);
   } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
     tEncodeSTaosxRsp(&encoder, (STaosxRsp*)pRsp);
   }
@@ -237,33 +225,22 @@ static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqData
   return 0;
 }
 
-int32_t tqPushDataRsp(STQ* pTq, STqHandle* pHandle) {
+int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId) {
   SMqDataRsp dataRsp = {0};
   dataRsp.head.consumerId = pHandle->consumerId;
   dataRsp.head.epoch = pHandle->epoch;
   dataRsp.head.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
-  doSendDataRsp(&pHandle->msg->info, &dataRsp, pHandle->epoch, pHandle->consumerId, TMQ_MSG_TYPE__POLL_RSP);
-=======
-int32_t tqPushDataRsp(STqPushEntry* pPushEntry, int32_t vgId) {
-  SMqDataRsp* pRsp = pPushEntry->pDataRsp;
-  SMqRspHead* pHeader = &pPushEntry->pDataRsp->head;
 
   int64_t sver = 0, ever = 0;
-  walReaderValidVersionRange(pPushEntry->pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
-
-  tqDoSendDataRsp(&pPushEntry->info, pRsp, pHeader->epoch, pHeader->consumerId, pHeader->mqMsgType, sver, ever);
->>>>>>> enh/3.0
+  walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
+  tqDoSendDataRsp(&pHandle->msg->info, &dataRsp, pHandle->epoch, pHandle->consumerId, TMQ_MSG_TYPE__POLL_RSP, sver, ever);
 
   char buf1[80] = {0};
   char buf2[80] = {0};
   tFormatOffset(buf1, tListLen(buf1), &dataRsp.reqOffset);
   tFormatOffset(buf2, tListLen(buf2), &dataRsp.rspOffset);
   tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s",
-<<<<<<< HEAD
-          TD_VID(pTq->pVnode), dataRsp.head.consumerId, dataRsp.head.epoch, dataRsp.blockNum, buf1, buf2);
-=======
-          vgId, pRsp->head.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
->>>>>>> enh/3.0
+          vgId, dataRsp.head.consumerId, dataRsp.head.epoch, dataRsp.blockNum, buf1, buf2);
   return 0;
 }
 
@@ -462,7 +439,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   taosRLockLatch(&pTq->lock);
   if (pHandle->consumerId != consumerId) {
     tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
-            consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
+            consumerId, vgId, req.subKey, pHandle->consumerId);
     terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     taosRUnLockLatch(&pTq->lock);
     return -1;
@@ -521,6 +498,8 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   int64_t sver = 0, ever = 0;
   walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
 
+  int64_t currentVer = walReaderGetCurrentVer(pHandle->execHandle.pTqReader->pWalReader);
+
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, &req);
 
@@ -545,8 +524,10 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
     dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
 
-    if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
-      dataRsp.rspOffset.version = sver;
+    if (reqOffset.type == TMQ_OFFSET__LOG) {
+      dataRsp.rspOffset.version = currentVer; // return current consume offset value
+    } else if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
+      dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
     } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
       dataRsp.rspOffset.version = ever;
     } else {
@@ -564,8 +545,9 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
+  int32_t vgId = TD_VID(pTq->pVnode);
 
-  tqDebug("vgId:%d, tq process delete sub req %s", pTq->pVnode->config.vgId, pReq->subKey);
+  tqDebug("vgId:%d, tq process delete sub req %s", vgId, pReq->subKey);
   int32_t code = 0;
 //  taosWLockLatch(&pTq->lock);
 //  int32_t code = taosHashRemove(pTq->pPushMgr, pReq->subKey, strlen(pReq->subKey));
@@ -580,6 +562,12 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     if (pHandle->pRef) {
       walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
     }
+
+    while (tqIsHandleExecuting(pHandle)) {
+      tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
+      taosMsleep(5);
+    }
+
     code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
     if (code != 0) {
       tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
@@ -940,11 +928,9 @@ int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, char* msg, int32
 }
 
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  int32_t code;
-#if 0
-  code = streamMetaAddSerializedTask(pTq->pStreamMeta, version, msg, msgLen);
-  if (code < 0) return code;
-#endif
+  int32_t code = 0;
+  int32_t vgId = TD_VID(pTq->pVnode);
+
   if (tsDisableStream) {
     return 0;
   }
@@ -970,7 +956,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   taosWLockLatch(&pTq->pStreamMeta->lock);
   code = streamMetaAddDeployedTask(pTq->pStreamMeta, sversion, pTask);
   if (code < 0) {
-    tqError("vgId:%d failed to add s-task:%s, total:%d", TD_VID(pTq->pVnode), pTask->id.idStr,
+    tqError("vgId:%d failed to add s-task:%s, total:%d", vgId, pTask->id.idStr,
             streamMetaGetNumOfTasks(pTq->pStreamMeta));
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
     return -1;
@@ -983,8 +969,8 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     streamTaskCheckDownstream(pTask, sversion);
   }
 
-  tqDebug("vgId:%d s-task:%s is deployed and add meta from mnd, status:%d, total:%d", TD_VID(pTq->pVnode),
-          pTask->id.idStr, pTask->status.taskStatus, streamMetaGetNumOfTasks(pTq->pStreamMeta));
+  tqDebug("vgId:%d s-task:%s is deployed and add meta from mnd, status:%d, total:%d", vgId, pTask->id.idStr,
+          pTask->status.taskStatus, streamMetaGetNumOfTasks(pTq->pStreamMeta));
   return 0;
 }
 

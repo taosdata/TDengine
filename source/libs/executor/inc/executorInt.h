@@ -250,6 +250,7 @@ typedef struct STagScanInfo {
   SSDataBlock*    pRes;
   SColMatchInfo   matchInfo;
   int32_t         curPos;
+  SLimitNode*     pSlimit;
   SReadHandle     readHandle;
   STableListInfo* pTableListInfo;
 } STagScanInfo;

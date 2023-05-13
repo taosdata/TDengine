@@ -132,7 +132,7 @@ typedef struct {
 } SWalRef;
 
 typedef struct {
-  //  int8_t scanUncommited;
+  int8_t scanUncommited;
   int8_t scanNotApplied;
   int8_t scanMeta;
   int8_t enableRef;

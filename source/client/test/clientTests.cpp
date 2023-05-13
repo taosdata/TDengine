@@ -1080,7 +1080,6 @@ TEST(clientCase, sub_tb_test) {
   ASSERT_NE(pConn, nullptr);
 
   tmq_conf_t* conf = tmq_conf_new();
-<<<<<<< HEAD
 
   int32_t ts = taosGetTimestampMs()%INT32_MAX;
   char consumerGroupid[128] = {0};
@@ -1089,11 +1088,6 @@ TEST(clientCase, sub_tb_test) {
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.commit.interval.ms", "2000");
   tmq_conf_set(conf, "group.id", consumerGroupid);
-=======
-  tmq_conf_set(conf, "enable.auto.commit", "false");
-  tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName1024");
->>>>>>> enh/3.0
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
@@ -1137,13 +1131,9 @@ TEST(clientCase, sub_tb_test) {
 
   while (1) {
     TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
-<<<<<<< HEAD
     if (pRes) {
       char buf[128];
 
-=======
-    if (pRes != NULL) {
->>>>>>> enh/3.0
       const char* topicName = tmq_get_topic_name(pRes);
 //      const char* dbName = tmq_get_db_name(pRes);
 //      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
@@ -1152,26 +1142,7 @@ TEST(clientCase, sub_tb_test) {
 //      printf("db: %s\n", dbName);
 //      printf("vgroup id: %d\n", vgroupId);
 
-<<<<<<< HEAD
-      while (1) {
-        TAOS_ROW row = taos_fetch_row(pRes);
-        if (row == NULL) {
-          break;
-        }
-
-        fields = taos_fetch_fields(pRes);
-        numOfFields = taos_field_count(pRes);
-        totalRows += 1;
-//        if (totalRows % 100000 == 0) {
-          taos_print_row(buf, row, fields, numOfFields);
-          printf("row content: %s\n", buf);
-//        }
-      }
-
-      taos_free_result(pRes);
-=======
       printSubResults(pRes, &totalRows);
->>>>>>> enh/3.0
     } else {
 //      tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgroupHandle, pAssign[0].begin);
 //      break;
@@ -1180,6 +1151,11 @@ TEST(clientCase, sub_tb_test) {
     tmq_commit_sync(tmq, pRes);
     if (pRes != NULL) {
       taos_free_result(pRes);
+      //      if ((++count) > 1) {
+      //        break;
+      //      }
+    } else {
+      break;
     }
 
     tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgId, pAssign[0].begin);

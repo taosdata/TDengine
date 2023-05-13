@@ -816,6 +816,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   SMqConsumerObj *pConsumer = NULL;
   void           *buf = NULL;
 
+  terrno = 0;
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
     goto CM_DECODE_OVER;
