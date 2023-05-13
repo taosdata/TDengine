@@ -19,6 +19,14 @@
 #include "scalar.h"
 #include "tglobal.h"
 
+static void debugPrintNode(SNode* pNode) {
+  char* pStr = NULL;
+  nodesNodeToString(pNode, false, &pStr, NULL);
+  printf("%s\n", pStr);
+  taosMemoryFree(pStr);
+  return;
+}
+
 static void dumpQueryPlan(SQueryPlan* pPlan) {
   if (!tsQueryPlannerTrace) {
     return;

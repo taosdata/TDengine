@@ -55,7 +55,7 @@ else
         exit $?
     fi
     while true; do
-        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check | grep "^[0-9]*:")
         echo ${es}
         if [ "${es%%:*}" -eq 2 ]; then
             echo "execute create dnode"

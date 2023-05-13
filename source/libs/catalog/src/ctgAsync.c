@@ -1437,12 +1437,12 @@ _return:
     SMetaRes* pRes = taosArrayGet(ctx->pResList, pFetch->resIdx);
     pRes->code = code;
     pRes->pRes = NULL;
+    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
+                 tstrerror(code));
     if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
       TSWAP(pTask->res, ctx->pResList);
       taskDone = true;
     }
-    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
-                 tstrerror(code));
   }
 
   if (pTask->res && taskDone) {
