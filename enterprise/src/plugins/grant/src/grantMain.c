@@ -79,6 +79,8 @@
 #define GRANT_FLAG_TDENGINE ((int8_t)0x01)
 #define GRANT_FLAG_CONNECTORS ((int8_t)0x02)
 
+#define SET_GRANT_TDENGINE(s) (((s)->flag |= GRANT_FLAG_TDENGINE)
+#define SET_GRANT_CONNECTORS(s) (((s)->flag |= GRANT_FLAG_CONNECTORS)
 #define IS_GRANT_TDENGINE(s) (((s)->flag & 0x01) == GRANT_FLAG_TDENGINE)
 #define IS_GRANT_CONNECTORS(s) (((s)->flag & 0x02) == GRANT_FLAG_CONNECTORS)
 
@@ -385,13 +387,13 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
   pGrantMsg->limitDbs = cloudGrantStatus.limitDbs;
   pGrantMsg->limitSTables = cloudGrantStatus.limitSTables;
   pGrantMsg->limitTables = cloudGrantStatus.limitTables;
-  pGrantMsg->flag |= GRANT_FLAG_TDENGINE;
-  pGrantMsg->flag |= GRANT_FLAG_CONNECTORS;
+  SET_GRANT_TDENGINE(pGrantMsg);
+  SET_GRANT_CONNECTORS(pGrantMsg);
 #else
   // refresh
   dmRefreshGrantCfg();
   if (grantObj.granted) {
-    pGrantMsg->flag |= GRANT_FLAG_TDENGINE;
+    SET_GRANT_TDENGINE(pGrantMsg);
     pGrantMsg->usbDongle = grantObj.usbDongle;
     pGrantMsg->updateForced = grantObj.updateForced;
     pGrantMsg->officialVersion = grantObj.officialVersion;
@@ -412,7 +414,7 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
   }
 
   if (grantConnObj.granted) {
-    pGrantMsg->flag |= GRANT_FLAG_CONNECTORS;
+    SET_GRANT_CONNECTORS(pGrantMsg);
     SGrantConnMsg *pConn = &pGrantMsg->connectors;
     pConn->officialVersion = grantConnObj.officialVersion;
     pConn->majorVer = GRANT_CONN_MAJOR_VER;
@@ -969,7 +971,7 @@ int32_t grantCheck(EGrantType grant) {
 
 static FORCE_INLINE bool grantIsOfficial(SGrantStatus *pStatus) { return pStatus->officialVersion; }
 
-static FORCE_INLINE bool grantIsValid(SGrantMsg *pStatus) { return IS_GRANT_TDENGINE(pStatus); }
+static FORCE_INLINE bool grantIsValid(SGrantMsg *pStatus) { return pStatus->limitTimeSeries || IS_GRANT_TDENGINE(pStatus); }
 static FORCE_INLINE bool grantConnIsValid(SGrantMsg *pStatus) { return IS_GRANT_CONNECTORS(pStatus); }
 
 #ifndef GRANTS_CFG
@@ -1670,8 +1672,6 @@ int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI8(&decoder, &pMsg->flag) < 0) return -1;    // version 2 since 3.0.5.0
     tDeserializeGrantConnMsg(&decoder, &pMsg->connectors);  // version 2 since 3.0.5.0
-  } else {
-    pMsg->flag |= GRANT_FLAG_TDENGINE;                      // version 1 only support activeCode for TDengine
   }
 
   tEndDecode(&decoder);
