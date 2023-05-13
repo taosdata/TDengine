@@ -230,6 +230,9 @@ DLL_EXPORT int taos_get_tables_vgId(TAOS *taos, const char *db, const char *tabl
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char *tableNameList);
 
+// set heart beat thread quit mode , if quicByKill 1 then kill thread else quit from inner
+DLL_EXPORT void taos_set_hb_quit(int8_t quitByKill);
+
 DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type);
 
 /*  --------------------------schemaless INTERFACE------------------------------- */

@@ -37,7 +37,7 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
   if (cond) {
     pReader->cond = *cond;
   } else {
-    pReader->cond.scanUncommited = 0;
+//    pReader->cond.scanUncommited = 0;
     pReader->cond.scanNotApplied = 0;
     pReader->cond.scanMeta = 0;
     pReader->cond.enableRef = 0;
@@ -74,11 +74,15 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t lastVer = walGetLastVer(pReader->pWal);
   int64_t committedVer = walGetCommittedVer(pReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pReader->pWal);
-  int64_t endVer = pReader->cond.scanUncommited ? lastVer : committedVer;
-  endVer = TMIN(appliedVer, endVer);
+  if(appliedVer < committedVer){   // wait apply ver equal to commit ver, otherwise may lost data when consume data [TD-24010]
+    wDebug("vgId:%d, wal apply ver:%"PRId64" smaller than commit ver:%"PRId64, pReader->pWal->cfg.vgId, appliedVer, committedVer);
+//    taosMsleep(10);
+  }
+//  int64_t endVer = pReader->cond.scanUncommited ? lastVer : committedVer;
+  int64_t endVer = TMIN(appliedVer, committedVer);
 
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
-         ", applied index:%" PRId64 ", end index:%" PRId64,
+         ", applied index:%" PRId64", end index:%" PRId64,
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer, endVer);
   while (fetchVer <= endVer) {
     if (walFetchHeadNew(pReader, fetchVer) < 0) {
@@ -244,6 +248,7 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
     }
     seeked = true;
   }
+
   while (1) {
     contLen = taosReadFile(pRead->pLogFile, pRead->pHead, sizeof(SWalCkHead));
     if (contLen == sizeof(SWalCkHead)) {
@@ -269,7 +274,7 @@ static int32_t walFetchBodyNew(SWalReader *pReader) {
   SWalCont *pReadHead = &pReader->pHead->head;
   int64_t   ver = pReadHead->version;
 
-  wDebug("vgId:%d, wal starts to fetch body, ver:%" PRId64 " ,len:%d", pReader->pWal->cfg.vgId, ver,
+  wDebug("vgId:%d, wal starts to fetch body, ver:%" PRId64 " ,len:%d, total", pReader->pWal->cfg.vgId, ver,
          pReadHead->bodyLen);
 
   if (pReader->capacity < pReadHead->bodyLen) {

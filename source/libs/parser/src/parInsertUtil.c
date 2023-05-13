@@ -313,7 +313,7 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   insDestroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
   if (pTableCxt->pData) {
-    tDestroySSubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
+    tDestroySubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pTableCxt->pData);
   }
   taosMemoryFree(pTableCxt);
@@ -324,7 +324,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
     return;
   }
 
-  tDestroySSubmitReq2(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
+  tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pVgCxt->pData);
   taosMemoryFree(pVgCxt);
 }
@@ -499,7 +499,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
   int32_t  code = TSDB_CODE_SUCCESS;
   uint32_t len = 0;
   void*    pBuf = NULL;
-  tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
+  tEncodeSize(tEncodeSubmitReq, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
@@ -511,7 +511,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
     ((SSubmitReq2Msg*)pBuf)->header.contLen = htonl(len);
     ((SSubmitReq2Msg*)pBuf)->version = htobe64(1);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    code = tEncodeSSubmitReq2(&encoder, pReq);
+    code = tEncodeSubmitReq(&encoder, pReq);
     tEncoderClear(&encoder);
   }
 

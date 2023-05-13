@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -31,6 +31,9 @@
 #include "thash.h"
 #include "ttypes.h"
 #include "vnode.h"
+#include "operator.h"
+#include "querytask.h"
+
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
 typedef int32_t (*__sys_filte)(void* pMeta, SNode* cond, SArray* result);
@@ -1482,11 +1485,7 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
           pInfo->pIdx->init = 1;
           SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator);
           return blk;
-        } else if (flt == -2) {
-          qDebug("%s failed to get sys table info by idx, empty result", GET_TASKID(pTaskInfo));
-          return NULL;
-        } else if (flt == -1) {
-          // not idx
+        } else if ((flt == -1) || (flt == -2)) {
           qDebug("%s failed to get sys table info by idx, scan sys table one by one", GET_TASKID(pTaskInfo));
         }
       } else if (pCondition != NULL && (pInfo->pIdx != NULL && pInfo->pIdx->init == 1)) {

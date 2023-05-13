@@ -50,7 +50,6 @@ enum {
   TASK_STATUS__RECOVER_PREPARE,
   TASK_STATUS__RECOVER1,
   TASK_STATUS__RECOVER2,
-  TASK_STATUS__RESTORE,  // only available for source task to replay WAL from the checkpoint
 };
 
 enum {
@@ -273,6 +272,7 @@ typedef struct SStreamId {
 typedef struct SCheckpointInfo {
   int64_t id;
   int64_t version;   // offset in WAL
+  int64_t currentVer;// current offset in WAL, not serialize it
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -340,12 +340,13 @@ typedef struct SStreamMeta {
   TTB*         pTaskDb;
   TTB*         pCheckpointDb;
   SHashObj*    pTasks;
+  SArray*      pTaskList;   // SArray<task_id*>
   void*        ahandle;
   TXN*         txn;
   FTaskExpand* expandFunc;
   int32_t      vgId;
   SRWLatch     lock;
-  int8_t       walScan;
+  int32_t      walScanCounter;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -537,14 +538,16 @@ void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
 int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock);
+bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
 // recover and fill history
 int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version);
 int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version);
-int32_t streamProcessTaskCheckReq(SStreamTask* pTask, const SStreamTaskCheckReq* pReq);
+int32_t streamTaskCheckStatus(SStreamTask* pTask);
 int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t version);
+
 // common
 int32_t streamSetParamForRecover(SStreamTask* pTask);
 int32_t streamRestoreParam(SStreamTask* pTask);

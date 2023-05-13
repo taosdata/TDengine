@@ -251,7 +251,7 @@ class ClusterComCheck:
                 count+=1
             elif self.db_replica == 3 :
                 vgroup_status_first=[tdSql.queryResult[0][4],tdSql.queryResult[0][6],tdSql.queryResult[0][8]]
-                
+
                 vgroup_status_last=[tdSql.queryResult[last_number][4],tdSql.queryResult[last_number][6],tdSql.queryResult[last_number][8]]
                 if  vgroup_status_first.count('leader') == 1 and vgroup_status_first.count('follower') == 2:
                     if vgroup_status_last.count('leader') == 1 and vgroup_status_last.count('follower') == 2:

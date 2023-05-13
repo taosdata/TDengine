@@ -694,7 +694,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
     len = tGetToken(&str[*i + t0.n + 1], &type);
 
     // only id and string are valid
-    if ((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) {
+    if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) || ((TK_NK_STRING != type) && (TK_NK_ID != type))) {
       t0.type = TK_NK_ILLEGAL;
       t0.n = 0;
 

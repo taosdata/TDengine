@@ -416,7 +416,7 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
   return pSW;
 }
 
-static FORCE_INLINE void tDeleteSSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
+static FORCE_INLINE void tDeleteSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper) {
     taosMemoryFree(pSchemaWrapper->pSchema);
     taosMemoryFree(pSchemaWrapper);
@@ -691,6 +691,7 @@ typedef struct {
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
 int32_t tDeserializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
+void    tFreeSAlterUserReq(SAlterUserReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -2121,7 +2122,6 @@ static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq
 
 typedef struct {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
-  SArray* lostConsumers;     // SArray<int64_t>
   SArray* removedConsumers;  // SArray<int64_t>
   SArray* newConsumers;      // SArray<int64_t>
 } SMqRebInfo;
@@ -2132,10 +2132,6 @@ static FORCE_INLINE SMqRebInfo* tNewSMqRebSubscribe(const char* key) {
     return NULL;
   }
   tstrncpy(pRebInfo->key, key, TSDB_SUBSCRIBE_KEY_LEN);
-  pRebInfo->lostConsumers = taosArrayInit(0, sizeof(int64_t));
-  if (pRebInfo->lostConsumers == NULL) {
-    goto _err;
-  }
   pRebInfo->removedConsumers = taosArrayInit(0, sizeof(int64_t));
   if (pRebInfo->removedConsumers == NULL) {
     goto _err;
@@ -2146,7 +2142,6 @@ static FORCE_INLINE SMqRebInfo* tNewSMqRebSubscribe(const char* key) {
   }
   return pRebInfo;
 _err:
-  taosArrayDestroy(pRebInfo->lostConsumers);
   taosArrayDestroy(pRebInfo->removedConsumers);
   taosArrayDestroy(pRebInfo->newConsumers);
   taosMemoryFreeClear(pRebInfo);
@@ -3452,10 +3447,10 @@ typedef struct {
   char     data[];  // SSubmitReq2
 } SSubmitReq2Msg;
 
-int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
-int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2* pReq);
-void    tDestroySSubmitTbData(SSubmitTbData* pTbData, int32_t flag);
-void    tDestroySSubmitReq2(SSubmitReq2* pReq, int32_t flag);
+int32_t tEncodeSubmitReq(SEncoder* pCoder, const SSubmitReq2* pReq);
+int32_t tDecodeSubmitReq(SDecoder* pCoder, SSubmitReq2* pReq);
+void    tDestroySubmitTbData(SSubmitTbData* pTbData, int32_t flag);
+void    tDestroySubmitReq(SSubmitReq2* pReq, int32_t flag);
 
 typedef struct {
   int32_t affectedRows;
