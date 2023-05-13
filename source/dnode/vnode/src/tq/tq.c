@@ -545,8 +545,9 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
+  int32_t vgId = TD_VID(pTq->pVnode);
 
-  tqDebug("vgId:%d, tq process delete sub req %s", pTq->pVnode->config.vgId, pReq->subKey);
+  tqDebug("vgId:%d, tq process delete sub req %s", vgId, pReq->subKey);
   int32_t code = 0;
 //  taosWLockLatch(&pTq->lock);
 //  int32_t code = taosHashRemove(pTq->pPushMgr, pReq->subKey, strlen(pReq->subKey));
@@ -561,6 +562,12 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     if (pHandle->pRef) {
       walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
     }
+
+    while (tqIsHandleExecuting(pHandle)) {
+      tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
+      taosMsleep(5);
+    }
+
     code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
     if (code != 0) {
       tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);

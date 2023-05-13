@@ -162,9 +162,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   return 0;
 }
 
-static bool isHandleExecuting(STqHandle* pHandle){
-  return 1 == atomic_load_8(&pHandle->exec);
-}
+bool tqIsHandleExecuting(STqHandle* pHandle) { return 1 == atomic_load_8(&pHandle->exec); }
 
 static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                    SRpcMsg* pMsg, STqOffsetVal* pOffset) {
@@ -181,8 +179,9 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 //    return code;
 //  }
 
-  while(isHandleExecuting(pHandle)){
-    tqInfo("sub is executing, pHandle:%p", pHandle);
+  // todo add more status check to avoid race condition
+  while (tqIsHandleExecuting(pHandle)) {
+    tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
     taosMsleep(5);
   }
 
@@ -241,10 +240,11 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 //    return code;
 //  }
 
-  while(isHandleExecuting(pHandle)){
-    tqInfo("sub is executing, pHandle:%p", pHandle);
+  while (tqIsHandleExecuting(pHandle)) {
+    tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
     taosMsleep(5);
   }
+
   atomic_store_8(&pHandle->exec, 1);
 
   if (offset->type != TMQ_OFFSET__LOG) {
@@ -266,6 +266,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     if (taosxRsp.blockNum > 0) {
       code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
       tDeleteSTaosxRsp(&taosxRsp);
+      atomic_store_8(&pHandle->exec, 0);
       return code;
     }else {
       *offset = taosxRsp.rspOffset;
@@ -281,6 +282,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       code = -1;
       goto end;
     }
+
     walSetReaderCapacity(pHandle->pWalReader, 2048);
     int totalRows = 0;
     while (1) {
