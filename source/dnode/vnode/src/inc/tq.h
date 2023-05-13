@@ -183,7 +183,7 @@ int32_t tqStreamTasksScanWal(STQ* pTq);
 
 // tq util
 char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
-int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver);
+int32_t tqAddBlockNLaunchTask(SStreamTask* pTask, SPackedData* pData);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
 
 #ifdef __cplusplus

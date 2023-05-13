@@ -105,3 +105,61 @@ SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue) {
   return (SStreamQueueRes){0};
 }
 #endif
+
+#define MAX_STREAM_EXEC_BATCH_NUM 128
+#define MIN_STREAM_EXEC_BATCH_NUM 16
+
+// todo refactor:
+// read data from input queue
+typedef struct SQueueReader {
+  SStreamQueue* pQueue;
+  int32_t  taskLevel;
+  int32_t  maxBlocks;        // maximum block in one batch
+  int32_t  waitDuration;     // maximum wait time to format several block into a batch to process, unit: ms
+} SQueueReader;
+
+SStreamQueueItem* doReadMultiBlocksFromQueue(SQueueReader* pReader, const char* idstr) {
+  int32_t numOfBlocks = 0;
+  int32_t tryCount = 0;
+  SStreamQueueItem* pRet = NULL;
+
+  while (1) {
+    SStreamQueueItem* qItem = streamQueueNextItem(pReader->pQueue);
+    if (qItem == NULL) {
+      if (pReader->taskLevel == TASK_LEVEL__SOURCE && numOfBlocks < MIN_STREAM_EXEC_BATCH_NUM && tryCount < pReader->waitDuration) {
+        tryCount++;
+        taosMsleep(1);
+        qDebug("===stream===try again batchSize:%d", numOfBlocks);
+        continue;
+      }
+
+      qDebug("===stream===break batchSize:%d", numOfBlocks);
+      break;
+    }
+
+    if (pRet == NULL) {
+      pRet = qItem;
+      streamQueueProcessSuccess(pReader->pQueue);
+      if (pReader->taskLevel == TASK_LEVEL__SINK) {
+        break;
+      }
+    } else {
+      // todo we need to sort the data block, instead of just appending into the array list.
+      void* newRet = NULL;
+      if ((newRet = streamMergeQueueItem(pRet, qItem)) == NULL) {
+        streamQueueProcessFail(pReader->pQueue);
+        break;
+      } else {
+        numOfBlocks++;
+        pRet = newRet;
+        streamQueueProcessSuccess(pReader->pQueue);
+        if (numOfBlocks > pReader->maxBlocks) {
+          qDebug("maximum blocks limit:%d reached, processing, %s", pReader->maxBlocks, idstr);
+          break;
+        }
+      }
+    }
+  }
+
+  return pRet;
+}

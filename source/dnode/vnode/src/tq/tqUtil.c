@@ -26,10 +26,15 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
   return taosStrdup(buf);
 }
 
-int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver) {
-  int32_t code = tAppendDataToInputQueue(pTask, pQueueItem);
+int32_t tqAddBlockNLaunchTask(SStreamTask* pTask, SPackedData *pPackedData) {
+  SStreamDataSubmit* p = streamDataSubmitNew(pPackedData, STREAM_INPUT__DATA_SUBMIT);
+
+  int32_t code = tAppendDataToInputQueue(pTask, (SStreamQueueItem*) p);
+  streamDataSubmitDestroy(p);
+  taosFreeQitem(p);
+
   if (code < 0) {
-    tqError("s-task:%s failed to put into queue, too many, next start ver:%" PRId64, pTask->id.idStr, ver);
+    tqError("s-task:%s failed to put into queue, too many, next start ver:%" PRId64, pTask->id.idStr, pPackedData->ver);
     return -1;
   }
 
