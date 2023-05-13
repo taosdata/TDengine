@@ -310,6 +310,7 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = rpcMallocCont(pMsg->contLen);
   } else {
+    tqPushDataRsp(pTq, pHandle);
     void* tmp = pHandle->msg->pCont;
     memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = tmp;

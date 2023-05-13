@@ -57,29 +57,6 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
   return 0;
 }
 
-<<<<<<< HEAD
-static SArray* extractTaskIdList(SStreamMeta* pStreamMeta, int32_t numOfTasks) {
-  SArray* pTaskIdList = taosArrayInit(numOfTasks, sizeof(int32_t));
-=======
-int32_t streamTaskReplayWal(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetStore, bool* pScanIdle) {
->>>>>>> enh/3.0
-  void*   pIter = NULL;
-
-  taosWLockLatch(&pStreamMeta->lock);
-  while (1) {
-    pIter = taosHashIterate(pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    taosArrayPush(pTaskIdList, &pTask->id.taskId);
-  }
-
-  taosWUnLockLatch(&pStreamMeta->lock);
-  return pTaskIdList;
-}
-
 int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   *pScanIdle = true;
   bool    noNewDataInWal = true;
@@ -142,6 +119,8 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
         streamMetaReleaseTask(pStreamMeta, pTask);
         continue;
       }
+
+
 
       // append the data for the stream
       tqDebug("vgId:%d s-task:%s wal reader seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.currentVer);

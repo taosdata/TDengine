@@ -246,6 +246,11 @@ if(${BUILD_WITH_ROCKSDB})
         option(WITH_MD_LIBRARY "build with MD" OFF)
         set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
     endif(${TD_WINDOWS})
+
+    if(${TD_WINDOWS})
+        option(WITH_MD_LIBRARY "build with MD" OFF)
+        set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
+    endif(${TD_WINDOWS})
     
     
     option(WITH_FALLOCATE "" OFF)

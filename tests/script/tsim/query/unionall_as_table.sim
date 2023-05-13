@@ -25,4 +25,21 @@ if $data05 != @0021001@ then
   return -1
 endi
 
+sql create table st (ts timestamp, f int) tags (t int);
+sql insert into ct1 using st tags(1) values(now, 1)(now+1s, 2)
+sql insert into ct2 using st tags(2) values(now+2s, 3)(now+3s, 4)
+sql select count(*) from (select * from ct1 union all select * from ct2)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+sql select count(*) from (select * from ct1 union select * from ct2)
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
