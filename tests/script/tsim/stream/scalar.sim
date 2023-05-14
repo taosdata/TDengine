@@ -31,7 +31,7 @@ sql insert into t1 values(1648791213001,2,11,11,11);
 $loop_count = 0
 loop1:
 
-sleep 200
+sleep 1000
 
 sql select * from streamt0 order by a desc;
 

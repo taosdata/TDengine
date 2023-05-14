@@ -40,9 +40,7 @@ typedef struct SUpdateInfo {
   TSKEY        minTS;
   SScalableBf *pCloseWinSBF;
   SHashObj    *pMap;
-  STimeWindow  scanWindow;
-  uint64_t     scanGroupId;
-  uint64_t     maxVersion;
+  uint64_t     maxDataVersion;
 } SUpdateInfo;
 
 SUpdateInfo *updateInfoInitP(SInterval *pInterval, int64_t watermark);
@@ -50,8 +48,6 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
 TSKEY        updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t primaryTsCol);
 bool         updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
 bool         updateInfoIsTableInserted(SUpdateInfo *pInfo, int64_t tbUid);
-void         updateInfoSetScanRange(SUpdateInfo *pInfo, STimeWindow *pWin, uint64_t groupId, uint64_t version);
-bool         updateInfoIgnore(SUpdateInfo *pInfo, STimeWindow *pWin, uint64_t groupId, uint64_t version);
 void         updateInfoDestroy(SUpdateInfo *pInfo);
 void         updateInfoAddCloseWindowSBF(SUpdateInfo *pInfo);
 void         updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo);

@@ -4,7 +4,7 @@ looptest:
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-sleep 200
+sleep 1000
 sql connect
 
 sql drop stream if exists streams0;
@@ -16,16 +16,16 @@ sql drop database if exists test;
 sql create database test  vgroups 1;
 sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams0 trigger at_once IGNORE EXPIRED 0 into streamt as select  _wstart c1, count(*) c2, max(a) c3 from t1 session(ts, 5s);
+sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(a) c3 from t1 session(ts, 5s);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
-sleep 200
+sleep 1000
 sql delete from t1 where ts = 1648791213000;
 
 $loop_count = 0
 
 loop0:
-sleep 200
+sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -43,7 +43,7 @@ sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 $loop_count = 0
 
 loop1:
-sleep 200
+sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -66,13 +66,13 @@ sql insert into t1 values(1648791213001,2,2,2,2.0);
 sql insert into t1 values(1648791213002,3,3,3,3.0);
 sql insert into t1 values(1648791213003,4,4,4,4.0);
 
-sleep 200
+sleep 1000
 sql delete from t1 where ts >= 1648791213001 and ts <= 1648791213002;
 
 $loop_count = 0
 
 loop3:
-sleep 200
+sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -98,7 +98,7 @@ sql insert into t1 values(1648791223003,3,2,3,1.0);
 $loop_count = 0
 
 loop4:
-sleep 200
+sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -111,14 +111,14 @@ if $rows != 2 then
   goto loop4
 endi
 
-sleep 200
+sleep 1000
 
 sql delete from t1 where ts >= 1648791223000 and ts <= 1648791223003;
 
 $loop_count = 0
 
 loop5:
-sleep 200
+sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -156,7 +156,7 @@ sql delete from t1 where ts >= 1648791213001 and ts <= 1648791233005;
 $loop_count = 0
 
 loop6:
-sleep 200
+sleep 1000
 sql select * from streamt order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -191,7 +191,7 @@ sql use test2;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0 into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
@@ -199,7 +199,7 @@ sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
 $loop_count = 0
 
 loop7:
-sleep 200
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -212,14 +212,14 @@ if $rows != 1 then
   goto loop7
 endi
 
-sleep 200
+sleep 1000
 
 sql delete from t1 where ts = 1648791213000;
 
 $loop_count = 0
 
 loop8:
-sleep 200
+sleep 1000
 
 sql select * from test.streamt2 order by c1, c2, c3;
 
@@ -247,14 +247,14 @@ sql insert into t2 values(1648791223001,1,2,3,1.0);
 sql insert into t2 values(1648791223002,3,2,3,1.0);
 sql insert into t2 values(1648791223003,3,2,3,1.0);
 
-sleep 200
+sleep 1000
 
 sql delete from t2 where ts >= 1648791223000 and ts <= 1648791223001;
 
 $loop_count = 0
 
 loop11:
-sleep 200
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -282,14 +282,14 @@ if $data12 != 3 then
   goto loop11
 endi
 
-sleep 200
+sleep 1000
 
 sql delete from st where ts >= 1648791223000 and ts <= 1648791223003;
 
 $loop_count = 0
 
 loop12:
-sleep 200
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -321,14 +321,14 @@ sql insert into t2 values(1648791213005,3,2,3,1.0);
 sql insert into t2 values(1648791213006,3,2,3,1.0);
 sql insert into t2 values(1648791223004,1,2,3,1.0);
 
-sleep 200
+sleep 1000
 
 sql delete from t2 where ts >= 1648791213004 and ts <= 1648791213006;
 
 $loop_count = 0
 
 loop13:
-sleep 200
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -371,14 +371,14 @@ sql insert into t1 values(1648791233006,2,2,3,1.0);
 sql insert into t2 values(1648791233005,5,2,3,1.0);
 sql insert into t2 values(1648791233006,3,2,3,1.0);
 
-sleep 200
+sleep 1000
 
 sql delete from st where ts >= 1648791213001 and ts <= 1648791233005;
 
 $loop_count = 0
 
 loop14:
-sleep 200
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -422,7 +422,7 @@ sql use test3;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams3 trigger at_once IGNORE EXPIRED 0 into test.streamt3 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt3 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);
 
 sql insert into t1 values(1648791210000,1,1,1,NULL);
 sql insert into t1 values(1648791210001,2,2,2,NULL);
@@ -443,7 +443,7 @@ sql insert into t2 values(1648791242005,14,14,14,NULL);
 $loop_count = 0
 
 loop19:
-sleep 200
+sleep 1000
 sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -461,7 +461,7 @@ sql delete from t2 where ts >= 1648791213001 and ts <= 1648791218003;
 $loop_count = 0
 
 loop20:
-sleep 200
+sleep 1000
 sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -532,8 +532,8 @@ sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
-print create stream streams4 trigger at_once IGNORE EXPIRED 0 into streamt4 as select  _wstart, count(*) c1 from st partition by tbname session(ts, 2s);
-sql create stream streams4 trigger at_once IGNORE EXPIRED 0 into streamt4 as select  _wstart, count(*) c1 from st partition by tbname session(ts, 2s);
+print create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname session(ts, 2s);
+sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname session(ts, 2s);
 
 sql insert into t1 values(1648791210000,1,2,3);
 sql insert into t1 values(1648791220000,2,2,3);
@@ -550,7 +550,7 @@ sql insert into t2 values(1648791231000,2,2,3);
 $loop_count = 0
 
 loop21:
-sleep 200
+sleep 1000
 sql select * from streamt4 order by c1 desc;;
 
 $loop_count = $loop_count + 1
@@ -597,7 +597,7 @@ print delete from st where ts >= 1648791220000 and ts <=1648791223000;
 sql delete from st where ts >= 1648791220000 and ts <=1648791223000;
 
 loop22:
-sleep 200
+sleep 1000
 sql select * from streamt4 order by c1 desc;;
 
 $loop_count = $loop_count + 1

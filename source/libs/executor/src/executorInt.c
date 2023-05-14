@@ -684,6 +684,7 @@ void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExpr
     SResultRowEntryInfo* pResInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (!isRowEntryInitialized(pResInfo)) {
       continue;
+    } else {
     }
 
     if (pRow->numOfRows < pResInfo->numOfRes) {
@@ -861,7 +862,7 @@ void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGr
   } else {
     memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
   }
-  tdbFree(tbname);
+  streamFreeVal(tbname);
 }
 
 void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
@@ -1062,113 +1063,110 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId,
-                     SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup) {
-  SWinKey key = {
-      .ts = win->skey,
-      .groupId = tableGroupId,
-  };
-  char*   value = NULL;
-  int32_t size = pAggSup->resultRowSize;
+int32_t resultRowEncode(void* k, int32_t* size, char* buf) {
+  // SResultRow* key = k;
+  // int         len = 0;
+  // int         struLen = *size;
+  // len += taosEncodeFixedI32((void**)&buf, key->pageId);
 
-  if (streamStateAddIfNotExist(pState, &key, (void**)&value, &size) < 0) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  *pResult = (SResultRow*)value;
-  // set time window for current result
-  (*pResult)->win = (*win);
-  setResultRowInitCtx(*pResult, pCtx, numOfOutput, rowEntryInfoOffset);
+  // uint32_t offset = key->offset;
+  // len += taosEncodeFixedU32((void**)&buf, offset);
+
+  // len += taosEncodeFixedI8((void**)&buf, key->startInterp);
+  // len += taosEncodeFixedI8((void**)&buf, key->endInterp);
+  // len += taosEncodeFixedI8((void**)&buf, key->closed);
+  // len += taosEncodeFixedU32((void**)&buf, key->numOfRows);
+
+  // len += taosEncodeFixedI64((void**)&buf, key->win.skey);
+  // len += taosEncodeFixedI64((void**)&buf, key->win.ekey);
+
+  // int32_t numOfEntryInfo = (struLen - sizeof(SResultRow)) / sizeof(struct SResultRowEntryInfo);
+  // len += taosEncodeFixedI32((void**)&buf, numOfEntryInfo);
+  // for (int i = 0; i < numOfEntryInfo; i++) {
+  //   SResultRowEntryInfo* p = &key->pEntryInfo[i];
+
+  //   uint8_t value = p->initialized ? 1 : 0;
+  //   len += taosEncodeFixedU8((void**)&buf, value);
+
+  //   value = p->complete ? 1 : 0;
+  //   len += taosEncodeFixedU8((void**)&buf, value);
+
+  //   value = p->isNullRes;
+  //   len += taosEncodeFixedU8((void**)&buf, value);
+
+  //   len += taosEncodeFixedU16((void**)&buf, p->numOfRes);
+  // }
+  // {
+  //   char* strBuf = taosMemoryCalloc(1, *size * 100);
+  //   resultRowToString(key, *size, strBuf);
+  //   qWarn("encode result row:%s", strBuf);
+  // }
+
+  // return len;
+  return 0;
+}
+
+int32_t resultRowDecode(void** k, size_t size, char* buf) {
+  // char*    p1 = buf;
+  // int32_t  numOfEntryInfo = 0;
+  // uint32_t entryOffset = sizeof(int32_t) + sizeof(uint32_t) + sizeof(int8_t) + sizeof(int8_t) + sizeof(int8_t) +
+  //                        sizeof(uint32_t) + sizeof(int64_t) + sizeof(int64_t);
+  // taosDecodeFixedI32(p1 + entryOffset, &numOfEntryInfo);
+
+  // char* p = buf;
+  // size = sizeof(SResultRow) + numOfEntryInfo * sizeof(SResultRowEntryInfo);
+  // SResultRow* key = taosMemoryCalloc(1, size);
+
+  // p = taosDecodeFixedI32(p, (int32_t*)&key->pageId);
+  // uint32_t offset = 0;
+  // p = taosDecodeFixedU32(p, &offset);
+  // key->offset = offset;
+
+  // p = taosDecodeFixedI8(p, (int8_t*)(&key->startInterp));
+  // p = taosDecodeFixedI8(p, (int8_t*)(&key->endInterp));
+  // p = taosDecodeFixedI8(p, (int8_t*)&key->closed);
+  // p = taosDecodeFixedU32(p, &key->numOfRows);
+
+  // p = taosDecodeFixedI64(p, &key->win.skey);
+  // p = taosDecodeFixedI64(p, &key->win.ekey);
+  // p = taosDecodeFixedI32(p, &numOfEntryInfo);
+  // for (int i = 0; i < numOfEntryInfo; i++) {
+  //   SResultRowEntryInfo* pInfo = &key->pEntryInfo[i];
+  //   uint8_t              value = 0;
+  //   p = taosDecodeFixedU8(p, &value);
+  //   pInfo->initialized = (value == 1) ? true : false;
+
+  //   p = taosDecodeFixedU8(p, &value);
+  //   pInfo->complete = (value == 1) ? true : false;
+
+  //   p = taosDecodeFixedU8(p, &value);
+  //   pInfo->isNullRes = value;
+
+  //   p = taosDecodeFixedU16(p, &pInfo->numOfRes);
+  // }
+  // *k = key;
+
+  // {
+  //   char* strBuf = taosMemoryCalloc(1, size * 100);
+  //   resultRowToString(key, size, strBuf);
+  //   qWarn("decode result row:%s", strBuf);
+  // }
+  // return size;
+  return 0;
+}
+
+int32_t saveOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult, int32_t resSize) {
+  // char* buf = taosMemoryCalloc(1, resSize * 10);
+  // int   len = resultRowEncode((void*)pResult, &resSize, buf);
+  // char* buf = taosMemoryCalloc(1, resSize);
+  // memcpy(buf, pResult, resSize);
+  streamStatePut(pState, pKey, (char*)pResult, resSize);
+  // taosMemoryFree(buf);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t releaseOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult) {
   streamStateReleaseBuf(pState, pKey, pResult);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t saveOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult, int32_t resSize) {
-  streamStatePut(pState, pKey, pResult, resSize);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
-                                   SGroupResInfo* pGroupResInfo) {
-  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
-  SExprInfo*      pExprInfo = pSup->pExprInfo;
-  int32_t         numOfExprs = pSup->numOfExprs;
-  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
-  SqlFunctionCtx* pCtx = pSup->pCtx;
-
-  int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
-
-  for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
-    SWinKey* pKey = taosArrayGet(pGroupResInfo->pRows, i);
-    int32_t  size = 0;
-    void*    pVal = NULL;
-    int32_t  code = streamStateGet(pState, pKey, &pVal, &size);
-    ASSERT(code == 0);
-    SResultRow* pRow = (SResultRow*)pVal;
-    doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
-    // no results, continue to check the next one
-    if (pRow->numOfRows == 0) {
-      pGroupResInfo->index += 1;
-      releaseOutputBuf(pState, pKey, pRow);
-      continue;
-    }
-
-    if (pBlock->info.id.groupId == 0) {
-      pBlock->info.id.groupId = pKey->groupId;
-      void* tbname = NULL;
-      if (streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname) < 0) {
-        pBlock->info.parTbName[0] = 0;
-      } else {
-        memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-      }
-      tdbFree(tbname);
-    } else {
-      // current value belongs to different group, it can't be packed into one datablock
-      if (pBlock->info.id.groupId != pKey->groupId) {
-        releaseOutputBuf(pState, pKey, pRow);
-        break;
-      }
-    }
-
-    if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      ASSERT(pBlock->info.rows > 0);
-      releaseOutputBuf(pState, pKey, pRow);
-      break;
-    }
-
-    pGroupResInfo->index += 1;
-
-    for (int32_t j = 0; j < numOfExprs; ++j) {
-      int32_t slotId = pExprInfo[j].base.resSchema.slotId;
-
-      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
-      if (pCtx[j].fpSet.finalize) {
-        int32_t code1 = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
-        if (TAOS_FAILED(code1)) {
-          qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code1));
-          T_LONG_JMP(pTaskInfo->env, code1);
-        }
-      } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
-        // do nothing, todo refactor
-      } else {
-        // expand the result into multiple rows. E.g., _wstart, top(k, 20)
-        // the _wstart needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
-        SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
-        char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
-        for (int32_t k = 0; k < pRow->numOfRows; ++k) {
-          colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
-        }
-      }
-    }
-
-    pBlock->info.rows += pRow->numOfRows;
-    releaseOutputBuf(pState, pKey, pRow);
-  }
-  pBlock->info.dataLoad = 1;
-  blockDataUpdateTsWindow(pBlock, 0);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1217,7 +1215,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
-      tdbFree(tbname);
+      streamFreeVal(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock
       if (pBlock->info.id.groupId != pKey->groupId) {
@@ -1259,7 +1257,6 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
 
     pBlock->info.dataLoad = 1;
     pBlock->info.rows += pRow->numOfRows;
-    // saveSessionDiscBuf(pState, pKey, pVal, size);
     releaseOutputBuf(pState, NULL, pRow);
   }
   blockDataUpdateTsWindow(pBlock, 0);

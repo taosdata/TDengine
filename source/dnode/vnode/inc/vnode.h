@@ -61,14 +61,14 @@ void    vnodeClose(SVnode *pVnode);
 int32_t vnodeSyncCommit(SVnode *pVnode);
 int32_t vnodeBegin(SVnode *pVnode);
 
-int32_t vnodeStart(SVnode *pVnode);
-void    vnodeStop(SVnode *pVnode);
-int64_t vnodeGetSyncHandle(SVnode *pVnode);
-void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
-void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
-int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
-int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
-int32_t vnodeIsCatchUp(SVnode *pVnode);
+int32_t   vnodeStart(SVnode *pVnode);
+void      vnodeStop(SVnode *pVnode);
+int64_t   vnodeGetSyncHandle(SVnode *pVnode);
+void      vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
+void      vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
+int32_t   vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
+int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
+int32_t   vnodeIsCatchUp(SVnode *pVnode);
 ESyncRole vnodeGetRole(SVnode *pVnode);
 
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
@@ -262,12 +262,12 @@ int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
 int32_t tqNextBlockInWal(STqReader* pReader);
-bool    tqNextBlockImpl(STqReader *pReader);
+bool    tqNextBlockImpl(STqReader *pReader, const char* idstr);
 
 int32_t extractSubmitMsgFromWal(SWalReader *pReader, SPackedData *pPackedData);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(STqReader *pReader, SSubmitTbData **pSubmitTbDataRet);
+int32_t tqRetrieveDataBlock(STqReader *pReader, const char* idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
 
 int32_t vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);

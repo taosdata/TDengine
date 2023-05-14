@@ -127,8 +127,8 @@ typedef struct SWal {
 typedef struct {
   int64_t refId;
   int64_t refVer;
-//  int64_t refFile;
-  SWal   *pWal;
+  //  int64_t refFile;
+  SWal *pWal;
 } SWalRef;
 
 typedef struct {
@@ -137,6 +137,8 @@ typedef struct {
   int8_t scanMeta;
   int8_t enableRef;
 } SWalFilterCond;
+
+typedef struct SWalReader SWalReader;
 
 // todo hide this struct
 typedef struct SWalReader {
@@ -193,10 +195,11 @@ SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond);
 void        walCloseReader(SWalReader *pRead);
 void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
-int32_t     walReadSeekVer(SWalReader *pRead, int64_t ver);
+int32_t     walReaderSeekVer(SWalReader *pRead, int64_t ver);
 int32_t     walNextValidMsg(SWalReader *pRead);
-int64_t     walReaderGetCurrentVer(const SWalReader* pReader);
-void        walReaderValidVersionRange(SWalReader* pReader, int64_t *sver, int64_t *ever);
+int64_t     walReaderGetCurrentVer(const SWalReader *pReader);
+int64_t     walReaderGetValidFirstVer(const SWalReader *pReader);
+void        walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever);
 
 // only for tq usage
 void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);

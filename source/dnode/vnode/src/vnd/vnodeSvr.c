@@ -414,6 +414,16 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
+    case TDMT_STREAM_TASK_PAUSE: {
+      if (pVnode->restored && tqProcessTaskPauseReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
+        goto _err;
+      }
+    } break;
+    case TDMT_STREAM_TASK_RESUME: {
+      if (pVnode->restored && tqProcessTaskResumeReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
+        goto _err;
+      }
+    } break;
     case TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE: {
       if (tqProcessTaskRecover2Req(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
@@ -1068,7 +1078,7 @@ static int32_t vnodeCellValConvertToColVal(STColumn *pCol, SCellVal *pCellVal, S
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pColVal->value.nData = varDataLen(pCellVal->val);
-    pColVal->value.pData = varDataVal(pCellVal->val);
+    pColVal->value.pData = (uint8_t *)varDataVal(pCellVal->val);
   } else if (TSDB_DATA_TYPE_FLOAT == pCol->type) {
     float f = GET_FLOAT_VAL(pCellVal->val);
     memcpy(&pColVal->value.val, &f, sizeof(f));
@@ -1107,7 +1117,7 @@ static int32_t vnodeDecodeCreateTbReq(SSubmitReqConvertCxt *pCxt) {
   }
 
   SDecoder decoder = {0};
-  tDecoderInit(&decoder, pCxt->pBlock->data, pCxt->msgIter.schemaLen);
+  tDecoderInit(&decoder, (uint8_t *)pCxt->pBlock->data, pCxt->msgIter.schemaLen);
   int32_t code = tDecodeSVCreateTbReq(&decoder, pCxt->pTbData->pCreateTbReq);
   tDecoderClear(&decoder);
 
@@ -1169,7 +1179,7 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
-    tEncoderInit(&encoder, pMsg, msglen);
+    tEncoderInit(&encoder, (uint8_t *)pMsg, msglen);
     code = tEncodeSubmitReq(&encoder, pSubmitReq);
     tEncoderClear(&encoder);
   }

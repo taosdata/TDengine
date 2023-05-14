@@ -195,17 +195,19 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
   return TSDB_CODE_SUCCESS;
 }
 
-void getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo){
-  char key[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
+void getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo) {
+  char   key[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
   size_t nLen = strlen(tinfo->childTableName);
   memcpy(key, currElement->measure, currElement->measureLen);
   memcpy(key + currElement->measureLen + 1, tinfo->childTableName, nLen);
-  void *uid = taosHashGet(info->tableUids, key, currElement->measureLen + 1 + nLen);    // use \0 as separator for stable name and child table name
+  void *uid =
+      taosHashGet(info->tableUids, key,
+                  currElement->measureLen + 1 + nLen);  // use \0 as separator for stable name and child table name
   if (uid == NULL) {
     tinfo->uid = info->uid++;
     taosHashPut(info->tableUids, key, currElement->measureLen + 1 + nLen, &tinfo->uid, sizeof(uint64_t));
-  }else{
-    tinfo->uid = *(uint64_t*)uid;
+  } else {
+    tinfo->uid = *(uint64_t *)uid;
   }
 }
 
@@ -548,7 +550,8 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
   uint16_t *index = colHash ? (uint16_t *)taosHashGet(colHash, kv->key, kv->keyLen) : NULL;
   if (index) {
     if (colField[*index].type != kv->type) {
-      uError("SML:0x%" PRIx64 " point type and db type mismatch. db type: %d, point type: %d, key: %s", info->id, colField[*index].type, kv->type, kv->key);
+      uError("SML:0x%" PRIx64 " point type and db type mismatch. db type: %d, point type: %d, key: %s", info->id,
+             colField[*index].type, kv->type, kv->key);
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
@@ -575,9 +578,9 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
 #define BOUNDARY 1024
 static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
   int32_t result = 1;
-  if (length >= BOUNDARY){
+  if (length >= BOUNDARY) {
     result = length;
-  }else{
+  } else {
     while (result <= length) {
       result <<= 1;
     }
@@ -800,7 +803,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
     size_t superTableLen = 0;
     void  *superTable = taosHashGetKey(tmp, &superTableLen);
-    char* measure = taosMemoryMalloc(superTableLen);
+    char  *measure = taosMemoryMalloc(superTableLen);
     memcpy(measure, superTable, superTableLen);
     PROCESS_SLASH_IN_MEASUREMENT(measure, superTableLen);
     memset(pName.tname, 0, TSDB_TABLE_NAME_LEN);
@@ -1133,10 +1136,10 @@ void clearColValArray(SArray *pCols) {
   }
 }
 
-void freeSSmlKv(void* data){
-  SSmlKv *kv = (SSmlKv*)data;
-  if(kv->keyEscaped) taosMemoryFree((void*)(kv->key));
-  if(kv->valueEscaped) taosMemoryFree((void*)(kv->value));
+void freeSSmlKv(void *data) {
+  SSmlKv *kv = (SSmlKv *)data;
+  if (kv->keyEscaped) taosMemoryFree((void *)(kv->key));
+  if (kv->valueEscaped) taosMemoryFree((void *)(kv->value));
 }
 
 void smlDestroyInfo(SSmlHandle *info) {
@@ -1341,7 +1344,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
   if (info->pRequest->dbList == NULL) {
     info->pRequest->dbList = taosArrayInit(1, TSDB_DB_FNAME_LEN);
   }
-  char *data = (char*)taosArrayReserve(info->pRequest->dbList, 1);
+  char *data = (char *)taosArrayReserve(info->pRequest->dbList, 1);
   SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
   tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
   tNameGetFullDbName(&pName, data);
@@ -1386,13 +1389,13 @@ static int32_t smlInsertData(SSmlHandle *info) {
            tableData->uid, info->dataFormat);
 
     int   measureLen = tableData->sTableNameLen;
-    char* measure = (char*)taosMemoryMalloc(tableData->sTableNameLen);
+    char *measure = (char *)taosMemoryMalloc(tableData->sTableNameLen);
     memcpy(measure, tableData->sTableName, tableData->sTableNameLen);
     PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
 
     code = smlBindData(info->pQuery, info->dataFormat, tableData->tags, (*pMeta)->cols, tableData->cols,
-                       (*pMeta)->tableMeta, tableData->childTableName, measure, measureLen,
-                       info->ttl, info->msgBuf.buf, info->msgBuf.len);
+                       (*pMeta)->tableMeta, tableData->childTableName, measure, measureLen, info->ttl, info->msgBuf.buf,
+                       info->msgBuf.len);
     taosMemoryFree(measure);
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlBindData failed", info->id);

@@ -16,7 +16,7 @@
 #ifndef _STREAM_INC_H_
 #define _STREAM_INC_H_
 
-#include "executor.h"
+//#include "executor.h"
 #include "tstream.h"
 
 #ifdef __cplusplus

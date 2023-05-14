@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <util/tsimplehash.h>
 #include "tsdb.h"
+#include "util/tsimplehash.h"
 
 #define MEM_MIN_HASH 1024
 #define SL_MAX_LEVEL 5

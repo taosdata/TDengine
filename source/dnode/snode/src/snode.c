@@ -67,8 +67,9 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
 
   pTask->refCnt = 1;
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->inputQueue = streamQueueOpen();
-  pTask->outputQueue = streamQueueOpen();
+
+  pTask->inputQueue = streamQueueOpen(0);
+  pTask->outputQueue = streamQueueOpen(0);
 
   if (pTask->inputQueue == NULL || pTask->outputQueue == NULL) {
     return -1;

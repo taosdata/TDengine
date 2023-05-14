@@ -885,7 +885,7 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
     }
 
     if (pCtx->saveHandle.pState) {
-      tdbFree((void*)p);
+      streamFreeVal((void*)p);
     }
   }
 

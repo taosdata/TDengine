@@ -15,7 +15,7 @@
 
 #include "streamInc.h"
 
-SStreamQueue* streamQueueOpen() {
+SStreamQueue* streamQueueOpen(int64_t cap) {
   SStreamQueue* pQueue = taosMemoryCalloc(1, sizeof(SStreamQueue));
   if (pQueue == NULL) return NULL;
   pQueue->queue = taosOpenQueue();
@@ -24,6 +24,8 @@ SStreamQueue* streamQueueOpen() {
     goto FAIL;
   }
   pQueue->status = STREAM_QUEUE__SUCESS;
+  taosSetQueueCapacity(pQueue->queue, cap);
+  taosSetQueueMemoryCapacity(pQueue->queue, cap * 1024);
   return pQueue;
 FAIL:
   if (pQueue->queue) taosCloseQueue(pQueue->queue);

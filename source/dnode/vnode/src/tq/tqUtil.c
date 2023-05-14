@@ -22,7 +22,7 @@ static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const 
 
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
   char buf[128] = {0};
-  sprintf(buf, "0x%" PRIx64 "-%d", streamId, taskId);
+  sprintf(buf, "0x%" PRIx64 "-0x%x", streamId, taskId);
   return taosStrdup(buf);
 }
 
@@ -265,9 +265,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
                 ",ts:%" PRId64,pRequest->consumerId, pHandle->subKey, vgId, taosxRsp.blockNum, taosxRsp.rspOffset.type, taosxRsp.rspOffset.uid,taosxRsp.rspOffset.ts);
     if (taosxRsp.blockNum > 0) {
       code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP, vgId);
-      tDeleteSTaosxRsp(&taosxRsp);
-      atomic_store_8(&pHandle->exec, 0);
-      return code;
+      goto end;
     }else {
       *offset = taosxRsp.rspOffset;
     }
