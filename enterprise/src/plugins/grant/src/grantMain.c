@@ -1505,7 +1505,7 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, S
   if (tEncodeU32v(&encoder, pStatus->curUsers) < 0) return -1;
   if (tEncodeU32v(&encoder, pStatus->curAccts) < 0) return -1;
   if (tEncodeU32v(&encoder, pStatus->curDnodes) < 0) return -1;
-  // version 2: support curCurCores since 3.0.5.0
+  // version 2: since 3.0.5.0
   if (tEncodeU32v(&encoder, pStatus->curCpuCores) < 0) return -1;
   if (tEncodeI8(&encoder, pStatus->connOfficialVersion ? 1 : 0) < 0) return -1;
 #endif
