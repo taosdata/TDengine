@@ -269,21 +269,11 @@ if(${BUILD_WITH_ROCKSDB})
     option(FAIL_ON_WARNINGS "" OFF)
     #option(WITH_JEMALLOC "" ON)
     option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
-    IF (${TD_WINDOWS})
-        option(WITH_MD_LIBRARY "build with MD" OFF)
-        set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
-    endif(${TD_WINDOWS})
     add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
     target_include_directories(
         rocksdb
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
     )
-    IF (${TD_DARWIN})
-        target_compile_options(
-    	    rocksdb
-	    PRIVATE -Wno-unused-private-field
-	)
-    endif(${TD_DARWIN})
 endif(${BUILD_WITH_ROCKSDB})
 
 # lucene
