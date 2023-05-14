@@ -266,8 +266,6 @@ if(${BUILD_WITH_ROCKSDB})
     option(WITH_LIBURING "" OFF)
     option(WITH_IOSTATS_CONTEXT "" OFF)
     option(WITH_PERF_CONTEXT "" OFF)
-    option(FAIL_ON_WARNINGS "" OFF)
-    #option(WITH_JEMALLOC "" ON)
     option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
     add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
     target_include_directories(
