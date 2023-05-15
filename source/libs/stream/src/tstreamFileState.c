@@ -324,7 +324,9 @@ bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen) {
 void releaseRowBuffPos(SRowBuffPos* pBuff) { pBuff->beUsed = false; }
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
-  clearExpiredRowBuff(pFileState, pFileState->maxTs - pFileState->deleteMark, false);
+  int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs) ? INT64_MIN
+                                                                           : pFileState->maxTs - pFileState->deleteMark;
+  clearExpiredRowBuff(pFileState, mark, false);
   return pFileState->usedBuffs;
 }
 
