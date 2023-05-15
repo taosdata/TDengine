@@ -262,7 +262,6 @@ if(${BUILD_WITH_ROCKSDB})
     option(WITH_TESTS "" OFF)
     option(WITH_BENCHMARK_TOOLS "" OFF)
     option(WITH_TOOLS "" OFF)
-    option(WITH_LIBURING "" OFF)
 
     option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
     add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
