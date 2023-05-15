@@ -58,9 +58,9 @@ typedef struct SSttLvl {
 } SSttLvl;
 
 struct STFileSet {
-  int32_t fid;
-  STFile *farr[TSDB_FTYPE_MAX];  // file array
-  SRBTree lvlTree;               // level tree of .stt
+  int32_t    fid;
+  STFileObj *farr[TSDB_FTYPE_MAX];  // file array
+  SRBTree    lvlTree;               // level tree of .stt
 };
 
 #ifdef __cplusplus

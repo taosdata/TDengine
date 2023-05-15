@@ -50,7 +50,7 @@ static int32_t add_file(STFileSet *fset, STFile *f) {
     // lvl->nstt++;
     // lvl->fstt = f;
   } else {
-    fset->farr[f->type] = f;
+    // fset->farr[f->type] = f;
   }
 
   return 0;
@@ -69,8 +69,8 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
       continue;
     }
 
-    code = tsdbTFileToJson(fset->farr[ftype], json);
-    if (code) return code;
+    // code = tsdbTFileToJson(fset->farr[ftype], json);
+    // if (code) return code;
   }
 
   // each level
@@ -103,8 +103,8 @@ int32_t tsdbFileSetFromJson(const cJSON *json, STFileSet *fset) {
   }
 
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    int32_t code = tsdbTFileFromJson(json, ftype, &fset->farr[ftype]);
-    if (code) return code;
+    // int32_t code = tsdbTFileFromJson(json, ftype, &fset->farr[ftype]->f);
+    // if (code) return code;
   }
 
   // each level
@@ -131,11 +131,11 @@ int32_t tsdbFSetEdit(STFileSet *fset, const STFileOp *op) {
 
   if (op->oState.size == 0) {
     // create
-    STFile *f;
-    code = tsdbTFileCreate(&op->nState, &f);
-    if (code) return code;
+    // STFile *f;
+    // code = tsdbTFileCreate(&op->nState, &f);
+    // if (code) return code;
 
-    add_file(fset, f);
+    // add_file(fset, f);
   } else if (op->nState.size == 0) {
     // delete
   } else {

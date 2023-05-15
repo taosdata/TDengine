@@ -22,7 +22,8 @@
 extern "C" {
 #endif
 
-typedef struct STFile STFile;
+typedef struct STFile    STFile;
+typedef struct STFileObj STFileObj;
 
 typedef enum {
   TSDB_FTYPE_HEAD = 0,                   // .head
