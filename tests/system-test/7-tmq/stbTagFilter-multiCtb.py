@@ -54,6 +54,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
+        tdSql.execute("alter database %s wal_retention_period 3600" %(paraDict['dbName']))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -110,7 +111,7 @@ class TDTestCase:
         topicFromStb1 = 'topic_UpperCase_stb1'
         queryString = "select ts, c1, c2 from %s.%s where t4 == 'beijing' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
         # queryString = "select ts, c1, c2, t4 from %s.%s where t4 == 'beijing' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
-        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
+        sqlString = "create topic `%s` as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
 
@@ -147,7 +148,7 @@ class TDTestCase:
 
         # tmqCom.checkFileContent(consumerId, queryString)
 
-        tdSql.query("drop topic %s"%topicFromStb1)
+        tdSql.query("drop topic `%s`"%topicFromStb1)
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def tmqCase2(self):
@@ -195,7 +196,7 @@ class TDTestCase:
         topicFromStb1 = 'topic_UpperCase_stb1'
         # queryString = "select ts, c1, c2 from %s.%s where t4 == 'beijing' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
         queryString = "select ts, c1, c2, t4 from %s.%s where t4 == 'beijing' or t4 == 'changsha'"%(paraDict['dbName'], paraDict['stbName'])
-        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
+        sqlString = "create topic `%s` as %s" %(topicFromStb1, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
 
@@ -243,7 +244,7 @@ class TDTestCase:
 
         # tmqCom.checkFileContent(consumerId, queryString)
 
-        tdSql.query("drop topic %s"%topicFromStb1)
+        tdSql.query("drop topic `%s`"%topicFromStb1)
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 

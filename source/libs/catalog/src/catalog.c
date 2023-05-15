@@ -208,7 +208,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
   }
 
   while (true) {
-    CTG_ERR_JRET(ctgRefreshTbMeta(pCtg, pConn, ctx, &output, false));
+    CTG_ERR_JRET(ctgRefreshTbMeta(pCtg, pConn, ctx, &output, ctx->flag & CTG_FLAG_SYNC_OP));
 
     if (CTG_IS_META_TABLE(output->metaType)) {
       *pTableMeta = output->tbMeta;
@@ -319,14 +319,13 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
-                   bool* pass, bool* exists) {
+int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq, SUserAuthRes* pRes, bool* exists) {
   bool    inCache = false;
   int32_t code = 0;
+  SCtgAuthRsp rsp = {0};
+  rsp.pRawRes = pRes;
 
-  *pass = false;
-
-  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, (char*)user, (char*)dbFName, type, &inCache, pass));
+  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, pReq, &inCache, &rsp));
 
   if (inCache) {
     if (exists) {
@@ -339,30 +338,22 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, co
     return TSDB_CODE_SUCCESS;
   }
 
-  SGetUserAuthRsp authRsp = {0};
-  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, user, &authRsp, NULL));
+  SCtgAuthReq req = {0};
+  req.pRawReq = pReq;
+  req.pConn = pConn;
+  req.onlyCache = exists ? true : false;
+  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pReq->user, &req.authInfo, NULL));
 
-  if (authRsp.superAuth) {
-    *pass = true;
-    goto _return;
-  }
-
-  if (authRsp.createdDbs && taosHashGet(authRsp.createdDbs, dbFName, strlen(dbFName))) {
-    *pass = true;
-    goto _return;
-  }
-
-  if (CTG_AUTH_READ(type) && authRsp.readDbs && taosHashGet(authRsp.readDbs, dbFName, strlen(dbFName))) {
-    *pass = true;
-  } else if (CTG_AUTH_WRITE(type) && authRsp.writeDbs && taosHashGet(authRsp.writeDbs, dbFName, strlen(dbFName))) {
-    *pass = true;
+  CTG_ERR_JRET(ctgChkSetAuthRes(pCtg, &req, &rsp));
+  if (rsp.metaNotExists && exists) {
+    *exists = false;
   }
 
 _return:
 
-  ctgUpdateUserEnqueue(pCtg, &authRsp, false);
+  ctgUpdateUserEnqueue(pCtg, &req.authInfo, false);
 
-  return TSDB_CODE_SUCCESS;
+  CTG_RET(code);
 }
 
 int32_t ctgGetTbType(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, int32_t* tbType) {
@@ -436,6 +427,48 @@ int32_t ctgGetTbCfg(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
   }
 
   CTG_RET(TSDB_CODE_SUCCESS);
+}
+
+int32_t ctgGetTbTag(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, SArray** pRes) {
+  SVgroupInfo vgroupInfo = {0};
+  STableCfg* pCfg = NULL;
+  int32_t code = 0;
+
+  CTG_ERR_RET(ctgGetTbHashVgroup(pCtg, pConn, pTableName, &vgroupInfo, NULL));
+  CTG_ERR_RET(ctgGetTableCfgFromVnode(pCtg, pConn, pTableName, &vgroupInfo, &pCfg, NULL));
+
+  if (NULL == pCfg->pTags || pCfg->tagsLen <= 0) {
+    ctgError("invalid tag in tbCfg rsp, pTags:%p, len:%d", pCfg->pTags, pCfg->tagsLen);
+    CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
+  }
+
+  SArray* pTagVals = NULL;
+  STag*   pTag = (STag*)pCfg->pTags;
+
+  if (tTagIsJson(pTag)) {
+    pTagVals = taosArrayInit(1, sizeof(STagVal));
+    if (NULL == pTagVals) {
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
+    char* pJson = parseTagDatatoJson(pTag);
+    STagVal tagVal;
+    tagVal.cid = 0;
+    tagVal.type = TSDB_DATA_TYPE_JSON;
+    tagVal.pData = pJson;
+    tagVal.nData = strlen(pJson);
+    taosArrayPush(pTagVals, &tagVal);
+  } else {
+    CTG_ERR_JRET(tTagToValArray((const STag*)pCfg->pTags, &pTagVals));
+  }
+
+  *pRes = pTagVals;
+
+_return:
+
+  tFreeSTableCfgRsp((STableCfgRsp*)pCfg);
+  
+  CTG_RET(code);
 }
 
 int32_t ctgGetTbDistVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, SArray** pVgList) {
@@ -721,9 +754,12 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
     if (ctg && (*ctg)) {
       *catalogHandle = *ctg;
+      CTG_STAT_HIT_INC(CTG_CI_CLUSTER, 1);
       qDebug("got catalog handle from cache, clusterId:0x%" PRIx64 ", CTG:%p", clusterId, *ctg);
       CTG_API_LEAVE(TSDB_CODE_SUCCESS);
     }
+
+    CTG_STAT_NHIT_INC(CTG_CI_CLUSTER, 1);
 
     clusterCtg = taosMemoryCalloc(1, sizeof(SCatalog));
     if (NULL == clusterCtg) {
@@ -768,7 +804,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
   *catalogHandle = clusterCtg;
 
-  CTG_CACHE_STAT_INC(numOfCluster, 1);
+  CTG_STAT_NUM_INC(CTG_CI_CLUSTER, 1);
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 
@@ -1301,6 +1337,7 @@ int32_t catalogGetQnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray* pQn
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_QNODE, 1);
   CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pConn, pQnodeList, NULL));
 
 _return:
@@ -1316,6 +1353,7 @@ int32_t catalogGetDnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray** pD
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_DNODE, 1);
   CTG_ERR_JRET(ctgGetDnodeListFromMnode(pCtg, pConn, pDnodeList, NULL));
 
 _return:
@@ -1368,7 +1406,7 @@ int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_
     void*  key = taosHashGetKey(pAuth, &len);
     strncpy((*users)[i].user, key, len);
     (*users)[i].user[len] = 0;
-    (*users)[i].version = pAuth->version;
+    (*users)[i].version = pAuth->userAuth.version;
     ++i;
     if (i >= *num) {
       taosHashCancelIterate(pCtg->userCache, pAuth);
@@ -1387,6 +1425,8 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
   if (NULL == pCtg || NULL == pConn || NULL == dbFName || NULL == pDbCfg) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
+
+  CTG_CACHE_NHIT_INC(CTG_CI_DB_CFG, 1);
 
   CTG_API_LEAVE(ctgGetDBCfgFromMnode(pCtg, pConn, dbFName, pDbCfg, NULL));
 }
@@ -1410,6 +1450,21 @@ int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SNam
 
   int32_t code = 0;
   CTG_ERR_JRET(ctgGetTbIndex(pCtg, pConn, (SName*)pTableName, pRes));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetTableTag(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == pTableName || NULL == pRes) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgGetTbTag(pCtg, pConn, (SName*)pTableName, pRes));
 
 _return:
 
@@ -1440,6 +1495,8 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_UDF, 1);
+
   int32_t code = 0;
   CTG_ERR_JRET(ctgGetUdfInfoFromMnode(pCtg, pConn, funcName, pInfo, NULL));
 
@@ -1448,32 +1505,30 @@ _return:
   CTG_API_LEAVE(code);
 }
 
-int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
-                       bool* pass) {
+int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == pConn || NULL == user || NULL == dbFName || NULL == pass) {
+  if (NULL == pCtg || NULL == pConn || NULL == pAuth || NULL == pRes) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   int32_t code = 0;
-  CTG_ERR_JRET(ctgChkAuth(pCtg, pConn, user, dbFName, type, pass, NULL));
+  CTG_ERR_JRET(ctgChkAuth(pCtg, pConn, pAuth, pRes, NULL));
 
 _return:
 
   CTG_API_LEAVE(code);
 }
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type,
-                                        bool* pass, bool* exists) {
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth,        SUserAuthRes* pRes, bool* exists) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == user || NULL == dbFName || NULL == pass || NULL == exists) {
+  if (NULL == pCtg || NULL == pAuth || NULL == pRes || NULL == exists) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   int32_t code = 0;
-  CTG_ERR_JRET(ctgChkAuth(pCtg, NULL, user, dbFName, type, pass, exists));
+  CTG_ERR_JRET(ctgChkAuth(pCtg, NULL, pAuth, pRes, exists));
 
 _return:
 
@@ -1487,6 +1542,8 @@ int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** 
   if (NULL == pCtg || NULL == pConn || NULL == pVersion) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
+
+  CTG_CACHE_NHIT_INC(CTG_CI_SVR_VER, 1);
 
   int32_t code = 0;
   CTG_ERR_JRET(ctgGetSvrVerFromMnode(pCtg, pConn, pVersion, NULL));

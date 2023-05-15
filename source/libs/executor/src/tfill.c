@@ -20,7 +20,7 @@
 #include "tmsg.h"
 #include "ttypes.h"
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "tcommon.h"
 #include "thash.h"
 #include "ttime.h"
@@ -44,7 +44,7 @@ static void setNotFillColumn(SFillInfo* pFillInfo, SColumnInfoData* pDstColInfo,
   } else {
     p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
   }
-  
+
   SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
   doSetVal(pDstColInfo, rowIndex, pKey);
 }
@@ -408,7 +408,7 @@ static int64_t appendFilledResult(SFillInfo* pFillInfo, SSDataBlock* pBlock, int
 
   pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
 
-  assert(pFillInfo->numOfCurrent == resultCapacity);
+  ASSERT(pFillInfo->numOfCurrent == resultCapacity);
   return resultCapacity;
 }
 
@@ -558,7 +558,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     numOfRes = taosTimeCountInterval(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
     numOfRes += 1;
-    assert(numOfRes >= numOfRows);
+    ASSERT(numOfRes >= numOfRows);
   } else {  // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
         (ekey1 >= pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
@@ -578,7 +578,12 @@ int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint*
   GET_TYPED_DATA(v1, double, inputType, point1->val);
   GET_TYPED_DATA(v2, double, inputType, point2->val);
 
-  double r = DO_INTERPOLATION(v1, v2, point1->key, point2->key, point->key);
+  double r = 0;
+  if (!IS_BOOLEAN_TYPE(inputType)) {
+    r = DO_INTERPOLATION(v1, v2, point1->key, point2->key, point->key);
+  } else {
+    r = (v1 < 1 || v2 < 1) ? 0 : 1;
+  }
   SET_TYPED_DATA(point->val, outputType, r);
 
   return TSDB_CODE_SUCCESS;
@@ -588,14 +593,14 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t ca
   int32_t remain = taosNumOfRemainRows(pFillInfo);
 
   int64_t numOfRes = getNumOfResultsAfterFillGap(pFillInfo, pFillInfo->end, capacity);
-  assert(numOfRes <= capacity);
+  ASSERT(numOfRes <= capacity);
 
   // no data existed for fill operation now, append result according to the fill strategy
   if (remain == 0) {
     appendFilledResult(pFillInfo, p, numOfRes);
   } else {
     fillResultImpl(pFillInfo, p, (int32_t)numOfRes);
-    assert(numOfRes == pFillInfo->numOfCurrent);
+    ASSERT(numOfRes == pFillInfo->numOfCurrent);
   }
 
   qDebug("fill:%p, generated fill result, src block:%d, index:%d, brange:%" PRId64 "-%" PRId64 ", currentKey:%" PRId64
@@ -630,6 +635,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
       nodesValueNodeToVariant(pv, &pFillCol[i].fillVal);
     }
   }
+  pFillCol->numOfFillExpr = numOfFillExpr;
 
   for (int32_t i = 0; i < numOfNoFillExpr; ++i) {
     SExprInfo* pExprInfo = &pNotFillExpr[i];

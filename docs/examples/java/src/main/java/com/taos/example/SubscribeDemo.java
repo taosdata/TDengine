@@ -1,5 +1,6 @@
 package com.taos.example;
 
+import com.taosdata.jdbc.tmq.ConsumerRecord;
 import com.taosdata.jdbc.tmq.ConsumerRecords;
 import com.taosdata.jdbc.tmq.TMQConstants;
 import com.taosdata.jdbc.tmq.TaosConsumer;
@@ -35,7 +36,7 @@ public class SubscribeDemo {
             try (Statement statement = connection.createStatement()) {
                 statement.executeUpdate("drop topic if exists " + TOPIC);
                 statement.executeUpdate("drop database if exists " + DB_NAME);
-                statement.executeUpdate("create database " + DB_NAME);
+                statement.executeUpdate("create database " + DB_NAME + " wal_retention_period 3600");
                 statement.executeUpdate("use " + DB_NAME);
                 statement.executeUpdate(
                         "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT) TAGS (`groupid` INT, `location` BINARY(24))");
@@ -64,7 +65,8 @@ public class SubscribeDemo {
                 consumer.subscribe(Collections.singletonList(TOPIC));
                 while (!shutdown.get()) {
                     ConsumerRecords<Meters> meters = consumer.poll(Duration.ofMillis(100));
-                    for (Meters meter : meters) {
+                    for (ConsumerRecord<Meters> recode : meters) {
+                        Meters meter = recode.value();
                         System.out.println(meter);
                     }
                 }

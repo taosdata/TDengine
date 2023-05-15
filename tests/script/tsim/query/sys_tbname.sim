@@ -51,6 +51,11 @@ if $data00 != @ins_stables@ then
 	return -1
 endi
 
+sql select * from information_schema.ins_tables where table_name='';
+if $rows != 0 then 
+        return -1
+endi
+
 sql select tbname from information_schema.ins_tables;
 print $rows $data00
 if $rows != 33 then
@@ -104,5 +109,26 @@ if $rows != 5000 then
         return -1
 endi
 
+sql create database d1;
+sql create stable d1.st1 (ts timestamp, f int) tags(t int);
+sql create stable d1.st2 (ts timestamp, f int) tags(t int);
+sql create table d1.ct1 using d1.st1 tags(1);
+sql create table d1.ct2 using d1.st2 tags(2);
 
+sql create database d2;
+sql create stable d2.st1(ts timestamp, f int) tags(t int);
+sql create stable d2.st2(ts timestamp, f int) tags(t int);
+sql create table d2.ct1 using d2.st1 tags(1);
+sql create table d2.ct2 using d2.st2 tags(2);
+
+sql create database d3;
+sql create stable d3.st1(ts timestamp, f int) tags(t int);
+sql create stable d3.st2(ts timestamp, f int) tags(t int);
+sql create table d3.ct1 using d3.st1 tags(1);
+sql create table d3.ct2 using d3.st2 tags(2);
+sql select count(*), stable_name, db_name from information_schema.ins_tables where db_name != 'd2' group by stable_name,db_name
+print $rows
+if $rows != 9 then
+  return -1
+endi
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

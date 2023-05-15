@@ -1089,9 +1089,15 @@ static int32_t doCreateExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogic
   pExchange->srcStartGroupId = pExchangeLogicNode->srcStartGroupId;
   pExchange->srcEndGroupId = pExchangeLogicNode->srcEndGroupId;
   pExchange->seqRecvData = pExchangeLogicNode->seqRecvData;
-  *pPhyNode = (SPhysiNode*)pExchange;
 
-  return TSDB_CODE_SUCCESS;
+  int32_t code = setConditionsSlotId(pCxt, (const SLogicNode*)pExchangeLogicNode, (SPhysiNode*)pExchange);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pExchange;
+  } else {
+    nodesDestroyNode((SNode*)pExchange);
+  }
+
+  return code;
 }
 
 static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExchangeLogicNode* pExchangeLogicNode,
@@ -1118,6 +1124,9 @@ static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExc
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pExchangeLogicNode, (SPhysiNode*)pScan);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1550,6 +1559,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SMergeLogicNode* pM
   pMerge->numOfChannels = pMergeLogicNode->numOfChannels;
   pMerge->srcGroupId = pMergeLogicNode->srcGroupId;
   pMerge->groupSort = pMergeLogicNode->groupSort;
+  pMerge->ignoreGroupId = pMergeLogicNode->ignoreGroupId;
 
   int32_t code = addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc);
 

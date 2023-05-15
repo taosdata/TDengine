@@ -15,7 +15,7 @@
 
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "planner.h"
 #include "tcompression.h"
 #include "tdatablock.h"
@@ -179,7 +179,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
   if (NULL == pDeleter->nextOutput.pData) {
-    assert(pDeleter->queryEnd);
+    ASSERT(pDeleter->queryEnd);
     pOutput->useconds = pDeleter->useconds;
     pOutput->precision = pDeleter->pSchema->precision;
     pOutput->bufStatus = DS_BUF_EMPTY;
@@ -240,6 +240,7 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
 
   SDataDeleterHandle* deleter = taosMemoryCalloc(1, sizeof(SDataDeleterHandle));
   if (NULL == deleter) {
+    taosMemoryFree(pParam);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }

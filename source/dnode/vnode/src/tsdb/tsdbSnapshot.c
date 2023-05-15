@@ -70,10 +70,11 @@ static int32_t tsdbSnapReadFileDataStart(STsdbSnapReader* pReader) {
 
   if (pReader->pIter) {
     // iter to next with filter info (sver, ever)
-    code = tsdbDataIterNext2(pReader->pIter,
-                             &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION,  // flag
-                                                .sver = pReader->sver,
-                                                .ever = pReader->ever});
+    code = tsdbDataIterNext2(
+        pReader->pIter,
+        &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION | TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE,  // flag
+                           .sver = pReader->sver,
+                           .ever = pReader->ever});
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (pReader->pIter->rowInfo.suid || pReader->pIter->rowInfo.uid) {
@@ -94,10 +95,11 @@ static int32_t tsdbSnapReadFileDataStart(STsdbSnapReader* pReader) {
 
     if (pReader->pIter) {
       // iter to valid row
-      code = tsdbDataIterNext2(pReader->pIter,
-                               &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION,  // flag
-                                                  .sver = pReader->sver,
-                                                  .ever = pReader->ever});
+      code = tsdbDataIterNext2(
+          pReader->pIter,
+          &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION | TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE,  // flag
+                             .sver = pReader->sver,
+                             .ever = pReader->ever});
       TSDB_CHECK_CODE(code, lino, _exit);
 
       if (pReader->pIter->rowInfo.suid || pReader->pIter->rowInfo.uid) {
@@ -139,7 +141,8 @@ static int32_t tsdbSnapReadNextRow(STsdbSnapReader* pReader, SRowInfo** ppRowInf
   int32_t lino = 0;
 
   if (pReader->pIter) {
-    code = tsdbDataIterNext2(pReader->pIter, &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION,  // flag
+    code = tsdbDataIterNext2(pReader->pIter, &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION |
+                                                                        TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE,  // flag
                                                                 .sver = pReader->sver,
                                                                 .ever = pReader->ever});
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -198,7 +201,7 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* pReader, uint8_t** ppData) {
   ASSERT(pReader->bData.nRow);
 
   int32_t aBufN[5] = {0};
-  code = tCmprBlockData(&pReader->bData, TWO_STAGE_COMP, NULL, NULL, pReader->aBuf, aBufN);
+  code = tCmprBlockData(&pReader->bData, NO_COMPRESSION, NULL, NULL, pReader->aBuf, aBufN);
   if (code) goto _exit;
 
   int32_t size = aBufN[0] + aBufN[1] + aBufN[2] + aBufN[3];
@@ -276,7 +279,7 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* pReader, uint8_t** pp
       code = tsdbSnapReadNextRow(pReader, &pRowInfo);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      if (pReader->bData.nRow >= 4096) break;
+      if (pReader->bData.nRow >= 81920) break;
     } while (pRowInfo);
 
     ASSERT(pReader->bData.nRow > 0);
@@ -346,8 +349,9 @@ static int32_t tsdbSnapReadNextTombData(STsdbSnapReader* pReader, SDelInfo** ppD
   int32_t lino = 0;
 
   code = tsdbDataIterNext2(
-      pReader->pTIter,
-      &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION, .sver = pReader->sver, .ever = pReader->ever});
+      pReader->pTIter, &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION | TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE,
+                                          .sver = pReader->sver,
+                                          .ever = pReader->ever});
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (ppDelInfo) {

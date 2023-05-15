@@ -121,9 +121,9 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
 
   SStreamRetrieveReq req = {
-      .streamId = pTask->streamId,
+      .streamId = pTask->id.streamId,
       .srcNodeId = pTask->nodeId,
-      .srcTaskId = pTask->taskId,
+      .srcTaskId = pTask->id.taskId,
       .pRetrieve = pRetrieve,
       .retrieveLen = dataStrLen,
   };
@@ -168,7 +168,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
     }
     buf = NULL;
 
-    qDebug("task %d(child %d) send retrieve req to task %d at node %d, reqId %" PRId64, pTask->taskId,
+    qDebug("s-task:%s (child %d) send retrieve req to task %d at node %d, reqId %" PRId64, pTask->id.idStr,
            pTask->selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
   }
   code = 0;
@@ -208,7 +208,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   return 0;
 }
 
-int32_t streamDispatchOneCheckReq(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet) {
+int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   SRpcMsg msg = {0};
@@ -230,22 +230,21 @@ int32_t streamDispatchOneCheckReq(SStreamTask* pTask, const SStreamTaskCheckReq*
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeSStreamTaskCheckReq(&encoder, pReq)) < 0) {
-    goto FAIL;
+    rpcFreeCont(buf);
+    return code;
   }
+
   tEncoderClear(&encoder);
 
   msg.contLen = tlen + sizeof(SMsgHead);
   msg.pCont = buf;
   msg.msgType = TDMT_STREAM_TASK_CHECK;
 
-  qDebug("dispatch from task %d to task %d node %d: check msg", pTask->taskId, pReq->downstreamTaskId, nodeId);
+  qDebug("s-task:%s dispatch check msg to downstream s-task:%" PRIx64 ":%d node %d: check msg", pTask->id.idStr,
+         pReq->streamId, pReq->downstreamTaskId, nodeId);
 
   tmsgSendReq(pEpSet, &msg);
-
   return 0;
-FAIL:
-  if (buf) rpcFreeCont(buf);
-  return code;
 }
 
 int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecoverFinishReq* pReq, int32_t vgId,
@@ -262,6 +261,7 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
 
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -271,8 +271,12 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
   if ((code = tEncodeSStreamRecoverFinishReq(&encoder, pReq)) < 0) {
-    goto FAIL;
+    if (buf) {
+      rpcFreeCont(buf);
+    }
+    return code;
   }
+
   tEncoderClear(&encoder);
 
   msg.contLen = tlen + sizeof(SMsgHead);
@@ -281,13 +285,10 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
   msg.info.noResp = 1;
 
   tmsgSendReq(pEpSet, &msg);
-
-  qDebug("dispatch from task %d to task %d node %d: recover finish msg", pTask->taskId, pReq->taskId, vgId);
+  qDebug("s-task:%s dispatch recover finish msg to taskId:%d node %d: recover finish msg", pTask->id.idStr,
+         pReq->taskId, vgId);
 
   return 0;
-FAIL:
-  if (buf) rpcFreeCont(buf);
-  return code;
 }
 
 int32_t streamDispatchOneDataReq(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet) {
@@ -319,8 +320,7 @@ int32_t streamDispatchOneDataReq(SStreamTask* pTask, const SStreamDispatchReq* p
   msg.pCont = buf;
   msg.msgType = pTask->dispatchMsgType;
 
-  qDebug("dispatch from task %d to task %d node %d: data msg", pTask->taskId, pReq->taskId, vgId);
-
+  qDebug("dispatch from s-task:%s to taskId:%d vgId:%d data msg", pTask->id.idStr, pReq->taskId, vgId);
   tmsgSendReq(pEpSet, &msg);
 
   code = 0;
@@ -382,9 +382,9 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
 
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
     SStreamDispatchReq req = {
-        .streamId = pTask->streamId,
+        .streamId = pTask->id.streamId,
         .dataSrcVgId = pData->srcVgId,
-        .upstreamTaskId = pTask->taskId,
+        .upstreamTaskId = pTask->id.taskId,
         .upstreamChildId = pTask->selfChildId,
         .upstreamNodeId = pTask->nodeId,
         .blockNum = blockNum,
@@ -402,19 +402,22 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
         goto FAIL_FIXED_DISPATCH;
       }
     }
+
     int32_t vgId = pTask->fixedEpDispatcher.nodeId;
     SEpSet* pEpSet = &pTask->fixedEpDispatcher.epSet;
     int32_t downstreamTaskId = pTask->fixedEpDispatcher.taskId;
 
     req.taskId = downstreamTaskId;
 
-    qDebug("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->taskId, pTask->selfChildId,
-           downstreamTaskId, vgId);
+    qDebug("s-task:%s (child taskId:%d) fix-dispatch blocks:%d to down stream s-task:%d in vgId:%d", pTask->id.idStr,
+           pTask->selfChildId, blockNum, downstreamTaskId, vgId);
 
     if (streamDispatchOneDataReq(pTask, &req, vgId, pEpSet) < 0) {
       goto FAIL_FIXED_DISPATCH;
     }
+
     code = 0;
+
   FAIL_FIXED_DISPATCH:
     taosArrayDestroyP(req.data, taosMemoryFree);
     taosArrayDestroy(req.dataLen);
@@ -428,13 +431,14 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     int32_t             vgSz = taosArrayGetSize(vgInfo);
     SStreamDispatchReq* pReqs = taosMemoryCalloc(vgSz, sizeof(SStreamDispatchReq));
     if (pReqs == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
 
     for (int32_t i = 0; i < vgSz; i++) {
-      pReqs[i].streamId = pTask->streamId;
+      pReqs[i].streamId = pTask->id.streamId;
       pReqs[i].dataSrcVgId = pData->srcVgId;
-      pReqs[i].upstreamTaskId = pTask->taskId;
+      pReqs[i].upstreamTaskId = pTask->id.taskId;
       pReqs[i].upstreamChildId = pTask->selfChildId;
       pReqs[i].upstreamNodeId = pTask->nodeId;
       pReqs[i].blockNum = 0;
@@ -443,6 +447,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
       if (pReqs[i].data == NULL || pReqs[i].dataLen == NULL) {
         goto FAIL_SHUFFLE_DISPATCH;
       }
+
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       pReqs[i].taskId = pVgInfo->taskId;
     }
@@ -469,56 +474,65 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
       }
     }
 
+    qDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to %d vgroups", pTask->id.idStr, pTask->selfChildId,
+           blockNum, vgSz);
+
     for (int32_t i = 0; i < vgSz; i++) {
       if (pReqs[i].blockNum > 0) {
-        // send
         SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+        qDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to vgId:%d", pTask->id.idStr, pTask->selfChildId,
+               pReqs[i].blockNum, pVgInfo->vgId);
+
         if (streamDispatchOneDataReq(pTask, &pReqs[i], pVgInfo->vgId, &pVgInfo->epSet) < 0) {
           goto FAIL_SHUFFLE_DISPATCH;
         }
       }
     }
+
     code = 0;
+
   FAIL_SHUFFLE_DISPATCH:
-    if (pReqs) {
-      for (int32_t i = 0; i < vgSz; i++) {
-        taosArrayDestroyP(pReqs[i].data, taosMemoryFree);
-        taosArrayDestroy(pReqs[i].dataLen);
-      }
-      taosMemoryFree(pReqs);
+    for (int32_t i = 0; i < vgSz; i++) {
+      taosArrayDestroyP(pReqs[i].data, taosMemoryFree);
+      taosArrayDestroy(pReqs[i].dataLen);
     }
-    return code;
+    taosMemoryFree(pReqs);
   }
-  return 0;
+  return code;
 }
 
 int32_t streamDispatch(SStreamTask* pTask) {
   ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
 
+  int32_t numOfElems = taosQueueItemSize(pTask->outputQueue->queue);
+  if (numOfElems > 0) {
+    qDebug("s-task:%s try to dispatch intermediate result block to downstream, elem in outputQ:%d", pTask->id.idStr,
+           numOfElems);
+  }
+
   int8_t old =
       atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
   if (old != TASK_OUTPUT_STATUS__NORMAL) {
+    qDebug("s-task:%s task wait for dispatch rsp, not dispatch now", pTask->id.idStr);
     return 0;
   }
 
   SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
   if (pBlock == NULL) {
-    qDebug("stream stop dispatching since no output: task %d", pTask->taskId);
+    qDebug("s-task:%s stop dispatching since no output in output queue", pTask->id.idStr);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
   }
-  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
-  qDebug("stream dispatching: task %d", pTask->taskId);
+  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
   int32_t code = 0;
   if (streamDispatchAllBlocks(pTask, pBlock) < 0) {
     code = -1;
     streamQueueProcessFail(pTask->outputQueue);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
-    goto FREE;
   }
-FREE:
+
   taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
   taosFreeQitem(pBlock);
   return code;

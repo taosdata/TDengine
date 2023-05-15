@@ -33,6 +33,7 @@ typedef enum {
   JOB_TASK_STATUS_INIT,
   JOB_TASK_STATUS_EXEC,
   JOB_TASK_STATUS_PART_SUCC,
+  JOB_TASK_STATUS_FETCH,
   JOB_TASK_STATUS_SUCC,
   JOB_TASK_STATUS_FAIL,
   JOB_TASK_STATUS_DROP,
@@ -115,8 +116,8 @@ typedef struct STableMeta {
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
   // info
-  int16_t       sversion;
-  int16_t       tversion;
+  int32_t       sversion;
+  int32_t       tversion;
   STableComInfo tableInfo;
   SSchema       schema[];
 } STableMeta;
@@ -193,6 +194,7 @@ typedef struct SRequestConnInfo {
 
 typedef void (*__freeFunc)(void* param);
 
+// todo add creator/destroyer function
 typedef struct SMsgSendInfo {
   __async_send_cb_fn_t fp;      // async callback function
   STargetInfo          target;  // for update epset

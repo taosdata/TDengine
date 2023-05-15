@@ -226,7 +226,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 2)) != 0) {
+  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 3)) != 0) {
     terrno = code;
     goto _OVER;
   }
@@ -256,10 +256,13 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
     pDb = mndAcquireDb(pMnode, db);
     if (pDb == NULL) {
-      terrno = TSDB_CODE_MND_INVALID_DB;
-      mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
-              terrstr());
-      goto _OVER;
+      if (0 != strcmp(connReq.db, TSDB_INFORMATION_SCHEMA_DB) &&
+          (0 != strcmp(connReq.db, TSDB_PERFORMANCE_SCHEMA_DB))) {
+        terrno = TSDB_CODE_MND_INVALID_DB;
+        mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
+                terrstr());
+        goto _OVER;
+      }
     }
 
     if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) != 0) {
@@ -283,6 +286,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.connType = connReq.connType;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
   connectRsp.svrTimestamp = taosGetTimestampSec();
+  connectRsp.passVer = pUser->passVersion;
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
@@ -543,6 +547,16 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
+          taosArrayPush(hbRsp.info, &kv1);
+        }
+        break;
+      }
+      case HEARTBEAT_KEY_USER_PASSINFO: {
+        void   *rspMsg = NULL;
+        int32_t rspLen = 0;
+        mndValidateUserPassInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserPassVersion), &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_USER_PASSINFO, .valueLen = rspLen, .value = rspMsg};
           taosArrayPush(hbRsp.info, &kv1);
         }
         break;

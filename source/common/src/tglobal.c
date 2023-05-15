@@ -20,6 +20,10 @@
 #include "tlog.h"
 #include "tmisce.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;
@@ -49,7 +53,7 @@ int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
-float   tsRatioOfVnodeStreamThreads = 1.0;
+float   tsRatioOfVnodeStreamThreads = 2.0;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
@@ -80,7 +84,7 @@ bool     tsMonitorComp = false;
 // telem
 bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
-char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
+char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
@@ -99,7 +103,9 @@ char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
+int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = false;
+bool    tsEnableScience = false; // on taos-cli show float and doulbe with scientific notation if true 
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -111,6 +117,11 @@ int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
+int32_t tsSlowLogThreshold = 3; // seconds
+int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
+
+
+
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -154,6 +165,7 @@ char    tsTagFilterCache = 0;
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
 int64_t tsQueryBufferSizeBytes = -1;
+int32_t tsCacheLazyLoadThreshold = 500;
 
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
@@ -190,12 +202,14 @@ int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointTickInterval = 1;
 int32_t tsTtlUnit = 86400;
-int32_t tsTtlPushInterval = 86400;
+int32_t tsTtlPushInterval = 3600;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
+int64_t tsStreamBufferSize = 128 * 1024 * 1024;
+int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -227,7 +241,11 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
   if (taosIsDir(cfgDir)) {
+#ifdef CUS_PROMPT
+    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "%s.cfg", cfgDir, CUS_PROMPT);
+#else
     snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+#endif
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
   }
@@ -318,6 +336,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 4, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "enableQueryHb", tsEnableQueryHb, false) != 0) return -1;
+  if (cfgAddBool(pCfg, "enableScience", tsEnableScience, false) != 0) return -1;
   if (cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, true) != 0) return -1;
@@ -331,6 +350,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
+  if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 0, INT32_MAX, true) != 0) return -1;
+  if (cfgAddString(pCfg, "slowLogScope", "", true) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
@@ -496,6 +518,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, 0) != 0) return -1;
+  if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, 0) != 0) return -1;
+  if (cfgAddInt64(pCfg, "checkpointInterval", tsCheckpointInterval, 0, INT64_MAX, 0) != 0) return -1;
+
+  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -676,6 +702,42 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   metaDebugFlag = cfgGetItem(pCfg, "metaDebugFlag")->i32;
 }
 
+static int32_t taosSetSlowLogScope(char *pScope) {
+  if (NULL == pScope || 0 == strlen(pScope)) {
+    tsSlowLogScope = SLOW_LOG_TYPE_ALL;
+    return 0;
+  }
+
+  if (0 == strcasecmp(pScope, "all")) {
+    tsSlowLogScope = SLOW_LOG_TYPE_ALL;
+    return 0;
+  }
+
+  if (0 == strcasecmp(pScope, "query")) {
+    tsSlowLogScope = SLOW_LOG_TYPE_QUERY;
+    return 0;
+  }
+
+  if (0 == strcasecmp(pScope, "insert")) {
+    tsSlowLogScope = SLOW_LOG_TYPE_INSERT;
+    return 0;
+  }
+
+  if (0 == strcasecmp(pScope, "others")) {
+    tsSlowLogScope = SLOW_LOG_TYPE_OTHERS;
+    return 0;
+  }
+
+  if (0 == strcasecmp(pScope, "none")) {
+    tsSlowLogScope = 0;
+    return 0;
+  }
+
+  uError("Invalid slowLog scope value:%s", pScope);
+  terrno = TSDB_CODE_INVALID_CFG_VALUE;
+  return -1;
+}
+
 static int32_t taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
@@ -717,6 +779,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
   tsEnableQueryHb = cfgGetItem(pCfg, "enableQueryHb")->bval;
+  tsEnableScience = cfgGetItem(pCfg, "enableScience")->bval;  
   tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
   tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
@@ -724,6 +787,11 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   tsUseAdapter = cfgGetItem(pCfg, "useAdapter")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
+  tsQueryMaxConcurrentTables = cfgGetItem(pCfg, "queryMaxConcurrentTables")->i64;
+  tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
+  if (taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)) {
+    return -1;
+  }
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
 
@@ -824,7 +892,11 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
 
+  tsCacheLazyLoadThreshold = cfgGetItem(pCfg, "cacheLazyLoadThreshold")->i32;
+
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
+  tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
+  tsCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i64;
 
   GRANT_CFG_GET;
   return 0;
@@ -1136,6 +1208,12 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         sDebugFlag = cfgGetItem(pCfg, "sDebugFlag")->i32;
       } else if (strcasecmp("smaDebugFlag", name) == 0) {
         smaDebugFlag = cfgGetItem(pCfg, "smaDebugFlag")->i32;
+      } else if (strcasecmp("slowLogThreshold", name) == 0) {
+        tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
+      } else if (strcasecmp("slowLogScope", name) == 0) {
+        if (taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)) {
+          return -1;
+        }
       }
       break;
     }
@@ -1233,13 +1311,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   }
 
   if (taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
-    uError("failed to load cfg since %s", terrstr());
+    printf("failed to load cfg since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
 
   if (cfgLoadFromArray(pCfg, pArgs) != 0) {
-    uError("failed to load cfg from array since %s", terrstr());
+    printf("failed to load cfg from array since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
@@ -1255,13 +1333,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (taosMulModeMkDir(tsLogDir, 0777) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to create dir:%s since %s", tsLogDir, terrstr());
+    printf("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
 
   if (taosInitLog(logname, logFileNum) != 0) {
-    uError("failed to init log file since %s", terrstr());
+    printf("failed to init log file since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }

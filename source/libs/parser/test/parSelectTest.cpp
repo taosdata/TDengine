@@ -239,6 +239,19 @@ TEST_F(ParserSelectTest, groupBySemanticCheck) {
   run("SELECT COUNT(*) cnt, c2 FROM t1 WHERE c1 > 0 GROUP BY c1", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
 }
 
+TEST_F(ParserSelectTest, havingCheck) {
+  useDb("root", "test");
+
+  run("select tbname,count(*) from st1 partition by tbname having c1>0", TSDB_CODE_PAR_INVALID_OPTR_USAGE);
+
+  run("select tbname,count(*) from st1 group by tbname having c1>0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+
+  run("select max(c1) from st1 group by tbname having c1>0");
+
+  run("select max(c1) from st1 partition by tbname having c1>0");
+}
+
+
 TEST_F(ParserSelectTest, orderBy) {
   useDb("root", "test");
 
@@ -286,7 +299,7 @@ TEST_F(ParserSelectTest, interval) {
 TEST_F(ParserSelectTest, intervalSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN);
+  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_INVALID_OPTR_USAGE);
   run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)", TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   run("SELECT HISTOGRAM(c1, 'log_bin', '{\"start\": -33,\"factor\": 55,\"count\": 5,\"infinity\": false}', 1) FROM t1 "
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' INTERVAL(10s) FILL(NULL)",

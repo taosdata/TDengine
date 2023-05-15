@@ -350,6 +350,11 @@ typedef struct SDropComponentNodeStmt {
   int32_t   dnodeId;
 } SDropComponentNodeStmt;
 
+typedef struct SRestoreComponentNodeStmt {
+  ENodeType type;
+  int32_t   dnodeId;
+} SRestoreComponentNodeStmt;
+
 typedef struct SCreateTopicStmt {
   ENodeType type;
   char      topicName[TSDB_TABLE_NAME_LEN];
@@ -436,8 +441,22 @@ typedef struct SDropStreamStmt {
   bool      ignoreNotExists;
 } SDropStreamStmt;
 
+typedef struct SPauseStreamStmt {
+  ENodeType type;
+  char      streamName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+} SPauseStreamStmt;
+
+typedef struct SResumeStreamStmt {
+  ENodeType type;
+  char      streamName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+  bool      ignoreUntreated;
+} SResumeStreamStmt;
+
 typedef struct SCreateFunctionStmt {
   ENodeType type;
+  bool      orReplace;
   bool      ignoreExists;
   char      funcName[TSDB_FUNC_NAME_LEN];
   bool      isAgg;
@@ -457,7 +476,9 @@ typedef struct SGrantStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
   char      objName[TSDB_DB_NAME_LEN];  // db or topic
+  char      tabName[TSDB_TABLE_NAME_LEN];
   int64_t   privileges;
+  SNode*    pTagCond;
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;
@@ -465,6 +486,10 @@ typedef SGrantStmt SRevokeStmt;
 typedef struct SBalanceVgroupStmt {
   ENodeType type;
 } SBalanceVgroupStmt;
+
+typedef struct SBalanceVgroupLeaderStmt {
+  ENodeType type;
+} SBalanceVgroupLeaderStmt;
 
 typedef struct SMergeVgroupStmt {
   ENodeType type;

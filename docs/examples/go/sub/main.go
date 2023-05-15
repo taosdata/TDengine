@@ -15,7 +15,7 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
-	_, err = db.Exec("create database if not exists example_tmq")
+	_, err = db.Exec("create database if not exists example_tmq wal_retention_period 3600")
 	if err != nil {
 		panic(err)
 	}
@@ -35,7 +35,6 @@ func main() {
 		"td.connect.port":              "6030",
 		"client.id":                    "test_tmq_client",
 		"enable.auto.commit":           "false",
-		"enable.heartbeat.background":  "true",
 		"experimental.snapshot.enable": "true",
 		"msg.with.table.name":          "true",
 	})

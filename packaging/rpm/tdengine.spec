@@ -3,6 +3,7 @@
 %define cfg_install_dir  /etc/taos
 %define __strip /bin/true
 %global __python /usr/bin/python3
+%global _build_id_links none
 
 Name:		tdengine
 Version:	%{_version}
@@ -62,6 +63,15 @@ fi
 if [ -f %{_compiledir}/test/cfg/taosadapter.service ]; then
     cp %{_compiledir}/test/cfg/taosadapter.service %{buildroot}%{homepath}/cfg
 fi
+
+if [ -f %{_compiledir}/../build-taoskeeper/config/taoskeeper.toml ]; then
+    cp %{_compiledir}/../build-taoskeeper/config/taoskeeper.toml %{buildroot}%{homepath}/cfg ||:
+fi
+
+if [ -f %{_compiledir}/../build-taoskeeper/taoskeeper.service ]; then
+    cp %{_compiledir}/../build-taoskeeper/taoskeeper.service %{buildroot}%{homepath}/cfg ||:
+fi
+
 #cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
 cp %{_compiledir}/../packaging/tools/post.sh        %{buildroot}%{homepath}/script
 cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/script
@@ -73,8 +83,12 @@ cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/udfd                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 
+if [ -f %{_compiledir}/../build-taoskeeper/taoskeeper ]; then
+    cp %{_compiledir}/../build-taoskeeper/taoskeeper %{buildroot}%{homepath}/bin
+fi
+
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
-    cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:
+    cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 [ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
@@ -90,48 +104,38 @@ cp %{_compiledir}/../include/libs/function/taosudf.h       %{buildroot}%{homepat
 cp -r %{_compiledir}/../examples/*                  %{buildroot}%{homepath}/examples
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
-    mkdir -p %{buildroot}%{userlocalpath}/bin
-    mkdir -p %{buildroot}%{userlocalpath}/lib
-    mkdir -p %{buildroot}%{userlocalpath}/lib/pkgconfig
-    mkdir -p %{buildroot}%{userlocalpath}/include
-    mkdir -p %{buildroot}%{userlocalpath}/include/jemalloc
-    mkdir -p %{buildroot}%{userlocalpath}/share
-    mkdir -p %{buildroot}%{userlocalpath}/share/doc
-    mkdir -p %{buildroot}%{userlocalpath}/share/doc/jemalloc
-    mkdir -p %{buildroot}%{userlocalpath}/share/man
-    mkdir -p %{buildroot}%{userlocalpath}/share/man/man3
+    mkdir -p %{buildroot}%{homepath}/jemalloc/ ||:
+    mkdir -p %{buildroot}%{homepath}/jemalloc/include/jemalloc/ ||:
+    mkdir -p %{buildroot}%{homepath}/jemalloc/lib/ ||:
+    mkdir -p %{buildroot}%{homepath}/jemalloc/lib/pkgconfig ||:
 
-    cp %{_compiledir}/build/bin/jemalloc-config %{buildroot}%{userlocalpath}/bin/
+    cp %{_compiledir}/build/bin/jemalloc-config %{buildroot}%{homepath}/jemalloc/bin
     if [ -f %{_compiledir}/build/bin/jemalloc.sh ]; then
-        cp %{_compiledir}/build/bin/jemalloc.sh %{buildroot}%{userlocalpath}/bin/
+        cp %{_compiledir}/build/bin/jemalloc.sh %{buildroot}%{homepath}/jemalloc/bin
     fi
     if [ -f %{_compiledir}/build/bin/jeprof ]; then
-        cp %{_compiledir}/build/bin/jeprof %{buildroot}%{userlocalpath}/bin/
+        cp %{_compiledir}/build/bin/jeprof %{buildroot}%{homepath}/jemalloc/bin
     fi
     if [ -f %{_compiledir}/build/include/jemalloc/jemalloc.h ]; then
-        cp %{_compiledir}/build/include/jemalloc/jemalloc.h %{buildroot}%{userlocalpath}/include/jemalloc/
+        cp %{_compiledir}/build/include/jemalloc/jemalloc.h %{buildroot}%{homepath}/jemalloc/include/jemalloc/
     fi
     if [ -f %{_compiledir}/build/lib/libjemalloc.so.2 ]; then
-        cp %{_compiledir}/build/lib/libjemalloc.so.2 %{buildroot}%{userlocalpath}/lib/
-        ln -sf libjemalloc.so.2 %{buildroot}%{userlocalpath}/lib/libjemalloc.so
+        cp %{_compiledir}/build/lib/libjemalloc.so.2 %{buildroot}%{homepath}/jemalloc/lib
+        ln -sf libjemalloc.so.2 %{buildroot}%{homepath}/jemalloc/lib/libjemalloc.so
     fi
     if [ -f %{_compiledir}/build/lib/libjemalloc.a ]; then
-        cp %{_compiledir}/build/lib/libjemalloc.a %{buildroot}%{userlocalpath}/lib/
+        cp %{_compiledir}/build/lib/libjemalloc.a %{buildroot}%{homepath}/jemalloc/lib
     fi
     if [ -f %{_compiledir}/build/lib/libjemalloc_pic.a ]; then
-        cp %{_compiledir}/build/lib/libjemalloc_pic.a %{buildroot}%{userlocalpath}/lib/
+        cp %{_compiledir}/build/lib/libjemalloc_pic.a %{buildroot}%{homepath}/jemalloc/lib
     fi
     if [ -f %{_compiledir}/build/lib/pkgconfig/jemalloc.pc ]; then
-        cp %{_compiledir}/build/lib/pkgconfig/jemalloc.pc %{buildroot}%{userlocalpath}/lib/pkgconfig/
-    fi
-    if [ -f %{_compiledir}/build/share/doc/jemalloc/jemalloc.html ]; then
-        cp %{_compiledir}/build/share/doc/jemalloc/jemalloc.html %{buildroot}%{userlocalpath}/share/doc/jemalloc/
-    fi
-    if [ -f %{_compiledir}/build/share/man/man3/jemalloc.3 ]; then
-        cp %{_compiledir}/build/share/man/man3/jemalloc.3 %{buildroot}%{userlocalpath}/share/man/man3/
+        cp %{_compiledir}/build/lib/pkgconfig/jemalloc.pc %{buildroot}%{homepath}/jemalloc/lib/pkgconfig
     fi
 fi
-
+ls -al %{buildroot}%{homepath}/bin
+tree -L 5
+echo "==============================copying files done"
 #Scripts executed before installation
 %pre
 if [ -f /var/lib/taos/dnode/dnodeCfg.json ]; then
@@ -208,6 +212,7 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${bin_link_dir}/taosd      || :
     ${csudo}rm -f ${bin_link_dir}/udfd       || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
+    ${csudo}rm -f ${bin_link_dir}/taoskeeper       || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h     || :

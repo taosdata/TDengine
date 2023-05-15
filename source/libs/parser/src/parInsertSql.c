@@ -15,6 +15,7 @@
 
 #include "parInsertUtil.h"
 #include "parToken.h"
+#include "scalar.h"
 #include "tglobal.h"
 #include "ttime.h"
 
@@ -52,6 +53,7 @@ typedef struct SInsertParseContext {
   bool           missCache;
   bool           usingDuplicateTable;
   bool           forceUpdate;
+  bool           needTableTagVal;
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -565,6 +567,135 @@ static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMs
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SRewriteTagCondCxt {
+  SArray* pTagVals;
+  SArray* pTagName;
+  int32_t code;
+} SRewriteTagCondCxt;
+
+static int32_t rewriteTagCondColumnImpl(STagVal* pVal, SNode** pNode) {
+  SValueNode* pValue = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (NULL == pValue) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pValue->node.resType = ((SColumnNode*)*pNode)->node.resType;
+  nodesDestroyNode(*pNode);
+  *pNode = (SNode*)pValue;
+
+  switch (pVal->type) {
+    case TSDB_DATA_TYPE_BOOL:
+      pValue->datum.b = *(int8_t*)(&pVal->i64);
+      *(bool*)&pValue->typeData = pValue->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      pValue->datum.i = *(int8_t*)(&pVal->i64);
+      *(int8_t*)&pValue->typeData = pValue->datum.i;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      pValue->datum.i = *(int16_t*)(&pVal->i64);
+      *(int16_t*)&pValue->typeData = pValue->datum.i;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      pValue->datum.i = *(int32_t*)(&pVal->i64);
+      *(int32_t*)&pValue->typeData = pValue->datum.i;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      pValue->datum.i = pVal->i64;
+      pValue->typeData = pValue->datum.i;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pValue->datum.d = *(float*)(&pVal->i64);
+      *(float*)&pValue->typeData = pValue->datum.d;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pValue->datum.d = *(double*)(&pVal->i64);
+      *(double*)&pValue->typeData = pValue->datum.d;
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_NCHAR:
+      pValue->datum.p = taosMemoryCalloc(1, pVal->nData + VARSTR_HEADER_SIZE);
+      if (NULL == pValue->datum.p) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      varDataSetLen(pValue->datum.p, pVal->nData);
+      memcpy(varDataVal(pValue->datum.p), pVal->pData, pVal->nData);
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      pValue->datum.i = pVal->i64;
+      pValue->typeData = pValue->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      pValue->datum.i = *(uint8_t*)(&pVal->i64);
+      *(uint8_t*)&pValue->typeData = pValue->datum.i;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      pValue->datum.i = *(uint16_t*)(&pVal->i64);
+      *(uint16_t*)&pValue->typeData = pValue->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      pValue->datum.i = *(uint32_t*)(&pVal->i64);
+      *(uint32_t*)&pValue->typeData = pValue->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      pValue->datum.i = *(uint64_t*)(&pVal->i64);
+      *(uint64_t*)&pValue->typeData = pValue->datum.i;
+      break;
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+    default:
+      return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteTagCondColumn(SArray* pTagVals, SArray* pTagName, SNode** pNode) {
+  SColumnNode* pCol = (SColumnNode*)*pNode;
+  int32_t      ntags = taosArrayGetSize(pTagName);
+  for (int32_t i = 0; i < ntags; ++i) {
+    char* pTagColName = taosArrayGet(pTagName, i);
+    if (0 == strcmp(pTagColName, pCol->colName)) {
+      return rewriteTagCondColumnImpl(taosArrayGet(pTagVals, i), pNode);
+    }
+  }
+  return TSDB_CODE_PAR_PERMISSION_DENIED;
+}
+
+static EDealRes rewriteTagCond(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    SRewriteTagCondCxt* pCxt = pContext;
+    pCxt->code = rewriteTagCondColumn(pCxt->pTagVals, pCxt->pTagName, pNode);
+    return (TSDB_CODE_SUCCESS == pCxt->code ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t setTagVal(SArray* pTagVals, SArray* pTagName, SNode* pCond) {
+  SRewriteTagCondCxt cxt = {.code = TSDB_CODE_SUCCESS, .pTagVals = pTagVals, .pTagName = pTagName};
+  nodesRewriteExpr(&pCond, rewriteTagCond, &cxt);
+  return cxt.code;
+}
+
+static int32_t checkTagCondResult(SNode* pResult) {
+  return (QUERY_NODE_VALUE == nodeType(pResult) && ((SValueNode*)pResult)->datum.b) ? TSDB_CODE_SUCCESS
+                                                                                    : TSDB_CODE_PAR_PERMISSION_DENIED;
+}
+
+static int32_t checkSubtablePrivilege(SArray* pTagVals, SArray* pTagName, SNode** pCond) {
+  int32_t code = setTagVal(pTagVals, pTagName, *pCond);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = scalarCalculateConstants(*pCond, pCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTagCondResult(*pCond);
+  }
+  NODES_DESTORY_NODE(*pCond);
+  return code;
+}
+
 // pSql -> tag1_value, ...)
 static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -599,6 +730,10 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     if (TSDB_CODE_SUCCESS == code) {
       code = parseTagValue(pCxt, pStmt, pTagSchema, &token, pTagName, pTagVals, &pTag);
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pTagCond) {
+    code = checkSubtablePrivilege(pTagVals, pTagName, &pStmt->pTagCond);
   }
 
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam && !isJson) {
@@ -722,29 +857,52 @@ static int32_t parseUsingClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpS
   return code;
 }
 
-static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache) {
-  char dbFName[TSDB_DB_FNAME_LEN];
-  tNameGetFullDbName(pTbName, dbFName);
-  int32_t code = TSDB_CODE_SUCCESS;
-  bool    pass = true;
-  bool    exists = true;
+static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* pInfo) {
+  snprintf(pInfo->user, sizeof(pInfo->user), "%s", pCxt->pUser);
+  memcpy(&pInfo->tbName, pTbName, sizeof(SName));
+  pInfo->type = AUTH_TYPE_WRITE;
+}
+
+static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, SNode** pTagCond) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SUserAuthInfo authInfo = {0};
+  setUserAuthInfo(pCxt, pTbName, &authInfo);
+  SUserAuthRes authRes = {0};
+  bool         exists = true;
   if (pCxt->async) {
-    code = catalogChkAuthFromCache(pCxt->pCatalog, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass, &exists);
+    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, &exists);
   } else {
     SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
                              .requestId = pCxt->requestId,
                              .requestObjRefId = pCxt->requestRid,
                              .mgmtEps = pCxt->mgmtEpSet};
-    code = catalogChkAuth(pCxt->pCatalog, &conn, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass);
+    code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (!exists) {
       *pMissCache = true;
-    } else if (!pass) {
+    } else if (!authRes.pass) {
       code = TSDB_CODE_PAR_PERMISSION_DENIED;
+    } else if (NULL != authRes.pCond) {
+      *pTagCond = authRes.pCond;
     }
   }
   return code;
+}
+
+static int32_t checkAuthForTable(SParseContext* pCxt, SName* pTbName, bool* pMissCache, bool* pNeedTableTagVal) {
+  SNode*  pTagCond = NULL;
+  int32_t code = checkAuth(pCxt, pTbName, pMissCache, &pTagCond);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pNeedTableTagVal = ((*pMissCache) || (NULL != pTagCond));
+    *pMissCache = (NULL != pTagCond);
+  }
+  nodesDestroyNode(pTagCond);
+  return code;
+}
+
+static int32_t checkAuthForStable(SParseContext* pCxt, SName* pTbName, bool* pMissCache, SNode** pTagCond) {
+  return checkAuth(pCxt, pTbName, pMissCache, pTagCond);
 }
 
 static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, bool isStb, STableMeta** pTableMeta,
@@ -849,7 +1007,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
+  int32_t code = checkAuthForTable(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache, &pCxt->needTableTagVal);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
@@ -872,7 +1030,7 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
+  int32_t code = checkAuthForStable(pCxt->pComCxt, &pStmt->usingTableName, &pCxt->missCache, &pStmt->pTagCond);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMeta(pCxt, &pStmt->usingTableName, true, &pStmt->pTableMeta, &pCxt->missCache);
   }
@@ -1485,6 +1643,8 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   insDestroyBoundColInfo(&pCxt->tags);
   taosMemoryFreeClear(pStmt->pTableMeta);
+  nodesDestroyNode(pStmt->pTagCond);
+  taosArrayDestroy(pStmt->pTableTag);
   tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
   taosMemoryFreeClear(pStmt->pCreateTblReq);
   pCxt->missCache = false;
@@ -1492,6 +1652,7 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
   pStmt->pBoundCols = NULL;
   pStmt->usingTableProcessing = false;
   pStmt->fileProcessing = false;
+  pStmt->usingTableName.type = 0;
 }
 
 // input pStmt->pSql: [(field1_name, ...)] [ USING ... ] VALUES ... | FILE ...
@@ -1537,6 +1698,10 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     } else {
       return code;
     }
+  }
+
+  if (TK_NK_ID != pTbName->type && TK_NK_STRING != pTbName->type && TK_NK_QUESTION != pTbName->type) {
+    return buildSyntaxErrMsg(&pCxt->msg, "table_name is expected", pTbName->z);
   }
 
   *pHasData = true;
@@ -1654,14 +1819,18 @@ static int32_t createInsertQuery(SInsertParseContext* pCxt, SQuery** pOutput) {
   return code;
 }
 
-static int32_t checkAuthFromMetaData(const SArray* pUsers) {
+static int32_t checkAuthFromMetaData(const SArray* pUsers, SNode** pTagCond) {
   if (1 != taosArrayGetSize(pUsers)) {
     return TSDB_CODE_FAILED;
   }
 
   SMetaRes* pRes = taosArrayGet(pUsers, 0);
   if (TSDB_CODE_SUCCESS == pRes->code) {
-    return (*(bool*)pRes->pRes) ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED;
+    SUserAuthRes* pAuth = pRes->pRes;
+    if (NULL != pAuth->pCond) {
+      *pTagCond = nodesCloneNode(pAuth->pCond);
+    }
+    return pAuth->pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED;
   }
   return pRes->code;
 }
@@ -1700,9 +1869,40 @@ static int32_t getTableVgroupFromMetaData(const SArray* pTables, SVnodeModifyOpS
                      sizeof(SVgroupInfo));
 }
 
+static int32_t buildTagNameFromMeta(STableMeta* pMeta, SArray** pTagName) {
+  *pTagName = taosArrayInit(pMeta->tableInfo.numOfTags, TSDB_COL_NAME_LEN);
+  if (NULL == *pTagName) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  SSchema* pSchema = getTableTagSchema(pMeta);
+  for (int32_t i = 0; i < pMeta->tableInfo.numOfTags; ++i) {
+    taosArrayPush(*pTagName, pSchema[i].name);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkSubtablePrivilegeForTable(const SArray* pTables, SVnodeModifyOpStmt* pStmt) {
+  if (1 != taosArrayGetSize(pTables)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SMetaRes* pRes = taosArrayGet(pTables, 0);
+  if (TSDB_CODE_SUCCESS != pRes->code) {
+    return pRes->code;
+  }
+
+  SArray* pTagName = NULL;
+  int32_t code = buildTagNameFromMeta(pStmt->pTableMeta, &pTagName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkSubtablePrivilege((SArray*)pRes->pRes, pTagName, &pStmt->pTagCond);
+  }
+  taosArrayDestroy(pTagName);
+  return code;
+}
+
 static int32_t getTableSchemaFromMetaData(SInsertParseContext* pCxt, const SMetaData* pMetaData,
                                           SVnodeModifyOpStmt* pStmt, bool isStb) {
-  int32_t code = checkAuthFromMetaData(pMetaData->pUser);
+  int32_t code = checkAuthFromMetaData(pMetaData->pUser, &pStmt->pTagCond);
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
   }
@@ -1714,6 +1914,9 @@ static int32_t getTableSchemaFromMetaData(SInsertParseContext* pCxt, const SMeta
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableVgroupFromMetaData(pMetaData->pTableHash, pStmt, isStb);
+  }
+  if (TSDB_CODE_SUCCESS == code && !isStb && NULL != pStmt->pTagCond) {
+    code = checkSubtablePrivilegeForTable(pMetaData->pTableTag, pStmt);
   }
   return code;
 }
@@ -1734,6 +1937,8 @@ static void clearCatalogReq(SCatalogReq* pCatalogReq) {
   pCatalogReq->pTableHash = NULL;
   taosArrayDestroy(pCatalogReq->pUser);
   pCatalogReq->pUser = NULL;
+  taosArrayDestroy(pCatalogReq->pTableTag);
+  pCatalogReq->pTableTag = NULL;
 }
 
 static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
@@ -1901,14 +2106,21 @@ static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** 
 
   SUserAuthInfo userAuth = {.type = AUTH_TYPE_WRITE};
   snprintf(userAuth.user, sizeof(userAuth.user), "%s", pUser);
-  tNameGetFullDbName(pName, userAuth.dbFName);
+  memcpy(&userAuth.tbName, pName, sizeof(SName));
   taosArrayPush(*pUserAuth, &userAuth);
 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildInsertTableTagReq(SName* pName, SArray** pTables) { return buildInsertTableReq(pName, pTables); }
+
 static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SCatalogReq* pCatalogReq) {
-  int32_t code = buildInsertUserAuthReq(pCxt->pComCxt->pUser, &pStmt->targetTableName, &pCatalogReq->pUser);
+  int32_t code = buildInsertUserAuthReq(
+      pCxt->pComCxt->pUser, (0 == pStmt->usingTableName.type ? &pStmt->targetTableName : &pStmt->usingTableName),
+      &pCatalogReq->pUser);
+  if (TSDB_CODE_SUCCESS == code && pCxt->needTableTagVal) {
+    code = buildInsertTableTagReq(&pStmt->targetTableName, &pCatalogReq->pTableTag);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     if (0 == pStmt->usingTableName.type) {
       code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableMeta);

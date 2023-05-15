@@ -269,12 +269,13 @@ int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
 }
 
 int32_t tqMetaRestoreHandle(STQ* pTq) {
-  int code = 0;
+  int  code = 0;
   TBC* pCur = NULL;
   if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
     return -1;
   }
 
+  int32_t  vgId = TD_VID(pTq->pVnode);
   void*    pKey = NULL;
   int      kLen = 0;
   void*    pVal = NULL;
@@ -284,7 +285,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
   tdbTbcMoveToFirst(pCur);
 
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    STqHandle handle;
+    STqHandle handle = {0};
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSTqHandle(&decoder, &handle);
     tDecoderClear(&decoder);
@@ -306,7 +307,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       handle.execHandle.task =
-          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, NULL);
+          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, vgId, &handle.execHandle.numOfCols, 0);
       if (handle.execHandle.task == NULL) {
         tqError("cannot create exec task for %s", handle.subKey);
         code = -1;
@@ -319,19 +320,19 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
         code = -1;
         goto end;
       }
-      handle.execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
-      if (handle.execHandle.pExecReader == NULL) {
+      handle.execHandle.pTqReader = qExtractReaderFromStreamScanner(scanner);
+      if (handle.execHandle.pTqReader == NULL) {
         tqError("cannot extract exec reader for %s", handle.subKey);
         code = -1;
         goto end;
       }
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__DB) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
-      handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);
+      handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
 
       buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta,
                        (SSnapContext**)(&reader.sContext));
-      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, NULL, NULL);
+      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, 0);
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
 
@@ -340,17 +341,17 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       tqDebug("vgId:%d, tq try to get all ctb, suid:%" PRId64, pTq->pVnode->config.vgId, handle.execHandle.execTb.suid);
       for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
         int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
-        tqDebug("vgId:%d, idx %d, uid:%" PRId64, TD_VID(pTq->pVnode), i, tbUid);
+        tqDebug("vgId:%d, idx %d, uid:%" PRId64, vgId, i, tbUid);
       }
-      handle.execHandle.pExecReader = tqOpenReader(pTq->pVnode);
-      tqReaderSetTbUidList(handle.execHandle.pExecReader, tbUidList);
+      handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
+      tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
 
       buildSnapContext(reader.meta, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,
                        handle.fetchMeta, (SSnapContext**)(&reader.sContext));
-      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, NULL, NULL);
+      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, 0);
     }
-    tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, TD_VID(pTq->pVnode));
+    tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, vgId);
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));
   }
 

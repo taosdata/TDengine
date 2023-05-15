@@ -158,7 +158,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       return TSDB_CODE_TSC_INVALID_VALUE;
     }
 
-    if (unlikely(valueLen > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
+    if (unlikely(valueLen > (TSDB_MAX_TAGS_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE)) {
       return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
     }
 
@@ -206,7 +206,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     tinfo->tags = taosArrayDup(preLineKV, NULL);
 
     smlSetCTableName(tinfo);
-    tinfo->uid = info->uid++;
+    getTableUid(info, elements, tinfo);
     if (info->dataFormat) {
       info->currSTableMeta->uid = tinfo->uid;
       tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
@@ -292,7 +292,7 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     return TSDB_CODE_SUCCESS;
   }
 
-  if (info->dataFormat) {
+  if (info->dataFormat && info->currSTableMeta != NULL) {
     if (needConverTime) {
       kvTs.i = convertTimePrecision(kvTs.i, TSDB_TIME_PRECISION_NANO, info->currSTableMeta->tableInfo.precision);
     }

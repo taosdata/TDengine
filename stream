@@ -1,0 +1,1137 @@
+3986:03/29 15:26:32.540895 00099488 QRY streamStateSetNumber, seq: 1
+3987:03/29 15:26:32.540937 00099488 QRY streamStateSetNumber, seq: 2
+4437:03/29 15:26:32.601303 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+4438:03/29 15:26:32.601553 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+4439:03/29 15:26:32.601569 00099504 QRY streamStateReleaseBuf
+4447:03/29 15:26:32.601725 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+4448:03/29 15:26:32.601752 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+4452:03/29 15:26:32.601817 00099504 QRY streamStateReleaseBuf
+4460:03/29 15:26:32.601919 00099504 QRY streamStateGetCur_rocksdb
+4461:03/29 15:26:32.601965 00099504 QRY streamStateCurPrev_rocksdb
+4462:03/29 15:26:32.602051 00099504 QRY streamStateGetKVByCur_rocksdb
+4464:03/29 15:26:32.602085 00099504 QRY streamStateFreeCur
+4956:03/29 15:26:32.815478 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to del from default
+5010:03/29 15:26:32.816584 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+5018:03/29 15:26:32.816701 00099504 QRY streamStateGetCur_rocksdb
+5019:03/29 15:26:32.816760 00099504 QRY streamStateFreeCur
+5020:03/29 15:26:32.816785 00099504 QRY streamStateCurPrev_rocksdb
+5540:03/29 15:26:33.041742 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+5541:03/29 15:26:33.041831 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+5542:03/29 15:26:33.041853 00099504 QRY streamStateReleaseBuf
+5549:03/29 15:26:33.041979 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to del from default
+5595:03/29 15:26:33.043127 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+5596:03/29 15:26:33.043186 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+5597:03/29 15:26:33.043206 00099504 QRY streamStateReleaseBuf
+5626:03/29 15:26:33.044578 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+5627:03/29 15:26:33.044611 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+5631:03/29 15:26:33.044676 00099504 QRY streamStateReleaseBuf
+5639:03/29 15:26:33.044769 00099504 QRY streamStateGetCur_rocksdb
+5640:03/29 15:26:33.044817 00099504 QRY streamStateCurPrev_rocksdb
+5641:03/29 15:26:33.044842 00099504 QRY streamStateGetKVByCur_rocksdb
+5643:03/29 15:26:33.044940 00099504 QRY streamStateFreeCur
+6298:03/29 15:26:33.270625 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+6303:03/29 15:26:33.270831 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+6304:03/29 15:26:33.271088 00099504 QRY streamStateReleaseBuf
+6352:03/29 15:26:33.272286 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to del from default
+6402:03/29 15:26:33.274181 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+6403:03/29 15:26:33.274262 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+6404:03/29 15:26:33.274284 00099504 QRY streamStateReleaseBuf
+6427:03/29 15:26:33.274651 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+6428:03/29 15:26:33.274676 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+6432:03/29 15:26:33.274719 00099504 QRY streamStateReleaseBuf
+6440:03/29 15:26:33.275020 00099504 QRY streamStateGetCur_rocksdb
+6441:03/29 15:26:33.275072 00099504 QRY streamStateCurPrev_rocksdb
+6442:03/29 15:26:33.275088 00099504 QRY streamStateGetKVByCur_rocksdb
+6444:03/29 15:26:33.275106 00099504 QRY streamStateFreeCur
+6754:03/29 15:26:33.280321 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+6755:03/29 15:26:33.280420 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+6756:03/29 15:26:33.280440 00099504 QRY streamStateReleaseBuf
+6764:03/29 15:26:33.280565 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+6765:03/29 15:26:33.280586 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+6769:03/29 15:26:33.280618 00099504 QRY streamStateReleaseBuf
+6777:03/29 15:26:33.280705 00099504 QRY streamStateGetCur_rocksdb
+6778:03/29 15:26:33.280760 00099504 QRY streamStateCurPrev_rocksdb
+6779:03/29 15:26:33.280786 00099504 QRY streamStateGetKVByCur_rocksdb
+6781:03/29 15:26:33.280889 00099504 QRY streamStateFreeCur
+6999:03/29 15:26:33.286714 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+7000:03/29 15:26:33.286811 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+7001:03/29 15:26:33.286831 00099504 QRY streamStateReleaseBuf
+7009:03/29 15:26:33.287090 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+7010:03/29 15:26:33.287123 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+7014:03/29 15:26:33.287196 00099504 QRY streamStateReleaseBuf
+7022:03/29 15:26:33.287315 00099504 QRY streamStateGetCur_rocksdb
+7023:03/29 15:26:33.287370 00099504 QRY streamStateCurPrev_rocksdb
+7024:03/29 15:26:33.287395 00099504 QRY streamStateGetKVByCur_rocksdb
+7026:03/29 15:26:33.287437 00099504 QRY streamStateFreeCur
+7324:03/29 15:26:33.498096 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to del from default
+7374:03/29 15:26:33.499363 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+7375:03/29 15:26:33.499439 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+7376:03/29 15:26:33.499462 00099504 QRY streamStateReleaseBuf
+7408:03/29 15:26:33.500618 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+7409:03/29 15:26:33.500674 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+7413:03/29 15:26:33.500778 00099504 QRY streamStateReleaseBuf
+7421:03/29 15:26:33.501007 00099504 QRY streamStateGetCur_rocksdb
+7422:03/29 15:26:33.501071 00099504 QRY streamStateCurPrev_rocksdb
+7423:03/29 15:26:33.501105 00099504 QRY streamStateGetKVByCur_rocksdb
+7425:03/29 15:26:33.501158 00099504 QRY streamStateFreeCur
+7920:03/29 15:26:33.722388 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] failed to read from default, err: not exist
+7921:03/29 15:26:33.722476 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+7922:03/29 15:26:33.722492 00099504 QRY streamStateReleaseBuf
+7930:03/29 15:26:33.722638 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+7931:03/29 15:26:33.722659 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+7935:03/29 15:26:33.722727 00099504 QRY streamStateReleaseBuf
+7943:03/29 15:26:33.722841 00099504 QRY streamStateGetCur_rocksdb
+7944:03/29 15:26:33.722962 00099504 QRY streamStateCurPrev_rocksdb
+7945:03/29 15:26:33.722998 00099504 QRY streamStateGetKVByCur_rocksdb
+7947:03/29 15:26:33.723024 00099504 QRY streamStateFreeCur
+8177:03/29 15:26:33.728574 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+8178:03/29 15:26:33.728652 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+8179:03/29 15:26:33.728663 00099504 QRY streamStateReleaseBuf
+8197:03/29 15:26:33.729022 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+8198:03/29 15:26:33.729077 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+8202:03/29 15:26:33.729177 00099504 QRY streamStateReleaseBuf
+8211:03/29 15:26:33.729312 00099504 QRY streamStateGetCur_rocksdb
+8213:03/29 15:26:33.729372 00099504 QRY streamStateCurPrev_rocksdb
+8214:03/29 15:26:33.729427 00099504 QRY streamStateGetKVByCur_rocksdb
+8216:03/29 15:26:33.729456 00099504 QRY streamStateFreeCur
+8460:03/29 15:26:33.735166 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+8461:03/29 15:26:33.735260 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+8462:03/29 15:26:33.735282 00099504 QRY streamStateReleaseBuf
+8470:03/29 15:26:33.735474 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+8471:03/29 15:26:33.735516 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+8475:03/29 15:26:33.735586 00099504 QRY streamStateReleaseBuf
+8483:03/29 15:26:33.735713 00099504 QRY streamStateGetCur_rocksdb
+8484:03/29 15:26:33.735783 00099504 QRY streamStateCurPrev_rocksdb
+8485:03/29 15:26:33.735812 00099504 QRY streamStateGetKVByCur_rocksdb
+8487:03/29 15:26:33.735845 00099504 QRY streamStateFreeCur
+8717:03/29 15:26:33.741222 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+8718:03/29 15:26:33.741315 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+8719:03/29 15:26:33.741337 00099504 QRY streamStateReleaseBuf
+8727:03/29 15:26:33.741534 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+8728:03/29 15:26:33.741576 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+8732:03/29 15:26:33.741669 00099504 QRY streamStateReleaseBuf
+8740:03/29 15:26:33.741779 00099504 QRY streamStateGetCur_rocksdb
+8741:03/29 15:26:33.741912 00099504 QRY streamStateCurPrev_rocksdb
+8742:03/29 15:26:33.741938 00099504 QRY streamStateGetKVByCur_rocksdb
+8744:03/29 15:26:33.741968 00099504 QRY streamStateFreeCur
+9392:03/29 15:26:34.177492 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to del from default
+9446:03/29 15:26:34.178584 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+9454:03/29 15:26:34.178719 00099504 QRY streamStateGetCur_rocksdb
+9455:03/29 15:26:34.178777 00099504 QRY streamStateCurPrev_rocksdb
+9456:03/29 15:26:34.178803 00099504 QRY streamStateGetKVByCur_rocksdb
+9458:03/29 15:26:34.178844 00099504 QRY streamStateFreeCur
+10007:03/29 15:26:34.396214 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+10008:03/29 15:26:34.396312 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+10009:03/29 15:26:34.396334 00099504 QRY streamStateReleaseBuf
+10016:03/29 15:26:34.396441 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to del from default
+10063:03/29 15:26:34.397335 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+10064:03/29 15:26:34.397396 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+10065:03/29 15:26:34.397413 00099504 QRY streamStateReleaseBuf
+10099:03/29 15:26:34.398077 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+10104:03/29 15:26:34.398102 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+10109:03/29 15:26:34.398252 00099504 QRY streamStateReleaseBuf
+10121:03/29 15:26:34.398444 00099504 QRY streamStateGetCur_rocksdb
+10125:03/29 15:26:34.398501 00099504 QRY streamStateCurPrev_rocksdb
+10126:03/29 15:26:34.398614 00099504 QRY streamStateGetKVByCur_rocksdb
+10135:03/29 15:26:34.398654 00099504 QRY streamStateFreeCur
+10306:03/29 15:26:34.402709 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+10307:03/29 15:26:34.402803 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+10308:03/29 15:26:34.402825 00099504 QRY streamStateReleaseBuf
+10315:03/29 15:26:34.402978 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to del from default
+10385:03/29 15:26:34.404520 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+10390:03/29 15:26:34.404599 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+10392:03/29 15:26:34.404623 00099504 QRY streamStateReleaseBuf
+10447:03/29 15:26:34.405786 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+10448:03/29 15:26:34.405806 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+10452:03/29 15:26:34.405862 00099504 QRY streamStateReleaseBuf
+10460:03/29 15:26:34.405976 00099504 QRY streamStateGetCur_rocksdb
+10461:03/29 15:26:34.406033 00099504 QRY streamStateCurPrev_rocksdb
+10462:03/29 15:26:34.406059 00099504 QRY streamStateGetKVByCur_rocksdb
+10464:03/29 15:26:34.406085 00099504 QRY streamStateFreeCur
+10613:03/29 15:26:34.409146 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+10615:03/29 15:26:34.409218 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+10616:03/29 15:26:34.409266 00099504 QRY streamStateReleaseBuf
+10626:03/29 15:26:34.409404 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to del from default
+10708:03/29 15:26:34.410801 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+10710:03/29 15:26:34.410940 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+10712:03/29 15:26:34.410959 00099504 QRY streamStateReleaseBuf
+10754:03/29 15:26:34.411727 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+10755:03/29 15:26:34.411750 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+10759:03/29 15:26:34.411828 00099504 QRY streamStateReleaseBuf
+10767:03/29 15:26:34.411929 00099504 QRY streamStateGetCur_rocksdb
+10768:03/29 15:26:34.411976 00099504 QRY streamStateCurPrev_rocksdb
+10769:03/29 15:26:34.412065 00099504 QRY streamStateGetKVByCur_rocksdb
+10771:03/29 15:26:34.412093 00099504 QRY streamStateFreeCur
+10919:03/29 15:26:34.415336 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+10924:03/29 15:26:34.415401 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+10925:03/29 15:26:34.415530 00099504 QRY streamStateReleaseBuf
+10939:03/29 15:26:34.415814 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to del from default
+11037:03/29 15:26:34.417653 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+11038:03/29 15:26:34.417730 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+11039:03/29 15:26:34.417749 00099504 QRY streamStateReleaseBuf
+11062:03/29 15:26:34.418366 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+11063:03/29 15:26:34.418387 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+11067:03/29 15:26:34.418436 00099504 QRY streamStateReleaseBuf
+11075:03/29 15:26:34.418564 00099504 QRY streamStateGetCur_rocksdb
+11076:03/29 15:26:34.418619 00099504 QRY streamStateCurPrev_rocksdb
+11077:03/29 15:26:34.418642 00099504 QRY streamStateGetKVByCur_rocksdb
+11079:03/29 15:26:34.418671 00099504 QRY streamStateFreeCur
+11266:03/29 15:26:34.421834 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] failed to read from default, err: not exist
+11271:03/29 15:26:34.421905 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+11273:03/29 15:26:34.421927 00099504 QRY streamStateReleaseBuf
+11287:03/29 15:26:34.422121 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to del from default
+11342:03/29 15:26:34.423145 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] failed to read from default, err: not exist
+11343:03/29 15:26:34.423200 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+11344:03/29 15:26:34.423217 00099504 QRY streamStateReleaseBuf
+11367:03/29 15:26:34.423626 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+11368:03/29 15:26:34.423647 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+11372:03/29 15:26:34.423700 00099504 QRY streamStateReleaseBuf
+11380:03/29 15:26:34.423816 00099504 QRY streamStateGetCur_rocksdb
+11381:03/29 15:26:34.423856 00099504 QRY streamStateCurPrev_rocksdb
+11382:03/29 15:26:34.423935 00099504 QRY streamStateGetKVByCur_rocksdb
+11384:03/29 15:26:34.423968 00099504 QRY streamStateFreeCur
+11678:03/29 15:26:34.428786 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+11680:03/29 15:26:34.428835 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+11681:03/29 15:26:34.428879 00099504 QRY streamStateReleaseBuf
+11693:03/29 15:26:34.429033 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to del from default
+11744:03/29 15:26:34.429959 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] failed to read from default, err: not exist
+11745:03/29 15:26:34.430023 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+11746:03/29 15:26:34.430042 00099504 QRY streamStateReleaseBuf
+11769:03/29 15:26:34.430502 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+11770:03/29 15:26:34.430533 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+11774:03/29 15:26:34.430602 00099504 QRY streamStateReleaseBuf
+11782:03/29 15:26:34.430710 00099504 QRY streamStateGetCur_rocksdb
+11783:03/29 15:26:34.430752 00099504 QRY streamStateCurPrev_rocksdb
+11784:03/29 15:26:34.430773 00099504 QRY streamStateGetKVByCur_rocksdb
+11786:03/29 15:26:34.430787 00099504 QRY streamStateFreeCur
+11999:03/29 15:26:34.434262 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+12000:03/29 15:26:34.434332 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+12001:03/29 15:26:34.434348 00099504 QRY streamStateReleaseBuf
+12008:03/29 15:26:34.434438 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to del from default
+12061:03/29 15:26:34.435131 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] failed to read from default, err: not exist
+12062:03/29 15:26:34.435269 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to write to default, valLen:135
+12063:03/29 15:26:34.435281 00099504 QRY streamStateReleaseBuf
+12098:03/29 15:26:34.435777 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to read from default
+12099:03/29 15:26:34.435795 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+12108:03/29 15:26:34.435970 00099504 QRY streamStateReleaseBuf
+12126:03/29 15:26:34.436125 00099504 QRY streamStateGetCur_rocksdb
+12131:03/29 15:26:34.436229 00099504 QRY streamStateCurPrev_rocksdb
+12132:03/29 15:26:34.436312 00099504 QRY streamStateGetKVByCur_rocksdb
+12134:03/29 15:26:34.436333 00099504 QRY streamStateFreeCur
+12305:03/29 15:26:34.439031 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] failed to read from default, err: not exist
+12306:03/29 15:26:34.439071 00099504 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to write to default, valLen:135
+12307:03/29 15:26:34.439085 00099504 QRY streamStateReleaseBuf
+12315:03/29 15:26:34.439182 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to read from default
+12316:03/29 15:26:34.439203 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+12320:03/29 15:26:34.439259 00099504 QRY streamStateReleaseBuf
+12328:03/29 15:26:34.439338 00099504 QRY streamStateGetCur_rocksdb
+12329:03/29 15:26:34.439364 00099504 QRY streamStateCurPrev_rocksdb
+12330:03/29 15:26:34.439371 00099504 QRY streamStateGetKVByCur_rocksdb
+12332:03/29 15:26:34.439397 00099504 QRY streamStateFreeCur
+12538:03/29 15:26:34.442517 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to read from default
+12539:03/29 15:26:34.442565 00099504 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to write to default, valLen:135
+12540:03/29 15:26:34.442581 00099504 QRY streamStateReleaseBuf
+12548:03/29 15:26:34.442693 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to read from default
+12549:03/29 15:26:34.442715 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+12553:03/29 15:26:34.442767 00099504 QRY streamStateReleaseBuf
+12561:03/29 15:26:34.442840 00099504 QRY streamStateGetCur_rocksdb
+12562:03/29 15:26:34.442871 00099504 QRY streamStateCurPrev_rocksdb
+12563:03/29 15:26:34.442885 00099504 QRY streamStateGetKVByCur_rocksdb
+12565:03/29 15:26:34.442911 00099504 QRY streamStateFreeCur
+12794:03/29 15:26:34.446874 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to read from default
+12795:03/29 15:26:34.446925 00099504 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to write to default, valLen:135
+12796:03/29 15:26:34.446938 00099504 QRY streamStateReleaseBuf
+12804:03/29 15:26:34.447053 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to read from default
+12805:03/29 15:26:34.447122 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+12809:03/29 15:26:34.447183 00099504 QRY streamStateReleaseBuf
+12817:03/29 15:26:34.447263 00099504 QRY streamStateGetCur_rocksdb
+12818:03/29 15:26:34.447295 00099504 QRY streamStateCurPrev_rocksdb
+12819:03/29 15:26:34.447311 00099504 QRY streamStateGetKVByCur_rocksdb
+12821:03/29 15:26:34.447336 00099504 QRY streamStateFreeCur
+13002:03/29 15:26:34.449990 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to read from default
+13028:03/29 15:26:34.450040 00099504 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to write to default, valLen:135
+13029:03/29 15:26:34.450506 00099504 QRY streamStateReleaseBuf
+13037:03/29 15:26:34.450627 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to read from default
+13038:03/29 15:26:34.450642 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+13042:03/29 15:26:34.450681 00099504 QRY streamStateReleaseBuf
+13050:03/29 15:26:34.450772 00099504 QRY streamStateGetCur_rocksdb
+13051:03/29 15:26:34.450806 00099504 QRY streamStateCurPrev_rocksdb
+13052:03/29 15:26:34.450825 00099504 QRY streamStateGetKVByCur_rocksdb
+13054:03/29 15:26:34.450845 00099504 QRY streamStateFreeCur
+13375:03/29 15:26:34.456264 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to del from default
+13376:03/29 15:26:34.456301 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 2] succ to del from default
+13377:03/29 15:26:34.456339 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to del from default
+13425:03/29 15:26:34.456949 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] failed to read from default, err: not exist
+13426:03/29 15:26:34.456986 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to write to default, valLen:135
+13427:03/29 15:26:34.456999 00099504 QRY streamStateReleaseBuf
+13428:03/29 15:26:34.457026 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] failed to read from default, err: not exist
+13429:03/29 15:26:34.457072 00099504 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to write to default, valLen:135
+13430:03/29 15:26:34.457089 00099504 QRY streamStateReleaseBuf
+13452:03/29 15:26:34.457437 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+13460:03/29 15:26:34.457548 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 2] succ to read from default
+13461:03/29 15:26:34.457569 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+13465:03/29 15:26:34.457632 00099504 QRY streamStateReleaseBuf
+13466:03/29 15:26:34.457659 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 2] succ to read from default
+13467:03/29 15:26:34.457680 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+13471:03/29 15:26:34.457742 00099504 QRY streamStateReleaseBuf
+13480:03/29 15:26:34.457838 00099504 QRY streamStateGetCur_rocksdb
+13481:03/29 15:26:34.457875 00099504 QRY streamStateCurPrev_rocksdb
+13482:03/29 15:26:34.457894 00099504 QRY streamStateGetKVByCur_rocksdb
+13484:03/29 15:26:34.457925 00099504 QRY streamStateFreeCur
+24389:03/29 15:26:35.766200 00099571 QRY streamStateSetNumber, seq: 3
+24390:03/29 15:26:35.766226 00099571 QRY streamStateSetNumber, seq: 4
+24406:03/29 15:26:35.768111 00099577 QRY streamStateSetNumber, seq: 5
+24407:03/29 15:26:35.768140 00099577 QRY streamStateSetNumber, seq: 6
+24423:03/29 15:26:35.768472 00099565 QRY streamStateSetNumber, seq: 7
+24424:03/29 15:26:35.768494 00099565 QRY streamStateSetNumber, seq: 8
+24427:03/29 15:26:35.769698 00099560 QRY streamStateSetNumber, seq: 9
+24428:03/29 15:26:35.769809 00099560 QRY streamStateSetNumber, seq: 10
+24429:03/29 15:26:35.769968 00099560 QRY streamStateSetNumber, seq: 11
+24430:03/29 15:26:35.770071 00099560 QRY streamStateSetNumber, seq: 12
+24431:03/29 15:26:35.770183 00099560 QRY streamStateSetNumber, seq: 13
+24432:03/29 15:26:35.770289 00099560 QRY streamStateSetNumber, seq: 14
+24433:03/29 15:26:35.770401 00099560 QRY streamStateSetNumber, seq: 15
+24434:03/29 15:26:35.770510 00099560 QRY streamStateSetNumber, seq: 16
+24435:03/29 15:26:35.770621 00099560 QRY streamStateSetNumber, seq: 17
+24698:03/29 15:26:35.877143 00099560 QRY streamStateSetNumber, seq: 18
+24699:03/29 15:26:35.877173 00099560 QRY streamStateSetNumber, seq: 19
+25022:03/29 15:26:35.935568 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] failed to read from default, err: not exist
+25023:03/29 15:26:35.936534 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to write to default, valLen:135
+25024:03/29 15:26:35.936554 00099504 QRY streamStateReleaseBuf
+25031:03/29 15:26:35.936693 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to read from default
+25032:03/29 15:26:35.936721 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+25036:03/29 15:26:35.936786 00099504 QRY streamStateReleaseBuf
+25045:03/29 15:26:35.936910 00099504 QRY streamStateClear_rocksdb seq:19
+25131:03/29 15:26:35.940598 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] failed to read from default, err: not exist
+25150:03/29 15:26:35.941187 00099569 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+25151:03/29 15:26:35.941206 00099569 QRY streamStateReleaseBuf
+25152:03/29 15:26:35.941228 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] failed to read from default, err: not exist
+25153:03/29 15:26:35.941272 00099569 QRY streamState str:[groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to write to default, valLen:159
+25154:03/29 15:26:35.941289 00099569 QRY streamStateReleaseBuf
+25163:03/29 15:26:35.941439 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+25164:03/29 15:26:35.941454 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+25168:03/29 15:26:35.941496 00099569 QRY streamStateReleaseBuf
+25177:03/29 15:26:35.941606 00099569 QRY streamStateGetCur_rocksdb
+25178:03/29 15:26:35.941647 00099569 QRY streamStateCurPrev_rocksdb
+25179:03/29 15:26:35.941662 00099569 QRY streamStateGetKVByCur_rocksdb
+25181:03/29 15:26:35.941683 00099569 QRY streamStateFreeCur
+25454:03/29 15:26:35.946084 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] failed to read from default, err: not exist
+25604:03/29 15:26:35.948604 00099593 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to write to default, valLen:135
+25605:03/29 15:26:35.948628 00099593 QRY streamStateReleaseBuf
+25612:03/29 15:26:35.948791 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to read from default
+25613:03/29 15:26:35.948825 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+25617:03/29 15:26:35.948957 00099593 QRY streamStateReleaseBuf
+25626:03/29 15:26:35.949089 00099593 QRY streamStateClear_rocksdb seq:8
+25719:03/29 15:26:35.951052 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+25725:03/29 15:26:35.951164 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+25726:03/29 15:26:35.951176 00099575 QRY streamStateReleaseBuf
+25727:03/29 15:26:35.951218 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] failed to read from default, err: not exist
+25729:03/29 15:26:35.951260 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to write to default, valLen:159
+25731:03/29 15:26:35.951276 00099575 QRY streamStateReleaseBuf
+25740:03/29 15:26:35.951424 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+25741:03/29 15:26:35.951448 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+25745:03/29 15:26:35.951498 00099575 QRY streamStateReleaseBuf
+25754:03/29 15:26:35.951646 00099575 QRY streamStateGetCur_rocksdb
+25755:03/29 15:26:35.951691 00099575 QRY streamStateCurPrev_rocksdb
+25756:03/29 15:26:35.951715 00099575 QRY streamStateGetKVByCur_rocksdb
+25758:03/29 15:26:35.951746 00099575 QRY streamStateFreeCur
+26929:03/29 15:26:36.385048 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to del from default
+26935:03/29 15:26:36.385099 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+27075:03/29 15:26:36.389048 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to del from default
+27076:03/29 15:26:36.389266 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to del from default
+27077:03/29 15:26:36.389305 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] failed to read from default, err: not exist
+27078:03/29 15:26:36.389330 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to read from default
+27079:03/29 15:26:36.389362 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] failed to read from default, err: not exist
+27080:03/29 15:26:36.389386 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to read from default
+27081:03/29 15:26:36.389410 00099569 QRY streamStateReleaseBuf
+27082:03/29 15:26:36.389448 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:2,seq: 15] failed to read from default, err: not exist
+27083:03/29 15:26:36.389481 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:3,seq: 17] failed to read from default, err: not exist
+27087:03/29 15:26:36.389770 00099569 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+27088:03/29 15:26:36.389978 00099569 QRY streamStateReleaseBuf
+27109:03/29 15:26:36.390413 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+27115:03/29 15:26:36.390538 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+27121:03/29 15:26:36.390772 00099569 QRY streamStateReleaseBuf
+27130:03/29 15:26:36.391003 00099569 QRY streamStateGetCur_rocksdb
+27131:03/29 15:26:36.391083 00099569 QRY streamStateCurPrev_rocksdb
+27132:03/29 15:26:36.391119 00099569 QRY streamStateGetKVByCur_rocksdb
+27134:03/29 15:26:36.391162 00099569 QRY streamStateFreeCur
+27712:03/29 15:26:36.613687 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] failed to read from default, err: not exist
+27713:03/29 15:26:36.613804 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to write to default, valLen:135
+27714:03/29 15:26:36.613888 00099593 QRY streamStateReleaseBuf
+27721:03/29 15:26:36.614032 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to read from default
+27722:03/29 15:26:36.614063 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+27726:03/29 15:26:36.614139 00099593 QRY streamStateReleaseBuf
+27735:03/29 15:26:36.614284 00099593 QRY streamStateClear_rocksdb seq:19
+27919:03/29 15:26:36.617683 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] failed to read from default, err: not exist
+27925:03/29 15:26:36.617772 00099569 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+27927:03/29 15:26:36.617797 00099569 QRY streamStateReleaseBuf
+27932:03/29 15:26:36.617832 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] failed to read from default, err: not exist
+27934:03/29 15:26:36.617940 00099569 QRY streamState str:[groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to write to default, valLen:159
+27935:03/29 15:26:36.617987 00099569 QRY streamStateReleaseBuf
+27948:03/29 15:26:36.618231 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+27949:03/29 15:26:36.618278 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+27958:03/29 15:26:36.618525 00099569 QRY streamStateReleaseBuf
+27982:03/29 15:26:36.618888 00099569 QRY streamStateGetCur_rocksdb
+27994:03/29 15:26:36.619064 00099569 QRY streamStateCurPrev_rocksdb
+27997:03/29 15:26:36.619671 00099569 QRY streamStateGetKVByCur_rocksdb
+27999:03/29 15:26:36.619743 00099569 QRY streamStateFreeCur
+28078:03/29 15:26:36.621690 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] failed to read from default, err: not exist
+28082:03/29 15:26:36.621782 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to write to default, valLen:135
+28083:03/29 15:26:36.621794 00099575 QRY streamStateReleaseBuf
+28132:03/29 15:26:36.622671 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to read from default
+28200:03/29 15:26:36.623624 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+28204:03/29 15:26:36.625551 00099575 QRY streamStateReleaseBuf
+28232:03/29 15:26:36.626171 00099575 QRY streamStateClear_rocksdb seq:19
+28386:03/29 15:26:36.629674 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+28387:03/29 15:26:36.629751 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+28388:03/29 15:26:36.629773 00099504 QRY streamStateReleaseBuf
+28389:03/29 15:26:36.629807 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to read from default
+28390:03/29 15:26:36.629932 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to write to default, valLen:159
+28391:03/29 15:26:36.629955 00099504 QRY streamStateReleaseBuf
+28400:03/29 15:26:36.630174 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+28401:03/29 15:26:36.630206 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+28405:03/29 15:26:36.630291 00099504 QRY streamStateReleaseBuf
+28414:03/29 15:26:36.630450 00099504 QRY streamStateGetCur_rocksdb
+28415:03/29 15:26:36.630505 00099504 QRY streamStateCurPrev_rocksdb
+28416:03/29 15:26:36.630539 00099504 QRY streamStateGetKVByCur_rocksdb
+28418:03/29 15:26:36.630581 00099504 QRY streamStateFreeCur
+28729:03/29 15:26:36.637120 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] failed to read from default, err: not exist
+28730:03/29 15:26:36.637380 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to write to default, valLen:135
+28731:03/29 15:26:36.637416 00099575 QRY streamStateReleaseBuf
+28738:03/29 15:26:36.637723 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to read from default
+28739:03/29 15:26:36.637749 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+28743:03/29 15:26:36.637863 00099575 QRY streamStateReleaseBuf
+28752:03/29 15:26:36.638110 00099575 QRY streamStateClear_rocksdb seq:19
+28941:03/29 15:26:36.643526 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+28951:03/29 15:26:36.643634 00099569 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+28954:03/29 15:26:36.643786 00099569 QRY streamStateReleaseBuf
+28955:03/29 15:26:36.643949 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to read from default
+28959:03/29 15:26:36.643996 00099569 QRY streamState str:[groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to write to default, valLen:159
+28961:03/29 15:26:36.644018 00099569 QRY streamStateReleaseBuf
+28979:03/29 15:26:36.644396 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+28980:03/29 15:26:36.644412 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+29003:03/29 15:26:36.644735 00099569 QRY streamStateReleaseBuf
+29047:03/29 15:26:36.645726 00099569 QRY streamStateGetCur_rocksdb
+29049:03/29 15:26:36.645783 00099569 QRY streamStateCurPrev_rocksdb
+29051:03/29 15:26:36.645816 00099569 QRY streamStateGetKVByCur_rocksdb
+29056:03/29 15:26:36.645908 00099569 QRY streamStateFreeCur
+29118:03/29 15:26:36.646825 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] failed to read from default, err: not exist
+29132:03/29 15:26:36.647146 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to write to default, valLen:135
+29143:03/29 15:26:36.647241 00099575 QRY streamStateReleaseBuf
+29218:03/29 15:26:36.648091 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to read from default
+29220:03/29 15:26:36.648376 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+29245:03/29 15:26:36.648720 00099575 QRY streamStateReleaseBuf
+29292:03/29 15:26:36.649340 00099575 QRY streamStateClear_rocksdb seq:19
+29338:03/29 15:26:36.650291 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] failed to read from default, err: not exist
+29341:03/29 15:26:36.650366 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to write to default, valLen:135
+29342:03/29 15:26:36.650401 00099504 QRY streamStateReleaseBuf
+29387:03/29 15:26:36.651129 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to read from default
+29388:03/29 15:26:36.651172 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+29392:03/29 15:26:36.651221 00099504 QRY streamStateReleaseBuf
+29424:03/29 15:26:36.652291 00099504 QRY streamStateClear_rocksdb seq:8
+29494:03/29 15:26:36.653157 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+29495:03/29 15:26:36.653218 00099569 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+29496:03/29 15:26:36.653235 00099569 QRY streamStateReleaseBuf
+29497:03/29 15:26:36.653261 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to read from default
+29498:03/29 15:26:36.653387 00099569 QRY streamState str:[groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to write to default, valLen:159
+29499:03/29 15:26:36.653409 00099569 QRY streamStateReleaseBuf
+29508:03/29 15:26:36.653558 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+29509:03/29 15:26:36.653585 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+29513:03/29 15:26:36.653659 00099569 QRY streamStateReleaseBuf
+29522:03/29 15:26:36.653787 00099569 QRY streamStateGetCur_rocksdb
+29523:03/29 15:26:36.653835 00099569 QRY streamStateCurPrev_rocksdb
+29524:03/29 15:26:36.653866 00099569 QRY streamStateGetKVByCur_rocksdb
+29526:03/29 15:26:36.653899 00099569 QRY streamStateFreeCur
+29929:03/29 15:26:36.660341 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+29943:03/29 15:26:36.661005 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+29944:03/29 15:26:36.661020 00099575 QRY streamStateReleaseBuf
+29956:03/29 15:26:36.661065 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] failed to read from default, err: not exist
+29958:03/29 15:26:36.661320 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to write to default, valLen:159
+29960:03/29 15:26:36.661338 00099575 QRY streamStateReleaseBuf
+30026:03/29 15:26:36.662339 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+30027:03/29 15:26:36.662428 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+30031:03/29 15:26:36.662458 00099575 QRY streamStateReleaseBuf
+30040:03/29 15:26:36.662523 00099575 QRY streamStateGetCur_rocksdb
+30044:03/29 15:26:36.662562 00099575 QRY streamStateCurPrev_rocksdb
+30045:03/29 15:26:36.662609 00099575 QRY streamStateGetKVByCur_rocksdb
+30047:03/29 15:26:36.662630 00099575 QRY streamStateFreeCur
+30061:03/29 15:26:36.662751 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] failed to read from default, err: not exist
+30064:03/29 15:26:36.662911 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to write to default, valLen:135
+30065:03/29 15:26:36.662947 00099504 QRY streamStateReleaseBuf
+30077:03/29 15:26:36.663118 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to read from default
+30079:03/29 15:26:36.663142 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+30083:03/29 15:26:36.663188 00099504 QRY streamStateReleaseBuf
+30094:03/29 15:26:36.663331 00099504 QRY streamStateClear_rocksdb seq:8
+30428:03/29 15:26:36.668781 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] failed to read from default, err: not exist
+30434:03/29 15:26:36.668875 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to write to default, valLen:135
+30435:03/29 15:26:36.668887 00099504 QRY streamStateReleaseBuf
+30438:03/29 15:26:36.668903 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+30443:03/29 15:26:36.668961 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+30444:03/29 15:26:36.668975 00099593 QRY streamStateReleaseBuf
+30446:03/29 15:26:36.668995 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to read from default
+30477:03/29 15:26:36.669061 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to write to default, valLen:159
+30482:03/29 15:26:36.669375 00099593 QRY streamStateReleaseBuf
+30513:03/29 15:26:36.669729 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+30514:03/29 15:26:36.669879 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+30521:03/29 15:26:36.670104 00099593 QRY streamStateReleaseBuf
+30538:03/29 15:26:36.670259 00099593 QRY streamStateGetCur_rocksdb
+30542:03/29 15:26:36.670463 00099593 QRY streamStateCurPrev_rocksdb
+30543:03/29 15:26:36.670570 00099593 QRY streamStateGetKVByCur_rocksdb
+30553:03/29 15:26:36.670608 00099593 QRY streamStateFreeCur
+30573:03/29 15:26:36.671023 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to read from default
+30587:03/29 15:26:36.671407 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to write to default, valLen:135
+30588:03/29 15:26:36.671475 00099504 QRY streamStateReleaseBuf
+30609:03/29 15:26:36.671716 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to read from default
+30613:03/29 15:26:36.671877 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+30635:03/29 15:26:36.672365 00099504 QRY streamStateReleaseBuf
+30708:03/29 15:26:36.673055 00099504 QRY streamStateClear_rocksdb seq:8
+30830:03/29 15:26:36.676200 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+30839:03/29 15:26:36.676304 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+30840:03/29 15:26:36.676475 00099575 QRY streamStateReleaseBuf
+30841:03/29 15:26:36.676505 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to read from default
+30847:03/29 15:26:36.676557 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to write to default, valLen:159
+30848:03/29 15:26:36.676641 00099575 QRY streamStateReleaseBuf
+30857:03/29 15:26:36.676795 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+30858:03/29 15:26:36.676816 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+30862:03/29 15:26:36.676842 00099575 QRY streamStateReleaseBuf
+30875:03/29 15:26:36.677036 00099575 QRY streamStateGetCur_rocksdb
+30876:03/29 15:26:36.677079 00099575 QRY streamStateCurPrev_rocksdb
+30877:03/29 15:26:36.677110 00099575 QRY streamStateGetKVByCur_rocksdb
+30879:03/29 15:26:36.677141 00099575 QRY streamStateFreeCur
+31236:03/29 15:26:36.873472 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to del from default
+31237:03/29 15:26:36.873518 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+31307:03/29 15:26:36.874993 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] failed to read from default, err: not exist
+31308:03/29 15:26:36.875063 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to write to default, valLen:135
+31309:03/29 15:26:36.875081 00099504 QRY streamStateReleaseBuf
+31331:03/29 15:26:36.875547 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to read from default
+31332:03/29 15:26:36.875580 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+31336:03/29 15:26:36.875665 00099504 QRY streamStateReleaseBuf
+31345:03/29 15:26:36.875785 00099504 QRY streamStateClear_rocksdb seq:8
+31424:03/29 15:26:36.877822 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to del from default
+31430:03/29 15:26:36.877932 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to del from default
+31436:03/29 15:26:36.878107 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to read from default
+31437:03/29 15:26:36.878149 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] failed to read from default, err: not exist
+31438:03/29 15:26:36.878214 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to read from default
+31439:03/29 15:26:36.878238 00099593 QRY streamStateReleaseBuf
+31440:03/29 15:26:36.878261 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] failed to read from default, err: not exist
+31442:03/29 15:26:36.878286 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:2,seq: 15] failed to read from default, err: not exist
+31445:03/29 15:26:36.878317 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:3,seq: 17] failed to read from default, err: not exist
+31446:03/29 15:26:36.878553 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+31447:03/29 15:26:36.878576 00099593 QRY streamStateReleaseBuf
+31453:03/29 15:26:36.878672 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+31454:03/29 15:26:36.878734 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+31455:03/29 15:26:36.878756 00099593 QRY streamStateReleaseBuf
+31456:03/29 15:26:36.878787 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] failed to read from default, err: not exist
+31457:03/29 15:26:36.878851 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to write to default, valLen:159
+31458:03/29 15:26:36.878966 00099593 QRY streamStateReleaseBuf
+31467:03/29 15:26:36.879144 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+31468:03/29 15:26:36.879166 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+31472:03/29 15:26:36.879260 00099593 QRY streamStateReleaseBuf
+31490:03/29 15:26:36.879535 00099593 QRY streamStateGetCur_rocksdb
+31491:03/29 15:26:36.879594 00099593 QRY streamStateCurPrev_rocksdb
+31492:03/29 15:26:36.879635 00099593 QRY streamStateGetKVByCur_rocksdb
+31494:03/29 15:26:36.879677 00099593 QRY streamStateFreeCur
+32790:03/29 15:26:37.312151 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to del from default
+32791:03/29 15:26:37.312547 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+32956:03/29 15:26:37.316405 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to del from default
+32958:03/29 15:26:37.316471 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+32990:03/29 15:26:37.316969 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to del from default
+33005:03/29 15:26:37.317010 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to del from default
+33007:03/29 15:26:37.317297 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] failed to read from default, err: not exist
+33008:03/29 15:26:37.317327 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to read from default
+33017:03/29 15:26:37.317351 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] failed to read from default, err: not exist
+33020:03/29 15:26:37.317576 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to read from default
+33029:03/29 15:26:37.317597 00099593 QRY streamStateReleaseBuf
+33031:03/29 15:26:37.317809 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:2,seq: 15] failed to read from default, err: not exist
+33032:03/29 15:26:37.317862 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:3,seq: 17] failed to read from default, err: not exist
+33043:03/29 15:26:37.317920 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+33044:03/29 15:26:37.318013 00099593 QRY streamStateReleaseBuf
+33065:03/29 15:26:37.318457 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+33066:03/29 15:26:37.318535 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+33070:03/29 15:26:37.318574 00099593 QRY streamStateReleaseBuf
+33081:03/29 15:26:37.318869 00099593 QRY streamStateGetCur_rocksdb
+33083:03/29 15:26:37.318927 00099593 QRY streamStateCurPrev_rocksdb
+33084:03/29 15:26:37.318987 00099593 QRY streamStateGetKVByCur_rocksdb
+33098:03/29 15:26:37.319222 00099593 QRY streamStateFreeCur
+33227:03/29 15:26:37.322547 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to del from default
+33233:03/29 15:26:37.322790 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to del from default
+33242:03/29 15:26:37.323068 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] failed to read from default, err: not exist
+33253:03/29 15:26:37.323488 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] failed to read from default, err: not exist
+33255:03/29 15:26:37.324012 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:2,seq: 15] failed to read from default, err: not exist
+33266:03/29 15:26:37.324051 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:3,seq: 17] failed to read from default, err: not exist
+33292:03/29 15:26:37.325135 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+33341:03/29 15:26:37.325781 00099569 QRY streamStateGetCur_rocksdb
+33342:03/29 15:26:37.325915 00099569 QRY streamStateCurPrev_rocksdb
+33345:03/29 15:26:37.325981 00099569 QRY streamStateGetKVByCur_rocksdb
+33347:03/29 15:26:37.326005 00099569 QRY streamStateFreeCur
+33994:03/29 15:26:37.536707 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] failed to read from default, err: not exist
+33995:03/29 15:26:37.536789 00099593 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to write to default, valLen:135
+33996:03/29 15:26:37.536808 00099593 QRY streamStateReleaseBuf
+34003:03/29 15:26:37.536903 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to del from default
+34004:03/29 15:26:37.536934 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+34058:03/29 15:26:37.538122 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] failed to read from default, err: not exist
+34059:03/29 15:26:37.538191 00099593 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to write to default, valLen:135
+34060:03/29 15:26:37.538213 00099593 QRY streamStateReleaseBuf
+34101:03/29 15:26:37.539349 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to read from default
+34103:03/29 15:26:37.539451 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+34111:03/29 15:26:37.539595 00099593 QRY streamStateReleaseBuf
+34131:03/29 15:26:37.540219 00099593 QRY streamStateClear_rocksdb seq:19
+34235:03/29 15:26:37.543707 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to del from default
+34244:03/29 15:26:37.543761 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to del from default
+34247:03/29 15:26:37.544063 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] failed to read from default, err: not exist
+34249:03/29 15:26:37.544086 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to read from default
+34256:03/29 15:26:37.544113 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] failed to read from default, err: not exist
+34258:03/29 15:26:37.544228 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to read from default
+34260:03/29 15:26:37.544253 00099569 QRY streamStateReleaseBuf
+34262:03/29 15:26:37.544289 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:2,seq: 15] failed to read from default, err: not exist
+34264:03/29 15:26:37.544314 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:3,seq: 17] failed to read from default, err: not exist
+34267:03/29 15:26:37.544364 00099569 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+34268:03/29 15:26:37.544414 00099569 QRY streamStateReleaseBuf
+34274:03/29 15:26:37.544525 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+34276:03/29 15:26:37.544619 00099569 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+34278:03/29 15:26:37.544641 00099569 QRY streamStateReleaseBuf
+34282:03/29 15:26:37.544672 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] failed to read from default, err: not exist
+34287:03/29 15:26:37.544773 00099569 QRY streamState str:[groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to write to default, valLen:159
+34290:03/29 15:26:37.544959 00099569 QRY streamStateReleaseBuf
+34304:03/29 15:26:37.545517 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+34305:03/29 15:26:37.545543 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+34312:03/29 15:26:37.545784 00099569 QRY streamStateReleaseBuf
+34326:03/29 15:26:37.546147 00099569 QRY streamStateGetCur_rocksdb
+34328:03/29 15:26:37.546207 00099569 QRY streamStateCurPrev_rocksdb
+34331:03/29 15:26:37.546271 00099569 QRY streamStateGetKVByCur_rocksdb
+34335:03/29 15:26:37.546314 00099569 QRY streamStateFreeCur
+34551:03/29 15:26:37.550566 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] failed to read from default, err: not exist
+34554:03/29 15:26:37.550759 00099593 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to write to default, valLen:135
+34559:03/29 15:26:37.550778 00099593 QRY streamStateReleaseBuf
+34570:03/29 15:26:37.550993 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to del from default
+34575:03/29 15:26:37.551021 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+34690:03/29 15:26:37.552979 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] failed to read from default, err: not exist
+34691:03/29 15:26:37.553221 00099593 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to write to default, valLen:135
+34692:03/29 15:26:37.553241 00099593 QRY streamStateReleaseBuf
+34714:03/29 15:26:37.553789 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to read from default
+34715:03/29 15:26:37.553814 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+34719:03/29 15:26:37.553955 00099593 QRY streamStateReleaseBuf
+34728:03/29 15:26:37.554115 00099593 QRY streamStateClear_rocksdb seq:19
+34964:03/29 15:26:37.560528 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to del from default
+34967:03/29 15:26:37.560634 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to del from default
+34969:03/29 15:26:37.560670 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] failed to read from default, err: not exist
+34970:03/29 15:26:37.560727 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to read from default
+34971:03/29 15:26:37.560759 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] failed to read from default, err: not exist
+34976:03/29 15:26:37.560790 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to read from default
+34977:03/29 15:26:37.561047 00099584 QRY streamStateReleaseBuf
+34980:03/29 15:26:37.561079 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:2,seq: 15] failed to read from default, err: not exist
+34982:03/29 15:26:37.561152 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:3,seq: 17] failed to read from default, err: not exist
+34983:03/29 15:26:37.561237 00099584 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+34984:03/29 15:26:37.561255 00099584 QRY streamStateReleaseBuf
+34997:03/29 15:26:37.561378 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+35002:03/29 15:26:37.561627 00099584 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+35004:03/29 15:26:37.561693 00099584 QRY streamStateReleaseBuf
+35006:03/29 15:26:37.561744 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] failed to read from default, err: not exist
+35010:03/29 15:26:37.561791 00099584 QRY streamState str:[groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to write to default, valLen:159
+35032:03/29 15:26:37.561838 00099584 QRY streamStateReleaseBuf
+35053:03/29 15:26:37.562919 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+35054:03/29 15:26:37.562944 00099584 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+35060:03/29 15:26:37.563088 00099584 QRY streamStateReleaseBuf
+35084:03/29 15:26:37.563823 00099584 QRY streamStateGetCur_rocksdb
+35092:03/29 15:26:37.563931 00099584 QRY streamStateCurPrev_rocksdb
+35095:03/29 15:26:37.564020 00099584 QRY streamStateGetKVByCur_rocksdb
+35097:03/29 15:26:37.564127 00099584 QRY streamStateFreeCur
+35221:03/29 15:26:37.565946 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] failed to read from default, err: not exist
+35227:03/29 15:26:37.567086 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to write to default, valLen:135
+35235:03/29 15:26:37.567172 00099504 QRY streamStateReleaseBuf
+35266:03/29 15:26:37.568306 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to read from default
+35274:03/29 15:26:37.568338 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+35292:03/29 15:26:37.568747 00099504 QRY streamStateReleaseBuf
+35330:03/29 15:26:37.569446 00099504 QRY streamStateClear_rocksdb seq:19
+35495:03/29 15:26:37.573622 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] failed to read from default, err: not exist
+35496:03/29 15:26:37.573751 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+35497:03/29 15:26:37.573772 00099504 QRY streamStateReleaseBuf
+35498:03/29 15:26:37.573794 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] failed to read from default, err: not exist
+35499:03/29 15:26:37.573845 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to write to default, valLen:159
+35500:03/29 15:26:37.573920 00099504 QRY streamStateReleaseBuf
+35509:03/29 15:26:37.574057 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+35510:03/29 15:26:37.574082 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+35514:03/29 15:26:37.574122 00099504 QRY streamStateReleaseBuf
+35524:03/29 15:26:37.574307 00099504 QRY streamStateGetCur_rocksdb
+35526:03/29 15:26:37.574365 00099504 QRY streamStateCurPrev_rocksdb
+35529:03/29 15:26:37.574548 00099504 QRY streamStateGetKVByCur_rocksdb
+35540:03/29 15:26:37.574750 00099504 QRY streamStateFreeCur
+35855:03/29 15:26:37.597332 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] failed to read from default, err: not exist
+35856:03/29 15:26:37.597444 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to write to default, valLen:135
+35857:03/29 15:26:37.597462 00099575 QRY streamStateReleaseBuf
+35864:03/29 15:26:37.597607 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to del from default
+35865:03/29 15:26:37.597647 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+35921:03/29 15:26:37.598924 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] failed to read from default, err: not exist
+35922:03/29 15:26:37.598993 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to write to default, valLen:135
+35923:03/29 15:26:37.599012 00099575 QRY streamStateReleaseBuf
+35953:03/29 15:26:37.599550 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to read from default
+35954:03/29 15:26:37.599717 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+35961:03/29 15:26:37.600018 00099575 QRY streamStateReleaseBuf
+35977:03/29 15:26:37.600259 00099575 QRY streamStateClear_rocksdb seq:8
+36129:03/29 15:26:37.603242 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to del from default
+36133:03/29 15:26:37.603309 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to del from default
+36136:03/29 15:26:37.603364 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to read from default
+36148:03/29 15:26:37.603423 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] failed to read from default, err: not exist
+36150:03/29 15:26:37.603621 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to read from default
+36151:03/29 15:26:37.603666 00099504 QRY streamStateReleaseBuf
+36152:03/29 15:26:37.603696 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] failed to read from default, err: not exist
+36153:03/29 15:26:37.603714 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:2,seq: 15] failed to read from default, err: not exist
+36162:03/29 15:26:37.603731 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:3,seq: 17] failed to read from default, err: not exist
+36165:03/29 15:26:37.604030 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+36171:03/29 15:26:37.604047 00099504 QRY streamStateReleaseBuf
+36178:03/29 15:26:37.604186 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+36180:03/29 15:26:37.604236 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+36181:03/29 15:26:37.604249 00099504 QRY streamStateReleaseBuf
+36182:03/29 15:26:37.604268 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] failed to read from default, err: not exist
+36193:03/29 15:26:37.604308 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to write to default, valLen:159
+36194:03/29 15:26:37.604479 00099504 QRY streamStateReleaseBuf
+36203:03/29 15:26:37.604668 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+36204:03/29 15:26:37.604695 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+36208:03/29 15:26:37.604762 00099504 QRY streamStateReleaseBuf
+36217:03/29 15:26:37.604946 00099504 QRY streamStateGetCur_rocksdb
+36218:03/29 15:26:37.605000 00099504 QRY streamStateCurPrev_rocksdb
+36219:03/29 15:26:37.605054 00099504 QRY streamStateGetKVByCur_rocksdb
+36221:03/29 15:26:37.605079 00099504 QRY streamStateFreeCur
+36590:03/29 15:26:37.612667 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] failed to read from default, err: not exist
+36591:03/29 15:26:37.612748 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to write to default, valLen:135
+36592:03/29 15:26:37.612767 00099575 QRY streamStateReleaseBuf
+36599:03/29 15:26:37.612867 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to del from default
+36600:03/29 15:26:37.612900 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+36657:03/29 15:26:37.613821 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] failed to read from default, err: not exist
+36658:03/29 15:26:37.613926 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to write to default, valLen:135
+36659:03/29 15:26:37.613941 00099575 QRY streamStateReleaseBuf
+36681:03/29 15:26:37.614371 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to read from default
+36682:03/29 15:26:37.614396 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+36686:03/29 15:26:37.614465 00099575 QRY streamStateReleaseBuf
+36695:03/29 15:26:37.614603 00099575 QRY streamStateClear_rocksdb seq:8
+36836:03/29 15:26:37.616970 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] failed to read from default, err: not exist
+36841:03/29 15:26:37.617055 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to write to default, valLen:135
+36847:03/29 15:26:37.617218 00099575 QRY streamStateReleaseBuf
+36872:03/29 15:26:37.617580 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to read from default
+36873:03/29 15:26:37.617594 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to del from default
+36874:03/29 15:26:37.617605 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+36878:03/29 15:26:37.617660 00099575 QRY streamStateReleaseBuf
+36883:03/29 15:26:37.617638 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to del from default
+36884:03/29 15:26:37.617742 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to read from default
+36891:03/29 15:26:37.617762 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] failed to read from default, err: not exist
+36895:03/29 15:26:37.617885 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to read from default
+36896:03/29 15:26:37.617924 00099504 QRY streamStateReleaseBuf
+36898:03/29 15:26:37.617938 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] failed to read from default, err: not exist
+36899:03/29 15:26:37.617951 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:2,seq: 15] failed to read from default, err: not exist
+36902:03/29 15:26:37.617998 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:3,seq: 17] failed to read from default, err: not exist
+36908:03/29 15:26:37.618051 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+36909:03/29 15:26:37.617951 00099575 QRY streamStateClear_rocksdb seq:8
+36911:03/29 15:26:37.618063 00099504 QRY streamStateReleaseBuf
+36923:03/29 15:26:37.618223 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+36925:03/29 15:26:37.618268 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+36926:03/29 15:26:37.618279 00099504 QRY streamStateReleaseBuf
+36927:03/29 15:26:37.618319 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] failed to read from default, err: not exist
+36928:03/29 15:26:37.618362 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to write to default, valLen:159
+36929:03/29 15:26:37.618377 00099504 QRY streamStateReleaseBuf
+36939:03/29 15:26:37.618467 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+36940:03/29 15:26:37.618509 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+36945:03/29 15:26:37.618592 00099504 QRY streamStateReleaseBuf
+36971:03/29 15:26:37.619057 00099504 QRY streamStateGetCur_rocksdb
+36972:03/29 15:26:37.619108 00099504 QRY streamStateCurPrev_rocksdb
+36973:03/29 15:26:37.619154 00099504 QRY streamStateGetKVByCur_rocksdb
+36975:03/29 15:26:37.619179 00099504 QRY streamStateFreeCur
+37210:03/29 15:26:37.624330 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+37216:03/29 15:26:37.624434 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+37217:03/29 15:26:37.624449 00099575 QRY streamStateReleaseBuf
+37218:03/29 15:26:37.624474 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] failed to read from default, err: not exist
+37220:03/29 15:26:37.624513 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to write to default, valLen:159
+37221:03/29 15:26:37.624548 00099575 QRY streamStateReleaseBuf
+37230:03/29 15:26:37.624686 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+37231:03/29 15:26:37.624710 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+37235:03/29 15:26:37.624748 00099575 QRY streamStateReleaseBuf
+37248:03/29 15:26:37.624926 00099575 QRY streamStateGetCur_rocksdb
+37251:03/29 15:26:37.624975 00099575 QRY streamStateCurPrev_rocksdb
+37252:03/29 15:26:37.625028 00099575 QRY streamStateGetKVByCur_rocksdb
+37254:03/29 15:26:37.625060 00099575 QRY streamStateFreeCur
+37627:03/29 15:26:37.823270 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to del from default
+37628:03/29 15:26:37.823315 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+37682:03/29 15:26:37.824480 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] failed to read from default, err: not exist
+37683:03/29 15:26:37.824646 00099593 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to write to default, valLen:135
+37684:03/29 15:26:37.824676 00099593 QRY streamStateReleaseBuf
+37705:03/29 15:26:37.825482 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 8] succ to read from default
+37706:03/29 15:26:37.825552 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+37710:03/29 15:26:37.825677 00099593 QRY streamStateReleaseBuf
+37719:03/29 15:26:37.825826 00099593 QRY streamStateClear_rocksdb seq:8
+37818:03/29 15:26:37.830111 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to del from default
+37821:03/29 15:26:37.830255 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to del from default
+37822:03/29 15:26:37.830299 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to read from default
+37823:03/29 15:26:37.830329 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] failed to read from default, err: not exist
+37824:03/29 15:26:37.830368 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to read from default
+37825:03/29 15:26:37.830392 00099504 QRY streamStateReleaseBuf
+37826:03/29 15:26:37.830423 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] failed to read from default, err: not exist
+37827:03/29 15:26:37.830458 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:2,seq: 15] failed to read from default, err: not exist
+37828:03/29 15:26:37.830490 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:3,seq: 17] failed to read from default, err: not exist
+37829:03/29 15:26:37.830558 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+37830:03/29 15:26:37.830580 00099504 QRY streamStateReleaseBuf
+37836:03/29 15:26:37.830669 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+37837:03/29 15:26:37.830733 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+37838:03/29 15:26:37.830755 00099504 QRY streamStateReleaseBuf
+37839:03/29 15:26:37.830787 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] failed to read from default, err: not exist
+37840:03/29 15:26:37.830842 00099504 QRY streamState str:[groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to write to default, valLen:159
+37841:03/29 15:26:37.830864 00099504 QRY streamStateReleaseBuf
+37850:03/29 15:26:37.831140 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+37851:03/29 15:26:37.831169 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+37855:03/29 15:26:37.831253 00099504 QRY streamStateReleaseBuf
+37864:03/29 15:26:37.831412 00099504 QRY streamStateGetCur_rocksdb
+37865:03/29 15:26:37.831473 00099504 QRY streamStateCurPrev_rocksdb
+37866:03/29 15:26:37.831548 00099504 QRY streamStateGetKVByCur_rocksdb
+37868:03/29 15:26:37.831590 00099504 QRY streamStateFreeCur
+38448:03/29 15:26:38.045401 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] failed to read from default, err: not exist
+38449:03/29 15:26:38.045492 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to write to default, valLen:135
+38450:03/29 15:26:38.045507 00099575 QRY streamStateReleaseBuf
+38457:03/29 15:26:38.045670 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to read from default
+38458:03/29 15:26:38.045695 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+38462:03/29 15:26:38.045736 00099575 QRY streamStateReleaseBuf
+38471:03/29 15:26:38.045894 00099575 QRY streamStateClear_rocksdb seq:19
+38586:03/29 15:26:38.048400 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+38590:03/29 15:26:38.048485 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+38602:03/29 15:26:38.048526 00099593 QRY streamStateReleaseBuf
+38606:03/29 15:26:38.048792 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to read from default
+38614:03/29 15:26:38.048981 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to write to default, valLen:159
+38616:03/29 15:26:38.049143 00099593 QRY streamStateReleaseBuf
+38626:03/29 15:26:38.049379 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+38627:03/29 15:26:38.049402 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+38635:03/29 15:26:38.049480 00099593 QRY streamStateReleaseBuf
+38644:03/29 15:26:38.049633 00099593 QRY streamStateGetCur_rocksdb
+38647:03/29 15:26:38.049683 00099593 QRY streamStateCurPrev_rocksdb
+38648:03/29 15:26:38.049776 00099593 QRY streamStateGetKVByCur_rocksdb
+38651:03/29 15:26:38.049812 00099593 QRY streamStateFreeCur
+38954:03/29 15:26:38.056513 00099584 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] failed to read from default, err: not exist
+38962:03/29 15:26:38.056672 00099584 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to write to default, valLen:135
+38963:03/29 15:26:38.056816 00099584 QRY streamStateReleaseBuf
+38981:03/29 15:26:38.057479 00099584 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to read from default
+38982:03/29 15:26:38.057676 00099584 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+38986:03/29 15:26:38.057789 00099584 QRY streamStateReleaseBuf
+39011:03/29 15:26:38.058195 00099584 QRY streamStateClear_rocksdb seq:19
+39234:03/29 15:26:38.063323 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+39242:03/29 15:26:38.063607 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+39243:03/29 15:26:38.063622 00099593 QRY streamStateReleaseBuf
+39244:03/29 15:26:38.063679 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to read from default
+39245:03/29 15:26:38.063721 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] failed to read from default, err: not exist
+39246:03/29 15:26:38.063740 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to write to default, valLen:159
+39247:03/29 15:26:38.063758 00099593 QRY streamStateReleaseBuf
+39252:03/29 15:26:38.063810 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to write to default, valLen:135
+39254:03/29 15:26:38.063823 00099504 QRY streamStateReleaseBuf
+39263:03/29 15:26:38.064107 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to read from default
+39274:03/29 15:26:38.064139 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+39278:03/29 15:26:38.064452 00099504 QRY streamStateReleaseBuf
+39292:03/29 15:26:38.064610 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+39295:03/29 15:26:38.064734 00099504 QRY streamStateClear_rocksdb seq:8
+39304:03/29 15:26:38.064698 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+39308:03/29 15:26:38.065178 00099593 QRY streamStateReleaseBuf
+39330:03/29 15:26:38.065629 00099593 QRY streamStateGetCur_rocksdb
+39336:03/29 15:26:38.065809 00099593 QRY streamStateCurPrev_rocksdb
+39341:03/29 15:26:38.065967 00099593 QRY streamStateGetKVByCur_rocksdb
+39358:03/29 15:26:38.066225 00099593 QRY streamStateFreeCur
+39530:03/29 15:26:38.069291 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+39532:03/29 15:26:38.069399 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+39533:03/29 15:26:38.069441 00099593 QRY streamStateReleaseBuf
+39534:03/29 15:26:38.069469 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to read from default
+39543:03/29 15:26:38.069576 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to write to default, valLen:159
+39544:03/29 15:26:38.069618 00099593 QRY streamStateReleaseBuf
+39570:03/29 15:26:38.069703 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] failed to read from default, err: not exist
+39575:03/29 15:26:38.070400 00099504 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to write to default, valLen:135
+39576:03/29 15:26:38.070424 00099504 QRY streamStateReleaseBuf
+39594:03/29 15:26:38.070680 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to read from default
+39595:03/29 15:26:38.070791 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+39599:03/29 15:26:38.070851 00099504 QRY streamStateReleaseBuf
+39603:03/29 15:26:38.070998 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+39607:03/29 15:26:38.071113 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+39613:03/29 15:26:38.071207 00099593 QRY streamStateReleaseBuf
+39657:03/29 15:26:38.072025 00099504 QRY streamStateClear_rocksdb seq:8
+39683:03/29 15:26:38.072546 00099593 QRY streamStateGetCur_rocksdb
+39685:03/29 15:26:38.072616 00099593 QRY streamStateCurPrev_rocksdb
+39688:03/29 15:26:38.072721 00099593 QRY streamStateGetKVByCur_rocksdb
+39691:03/29 15:26:38.072755 00099593 QRY streamStateFreeCur
+39868:03/29 15:26:38.079438 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+39876:03/29 15:26:38.079538 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+39877:03/29 15:26:38.079739 00099593 QRY streamStateReleaseBuf
+39879:03/29 15:26:38.079775 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to read from default
+39892:03/29 15:26:38.079910 00099593 QRY streamState str:[groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to write to default, valLen:159
+39893:03/29 15:26:38.080684 00099593 QRY streamStateReleaseBuf
+39916:03/29 15:26:38.081473 00099593 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to read from default
+39917:03/29 15:26:38.081567 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+39924:03/29 15:26:38.081650 00099593 QRY streamStateReleaseBuf
+39935:03/29 15:26:38.081780 00099593 QRY streamStateGetCur_rocksdb
+39937:03/29 15:26:38.081903 00099593 QRY streamStateCurPrev_rocksdb
+39941:03/29 15:26:38.081980 00099593 QRY streamStateGetKVByCur_rocksdb
+39947:03/29 15:26:38.082150 00099593 QRY streamStateFreeCur
+40238:03/29 15:26:38.088762 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 19] failed to read from default, err: not exist
+40239:03/29 15:26:38.088910 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 19] succ to write to default, valLen:135
+40240:03/29 15:26:38.088931 00099575 QRY streamStateReleaseBuf
+40249:03/29 15:26:38.089088 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 19] succ to read from default
+40262:03/29 15:26:38.089141 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+40271:03/29 15:26:38.089357 00099575 QRY streamStateReleaseBuf
+40313:03/29 15:26:38.090004 00099575 QRY streamStateClear_rocksdb seq:19
+40561:03/29 15:26:38.094136 00099593 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] failed to read from default, err: not exist
+40563:03/29 15:26:38.094427 00099593 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to write to default, valLen:159
+40565:03/29 15:26:38.094445 00099593 QRY streamStateReleaseBuf
+40568:03/29 15:26:38.094478 00099593 QRY streamState str: [groupId:0,ts:1648791230000,opNum:0,seq: 11] failed to read from default, err: not exist
+40573:03/29 15:26:38.094521 00099593 QRY streamState str:[groupId:0,ts:1648791230000,opNum:0,seq: 11] succ to write to default, valLen:159
+40583:03/29 15:26:38.094535 00099593 QRY streamStateReleaseBuf
+40636:03/29 15:26:38.095424 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 19] failed to read from default, err: not exist
+40637:03/29 15:26:38.095473 00099593 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+40638:03/29 15:26:38.095496 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+40642:03/29 15:26:38.095576 00099593 QRY streamStateReleaseBuf
+40643:03/29 15:26:38.095504 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 19] succ to write to default, valLen:135
+40648:03/29 15:26:38.095597 00099575 QRY streamStateReleaseBuf
+40663:03/29 15:26:38.095838 00099593 QRY streamStateGetCur_rocksdb
+40666:03/29 15:26:38.095882 00099593 QRY streamStateCurPrev_rocksdb
+40668:03/29 15:26:38.095926 00099593 QRY streamStateGetKVByCur_rocksdb
+40670:03/29 15:26:38.095882 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 19] succ to read from default
+40671:03/29 15:26:38.095965 00099593 QRY streamStateFreeCur
+40672:03/29 15:26:38.095972 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+40678:03/29 15:26:38.096018 00099575 QRY streamStateReleaseBuf
+40691:03/29 15:26:38.096133 00099575 QRY streamStateClear_rocksdb seq:19
+40842:03/29 15:26:38.098338 00099593 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+40843:03/29 15:26:38.098396 00099593 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to write to default, valLen:159
+40844:03/29 15:26:38.098410 00099593 QRY streamStateReleaseBuf
+40855:03/29 15:26:38.098439 00099593 QRY streamState str: [groupId:0,ts:1648791230000,opNum:0,seq: 11] succ to read from default
+40859:03/29 15:26:38.098591 00099593 QRY streamState str:[groupId:0,ts:1648791230000,opNum:0,seq: 11] succ to write to default, valLen:159
+40860:03/29 15:26:38.098608 00099593 QRY streamStateReleaseBuf
+40946:03/29 15:26:38.098842 00099593 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+40947:03/29 15:26:38.100078 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+40951:03/29 15:26:38.100132 00099593 QRY streamStateReleaseBuf
+40960:03/29 15:26:38.100244 00099593 QRY streamStateGetCur_rocksdb
+40961:03/29 15:26:38.100281 00099593 QRY streamStateCurPrev_rocksdb
+40962:03/29 15:26:38.100315 00099593 QRY streamStateGetKVByCur_rocksdb
+40964:03/29 15:26:38.100347 00099593 QRY streamStateFreeCur
+41182:03/29 15:26:38.103325 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 8] failed to read from default, err: not exist
+41192:03/29 15:26:38.103733 00099504 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 8] succ to write to default, valLen:135
+41195:03/29 15:26:38.103855 00099504 QRY streamStateReleaseBuf
+41215:03/29 15:26:38.104349 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 8] succ to read from default
+41216:03/29 15:26:38.104372 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+41228:03/29 15:26:38.104601 00099504 QRY streamStateReleaseBuf
+41285:03/29 15:26:38.105526 00099504 QRY streamStateClear_rocksdb seq:8
+41487:03/29 15:26:38.108582 00099584 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+41490:03/29 15:26:38.108936 00099584 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to write to default, valLen:159
+41491:03/29 15:26:38.108955 00099584 QRY streamStateReleaseBuf
+41493:03/29 15:26:38.108983 00099584 QRY streamState str: [groupId:0,ts:1648791230000,opNum:1,seq: 13] failed to read from default, err: not exist
+41501:03/29 15:26:38.109032 00099584 QRY streamState str:[groupId:0,ts:1648791230000,opNum:1,seq: 13] succ to write to default, valLen:159
+41502:03/29 15:26:38.109122 00099584 QRY streamStateReleaseBuf
+41527:03/29 15:26:38.109355 00099584 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+41528:03/29 15:26:38.109395 00099584 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+41533:03/29 15:26:38.109705 00099584 QRY streamStateReleaseBuf
+41588:03/29 15:26:38.110405 00099584 QRY streamStateGetCur_rocksdb
+41589:03/29 15:26:38.110567 00099584 QRY streamStateCurPrev_rocksdb
+41591:03/29 15:26:38.110601 00099584 QRY streamStateGetKVByCur_rocksdb
+41599:03/29 15:26:38.110694 00099584 QRY streamStateFreeCur
+41606:03/29 15:26:38.110744 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 8] failed to read from default, err: not exist
+41613:03/29 15:26:38.110924 00099504 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 8] succ to write to default, valLen:135
+41614:03/29 15:26:38.111008 00099504 QRY streamStateReleaseBuf
+41631:03/29 15:26:38.111153 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 8] succ to read from default
+41632:03/29 15:26:38.111212 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+41637:03/29 15:26:38.111266 00099504 QRY streamStateReleaseBuf
+41656:03/29 15:26:38.111573 00099504 QRY streamStateClear_rocksdb seq:8
+41784:03/29 15:26:38.113332 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+41785:03/29 15:26:38.113399 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to write to default, valLen:159
+41786:03/29 15:26:38.113417 00099575 QRY streamStateReleaseBuf
+41787:03/29 15:26:38.113447 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:1,seq: 13] succ to read from default
+41788:03/29 15:26:38.113495 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:1,seq: 13] succ to write to default, valLen:159
+41789:03/29 15:26:38.113511 00099575 QRY streamStateReleaseBuf
+41798:03/29 15:26:38.113713 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+41799:03/29 15:26:38.113738 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+41803:03/29 15:26:38.113803 00099575 QRY streamStateReleaseBuf
+41812:03/29 15:26:38.113982 00099575 QRY streamStateGetCur_rocksdb
+41813:03/29 15:26:38.114026 00099575 QRY streamStateCurPrev_rocksdb
+41814:03/29 15:26:38.114062 00099575 QRY streamStateGetKVByCur_rocksdb
+41816:03/29 15:26:38.114126 00099575 QRY streamStateFreeCur
+42853:03/29 15:26:38.329316 00099504 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 19] succ to del from default
+42857:03/29 15:26:38.329888 00099504 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 19] succ to del from default
+42859:03/29 15:26:38.330165 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 19] succ to del from default
+42860:03/29 15:26:38.330208 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+42861:03/29 15:26:38.330257 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+42862:03/29 15:26:38.330275 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+42958:03/29 15:26:38.332359 00099569 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 8] succ to del from default
+42964:03/29 15:26:38.332407 00099569 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 8] succ to del from default
+42965:03/29 15:26:38.332473 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+42966:03/29 15:26:38.332488 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+42981:03/29 15:26:38.332676 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 19] failed to read from default, err: not exist
+42984:03/29 15:26:38.332745 00099504 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 19] succ to write to default, valLen:135
+42986:03/29 15:26:38.332764 00099504 QRY streamStateReleaseBuf
+43046:03/29 15:26:38.334165 00099504 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 19] succ to read from default
+43048:03/29 15:26:38.334198 00099504 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+43053:03/29 15:26:38.334321 00099504 QRY streamStateReleaseBuf
+43065:03/29 15:26:38.334481 00099569 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 8] failed to read from default, err: not exist
+43067:03/29 15:26:38.334534 00099504 QRY streamStateClear_rocksdb seq:19
+43068:03/29 15:26:38.334552 00099569 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 8] succ to write to default, valLen:135
+43069:03/29 15:26:38.334574 00099569 QRY streamStateReleaseBuf
+43100:03/29 15:26:38.335311 00099569 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 8] succ to read from default
+43101:03/29 15:26:38.335423 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+43109:03/29 15:26:38.335477 00099569 QRY streamStateReleaseBuf
+43121:03/29 15:26:38.335782 00099569 QRY streamStateClear_rocksdb seq:8
+43282:03/29 15:26:38.339328 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to del from default
+43283:03/29 15:26:38.339399 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to del from default
+43289:03/29 15:26:38.339504 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to del from default
+43290:03/29 15:26:38.339565 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] succ to del from default
+43291:03/29 15:26:38.339625 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] succ to del from default
+43292:03/29 15:26:38.339705 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:0,seq: 11] succ to del from default
+43293:03/29 15:26:38.339749 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 11] failed to read from default, err: not exist
+43294:03/29 15:26:38.339784 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to read from default
+43295:03/29 15:26:38.339923 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] failed to read from default, err: not exist
+43296:03/29 15:26:38.339977 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 13] succ to read from default
+43297:03/29 15:26:38.339998 00099575 QRY streamStateReleaseBuf
+43298:03/29 15:26:38.340051 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:2,seq: 15] failed to read from default, err: not exist
+43299:03/29 15:26:38.340084 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:3,seq: 17] failed to read from default, err: not exist
+43300:03/29 15:26:38.340164 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to write to default, valLen:159
+43301:03/29 15:26:38.340186 00099575 QRY streamStateReleaseBuf
+43302:03/29 15:26:38.340222 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] failed to read from default, err: not exist
+43303:03/29 15:26:38.340256 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to read from default
+43304:03/29 15:26:38.340310 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] failed to read from default, err: not exist
+43305:03/29 15:26:38.340345 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to read from default
+43306:03/29 15:26:38.340579 00099575 QRY streamStateReleaseBuf
+43307:03/29 15:26:38.340617 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:2,seq: 15] failed to read from default, err: not exist
+43308:03/29 15:26:38.340649 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:3,seq: 17] failed to read from default, err: not exist
+43309:03/29 15:26:38.340721 00099575 QRY streamState str:[groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to write to default, valLen:159
+43310:03/29 15:26:38.340743 00099575 QRY streamStateReleaseBuf
+43311:03/29 15:26:38.340781 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:0,seq: 11] failed to read from default, err: not exist
+43312:03/29 15:26:38.340834 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:1,seq: 13] succ to read from default
+43313:03/29 15:26:38.340874 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] failed to read from default, err: not exist
+43314:03/29 15:26:38.340924 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:1,seq: 13] succ to read from default
+43315:03/29 15:26:38.340947 00099575 QRY streamStateReleaseBuf
+43316:03/29 15:26:38.341105 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:2,seq: 15] failed to read from default, err: not exist
+43317:03/29 15:26:38.341238 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:3,seq: 17] failed to read from default, err: not exist
+43318:03/29 15:26:38.341400 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to write to default, valLen:159
+43319:03/29 15:26:38.341431 00099575 QRY streamStateReleaseBuf
+43325:03/29 15:26:38.341593 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+43326:03/29 15:26:38.341676 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to write to default, valLen:159
+43327:03/29 15:26:38.341699 00099575 QRY streamStateReleaseBuf
+43328:03/29 15:26:38.341739 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:0,seq: 11] failed to read from default, err: not exist
+43329:03/29 15:26:38.342152 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:0,seq: 11] succ to write to default, valLen:159
+43330:03/29 15:26:38.342181 00099575 QRY streamStateReleaseBuf
+43337:03/29 15:26:38.342311 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:-1,seq: 9] succ to del from default
+43338:03/29 15:26:38.342376 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to del from default
+43339:03/29 15:26:38.342435 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] succ to del from default
+43340:03/29 15:26:38.342519 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:1,seq: 13] succ to del from default
+43341:03/29 15:26:38.342561 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:0,seq: 11] failed to read from default, err: not exist
+43342:03/29 15:26:38.342594 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:1,seq: 13] failed to read from default, err: not exist
+43343:03/29 15:26:38.342629 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:2,seq: 15] failed to read from default, err: not exist
+43344:03/29 15:26:38.342661 00099575 QRY streamState str: [groupId:0,ts:1648791220000,opNum:3,seq: 17] failed to read from default, err: not exist
+43345:03/29 15:26:38.342698 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:0,seq: 11] succ to read from default
+43346:03/29 15:26:38.342738 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] failed to read from default, err: not exist
+43347:03/29 15:26:38.342776 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:0,seq: 11] succ to read from default
+43348:03/29 15:26:38.342799 00099575 QRY streamStateReleaseBuf
+43349:03/29 15:26:38.342834 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:1,seq: 13] failed to read from default, err: not exist
+43350:03/29 15:26:38.342865 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:2,seq: 15] failed to read from default, err: not exist
+43351:03/29 15:26:38.342908 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:3,seq: 17] failed to read from default, err: not exist
+43352:03/29 15:26:38.342975 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to write to default, valLen:159
+43353:03/29 15:26:38.342997 00099575 QRY streamStateReleaseBuf
+43359:03/29 15:26:38.343177 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+43360:03/29 15:26:38.343248 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to write to default, valLen:159
+43361:03/29 15:26:38.343269 00099575 QRY streamStateReleaseBuf
+43362:03/29 15:26:38.343305 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:1,seq: 13] failed to read from default, err: not exist
+43363:03/29 15:26:38.343368 00099575 QRY streamState str:[groupId:0,ts:1648791230000,opNum:1,seq: 13] succ to write to default, valLen:159
+43364:03/29 15:26:38.343389 00099575 QRY streamStateReleaseBuf
+43373:03/29 15:26:38.343768 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+43382:03/29 15:26:38.344088 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 9] succ to read from default
+43383:03/29 15:26:38.344118 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+43387:03/29 15:26:38.344203 00099575 QRY streamStateReleaseBuf
+43388:03/29 15:26:38.344244 00099575 QRY streamState str: [groupId:0,ts:1648791230000,opNum:-1,seq: 9] succ to read from default
+43389:03/29 15:26:38.344273 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+43393:03/29 15:26:38.344355 00099575 QRY streamStateReleaseBuf
+43403:03/29 15:26:38.344525 00099575 QRY streamStateGetCur_rocksdb
+43404:03/29 15:26:38.344584 00099575 QRY streamStateCurPrev_rocksdb
+43405:03/29 15:26:38.344662 00099575 QRY streamStateGetKVByCur_rocksdb
+43407:03/29 15:26:38.344692 00099575 QRY streamStateFreeCur
+51853:03/29 15:26:39.501810 00099718 QRY streamStateSetNumber, seq: 20
+51854:03/29 15:26:39.501840 00099718 QRY streamStateSetNumber, seq: 21
+51858:03/29 15:26:39.507708 00099713 QRY streamStateSetNumber, seq: 22
+51859:03/29 15:26:39.507730 00099713 QRY streamStateSetNumber, seq: 23
+51861:03/29 15:26:39.507756 00099713 QRY streamStateSetNumber, seq: 24
+51862:03/29 15:26:39.507860 00099713 QRY streamStateSetNumber, seq: 25
+51864:03/29 15:26:39.507885 00099713 QRY streamStateSetNumber, seq: 26
+51865:03/29 15:26:39.508056 00099713 QRY streamStateSetNumber, seq: 27
+51866:03/29 15:26:39.508083 00099713 QRY streamStateSetNumber, seq: 28
+51869:03/29 15:26:39.508105 00099713 QRY streamStateSetNumber, seq: 29
+51874:03/29 15:26:39.508152 00099713 QRY streamStateSetNumber, seq: 30
+51883:03/29 15:26:39.508317 00099723 QRY streamStateSetNumber, seq: 31
+51885:03/29 15:26:39.508343 00099723 QRY streamStateSetNumber, seq: 32
+51974:03/29 15:26:39.520642 00099728 QRY streamStateSetNumber, seq: 33
+51975:03/29 15:26:39.520671 00099728 QRY streamStateSetNumber, seq: 34
+52162:03/29 15:26:39.588845 00099713 QRY streamStateSetNumber, seq: 35
+52163:03/29 15:26:39.588940 00099713 QRY streamStateSetNumber, seq: 36
+52499:03/29 15:26:39.649197 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 36] failed to read from default, err: not exist
+52500:03/29 15:26:39.649903 00099593 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 36] succ to write to default, valLen:135
+52501:03/29 15:26:39.649918 00099593 QRY streamStateReleaseBuf
+52516:03/29 15:26:39.650272 00099593 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 36] succ to read from default
+52517:03/29 15:26:39.650333 00099593 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+52521:03/29 15:26:39.650384 00099593 QRY streamStateReleaseBuf
+52530:03/29 15:26:39.650500 00099593 QRY streamStateClear_rocksdb seq:36
+52718:03/29 15:26:39.653130 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 22] failed to read from default, err: not exist
+52788:03/29 15:26:39.654198 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 22] succ to write to default, valLen:159
+52789:03/29 15:26:39.654217 00099575 QRY streamStateReleaseBuf
+52790:03/29 15:26:39.654226 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 36] failed to read from default, err: not exist
+52791:03/29 15:26:39.654248 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 24] failed to read from default, err: not exist
+52792:03/29 15:26:39.654280 00099584 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 36] succ to write to default, valLen:135
+52793:03/29 15:26:39.654295 00099584 QRY streamStateReleaseBuf
+52794:03/29 15:26:39.654295 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:0,seq: 24] succ to write to default, valLen:159
+52796:03/29 15:26:39.654313 00099575 QRY streamStateReleaseBuf
+52806:03/29 15:26:39.654460 00099584 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 36] succ to read from default
+52811:03/29 15:26:39.654483 00099584 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+52815:03/29 15:26:39.654616 00099584 QRY streamStateReleaseBuf
+52823:03/29 15:26:39.654626 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 22] succ to read from default
+52825:03/29 15:26:39.654922 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+52829:03/29 15:26:39.655001 00099575 QRY streamStateReleaseBuf
+52834:03/29 15:26:39.654938 00099584 QRY streamStateClear_rocksdb seq:36
+52875:03/29 15:26:39.655766 00099575 QRY streamStateGetCur_rocksdb
+52880:03/29 15:26:39.655894 00099575 QRY streamStateCurPrev_rocksdb
+52881:03/29 15:26:39.655933 00099575 QRY streamStateGetKVByCur_rocksdb
+52884:03/29 15:26:39.655957 00099575 QRY streamStateFreeCur
+52941:03/29 15:26:39.656606 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 22] succ to read from default
+52950:03/29 15:26:39.656678 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 22] succ to write to default, valLen:159
+52970:03/29 15:26:39.656771 00099575 QRY streamStateReleaseBuf
+52972:03/29 15:26:39.657012 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 24] succ to read from default
+52973:03/29 15:26:39.657072 00099575 QRY streamState str:[groupId:0,ts:1648791210000,opNum:0,seq: 24] succ to write to default, valLen:159
+52974:03/29 15:26:39.657088 00099575 QRY streamStateReleaseBuf
+52992:03/29 15:26:39.657214 00099575 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 22] succ to read from default
+52997:03/29 15:26:39.657436 00099575 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+53001:03/29 15:26:39.657517 00099575 QRY streamStateReleaseBuf
+53047:03/29 15:26:39.658463 00099575 QRY streamStateGetCur_rocksdb
+53048:03/29 15:26:39.658509 00099575 QRY streamStateCurPrev_rocksdb
+53049:03/29 15:26:39.658527 00099575 QRY streamStateGetKVByCur_rocksdb
+53051:03/29 15:26:39.658549 00099575 QRY streamStateFreeCur
+53519:03/29 15:26:39.666194 00099732 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 36] succ to del from default
+53522:03/29 15:26:39.666264 00099732 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+53582:03/29 15:26:39.667215 00099732 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 36] failed to read from default, err: not exist
+53583:03/29 15:26:39.667264 00099732 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 36] succ to write to default, valLen:135
+53584:03/29 15:26:39.667281 00099732 QRY streamStateReleaseBuf
+53605:03/29 15:26:39.667661 00099732 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 36] succ to read from default
+53606:03/29 15:26:39.667684 00099732 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+53610:03/29 15:26:39.667748 00099732 QRY streamStateReleaseBuf
+53619:03/29 15:26:39.667875 00099732 QRY streamStateClear_rocksdb seq:36
+53718:03/29 15:26:39.669594 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 22] succ to del from default
+53721:03/29 15:26:39.669669 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 24] succ to del from default
+53723:03/29 15:26:39.669696 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 24] failed to read from default, err: not exist
+53725:03/29 15:26:39.669714 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 26] failed to read from default, err: not exist
+53736:03/29 15:26:39.669728 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:2,seq: 28] failed to read from default, err: not exist
+53743:03/29 15:26:39.669965 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:3,seq: 30] failed to read from default, err: not exist
+53763:03/29 15:26:39.670203 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 22] failed to read from default, err: not exist
+53765:03/29 15:26:39.670397 00099569 QRY streamState str:[groupId:0,ts:1648791210000,opNum:-1,seq: 22] succ to write to default, valLen:159
+53766:03/29 15:26:39.670414 00099569 QRY streamStateReleaseBuf
+53767:03/29 15:26:39.670459 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 24] failed to read from default, err: not exist
+53771:03/29 15:26:39.670497 00099569 QRY streamState str:[groupId:0,ts:1648791210000,opNum:0,seq: 24] succ to write to default, valLen:159
+53772:03/29 15:26:39.670570 00099569 QRY streamStateReleaseBuf
+53794:03/29 15:26:39.670935 00099569 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 22] succ to read from default
+53795:03/29 15:26:39.670954 00099569 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+53803:03/29 15:26:39.671070 00099569 QRY streamStateReleaseBuf
+53818:03/29 15:26:39.671279 00099569 QRY streamStateGetCur_rocksdb
+53819:03/29 15:26:39.671326 00099569 QRY streamStateCurPrev_rocksdb
+53820:03/29 15:26:39.671356 00099569 QRY streamStateGetKVByCur_rocksdb
+53822:03/29 15:26:39.671388 00099569 QRY streamStateFreeCur
+55456:03/29 15:26:40.136068 00099717 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 36] succ to del from default
+55457:03/29 15:26:40.136115 00099717 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+55621:03/29 15:26:40.140154 00099722 QRY streamState str: [groupId:0,ts:1648791210000,opNum:-1,seq: 22] succ to del from default
+55624:03/29 15:26:40.140304 00099722 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 24] succ to del from default
+55626:03/29 15:26:40.140337 00099722 QRY streamState str: [groupId:0,ts:1648791210000,opNum:0,seq: 24] failed to read from default, err: not exist
+55627:03/29 15:26:40.140362 00099722 QRY streamState str: [groupId:0,ts:1648791210000,opNum:1,seq: 26] failed to read from default, err: not exist
+55629:03/29 15:26:40.140394 00099722 QRY streamState str: [groupId:0,ts:1648791210000,opNum:2,seq: 28] failed to read from default, err: not exist
+55636:03/29 15:26:40.140426 00099722 QRY streamState str: [groupId:0,ts:1648791210000,opNum:3,seq: 30] failed to read from default, err: not exist
+55647:03/29 15:26:40.140826 00099722 QRY streamState str: [groupId:0] failed to read from parname, err: not exist
+55656:03/29 15:26:40.140968 00099722 QRY streamStateGetCur_rocksdb
+55657:03/29 15:26:40.141149 00099722 QRY streamStateFreeCur
+55658:03/29 15:26:40.141191 00099722 QRY streamStateCurPrev_rocksdb

@@ -668,6 +668,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     }
 
     STransAction action = {0};
+    action.mTraceId = pTrans->mTraceId;
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pReq;
     action.contLen = contLen;
@@ -796,6 +797,11 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     return -1;
   }
 
+  if(pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
+    return -1;
+  }
+
   for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
     SField  *pField = taosArrayGet(pCreate->pColumns, i);
     SSchema *pSchema = &pDst->pColumns[i];
@@ -877,7 +883,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
     pHead->vgId = htonl(pVgroup->vgId);
     tSerializeSVDropTtlTableReq((char *)pHead + sizeof(SMsgHead), contLen, &ttlReq);
 
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen, .info = pReq->info};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
     int32_t code = tmsgSendReq(&epSet, &rpcMsg);
     if (code != 0) {
@@ -923,6 +929,11 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   pDst->pTags = taosMemoryCalloc(1, pDst->numOfTags * sizeof(SSchema));
   if (pDst->pColumns == NULL || pDst->pTags == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if(pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 
@@ -1150,6 +1161,11 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
 
   pNew->numOfTags = pNew->numOfTags + ntags;
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
+    return -1;
+  }
+ 
+  if(pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ntags){
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 
@@ -1457,6 +1473,11 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
 
   pNew->numOfColumns = pNew->numOfColumns + ncols;
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
+    return -1;
+  }
+
+  if(pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ncols){
+    terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
 
@@ -2523,6 +2544,9 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     if (mndBuildStbSchema(pMnode, pStbVersion->dbFName, pStbVersion->stbName, &metaRsp, &smaVer) != 0) {
       metaRsp.numOfColumns = -1;
       metaRsp.suid = pStbVersion->suid;
+      tstrncpy(metaRsp.dbFName, pStbVersion->dbFName, sizeof(metaRsp.dbFName));
+      tstrncpy(metaRsp.tbName, pStbVersion->stbName, sizeof(metaRsp.tbName));
+      tstrncpy(metaRsp.stbName, pStbVersion->stbName, sizeof(metaRsp.stbName));
       taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
       continue;
     }
@@ -2611,6 +2635,13 @@ void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst) {
   tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   tNameGetFullDbName(&name, dst);
+}
+
+void mndExtractShortDbNameFromStbFullName(const char *stbFullName, char *dst) {
+  SName name = {0};
+  tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  tNameGetDbName(&name, dst);
 }
 
 void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t dstSize) {
@@ -3113,9 +3144,18 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
   char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_TO_VARSTR(typeName, "SUPER_TABLE");
+  bool fetch = pShow->restore ? false : true;
+  pShow->restore = false;
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
-    if (pShow->pIter == NULL) break;
+    if (fetch) {
+      pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
+      if (pShow->pIter == NULL) break;
+    } else {
+      fetch = true;
+      void  *pKey = taosHashGetKey(pShow->pIter, NULL);
+      pStb = sdbAcquire(pSdb, SDB_STB, pKey);
+      if (!pStb) continue;
+    }
 
     if (pDb != NULL && pStb->dbUid != pDb->uid) {
       sdbRelease(pSdb, pStb);
@@ -3129,6 +3169,17 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       sdbRelease(pSdb, pStb);
       continue;
     }
+
+    if ((numOfRows + pStb->numOfColumns) > rows) {
+      pShow->restore = true;
+      if (numOfRows == 0) {
+        mError("mndRetrieveStbCol failed to get stable cols since buf:%d less than result:%d, stable name:%s, db:%s",
+               rows, pStb->numOfColumns, pStb->name, pStb->db);
+      }
+      sdbRelease(pSdb, pStb);
+      break;
+    }
+
     varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
     mDebug("mndRetrieveStbCol get stable cols, stable name:%s, db:%s", pStb->name, pStb->db);

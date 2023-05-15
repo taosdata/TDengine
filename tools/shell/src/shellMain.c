@@ -45,7 +45,7 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 int main(int argc, char *argv[]) {
   shell.exit = false;
 #ifdef WEBSOCKET
-  shell.args.timeout = 10;
+  shell.args.timeout = SHELL_WS_TIMEOUT;
   shell.args.cloud = true;
 #endif
 
@@ -82,6 +82,9 @@ int main(int argc, char *argv[]) {
   shellCheckConnectMode();
 #endif
   taos_init();
+
+  // kill heart-beat thread when quit
+  taos_set_hb_quit(1);
 
   if (shell.args.is_dump_config) {
     shellDumpConfig();

@@ -129,6 +129,14 @@ SHOW QNODES;
 
 Shows information about qnodes in the system.
 
+## SHOW QUERIES
+
+```sql
+SHOW QUERIES;
+```
+
+Shows the queries in progress in the system.
+
 ## SHOW SCORES
 
 ```sql
@@ -189,7 +197,7 @@ show table distributed d0\G;
  <summary> Show Example </summary>
  <pre><code>
 *************************** 1.row ***************************
-_block_dist: Total_Blocks=[5] Total_Size=[93.65 Kb] Average_size=[18.73 Kb] Compression_Ratio=[23.98 %]
+_block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Compression_Ratio=[23.98 %]
 
 Total_Blocks :  Table `d0` contains total 5 blocks
 
@@ -308,9 +316,11 @@ Query OK, 24 row(s) in set (0.002444s)
 </code></pre>
 </details>
 
-  The above show the block distribution percentage according to the number of rows in each block. In the above example, we can get below information:
-  - `_block_dist: 3483 |||||||||||||||||  1 (20.00%)` means there is one block whose rows is between 3,483 and 3,681.
-  -  `_block_dist: 3881 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||  4 (80.00%)` means there are 4 blocks whose rows is between 3,881 and 4,096.   -  The number of blocks whose rows fall in other range is zero.
+The above show the block distribution percentage according to the number of rows in each block. In the above example, we can get below information:
+- `_block_dist: 3483 |||||||||||||||||  1 (20.00%)` means there is one block whose rows is between 3,483 and 3,681.
+-  `_block_dist: 3881 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||  4 (80.00%)` means there are 4 blocks whose rows is between 3,881 and 4,096.   -  The number of blocks whose rows fall in other range is zero.
+
+Note that only the information about the data blocks in the data file will be displayed here, and the information about the data in the stt file will not be displayed.
 
 ## SHOW TAGS
 

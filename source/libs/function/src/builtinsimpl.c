@@ -32,9 +32,6 @@
 #define TAIL_MAX_POINTS_NUM    100
 #define TAIL_MAX_OFFSET        100
 
-#define UNIQUE_MAX_RESULT_SIZE (1024 * 1024 * 10)
-#define MODE_MAX_RESULT_SIZE   UNIQUE_MAX_RESULT_SIZE
-
 #define HLL_BUCKET_BITS 14  // The bits of the bucket
 #define HLL_DATA_BITS   (64 - HLL_BUCKET_BITS)
 #define HLL_BUCKETS     (1 << HLL_BUCKET_BITS)
@@ -199,11 +196,11 @@ typedef struct SMavgInfo {
 } SMavgInfo;
 
 typedef struct SSampleInfo {
-  int32_t samples;
-  int32_t totalPoints;
-  int32_t numSampled;
-  uint8_t colType;
-  int16_t colBytes;
+  int32_t  samples;
+  int32_t  totalPoints;
+  int32_t  numSampled;
+  uint8_t  colType;
+  uint16_t colBytes;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;
@@ -223,7 +220,7 @@ typedef struct STailInfo {
   int32_t     numAdded;
   int32_t     offset;
   uint8_t     colType;
-  int16_t     colBytes;
+  uint16_t    colBytes;
   STailItem** pItems;
 } STailInfo;
 
@@ -236,7 +233,7 @@ typedef struct SUniqueItem {
 typedef struct SUniqueInfo {
   int32_t   numOfPoints;
   uint8_t   colType;
-  int16_t   colBytes;
+  uint16_t  colBytes;
   bool      hasNull;  // null is not hashable, handle separately
   SHashObj* pHash;
   char      pItems[];
@@ -244,20 +241,19 @@ typedef struct SUniqueInfo {
 
 typedef struct SModeItem {
   int64_t   count;
+  STuplePos dataPos;
   STuplePos tuplePos;
-  char      data[];
 } SModeItem;
 
 typedef struct SModeInfo {
-  int32_t   numOfPoints;
   uint8_t   colType;
-  int16_t   colBytes;
+  uint16_t  colBytes;
   SHashObj* pHash;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;
 
-  char pItems[];
+  char* buf;  // serialize data buffer
 } SModeInfo;
 
 typedef struct SDerivInfo {
@@ -494,8 +490,8 @@ bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = 0;
+static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
+  int64_t numOfElem = 0;
 
   /*
    * 1. column data missing (schema modified) causes pInputCol->hasNull == true. pInput->colDataSMAIsSet == true;
@@ -528,7 +524,7 @@ static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
  */
 int32_t countFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = 0;
+  int64_t numOfElem = 0;
 
   SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -555,7 +551,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
 }
 
 int32_t countInvertFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = getNumOfElems(pCtx);
+  int64_t numOfElem = getNumOfElems(pCtx);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   char*                buf = GET_ROWCELL_INTERBUF(pResInfo);
@@ -859,7 +855,9 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
     int32_t     numOfCols = pCtx->subsidiaries.num;
     const char* p = loadTupleData(pCtx, pTuplePos);
     if (p == NULL) {
-      terrno = TSDB_CODE_NO_AVAIL_DISK;
+      terrno = TSDB_CODE_NOT_FOUND;
+      qError("Load tuple data failed since %s, groupId:%" PRIu64 ", ts:%" PRId64, terrstr(),
+             pTuplePos->streamTupleKey.groupId, pTuplePos->streamTupleKey.ts);
       return terrno;
     }
 
@@ -871,6 +869,12 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
       SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
       int32_t         dstSlotId = pc->pExpr->base.resSchema.slotId;
 
+      // group_key function has its own process function
+      // do not process there
+      if (fmIsGroupKeyFunc(pc->functionId)) {
+        continue;
+      }
+
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
       if (nullList[j]) {
         colDataSetNULL(pDstCol, rowIndex);
@@ -881,7 +885,7 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
     }
 
     if (pCtx->saveHandle.pState) {
-      tdbFree((void*)p);
+      streamFreeVal((void*)p);
     }
   }
 
@@ -1929,7 +1933,7 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  qDebug("%s total %d rows will merge, %p", __FUNCTION__, pInput->numOfRows, pInfo->pHisto);
+  qDebug("%s total %" PRId64 " rows will merge, %p", __FUNCTION__, pInput->numOfRows, pInfo->pHisto);
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
@@ -3091,6 +3095,12 @@ void* serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsid
   for (int32_t i = 0; i < pSubsidiaryies->num; ++i) {
     SqlFunctionCtx* pc = pSubsidiaryies->pCtx[i];
 
+    // group_key function has its own process function
+    // do not process there
+    if (fmIsGroupKeyFunc(pc->functionId)) {
+      continue;
+    }
+
     SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
     int32_t      srcSlotId = pFuncParam->pCol->slotId;
 
@@ -3113,7 +3123,7 @@ void* serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsid
   return buf;
 }
 
-static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, size_t length, STupleKey key,
+static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, size_t length, STupleKey* key,
                                STuplePos* pPos) {
   STuplePos p = {0};
   if (pHandle->pBuf != NULL) {
@@ -3149,8 +3159,8 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
     releaseBufPage(pHandle->pBuf, pPage);
   } else {
     // other tuple save policy
-    if (streamStateFuncPut(pHandle->pState, &key, pBuf, length) >= 0) {
-      p.streamTupleKey = key;
+    if (streamStateFuncPut(pHandle->pState, key, pBuf, length) >= 0) {
+      p.streamTupleKey = *key;
     }
   }
 
@@ -3174,7 +3184,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
   }
 
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
-  return doSaveTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, key, pPos);
+  return doSaveTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, &key, pPos);
 }
 
 static int32_t doUpdateTupleData(SSerializeDataHandle* pHandle, const void* pBuf, size_t length, STuplePos* pPos) {
@@ -3345,7 +3355,7 @@ int32_t spreadFunction(SqlFunctionCtx* pCtx) {
       goto _spread_over;
     }
     double tmin = 0.0, tmax = 0.0;
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    if (IS_SIGNED_NUMERIC_TYPE(type) || IS_TIMESTAMP_TYPE(type)) {
       tmin = (double)GET_INT64_VAL(&pAgg->min);
       tmax = (double)GET_INT64_VAL(&pAgg->max);
     } else if (IS_FLOAT_TYPE(type)) {
@@ -4949,7 +4959,7 @@ int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
 }
 
 bool getModeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(SModeInfo) + MODE_MAX_RESULT_SIZE;
+  pEnv->calcMemSize = sizeof(SModeInfo);
   return true;
 }
 
@@ -4959,7 +4969,6 @@ bool modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   }
 
   SModeInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  pInfo->numOfPoints = 0;
   pInfo->colType = pCtx->resDataInfo.type;
   pInfo->colBytes = pCtx->resDataInfo.bytes;
   if (pInfo->pHash != NULL) {
@@ -4970,38 +4979,60 @@ bool modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->nullTupleSaved = false;
   pInfo->nullTuplePos.pageId = -1;
 
+  pInfo->buf = taosMemoryMalloc(pInfo->colBytes);
+
   return true;
 }
 
+static void modeFunctionCleanup(SModeInfo * pInfo) {
+  taosHashCleanup(pInfo->pHash);
+  taosMemoryFreeClear(pInfo->buf);
+}
+
+static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo *pInfo, STuplePos* pPos) {
+  if (IS_VAR_DATA_TYPE(pInfo->colType)) {
+    memcpy(pInfo->buf, data, varDataTLen(data));
+  } else {
+    memcpy(pInfo->buf, data, pInfo->colBytes);
+  }
+
+  return doSaveTupleData(&pCtx->saveHandle, pInfo->buf, pInfo->colBytes, NULL, pPos);
+}
+
 static int32_t doModeAdd(SModeInfo* pInfo, int32_t rowIndex, SqlFunctionCtx* pCtx, char* data) {
-  int32_t     hashKeyBytes = IS_STR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
-  SModeItem** pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t hashKeyBytes = IS_STR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
+
+  SModeItem* pHashItem = (SModeItem *)taosHashGet(pInfo->pHash, data, hashKeyBytes);
   if (pHashItem == NULL) {
-    int32_t    size = sizeof(SModeItem) + pInfo->colBytes;
-    SModeItem* pItem = (SModeItem*)(pInfo->pItems + pInfo->numOfPoints * size);
-    memcpy(pItem->data, data, hashKeyBytes);
-    pItem->count += 1;
+    int32_t    size = sizeof(SModeItem);
+    SModeItem  item = {0};
+
+    item.count += 1;
+    code = saveModeTupleData(pCtx, data, pInfo, &item.dataPos);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
 
     if (pCtx->subsidiaries.num > 0) {
-      int32_t code = saveTupleData(pCtx, rowIndex, pCtx->pSrcBlock, &pItem->tuplePos);
+      code = saveTupleData(pCtx, rowIndex, pCtx->pSrcBlock, &item.tuplePos);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
     }
 
-    taosHashPut(pInfo->pHash, data, hashKeyBytes, &pItem, sizeof(SModeItem*));
-    pInfo->numOfPoints++;
+    taosHashPut(pInfo->pHash, data, hashKeyBytes, &item, sizeof(SModeItem));
   } else {
-    (*pHashItem)->count += 1;
+    pHashItem->count += 1;
     if (pCtx->subsidiaries.num > 0) {
-      int32_t code = updateTupleData(pCtx, rowIndex, pCtx->pSrcBlock, &((*pHashItem)->tuplePos));
+      int32_t code = updateTupleData(pCtx, rowIndex, pCtx->pSrcBlock, &pHashItem->tuplePos);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t modeFunction(SqlFunctionCtx* pCtx) {
@@ -5024,18 +5055,15 @@ int32_t modeFunction(SqlFunctionCtx* pCtx) {
     char*   data = colDataGetData(pInputCol, i);
     int32_t code = doModeAdd(pInfo, i, pCtx, data);
     if (code != TSDB_CODE_SUCCESS) {
+      modeFunctionCleanup(pInfo);
       return code;
-    }
-
-    if (sizeof(SModeInfo) + pInfo->numOfPoints * (sizeof(SModeItem) + pInfo->colBytes) >= MODE_MAX_RESULT_SIZE) {
-      taosHashCleanup(pInfo->pHash);
-      return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
   if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pInfo->nullTupleSaved) {
     int32_t code = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pInfo->nullTuplePos);
     if (code != TSDB_CODE_SUCCESS) {
+      modeFunctionCleanup(pInfo);
       return code;
     }
     pInfo->nullTupleSaved = true;
@@ -5054,26 +5082,39 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData*     pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   int32_t              currentRow = pBlock->info.rows;
 
-  int32_t resIndex = -1;
+  STuplePos resDataPos, resTuplePos;
   int32_t maxCount = 0;
-  for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
-    SModeItem* pItem = (SModeItem*)(pInfo->pItems + i * (sizeof(SModeItem) + pInfo->colBytes));
+
+  void *pIter = taosHashIterate(pInfo->pHash, NULL);
+  while (pIter != NULL) {
+    SModeItem *pItem = (SModeItem *)pIter;
     if (pItem->count >= maxCount) {
       maxCount = pItem->count;
-      resIndex = i;
+      resDataPos = pItem->dataPos;
+      resTuplePos = pItem->tuplePos;
     }
+
+    pIter = taosHashIterate(pInfo->pHash, pIter);
   }
 
   if (maxCount != 0) {
-    SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
-    colDataSetVal(pCol, currentRow, pResItem->data, false);
-    code = setSelectivityValue(pCtx, pBlock, &pResItem->tuplePos, currentRow);
+    const char* pData = loadTupleData(pCtx, &resDataPos);
+    if (pData == NULL) {
+      code = terrno = TSDB_CODE_NOT_FOUND;
+      qError("Load tuple data failed since %s, groupId:%" PRIu64 ", ts:%" PRId64, terrstr(),
+             resDataPos.streamTupleKey.groupId, resDataPos.streamTupleKey.ts);
+      modeFunctionCleanup(pInfo);
+      return code;
+    }
+
+    colDataSetVal(pCol, currentRow, pData, false);
+    code = setSelectivityValue(pCtx, pBlock, &resTuplePos, currentRow);
   } else {
     colDataSetNULL(pCol, currentRow);
     code = setSelectivityValue(pCtx, pBlock, &pInfo->nullTuplePos, currentRow);
   }
 
-  taosHashCleanup(pInfo->pHash);
+  modeFunctionCleanup(pInfo);
 
   return code;
 }
@@ -5535,7 +5576,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   int32_t len = sprintf(st + VARSTR_HEADER_SIZE,
-                        "Total_Blocks=[%d] Total_Size=[%.2f Kb] Average_size=[%.2f Kb] Compression_Ratio=[%.2f %c]",
+                        "Total_Blocks=[%d] Total_Size=[%.2f KB] Average_size=[%.2f KB] Compression_Ratio=[%.2f %c]",
                         pData->numOfBlocks, pData->totalSize / 1024.0, averageSize / 1024.0, compRatio, '%');
 
   varDataSetLen(st, len);
@@ -5898,6 +5939,39 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pResInfo->numOfRes;
+}
+
+int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SGroupKeyInfo*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SGroupKeyInfo*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  // escape rest of data blocks to avoid first entry to be overwritten.
+  if (pDBuf->hasResult) {
+    goto _group_key_over;
+  }
+
+  if (pSBuf->isNull) {
+    pDBuf->isNull = true;
+    pDBuf->hasResult = true;
+    goto _group_key_over;
+  }
+
+  if (IS_VAR_DATA_TYPE(pSourceCtx->resDataInfo.type)) {
+    memcpy(pDBuf->data, pSBuf->data,
+           (pSourceCtx->resDataInfo.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(pSBuf->data) : varDataTLen(pSBuf->data));
+  } else {
+    memcpy(pDBuf->data, pSBuf->data, pSourceCtx->resDataInfo.bytes);
+  }
+
+  pDBuf->hasResult = true;
+
+_group_key_over:
+
+  SET_VAL(pDResInfo, 1, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {

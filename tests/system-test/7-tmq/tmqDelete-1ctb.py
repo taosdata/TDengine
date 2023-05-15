@@ -54,6 +54,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1,wal_retention_size=-1, wal_retention_period=-1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -237,10 +238,10 @@ class TDTestCase:
 
         if self.snapshot == 0:
             consumerId     = 2
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/4 + 3/4))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"]) * 2
         elif self.snapshot == 1:
             consumerId     = 3
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 - 1/4 + 1/4 + 3/4))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/4))
 
         topicList      = topicFromStb1
         ifcheckdata    = 1
@@ -270,7 +271,7 @@ class TDTestCase:
             if totalConsumeRows != expectrowcnt:
                 tdLog.exit("tmq consume rows error with snapshot = 0!")
         elif self.snapshot == 1:
-            if totalConsumeRows != totalRowsFromQuery:
+            if totalConsumeRows != expectrowcnt:
                 tdLog.exit("tmq consume rows error with snapshot = 1!")
 
         # tmqCom.checkFileContent(consumerId, queryString)
@@ -323,7 +324,7 @@ class TDTestCase:
 
         if self.snapshot == 0:
             consumerId     = 4
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/4 + 3/4))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"]) * 2
         elif self.snapshot == 1:
             consumerId     = 5
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 - 1/4 + 1/4 + 3/4))
@@ -369,9 +370,10 @@ class TDTestCase:
         tdLog.info("act consume rows: %d, act query rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsFromQuery, expectrowcnt))
 
         if self.snapshot == 0:
-            if totalConsumeRows != expectrowcnt:
+            if (totalConsumeRows != expectrowcnt):
                 tdLog.exit("tmq consume rows error with snapshot = 0!")
         elif self.snapshot == 1:
+            tdLog.info("consume rows should be between %d and %d, "%(totalRowsFromQuery, expectrowcnt))
             if not ((totalConsumeRows >= totalRowsFromQuery) and (totalConsumeRows <= expectrowcnt)):
                 tdLog.exit("tmq consume rows error with snapshot = 1!")
 
@@ -381,9 +383,115 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 3 end ...... ")
 
+    def tmqCase4(self):
+        tdLog.printNoPrefix("======== test case 4: ")
+        paraDict = {'dbName':     'dbt',
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    4,
+                    'stbName':    'stb',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
+                    'ctbPrefix':  'ctb',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     1,
+                    'rowsPerTbl': 10000,
+                    'batchNum':   5000,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    'pollDelay':  15,
+                    'showMsg':    1,
+                    'showRow':    1,
+                    'snapshot':   0}
 
+        paraDict['snapshot'] = self.snapshot
+        paraDict['vgroups'] = self.vgroups
+        paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+
+        tdLog.info("restart taosd to ensure that the data falls into the disk")
+        tdSql.query("flush database %s"%(paraDict['dbName']))
+
+        tmqCom.initConsumerTable()
+        tdLog.info("create topics from stb1")
+        topicFromStb1 = 'topic_stb1'
+        queryString = "select ts, c1, c2 from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        sqlString = "create topic %s as %s" %(topicFromStb1, queryString)
+        tdLog.info("create topic sql: %s"%sqlString)
+        tdSql.execute(sqlString)
+
+        # paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+        consumerId     = 1
+
+        if self.snapshot == 0:
+            consumerId     = 4
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"])
+        elif self.snapshot == 1:
+            consumerId     = 5
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 - 1/4 + 1/4 + 3/4))
+
+        topicList      = topicFromStb1
+        ifcheckdata    = 1
+        ifManualCommit = 1
+        keyList        = 'group.id:cgrp1,\
+                        enable.auto.commit:true,\
+                        auto.commit.interval.ms:1000,\
+                        auto.offset.reset:earliest'
+        tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+
+        # del some data
+        rowsOfDelete = int(self.rowsPerTbl / 4 )
+        paraDict["endTs"] = paraDict["startTs"] + rowsOfDelete - 1
+        # pDeleteThread = self.asyncDeleteData(paraDict)
+        self.threadFunctionForDeletaData(paraDict)
+
+        tdLog.info("start consume processor")
+        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
+
+        tmqCom.getStartConsumeNotifyFromTmqsim()
+        
+        # update to 1/4 rows and insert 3/4 new rows
+        paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl * 3 / 4)
+        # paraDict['rowsPerTbl'] = self.rowsPerTbl
+        # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
+        #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+        #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        pInsertThread = tmqCom.asyncInsertDataByInterlace(paraDict)
+
+        pInsertThread.join()
+
+        tdLog.info("start to check consume result")
+        expectRows = 1
+        resultList = tmqCom.selectConsumeResult(expectRows)
+        totalConsumeRows = 0
+        for i in range(expectRows):
+            totalConsumeRows += resultList[i]
+
+        tdSql.query(queryString)
+        totalRowsFromQuery = tdSql.getRows()
+
+        tdLog.info("act consume rows: %d, act query rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsFromQuery, expectrowcnt))
+
+        if self.snapshot == 0:
+            tdLog.info("consume rows should be %d"%(expectrowcnt))
+            if (totalConsumeRows != expectrowcnt):
+                tdLog.exit("tmq consume rows error with snapshot = 0!")
+        elif self.snapshot == 1:
+            # If data writing has not started before consumer get snapshot, will consume 10000 from wal, and consumer 7500 from tsdb;
+            tdLog.info("consume rows should be %d, "%(expectrowcnt))
+            if (totalConsumeRows != expectrowcnt):
+                tdLog.exit("tmq consume rows error with snapshot = 1!")
+
+        # tmqCom.checkFileContent(consumerId, queryString)
+
+        tdSql.query("drop topic %s"%topicFromStb1)
+
+        tdLog.printNoPrefix("======== test case 4 end ...... ")
+        
     def run(self):
-        # tdSql.prepare()
+        tdSql.prepare()
         tdLog.printNoPrefix("=============================================")
         tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
         self.snapshot = 0
@@ -408,6 +516,17 @@ class TDTestCase:
         self.snapshot = 1
         self.prepareTestEnv()
         self.tmqCase3()
+
+        # tdLog.printNoPrefix("=============================================")
+        # tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
+        # self.snapshot = 0
+        # self.prepareTestEnv()
+        # self.tmqCase4()
+        tdLog.printNoPrefix("====================================================================")
+        tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
+        self.snapshot = 1
+        self.prepareTestEnv()
+        self.tmqCase4()
 
     def stop(self):
         tdSql.close()

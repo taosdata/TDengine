@@ -575,7 +575,7 @@ static int32_t smlConvertJSONString(SSmlKv *pVal, char *typeStr, cJSON *value) {
     uError("OTD:invalid type(%s) for JSON String", typeStr);
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
-  pVal->length = (int16_t)strlen(value->valuestring);
+  pVal->length = strlen(value->valuestring);
 
   if (pVal->type == TSDB_DATA_TYPE_BINARY && pVal->length > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
     return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
@@ -778,7 +778,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
     tinfo->tags = taosArrayDup(preLineKV, NULL);
 
     smlSetCTableName(tinfo);
-    tinfo->uid = info->uid++;
+    getTableUid(info, elements, tinfo);
     if (info->dataFormat) {
       info->currSTableMeta->uid = tinfo->uid;
       tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
@@ -1238,7 +1238,8 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
         payloadNum = payloadNum << 1;
         void *tmp = taosMemoryRealloc(info->lines, payloadNum * sizeof(SSmlLineInfo));
         if (tmp == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          ret = TSDB_CODE_OUT_OF_MEMORY;
+          return ret;
         }
         info->lines = (SSmlLineInfo *)tmp;
         memset(info->lines + cnt, 0, (payloadNum - cnt) * sizeof(SSmlLineInfo));

@@ -26,6 +26,7 @@ extern "C" {
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
+
 struct SRpcMsg;
 struct SSubplan;
 
@@ -67,9 +68,10 @@ typedef enum {
  * Create the exec task for stream mode
  * @param pMsg
  * @param SReadHandle
+ * @param vgId
  * @return
  */
-qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
+qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t vgId);
 
 /**
  * Create the exec task for queue mode
@@ -77,9 +79,22 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
  * @param SReadHandle
  * @return
  */
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchema);
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
+                                     uint64_t id);
+
+/**
+ * set the task Id, usually used by message queue process
+ * @param tinfo
+ * @param taskId
+ * @param queryId
+ */
+void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
+
+// todo refactor
+void qGetCheckpointVersion(qTaskInfo_t tinfo, int64_t* dataVer, int64_t* ckId);
+
 /**
  * Set multiple input data blocks for the stream scan.
  * @param tinfo
@@ -108,7 +123,7 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
  * @param isAdd
  * @return
  */
-int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd);
+int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd);
 
 /**
  * Create the exec task object according to task json
@@ -140,7 +155,6 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
  * @param handle
  * @return
  */
-
 int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal);
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
@@ -154,6 +168,8 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
  */
 int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 
+int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode);
+
 bool qTaskIsExecuting(qTaskInfo_t qinfo);
 
 /**
@@ -161,14 +177,6 @@ bool qTaskIsExecuting(qTaskInfo_t qinfo);
  * @param qHandle
  */
 void qDestroyTask(qTaskInfo_t tinfo);
-
-/**
- * Extract the qualified table id list, and than pass them to the TSDB driver to load the required table data blocks.
- *
- * @param iter  the table iterator to traverse all tables belongs to a super table, or an invert index
- * @return
- */
-int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t tagCondLen, SArray* pTableIdList);
 
 void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
@@ -179,28 +187,18 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len);
 
 STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
-/**
- * return the scan info, in the form of tuple of two items, including table uid and current timestamp
- * @param tinfo
- * @param uid
- * @param ts
- * @return
- */
-int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts);
 
-int32_t qStreamPrepareTsdbScan(qTaskInfo_t tinfo, uint64_t uid, int64_t ts);
+SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo);
+
+void verifyOffset(void *pWalReader, STqOffsetVal* pOffset);
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType);
 
-// int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq, int64_t ver);
-//
-int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit);
+void qStreamSetOpen(qTaskInfo_t tinfo);
 
-int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
+void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
 SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
-
-int64_t qStreamExtractPrepareUid(qTaskInfo_t tinfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 
@@ -209,8 +207,6 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
 void* qExtractReaderFromStreamScanner(void* scanner);
 
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
-
-int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
 
 int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo);
 int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver);

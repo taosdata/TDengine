@@ -25,8 +25,9 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
+#include "mndCluster.h"
 
-#define TSDB_DNODE_VER_NUMBER   1
+#define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 64
 
 static const char *offlineReason[] = {
@@ -57,6 +58,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
+static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
@@ -82,6 +84,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -138,6 +141,10 @@ static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
   SDB_SET_INT16(pRaw, dataPos, pDnode->port, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, TSDB_ACTIVE_KEY_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pDnode->active, TSDB_ACTIVE_KEY_LEN, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, TSDB_CONN_ACTIVE_KEY_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
   terrno = 0;
@@ -160,7 +167,7 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
-  if (sver != TSDB_DNODE_VER_NUMBER) {
+  if (sver < 1 || sver > TSDB_DNODE_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -178,6 +185,13 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT16(pRaw, dataPos, &pDnode->port, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
+  if (sver > 1) {
+    int16_t keyLen = 0;
+    SDB_GET_INT16(pRaw, dataPos, &keyLen, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pDnode->active, keyLen, _OVER)
+    SDB_GET_INT16(pRaw, dataPos, &keyLen, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pDnode->connActive, keyLen, _OVER)
+  }
 
   terrno = 0;
   if (tmsgUpdateDnodeInfo(&pDnode->id, NULL, pDnode->fqdn, &pDnode->port)) {
@@ -293,6 +307,11 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
   return sdbGetSize(pSdb, SDB_DNODE);
 }
 
+int32_t mndGetDbSize(SMnode *pMnode) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbGetSize(pSdb, SDB_DB);
+}
+
 bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
   if (interval > 5000 * (int64_t)tsStatusInterval) {
@@ -304,7 +323,7 @@ bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   return true;
 }
 
-void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
+static void mndGetDnodeEps(SMnode *pMnode, SArray *pDnodeEps) {
   SSdb *pSdb = pMnode->pSdb;
 
   int32_t numOfEps = 0;
@@ -326,6 +345,34 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
       dnodeEp.isMnode = 1;
     }
     taosArrayPush(pDnodeEps, &dnodeEp);
+  }
+}
+
+void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  int32_t numOfEps = 0;
+  void   *pIter = NULL;
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    ESdbStatus objStatus = 0;
+    pIter = sdbFetchAll(pSdb, SDB_DNODE, pIter, (void **)&pDnode, &objStatus, true);
+    if (pIter == NULL) break;
+
+    SDnodeInfo dInfo;
+    dInfo.id = pDnode->id;
+    dInfo.ep.port = pDnode->port;
+    tstrncpy(dInfo.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+    tstrncpy(dInfo.active, pDnode->active, TSDB_ACTIVE_KEY_LEN);
+    tstrncpy(dInfo.connActive, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
+    sdbRelease(pSdb, pDnode);
+    if (mndIsMnode(pMnode, pDnode->id)) {
+      dInfo.isMnode = 1;
+    } else {
+      dInfo.isMnode = 0;
+    }
+
+    taosArrayPush(pDnodeInfo, &dInfo);
   }
 }
 
@@ -363,6 +410,14 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   if (tDeserializeSStatusReq(pReq->pCont, pReq->contLen, &statusReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  int64_t clusterid = mndGetClusterId(pMnode);
+  if (statusReq.clusterId != 0 && statusReq.clusterId != clusterid) {
+    code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
+    mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current cluster:%" PRId64 ", code:0x%x",
+          statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, code);
     goto _OVER;
   }
 
@@ -412,6 +467,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     if (pVgroup != NULL) {
       if (pVload->syncState == TAOS_SYNC_STATE_LEADER) {
         pVgroup->cacheUsage = pVload->cacheUsage;
+        pVgroup->numOfCachedTables = pVload->numOfCachedTables;
         pVgroup->numOfTables = pVload->numOfTables;
         pVgroup->numOfTimeSeries = pVload->numOfTimeSeries;
         pVgroup->totalStorage = pVload->totalStorage;
@@ -440,7 +496,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       if (roleChanged) {
         SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
         if (pDb != NULL && pDb->stateTs != curMs) {
-          mInfo("db:%s, stateTs changed by status msg, old stateTs:%" PRId64 " new stateTs:%" PRId64, pDb->name, pDb->stateTs, curMs);
+          mInfo("db:%s, stateTs changed by status msg, old stateTs:%" PRId64 " new stateTs:%" PRId64, pDb->name,
+                pDb->stateTs, curMs);
           pDb->stateTs = curMs;
         }
         mndReleaseDb(pMnode, pDb);
@@ -525,7 +582,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    mndGetDnodeData(pMnode, statusRsp.pDnodeEps);
+    mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
@@ -733,6 +790,18 @@ _OVER:
   mndReleaseDnode(pMnode, pDnode);
   return code;
 }
+
+extern int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq);
+
+int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq){
+  return mndProcessRestoreDnodeReqImpl(pReq);
+}
+
+#ifndef TD_ENTERPRISE
+int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
+  return 0;
+}
+#endif
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
                             SSnodeObj *pSObj, int32_t numOfVnodes, bool force) {
@@ -954,7 +1023,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
         tSerializeSDCfgDnodeReq(pBuf, bufLen, &dcfgReq);
         mInfo("dnode:%d, send config req to dnode, app:%p config:%s value:%s", cfgReq.dnodeId, pReq->info.ahandle,
               dcfgReq.config, dcfgReq.value);
-        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
+        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .info = pReq->info};
         tmsgSendReq(&epSet, &rpcMsg);
         code = 0;
       }
@@ -1030,6 +1099,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   ESdbStatus objStatus = 0;
   SDnodeObj *pDnode = NULL;
   int64_t    curMs = taosGetTimestampMs();
+  char       buf[TSDB_CONN_ACTIVE_KEY_LEN + VARSTR_HEADER_SIZE];  // make sure TSDB_CONN_ACTIVE_KEY_LEN >= TSDB_EP_LEN
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode, &objStatus, true);
@@ -1041,7 +1111,6 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->id, false);
 
-    char buf[tListLen(pDnode->ep) + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1066,10 +1135,9 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         status = "offline";
     }
 
-    char b1[16] = {0};
-    STR_TO_VARSTR(b1, status);
+    STR_TO_VARSTR(buf, status);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, b1, false);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false);
@@ -1083,6 +1151,16 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, b, false);
     taosMemoryFreeClear(b);
+
+#ifdef TD_ENTERPRISE
+    STR_TO_VARSTR(buf, pDnode->active);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    STR_TO_VARSTR(buf, pDnode->connActive);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+#endif
 
     numOfRows++;
     sdbRelease(pSdb, pDnode);

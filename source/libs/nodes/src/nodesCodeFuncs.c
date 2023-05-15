@@ -171,8 +171,14 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateStreamStmt";
     case QUERY_NODE_DROP_STREAM_STMT:
       return "DropStreamStmt";
+    case QUERY_NODE_PAUSE_STREAM_STMT:
+      return "PauseStreamStmt";
+    case QUERY_NODE_RESUME_STREAM_STMT:
+      return "ResumeStreamStmt";
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return "BalanceVgroupStmt";
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
+      return "BalanceVgroupLeaderStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
@@ -255,6 +261,14 @@ const char* nodesNodeName(ENodeType type) {
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
       return "InsertStmt";
+    case QUERY_NODE_RESTORE_DNODE_STMT:
+      return "RestoreDnodeStmt";
+    case QUERY_NODE_RESTORE_QNODE_STMT:
+      return "RestoreQnodeStmt";
+    case QUERY_NODE_RESTORE_MNODE_STMT:
+      return "RestoreMnodeStmt";
+    case QUERY_NODE_RESTORE_VNODE_STMT:
+      return "RestoreVnodeStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -2025,6 +2039,7 @@ static const char* jkMergePhysiPlanTargets = "Targets";
 static const char* jkMergePhysiPlanNumOfChannels = "NumOfChannels";
 static const char* jkMergePhysiPlanSrcGroupId = "SrcGroupId";
 static const char* jkMergePhysiPlanGroupSort = "GroupSort";
+static const char* jkMergePhysiPlanIgnoreGroupID = "IgnoreGroupID";
 
 static int32_t physiMergeNodeToJson(const void* pObj, SJson* pJson) {
   const SMergePhysiNode* pNode = (const SMergePhysiNode*)pObj;
@@ -2044,6 +2059,9 @@ static int32_t physiMergeNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkMergePhysiPlanGroupSort, pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkMergePhysiPlanIgnoreGroupID, pNode->ignoreGroupId);
   }
 
   return code;
@@ -2067,6 +2085,9 @@ static int32_t jsonToPhysiMergeNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkMergePhysiPlanGroupSort, &pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkMergePhysiPlanIgnoreGroupID, &pNode->ignoreGroupId);
   }
 
   return code;
@@ -5524,6 +5545,35 @@ static int32_t jsonToDropDnodeStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkRestoreComponentNodeStmtDnodeId = "DnodeId";
+
+static int32_t restoreComponentNodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SRestoreComponentNodeStmt* pNode = (const SRestoreComponentNodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtDnodeId, pNode->dnodeId);
+}
+
+static int32_t jsonToRestoreComponentNodeStmt(const SJson* pJson, void* pObj) {
+  SRestoreComponentNodeStmt* pNode = (SRestoreComponentNodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtDnodeId, &pNode->dnodeId);
+}
+
+static int32_t jsonToRestoreDnodeStmt(const SJson* pJson, void* pObj) {
+  return jsonToRestoreComponentNodeStmt(pJson, pObj);
+}
+static int32_t jsonToRestoreQnodeStmt(const SJson* pJson, void* pObj) {
+  return jsonToRestoreComponentNodeStmt(pJson, pObj);
+}
+static int32_t jsonToRestoreMnodeStmt(const SJson* pJson, void* pObj) {
+  return jsonToRestoreComponentNodeStmt(pJson, pObj);
+}
+static int32_t jsonToRestoreVnodeStmt(const SJson* pJson, void* pObj) {
+  return jsonToRestoreComponentNodeStmt(pJson, pObj);
+}
+
+
+
+
+
 static const char* jkCreateTopicStmtTopicName = "TopicName";
 static const char* jkCreateTopicStmtSubscribeDbName = "SubscribeDbName";
 static const char* jkCreateTopicStmtIgnoreExists = "IgnoreExists";
@@ -6433,6 +6483,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return dropStreamStmtToJson(pObj, pJson);
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupStmt has no fields to serialize.
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
+      return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to serialize.
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return mergeVgroupStmtToJson(pObj, pJson);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -6741,6 +6793,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDropStreamStmt(pJson, pObj);
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupStmt has no fields to deserialize.
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
+      return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to deserialize.
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return jsonToMergeVgroupStmt(pJson, pObj);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -6807,6 +6861,14 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDeleteStmt(pJson, pObj);
     case QUERY_NODE_INSERT_STMT:
       return jsonToInsertStmt(pJson, pObj);
+    case QUERY_NODE_RESTORE_DNODE_STMT:
+      return jsonToRestoreDnodeStmt(pJson, pObj);
+    case QUERY_NODE_RESTORE_QNODE_STMT:
+      return jsonToRestoreQnodeStmt(pJson, pObj);
+    case QUERY_NODE_RESTORE_MNODE_STMT:
+      return jsonToRestoreMnodeStmt(pJson, pObj);
+    case QUERY_NODE_RESTORE_VNODE_STMT:  
+      return jsonToRestoreVnodeStmt(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return jsonToLogicScanNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_JOIN:

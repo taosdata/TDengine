@@ -24,7 +24,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), True)
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def checkFileContent(self, dbname="sml_db"):
+    def checkContent(self, dbname="sml_db"):
         simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/sml_test %s'%(buildPath, simClientCfg)
@@ -33,6 +33,9 @@ class TDTestCase:
         ret = os.system(cmdStr)
         if ret != 0:
             tdLog.info("sml_test ret != 0")
+
+        tdSql.query(f"select * from ts3303.stb2")
+        tdSql.query(f"select * from ts3303.meters")
 
         # tdSql.execute('use sml_db')
         tdSql.query(f"select * from {dbname}.t_b7d815c9222ca64cdf2614c61de8f211")
@@ -102,7 +105,7 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        self.checkFileContent()
+        self.checkContent()
 
     def stop(self):
         tdSql.close()

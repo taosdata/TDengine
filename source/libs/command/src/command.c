@@ -278,7 +278,12 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
 
   char* retentions = buildRetension(pCfg->pRetensions);
   int32_t dbFNameLen = strlen(dbFName);
-  int32_t hashPrefix = (pCfg->hashPrefix > (dbFNameLen + 1)) ? (pCfg->hashPrefix - dbFNameLen - 1) : 0;
+  int32_t hashPrefix = 0;
+  if (pCfg->hashPrefix > 0) {
+    hashPrefix = pCfg->hashPrefix - dbFNameLen - 1;
+  } else if (pCfg->hashPrefix < 0) {
+    hashPrefix = pCfg->hashPrefix + dbFNameLen + 1;
+  }
 
   len += sprintf(
       buf2 + VARSTR_HEADER_SIZE,
@@ -307,7 +312,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
 bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int nFields) {
   // vgroup_id | db_name | tables | v1_dnode | v1_status | v2_dnode | v2_status | v3_dnode | v3_status | v4_dnode |
   // v4_status |  cacheload  | tsma |
-  if (nFields != 13) {
+  if (nFields != 14) {
     return false;
   }
 

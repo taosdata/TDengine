@@ -32,34 +32,6 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def checkFileContent(self, consumerId, queryString):
-        buildPath = tdCom.getBuildPath()
-        cfgPath = tdCom.getClientCfgPath()
-        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
-        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
-        tdLog.info(cmdStr)
-        os.system(cmdStr)
-
-        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
-        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
-
-        consumeFile = open(consumeRowsFile, mode='r')
-        queryFile = open(dstFile, mode='r')
-
-        # skip first line for it is schema
-        queryFile.readline()
-
-        while True:
-            dst = queryFile.readline()
-            src = consumeFile.readline()
-
-            if dst:
-                if dst != src:
-                    tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
-            else:
-                break
-        return
-
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     'dbt',
@@ -134,6 +106,7 @@ class TDTestCase:
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
 
+        tdSql.execute("alter database dbt wal_retention_period 3600")
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
         queryString = "select ts, c1, c2 from %s.%s  where t4 == 'beijing' or t4 == 'changsha' "%(paraDict['dbName'], paraDict['stbName'])

@@ -740,6 +740,13 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     code = createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets);
   }
 
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
+    pWindow->node.pConditions = nodesCloneNode(pSelect->pHaving);
+    if (NULL == pWindow->node.pConditions) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
   pSelect->hasAggFuncs = false;
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1132,6 +1139,14 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
     }
   }
 
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving && !pSelect->hasAggFuncs && NULL == pSelect->pGroupByList &&
+      NULL == pSelect->pWindow) {
+    pPartition->node.pConditions = nodesCloneNode(pSelect->pHaving);
+    if (NULL == pPartition->node.pConditions) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pPartition;
   } else {
@@ -1443,7 +1458,7 @@ static int32_t createDeleteRootLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
 
 static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDelete, SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
-  int32_t         code = makeScanLogicNode(pCxt, (SRealTableNode*)pDelete->pFromTable, false, (SLogicNode**)&pScan);
+  int32_t          code = makeScanLogicNode(pCxt, (SRealTableNode*)pDelete->pFromTable, false, (SLogicNode**)&pScan);
 
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {

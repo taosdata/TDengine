@@ -129,6 +129,14 @@ SHOW QNODES;
 
 显示当前系统中 QNODE （查询节点）的信息。
 
+## SHOW QUERIES
+
+```sql
+SHOW QUERIES;
+```
+
+显示当前系统中正在进行的查询。
+
 ## SHOW SCORES
 
 ```sql
@@ -189,7 +197,7 @@ SHOW TABLE DISTRIBUTED table_name;
 
 *************************** 1.row ***************************
 
-_block_dist: Total_Blocks=[5] Total_Size=[93.65 Kb] Average_size=[18.73 Kb] Compression_Ratio=[23.98 %]
+_block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Compression_Ratio=[23.98 %]
 
 Total_Blocks:  表 d0 占用的 block 个数为 5 个
 
@@ -253,8 +261,9 @@ Query OK, 24 row(s) in set (0.002444s)
 </code></pre>
  </details>
 
-  上面是块中包含数据行数的块儿分布情况图，这里的 0100 0299 0498 … 表示的是每个块中包含的数据行数，上面的意思就是这个表的 5 个块，分布在 3483 ~3681 行的块有 1 个，占整个块的 20%，分布在 3881 ~ 4096（最大行数）的块数为 4 个，占整个块的 80%， 其它区域内分布块数为 0。
+上面是块中包含数据行数的块儿分布情况图，这里的 0100 0299 0498 … 表示的是每个块中包含的数据行数，上面的意思就是这个表的 5 个块，分布在 3483 ~3681 行的块有 1 个，占整个块的 20%，分布在 3881 ~ 4096（最大行数）的块数为 4 个，占整个块的 80%， 其它区域内分布块数为 0。
 
+需要注意，这里只会显示 data 文件中数据块的信息，stt 文件中的数据的信息不会被显示。
 
 ## SHOW TAGS
 

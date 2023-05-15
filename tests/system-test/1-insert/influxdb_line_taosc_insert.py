@@ -439,7 +439,7 @@ class TDTestCase:
         for input_sql in [self.genLongSql(127, 1)[0], self.genLongSql(1, 4093)[0]]:
             tdCom.cleanTb(dbname="test")
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        for input_sql in [self.genLongSql(129, 1)[0], self.genLongSql(1, 4095)[0]]:
+        for input_sql in [self.genLongSql(128, 1)[0], self.genLongSql(1, 4094)[0]]:
             tdCom.cleanTb(dbname="test")
             try:
                 self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -578,10 +578,16 @@ class TDTestCase:
 
         # binary
         stb_name = tdCom.getLongName(7, "letters")
-        input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(16374, "letters")}" c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(4091, "letters")}" c0=f 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
-        input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(16375, "letters")}" c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t0="a",t1="{tdCom.getLongName(4088, "letters")}" c0=f 1626006833639000000'
+        try:
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
+
+        input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(4092, "letters")}" c0=f 1626006833639000000'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         except SchemalessError as err:
@@ -590,10 +596,10 @@ class TDTestCase:
         # nchar
         # * legal nchar could not be larger than 16374/4
         stb_name = tdCom.getLongName(7, "letters")
-        input_sql = f'{stb_name},t0=t,t1=L"{tdCom.getLongName(4093, "letters")}" c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t0=t,t1=L"{tdCom.getLongName(4090, "letters")}" c0=f 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
-        input_sql = f'{stb_name},t0=t,t1=L"{tdCom.getLongName(4094, "letters")}" c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t0=t,t1=L"{tdCom.getLongName(4091, "letters")}" c0=f 1626006833639000000'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         except SchemalessError as err:
@@ -672,28 +678,34 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # # # binary
-        # stb_name = tdCom.getLongName(7, "letters")
-        # input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16374, "letters")}" 1626006833639000000'
-        # self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        # binary
+        stb_name = tdCom.getLongName(7, "letters")
+        input_sql = f'{stb_name},t0=t c0=1i32,c1="{tdCom.getLongName(65517, "letters")}" 1626006833639000000'
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
-        # input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16375, "letters")}" 1626006833639000000'
-        # try:
-        #     self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        # except SchemalessError as err:
-        #     tdSql.checkNotEqual(err.errno, 0)
+        input_sql = f'{stb_name},t0=t c0=1i32,c1="{tdCom.getLongName(65517, "letters")},c2=f" 1626006833639000000'
+        try:
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
 
-        # # nchar
-        # # * legal nchar could not be larger than 16374/4
-        # stb_name = tdCom.getLongName(7, "letters")
-        # input_sql = f'{stb_name},t0=t c0=f,c1=L"{tdCom.getLongName(4093, "letters")}" 1626006833639000000'
-        # self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(65518, "letters")}" 1626006833639000000'
+        try:
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
 
-        # input_sql = f'{stb_name},t0=t c0=f,c1=L"{tdCom.getLongName(4094, "letters")}" 1626006833639000000'
-        # try:
-        #     self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        # except SchemalessError as err:
-        #     tdSql.checkNotEqual(err.errno, 0)
+        # nchar
+        # * legal nchar could not be larger than 16374/4
+        stb_name = tdCom.getLongName(7, "letters")
+        input_sql = f'{stb_name},t0=t c0=1i32,c1=L"{tdCom.getLongName(16379, "letters")}",c2=f 1626006833639000000'
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+
+        input_sql = f'{stb_name},t0=t c0=1i32,c1=L"{tdCom.getLongName(16380, "letters")}",c2=1i16 1626006833639000000'
+        try:
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
 
     def tagColIllegalValueCheckCase(self):
 
@@ -884,7 +896,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkNotEqual(tb_name1, tb_name3)
 
-    # * tag binary max is 16384, col+ts binary max  49151
+    # * tag binary max is 16384-2, col+ts binary max 65531
     def tagColBinaryMaxLengthCheckCase(self):
         """
             every binary and nchar must be length+2
@@ -896,35 +908,59 @@ class TDTestCase:
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
-        input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(16374, "letters")}",t2="{tdCom.getLongName(5, "letters")}" c0=f 1626006833639000000'
+        stb_name = tdCom.getLongName(8, "letters")
+        input_sql = f'{stb_name},t0=f,t1="{tdCom.getLongName(4091, "letters")}", c0=f 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(2)
-        input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(16374, "letters")}",t2="{tdCom.getLongName(6, "letters")}" c0=f 1626006833639000000'
+        tdSql.checkRows(1)
+        
+        input_sql = f'{stb_name},t0=t,t1="{tdCom.getLongName(4092, "letters")}", c0=f 1626006833639000000'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
         tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(2)
+        tdSql.checkRows(1)
 
+        
+        stb_name = tdCom.getLongName(9, "letters")
         # # * check col，col+ts max in describe ---> 16143
-        input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16374, "letters")}",c2="{tdCom.getLongName(16374, "letters")}",c3="{tdCom.getLongName(16374, "letters")}",c4="{tdCom.getLongName(12, "letters")}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c0=1i32,c1="{tdCom.getLongName(65517, "letters")}" 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
+        input_sql = f'{stb_name},t0=t c0=1i32,c1="{tdCom.getLongName(65517, "letters")}",c2=f 1626006833639000000'
+        try:
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
+
         tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(3)
+        tdSql.checkRows(1)
+
+
+        stb_name = tdCom.getLongName(10, "letters")        
+        input_sql = f'{stb_name},t0=t c0=1i16,c1="{tdCom.getLongName(49133, "letters")}",c2="{tdCom.getLongName(16384, "letters")}" 1626006833639000000'
+        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        
+        input_sql = f'{stb_name},t0=t c0=1i16,c1="{tdCom.getLongName(49133, "letters")}",c2="{tdCom.getLongName(16384, "letters")},c3=t" 1626006833639000000'
+        try:
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        except SchemalessError as err:
+            tdSql.checkNotEqual(err.errno, 0)
+
+        tdSql.query(f"select * from {stb_name}")
+        tdSql.checkRows(1)
+
         input_sql = f'{stb_name},t0=t c0=f,c1="{tdCom.getLongName(16374, "letters")}",c2="{tdCom.getLongName(16374, "letters")}",c3="{tdCom.getLongName(16374, "letters")}",c4="{tdCom.getLongName(13, "letters")}" 1626006833639000000'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
-        tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(3)
 
-    # * tag nchar max is 16374/4, col+ts nchar max  49151
+
+    # * tag nchar max is (16384-2)/4, col+ts nchar max 65531
     def tagColNcharMaxLengthCheckCase(self):
         """
             check nchar length limit
@@ -935,30 +971,31 @@ class TDTestCase:
         input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000'
         code = self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
-        # * legal nchar could not be larger than 16374/4
-        input_sql = f'{stb_name},t0=t,t1=L"{tdCom.getLongName(4093, "letters")}",t2=L"{tdCom.getLongName(1, "letters")}" c0=f 1626006833639000000'
-        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(2)
-        input_sql = f'{stb_name},t0=t,t1=L"{tdCom.getLongName(4093, "letters")}",t2=L"{tdCom.getLongName(2, "letters")}" c0=f 1626006833639000000'
-        try:
-            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        except SchemalessError as err:
-            tdSql.checkNotEqual(err.errno, 0)
-        tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(2)
+        # * legal tag nchar could not be larger than (16384-2)/4
+        # input_sql = f'{stb_name},t0=t,t1=L"{tdCom.getLongName(4093, "letters")}",t2=L"{tdCom.getLongName(1, "letters")}" c0=f 1626006833639000000'
+        # self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        # tdSql.query(f"select * from {stb_name}")
+        # tdSql.checkRows(2)
+        # input_sql = f'{stb_name},t0=t,t1=L"{tdCom.getLongName(4093, "letters")}",t2=L"{tdCom.getLongName(2, "letters")}" c0=f 1626006833639000000'
+        # try:
+        #     self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+        # except SchemalessError as err:
+        #     tdSql.checkNotEqual(err.errno, 0)
+        # tdSql.query(f"select * from {stb_name}")
+        # tdSql.checkRows(2)
 
         input_sql = f'{stb_name},t0=t c0=f,c1=L"{tdCom.getLongName(4093, "letters")}",c2=L"{tdCom.getLongName(4093, "letters")}",c3=L"{tdCom.getLongName(4093, "letters")}",c4=L"{tdCom.getLongName(4, "letters")}" 1626006833639000000'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(3)
+        tdSql.checkRows(2)
+
         input_sql = f'{stb_name},t0=t c0=f,c1=L"{tdCom.getLongName(4093, "letters")}",c2=L"{tdCom.getLongName(4093, "letters")}",c3=L"{tdCom.getLongName(4093, "letters")}",c4=L"{tdCom.getLongName(5, "letters")}" 1626006833639000000'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
         tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(3)
+        tdSql.checkRows(2)
 
     def batchInsertCheckCase(self):
         """
@@ -1274,13 +1311,13 @@ class TDTestCase:
         self.idSeqCheckCase()
         self.idUpperCheckCase()
         self.noIdCheckCase()
-        # self.maxColTagCheckCase()
+        self.maxColTagCheckCase()
         self.idIllegalNameCheckCase()
         self.idStartWithNumCheckCase()
         self.nowTsCheckCase()
         self.dateFormatTsCheckCase()
         self.illegalTsCheckCase()
-        # self.tagValueLengthCheckCase()
+        self.tagValueLengthCheckCase()
         self.colValueLengthCheckCase()
         self.tagColIllegalValueCheckCase()
         self.duplicateIdTagColInsertCheckCase()
@@ -1290,8 +1327,8 @@ class TDTestCase:
         self.tagColAddDupIDCheckCase()
         self.tagColAddCheckCase()
         self.tagMd5Check()
-        # self.tagColBinaryMaxLengthCheckCase()
-        # self.tagColNcharMaxLengthCheckCase()
+        self.tagColBinaryMaxLengthCheckCase()
+        self.tagColNcharMaxLengthCheckCase()
         self.batchInsertCheckCase()
         self.multiInsertCheckCase(10)
         self.batchErrorInsertCheckCase()

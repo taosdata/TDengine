@@ -53,12 +53,15 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    colDataDestroy(pColumnData);
     taosMemoryFree(pColumnData);
     return terrno;
   }
 
   pParam->columnData = pColumnData;
   pParam->colAlloced = true;
+  pParam->numOfRows = numOfRows;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -740,6 +743,10 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
 
+    if (rowNum == 0) {
+      goto _return;
+    }
+
     code = (*ffpSet.process)(params, paramNum, output);
     if (code) {
       sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
@@ -1032,23 +1039,43 @@ bool sclContainsAggFuncNode(SNode *pNode) {
   return aggFunc;
 }
 
+static uint8_t sclGetOpValueNodeTsPrecision(SNode *pLeft, SNode *pRight) {
+  uint8_t lPrec = ((SExprNode *)pLeft)->resType.precision;
+  uint8_t rPrec = ((SExprNode *)pRight)->resType.precision;
+
+  uint8_t lType = ((SExprNode *)pLeft)->resType.type;
+  uint8_t rType = ((SExprNode *)pRight)->resType.type;
+
+  if (TSDB_DATA_TYPE_TIMESTAMP == lType && TSDB_DATA_TYPE_TIMESTAMP == rType) {
+    return TMAX(lPrec, rPrec);
+  } else if (TSDB_DATA_TYPE_TIMESTAMP == lType && TSDB_DATA_TYPE_TIMESTAMP != rType) {
+    return lPrec;
+  } else if (TSDB_DATA_TYPE_TIMESTAMP == rType && TSDB_DATA_TYPE_TIMESTAMP != lType) {
+    return rPrec;
+  }
+
+  return 0;
+}
 
 int32_t sclConvertOpValueNodeTs(SOperatorNode *node, SScalarCtx *ctx) {
   int32_t code = 0;
-  
+
   if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
     if (node->pRight && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pRight)->resType.type)) {
-      SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pRight)->resType.precision, (SValueNode*)node->pLeft));
+      SCL_ERR_JRET(
+          sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight), (SValueNode *)node->pLeft));
     }
   } else if (node->pRight && SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
     if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
       if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
-        SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)node->pRight));
+        SCL_ERR_JRET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight),
+                                             (SValueNode *)node->pRight));
       } else if (QUERY_NODE_NODE_LIST == node->pRight->type) {
-        SNode* pNode;
-        FOREACH(pNode, ((SNodeListNode*)node->pRight)->pNodeList) {
+        SNode *pNode;
+        FOREACH(pNode, ((SNodeListNode *)node->pRight)->pNodeList) {
           if (SCL_IS_VAR_VALUE_NODE(pNode)) {
-            SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)pNode));
+            SCL_ERR_JRET(
+                sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, pNode), (SValueNode *)pNode));
           }
         }
       }
@@ -1063,29 +1090,28 @@ _return:
   return DEAL_RES_ERROR;
 }
 
-
-
 int32_t sclConvertCaseWhenValueNodeTs(SCaseWhenNode *node, SScalarCtx *ctx) {
   int32_t code = 0;
 
   if (NULL == node->pCase) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   if (SCL_IS_VAR_VALUE_NODE(node->pCase)) {
-    SNode* pNode;
+    SNode *pNode;
     FOREACH(pNode, node->pWhenThenList) {
       SExprNode *pExpr = (SExprNode *)((SWhenThenNode *)pNode)->pWhen;
       if (TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
-        SCL_ERR_JRET(sclConvertToTsValueNode(pExpr->resType.precision, (SValueNode*)node->pCase));
+        SCL_ERR_JRET(sclConvertToTsValueNode(pExpr->resType.precision, (SValueNode *)node->pCase));
         break;
       }
     }
   } else if (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pCase)->resType.type) {
-    SNode* pNode;
+    SNode *pNode;
     FOREACH(pNode, node->pWhenThenList) {
       if (SCL_IS_VAR_VALUE_NODE(((SWhenThenNode *)pNode)->pWhen)) {
-        SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pCase)->resType.precision, (SValueNode*)((SWhenThenNode *)pNode)->pWhen));
+        SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pCase)->resType.precision,
+                                             (SValueNode *)((SWhenThenNode *)pNode)->pWhen));
       }
     }
   }
@@ -1247,7 +1273,6 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   sclFreeParam(&output);
   return DEAL_RES_CONTINUE;
 }
-
 
 EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;

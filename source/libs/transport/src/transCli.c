@@ -425,21 +425,6 @@ void cliHandleResp(SCliConn* conn) {
     tDebug("%s conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
 
-  // if (TMSG_INFO(pHead->msgType - 1) != 0) {
-  //   char buf[128] = {0};
-  //   sprintf(buf, "%s", TMSG_INFO(pHead->msgType - 1));
-  //   int* count = taosHashGet(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)));
-  //   if (NULL == 0) {
-  //     int localCount = 1;
-  //     taosHashPut(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)), &localCount,
-  //                 sizeof(localCount));
-  //   } else {
-  //     int localCount = *count - 1;
-  //     taosHashPut(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)), &localCount,
-  //                 sizeof(localCount));
-  //   }
-  // }
-
   STraceId* trace = &transMsg.info.traceId;
   tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
           TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, tstrerror(transMsg.code));
@@ -477,6 +462,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
   if (transQueueEmpty(&pConn->cliMsgs)) {
     if (pConn->broken == true && CONN_NO_PERSIST_BY_APP(pConn)) {
       tTrace("%s conn %p handle except, persist:0", CONN_GET_INST_LABEL(pConn), pConn);
+      if (T_REF_VAL_GET(pConn) > 1) transUnrefCliHandle(pConn);
       transUnrefCliHandle(pConn);
       return;
     }
@@ -536,6 +522,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
     destroyCmsg(pMsg);
     tTrace("%s conn %p start to destroy, ref:%d", CONN_GET_INST_LABEL(pConn), pConn, T_REF_VAL_GET(pConn));
   } while (!transQueueEmpty(&pConn->cliMsgs));
+  if (T_REF_VAL_GET(pConn) > 1) transUnrefCliHandle(pConn);
   transUnrefCliHandle(pConn);
 }
 void cliHandleExcept(SCliConn* conn) {
@@ -600,12 +587,12 @@ void* destroyConnPool(SCliThrd* pThrd) {
 
 static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
   void*      pool = pThrd->pool;
-  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
+  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key) + 1);
   STrans*    pTranInst = pThrd->pTransInst;
   if (plist == NULL) {
     SConnList list = {0};
-    taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
-    plist = taosHashGet(pool, key, strlen(key));
+    taosHashPut((SHashObj*)pool, key, strlen(key) + 1, (void*)&list, sizeof(list));
+    plist = taosHashGet(pool, key, strlen(key) + 1);
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
     QUEUE_INIT(&nList->msgQ);
@@ -640,11 +627,11 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
 static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
   void*      pool = pThrd->pool;
   STrans*    pTransInst = pThrd->pTransInst;
-  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
+  SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key) + 1);
   if (plist == NULL) {
     SConnList list = {0};
-    taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
-    plist = taosHashGet(pool, key, strlen(key));
+    taosHashPut((SHashObj*)pool, key, strlen(key) + 1, (void*)&list, sizeof(list));
+    plist = taosHashGet(pool, key, strlen(key) + 1);
 
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
     QUEUE_INIT(&nList->msgQ);
@@ -730,7 +717,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   cliDestroyConnMsgs(conn, false);
 
   if (conn->list == NULL) {
-    conn->list = taosHashGet((SHashObj*)pool, conn->ip, strlen(conn->ip));
+    conn->list = taosHashGet((SHashObj*)pool, conn->ip, strlen(conn->ip) + 1);
   }
 
   SConnList* pList = conn->list;
@@ -835,7 +822,8 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
   if (nread < 0) {
-    tWarn("%s conn %p read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread), T_REF_VAL_GET(conn));
+    tDebug("%s conn %p read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
+           T_REF_VAL_GET(conn));
     conn->broken = true;
     cliHandleExcept(conn);
   }
@@ -888,8 +876,8 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
     connList->list->numOfConn--;
     connList->size--;
   } else {
-    SConnList* connList = taosHashGet((SHashObj*)pThrd->pool, conn->ip, strlen(conn->ip));
-    connList->list->numOfConn--;
+    SConnList* connList = taosHashGet((SHashObj*)pThrd->pool, conn->ip, strlen(conn->ip) + 1);
+    if (connList != NULL) connList->list->numOfConn--;
   }
   conn->list = NULL;
   pThrd->newConnCount--;
@@ -1118,19 +1106,6 @@ void cliSend(SCliConn* pConn) {
     msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
 
-  // if (tmsgIsValid(pHead->msgType)) {
-  //   char buf[128] = {0};
-  //   sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
-  //   int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-  //   if (NULL == 0) {
-  //     int localCount = 1;
-  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-  //   } else {
-  //     int localCount = *count + 1;
-  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-  //   }
-  // }
-
   tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
 
@@ -1295,7 +1270,7 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
 
     if (pMsg != NULL && REQUEST_NO_RESP(&pMsg->msg) &&
         (pTransInst->failFastFp != NULL && pTransInst->failFastFp(pMsg->msg.msgType))) {
-      SFailFastItem* item = taosHashGet(pThrd->failFastCache, pConn->ip, strlen(pConn->ip));
+      SFailFastItem* item = taosHashGet(pThrd->failFastCache, pConn->ip, strlen(pConn->ip) + 1);
       int64_t        cTimestamp = taosGetTimestampMs();
       if (item != NULL) {
         int32_t elapse = cTimestamp - item->timestamp;
@@ -1307,7 +1282,7 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
         }
       } else {
         SFailFastItem item = {.count = 1, .timestamp = cTimestamp};
-        taosHashPut(pThrd->failFastCache, pConn->ip, strlen(pConn->ip), &item, sizeof(SFailFastItem));
+        taosHashPut(pThrd->failFastCache, pConn->ip, strlen(pConn->ip) + 1, &item, sizeof(SFailFastItem));
       }
     }
   } else {
@@ -1485,7 +1460,7 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* pResp) {
 }
 static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) {
   uint32_t  addr = 0;
-  uint32_t* v = taosHashGet(cache, fqdn, strlen(fqdn));
+  uint32_t* v = taosHashGet(cache, fqdn, strlen(fqdn) + 1);
   if (v == NULL) {
     addr = taosGetIpv4FromFqdn(fqdn);
     if (addr == 0xffffffff) {
@@ -1494,7 +1469,7 @@ static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) 
       return addr;
     }
 
-    taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
+    taosHashPut(cache, fqdn, strlen(fqdn) + 1, &addr, sizeof(addr));
   } else {
     addr = *v;
   }
@@ -1525,16 +1500,19 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     destroyCmsg(pMsg);
     return;
   }
-  if (tmsgIsValid(pMsg->msg.msgType)) {
-    char buf[128] = {0};
-    sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
-    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-    if (NULL == 0) {
-      int localCount = 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-    } else {
-      int localCount = *count + 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+
+  if (rpcDebugFlag & DEBUG_TRACE) {
+    if (tmsgIsValid(pMsg->msg.msgType)) {
+      char buf[128] = {0};
+      sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
+      int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+      if (NULL == 0) {
+        int localCount = 1;
+        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+      } else {
+        int localCount = *count + 1;
+        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+      }
     }
   }
 
@@ -1782,18 +1760,20 @@ static void cliAsyncCb(uv_async_t* handle) {
   QUEUE_MOVE(&item->qmsg, &wq);
   taosThreadMutexUnlock(&item->mtx);
 
-  void* pIter = taosHashIterate(pThrd->msgCount, NULL);
-  while (pIter != NULL) {
-    int*   count = pIter;
-    size_t len = 0;
-    char*  key = taosHashGetKey(pIter, &len);
-    if (*count != 0) {
-      tDebug("key: %s count: %d", key, *count);
-    }
+  if (rpcDebugFlag & DEBUG_TRACE) {
+    void* pIter = taosHashIterate(pThrd->msgCount, NULL);
+    while (pIter != NULL) {
+      int*   count = pIter;
+      size_t len = 0;
+      char*  key = taosHashGetKey(pIter, &len);
+      if (*count != 0) {
+        tDebug("key: %s count: %d", key, *count);
+      }
 
-    pIter = taosHashIterate(pThrd->msgCount, pIter);
+      pIter = taosHashIterate(pThrd->msgCount, pIter);
+    }
+    tDebug("all conn count: %d", pThrd->newConnCount);
   }
-  tDebug("all conn count: %d", pThrd->newConnCount);
 
   int8_t supportBatch = pTransInst->supportBatch;
   if (supportBatch == 0) {
@@ -2379,17 +2359,18 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
     }
   }
-
-  if (tmsgIsValid(pResp->msgType - 1)) {
-    char buf[128] = {0};
-    sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
-    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-    if (NULL == 0) {
-      int localCount = 0;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-    } else {
-      int localCount = *count - 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  if (rpcDebugFlag & DEBUG_TRACE) {
+    if (tmsgIsValid(pResp->msgType - 1)) {
+      char buf[128] = {0};
+      sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
+      int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+      if (NULL == 0) {
+        int localCount = 0;
+        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+      } else {
+        int localCount = *count - 1;
+        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+      }
     }
   }
   if (pCtx->pSem != NULL) {

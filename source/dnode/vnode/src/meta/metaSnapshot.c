@@ -187,23 +187,24 @@ _err:
 
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t    code = 0;
+  int32_t    line = 0;
   SMeta*     pMeta = pWriter->pMeta;
   SMetaEntry metaEntry = {0};
   SDecoder*  pDecoder = &(SDecoder){0};
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = metaDecodeEntry(pDecoder, &metaEntry);
-  if (code) goto _err;
+  VND_CHECK_CODE(code, line, _err);
 
   code = metaHandleEntry(pMeta, &metaEntry);
-  if (code) goto _err;
+  VND_CHECK_CODE(code, line, _err);
 
   tDecoderClear(pDecoder);
   return code;
 
 _err:
   tDecoderClear(pDecoder);
-  metaError("vgId:%d, vnode snapshot meta write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d, vnode snapshot meta write failed since %s at line:%d", TD_VID(pMeta->pVnode), terrstr(), line);
   return code;
 }
 
@@ -216,8 +217,8 @@ typedef struct STableInfoForChildTable {
 static void destroySTableInfoForChildTable(void* data) {
   STableInfoForChildTable* pData = (STableInfoForChildTable*)data;
   taosMemoryFree(pData->tableName);
-  tDeleteSSchemaWrapper(pData->schemaRow);
-  tDeleteSSchemaWrapper(pData->tagRow);
+  tDeleteSchemaWrapper(pData->schemaRow);
+  tDeleteSchemaWrapper(pData->tagRow);
 }
 
 static void MoveToSnapShotVersion(SSnapContext* ctx) {
@@ -268,7 +269,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
   ctx->snapVersion = snapVersion;
   ctx->suid = suid;
   ctx->subType = subType;
-  ctx->queryMetaOrData = withMeta;
+  ctx->queryMeta = withMeta;
   ctx->withMeta = withMeta;
   ctx->idVersion = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->idVersion == NULL) {
@@ -475,7 +476,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
     if (ctx->index >= taosArrayGetSize(ctx->idList)) {
       metaDebug("tmqsnap get meta end");
       ctx->index = 0;
-      ctx->queryMetaOrData = false;  // change to get data
+      ctx->queryMeta = false;  // change to get data
       return 0;
     }
 

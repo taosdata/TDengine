@@ -100,7 +100,8 @@ sudo apt-get install tdengine
 
 :::tip
 apt-get 方式只适用于 Debian 或 Ubuntu 系统。
-::::
+:::
+
 </TabItem>
 <TabItem label="Windows 安装" value="windows">
 
@@ -178,7 +179,7 @@ Active: inactive (dead)
 
 :::
 
-## TDengine 命令行（CLI）
+**TDengine 命令行（CLI）**
 
 为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` 即可。
 
@@ -186,9 +187,9 @@ Active: inactive (dead)
 
 <TabItem label="Windows 系统" value="windows">
 
-安装后，在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。
+安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。
 
-## TDengine 命令行（CLI）
+**TDengine 命令行（CLI）**
 
 为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` 即可。
 
@@ -206,6 +207,8 @@ Active: inactive (dead)
 
 - 查看服务状态：`sudo launchctl list | grep taosd`
 
+- 查看服务详细信息：`launchctl print system/com.tdengine.taosd`
+
 :::info
 
 - `launchctl` 命令管理`com.tdengine.taosd`需要管理员权限，务必在前面加 `sudo` 来增强安全性。
@@ -215,7 +218,7 @@ Active: inactive (dead)
 
 :::
 
-## TDengine 命令行（CLI）
+**TDengine 命令行（CLI）**
 
 为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在 Windows 终端的 C:\TDengine 目录下，运行 taos.exe 来启动 TDengine 命令行。
 

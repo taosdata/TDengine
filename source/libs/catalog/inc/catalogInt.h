@@ -43,6 +43,33 @@ extern "C" {
 
 #define CTG_BATCH_FETCH 1
 
+typedef enum {
+  CTG_CI_CLUSTER = 0,
+  CTG_CI_DNODE,
+  CTG_CI_QNODE,
+  CTG_CI_DB,
+  CTG_CI_DB_VGROUP,
+  CTG_CI_DB_CFG,
+  CTG_CI_DB_INFO,
+  CTG_CI_STABLE_META,
+  CTG_CI_NTABLE_META,
+  CTG_CI_CTABLE_META,
+  CTG_CI_SYSTABLE_META,
+  CTG_CI_OTHERTABLE_META,
+  CTG_CI_TBL_SMA,
+  CTG_CI_TBL_CFG,
+  CTG_CI_TBL_TAG,
+  CTG_CI_INDEX_INFO,
+  CTG_CI_USER,
+  CTG_CI_UDF,
+  CTG_CI_SVR_VER,
+  CTG_CI_MAX_VALUE,
+} CTG_CACHE_ITEM;
+
+#define CTG_CI_FLAG_LEVEL_GLOBAL  (1)
+#define CTG_CI_FLAG_LEVEL_CLUSTER (1 << 1)
+#define CTG_CI_FLAG_LEVEL_DB      (1 << 2)
+
 enum {
   CTG_READ = 1,
   CTG_WRITE,
@@ -76,14 +103,15 @@ typedef enum {
   CTG_TASK_GET_DB_INFO,
   CTG_TASK_GET_TB_META,
   CTG_TASK_GET_TB_HASH,
-  CTG_TASK_GET_TB_INDEX,
+  CTG_TASK_GET_TB_SMA_INDEX,
   CTG_TASK_GET_TB_CFG,
-  CTG_TASK_GET_INDEX,
+  CTG_TASK_GET_INDEX_INFO,
   CTG_TASK_GET_UDF,
   CTG_TASK_GET_USER,
   CTG_TASK_GET_SVR_VER,
   CTG_TASK_GET_TB_META_BATCH,
   CTG_TASK_GET_TB_HASH_BATCH,
+  CTG_TASK_GET_TB_TAG,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -96,8 +124,28 @@ typedef struct SCtgDebug {
   bool     cacheEnable;
   bool     apiEnable;
   bool     metaEnable;
+  bool     statEnable;
   uint32_t showCachePeriodSec;
 } SCtgDebug;
+
+typedef struct SCtgCacheStat {
+  uint64_t cacheNum[CTG_CI_MAX_VALUE];
+  uint64_t cacheHit[CTG_CI_MAX_VALUE];
+  uint64_t cacheNHit[CTG_CI_MAX_VALUE];
+} SCtgCacheStat;
+
+typedef struct SCtgAuthReq {
+  SRequestConnInfo* pConn;
+  SUserAuthInfo*    pRawReq;
+  SGetUserAuthRsp   authInfo;
+  AUTH_TYPE         singleType;
+  bool              onlyCache;
+} SCtgAuthReq;
+
+typedef struct SCtgAuthRsp {
+  SUserAuthRes* pRawRes;
+  bool          metaNotExists;
+} SCtgAuthRsp;
 
 typedef struct SCtgTbCacheInfo {
   bool     inCache;
@@ -105,6 +153,11 @@ typedef struct SCtgTbCacheInfo {
   uint64_t suid;
   int32_t  tbType;
 } SCtgTbCacheInfo;
+
+typedef struct SCtgTbMetaParam {
+  SName*  pName;
+  int32_t flag;
+} SCtgTbMetaParam;
 
 typedef struct SCtgTbMetaCtx {
   SCtgTbCacheInfo tbInfo;
@@ -139,6 +192,11 @@ typedef struct SCtgTbCfgCtx {
   int32_t      tbType;
   SVgroupInfo* pVgInfo;
 } SCtgTbCfgCtx;
+
+typedef struct SCtgTbTagCtx {
+  SName*       pName;
+  SVgroupInfo* pVgInfo;
+} SCtgTbTagCtx;
 
 typedef struct SCtgDbVgCtx {
   char dbFName[TSDB_DB_FNAME_LEN];
@@ -197,6 +255,7 @@ typedef struct SCtgDBCache {
   SCtgVgCache vgCache;
   SHashObj*   tbCache;   // key:tbname, value:SCtgTbCache
   SHashObj*   stbCache;  // key:suid, value:char*
+  uint64_t    dbCacheNum[CTG_CI_MAX_VALUE];
 } SCtgDBCache;
 
 typedef struct SCtgRentSlot {
@@ -214,21 +273,18 @@ typedef struct SCtgRentMgmt {
 } SCtgRentMgmt;
 
 typedef struct SCtgUserAuth {
-  int32_t   version;
-  SRWLatch  lock;
-  bool      superUser;
-  SHashObj* createdDbs;
-  SHashObj* readDbs;
-  SHashObj* writeDbs;
+  SRWLatch        lock;
+  SGetUserAuthRsp userAuth;
 } SCtgUserAuth;
 
 typedef struct SCatalog {
-  uint64_t     clusterId;
-  bool         stopUpdate;
-  SHashObj*    userCache;  // key:user, value:SCtgUserAuth
-  SHashObj*    dbCache;    // key:dbname, value:SCtgDBCache
-  SCtgRentMgmt dbRent;
-  SCtgRentMgmt stbRent;
+  uint64_t      clusterId;
+  bool          stopUpdate;
+  SHashObj*     userCache;  // key:user, value:SCtgUserAuth
+  SHashObj*     dbCache;    // key:dbname, value:SCtgDBCache
+  SCtgRentMgmt  dbRent;
+  SCtgRentMgmt  stbRent;
+  SCtgCacheStat cacheStat;
 } SCatalog;
 
 typedef struct SCtgBatch {
@@ -260,6 +316,7 @@ typedef struct SCtgJob {
   catalogCallback  userFp;
   int32_t          tbMetaNum;
   int32_t          tbHashNum;
+  int32_t          tbTagNum;
   int32_t          dbVgNum;
   int32_t          udfNum;
   int32_t          qnodeNum;
@@ -302,6 +359,7 @@ typedef struct SCtgSubRes {
 
 struct SCtgTask {
   CTG_TASK_TYPE   type;
+  bool            subTask;
   int32_t         taskId;
   SCtgJob*        pJob;
   void*           taskCtx;
@@ -347,24 +405,8 @@ typedef struct SCtgRuntimeStat {
   uint64_t numOfOpAbort;
   uint64_t numOfOpEnqueue;
   uint64_t numOfOpDequeue;
+  uint64_t numOfOpClearCache;
 } SCtgRuntimeStat;
-
-typedef struct SCtgCacheStat {
-  uint64_t numOfCluster;
-  uint64_t numOfDb;
-  uint64_t numOfTbl;
-  uint64_t numOfStb;
-  uint64_t numOfUser;
-  uint64_t numOfVgHit;
-  uint64_t numOfVgMiss;
-  uint64_t numOfMetaHit;
-  uint64_t numOfMetaMiss;
-  uint64_t numOfIndexHit;
-  uint64_t numOfIndexMiss;
-  uint64_t numOfUserHit;
-  uint64_t numOfUserMiss;
-  uint64_t numOfClear;
-} SCtgCacheStat;
 
 typedef struct SCatalogStat {
   SCtgApiStat     api;
@@ -472,7 +514,7 @@ typedef struct SCatalogMgmt {
   SCtgQueue    queue;
   TdThread     updateThread;
   SHashObj*    pCluster;  // key: clusterId, value: SCatalog*
-  SCatalogStat stat;
+  SCatalogStat statInfo;
   SCatalogCfg  cfg;
 } SCatalogMgmt;
 
@@ -485,7 +527,12 @@ typedef struct SCtgOperation {
   ctgOpFunc func;
 } SCtgOperation;
 
-#define CTG_AUTH_READ(_t) ((_t) == AUTH_TYPE_READ || (_t) == AUTH_TYPE_READ_OR_WRITE)
+typedef struct SCtgCacheItemInfo {
+  char*   name;
+  int32_t flag;
+} SCtgCacheItemInfo;
+
+#define CTG_AUTH_READ(_t)  ((_t) == AUTH_TYPE_READ || (_t) == AUTH_TYPE_READ_OR_WRITE)
 #define CTG_AUTH_WRITE(_t) ((_t) == AUTH_TYPE_WRITE || (_t) == AUTH_TYPE_READ_OR_WRITE)
 
 #define CTG_QUEUE_INC() atomic_add_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
@@ -495,9 +542,89 @@ typedef struct SCtgOperation {
 #define CTG_STAT_DEC(_item, _n) atomic_sub_fetch_64(&(_item), _n)
 #define CTG_STAT_GET(_item)     atomic_load_64(&(_item))
 
-#define CTG_RT_STAT_INC(item, n)    (CTG_STAT_INC(gCtgMgmt.stat.runtime.item, n))
-#define CTG_CACHE_STAT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.cache.item, n))
-#define CTG_CACHE_STAT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.stat.cache.item, n))
+#define CTG_DB_NUM_INC(_item)   dbCache->dbCacheNum[_item] += 1
+#define CTG_DB_NUM_DEC(_item)   dbCache->dbCacheNum[_item] -= 1
+#define CTG_DB_NUM_SET(_item)   dbCache->dbCacheNum[_item] = 1
+#define CTG_DB_NUM_RESET(_item) dbCache->dbCacheNum[_item] = 0
+
+#define CTG_STAT_API_INC(item, n)  (CTG_STAT_INC(gCtgMgmt.statInfo.api.item, n))
+#define CTG_STAT_RT_INC(item, n)   (CTG_STAT_INC(gCtgMgmt.statInfo.runtime.item, n))
+#define CTG_STAT_NUM_INC(item, n)  (CTG_STAT_INC(gCtgMgmt.statInfo.cache.cacheNum[item], n))
+#define CTG_STAT_NUM_DEC(item, n)  (CTG_STAT_DEC(gCtgMgmt.statInfo.cache.cacheNum[item], n))
+#define CTG_STAT_HIT_INC(item, n)  (CTG_STAT_INC(gCtgMgmt.statInfo.cache.cacheHit[item], n))
+#define CTG_STAT_HIT_DEC(item, n)  (CTG_STAT_DEC(gCtgMgmt.statInfo.cache.cacheHit[item], n))
+#define CTG_STAT_NHIT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.statInfo.cache.cacheNHit[item], n))
+#define CTG_STAT_NHIT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.statInfo.cache.cacheNHit[item], n))
+
+#define CTG_CACHE_NUM_INC(item, n)  (CTG_STAT_INC(pCtg->cacheStat.cacheNum[item], n))
+#define CTG_CACHE_NUM_DEC(item, n)  (CTG_STAT_DEC(pCtg->cacheStat.cacheNum[item], n))
+#define CTG_CACHE_HIT_INC(item, n)  (CTG_STAT_INC(pCtg->cacheStat.cacheHit[item], n))
+#define CTG_CACHE_NHIT_INC(item, n) (CTG_STAT_INC(pCtg->cacheStat.cacheNHit[item], n))
+
+#define CTG_META_NUM_INC(type)                  \
+  do {                                          \
+    switch (type) {                             \
+      case TSDB_SUPER_TABLE:                    \
+        CTG_DB_NUM_INC(CTG_CI_STABLE_META);     \
+        break;                                  \
+      case TSDB_CHILD_TABLE:                    \
+        CTG_DB_NUM_INC(CTG_CI_CTABLE_META);     \
+        break;                                  \
+      case TSDB_NORMAL_TABLE:                   \
+        CTG_DB_NUM_INC(CTG_CI_NTABLE_META);     \
+        break;                                  \
+      case TSDB_SYSTEM_TABLE:                   \
+        CTG_DB_NUM_INC(CTG_CI_SYSTABLE_META);   \
+        break;                                  \
+      default:                                  \
+        CTG_DB_NUM_INC(CTG_CI_OTHERTABLE_META); \
+        break;                                  \
+    }                                           \
+  } while (0)
+
+#define CTG_META_NUM_DEC(type)                  \
+  do {                                          \
+    switch (type) {                             \
+      case TSDB_SUPER_TABLE:                    \
+        CTG_DB_NUM_DEC(CTG_CI_STABLE_META);     \
+        break;                                  \
+      case TSDB_CHILD_TABLE:                    \
+        CTG_DB_NUM_DEC(CTG_CI_CTABLE_META);     \
+        break;                                  \
+      case TSDB_NORMAL_TABLE:                   \
+        CTG_DB_NUM_DEC(CTG_CI_NTABLE_META);     \
+        break;                                  \
+      case TSDB_SYSTEM_TABLE:                   \
+        CTG_DB_NUM_DEC(CTG_CI_SYSTABLE_META);   \
+        break;                                  \
+      default:                                  \
+        CTG_DB_NUM_DEC(CTG_CI_OTHERTABLE_META); \
+        break;                                  \
+    }                                           \
+  } while (0)
+
+#define CTG_META_HIT_INC(type)                        \
+  do {                                                \
+    switch (type) {                                   \
+      case TSDB_SUPER_TABLE:                          \
+        CTG_CACHE_HIT_INC(CTG_CI_STABLE_META, 1);     \
+        break;                                        \
+      case TSDB_CHILD_TABLE:                          \
+        CTG_CACHE_HIT_INC(CTG_CI_CTABLE_META, 1);     \
+        break;                                        \
+      case TSDB_NORMAL_TABLE:                         \
+        CTG_CACHE_HIT_INC(CTG_CI_NTABLE_META, 1);     \
+        break;                                        \
+      case TSDB_SYSTEM_TABLE:                         \
+        CTG_CACHE_HIT_INC(CTG_CI_SYSTABLE_META, 1);   \
+        break;                                        \
+      default:                                        \
+        CTG_CACHE_HIT_INC(CTG_CI_OTHERTABLE_META, 1); \
+        break;                                        \
+    }                                                 \
+  } while (0)
+
+#define CTG_META_NHIT_INC() CTG_CACHE_NHIT_INC(CTG_CI_OTHERTABLE_META, 1)
 
 #define CTG_IS_META_NULL(type)   ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
@@ -510,6 +637,7 @@ typedef struct SCtgOperation {
 #define CTG_FLAG_SYS_DB       0x8
 #define CTG_FLAG_FORCE_UPDATE 0x10
 #define CTG_FLAG_ONLY_CACHE   0x20
+#define CTG_FLAG_SYNC_OP      0x40
 
 #define CTG_FLAG_SET(_flag, _v) ((_flag) |= (_v))
 
@@ -557,7 +685,6 @@ typedef struct SCtgOperation {
 #define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
 #define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
 
-
 #define CTG_LOCK_DEBUG(...)     \
   do {                          \
     if (gCTGDebug.lockEnable) { \
@@ -579,38 +706,38 @@ typedef struct SCtgOperation {
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
-#define CTG_LOCK(type, _lock)                                                                        \
-  do {                                                                                               \
-    if (CTG_READ == (type)) {                                                                        \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before read lock");                  \
-      CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      taosRLockLatch(_lock);                                                                         \
-      CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value after read lock");                    \
-    } else {                                                                                         \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before write lock");                 \
-      CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      taosWLockLatch(_lock);                                                                         \
-      CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock");    \
-    }                                                                                                \
+#define CTG_LOCK(type, _lock)                                                                                \
+  do {                                                                                                       \
+    if (CTG_READ == (type)) {                                                                                \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before read lock");                          \
+      CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      taosRLockLatch(_lock);                                                                                 \
+      CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value after read lock");                            \
+    } else {                                                                                                 \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before write lock");                         \
+      CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      taosWLockLatch(_lock);                                                                                 \
+      CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);         \
+      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock"); \
+    }                                                                                                        \
   } while (0)
 
-#define CTG_UNLOCK(type, _lock)                                                                       \
-  do {                                                                                                \
-    if (CTG_READ == (type)) {                                                                         \
-      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                  \
-      CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      taosRUnLockLatch(_lock);                                                                        \
-      CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                  \
-    } else {                                                                                          \
-      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock");   \
-      CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      taosWUnLockLatch(_lock);                                                                        \
-      CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");                 \
-    }                                                                                                 \
+#define CTG_UNLOCK(type, _lock)                                                                                 \
+  do {                                                                                                          \
+    if (CTG_READ == (type)) {                                                                                   \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                            \
+      CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+      taosRUnLockLatch(_lock);                                                                                  \
+      CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                            \
+    } else {                                                                                                    \
+      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock"); \
+      CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+      taosWUnLockLatch(_lock);                                                                                  \
+      CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);           \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");                           \
+    }                                                                                                           \
   } while (0)
 
 #define CTG_ERR_RET(c)                \
@@ -682,6 +809,7 @@ typedef struct SCtgOperation {
 void    ctgdShowTableMeta(SCatalog* pCtg, const char* tbName, STableMeta* p);
 void    ctgdShowClusterCache(SCatalog* pCtg);
 int32_t ctgdShowCacheInfo(void);
+int32_t ctgdShowStatInfo(void);
 
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq);
 int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
@@ -703,7 +831,7 @@ int32_t ctgTbMetaExistInCache(SCatalog* pCtg, char* dbFName, char* tbName, int32
 int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t* tbType,
                               uint64_t* suid, char* stbName);
-int32_t ctgChkAuthFromCache(SCatalog* pCtg, char* user, char* dbFName, AUTH_TYPE type, bool* inCache, bool* pass);
+int32_t ctgChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pReq, bool* inCache, SCtgAuthRsp* pRes);
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId);
 int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char* dbFName, bool syncReq);
 int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId, const char* stbName, uint64_t suid,
@@ -776,7 +904,8 @@ void    ctgFreeHandleImpl(SCatalog* pCtg);
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName* pTableName, SVgroupInfo* pVgroup);
 int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo* dbInfo, SCtgTbHashsCtx* pCtx,
                                    char* dbFName, SArray* pNames, bool update);
-int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFName, const char* pTbs[], int32_t tbNum, int32_t* vgId);                                  
+int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFName, const char* pTbs[], int32_t tbNum,
+                                 int32_t* vgId);
 void    ctgResetTbMetaTask(SCtgTask* pTask);
 void    ctgFreeDbCache(SCtgDBCache* dbCache);
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2);
@@ -797,19 +926,29 @@ void    ctgFreeQNode(SCtgQNode* node);
 void    ctgClearHandle(SCatalog* pCtg);
 void    ctgFreeTbCacheImpl(SCtgTbCache* pCache);
 int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
-int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists);
+int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup,
+                           bool* exists);
 SName*  ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch);
-int32_t ctgdGetOneHandle(SCatalog **pHandle);
+int32_t ctgdGetOneHandle(SCatalog** pHandle);
 int     ctgVgInfoComp(const void* lp, const void* rp);
 int32_t ctgMakeVgArray(SDBVgInfo* dbInfo);
-int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const char *tbName, SCtgDBCache **pDb, SCtgTbCache **pTb);
-int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCtgTbCache **pTb, STableMeta **pTableMeta, char* dbFName);
-void    ctgReleaseVgMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache);
-void    ctgReleaseTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache);
+int32_t ctgAcquireVgMetaFromCache(SCatalog* pCtg, const char* dbFName, const char* tbName, SCtgDBCache** pDb,
+                                  SCtgTbCache** pTb);
+int32_t ctgCopyTbMeta(SCatalog* pCtg, SCtgTbMetaCtx* ctx, SCtgDBCache** pDb, SCtgTbCache** pTb, STableMeta** pTableMeta,
+                      char* dbFName);
+void    ctgReleaseVgMetaToCache(SCatalog* pCtg, SCtgDBCache* dbCache, SCtgTbCache* pCache);
+void    ctgReleaseTbMetaToCache(SCatalog* pCtg, SCtgDBCache* dbCache, SCtgTbCache* pCache);
+void    ctgGetGlobalCacheStat(SCtgCacheStat* pStat);
+int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res);
+int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
+int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char **stbName);
+int32_t ctgGetTbTagCb(SCtgTask* pTask);
+int32_t ctgGetUserCb(SCtgTask* pTask);
 
-extern SCatalogMgmt gCtgMgmt;
-extern SCtgDebug    gCTGDebug;
-extern SCtgAsyncFps gCtgAsyncFps[];
+extern SCatalogMgmt      gCtgMgmt;
+extern SCtgDebug         gCTGDebug;
+extern SCtgAsyncFps      gCtgAsyncFps[];
+extern SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE];
 
 #ifdef __cplusplus
 }

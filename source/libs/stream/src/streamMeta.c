@@ -14,15 +14,19 @@
  */
 
 #include "executor.h"
+#include "streamBackendRocksdb.h"
 #include "streamInc.h"
+#include "tref.h"
 #include "ttimer.h"
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
+  int32_t      code = -1;
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
   int32_t len = strlen(path) + 20;
   char*   streamPath = taosMemoryCalloc(1, len);
   sprintf(streamPath, "%s/%s", path, "stream");
@@ -33,7 +37,12 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   sprintf(streamPath, "%s/%s", pMeta->path, "checkpoints");
-  taosMulModeMkDir(streamPath, 0755);
+  code = taosMulModeMkDir(streamPath, 0755);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    taosMemoryFree(streamPath);
+    goto _err;
+  }
   taosMemoryFree(streamPath);
 
   if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb, 0) < 0) {
@@ -44,8 +53,16 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
-  pMeta->pTasks = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
+  pMeta->pTasks = taosHashInit(64, fp, true, HASH_NO_LOCK);
   if (pMeta->pTasks == NULL) {
+    goto _err;
+  }
+
+  // task list
+  pMeta->pTaskList = taosArrayInit(4, sizeof(int32_t));
+  if (pMeta->pTaskList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
@@ -53,18 +70,39 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
+  pMeta->walScanCounter = 0;
+  pMeta->vgId = vgId;
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
 
+  char* statePath = taosMemoryCalloc(1, len);
+  sprintf(statePath, "%s/%s", pMeta->path, "state");
+  code = taosMulModeMkDir(statePath, 0755);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    taosMemoryFree(streamPath);
+    goto _err;
+  }
+
+  pMeta->streamBackend = streamBackendInit(statePath);
+  pMeta->streamBackendId = taosOpenRef(20, streamBackendCleanup);
+  pMeta->streamBackendRid = taosAddRef(pMeta->streamBackendId, pMeta->streamBackend);
+
+  taosMemoryFree(statePath);
+
+  taosInitRWLatch(&pMeta->lock);
   return pMeta;
 
 _err:
   taosMemoryFree(pMeta->path);
   if (pMeta->pTasks) taosHashCleanup(pMeta->pTasks);
+  if (pMeta->pTaskList) taosArrayDestroy(pMeta->pTaskList);
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
+  // if (pMeta->streamBackend) streamBackendCleanup(pMeta->streamBackend);
   taosMemoryFree(pMeta);
+  qError("failed to open stream meta");
   return NULL;
 }
 
@@ -77,17 +115,24 @@ void streamMetaClose(SStreamMeta* pMeta) {
   void* pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pMeta->pTasks, pIter);
-    if (pIter == NULL) break;
+    if (pIter == NULL) {
+      break;
+    }
+
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->timer) {
       taosTmrStop(pTask->timer);
       pTask->timer = NULL;
     }
-    tFreeSStreamTask(pTask);
-    /*streamMetaReleaseTask(pMeta, pTask);*/
+
+    tFreeStreamTask(pTask);
   }
+
   taosHashCleanup(pMeta->pTasks);
-  taosHashCleanup(pMeta->pRecoverStatus);
+  taosRemoveRef(pMeta->streamBackendId, pMeta->streamBackendRid);
+  // streamBackendCleanup(pMeta->streamBackend);
+  taosCloseRef(pMeta->streamBackendId);
+  pMeta->pTaskList = taosArrayDestroy(pMeta->pTaskList);
   taosMemoryFree(pMeta->path);
   taosMemoryFree(pMeta);
 }
@@ -100,7 +145,7 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t ver, char* msg, 
   }
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  if (tDecodeSStreamTask(&decoder, pTask) < 0) {
+  if (tDecodeStreamTask(&decoder, pTask) < 0) {
     tDecoderClear(&decoder);
     goto FAIL;
   }
@@ -111,12 +156,12 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t ver, char* msg, 
     goto FAIL;
   }
 
-  if (taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
+  if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
     goto FAIL;
   }
 
-  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), msg, msgLen, pMeta->txn) < 0) {
-    taosHashRemove(pMeta->pTasks, &pTask->taskId, sizeof(int32_t));
+  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->id.taskId, sizeof(int32_t), msg, msgLen, pMeta->txn) < 0) {
+    taosHashRemove(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t));
     ASSERT(0);
     goto FAIL;
   }
@@ -124,7 +169,7 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t ver, char* msg, 
   return 0;
 
 FAIL:
-  if (pTask) tFreeSStreamTask(pTask);
+  if (pTask) tFreeStreamTask(pTask);
   return -1;
 }
 #endif
@@ -133,7 +178,7 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   void*   buf = NULL;
   int32_t len;
   int32_t code;
-  tEncodeSize(tEncodeSStreamTask, pTask, len, code);
+  tEncodeSize(tEncodeStreamTask, pTask, len, code);
   if (code < 0) {
     return -1;
   }
@@ -144,10 +189,10 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, len);
-  tEncodeSStreamTask(&encoder, pTask);
+  tEncodeStreamTask(&encoder, pTask);
   tEncoderClear(&encoder);
 
-  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), buf, len, pMeta->txn) < 0) {
+  if (tdbTbUpsert(pMeta->pTaskDb, &pTask->id.taskId, sizeof(int32_t), buf, len, pMeta->txn) < 0) {
     return -1;
   }
 
@@ -155,78 +200,93 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   return 0;
 }
 
-#if 1
-int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
+// add to the ready tasks hash map, not the restored tasks hash map
+int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
   if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
+    tFreeStreamTask(pTask);
     return -1;
   }
 
   if (streamMetaSaveTask(pMeta, pTask) < 0) {
+    tFreeStreamTask(pTask);
     return -1;
   }
 
-  taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
+  if (streamMetaCommit(pMeta) < 0) {
+    tFreeStreamTask(pTask);
+    return -1;
+  }
 
+  void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
+  if (p == NULL) {
+    taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+  }
+
+  taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, POINTER_BYTES);
   return 0;
 }
-#endif
 
-#if 0
-SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
-  if (ppTask) {
-    ASSERT((*ppTask)->taskId == taskId);
-    return *ppTask;
-  } else {
-    return NULL;
-  }
+int32_t streamMetaGetNumOfTasks(const SStreamMeta* pMeta) {
+  size_t size = taosHashGetSize(pMeta->pTasks);
+  ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasks));
+
+  return (int32_t)size;
 }
-#endif
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
   taosRLockLatch(&pMeta->lock);
 
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
-  if (ppTask) {
-    SStreamTask* pTask = *ppTask;
-    if (atomic_load_8(&pTask->taskStatus) != TASK_STATUS__DROPPING) {
-      atomic_add_fetch_32(&pTask->refCnt, 1);
+  if (ppTask != NULL) {
+    if (!streamTaskShouldStop(&(*ppTask)->status)) {
+      atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
       taosRUnLockLatch(&pMeta->lock);
-      return pTask;
-    } else {
-      taosRUnLockLatch(&pMeta->lock);
-      return NULL;
+      return *ppTask;
     }
   }
+
   taosRUnLockLatch(&pMeta->lock);
   return NULL;
 }
 
 void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   int32_t left = atomic_sub_fetch_32(&pTask->refCnt, 1);
-  ASSERT(left >= 0);
-  if (left == 0) {
-    ASSERT(atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING);
-    tFreeSStreamTask(pTask);
+  if (left < 0) {
+    qError("task ref is invalid, ref:%d, %s", left, pTask->id.idStr);
+  } else if (left == 0) {
+    ASSERT(streamTaskShouldStop(&pTask->status));
+    tFreeStreamTask(pTask);
   }
 }
 
 void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
+  taosWLockLatch(&pMeta->lock);
+
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
+
+    // taosWLockLatch(&pMeta->lock);
+
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
-    /*if (pTask->timer) {
-     * taosTmrStop(pTask->timer);*/
-    /*pTask->timer = NULL;*/
-    /*}*/
-    atomic_store_8(&pTask->taskStatus, TASK_STATUS__DROPPING);
 
-    taosWLockLatch(&pMeta->lock);
+    //
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
+
+    int32_t num = taosArrayGetSize(pMeta->pTaskList);
+    for (int32_t i = 0; i < num; ++i) {
+      int32_t* pTaskId = taosArrayGet(pMeta->pTaskList, i);
+      if (*pTaskId == taskId) {
+        taosArrayRemove(pMeta->pTaskList, i);
+        break;
+      }
+    }
+
     streamMetaReleaseTask(pMeta, pTask);
-    taosWUnLockLatch(&pMeta->lock);
   }
+
+  taosWUnLockLatch(&pMeta->lock);
 }
 
 int32_t streamMetaBegin(SStreamMeta* pMeta) {
@@ -239,9 +299,12 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
 
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
   if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
+    qError("failed to commit stream meta");
     return -1;
   }
+
   if (tdbPostCommit(pMeta->db, pMeta->txn) < 0) {
+    qError("failed to commit stream meta");
     return -1;
   }
 
@@ -286,26 +349,32 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       tdbTbcClose(pCur);
       return -1;
     }
+
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    tDecodeSStreamTask(&decoder, pTask);
+    tDecodeStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
 
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, -1) < 0) {
+    if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.version) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
 
-    if (taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
+    void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
+    if (p == NULL) {
+      taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+    }
+
+    if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
-    /*pTask->taskStatus = TASK_STATUS__NORMAL;*/
+
     if (pTask->fillHistory) {
-      pTask->taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
+      pTask->status.taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
       streamTaskCheckDownstream(pTask, ver);
     }
   }

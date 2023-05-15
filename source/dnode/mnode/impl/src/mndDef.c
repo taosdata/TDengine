@@ -70,7 +70,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
     if (tEncodeI32(pEncoder, innerSz) < 0) return -1;
     for (int32_t j = 0; j < innerSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pArray, j);
-      if (tEncodeSStreamTask(pEncoder, pTask) < 0) return -1;
+      if (tEncodeStreamTask(pEncoder, pTask) < 0) return -1;
     }
   }
 
@@ -130,7 +130,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
           taosArrayDestroy(pArray);
           return -1;
         }
-        if (tDecodeSStreamTask(pDecoder, pTask) < 0) {
+        if (tDecodeStreamTask(pDecoder, pTask) < 0) {
           taosMemoryFree(pTask);
           taosArrayDestroy(pArray);
           return -1;
@@ -158,7 +158,10 @@ void tFreeStreamObj(SStreamObj *pStream) {
   taosMemoryFree(pStream->sql);
   taosMemoryFree(pStream->ast);
   taosMemoryFree(pStream->physicalPlan);
-  if (pStream->outputSchema.nCols) taosMemoryFree(pStream->outputSchema.pSchema);
+
+  if (pStream->outputSchema.nCols) {
+    taosMemoryFree(pStream->outputSchema.pSchema);
+  }
 
   int32_t sz = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < sz; i++) {
@@ -166,11 +169,14 @@ void tFreeStreamObj(SStreamObj *pStream) {
     int32_t taskSz = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < taskSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
-      tFreeSStreamTask(pTask);
+      tFreeStreamTask(pTask);
     }
+
     taosArrayDestroy(pLevel);
   }
+
   taosArrayDestroy(pStream->tasks);
+
   // tagSchema.pSchema
   if (pStream->tagSchema.nCols > 0) {
     taosMemoryFree(pStream->tagSchema.pSchema);
@@ -219,7 +225,7 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_L
   memcpy(pConsumer->cgroup, cgroup, TSDB_CGROUP_LEN);
 
   pConsumer->epoch = 0;
-  pConsumer->status = MQ_CONSUMER_STATUS__MODIFY;
+  pConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
   pConsumer->hbStatus = 0;
 
   taosInitRWLatch(&pConsumer->lock);

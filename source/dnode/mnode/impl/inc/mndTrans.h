@@ -52,6 +52,8 @@ typedef struct {
   int32_t   contLen;
   void     *pCont;
   SSdbRaw  *pRaw;
+
+  int64_t mTraceId;
 } STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
@@ -74,6 +76,7 @@ void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
 void    mndTransSetSerial(STrans *pTrans);
+void    mndTransSetParallel(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
 int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans);
 

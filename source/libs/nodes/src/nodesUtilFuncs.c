@@ -384,8 +384,14 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateStreamStmt));
     case QUERY_NODE_DROP_STREAM_STMT:
       return makeNode(type, sizeof(SDropStreamStmt));
+    case QUERY_NODE_PAUSE_STREAM_STMT:
+      return makeNode(type, sizeof(SPauseStreamStmt));
+    case QUERY_NODE_RESUME_STREAM_STMT:
+      return makeNode(type, sizeof(SResumeStreamStmt));
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return makeNode(type, sizeof(SBalanceVgroupStmt));
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
+      return makeNode(type, sizeof(SBalanceVgroupLeaderStmt));
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return makeNode(type, sizeof(SMergeVgroupStmt));
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -453,6 +459,11 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SInsertStmt));
     case QUERY_NODE_QUERY:
       return makeNode(type, sizeof(SQuery));
+    case QUERY_NODE_RESTORE_DNODE_STMT:
+    case QUERY_NODE_RESTORE_QNODE_STMT:
+    case QUERY_NODE_RESTORE_MNODE_STMT:
+    case QUERY_NODE_RESTORE_VNODE_STMT:
+      return makeNode(type, sizeof(SRestoreComponentNodeStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -825,6 +836,8 @@ void nodesDestroyNode(SNode* pNode) {
       SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pNode;
       destroyVgDataBlockArray(pStmt->pDataBlocks);
       taosMemoryFreeClear(pStmt->pTableMeta);
+      nodesDestroyNode(pStmt->pTagCond);
+      taosArrayDestroy(pStmt->pTableTag);
       taosHashCleanup(pStmt->pVgroupsHashObj);
       taosHashCleanup(pStmt->pSubTableHashObj);
       taosHashCleanup(pStmt->pTableNameHashObj);
@@ -923,9 +936,15 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFree(((SDescribeStmt*)pNode)->pMeta);
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:  // no pointer field
-    case QUERY_NODE_COMPACT_DATABASE_STMT:   // no pointer field
-    case QUERY_NODE_CREATE_FUNCTION_STMT:    // no pointer field
-    case QUERY_NODE_DROP_FUNCTION_STMT:      // no pointer field
+      break;
+    case QUERY_NODE_COMPACT_DATABASE_STMT: {
+      SCompactDatabaseStmt* pStmt = (SCompactDatabaseStmt*)pNode;
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_CREATE_FUNCTION_STMT:  // no pointer field
+    case QUERY_NODE_DROP_FUNCTION_STMT:    // no pointer field
       break;
     case QUERY_NODE_CREATE_STREAM_STMT: {
       SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pNode;
@@ -935,17 +954,24 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pSubtable);
       break;
     }
-    case QUERY_NODE_DROP_STREAM_STMT:     // no pointer field
-    case QUERY_NODE_BALANCE_VGROUP_STMT:  // no pointer field
-    case QUERY_NODE_MERGE_VGROUP_STMT:    // no pointer field
+    case QUERY_NODE_DROP_STREAM_STMT:            // no pointer field
+    case QUERY_NODE_PAUSE_STREAM_STMT:           // no pointer field
+    case QUERY_NODE_RESUME_STREAM_STMT:          // no pointer field
+    case QUERY_NODE_BALANCE_VGROUP_STMT:         // no pointer field
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:  // no pointer field
+    case QUERY_NODE_MERGE_VGROUP_STMT:           // no pointer field
       break;
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
       nodesDestroyList(((SRedistributeVgroupStmt*)pNode)->pDnodes);
       break;
     case QUERY_NODE_SPLIT_VGROUP_STMT:  // no pointer field
     case QUERY_NODE_SYNCDB_STMT:        // no pointer field
-    case QUERY_NODE_GRANT_STMT:         // no pointer field
-    case QUERY_NODE_REVOKE_STMT:        // no pointer field
+      break;
+    case QUERY_NODE_GRANT_STMT:
+      nodesDestroyNode(((SGrantStmt*)pNode)->pTagCond);
+      break;
+    case QUERY_NODE_REVOKE_STMT:
+      nodesDestroyNode(((SRevokeStmt*)pNode)->pTagCond);
       break;
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
@@ -1037,6 +1063,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pQuery->pPrepareRoot);
       break;
     }
+    case QUERY_NODE_RESTORE_DNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_QNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_MNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_VNODE_STMT:   // no pointer field
+      break;
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -1462,7 +1493,7 @@ SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
 }
 
 void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {
-  if (NULL == pTarget || NULL == pPos || NULL == pSrc) {
+  if (NULL == pTarget || NULL == pPos || NULL == pSrc || NULL == pSrc->pHead) {
     return;
   }
 

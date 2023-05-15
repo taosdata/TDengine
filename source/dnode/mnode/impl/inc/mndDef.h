@@ -118,7 +118,7 @@ typedef enum {
 } ETrnPolicy;
 
 typedef enum {
-  TRN_EXEC_PRARLLEL = 0,
+  TRN_EXEC_PARALLEL = 0,
   TRN_EXEC_SERIAL = 1,
 } ETrnExec;
 
@@ -137,12 +137,12 @@ typedef enum {
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE__TOUCH = 1,
+  CONSUMER_UPDATE__TOUCH = 1,   // rebalance req do not need change consume topic
   CONSUMER_UPDATE__ADD,
   CONSUMER_UPDATE__REMOVE,
   CONSUMER_UPDATE__LOST,
   CONSUMER_UPDATE__RECOVER,
-  CONSUMER_UPDATE__MODIFY,
+  CONSUMER_UPDATE__REBALANCE,      // subscribe req need change consume topic
 } ECsmUpdateType;
 
 typedef struct {
@@ -176,6 +176,8 @@ typedef struct {
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
+  int64_t     mTraceId;
+  TdThreadMutex    mutex;
 } STrans;
 
 typedef struct {
@@ -204,6 +206,8 @@ typedef struct {
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
   char       ep[TSDB_EP_LEN];
+  char       active[TSDB_ACTIVE_KEY_LEN];
+  char       connActive[TSDB_CONN_ACTIVE_KEY_LEN];
 } SDnodeObj;
 
 typedef struct {
@@ -214,6 +218,8 @@ typedef struct {
   bool       syncRestore;
   int64_t    stateStartTime;
   SDnodeObj* pDnode;
+  int32_t    role;
+  SyncIndex  lastIndex;
 } SMnodeObj;
 
 typedef struct {
@@ -277,9 +283,13 @@ typedef struct {
   int8_t    reserve;
   int32_t   acctId;
   int32_t   authVersion;
+  int32_t   passVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;
+  SHashObj* readTbs;
+  SHashObj* writeTbs;
+  SHashObj* useDbs;
   SRWLatch  lock;
 } SUserObj;
 
@@ -337,6 +347,7 @@ typedef struct {
   ESyncState syncState;
   bool       syncRestore;
   bool       syncCanRead;
+  ESyncRole  nodeRole;
 } SVnodeGid;
 
 typedef struct {
@@ -357,8 +368,9 @@ typedef struct {
   int8_t    compact;
   int8_t    isTsma;
   int8_t    replica;
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   void*     pTsma;
+  int32_t   numOfCachedTables;
 } SVgObj;
 
 typedef struct {
@@ -391,7 +403,7 @@ typedef struct {
 } SSmaObj;
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
+  char    name[TSDB_INDEX_FNAME_LEN];
   char    stb[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_DB_FNAME_LEN];
   char    dstTbName[TSDB_TABLE_FNAME_LEN];
@@ -445,6 +457,8 @@ typedef struct {
   int32_t codeSize;
   char*   pComment;
   char*   pCode;
+  int32_t funcVersion;
+  SRWLatch lock;
 } SFuncObj;
 
 typedef struct {
@@ -456,6 +470,7 @@ typedef struct {
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
+  bool           restore;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];
@@ -543,7 +558,7 @@ void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer
 
 typedef struct {
   int32_t vgId;
-  char*   qmsg;   //SubPlanToString
+  char*   qmsg;  // SubPlanToString
   SEpSet  epSet;
 } SMqVgEp;
 
@@ -616,7 +631,7 @@ typedef struct {
   SArray*               rebVgs;            // SArray<SMqRebOutputVg>
   SArray*               newConsumers;      // SArray<int64_t>
   SArray*               removedConsumers;  // SArray<int64_t>
-  SArray*               touchedConsumers;  // SArray<int64_t>
+  SArray*               modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj*      pSub;
   SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;

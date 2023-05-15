@@ -19,6 +19,7 @@
 #include "executor.h"
 #include "filter.h"
 #include "qworker.h"
+#include "rocksdb/c.h"
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"
@@ -177,6 +178,7 @@ int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 int32_t tsdbPrepareCommit(STsdb* pTsdb);
 int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
+int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
@@ -187,11 +189,16 @@ int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 
 // tq
-int     tqInit();
-void    tqCleanUp();
-STQ*    tqOpen(const char* path, SVnode* pVnode);
-void    tqClose(STQ*);
-int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
+int  tqInit();
+void tqCleanUp();
+STQ* tqOpen(const char* path, SVnode* pVnode);
+void tqNotifyClose(STQ*);
+void tqClose(STQ*);
+int  tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
+int  tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
+int  tqUnregisterPushHandle(STQ* pTq, void* pHandle);
+int  tqStartStreamTasks(STQ* pTq);    // restore all stream tasks after vnode launching completed.
+
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
@@ -201,13 +208,18 @@ int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t m
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
+
 // tq-stream
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit);
+int32_t tqProcessSubmitReqForSubscribe(STQ* pTq);
 int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
@@ -373,7 +385,6 @@ struct SVnode {
   STQ*          pTq;
   SSink*        pSink;
   tsem_t        canCommit;
-  SVCommitSched commitSched;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
@@ -382,9 +393,6 @@ struct SVnode {
   int32_t       blockSec;
   int64_t       blockSeq;
   SQHandle*     pQuery;
-#if 0
-  SRpcHandleInfo blockInfo;
-#endif
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

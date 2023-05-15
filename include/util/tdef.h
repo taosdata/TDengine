@@ -198,11 +198,12 @@ typedef enum ELogicConditionType {
 #define TSDB_STREAM_NAME_LEN 193                                // it is a null-terminated string
 #define TSDB_DB_NAME_LEN     65
 #define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_PRIVILEDGE_CONDITION_LEN    200
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
 #define TSDB_FUNC_CODE_LEN       10 * 1024 * 1024
-#define TSDB_FUNC_BUF_SIZE       512
+#define TSDB_FUNC_BUF_SIZE       4096 * 64
 #define TSDB_FUNC_TYPE_SCALAR    1
 #define TSDB_FUNC_TYPE_AGGREGATE 2
 #define TSDB_FUNC_SCRIPT_BIN_LIB 0
@@ -231,13 +232,7 @@ typedef enum ELogicConditionType {
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
 
-/**
- *  In some scenarios uint16_t (0~65535) is used to store the row len.
- *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
- *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
- *    the final value is 65531-(4096-1)*4 = 49151.
- */
-#define TSDB_MAX_BYTES_PER_ROW 49151
+#define TSDB_MAX_BYTES_PER_ROW 65531  // 49151:65531
 #define TSDB_MAX_TAGS_LEN      16384
 #define TSDB_MAX_TAGS          128
 
@@ -248,7 +243,7 @@ typedef enum ELogicConditionType {
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
-#define TSDB_VERSION_LEN       12
+#define TSDB_VERSION_LEN       32
 #define TSDB_LABEL_LEN         8
 #define TSDB_JOB_STATUS_LEN    32
 
@@ -272,6 +267,9 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_CONFIG_LEN 128
 #define TSDB_DNODE_VALUE_LEN  256
 
+#define TSDB_ACTIVE_KEY_LEN      109  // history 109:?
+#define TSDB_CONN_ACTIVE_KEY_LEN 257  // history 257:?
+
 #define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
@@ -284,8 +282,11 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_ROLE_VNODE 2
 
 #define TSDB_MAX_REPLICA               5
+#define TSDB_MAX_LEARNER_REPLICA       10
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
-#define TSDB_SYNC_LOG_BUFFER_RETENTION (TSDB_SYNC_LOG_BUFFER_SIZE >> 4)
+#define TSDB_SYNC_LOG_BUFFER_RETENTION 256
+#define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
+#define TSDB_SYNC_NEGOTIATION_WIN      512
 
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
@@ -316,10 +317,10 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_KEEP_NS                (365 * 292 * 1440)  // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               (3650 * 1440)       // ten years
 #define TSDB_MIN_MINROWS_FBLOCK         10
-#define TSDB_MAX_MINROWS_FBLOCK         1000
+#define TSDB_MAX_MINROWS_FBLOCK         1000000
 #define TSDB_DEFAULT_MINROWS_FBLOCK     100
 #define TSDB_MIN_MAXROWS_FBLOCK         200
-#define TSDB_MAX_MAXROWS_FBLOCK         10000
+#define TSDB_MAX_MAXROWS_FBLOCK         10000000
 #define TSDB_DEFAULT_MAXROWS_FBLOCK     4096
 #define TSDB_MIN_FSYNC_PERIOD           0
 #define TSDB_MAX_FSYNC_PERIOD           180000  // millisecond
@@ -367,11 +368,11 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_STT_TRIGGER            1
 #define TSDB_MAX_STT_TRIGGER            16
 #define TSDB_DEFAULT_SST_TRIGGER        1
-#define TSDB_MIN_HASH_PREFIX            0
-#define TSDB_MAX_HASH_PREFIX            128
+#define TSDB_MIN_HASH_PREFIX            (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_PREFIX            (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_PREFIX        0
-#define TSDB_MIN_HASH_SUFFIX            0
-#define TSDB_MAX_HASH_SUFFIX            128
+#define TSDB_MIN_HASH_SUFFIX            (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_SUFFIX            (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_SUFFIX        0
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
@@ -406,9 +407,9 @@ typedef enum ELogicConditionType {
 #define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16 * 1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
-#define TSDB_MAX_FIELD_LEN             16384
-#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
-#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
+#define TSDB_MAX_FIELD_LEN             65519               // 16384:65519
+#define TSDB_MAX_BINARY_LEN            TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_NCHAR_LEN             TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 

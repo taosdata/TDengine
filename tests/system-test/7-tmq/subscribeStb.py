@@ -59,7 +59,7 @@ class TDTestCase:
 
     def initConsumerTable(self,cdbName='cdb'):
         tdLog.info("create consume database, and consume info table, and consume result table")
-        tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
+        tdSql.query("create database if not exists %s vgroups 1 wal_retention_period 3600"%(cdbName))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
 
@@ -114,7 +114,7 @@ class TDTestCase:
         if dropFlag == 1:
             tsql.execute("drop database if exists %s"%(dbName))
 
-        tsql.execute("create database if not exists %s vgroups %d replica %d"%(dbName, vgroups, replica))
+        tsql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600"%(dbName, vgroups, replica))
         tdLog.debug("complete to create database %s"%(dbName))
         return
 
@@ -226,12 +226,11 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 10
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
-        time.sleep(5)
         self.create_ctables(tdSql, parameterDict["dbName"], parameterDict["stbName"], parameterDict["ctbNum"])
         self.insert_data(tdSql,\
                          parameterDict["dbName"],\
@@ -307,7 +306,7 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 10
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)

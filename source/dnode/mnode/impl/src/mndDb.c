@@ -275,10 +275,14 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.daysToKeep2 = pNew->cfg.daysToKeep2;
   pOld->cfg.walFsyncPeriod = pNew->cfg.walFsyncPeriod;
   pOld->cfg.walLevel = pNew->cfg.walLevel;
+  pOld->cfg.walRetentionPeriod = pNew->cfg.walRetentionPeriod;
+  pOld->cfg.walRetentionSize = pNew->cfg.walRetentionSize;
   pOld->cfg.strict = pNew->cfg.strict;
   pOld->cfg.cacheLast = pNew->cfg.cacheLast;
   pOld->cfg.replications = pNew->cfg.replications;
   pOld->cfg.sstTrigger = pNew->cfg.sstTrigger;
+  pOld->cfg.minRows = pNew->cfg.minRows;
+  pOld->cfg.maxRows = pNew->cfg.maxRows;
   pOld->cfg.tsdbPageSize = pNew->cfg.tsdbPageSize;
   pOld->compactStartTime = pNew->compactStartTime;
   taosWUnLockLatch(&pOld->lock);
@@ -369,6 +373,8 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->sstTrigger < TSDB_MIN_STT_TRIGGER || pCfg->sstTrigger > TSDB_MAX_STT_TRIGGER) return -1;
   if (pCfg->hashPrefix < TSDB_MIN_HASH_PREFIX || pCfg->hashPrefix > TSDB_MAX_HASH_PREFIX) return -1;
   if (pCfg->hashSuffix < TSDB_MIN_HASH_SUFFIX || pCfg->hashSuffix > TSDB_MAX_HASH_SUFFIX) return -1;
+  if ((pCfg->hashSuffix * pCfg->hashPrefix) < 0) return -1;
+  if ((pCfg->hashPrefix + pCfg->hashSuffix) >= (TSDB_TABLE_NAME_LEN - 1)) return -1;
   if (pCfg->tsdbPageSize < TSDB_MIN_TSDB_PAGESIZE || pCfg->tsdbPageSize > TSDB_MAX_TSDB_PAGESIZE) return -1;
   if (taosArrayGetSize(pCfg->pRetensions) != pCfg->numOfRetensions) return -1;
 
@@ -405,8 +411,6 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD;
   if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   if (pCfg->sstTrigger <= 0) pCfg->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
-  if (pCfg->hashPrefix < 0) pCfg->hashPrefix = TSDB_DEFAULT_HASH_PREFIX;
-  if (pCfg->hashSuffix < 0) pCfg->hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
   if (pCfg->tsdbPageSize <= 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
 }
 
@@ -549,6 +553,10 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     int32_t dbLen = strlen(dbObj.name) + 1;
     mInfo("db:%s, hashPrefix adjust from %d to %d", dbObj.name, dbObj.cfg.hashPrefix, dbObj.cfg.hashPrefix + dbLen);
     dbObj.cfg.hashPrefix += dbLen;
+  } else if (dbObj.cfg.hashPrefix < 0) {
+    int32_t dbLen = strlen(dbObj.name) + 1;
+    mInfo("db:%s, hashPrefix adjust from %d to %d", dbObj.name, dbObj.cfg.hashPrefix, dbObj.cfg.hashPrefix - dbLen);
+    dbObj.cfg.hashPrefix -= dbLen;
   }
 
   SVgObj *pVgroups = NULL;
@@ -616,13 +624,8 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     }
   } else {
     if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
-      if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, createReq.db) == 0) {
-        mInfo("db:%s, is creating and createdb response after trans finished", createReq.db);
-        code = TSDB_CODE_ACTION_IN_PROGRESS;
-        goto _OVER;
-      } else {
-        goto _OVER;
-      }
+      code = terrno;
+      goto _OVER;
     } else if (terrno == TSDB_CODE_MND_DB_IN_DROPPING) {
       goto _OVER;
     } else if (terrno == TSDB_CODE_MND_DB_NOT_EXIST) {
@@ -725,6 +728,32 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
+  if (pAlter->sstTrigger > 0 && pAlter->sstTrigger != pDb->cfg.sstTrigger) {
+    pDb->cfg.sstTrigger = pAlter->sstTrigger;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
+  if (pAlter->minRows > 0 && pAlter->minRows != pDb->cfg.minRows) {
+    pDb->cfg.minRows = pAlter->minRows;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
+  if (pAlter->walRetentionPeriod > TSDB_DB_MIN_WAL_RETENTION_PERIOD &&
+      pAlter->walRetentionPeriod != pDb->cfg.walRetentionPeriod) {
+    pDb->cfg.walRetentionPeriod = pAlter->walRetentionPeriod;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
+  if (pAlter->walRetentionSize > TSDB_DB_MIN_WAL_RETENTION_SIZE &&
+      pAlter->walRetentionSize != pDb->cfg.walRetentionSize) {
+    pDb->cfg.walRetentionSize = pAlter->walRetentionSize;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
   return terrno;
 }
 
@@ -818,6 +847,18 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb) != 0) {
+    goto _OVER;
+  }
+
+  int32_t numOfTopics = 0;
+  if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
+    goto _OVER;
+  }
+
+  if (numOfTopics != 0 && alterReq.walRetentionPeriod == 0) {
+    terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
+    mError("db:%s, not allowed to set WAL_RETENTION_PERIOD 0 when there are topics defined. numOfTopics:%d", pDb->name,
+           numOfTopics);
     goto _OVER;
   }
 
@@ -1258,14 +1299,9 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       usedbRsp.errCode = terrno;
 
       if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
-        if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, usedbReq.db) == 0) {
-          mInfo("db:%s, is creating and usedb response after trans finished", usedbReq.db);
-          code = TSDB_CODE_ACTION_IN_PROGRESS;
-          goto _OVER;
-        }
+        code = terrno;
+        goto _OVER;
       }
-
-      mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
       if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
         goto _OVER;
@@ -1756,6 +1792,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     int16_t hashPrefix = pDb->cfg.hashPrefix;
     if (hashPrefix > 0) {
       hashPrefix = pDb->cfg.hashPrefix - strlen(pDb->name) - 1;
+    } else if (hashPrefix < 0) {
+      hashPrefix = pDb->cfg.hashPrefix + strlen(pDb->name) + 1;
     }
     colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false);
 

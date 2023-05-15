@@ -32,7 +32,7 @@ TDengine 3.0 is not compatible with the configuration and data files from previo
 2. Run `sudo rm -rf /var/log/taos/` to delete your log files.
 3. Run `sudo rm -rf /var/lib/taos/` to delete your data files.
 4. Install TDengine 3.0.
-5. For assistance in migrating data to TDengine 3.0, contact [TDengine Support](https://tdengine.com/support).
+5. For assistance in migrating data to TDengine 3.0, contact [TDengine Support](https://tdengine.com/support/).
 
 ### 2. How can I resolve the "Unable to establish connection" error?
 

@@ -108,12 +108,18 @@ static int32_t sortComparCleanup(SMsortComparParam* cmpParam) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tsortClearOrderdSource(SArray* pOrderedSource) {
+void tsortClearOrderdSource(SArray* pOrderedSource, int64_t *fetchUs, int64_t *fetchNum) {
   for (size_t i = 0; i < taosArrayGetSize(pOrderedSource); i++) {
     SSortSource** pSource = taosArrayGet(pOrderedSource, i);
     if (NULL == *pSource) {
       continue;
     }
+
+    if (fetchUs) {
+      *fetchUs += (*pSource)->fetchUs;
+      *fetchNum += (*pSource)->fetchNum;
+    }
+    
     // release pageIdList
     if ((*pSource)->pageIdList) {
       taosArrayDestroy((*pSource)->pageIdList);
@@ -147,7 +153,10 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   taosMemoryFreeClear(pSortHandle->idStr);
   blockDataDestroy(pSortHandle->pDataBlock);
 
-  tsortClearOrderdSource(pSortHandle->pOrderedSource);
+  int64_t fetchUs = 0, fetchNum = 0;
+  tsortClearOrderdSource(pSortHandle->pOrderedSource, &fetchUs, &fetchNum);
+  qDebug("all source fetch time: %" PRId64 "us num:%" PRId64 " %s", fetchUs, fetchNum, pSortHandle->idStr);
+  
   taosArrayDestroy(pSortHandle->pOrderedSource);
   taosMemoryFreeClear(pSortHandle);
 }
@@ -186,8 +195,8 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
   if (pHandle->pBuf == NULL) {
     if (!osTempSpaceAvailable()) {
-      terrno = TSDB_CODE_NO_AVAIL_DISK;
-      qError("Add to buf failed since %s", terrstr(terrno));
+      terrno = TSDB_CODE_NO_DISKSPACE;
+      qError("Add to buf failed since %s, tempDir:%s", terrstr(), tsTempDir);
       return terrno;
     }
 
@@ -214,14 +223,13 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     if (pPage == NULL) {
       taosArrayDestroy(pPageIdList);
       blockDataDestroy(p);
-      taosArrayDestroy(pPageIdList);
       return terrno;
     }
 
     taosArrayPush(pPageIdList, &pageId);
 
     int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
-    assert(size <= getBufPageSize(pHandle->pBuf));
+    ASSERT(size <= getBufPageSize(pHandle->pBuf));
 
     blockDataToBuf(pPage, p);
 
@@ -253,9 +261,8 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
   // multi-pass internal merge sort is required
   if (pHandle->pBuf == NULL) {
     if (!osTempSpaceAvailable()) {
-      code = TSDB_CODE_NO_AVAIL_DISK;
-      terrno = code;
-      qError("Sort compare init failed since %s, %s", tstrerror(code), pHandle->idStr);
+      code = terrno = TSDB_CODE_NO_DISKSPACE;
+      qError("Sort compare init failed since %s, tempDir:%s, idStr:%s", terrstr(), tsTempDir, pHandle->idStr);
       return code;
     }
 
@@ -366,7 +373,10 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
         releaseBufPage(pHandle->pBuf, pPage);
       }
     } else {
+      int64_t st = taosGetTimestampUs();      
       pSource->src.pBlock = pHandle->fetchfp(((SSortSource*)pSource)->param);
+      pSource->fetchUs += taosGetTimestampUs() - st;
+      pSource->fetchNum++;
       if (pSource->src.pBlock == NULL) {
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
@@ -581,7 +591,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
         int32_t size =
             blockDataGetSize(pDataBlock) + sizeof(int32_t) + taosArrayGetSize(pDataBlock->pDataBlock) * sizeof(int32_t);
-        assert(size <= getBufPageSize(pHandle->pBuf));
+        ASSERT(size <= getBufPageSize(pHandle->pBuf));
 
         blockDataToBuf(pPage, pDataBlock);
 
@@ -603,7 +613,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       }
     }
 
-    tsortClearOrderdSource(pHandle->pOrderedSource);
+    tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
     taosArrayAddAll(pHandle->pOrderedSource, pResList);
     taosArrayDestroy(pResList);
 
@@ -645,7 +655,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
     SSortSource*  source = *pSource;
     *pSource = NULL;
 
-    tsortClearOrderdSource(pHandle->pOrderedSource);
+    tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
 
     while (1) {
       SSDataBlock* pBlock = pHandle->fetchfp(source->param);

@@ -269,8 +269,8 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
   - database，len为用户在外面申请的空间，内部会把当前db赋值到database里。
   - 只要是没有正常把db名赋值到database中（包括截断），返回错误，返回值为-1，然后用户可以通过  taos_errstr(NULL) 来获取错误提示。
   - 如果，database == NULL 或者 len<=0 返回错误，required里保存存储db需要的空间（包含最后的'\0'）
-  - 如果，len 小于 存储db需要的空间（包含最后的'\0'），返回错误，database里赋值截断的数据，以’\0‘结尾。
-  - 如果，len 大于等于 存储db需要的空间（包含最后的'\0'），返回正常0，database里赋值以’\0‘结尾的db名。
+  - 如果，len 小于 存储db需要的空间（包含最后的'\0'），返回错误，database里赋值截断的数据，以'\0'结尾。
+  - 如果，len 大于等于 存储db需要的空间（包含最后的'\0'），返回正常0，database里赋值以'\0‘结尾的db名。
 
 - `void taos_close(TAOS *taos)`
 

@@ -183,16 +183,18 @@ static int32_t calcConstProject(SNode* pProject, bool dual, SNode** pNew) {
   } else {
     code = scalarCalculateConstants(pProject, pNew);
   }
-  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
+  if (TSDB_CODE_SUCCESS == code) {
     strcpy(((SExprNode*)*pNew)->aliasName, aliasName);
-    int32_t size = taosArrayGetSize(pAssociation);
-    for (int32_t i = 0; i < size; ++i) {
-      SNode** pCol = taosArrayGetP(pAssociation, i);
-      nodesDestroyNode(*pCol);
-      *pCol = nodesCloneNode(*pNew);
-      if (NULL == *pCol) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
+    if (QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
+      int32_t size = taosArrayGetSize(pAssociation);
+      for (int32_t i = 0; i < size; ++i) {
+        SNode** pCol = taosArrayGetP(pAssociation, i);
+        nodesDestroyNode(*pCol);
+        *pCol = nodesCloneNode(*pNew);
+        if (NULL == *pCol) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          break;
+        }
       }
     }
   }
@@ -335,8 +337,14 @@ static SNodeList* getChildProjection(SNode* pStmt) {
 static void eraseSetOpChildProjection(SSetOperator* pSetOp, int32_t index) {
   SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
   nodesListErase(pLeftProjs, nodesListGetCell(pLeftProjs, index));
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pLeft)) {
+    eraseSetOpChildProjection((SSetOperator*)pSetOp->pLeft, index);
+  }
   SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
   nodesListErase(pRightProjs, nodesListGetCell(pRightProjs, index));
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pSetOp->pRight)) {
+    eraseSetOpChildProjection((SSetOperator*)pSetOp->pRight, index);
+  }
 }
 
 typedef struct SNotRefByOrderByCxt {
@@ -361,11 +369,33 @@ static bool notRefByOrderBy(SColumnNode* pCol, SNodeList* pOrderByList) {
   return !cxt.hasThisCol;
 }
 
+static bool isSetUselessCol(SSetOperator* pSetOp, int32_t index, SExprNode* pProj) {
+  if (!isUselessCol(pProj)) {
+    return false;
+  }
+
+  SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
+  if (!isUselessCol((SExprNode*)nodesListGetNode(pLeftProjs, index))) {
+    return false;
+  }
+
+  SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
+  if (!isUselessCol((SExprNode*)nodesListGetNode(pRightProjs, index))) {
+    return false;
+  }
+
+  return true;
+}
+
 static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
+  if (subquery && pSetOp->opType == SET_OP_TYPE_UNION) {
+    return TSDB_CODE_SUCCESS;
+  }
   int32_t index = 0;
   SNode*  pProj = NULL;
   WHERE_EACH(pProj, pSetOp->pProjectionList) {
-    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) && isUselessCol((SExprNode*)pProj)) {
+    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) &&
+        isSetUselessCol(pSetOp, index, (SExprNode*)pProj)) {
       ERASE_NODE(pSetOp->pProjectionList);
       eraseSetOpChildProjection(pSetOp, index);
       continue;

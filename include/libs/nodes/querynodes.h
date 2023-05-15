@@ -298,6 +298,7 @@ typedef struct SSelectStmt {
   bool        hasUniqueFunc;
   bool        hasTailFunc;
   bool        hasInterpFunc;
+  bool        hasInterpPseudoColFunc;
   bool        hasLastRowFunc;
   bool        hasLastFunc;
   bool        hasTimeLineFunc;
@@ -378,6 +379,8 @@ typedef struct SVnodeModifyOpStmt {
   SName                 usingTableName;
   const char*           pBoundCols;
   struct STableMeta*    pTableMeta;
+  SNode*                pTagCond;
+  SArray*               pTableTag;
   SHashObj*             pVgroupsHashObj;
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
   SHashObj*             pSubTableHashObj;
