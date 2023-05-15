@@ -1544,8 +1544,8 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   if (tDecodeU32v(&decoder, &pStatus->curDnodes) < 0) return -1;
   // version 2: support curCurCores since 3.0.5.0
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDecodeU32v(&decoder, &pStatus->curCpuCores) < 0) return -1;
-    if (tDecodeI8(&decoder, (int8_t *)&pStatus->connOfficialVersion) < 0) return -1;
+    if (tDecodeU32v(&decoder, &pStatus->curCpuCores) < 0) return -1;                  // since 3.0.5.0
+    if (tDecodeI8(&decoder, (int8_t *)&pStatus->connOfficialVersion) < 0) return -1;  // since 3.0.5.0
   }
 #endif
 
