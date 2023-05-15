@@ -373,7 +373,7 @@ FROM temp_stable t1, temp_stable t2
 WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
-For sub-table and super table：
+For sub-table and super table:
 
 ```sql
 SELECT *

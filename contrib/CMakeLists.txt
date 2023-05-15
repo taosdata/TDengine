@@ -243,8 +243,7 @@ if(${BUILD_WITH_ROCKSDB})
     endif(${TD_DARWIN})
 
     if(${TD_WINDOWS})
-        option(WITH_MD_LIBRARY "build with MD" OFF)
-        set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
+        option(WITH_JNI "" ON)
     endif(${TD_WINDOWS})
 
     if(${TD_WINDOWS})
