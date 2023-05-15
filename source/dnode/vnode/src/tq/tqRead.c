@@ -503,6 +503,74 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
   return 0;
 }
 
+static int32_t buildResSDataBlock(SSDataBlock* pBlock, SSchemaWrapper* pSchema, const SArray* pColIdList) {
+  if (blockDataGetNumOfCols(pBlock) > 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numOfCols = taosArrayGetSize(pColIdList);
+
+  if (numOfCols == 0) {  // all columns are required
+    for (int32_t i = 0; i < pSchema->nCols; ++i) {
+      SSchema*        pColSchema = &pSchema->pSchema[i];
+      SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
+
+      int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        blockDataFreeRes(pBlock);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+  } else {
+    if (numOfCols > pSchema->nCols) {
+      numOfCols = pSchema->nCols;
+    }
+
+    int32_t i = 0;
+    int32_t j = 0;
+    while (i < pSchema->nCols && j < numOfCols) {
+      SSchema* pColSchema = &pSchema->pSchema[i];
+      col_id_t colIdSchema = pColSchema->colId;
+
+      col_id_t colIdNeed = *(col_id_t*)taosArrayGet(pColIdList, j);
+      if (colIdSchema < colIdNeed) {
+        i++;
+      } else if (colIdSchema > colIdNeed) {
+        j++;
+      } else {
+        SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
+        int32_t         code = blockDataAppendColInfo(pBlock, &colInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          return -1;
+        }
+        i++;
+        j++;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SColVal* pColVal) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (IS_STR_DATA_TYPE(pColVal->type)) {
+    char val[65535 + 2] = {0};
+    if (pColVal->value.pData != NULL) {
+      memcpy(varDataVal(val), pColVal->value.pData, pColVal->value.nData);
+      varDataSetLen(val, pColVal->value.nData);
+      code = colDataSetVal(pColumnInfoData, rowIndex, val, !COL_VAL_IS_VALUE(pColVal));
+    } else {
+      colDataSetNULL(pColumnInfoData, rowIndex);
+    }
+  } else {
+    code = colDataSetVal(pColumnInfoData, rowIndex, (void*)&pColVal->value.val, !COL_VAL_IS_VALUE(pColVal));
+  }
+
+  return code;
+}
+
 int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet) {
   tqDebug("tq reader retrieve data block %p, index:%d", pReader->msg.msgStr, pReader->nextBlk);
 
@@ -538,53 +606,11 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet
     pReader->cachedSchemaSuid = suid;
     pReader->cachedSchemaVer = sversion;
 
-    SSchemaWrapper* pSchemaWrapper = pReader->pSchemaWrapper;
-    if (blockDataGetNumOfCols(pBlock) > 0) {
-      blockDataDestroy(pReader->pResBlock);
-      pReader->pResBlock = createDataBlock();
-      pBlock = pReader->pResBlock;
-
-      pBlock->info.id.uid = uid;
-      pBlock->info.version = pReader->msg.ver;
-    }
-
-    int32_t numOfCols = taosArrayGetSize(pReader->pColIdList);
-    if (numOfCols == 0) {  // all columns are required
-      for (int32_t i = 0; i < pSchemaWrapper->nCols; ++i) {
-        SSchema*        pColSchema = &pSchemaWrapper->pSchema[i];
-        SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
-
-        int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
-        if (code != TSDB_CODE_SUCCESS) {
-          blockDataFreeRes(pBlock);
-          return -1;
-        }
-      }
-    } else {
-      if (numOfCols > pSchemaWrapper->nCols) {
-        numOfCols = pSchemaWrapper->nCols;
-      }
-
-      int32_t i = 0;
-      int32_t j = 0;
-      while (i < pSchemaWrapper->nCols && j < numOfCols) {
-        SSchema* pColSchema = &pSchemaWrapper->pSchema[i];
-        col_id_t colIdSchema = pColSchema->colId;
-
-        col_id_t colIdNeed = *(col_id_t*)taosArrayGet(pReader->pColIdList, j);
-        if (colIdSchema < colIdNeed) {
-          i++;
-        } else if (colIdSchema > colIdNeed) {
-          j++;
-        } else {
-          SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
-          int32_t         code = blockDataAppendColInfo(pBlock, &colInfo);
-          if (code != TSDB_CODE_SUCCESS) {
-            return -1;
-          }
-          i++;
-          j++;
-        }
+    ASSERT(pReader->cachedSchemaVer == pReader->pSchemaWrapper->version);
+    if (blockDataGetNumOfCols(pBlock) == 0) {
+      int32_t code = buildResSDataBlock(pReader->pResBlock, pReader->pSchemaWrapper, pReader->pColIdList);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
     }
   }
@@ -632,30 +658,15 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet
       } else if (pCol->cid == pColData->info.colId) {
         for (int32_t i = 0; i < pCol->nVal; i++) {
           tColDataGetValue(pCol, i, &colVal);
-          if (IS_STR_DATA_TYPE(colVal.type)) {
-            if (colVal.value.pData != NULL) {
-              char val[65535 + 2] = {0};
-              memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
-              varDataSetLen(val, colVal.value.nData);
-              if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                return -1;
-              }
-            } else {
-              colDataSetNULL(pColData, i);
-            }
-          } else {
-            if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-              return -1;
-            }
+          int32_t code = doSetVal(pColData, i, &colVal);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
           }
         }
         sourceIdx++;
         targetIdx++;
       } else {
-        for (int32_t i = 0; i < pCol->nVal; i++) {
-          colDataSetNULL(pColData, i);
-        }
-
+        colDataSetNNULL(pColData, 0, pCol->nVal);
         targetIdx++;
       }
     }
@@ -681,21 +692,9 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet
             sourceIdx++;
             continue;
           } else if (colVal.cid == pColData->info.colId) {
-            if (IS_STR_DATA_TYPE(colVal.type)) {
-              if (colVal.value.pData != NULL) {
-                char val[65535 + 2] = {0};
-                memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
-                varDataSetLen(val, colVal.value.nData);
-                if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                  return -1;
-                }
-              } else {
-                colDataSetNULL(pColData, i);
-              }
-            } else {
-              if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                return -1;
-              }
+            int32_t code = doSetVal(pColData, i, &colVal);
+            if (code != TSDB_CODE_SUCCESS) {
+              return code;
             }
 
             sourceIdx++;
@@ -833,14 +832,14 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
               char val[65535 + 2];
               memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
               varDataSetLen(val, colVal.value.nData);
-              if (colDataAppend(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+              if (colDataSetVal(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
                 goto FAIL;
               }
             } else {
               colDataSetNULL(pColData, curRow - lastRow);
             }
           } else {
-            if (colDataAppend(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+            if (colDataSetVal(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
               goto FAIL;
             }
           }
@@ -930,14 +929,14 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
               char val[65535 + 2];
               memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
               varDataSetLen(val, colVal.value.nData);
-              if (colDataAppend(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+              if (colDataSetVal(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
                 goto FAIL;
               }
             } else {
               colDataSetNULL(pColData, curRow - lastRow);
             }
           } else {
-            if (colDataAppend(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+            if (colDataSetVal(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
               goto FAIL;
             }
           }
