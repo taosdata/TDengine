@@ -97,7 +97,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
   SDbHbBatchRsp batchRsp = {0};
   if (tDeserializeSDbHbBatchRsp(value, valueLen, &batchRsp) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    code = terrno;
+    goto _return;
   }
 
   int32_t numOfBatchs = taosArrayGetSize(batchRsp.pArray);

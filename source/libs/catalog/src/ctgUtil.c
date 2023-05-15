@@ -236,6 +236,7 @@ void ctgFreeTbCache(SCtgDBCache* dbCache) {
 }
 
 void ctgFreeVgInfoCache(SCtgDBCache* dbCache) { freeVgInfo(dbCache->vgCache.vgInfo); }
+void ctgFreeCfgInfoCache(SCtgDBCache* dbCache) { freeDbCfgInfo(dbCache->cfgCache.cfgInfo); }
 
 void ctgFreeDbCache(SCtgDBCache* dbCache) {
   if (NULL == dbCache) {
@@ -243,6 +244,7 @@ void ctgFreeDbCache(SCtgDBCache* dbCache) {
   }
 
   ctgFreeVgInfoCache(dbCache);
+  ctgFreeCfgInfoCache(dbCache);
   ctgFreeStbMetaCache(dbCache);
   ctgFreeTbCache(dbCache);
 }
