@@ -200,7 +200,7 @@ After migrating via DataX, we found that we can significantly improve the effici
 
 ### 2. Manual data migration
 
-Suppose you need to use the multi-value model for data writing. In that case, you need to develop a tool to export data from OpenTSDB, confirm which timelines can be merged and imported into the same timeline, and then pass the time to import simultaneously through the SQL statement—written to the database.
+Suppose you need to use the multi-value model for data writing. In that case, you need to develop a tool to export data from OpenTSDB, confirm which timelines can be merged and imported into the same timeline, and then pass the time to import simultaneously through the SQL statement-written to the database.
 
 Manual migration of data requires attention to the following two issues:
 
@@ -258,7 +258,7 @@ Equivalent function: apercentile
 Example:
 
 ```sql
-Select apercentile(col1, 50, “t-digest”) from table_name
+select apercentile(col1, 50, "t-digest") from table_name
 ```
 
 Remark:

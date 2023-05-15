@@ -13,7 +13,7 @@ sql create database test  vgroups 1;
 sql use test;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));;
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt as select  _wstart ts, count(*) c1 from t1 interval(1s) fill(NULL);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart ts, count(*) c1 from t1 interval(1s) fill(NULL);
 sql insert into t1 values(1648791211000,1,2,3,1.0,'aaa');
 sleep 100
 sql insert into t1 values(1648795308000,1,2,3,1.0,'aaa');
@@ -126,10 +126,10 @@ sql use test;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
 print create stream streams1 trigger at_once  into streamt as select  _wstart ts, max(a) c1 from t1 interval(1s) fill(linear);
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt as select  _wstart ts, max(a) c1 from t1 interval(1s) fill(linear);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart ts, max(a) c1 from t1 interval(1s) fill(linear);
 
 print create stream streams2 trigger at_once  into streamt2 as select  _wstart ts, max(a) c1 from t1 interval(1s) fill(prev);
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0  into streamt2 as select  _wstart ts, max(a) c1 from t1 interval(1s) fill(prev);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt2 as select  _wstart ts, max(a) c1 from t1 interval(1s) fill(prev);
 
 sql insert into t1 values(1648791211000,1,2,3,1.0,'aaa');
 sleep 100

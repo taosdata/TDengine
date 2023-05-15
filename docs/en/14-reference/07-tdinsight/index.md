@@ -233,7 +233,7 @@ After the importing is done, `TDinsight for 3.x` dashboard is available on the p
 
 In the `TDinsight for 3.x` dashboard, choose the database used by taosKeeper to store monitoring data, you can see the monitoring result.
 
-![TDengine Database TDinsight 选择数据库](./assets/select_dashboard_db.webp)
+![TDengine Database TDinsight select database](./assets/select_dashboard_db.webp)
 
 ## TDinsight dashboard details
 

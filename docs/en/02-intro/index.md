@@ -57,7 +57,7 @@ By making full use of [characteristics of time series data](https://tdengine.com
 
 - **[Easy Data Analytics](https://tdengine.com/tdengine/time-series-data-analytics-made-easy/)**: Through super tables, storage and compute separation, data partitioning by time interval, pre-computation and other means, TDengine makes it easy to explore, format, and get access to data in a highly efficient way.
 
-- **[Open Source](https://tdengine.com/tdengine/open-source-time-series-database/)**: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered over 19k stars on GitHub. There is an active developer community, and over 140k running instances worldwide.
+- **[Open Source](https://tdengine.com/tdengine/open-source-time-series-database/)**: TDengine's core modules, including cluster feature, are all available under open source licenses. It has gathered over 19k stars on GitHub. There is an active developer community, and over 140k running instances worldwide.
 
 With TDengine, the total cost of ownership of your time-series data platform can be greatly reduced.
 
@@ -109,8 +109,8 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 
 | **System Performance Requirements**               | **Not Applicable** | **Might Be Applicable** | **Very Applicable** | **Description**                                                                                                             |
 | ------------------------------------------------- | ------------------ | ----------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Very large total processing capacity              |                    |                         | √                   | TDengine’s cluster functions can easily improve processing capacity via multi-server coordination.                          |
-| Extremely high-speed data processing              |                    |                         | √                   | TDengine’s storage and data processing are optimized for IoT, and can process data many times faster than similar products. |
+| Very large total processing capacity              |                    |                         | √                   | TDengine's cluster functions can easily improve processing capacity via multi-server coordination.                          |
+| Extremely high-speed data processing              |                    |                         | √                   | TDengine's storage and data processing are optimized for IoT, and can process data many times faster than similar products. |
 | Extremely fast processing of high resolution data |                    |                         | √                   | TDengine has achieved the same or better performance than other relational and NoSQL data processing systems.               |
 
 ### System Maintenance Requirements

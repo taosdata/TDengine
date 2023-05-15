@@ -250,7 +250,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
       pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-      tqBuildDeleteReq(pVnode, stbFullName, pDataBlock, pDeleteReq);
+      tqBuildDeleteReq(stbFullName, pDataBlock, pDeleteReq, "");
       continue;
     }
 
@@ -299,7 +299,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
       }
       SRow *pRow = NULL;
       if ((terrno = tRowBuild(pVals, (STSchema *)pTSchema, &pRow)) < 0) {
-        tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
       taosArrayPush(tbData.aRowP, &pRow);
@@ -309,7 +309,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   }
 
   // encode
-  tEncodeSize(tEncodeSSubmitReq2, pReq, len, terrno);
+  tEncodeSize(tEncodeSubmitReq, pReq, len, terrno);
   if (TSDB_CODE_SUCCESS == terrno) {
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
@@ -321,7 +321,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     ((SSubmitReq2Msg *)pBuf)->header.contLen = htonl(len);
     ((SSubmitReq2Msg *)pBuf)->version = htobe64(1);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    if (tEncodeSSubmitReq2(&encoder, pReq) < 0) {
+    if (tEncodeSubmitReq(&encoder, pReq) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       /*vError("failed to encode submit req since %s", terrstr());*/
     }
@@ -332,7 +332,7 @@ _end:
   taosArrayDestroy(tagArray);
   taosArrayDestroy(pVals);
   if (pReq) {
-    tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+    tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pReq);
   }
 

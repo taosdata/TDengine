@@ -17,6 +17,7 @@
 #define _TD_UTIL_LIST_H_
 
 #include "os.h"
+#include "talgo.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -222,10 +223,12 @@ void       tdListInit(SList *list, int32_t eleSize);
 void       tdListEmpty(SList *list);
 SList     *tdListNew(int32_t eleSize);
 void      *tdListFree(SList *list);
+void      *tdListFreeP(SList *list, FDelete fp);
 void       tdListPrependNode(SList *list, SListNode *node);
 void       tdListAppendNode(SList *list, SListNode *node);
 int32_t    tdListPrepend(SList *list, void *data);
 int32_t    tdListAppend(SList *list, const void *data);
+SListNode *tdListAdd(SList *list, const void *data);
 SListNode *tdListPopHead(SList *list);
 SListNode *tdListPopTail(SList *list);
 SListNode *tdListGetHead(SList *list);
