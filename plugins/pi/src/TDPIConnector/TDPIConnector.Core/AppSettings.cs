@@ -14,7 +14,7 @@ namespace TDPIConnector.Core
         public class TomlConfig {
             public int MaxWaitLen { get; set; } = 1000;
             public int UpdateInterval { get; set; } = 10000;
-            public double MaxBackfillRangeDays { get; set; } = 1;
+            public int MaxBackfillRangeDays { get; set; } = 1;
             public string PIServerName { get; set; }
             public string PISystemName { get; set; }
             public string AFDatabaseName { get; set; }
@@ -33,6 +33,10 @@ namespace TDPIConnector.Core
             public string PIServerUser { get; set; }
             public string PIServerPassword { get; set; }
             public string PIServerDomain { get; internal set; }
+            public bool FromTDengineLastTime { get; set; }
+            public bool ToTDengineFirstTime { get; set; }
+            public DateTime BackfillStartTime { get; set; } = DateTime.MinValue;
+            public DateTime BackfillEndTime { get; set; } = DateTime.MaxValue;
 
             public string ConfigString()
             {
@@ -47,6 +51,10 @@ namespace TDPIConnector.Core
                 sb.AppendLine($"AFDataPipesInstances={AFDataPipesInstances}");
                 sb.AppendLine($"IPCStream={IPCStream}");
                 sb.AppendLine($"SQLAPI={SQLAPI}");
+                sb.AppendLine($"FromTDengineLastTime={FromTDengineLastTime}");
+                sb.AppendLine($"ToTDengineFirstTime={ToTDengineFirstTime}");
+                sb.AppendLine($"BackfillStartTime={BackfillStartTime}");
+                sb.AppendLine($"BackfillEndTime={BackfillEndTime}");
 
                 if (TemplateForPIPoint != null && TemplateForPIPoint.Any())
                 {
@@ -62,6 +70,14 @@ namespace TDPIConnector.Core
                     sb.AppendLine($"PointList={string.Join(", ", PointList)}");
                 }
                 return sb.ToString();
+            }
+
+            public void SetBackfillOption(bool backfillToFirstRecorded, bool backfillFromLastRecorded, DateTime start, DateTime end)
+            {
+                FromTDengineLastTime = backfillFromLastRecorded;
+                ToTDengineFirstTime = backfillToFirstRecorded;
+                BackfillStartTime = start;
+                BackfillEndTime = end;
             }
         }
 
@@ -90,7 +106,7 @@ namespace TDPIConnector.Core
                 tomlConfig.AFDatabaseName = GetStringFromAppSettings("AFDatabaseName");
                 tomlConfig.AFDataPipesInstances = GetIntegerFromAppSettings("AFDataPipesInstances", 1);
                 tomlConfig.PIDataPipesInstances = GetIntegerFromAppSettings("PIDataPipesInstances", 1);
-                tomlConfig.MaxBackfillRangeDays = GetDoubleFromAppSettings("MaxBackfillRangeDays");
+                tomlConfig.MaxBackfillRangeDays = GetIntegerFromAppSettings("MaxBackfillRangeDays");
                 try
                 {
                     tomlConfig.TemplateForPIPoint = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates1.csv").Distinct().ToList();

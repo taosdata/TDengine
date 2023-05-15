@@ -10,6 +10,10 @@ namespace TDPIConnector.Core.Conversions
 
         public static TDValue ToTDValue(this AFValueWrapper value)
         {
+            if (value.OnMaxTime())
+            {
+                return null;
+            }
             if (value.IsAFEnumerationValue())
             {
                 AFEnumerationValueWrapper enumValue = value.GetEnumerationValue();

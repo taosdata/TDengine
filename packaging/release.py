@@ -149,7 +149,7 @@ def buildAndInstallPI():
     print("solution clean...")
     os.system('devenv TDPIConnector.sln /clean')
     print("solution build...")
-    build_result = os.system('devenv TDPIConnector.sln /build')
+    build_result = os.system('devenv TDPIConnector.sln /build Release')
     if build_result == 0:
         print("PI Connector Solution built successfully.")
     else:
@@ -159,7 +159,14 @@ def buildAndInstallPI():
     pi_install_path = os.path.join(install_path, "xplugins", "pi")
     initDirectory(pi_install_path)
 
-    connector_path = os.path.join(pi_connector_path, "TDPIConnector.Service", "bin", "Debug")
+    backfill_path = os.path.join(pi_connector_path, "TDBackfill", "bin", "Release")
+    for filename in os.listdir(backfill_path):
+        if filename.startswith("TDBackfill"):
+            filepath = os.path.join(backfill_path, filename)
+            if os.path.isfile(filepath):
+                shutil.copy2(filepath, pi_install_path)
+
+    connector_path = os.path.join(pi_connector_path, "TDPIConnector.Service", "bin", "Release")
     for filename in os.listdir(connector_path):
         filepath = os.path.join(connector_path, filename)
         if os.path.isfile(filepath):
