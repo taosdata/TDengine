@@ -312,7 +312,6 @@ int32_t extractSubmitMsgFromWal(SWalReader* pReader, SPackedData* pPackedData) {
 
   void* data = taosMemoryMalloc(len);
   if (data == NULL) {
-    // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then retry
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", 0);
     return -1;

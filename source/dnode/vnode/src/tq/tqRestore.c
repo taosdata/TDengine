@@ -120,8 +120,6 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
         continue;
       }
 
-
-
       // append the data for the stream
       tqDebug("vgId:%d s-task:%s wal reader seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.currentVer);
     } else {
@@ -145,17 +143,9 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    SStreamDataSubmit2* p = streamDataSubmitNew(packData, STREAM_INPUT__DATA_SUBMIT);
-    if (p == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      tqError("%s failed to create data submit for stream since out of memory", pTask->id.idStr);
-      streamMetaReleaseTask(pStreamMeta, pTask);
-      continue;
-    }
-
     noNewDataInWal = false;
 
-    code = tqAddInputBlockNLaunchTask(pTask, (SStreamQueueItem*)p, packData.ver);
+    code = tqAddBlockNLaunchTask(pTask, &packData);
     if (code == TSDB_CODE_SUCCESS) {
       pTask->chkInfo.currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
       tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr,
@@ -164,8 +154,6 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       tqError("s-task:%s append input queue failed, ver:%" PRId64, pTask->id.idStr, pTask->chkInfo.currentVer);
     }
 
-    streamDataSubmitDestroy(p);
-    taosFreeQitem(p);
     streamMetaReleaseTask(pStreamMeta, pTask);
   }
 

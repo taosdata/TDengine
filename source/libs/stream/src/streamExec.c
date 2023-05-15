@@ -51,7 +51,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     qSetMultiStreamInput(pExecutor, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
-    const SStreamDataSubmit2* pSubmit = (const SStreamDataSubmit2*)data;
+    const SStreamDataSubmit* pSubmit = (const SStreamDataSubmit*)data;
     qSetMultiStreamInput(pExecutor, &pSubmit->submit, 1, STREAM_INPUT__DATA_SUBMIT);
     qDebug("s-task:%s set submit blocks as source block completed, %p %p len:%d ver:%" PRId64, pTask->id.idStr, pSubmit, pSubmit->submit.msgStr,
            pSubmit->submit.msgLen, pSubmit->submit.ver);
@@ -63,7 +63,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     qDebug("s-task:%s set sdata blocks as input num:%d, ver:%"PRId64, pTask->id.idStr, numOfBlocks, pBlock->sourceVer);
     qSetMultiStreamInput(pExecutor, pBlockList->pData, numOfBlocks, STREAM_INPUT__DATA_BLOCK);
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
-    const SStreamMergedSubmit2* pMerged = (const SStreamMergedSubmit2*)data;
+    const SStreamMergedSubmit* pMerged = (const SStreamMergedSubmit*)data;
 
     SArray* pBlockList = pMerged->submits;
     int32_t numOfBlocks = taosArrayGetSize(pBlockList);
@@ -367,11 +367,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       qRes->blocks = pRes;
 
       if (((SStreamQueueItem*)pInput)->type == STREAM_INPUT__DATA_SUBMIT) {
-        SStreamDataSubmit2* pSubmit = (SStreamDataSubmit2*)pInput;
+        SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pInput;
         qRes->childId = pTask->selfChildId;
         qRes->sourceVer = pSubmit->ver;
       } else if (((SStreamQueueItem*)pInput)->type == STREAM_INPUT__MERGED_SUBMIT) {
-        SStreamMergedSubmit2* pMerged = (SStreamMergedSubmit2*)pInput;
+        SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)pInput;
         qRes->childId = pTask->selfChildId;
         qRes->sourceVer = pMerged->ver;
       }

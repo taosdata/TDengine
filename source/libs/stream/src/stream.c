@@ -18,6 +18,9 @@
 
 #define STREAM_TASK_INPUT_QUEUEU_CAPACITY 20480
 #define STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE (100)
+#define ONE_MB_F (1048576.0)
+
+#define QUEUE_MEM_SIZE_IN_MB(_q)  (taosQueueMemorySize(_q)/ONE_MB_F)
 
 int32_t streamInit() {
   int8_t old;
@@ -281,45 +284,36 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
 }
 
 bool tInputQueueIsFull(const SStreamTask* pTask) {
-  return taosQueueItemSize((pTask->inputQueue->queue)) >= STREAM_TASK_INPUT_QUEUEU_CAPACITY;
+  bool isFull = taosQueueItemSize((pTask->inputQueue->queue)) >= STREAM_TASK_INPUT_QUEUEU_CAPACITY;
+  double size = QUEUE_MEM_SIZE_IN_MB(pTask->inputQueue->queue);
+  return (isFull || size >= STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE);
 }
 
 int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
   int8_t type = pItem->type;
 
   if (type == STREAM_INPUT__DATA_SUBMIT) {
-    SStreamDataSubmit2* pSubmitBlock = streamSubmitBlockClone((SStreamDataSubmit2*)pItem);
-    if (pSubmitBlock == NULL) {
-      qDebug("task %d %p submit enqueue failed since out of memory", pTask->id.taskId, pTask);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
-      return -1;
-    }
-
     int32_t numOfBlocks = taosQueueItemSize(pTask->inputQueue->queue) + 1;
-    double size = taosQueueMemorySize(pTask->inputQueue->queue) / 1048576.0;
+    double  size = QUEUE_MEM_SIZE_IN_MB(pTask->inputQueue->queue);
 
-    qDebug("s-task:%s submit enqueue %p %p msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
-           pItem, pSubmitBlock->submit.msgStr, pSubmitBlock->submit.msgLen,
-           pSubmitBlock->submit.ver, numOfBlocks, size);
+    SStreamDataSubmit* px = (SStreamDataSubmit*)pItem;
+    qDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
+           px->submit.msgLen, px->submit.ver, numOfBlocks, size);
 
-    if ((pTask->taskLevel == TASK_LEVEL__SOURCE) &&
-        (numOfBlocks > STREAM_TASK_INPUT_QUEUEU_CAPACITY || (size >= STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE))) {
+    if ((pTask->taskLevel == TASK_LEVEL__SOURCE) && tInputQueueIsFull(pTask)) {
       qError("s-task:%s input queue is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) abort", pTask->id.idStr,
              STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE,
              numOfBlocks, size);
-      streamDataSubmitDestroy(pSubmitBlock);
       return -1;
     }
 
-    taosWriteQitem(pTask->inputQueue->queue, pSubmitBlock);
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     int32_t numOfBlocks = taosQueueItemSize(pTask->inputQueue->queue) + 1;
-    double size = taosQueueMemorySize(pTask->inputQueue->queue) / 1048576.0;
+    double  size = QUEUE_MEM_SIZE_IN_MB(pTask->inputQueue->queue);
 
-    if ((pTask->taskLevel == TASK_LEVEL__SOURCE) &&
-        (numOfBlocks > STREAM_TASK_INPUT_QUEUEU_CAPACITY || (size >= STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE))) {
+    if ((pTask->taskLevel == TASK_LEVEL__SOURCE) && (tInputQueueIsFull(pTask))) {
       qError("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
              pTask->id.idStr, STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE, numOfBlocks,
              size);
@@ -337,10 +331,6 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
     atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
   }
-
-#if 0
-  atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL);
-#endif
 
   return 0;
 }
