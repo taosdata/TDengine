@@ -198,7 +198,7 @@ def checkAndInitInput(options, version):
     else:
         logging.info(f"pagMode:{options['pagMode']}")
 
-def generateLatestDocker():
+def generateLatestDocker(options):
     if options['dockerMode'] == 'latest' and options['verMode'] == 'cluster':
         logging.info("generate_docker_enterprise.sh will be running...")
     elif options['dockerMode'] == 'latest':
@@ -626,14 +626,70 @@ def doActions(parePareOptions):
 
 def doWindowsRelease(options):
     logging.info("windows release ...")
-    logging.info('python3 win_release.py --version cluster --number 3.9.9.9 -N Power -M power@support.com -P power')
-    # executeCommand('python3 win_release.py --version cluster --number 3.9.9.9 -N Power -M power@support.com -P power ')
+    
+    
+    if options.get('CPU') is not None:
+        cpuType = options['CPU']
+    else: 
+        cpuType = 'x64'
+        
+    if options.get('verMode') is not None:
+        verMode = options['verMode']
+    else: 
+        raise Exception("verMode is not set")
+    
+    if options.get('version') is not None:
+        verNumber = options['version']
+    else: 
+        raise Exception("verNumber is not set")
+    
+    if options.get('CUSTOMER_NAME') is not None:
+        custName = options['CUSTOMER_NAME']
+    else: 
+        custName = 'TDengine'
+    
+    if options.get('CUSTOMER_PROMPT') is not None:
+        custPrompt = options['CUSTOMER_PROMPT']
+    else: 
+        custPrompt = 'taos'
+    
+    if options.get('CUSTOMER_EMAIL') is not None:
+        custEmail = options['CPU']
+    else: 
+        custEmail = 'support@taosdata.com'
+    
+    if options.get('GRANT_VALUE') is not None:
+        grant = options['GRANT_VALUE']
+    else: 
+        grant = '60' 
+    
+    
+    command = f'python win_release.py --version {verMode} --number {verNumber} -N {custName} -M {custEmail} -P {custPrompt}'
+    logging.info(f'release command {command}')
+    
+    os.system(command)
 
 def doMacosRelease(options):
      logging.info("macos release ...")
-     logging.info("./release_mac.sh -b 3.0 -c x64 -n 3.9.9.9 -l full -v edge -V stable -d no ")
-     logging.info("./release_mac.sh -b 3.0 -c arm64 -n 3.9.9.9 -l full -v edge -V stable -d no")
-    # executeCommand("")
+     if options.get('CPU') is not None and  options['CPU'] in ['x64','arm64']:
+        cpuType = options['CPU']
+     else:
+         raise Exception("CPU is not set or not supported")
+     
+     if options.get('verMode') is not None and options['verMode'] == 'edge':
+         verMode = options['verMode']
+     else:
+         raise Exception("verMode is not set or not supported")
+    
+     if options.get('version') is not None:
+         verNumber = options['version']
+     else:
+         raise Exception("verNumber is not set")
+        
+     command = f'./release_mac.sh -b 3.0 -c {cpuType} -n {verNumber} -l full -v {verMode} -V stable -d no'
+     logging.info("mac-{1} release command {0}".format(command,cpuType))
+     
+     os.system(command)
 
 def doLinuxRelease(options,args):
     logging.info("linux release ...")
