@@ -894,8 +894,10 @@ void destroyTimeSliceOperatorInfo(void* param) {
   }
   taosArrayDestroy(pInfo->pLinearInfo);
 
-  taosMemoryFree(pInfo->pPrevGroupKey->pData);
-  taosMemoryFree(pInfo->pPrevGroupKey);
+  if (pInfo->pPrevGroupKey) {
+    taosMemoryFree(pInfo->pPrevGroupKey->pData);
+    taosMemoryFree(pInfo->pPrevGroupKey);
+  }
 
   cleanupExprSupp(&pInfo->scalarSup);
 
