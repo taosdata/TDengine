@@ -827,7 +827,7 @@ static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColum
     strcpy(pCol->node.aliasName, pCol->colName);
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    strcpy(pCol->node.userAlias, pCol->colName);
+    strcpy(pCol->node.userAlias, pExpr->userAlias);
   }
   pCol->node.resType = pExpr->resType;
 }
@@ -1760,6 +1760,7 @@ static int32_t rewriteFuncToValue(STranslateContext* pCxt, char* pLiteral, SNode
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pVal->node.aliasName, ((SExprNode*)*pNode)->aliasName);
+  strcpy(pVal->node.userAlias, ((SExprNode*)*pNode)->userAlias);
   pVal->node.resType = ((SExprNode*)*pNode)->resType;
   if (NULL == pLiteral) {
     pVal->isNull = true;
@@ -3036,19 +3037,41 @@ static int32_t translateFillValues(STranslateContext* pCxt, SSelectStmt* pSelect
   return checkFillValues(pCxt, (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill, pSelect->pProjectionList);
 }
 
-static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
-  int32_t no = 1;
-  SNode*  pProject = NULL;
-  FOREACH(pProject, pProjectionList) {
-    SExprNode* pExpr = (SExprNode*)pProject;
-    if ('\0' == pExpr->userAlias[0]) {
-      strcpy(pExpr->userAlias, pExpr->aliasName);
-    }
-    sprintf(pExpr->aliasName, "#expr_%d", no++);
+static int32_t rewriteProjectAlias(SNodeList* pProjectionList);
+static int32_t rewriteNodeAccordingToType(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_FUNCTION:
+      rewriteProjectAlias(((SFunctionNode*)pNode)->pParameterList);
+      break;
+    case QUERY_NODE_LOGIC_CONDITION:
+      rewriteProjectAlias(((SLogicConditionNode*)pNode)->pParameterList);
+      break;
+    case QUERY_NODE_OPERATOR:
+      rewriteNodeAccordingToType(((SOperatorNode*)pNode)->pLeft);
+      rewriteNodeAccordingToType(((SOperatorNode*)pNode)->pRight);
+    default:
+      break;
   }
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
+  int32_t no = 1;
+  SNode*  pProject = NULL;
+  FOREACH(pProject, pProjectionList) {
+    rewriteNodeAccordingToType(pProject);
+    SExprNode* pExpr = (SExprNode*)pProject;
+    if ('\0' == pExpr->userAlias[0]) {
+      strcpy(pExpr->userAlias, pExpr->aliasName);
+    }
+    sprintf(pExpr->aliasName, "#expr_%p_%d", pProjectionList, no++);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// this function will be called when select is a subquery
+// if the select_item has no userAlias, then it will be the actual string
+// like select c1+1, c2+1 from tb; userAlias will be c1+1 and c2+1
 static int32_t checkProjectAlias(STranslateContext* pCxt, SNodeList* pProjectionList, SHashObj** pOutput) {
   SHashObj* pUserAliasSet = taosHashInit(LIST_LENGTH(pProjectionList),
                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -3071,7 +3094,9 @@ static int32_t checkProjectAlias(STranslateContext* pCxt, SNodeList* pProjection
 
 static int32_t translateProjectionList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pSelect->isSubquery) {
-    return checkProjectAlias(pCxt, pSelect->pProjectionList, NULL);
+    int32_t code = checkProjectAlias(pCxt, pSelect->pProjectionList, NULL);
+    if (TSDB_CODE_SUCCESS == code) code = rewriteProjectAlias(pSelect->pProjectionList);
+    return code;
   }
   return rewriteProjectAlias(pSelect->pProjectionList);
 }
