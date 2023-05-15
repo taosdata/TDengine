@@ -424,6 +424,13 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
 
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
+
+        // Var types do not have valid sma info, set colDataSMAIsSet to false
+        if (IS_VAR_DATA_TYPE(pFuncParam->pCol->type)) {
+          pInput->colDataSMAIsSet = false;
+          continue;
+        }
+
         pInput->pColumnDataAgg[j] = pBlock->pBlockAgg[slotId];
         if (pInput->pColumnDataAgg[j] == NULL) {
           pInput->colDataSMAIsSet = false;
