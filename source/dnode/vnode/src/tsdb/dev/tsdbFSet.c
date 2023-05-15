@@ -47,8 +47,8 @@ static int32_t add_file(STFileSet *fset, STFile *f) {
   if (f->type == TSDB_FTYPE_STT) {
     SSttLvl *lvl = NULL;  // TODO
 
-    lvl->nstt++;
-    lvl->fstt = f;
+    // lvl->nstt++;
+    // lvl->fstt = f;
   } else {
     fset->farr[f->type] = f;
   }

@@ -193,7 +193,7 @@ int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile) {
              pFile->cid,                     //
              g_tfile_info[pFile->type].suffix);
   }
-  pFile->ref = 1;
+  // pFile->ref = 1;
   return 0;
 }
 
@@ -235,7 +235,7 @@ int32_t tsdbTFileCreate(const STFile *pFile, STFile **f) {
 
   *f[0] = *pFile;
 
-  f[0]->ref = 1;
+  // f[0]->ref = 1;
   return 0;
 }
 

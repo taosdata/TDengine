@@ -52,9 +52,9 @@ struct STFileOp {
 
 typedef struct SSttLvl {
   SRBTreeNode rbtn;
-  int32_t     lvl;   // level
-  int32_t     nstt;  // number of .stt files on this level
-  STFile     *fstt;  // .stt files
+  int32_t     lvl;      // level
+  int32_t     nstt;     // number of .stt files on this level
+  SRBTree     sttTree;  // .stt file tree, sorted by cid
 } SSttLvl;
 
 struct STFileSet {

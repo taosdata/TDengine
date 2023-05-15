@@ -32,8 +32,8 @@ typedef enum {
 
 /* Exposed APIs */
 // open/close
-int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback);
-int32_t tsdbCloseFS(STFileSystem **ppFS);
+int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback);
+int32_t tsdbCloseFS(STFileSystem **fs);
 // txn
 int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid);
 int32_t tsdbFSEditBegin(STFileSystem *fs, int64_t eid, const SArray *aFileOp, EFEditT etype);
@@ -45,14 +45,14 @@ int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **ppFSet);
 /* Exposed Structs */
 struct STFileSystem {
   STsdb  *pTsdb;
-  int32_t state;
   tsem_t  canEdit;
+  int32_t state;
   int64_t neid;
   SArray *cstate;  // current state, SArray<STFileSet>
   // new state
   EFEditT etype;
   int64_t eid;
-  SArray *nstate;  // next state, SArray<STFileSet>
+  SArray *nstate;  // staging state, SArray<STFileSet>
 };
 
 #ifdef __cplusplus

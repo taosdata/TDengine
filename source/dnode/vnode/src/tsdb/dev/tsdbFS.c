@@ -37,36 +37,34 @@ static const char *gCurrentFname[] = {
     [TSDB_FCURRENT_M] = "current.m.json",
 };
 
-static int32_t create_fs(STsdb *pTsdb, STFileSystem **ppFS) {
-  ppFS[0] = taosMemoryCalloc(1, sizeof(*ppFS[0]));
-  if (ppFS[0] == NULL) {
+static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
+  fs[0] = taosMemoryCalloc(1, sizeof(*fs[0]));
+  if (fs[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  fs[0]->cstate = taosArrayInit(16, sizeof(STFileSet));
+  fs[0]->nstate = taosArrayInit(16, sizeof(STFileSet));
+  if (fs[0]->cstate == NULL || fs[0]->nstate == NULL) {
+    taosArrayDestroy(fs[0]->nstate);
+    taosArrayDestroy(fs[0]->cstate);
+    taosMemoryFree(fs[0]);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  ppFS[0]->cstate = taosArrayInit(16, sizeof(STFileSet));
-  ppFS[0]->nstate = taosArrayInit(16, sizeof(STFileSet));
-  if (ppFS[0]->cstate == NULL || ppFS[0]->nstate == NULL) {
-    taosArrayDestroy(ppFS[0]->nstate);
-    taosArrayDestroy(ppFS[0]->cstate);
-    taosMemoryFree(ppFS[0]);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  ppFS[0]->pTsdb = pTsdb;
-  ppFS[0]->state = TSDB_FS_STATE_NONE;
-  tsem_init(&ppFS[0]->canEdit, 0, 1);
-  ppFS[0]->neid = 0;
+  fs[0]->pTsdb = pTsdb;
+  fs[0]->state = TSDB_FS_STATE_NONE;
+  tsem_init(&fs[0]->canEdit, 0, 1);
+  fs[0]->neid = 0;
 
   return 0;
 }
 
-static int32_t destroy_fs(STFileSystem **ppFS) {
-  if (ppFS[0] == NULL) return 0;
-  taosArrayDestroy(ppFS[0]->nstate);
-  taosArrayDestroy(ppFS[0]->cstate);
-  tsem_destroy(&ppFS[0]->canEdit);
-  taosMemoryFree(ppFS[0]);
-  ppFS[0] = NULL;
+static int32_t destroy_fs(STFileSystem **fs) {
+  if (fs[0] == NULL) return 0;
+  taosArrayDestroy(fs[0]->nstate);
+  taosArrayDestroy(fs[0]->cstate);
+  tsem_destroy(&fs[0]->canEdit);
+  taosMemoryFree(fs[0]);
+  fs[0] = NULL;
   return 0;
 }
 
@@ -398,7 +396,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
     code = scan_and_fix_fs(fs);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    code = save_fs(0, fs->nstate, fCurrent);
+    code = save_fs(0, fs->cstate, fCurrent);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -470,20 +468,20 @@ _exit:
   return 0;
 }
 
-int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **ppFS, int8_t rollback) {
+int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback) {
   int32_t code;
   int32_t lino;
 
-  code = create_fs(pTsdb, ppFS);
+  code = create_fs(pTsdb, fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = open_fs(ppFS[0], rollback);
+  code = open_fs(fs[0], rollback);
   TSDB_CHECK_CODE(code, lino, _exit)
 
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
-    destroy_fs(ppFS);
+    destroy_fs(fs);
   } else {
     tsdbInfo("vgId:%d %s success", TD_VID(pTsdb->pVnode), __func__);
   }

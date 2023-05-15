@@ -47,12 +47,9 @@ int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile);
 int32_t tsdbTFileClear(STFile *pFile);
 
 struct STFile {
-  LISTD(STFile) listNode;
-  int32_t ref;
-
   char         fname[TSDB_FILENAME_LEN];
   tsdb_ftype_t type;
-  SDiskID      did;
+  SDiskID      did;  // disk id
   int32_t      fid;  // file id
   int64_t      cid;  // commit id
   int64_t      size;
@@ -62,6 +59,12 @@ struct STFile {
       int32_t nseg;
     } stt;
   };
+};
+
+struct STFileObj {
+  SRBTreeNode rbtn;
+  int32_t     ref;
+  STFile      f;
 };
 
 #ifdef __cplusplus
