@@ -198,8 +198,8 @@ SGrantStatus grantStatus = {false,
                             GRANT_DNODE_LIMITS,
                             GRANT_CPU_LIMITS,
                             0,
-                            .connectors.majorVer = 1,  // history: 1-?
-                            .connectors.minorVer = 1,  // history: 1-?
+                            .connectors.majorVer = GRANT_CONN_MAJOR_VER,
+                            .connectors.minorVer = GRANT_CONN_MINOR_VER,
                             .connectors.officialVersion = 0};
 
 // extern SSysTableMeta infosMeta[];
@@ -312,7 +312,7 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
 
   // step 3: respond with grant msg
   grantSetClusterIdEx(*(int64_t *)pInfo);
-  GrantMsg grantMsg = {0};
+  GrantMsg grantMsg = {.connectors.majorVer = GRANT_CONN_MAJOR_VER, .connectors.minorVer = GRANT_CONN_MINOR_VER};
   dmGenerateGrantMsg(&grantMsg, &grantStatusReq, &dnodeInfo);
   int32_t contLen = tSerializeGrantMsg(NULL, 0, &grantMsg);
   void   *pCont = rpcMallocCont(contLen);
@@ -425,8 +425,6 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
     SET_GRANT_CONNECTORS(pGrantMsg);
     SGrantConnMsg *pConn = &pGrantMsg->connectors;
     pConn->officialVersion = grantConnObj.officialVersion;
-    pConn->majorVer = GRANT_CONN_MAJOR_VER;
-    pConn->minorVer = GRANT_CONN_MINOR_VER;
     memcpy(pConn->items, grantConnObj.items, sizeof(SGrantConnItem) * CONN_TYPE_MAX);
   }
 #endif
@@ -737,7 +735,7 @@ static void grantConnResetMaster(SMnode *pMnode) {
   if (clusterCreateTime > 0) {
     SGrantConnItem item = {.number = GRANT_CONN_NUM_DEFAULT,
                            .speed = GRANT_CONN_SPEED_DEFAULT,
-                           .expire = clusterCreateTime / 86400 + GRANT_CONN_EXPIRE_DEFAULT};
+                           .expire = ceil((double)clusterCreateTime / 86400) + GRANT_CONN_EXPIRE_DEFAULT};
     for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
       *(gStatus.connectors.items + i) = item;
     }
