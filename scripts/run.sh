@@ -21,6 +21,8 @@ function usage() {
     echo -e "\t -h help"
 }
 
+send2feishu_enabled="true"
+
 while getopts "m:t:b:l:o:v:d:c:w:n:N:M:E:f:esh" opt; do
     case $opt in
         m)
@@ -69,7 +71,7 @@ while getopts "m:t:b:l:o:v:d:c:w:n:N:M:E:f:esh" opt; do
             sublogdir_enabled=1
             ;;
         f)
-            send2feishu_enabled="True"
+            send2feishu_enabled=$OPTARG
             ;;
         h)
             usage
