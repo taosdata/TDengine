@@ -702,6 +702,37 @@ export default {
             querystr += val.value ? `${val.name}=${val.value}&` : "";
           });
         }
+        if (data.datasets) {
+          for (
+            let index = 0;
+            index < data.datasets.categories.length;
+            index++
+          ) {
+            // 判断必填项 多选时value为数组，单选时为字符串
+            let target = data.datasets.categories[index].target;
+            if (
+              Object.hasOwnProperty.call(target, "required") &&
+              target.required &&
+              target.value == null
+            ) {
+              Message({
+                type: "warning",
+                message: `${enterTip} ${target.name} `,
+              });
+              return;
+            } else if (target.value) {
+              if (Array.isArray(target.value)) {
+                let str = "";
+                for (let i = 0; i < target.value.length; i++) {
+                  str += `${target.value[i]},`;
+                }
+                querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
+              } else {
+                querystr += `${target.name}=${target.value}` + "&";
+              }
+            }
+          }
+        }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
 
         let piParams = {
