@@ -54,7 +54,6 @@ class TDTestCase:
         tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-13 16:56:49.033', 1.80000,  100)")
 
         tdLog.debug("insert data ............ [OK]")
-        return
 
     def run(self):
         tdSql.prepare()
