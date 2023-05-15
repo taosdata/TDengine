@@ -16,11 +16,10 @@
 #include "streamInc.h"
 #include "ttimer.h"
 
-#define STREAM_TASK_INPUT_QUEUEU_CAPACITY 20480
-#define STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE (100)
-#define ONE_MB_F (1048576.0)
-
-#define QUEUE_MEM_SIZE_IN_MB(_q)  (taosQueueMemorySize(_q)/ONE_MB_F)
+#define STREAM_TASK_INPUT_QUEUEU_CAPACITY          20480
+#define STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE (50)
+#define ONE_MB_F                                  (1048576.0)
+#define QUEUE_MEM_SIZE_IN_MB(_q)                  (taosQueueMemorySize(_q)/ONE_MB_F)
 
 int32_t streamInit() {
   int8_t old;
