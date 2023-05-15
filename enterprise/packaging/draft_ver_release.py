@@ -653,7 +653,7 @@ def doLinuxRelease(options,args):
     )
     checkAndInitInput(options, args.version)
     # ================= build and install
-    # buildInstall(options, options['verMode'])
+    buildInstall(options, options['verMode'])
     # ================ making packages
     makePackages(options, options['buildOptions'], options['verMode'])
      
