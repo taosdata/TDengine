@@ -158,7 +158,7 @@
       },
       del(data) {
         if (this.requestIng) return;
-        this.$confirm(this.$t("stream.delStream") + "：" + data.topic_name + "?", this.$t("tips"), {
+        this.$confirm(this.$t("topic.delTopic") + "：" + data.topic_name + "?", this.$t("tips"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
           type: "warning",

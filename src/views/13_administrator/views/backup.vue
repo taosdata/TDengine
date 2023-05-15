@@ -137,7 +137,7 @@
             <el-option
               v-for="c in cycleList"
               :key="c.value"
-              :label="c.label"
+              :label="$t(c.label)"
               :value="c.value"
             >
             </el-option>
@@ -214,15 +214,15 @@ export default {
       },
       cycleList: [
         {
-          label: "Everyday",
+          label: "taosuser.everyday",
           value: "schedule:@daily",
         },
         {
-          label: "Every 7 days",
+          label: "taosuser.every7day",
           value: "schedule:@weekly",
         },
         {
-          label: "Every 30 days",
+          label: "taosuser.every30day",
           value: "schedule:@monthly",
         },
       ],

@@ -141,6 +141,7 @@ export default {
   cloudError: "The current domain name is not in the service scope!",
   prev: "Prev",
   next: "Next",
+  pleaseSelect: "Please Select",
   for: "For",
   upgradeTip: "Upgrade Tips",
   requiredMessage: " is required",
@@ -1002,6 +1003,7 @@ export default {
     user_name_required: "Please select User Name",
     topicNameError: "Please enter Topic Name",
     topicNameExist: "Topic Name already exists",
+    delTopic: "Delete Topic"
   },
 
   landing: {
@@ -1699,7 +1701,12 @@ export default {
     addreplication: 'Add New Replication',
     fromsource: 'From Source',
     targetdsn: 'Target DSN',
-    changebackup: 'Change Backup'
+    changebackup: 'Change Backup',
+    everyday: 'Everyday',
+    every7day: 'Every 7 days',
+    every30day: 'Every 30 days',
+    fromsourceRequired: 'Please select the source',
+    targetdsnRequired: 'Please input the target dsn'
   },
   taosagents:{
     edittitle:'Edit Agent',
@@ -1736,8 +1743,8 @@ export default {
     role: 'Role',
     adddnodes: 'Add DNodes',
     addmnodes: 'Add MNodes',
-    addqnodes: 'Add QNodes'
-
+    addqnodes: 'Add QNodes',
+    endpointRequired: 'Please input the endpoint.'
   },
   taossetting: {
     grafanaurl: 'Grafana Url',

@@ -990,6 +990,7 @@ export const SelectorFn = [
   },
   {
     label: "MODE",
+    supportStream: false,
     supportTopic:false,
     supportDatatype:['all']
   },
