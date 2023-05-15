@@ -1060,7 +1060,10 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
 
 void verifyOffset(void *pWalReader, STqOffsetVal* pOffset){
   // if offset version is small than first version , let's seek to first version
+  taosThreadMutexLock(&((SWalReader*)pWalReader)->pWal->mutex);
   int64_t firstVer = walGetFirstVer(((SWalReader*)pWalReader)->pWal);
+  taosThreadMutexUnlock(&((SWalReader*)pWalReader)->pWal->mutex);
+
   if (pOffset->version + 1 < firstVer){
     pOffset->version = firstVer - 1;
   }

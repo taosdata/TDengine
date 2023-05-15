@@ -162,8 +162,6 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   return 0;
 }
 
-bool tqIsHandleExecuting(STqHandle* pHandle) { return 1 == atomic_load_8(&pHandle->exec); }
-
 static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                    SRpcMsg* pMsg, STqOffsetVal* pOffset) {
   uint64_t consumerId = pRequest->consumerId;
@@ -172,12 +170,6 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, pRequest, pHandle->execHandle.subType);
-
-  while(tqIsHandleExecuting(pHandle)){
-    tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
-    taosMsleep(5);
-  }
-  atomic_store_8(&pHandle->exec, 1);
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
@@ -193,9 +185,9 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
       // lock
       taosWLockLatch(&pTq->lock);
       code = tqRegisterPushHandle(pTq, pHandle, pMsg);
+      tqSetHandleIdle(pHandle);
       taosWUnLockLatch(&pTq->lock);
       tDeleteSMqDataRsp(&dataRsp);
-      atomic_store_8(&pHandle->exec, 0);
       return code;
     }
     else{
@@ -214,7 +206,9 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
             consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
     tDeleteSMqDataRsp(&dataRsp);
   }
-  atomic_store_8(&pHandle->exec, 0);
+  taosWLockLatch(&pTq->lock);
+  tqSetHandleIdle(pHandle);
+  taosWUnLockLatch(&pTq->lock);
 
   return code;
 }
@@ -227,13 +221,6 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   SMqMetaRsp metaRsp = {0};
   STaosxRsp taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, pRequest);
-
-  while(tqIsHandleExecuting(pHandle)){
-    tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
-    taosMsleep(5);
-  }
-
-  atomic_store_8(&pHandle->exec, 1);
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
@@ -329,7 +316,6 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   }
 
 end:
-  atomic_store_8(&pHandle->exec, 0);
 
   tDeleteSTaosxRsp(&taosxRsp);
   taosMemoryFreeClear(pCkHead);
