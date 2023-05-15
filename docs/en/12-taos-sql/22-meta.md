@@ -184,7 +184,7 @@ Provides information about standard tables and subtables.
 
 ## INS_COLUMNS
 
-| #   |  **列名**   | **数据类型**  | **说明**               |
+| #   |  **Column**   | **Data Type**  | **Description**               |
 | --- | :---------: | ------------- | ---------------------- |
 | 1   | table_name  | BINARY(192)   | Table name                   |
 | 2   |   db_name   | BINARY(64)    | Database name |
