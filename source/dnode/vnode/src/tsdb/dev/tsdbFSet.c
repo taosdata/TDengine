@@ -45,7 +45,7 @@ static int32_t stt_lvl_from_json(const cJSON *json, SSttLvl *lvl) {
 
 static int32_t add_file(STFileSet *fset, STFile *f) {
   if (f->type == TSDB_FTYPE_STT) {
-    SSttLvl *lvl = &fset->lvl0;  // TODO
+    SSttLvl *lvl = NULL;  // TODO
 
     lvl->nstt++;
     lvl->fstt = f;
@@ -78,15 +78,15 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   if (ajson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   SSttLvl *sttLvl;
-  LISTD_FOREACH(&fset->lvl0, sttLvl, listNode) {
-    cJSON *ljson = cJSON_CreateObject();
-    if (ljson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  // LISTD_FOREACH(&fset->lvl0, sttLvl, listNode) {
+  //   cJSON *ljson = cJSON_CreateObject();
+  //   if (ljson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-    code = stt_lvl_to_json(sttLvl, ljson);
-    if (code) return code;
+  //   code = stt_lvl_to_json(sttLvl, ljson);
+  //   if (code) return code;
 
-    cJSON_AddItemToArray(ajson, ljson);
-  }
+  //   cJSON_AddItemToArray(ajson, ljson);
+  // }
 
   return 0;
 }
@@ -149,10 +149,10 @@ int32_t tsdbFileSetInit(STFileSet *pSet) {
     pSet->farr[ftype] = NULL;
   }
 
-  LISTD_INIT(&pSet->lvl0, listNode);
-  pSet->lvl0.lvl = 0;
-  pSet->lvl0.nstt = 0;
-  pSet->lvl0.fstt = NULL;
+  // LISTD_INIT(&pSet->lvl0, listNode);
+  // pSet->lvl0.lvl = 0;
+  // pSet->lvl0.nstt = 0;
+  // pSet->lvl0.fstt = NULL;
   return 0;
 }
 

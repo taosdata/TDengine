@@ -51,16 +51,16 @@ struct STFileOp {
 };
 
 typedef struct SSttLvl {
-  LISTD(struct SSttLvl) listNode;
-  int32_t lvl;   // level
-  int32_t nstt;  // number of .stt files on this level
-  STFile *fstt;  // .stt files
+  SRBTreeNode rbtn;
+  int32_t     lvl;   // level
+  int32_t     nstt;  // number of .stt files on this level
+  STFile     *fstt;  // .stt files
 } SSttLvl;
 
 struct STFileSet {
   int32_t fid;
   STFile *farr[TSDB_FTYPE_MAX];  // file array
-  SSttLvl lvl0;                  // level 0 of .stt
+  SRBTree lvlTree;               // level tree of .stt
 };
 
 #ifdef __cplusplus
