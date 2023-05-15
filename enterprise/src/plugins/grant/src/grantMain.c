@@ -78,11 +78,14 @@
 #define GRANT_CONN_MINOR_VER 1
 #define GRANT_FLAG_TDENGINE ((int8_t)0x01)
 #define GRANT_FLAG_CONNECTORS ((int8_t)0x02)
-
+#define GRANT_FLAG_CONNECTORS_OFFICIAL ((int8_t)0x04)
 #define SET_GRANT_TDENGINE(s) ((s)->flag |= GRANT_FLAG_TDENGINE)
 #define SET_GRANT_CONNECTORS(s) ((s)->flag |= GRANT_FLAG_CONNECTORS)
+#define SET_GRANT_CONNECTORS_OFFICIAL(s) ((s)->flag |= GRANT_FLAG_CONNECTORS_OFFICIAL)
+#define SET_GRANT_CONNECTORS_TRIAL(s) ((s)->flag &= 0xFB)
 #define IS_GRANT_TDENGINE(s) (((s)->flag & 0x01) == GRANT_FLAG_TDENGINE)
 #define IS_GRANT_CONNECTORS(s) (((s)->flag & 0x02) == GRANT_FLAG_CONNECTORS)
+#define IS_GRANT_CONNECTORS_OFFICIAL(s) (((s)->flag & 0x04) == GRANT_FLAG_CONNECTORS_OFFICIAL)
 
 #ifndef min
 #define min(x, y) (x) < (y) ? (x) : (y)
@@ -1020,7 +1023,9 @@ static void grantStatusAssignLimits(SGrantStatus *p1, SGrantStatus *p2, bool isC
 static void grantConnStatusAssignLimits(SGrantStatus *p1, SGrantStatus *p2, bool isCombine) {
   if (isCombine) {
     // use larger value
-    if (p2->connOfficialVersion) p1->connOfficialVersion = p2->connOfficialVersion;
+    if (IS_GRANT_CONNECTORS_OFFICIAL(p2)) {
+      SET_GRANT_CONNECTORS_OFFICIAL(p1);
+    }
     for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
       SGrantConnItem *pItem = p1->items + i;
       SGrantConnItem *qItem = p2->items + i;
@@ -1029,7 +1034,11 @@ static void grantConnStatusAssignLimits(SGrantStatus *p1, SGrantStatus *p2, bool
       GRANT_ITEM_SET_VAL(pItem->expire, qItem->expire, GRANT_CONN_EXPIRE_LIMITS);
     }
   } else {
-    p1->connOfficialVersion = p2->connOfficialVersion;
+    if (IS_GRANT_CONNECTORS_OFFICIAL(p2)) {
+      SET_GRANT_CONNECTORS_OFFICIAL(p1);
+    } else {
+      SET_GRANT_CONNECTORS_TRIAL(p1);
+    }
     memcpy(p1->items, p2->items, sizeof(SGrantConnItem) * GRANT_CONN_NUM);
   }
 }
@@ -1039,14 +1048,26 @@ static void grantStatusCheck(SMnode *pMnode, uint32_t curTime) {
   if (taosHashGetSize(pGrants) > 0) {
     SGrantStatus  status = {0};
     SGrantStatus *iter = taosHashIterate(pGrants, NULL);
+    int32_t       nGrant = 0;
+    int32_t       nGrantConn = 0;
     while (iter) {
-      grantStatusAssignLimits(&status, iter, true);
-      grantConnStatusAssignLimits(&status, iter, true);
+      if (IS_GRANT_TDENGINE(iter)) {
+        grantStatusAssignLimits(&status, iter, true);
+        ++nGrant;
+      }
+      if (IS_GRANT_CONNECTORS(iter)) {
+        grantConnStatusAssignLimits(&status, iter, true);
+        ++nGrantConn;
+      }
       iter = taosHashIterate(pGrants, iter);
     }
 
-    grantStatusAssignLimits(&grantStatus, &status, false);
-    grantConnStatusAssignLimits(&grantStatus, &status, false);
+    if (nGrant > 0) {
+      grantStatusAssignLimits(&grantStatus, &status, false);
+    }
+    if (nGrantConn > 0) {
+      grantConnStatusAssignLimits(&grantStatus, &status, false);
+    }
     taosHashClear(pGrants);
     uDebug("grant reset. usbDongle:%d, official:%d, expired:%d, expireTime:%" PRIu32 ", limitTimeSeries:%" PRIu64,
            grantStatus.usbDongle, grantStatus.officialVersion, grantStatus.expired, grantStatus.expireTimeSec,
@@ -1080,9 +1101,11 @@ static int32_t grantStatusCompare(SGrantStatus *p1, SGrantStatus *p2) {
 }
 
 static int32_t grantConnStatusCompare(SGrantStatus *p1, SGrantStatus *p2) {
-  if (p1->connOfficialVersion < p2->connOfficialVersion) {
+  bool official1 = IS_GRANT_CONNECTORS_OFFICIAL(p1);
+  bool official2 = IS_GRANT_CONNECTORS_OFFICIAL(p2);
+  if (official1 < official2) {
     return -1;
-  } else if (p1->connOfficialVersion > p2->connOfficialVersion) {
+  } else if (official1 > official2) {
     return 1;
   }
   for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
@@ -1121,6 +1144,7 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
   if (grantIsValid(pGrantMsg) || grantConnIsValid(pGrantMsg)) {
     SGrantStatus status = {0};
     if (grantIsValid(pGrantMsg)) {
+      SET_GRANT_TDENGINE(&status);
       status.usbDongle = pGrantMsg->usbDongle;
       status.officialVersion = pGrantMsg->officialVersion;
       status.expireTimeSec = pGrantMsg->expireTimeSec;
@@ -1135,7 +1159,6 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
       status.limitAccts = pGrantMsg->limitAccts;
       status.limitDnodes = pGrantMsg->limitDnodes;
       status.limitCpuCores = pGrantMsg->limitCpuCores;
-      status.connOfficialVersion = pGrantMsg->connectors.officialVersion;
 
       // take effect right now when grants upgrade
       int32_t grantCompare = grantStatusCompare(&grantStatus, &status);
@@ -1152,11 +1175,13 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
 
     // assign the connectors
     if (grantConnIsValid(pGrantMsg)) {
+      SET_GRANT_CONNECTORS(&status);
+      if (pGrantMsg->connectors.officialVersion) SET_GRANT_CONNECTORS_OFFICIAL(&status);
       memcpy(status.items, pGrantMsg->connectors.items, sizeof(SGrantConnItem) * GRANT_CONN_NUM);
       // take effect right now when grants upgrade
       int32_t grantCompare = grantConnStatusCompare(&grantStatus, &status);
       if (grantCompare < 0) {
-        if (grantStatus.connOfficialVersion == status.connOfficialVersion) {
+        if (IS_GRANT_CONNECTORS_OFFICIAL(&grantStatus) == IS_GRANT_CONNECTORS_OFFICIAL(&status)) {
           // use larger value
           grantConnStatusAssignLimits(&grantStatus, &status, true);
         } else {
@@ -1507,7 +1532,7 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, S
   if (tEncodeU32v(&encoder, pStatus->curDnodes) < 0) return -1;
   // version 2: since 3.0.5.0
   if (tEncodeU32v(&encoder, pStatus->curCpuCores) < 0) return -1;
-  if (tEncodeI8(&encoder, pStatus->connOfficialVersion ? 1 : 0) < 0) return -1;
+  if (tEncodeI8(&encoder, pStatus->flag) < 0) return -1;
 #endif
   // version 2: support activeCode/connectors activeCode since 3.0.5.0
   int8_t flag = 0;
@@ -1571,7 +1596,7 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   // version 2: support curCurCores since 3.0.5.0
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeU32v(&decoder, &pStatus->curCpuCores) < 0) return -1;
-    if (tDecodeI8(&decoder, (int8_t *)&pStatus->connOfficialVersion) < 0) return -1;
+    if (tDecodeI8(&decoder, (int8_t *)&pStatus->flag) < 0) return -1;
   }
 #endif
 
