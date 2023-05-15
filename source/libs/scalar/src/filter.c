@@ -3957,12 +3957,13 @@ typedef enum {
 typedef struct {
   SFltSclDatumKind kind;
   union {
-    int64_t  val; // may be int64, uint64 and double
+    int64_t  val; // for int64, uint64 and double and bool (1 true, 0 false)
     struct {
-      uint32_t nData;
+      uint32_t nData; // TODO maybe remove this and make pData len prefixed?
       uint8_t *pData;
-    }; // maybe varchar, nchar
+    }; // for varchar, nchar
   } datum;
+  SDataType type; // TODO: original data type, may not be used?
 } SFltSclDatum;
 
 typedef struct {
@@ -3979,6 +3980,42 @@ typedef struct {
 } SFltSclRange;
 
 int32_t fltSclCompareDatum(SFltSclDatum* val1, SFltSclDatum* val2) {
+  switch (val1->kind) {
+    case FLT_SCL_DATUM_KIND_NULL: {
+      if (val2->kind == FLT_SCL_DATUM_KIND_NULL) return 0 ; else return -1;
+      break;
+    }
+    case FLT_SCL_DATUM_KIND_MIN: {
+      if (val2->kind == FLT_SCL_DATUM_KIND_NULL) return 1;
+      else {
+        if (val2->kind == FLT_SCL_DATUM_KIND_MIN) return 0; else return -1;
+      }
+      break;
+    }
+    case FLT_SCL_DATUM_KIND_MAX: {
+      if (val2->kind == FLT_SCL_DATUM_KIND_MAX) return 0; else return 1;
+    }
+    case FLT_SCL_DATUM_KIND_UINT64: {
+      return compareUint64Val(&val1->datum.val, &val1->datum.val);
+    }
+    case FLT_SCL_DATUM_KIND_INT64: {
+      return compareInt64Val(&val1->datum.val, &val2->datum.val);
+    }
+    case FLT_SCL_DATUM_KIND_FLOAT64: {
+      return compareFloatDouble(&val1->datum.val, &val2->datum.val);
+    }
+    case FLT_SCL_DATUM_KIND_NCHAR: {
+      return compareLenPrefixedWStr(&val1->datum.pData, &val2->datum.pData); //TODO
+    }
+    case FLT_SCL_DATUM_KIND_VARCHAR: {
+      return compareLenPrefixedStr(&val1->datum.pData, &val2->datum.pData); //TODO
+    }
+    default:
+      fltError("not supported kind. just return 0");
+      return 0;
+      break;
+  }
+  return 0;
 }
 
 bool fltSclLessPoint(SFltSclPoint* pt1, SFltSclPoint* pt2) {
@@ -4071,26 +4108,32 @@ typedef struct {
   SColumnNode* colNode;
   SValueNode* valNode;
   EOperatorType type;
-} SFltSclScalarFunc;
+} SFltSclScalarOp;
 
+// simple define it, TODO: implement later
 typedef struct {
   SColumnNode* colNode;
-
 } SFltSclConstColumn;
 
+// simple define it, TODO: implement later
 typedef struct {
   SValueNode* value;
 } SFltSclConstant;
 
+
+int32_t fltSclBuildRangeFromScalarFunc(SFltSclScalarOp* func, SFltSclPoint* points) {
+
+}
+
+
 typedef struct {
   bool useRange;
   SHashObj* colRanges;
-
 } SFltSclOptCtx;
 
 static EDealRes fltSclMayBeOptimed(SNode* pNode, void* pCtx) {
   SFltSclOptCtx* ctx = (SFltSclOptCtx*)pCtx;
-
+  return DEAL_RES_CONTINUE;
 }
 
 
