@@ -262,26 +262,30 @@ int32_t streamStateCommit(SStreamState* pState) {
 #endif
 }
 
-int32_t streamStateFuncPut(SStreamState* pState, const STupleKey* key, const void* value, int32_t vLen) {
+int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
-  return streamStateFuncPut_rocksdb(pState, key, value, vLen);
+  void* pVal = NULL;
+  int32_t len = 0;
+  int32_t code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
+  char* buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  uint32_t rowSize = streamFileStateGeSelectRowSize(pState->pFileState);
+  memcpy(buf + len - rowSize, value, vLen);
+  return code;
 #else
   return tdbTbUpsert(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), value, vLen, pState->pTdbState->txn);
 #endif
 }
-int32_t streamStateFuncGet(SStreamState* pState, const STupleKey* key, void** pVal, int32_t* pVLen) {
+int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
-  return streamStateFuncGet_rocksdb(pState, key, pVal, pVLen);
+  void* pVal = NULL;
+  int32_t len = 0;
+  int32_t code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
+  char* buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  uint32_t rowSize = streamFileStateGeSelectRowSize(pState->pFileState);
+  *ppVal = buf + len - rowSize;
+  return code;
 #else
-  return tdbTbGet(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), pVal, pVLen);
-#endif
-}
-
-int32_t streamStateFuncDel(SStreamState* pState, const STupleKey* key) {
-#ifdef USE_ROCKSDB
-  return streamStateFuncDel_rocksdb(pState, key);
-#else
-  return tdbTbDelete(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), pState->pTdbState->txn);
+  return tdbTbGet(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), ppVal, pVLen);
 #endif
 }
 
