@@ -141,6 +141,7 @@ export default {
   cloudError: "The current domain name is not in the service scope!",
   prev: "Prev",
   next: "Next",
+  pleaseSelect: "Please Select",
   for: "For",
   upgradeTip: "Upgrade Tips",
   requiredMessage: " is required",
@@ -1700,7 +1701,12 @@ export default {
     addreplication: 'Add New Replication',
     fromsource: 'From Source',
     targetdsn: 'Target DSN',
-    changebackup: 'Change Backup'
+    changebackup: 'Change Backup',
+    everyday: 'Everyday',
+    every7day: 'Every 7 days',
+    every30day: 'Every 30 days',
+    fromsourceRequired: 'Please select the source',
+    targetdsnRequired: 'Please input the target dsn'
   },
   taosagents:{
     edittitle:'Edit Agent',
@@ -1738,7 +1744,7 @@ export default {
     adddnodes: 'Add DNodes',
     addmnodes: 'Add MNodes',
     addqnodes: 'Add QNodes',
-    endpointRequired: 'Please enter End Point'
+    endpointRequired: 'Please input the endpoint.'
   },
   taossetting: {
     grafanaurl: 'Grafana Url',

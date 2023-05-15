@@ -86,7 +86,7 @@
       >
         <el-form-item :label="$t('taosuser.fromsource')" prop="source" required>
           <!-- <el-input v-model.trim="ruleForm.source"></el-input> -->
-          <el-select v-model="ruleForm.source" placeholder="Please select">
+          <el-select v-model="ruleForm.source" :placeholder="$t('pleaseSelect')">
             <el-option
               v-for="db in dblist"
               :key="db['node-key']"
@@ -149,14 +149,14 @@ export default {
       rules: {
         source: [
           {
-            message: "Please select the source",
-            trigger: "change",
+            required: true,
+            message: this.$t('taosuser.fromsourceRequired'),
           },
         ],
         target: [
           {
-            message: "Please enter the target dsn",
-            trigger: "blur",
+            required: true,
+            message: this.$t('taosuser.targetdsnRequired'),
           },
         ],
       },

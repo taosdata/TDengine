@@ -134,6 +134,7 @@ export default {
   cloudError: "当前域名不在服务范围内!",
   prev: "上一个",
   next: "下一个",
+  pleaseSelect: "请选择",
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",
@@ -1467,7 +1468,12 @@ export default {
     addreplication: '新增同步',
     fromsource: '来源',
     targetdsn: '目标DSN',
-    changebackup: '选择备份周期'
+    changebackup: '选择备份周期',
+    everyday: '每天',
+    every7day: '每7天',
+    every30day: '每30天',
+    fromsourceRequired: '请选择来源',
+    targetdsnRequired: '请输入目标DSN'
   },
   taosagents:{
     edittitle:'编辑代理',
