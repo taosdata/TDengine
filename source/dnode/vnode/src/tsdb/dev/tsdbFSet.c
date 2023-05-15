@@ -112,6 +112,8 @@ int32_t tsdbFSetCmprFn(const STFileSet *pSet1, const STFileSet *pSet2) {
 }
 
 int32_t tsdbFSetEdit(STFileSet *fset, const STFileOp *op) {
+  int32_t code;
+
   ASSERT(fset->fid == op->fid);
 
   if (op->oState.size == 0) {
@@ -123,15 +125,8 @@ int32_t tsdbFSetEdit(STFileSet *fset, const STFileOp *op) {
 
     if (f[0].type == TSDB_FTYPE_STT) {
       SSttLvl *lvl;
-      LISTD_FOREACH(&fset->lvl0, lvl, listNode) {
-        if (lvl->lvl == f[0].stt.lvl) {
-          break;
-        }
-      }
-
-      if (lvl == NULL) {
-        // TODO: create the level
-      }
+      // code = get_or_create_lvl(fset, f[0].stt.lvl, &lvl);
+      if (code) return code;
 
       // TODO: add the stt file to the level
     } else {
