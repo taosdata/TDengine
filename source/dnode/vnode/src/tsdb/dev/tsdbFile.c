@@ -228,3 +228,18 @@ int32_t tsdbTFileFromJson(const cJSON *json, tsdb_ftype_t ftype, STFile **f) {
 
   return 0;
 }
+
+int32_t tsdbTFileCreate(const STFile *pFile, STFile **f) {
+  f[0] = taosMemoryMalloc(sizeof(*f[0]));
+  if (f[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  *f[0] = *pFile;
+
+  f[0]->ref = 1;
+  return 0;
+}
+
+int32_t tsdbTFileDestroy(STFile *pFile) {
+  taosMemoryFree(pFile);
+  return 0;
+}

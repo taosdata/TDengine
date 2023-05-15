@@ -49,6 +49,7 @@ struct STFileSystem {
   tsem_t  canEdit;
   int64_t neid;
   SArray *cstate;  // current state, SArray<STFileSet>
+  // new state
   EFEditT etype;
   int64_t eid;
   SArray *nstate;  // next state, SArray<STFileSet>

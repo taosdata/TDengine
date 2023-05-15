@@ -43,6 +43,19 @@ static int32_t stt_lvl_from_json(const cJSON *json, SSttLvl *lvl) {
   return 0;
 }
 
+static int32_t add_file(STFileSet *fset, STFile *f) {
+  if (f->type == TSDB_FTYPE_STT) {
+    SSttLvl *lvl = &fset->lvl0;  // TODO
+
+    lvl->nstt++;
+    lvl->fstt = f;
+  } else {
+    fset->farr[f->type] = f;
+  }
+
+  return 0;
+}
+
 int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   int32_t code = 0;
 
@@ -118,20 +131,11 @@ int32_t tsdbFSetEdit(STFileSet *fset, const STFileOp *op) {
 
   if (op->oState.size == 0) {
     // create
-    STFile *f = taosMemoryMalloc(sizeof(STFile));
-    if (f == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    STFile *f;
+    code = tsdbTFileCreate(&op->nState, &f);
+    if (code) return code;
 
-    f[0] = op->nState;
-
-    if (f[0].type == TSDB_FTYPE_STT) {
-      SSttLvl *lvl;
-      // code = get_or_create_lvl(fset, f[0].stt.lvl, &lvl);
-      if (code) return code;
-
-      // TODO: add the stt file to the level
-    } else {
-      fset->farr[f[0].type] = f;
-    }
+    add_file(fset, f);
   } else if (op->nState.size == 0) {
     // delete
   } else {
