@@ -124,7 +124,7 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       tqDebug("vgId:%d s-task:%s wal reader seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.currentVer);
     } else {
       int64_t currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
-      if (currentVer != pTask->chkInfo.currentVer) {
+      if (currentVer != -1 && currentVer != pTask->chkInfo.currentVer) {
         int32_t code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.currentVer);
         if (code != TSDB_CODE_SUCCESS) {  // no data in wal, quit
           streamMetaReleaseTask(pStreamMeta, pTask);
