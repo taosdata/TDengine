@@ -23,6 +23,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "tmisce.h"
+#include "mndStb.h"
 
 #define VGROUP_VER_NUMBER   1
 #define VGROUP_RESERVE_SIZE 64
@@ -1476,7 +1477,26 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
     if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVg, &newVg.vnodeGid[vnIndex]) != 0) return -1;
     if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg) != 0) return -1;
 
-    if (newVg.replica == 1) {
+    if(newVg.replica == 1){
+      SSdb   *pSdb = pMnode->pSdb;
+      void   *pIter = NULL; 
+
+      while (1) {
+        SStbObj *pStb = NULL;
+        pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+        if (pIter == NULL) break;
+
+        if (strcmp(pStb->db, pDb->name) == 0) {
+          if (mndSetForceDropCreateStbRedoActions(pMnode, pTrans, &newVg, pStb) != 0) {
+            sdbCancelFetch(pSdb, pIter);
+            sdbRelease(pSdb, pStb);
+            return -1;
+          }
+        }
+
+        sdbRelease(pSdb, pStb);
+      }
+
       mInfo("vgId:%d, all data is dropped since replica=1", pVgroup->vgId);
     }
   }
