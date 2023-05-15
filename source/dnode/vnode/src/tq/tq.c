@@ -61,9 +61,7 @@ void tqCleanUp() {
 static void destroyTqHandle(void* data) {
   STqHandle* pData = (STqHandle*)data;
   qDestroyTask(pData->execHandle.task);
-  if (pData->pRef) {
-    walCloseRef(pData->pWalReader->pWal, pData->pRef->refId);
-  }
+
   if (pData->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
     taosMemoryFreeClear(pData->execHandle.execCol.qmsg);
   } else if (pData->execHandle.subType == TOPIC_SUB_TYPE__DB) {
@@ -400,6 +398,9 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     while (tqIsHandleExec(pHandle)) {
       tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
       taosMsleep(5);
+    }
+    if (pHandle->pRef) {
+      walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
     }
     code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
     if (code != 0) {
