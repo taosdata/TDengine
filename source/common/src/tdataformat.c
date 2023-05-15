@@ -3541,5 +3541,6 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
     NULL,                          // TSDB_DATA_TYPE_VARBINARY
     NULL,                          // TSDB_DATA_TYPE_DECIMAL
     NULL,                          // TSDB_DATA_TYPE_BLOB
-    NULL                           // TSDB_DATA_TYPE_MEDIUMBLOB
+    NULL,                          // TSDB_DATA_TYPE_MEDIUMBLOB
+    NULL                           // TSDB_DATA_TYPE_GEOMETRY
 };

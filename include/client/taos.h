@@ -46,12 +46,12 @@ typedef void   TAOS_SUB;
 #define TSDB_DATA_TYPE_UINT       13  // 4 bytes
 #define TSDB_DATA_TYPE_UBIGINT    14  // 8 bytes
 #define TSDB_DATA_TYPE_JSON       15  // json string
-#define TSDB_DATA_TYPE_GEOMETRY   16  // geometry
-#define TSDB_DATA_TYPE_VARBINARY  17  // binary
-#define TSDB_DATA_TYPE_DECIMAL    18  // decimal
-#define TSDB_DATA_TYPE_BLOB       19  // binary
-#define TSDB_DATA_TYPE_MEDIUMBLOB 20
+#define TSDB_DATA_TYPE_VARBINARY  16  // binary
+#define TSDB_DATA_TYPE_DECIMAL    17  // decimal
+#define TSDB_DATA_TYPE_BLOB       18  // binary
+#define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
+#define TSDB_DATA_TYPE_GEOMETRY   20  // geometry
 #define TSDB_DATA_TYPE_MAX        21
 
 typedef enum {
