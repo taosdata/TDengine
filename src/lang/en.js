@@ -1002,6 +1002,7 @@ export default {
     user_name_required: "Please select User Name",
     topicNameError: "Please enter Topic Name",
     topicNameExist: "Topic Name already exists",
+    delTopic: "Delete Topic"
   },
 
   landing: {
@@ -1736,8 +1737,8 @@ export default {
     role: 'Role',
     adddnodes: 'Add DNodes',
     addmnodes: 'Add MNodes',
-    addqnodes: 'Add QNodes'
-
+    addqnodes: 'Add QNodes',
+    endpointRequired: 'Please enter End Point'
   },
   taossetting: {
     grafanaurl: 'Grafana Url',

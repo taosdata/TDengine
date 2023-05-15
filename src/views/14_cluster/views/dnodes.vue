@@ -111,6 +111,14 @@ export default {
     return {
       isDisable: localStorage.getItem("username") === "root",
       dnodesList: [],
+      rules: {
+        endpoint: [
+          {
+            required: true,
+            message: this.$t('taoscluster.endpointRequired')
+          }
+        ]
+      }
     };
   },
   created() {

@@ -724,6 +724,7 @@ export default {
     database: '数据库',
     createStream: "创建流计算",
     streamName: "流名称",
+    delStream: "删除流",
     sourceDB: "源数据库",
     targetDB: "目标数据库",
     targetTable: "目标表",
@@ -798,6 +799,7 @@ export default {
     user_name_required: "请选择用户名",
     topicNameError: "请输入主题名称",
     topicNameExist: "主题名称已经存在",
+    delTopic: "删除主题"
   },
   landing: {
     title: "欢迎使用 TDengine Cloud ，让我们从了解基本概念开始。",
@@ -1502,8 +1504,8 @@ export default {
     role: '角色',
     adddnodes: '新增DNodes',
     addmnodes: '新增MNodes',
-    addqnodes: '新增QNodes'
-
+    addqnodes: '新增QNodes',
+    endpointRequired: '请输入端点'
   },
   taossetting: {
     grafanaurl: 'Grafana地址',
