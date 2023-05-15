@@ -439,7 +439,9 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
 
 int32_t recoverSnapshot(SStreamFileState* pFileState) {
   int32_t code = TSDB_CODE_SUCCESS;
-  deleteExpiredCheckPoint(pFileState, pFileState->maxTs - pFileState->deleteMark);
+  int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs) ? INT64_MIN
+                                                                           : pFileState->maxTs - pFileState->deleteMark;
+  deleteExpiredCheckPoint(pFileState, mark);
   void*   pStVal = NULL;
   int32_t len = 0;
 
