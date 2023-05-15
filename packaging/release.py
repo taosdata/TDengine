@@ -159,6 +159,13 @@ def buildAndInstallPI():
     pi_install_path = os.path.join(install_path, "xplugins", "pi")
     initDirectory(pi_install_path)
 
+    backfill_path = os.path.join(pi_connector_path, "TDBackfill", "bin", "Debug")
+    for filename in os.listdir(backfill_path):
+        if filename.startswith("TDBackfill"):
+            filepath = os.path.join(backfill_path, filename)
+            if os.path.isfile(filepath):
+                shutil.copy2(filepath, pi_install_path)
+
     connector_path = os.path.join(pi_connector_path, "TDPIConnector.Service", "bin", "Debug")
     for filename in os.listdir(connector_path):
         filepath = os.path.join(connector_path, filename)
