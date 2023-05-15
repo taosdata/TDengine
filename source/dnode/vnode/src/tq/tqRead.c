@@ -645,14 +645,14 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet
               char val[65535 + 2] = {0};
               memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
               varDataSetLen(val, colVal.value.nData);
-              if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+              if (colDataSetVal(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
                 return -1;
               }
             } else {
               colDataSetNULL(pColData, i);
             }
           } else {
-            if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+            if (colDataSetVal(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
               return -1;
             }
           }
@@ -694,14 +694,14 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet
                 char val[65535 + 2] = {0};
                 memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
                 varDataSetLen(val, colVal.value.nData);
-                if (colDataAppend(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+                if (colDataSetVal(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
                   return -1;
                 }
               } else {
                 colDataSetNULL(pColData, i);
               }
             } else {
-              if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+              if (colDataSetVal(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
                 return -1;
               }
             }
@@ -841,14 +841,14 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
               char val[65535 + 2];
               memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
               varDataSetLen(val, colVal.value.nData);
-              if (colDataAppend(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+              if (colDataSetVal(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
                 goto FAIL;
               }
             } else {
               colDataSetNULL(pColData, curRow - lastRow);
             }
           } else {
-            if (colDataAppend(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+            if (colDataSetVal(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
               goto FAIL;
             }
           }
@@ -938,14 +938,14 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
               char val[65535 + 2];
               memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
               varDataSetLen(val, colVal.value.nData);
-              if (colDataAppend(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+              if (colDataSetVal(pColData, curRow - lastRow, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
                 goto FAIL;
               }
             } else {
               colDataSetNULL(pColData, curRow - lastRow);
             }
           } else {
-            if (colDataAppend(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
+            if (colDataSetVal(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
               goto FAIL;
             }
           }
