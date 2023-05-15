@@ -159,7 +159,8 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
     return dst;
   } else if (dst->type == STREAM_INPUT__DATA_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit2* pMerged = streamMergedSubmitNew();
-    ASSERT(pMerged);
+    // todo handle error
+
     streamMergeSubmit(pMerged, (SStreamDataSubmit2*)dst);
     streamMergeSubmit(pMerged, (SStreamDataSubmit2*)pElem);
     taosFreeQitem(dst);

@@ -299,9 +299,8 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
     int32_t numOfBlocks = taosQueueItemSize(pTask->inputQueue->queue) + 1;
     double size = taosQueueMemorySize(pTask->inputQueue->queue) / 1048576.0;
 
-    qDebug("s-task:%s submit enqueue %p %p msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
-           pItem, pSubmitBlock->submit.msgStr, pSubmitBlock->submit.msgLen,
-           pSubmitBlock->submit.ver, numOfBlocks, size);
+    qDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
+           pSubmitBlock->submit.msgLen, pSubmitBlock->submit.ver, numOfBlocks, size);
 
     if ((pTask->taskLevel == TASK_LEVEL__SOURCE) &&
         (numOfBlocks > STREAM_TASK_INPUT_QUEUEU_CAPACITY || (size >= STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE))) {
@@ -344,6 +343,8 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
 
   return 0;
 }
+
+static void* streamQueueCurItem(SStreamQueue* queue) { return queue->qItem; }
 
 void* streamQueueNextItem(SStreamQueue* queue) {
   int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);

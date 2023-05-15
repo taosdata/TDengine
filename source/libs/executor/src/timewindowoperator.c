@@ -1106,7 +1106,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
   bool    masterScan = true;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
-  int16_t bytes = pStateColInfoData->info.bytes;
+  int32_t bytes = pStateColInfoData->info.bytes;
 
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
@@ -2564,7 +2564,9 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       doDeleteWindows(pOperator, &pInfo->interval, pBlock, delWins, pInfo->pUpdatedMap);
       if (IS_FINAL_OP(pInfo)) {
         addRetriveWindow(delWins, pInfo);
-        taosArrayAddAll(pInfo->pDelWins, delWins);
+        if (pBlock->info.type != STREAM_CLEAR) {
+          taosArrayAddAll(pInfo->pDelWins, delWins);
+        }
         taosArrayDestroy(delWins);
         continue;
       }
@@ -2576,6 +2578,11 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       if (pInfo->pDelRes->info.rows != 0) {
         // process the rest of the data
         printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+        if (pBlock->info.type == STREAM_CLEAR) {
+          pInfo->pDelRes->info.type = STREAM_CLEAR;
+        } else {
+          pInfo->pDelRes->info.type = STREAM_DELETE_RESULT;
+        }
         return pInfo->pDelRes;
       }
 
@@ -2892,8 +2899,8 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SqlFunctionCtx* pCtx, 
     bufSize = pageSize * 4;
   }
   if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    qError("Init stream agg supporter failed since %s", terrstr(terrno));
+    terrno = TSDB_CODE_NO_DISKSPACE;
+    qError("Init stream agg supporter failed since %s, tempDir:%s", terrstr(), tsTempDir);
     return terrno;
   }
   int32_t code = createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, "function", tsTempDir);

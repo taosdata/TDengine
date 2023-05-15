@@ -112,7 +112,7 @@ void resetTaskInfo(qTaskInfo_t tinfo) {
   clearStreamBlock(pTaskInfo->pRoot);
 }
 
-static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
+static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, const char* id) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
@@ -129,7 +129,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-    qDebug("s-task set source blocks:%d %s", (int32_t)numOfBlocks, id);
+    qDebug("s-task:%s set source blocks:%d", id, (int32_t)numOfBlocks);
     ASSERT(pInfo->validBlockIndex == 0 && taosArrayGetSize(pInfo->pBlockLists) == 0);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
@@ -144,9 +144,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        SPackedData  tmp = {
-             .pDataBlock = pDataBlock,
-        };
+        SPackedData  tmp = { .pDataBlock = pDataBlock };
         taosArrayPush(pInfo->pBlockLists, &tmp);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
@@ -162,9 +160,11 @@ void doSetTaskId(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pStreamScanInfo = pOperator->info;
-    STableScanInfo*  pScanInfo = pStreamScanInfo->pTableScanOp->info;
-    if (pScanInfo->base.dataReader != NULL) {
-      tsdbReaderSetId(pScanInfo->base.dataReader, pTaskInfo->id.str);
+    if (pStreamScanInfo->pTableScanOp != NULL) {
+      STableScanInfo* pScanInfo = pStreamScanInfo->pTableScanOp->info;
+      if (pScanInfo->base.dataReader != NULL) {
+        tsdbReaderSetId(pScanInfo->base.dataReader, pTaskInfo->id.str);
+      }
     }
   } else {
     doSetTaskId(pOperator->pDownstream[0]);

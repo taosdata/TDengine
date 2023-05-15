@@ -44,7 +44,7 @@ For more details on features, please read through the entire documentation.
 
 ## Competitive Advantages
 
-By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/), TDengine differentiates itself from other [time series databases](https://tdengine.com/tsdb), with the following advantages.
+By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/), TDengine differentiates itself from other [time series databases](https://tdengine.com/tsdb/), with the following advantages.
 
 - **[High-Performance](https://tdengine.com/tdengine/high-performance-time-series-database/)**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
 
@@ -123,13 +123,12 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 
 ## Comparison with other databases
 
-- [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/performance-comparison-of-tdengine-and-influxdb/)
-- [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/query-performance-comparison-test-report-tdengine-vs-influxdb/)
-- [TDengine vs OpenTSDB](https://tdengine.com/performance-tdengine-vs-opentsdb/)
-- [TDengine vs Cassandra](https://tdengine.com/performance-tdengine-vs-cassandra/)
-- [TDengine vs InfluxDB](https://tdengine.com/performance-tdengine-vs-influxdb/)
+- [TDengine vs. InfluxDB](https://tdengine.com/tsdb-comparison-influxdb-vs-tdengine/)
+- [TDengine vs. TimescaleDB](https://tdengine.com/tsdb-comparison-timescaledb-vs-tdengine/)
+- [TDengine vs. OpenTSDB](https://tdengine.com/performance-tdengine-vs-opentsdb/)
+- [TDengine vs. Cassandra](https://tdengine.com/performance-tdengine-vs-cassandra/)
 
 ## More readings
 - [Introduction to Time-Series Database](https://tdengine.com/tsdb/)
 - [Introduction to TDengine competitive advantages](https://tdengine.com/tdengine/)
- 
+
