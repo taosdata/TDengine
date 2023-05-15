@@ -602,12 +602,11 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet
       return -1;
     }
 
-    ASSERT(pReader->cachedSchemaVer == pReader->pSchemaWrapper->version);
-
     pReader->cachedSchemaUid = uid;
     pReader->cachedSchemaSuid = suid;
     pReader->cachedSchemaVer = sversion;
 
+    ASSERT(pReader->cachedSchemaVer == pReader->pSchemaWrapper->version);
     if (blockDataGetNumOfCols(pBlock) == 0) {
       int32_t code = buildResSDataBlock(pReader->pResBlock, pReader->pSchemaWrapper, pReader->pColIdList);
       if (code != TSDB_CODE_SUCCESS) {
