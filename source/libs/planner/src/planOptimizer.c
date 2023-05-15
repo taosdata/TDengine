@@ -740,6 +740,75 @@ static int32_t pushDownCondOptJoinExtractMergeCond(SOptimizeContext* pCxt, SJoin
   return code;
 }
 
+static bool pushDownCondOptIsTag(SNode* pNode, SNodeList* pTableCols) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return false;
+  }
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  if (COLUMN_TYPE_TAG != pCol->colType) {
+    return false;
+  }
+  return pushDownCondOptBelongThisTable(pNode, pTableCols);
+}
+
+static bool pushDownCondOptIsTagEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+  SOperatorNode* pOper = (SOperatorNode*)pCond;
+  if (OP_TYPE_EQUAL != pOper->opType) {
+    return false;
+  }
+  SNodeList* pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
+  SNodeList* pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
+  if (pushDownCondOptIsTag(pOper->pLeft, pLeftCols)) {
+    return pushDownCondOptIsTag(pOper->pRight, pRightCols);
+  } else if (pushDownCondOptIsTag(pOper->pLeft, pRightCols)) {
+    return pushDownCondOptIsTag(pOper->pRight, pLeftCols);
+  }
+  return false;
+}
+
+static int32_t pushDownCondOptJoinExtractTagEqualLogicCond(SJoinLogicNode* pJoin) {
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pJoin->pOnConditions);
+
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pTagEqualConds = NULL;
+  SNode*     pCond = NULL;
+  FOREACH(pCond, pLogicCond->pParameterList) {
+    if (pushDownCondOptIsTagEqualCond(pJoin, pCond)) {
+      code = nodesListMakeAppend(&pTagEqualConds, nodesCloneNode(pCond));
+    }
+  }
+
+  SNode* pTempTagEqCond = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesMergeConds(&pTempTagEqCond, &pTagEqualConds);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pJoin->pTagEqualConditions = pTempTagEqCond;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    nodesDestroyList(pTagEqualConds);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t pushDownCondOptJoinExtractTagEqualCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)(pJoin->pOnConditions))->condType) {
+    return pushDownCondOptJoinExtractTagEqualLogicCond(pJoin);
+  }
+
+  if (pushDownCondOptIsTagEqualCond(pJoin, pJoin->pOnConditions)) {
+    pJoin->pTagEqualConditions = nodesCloneNode(pJoin->pOnConditions);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
@@ -772,6 +841,10 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
 
   if (TSDB_CODE_SUCCESS == code) {
     code = pushDownCondOptJoinExtractMergeCond(pCxt, pJoin);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pushDownCondOptJoinExtractTagEqualCond(pCxt, pJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
