@@ -552,6 +552,25 @@ static int32_t buildResSDataBlock(SSDataBlock* pBlock, SSchemaWrapper* pSchema, 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SColVal* pColVal) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (IS_STR_DATA_TYPE(pColVal->type)) {
+    char val[65535 + 2] = {0};
+    if (pColVal->value.pData != NULL) {
+      memcpy(varDataVal(val), pColVal->value.pData, pColVal->value.nData);
+      varDataSetLen(val, pColVal->value.nData);
+      code = colDataSetVal(pColumnInfoData, rowIndex, val, !COL_VAL_IS_VALUE(pColVal));
+    } else {
+      colDataSetNULL(pColumnInfoData, rowIndex);
+    }
+  } else {
+    code = colDataSetVal(pColumnInfoData, rowIndex, (void*)&pColVal->value.val, !COL_VAL_IS_VALUE(pColVal));
+  }
+
+  return code;
+}
+
 int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet) {
   tqDebug("tq reader retrieve data block %p, index:%d", pReader->msg.msgStr, pReader->nextBlk);
 
@@ -640,30 +659,15 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet
       } else if (pCol->cid == pColData->info.colId) {
         for (int32_t i = 0; i < pCol->nVal; i++) {
           tColDataGetValue(pCol, i, &colVal);
-          if (IS_STR_DATA_TYPE(colVal.type)) {
-            if (colVal.value.pData != NULL) {
-              char val[65535 + 2] = {0};
-              memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
-              varDataSetLen(val, colVal.value.nData);
-              if (colDataSetVal(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                return -1;
-              }
-            } else {
-              colDataSetNULL(pColData, i);
-            }
-          } else {
-            if (colDataSetVal(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-              return -1;
-            }
+          int32_t code = doSetVal(pColData, i, &colVal);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
           }
         }
         sourceIdx++;
         targetIdx++;
       } else {
-        for (int32_t i = 0; i < pCol->nVal; i++) {
-          colDataSetNULL(pColData, i);
-        }
-
+        colDataSetNNULL(pColData, 0, pCol->nVal);
         targetIdx++;
       }
     }
@@ -689,21 +693,9 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSubmitTbData** pSubmitTbDataRet
             sourceIdx++;
             continue;
           } else if (colVal.cid == pColData->info.colId) {
-            if (IS_STR_DATA_TYPE(colVal.type)) {
-              if (colVal.value.pData != NULL) {
-                char val[65535 + 2] = {0};
-                memcpy(varDataVal(val), colVal.value.pData, colVal.value.nData);
-                varDataSetLen(val, colVal.value.nData);
-                if (colDataSetVal(pColData, i, val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                  return -1;
-                }
-              } else {
-                colDataSetNULL(pColData, i);
-              }
-            } else {
-              if (colDataSetVal(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
-                return -1;
-              }
+            int32_t code = doSetVal(pColData, i, &colVal);
+            if (code != TSDB_CODE_SUCCESS) {
+              return code;
             }
 
             sourceIdx++;
