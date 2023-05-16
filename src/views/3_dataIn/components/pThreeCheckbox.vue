@@ -59,8 +59,8 @@ export default {
   },
   methods: {
     // 初始化状态
-    loadState(num) {
-      this.num = num == null ? 0 : (num == 'false' ? 2 : 1);
+    loadState(num) {    
+      this.num = (num == null || num == 0) ? 0 : (num == 'false' ? 2 : 1);
       this.chooseState(this.num);
     },
     // 改变状态

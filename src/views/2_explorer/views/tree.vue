@@ -559,6 +559,9 @@ export default {
               })
               .finally(() => {
                 this.requesting = false;
+              })
+              .catch(res => {
+                this.$message.error(res?.desc)
               });
           });
           break;
@@ -583,6 +586,9 @@ export default {
               })
               .finally(() => {
                 this.requesting = false;
+              })
+              .catch(res => {
+                this.$message.error(res?.desc)
               });
           });
           break;
@@ -609,6 +615,9 @@ export default {
               })
               .finally(() => {
                 this.requesting = false;
+              })
+              .catch(res => {
+                this.$message.error(res?.desc)
               });
           });
           break;

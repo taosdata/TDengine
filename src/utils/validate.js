@@ -101,3 +101,11 @@ export function validUnit(arg) {
 export function validRetentions(arg) {
   return /^[1-9]\d*[dhms]:[1-9]\d*[dhms](,[1-9]\d*[dhms]:[1-9]\d*[dhms]){0,2}$/g.test(arg)
 }
+
+export function validStreamSql(sql) {
+  return /^create stream/i.test(sql)
+}
+
+export function validTopicSql(sql) {
+  return /^create topic/i.test(sql)
+}
