@@ -449,6 +449,7 @@ static void *tscCrashReportThreadFp(void *param) {
         tscError("failed to send crash report");
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
+          pFile = NULL;
           continue;
         }
       } else {
@@ -468,6 +469,7 @@ static void *tscCrashReportThreadFp(void *param) {
 
     if (pFile) {
       taosReleaseCrashLogFile(pFile, truncateFile);
+      pFile = NULL;
       truncateFile = false;
     }
 
