@@ -67,6 +67,7 @@ pub fn spawn_runner(
                                 compression_level: task.compression_level.map(Into::into),
                                 force: task.force,
                                 cancel,
+                                parser: None,
                                 // port_pool: ONCE,
                                 with_agent: Some((
                                     task.id,

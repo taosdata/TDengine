@@ -568,32 +568,12 @@ async fn consume_flat_record(
                     }
                 }
             }
-            // let views = taosx_ipc::stream::reader::record_batch_to_column_view(&batch);
-            // dbg!(&views);
-            // let schema = batch.schema();
-            // let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
-
-            // // stmt.prepare(format!("INSERT INTO {}"))
-
-            // let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
-            // raw.with_field_names(&columns).with_table_name("tb1");
-            // // raw.with_table_name(name)
-            // info!("{}", &raw.pretty_format());
-            // // TODO transfer to transformer
-            // loop {
-            //     if let Err(err) = _taos.write_raw_block(&raw).await {
-            //         dbg!(&err);
-            //         break;
-            //     } else {
-            //         break;
-            //     }
-            // }
-            // _taos.write_raw_block(block)
         } else {
             let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(batch);
             // let mut stmt = Stmt::init(&taos)?;
             // process id, ts, value
             dbg!(&cv_vec);
+            anyhow::bail!("Parser should be set with flat stream");
         }
     }
     Ok(())

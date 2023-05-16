@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc};
+use std::{ops::Range, str::FromStr, sync::Arc};
 
 use arrow::{
     array::{
@@ -200,6 +200,41 @@ pub struct Parser {
     parse: LinkedHashMap<String, FieldParser>,
     #[serde(deserialize_with = "model_serde::deserialize")]
     model: Vec<Table>,
+}
+
+#[derive(Debug, Error)]
+pub enum ParserError {
+    #[error("Read parser from path {input} error: {error}")]
+    IoError {
+        input: String,
+        error: std::io::Error,
+    },
+    #[error("Deserialize parser from string {input} error: {error}")]
+    DeserializeError {
+        input: String,
+        error: serde_json::Error,
+    },
+}
+impl FromStr for Parser {
+    type Err = ParserError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with('@') {
+            let s = &s[1..];
+            let s = std::fs::read_to_string(s).map_err(|error| ParserError::IoError {
+                input: s.to_string(),
+                error,
+            })?;
+            return serde_json::from_str(&s).map_err(|error| ParserError::DeserializeError {
+                input: s.to_string(),
+                error,
+            });
+        }
+        serde_json::from_str(s).map_err(|error| ParserError::DeserializeError {
+            input: s.to_string(),
+            error,
+        })
+    }
 }
 
 impl<T: Array> ArrayForTaos for T {}
