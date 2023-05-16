@@ -258,7 +258,7 @@ int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
 int32_t tqNextBlockInWal(STqReader* pReader);
 bool    tqNextBlockImpl(STqReader *pReader);
 
-int32_t extractSubmitMsgFromWal(SWalReader *pReader, SPackedData *pPackedData);
+int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSubmitTbData **pSubmitTbDataRet);

@@ -34,12 +34,12 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
       return 0;
     }
 
-    if (msgType == TDMT_VND_SUBMIT) {
+    if (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_DELETE) {
       tqStartStreamTasks(pTq);
     }
 
     if (msgType == TDMT_VND_DELETE) {
-      tqProcessDelReq(pTq, POINTER_SHIFT(msg, sizeof(SMsgHead)), msgLen - sizeof(SMsgHead), ver);
+//      tqProcessDeleteDataReq(pTq, POINTER_SHIFT(msg, sizeof(SMsgHead)), msgLen - sizeof(SMsgHead), ver);
     }
   }
 

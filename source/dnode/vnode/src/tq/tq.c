@@ -942,7 +942,66 @@ int32_t tqProcessTaskRecoverFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
   return 0;
 }
 
-int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
+int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock) {
+  SDecoder*   pCoder = &(SDecoder){0};
+  SDeleteRes* pRes = &(SDeleteRes){0};
+
+  pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
+  if (pRes->uidList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  tDecoderInit(pCoder, (uint8_t*)pData, len);
+  tDecodeDeleteRes(pCoder, pRes);
+  tDecoderClear(pCoder);
+
+  int32_t numOfTables = taosArrayGetSize(pRes->uidList);
+  if (numOfTables == 0 || pRes->affectedRows == 0) {
+    taosArrayDestroy(pRes->uidList);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
+  blockDataEnsureCapacity(pDelBlock, numOfTables);
+  pDelBlock->info.rows = numOfTables;
+  pDelBlock->info.version = ver;
+
+  for (int32_t i = 0; i < numOfTables; i++) {
+    // start key column
+    SColumnInfoData* pStartCol = taosArrayGet(pDelBlock->pDataBlock, START_TS_COLUMN_INDEX);
+    colDataSetVal(pStartCol, i, (const char*)&pRes->skey, false);  // end key column
+    SColumnInfoData* pEndCol = taosArrayGet(pDelBlock->pDataBlock, END_TS_COLUMN_INDEX);
+    colDataSetVal(pEndCol, i, (const char*)&pRes->ekey, false);
+    // uid column
+    SColumnInfoData* pUidCol = taosArrayGet(pDelBlock->pDataBlock, UID_COLUMN_INDEX);
+    int64_t*         pUid = taosArrayGet(pRes->uidList, i);
+    colDataSetVal(pUidCol, i, (const char*)pUid, false);
+
+    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, GROUPID_COLUMN_INDEX), i);
+    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), i);
+    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), i);
+  }
+
+  taosArrayDestroy(pRes->uidList);
+
+  int32_t* pRef = taosMemoryMalloc(sizeof(int32_t));
+  *pRef = 1;
+
+  *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
+  if (pRefBlock == NULL) {
+    taosMemoryFree(pRef);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pRefBlock)->type = STREAM_INPUT__REF_DATA_BLOCK;
+  (*pRefBlock)->pBlock = pDelBlock;
+  (*pRefBlock)->dataRef = pRef;
+  atomic_add_fetch_32((*pRefBlock)->dataRef, 1);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tqProcessDeleteDataReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   bool        failed = false;
   SDecoder*   pCoder = &(SDecoder){0};
   SDeleteRes* pRes = &(SDeleteRes){0};
@@ -962,6 +1021,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     taosArrayDestroy(pRes->uidList);
     return 0;
   }
+
   SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
   blockDataEnsureCapacity(pDelBlock, sz);
   pDelBlock->info.rows = sz;
