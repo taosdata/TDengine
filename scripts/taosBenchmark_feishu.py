@@ -12,11 +12,11 @@ import getpass
 class Msg:
     def __init__(self):
         # crash_gen warn group
-        #self.group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9'
+        self.group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9'
         self.owner = "Jayden Jia"
         self.test_scope = "stream stability test"
         # disk fill warn group
-        self.group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/14cc4cf2-0b84-4ca2-8577-a46f7530559d'
+        # self.group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/14cc4cf2-0b84-4ca2-8577-a46f7530559d'
 
     def get_msg(self, text):
         return {
