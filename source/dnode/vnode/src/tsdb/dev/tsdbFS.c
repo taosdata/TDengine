@@ -251,6 +251,8 @@ _exit:
 }
 
 static int32_t apply_commit(STFileSystem *fs) {
+  int32_t i1 = 0, i2 = 0;
+
   // TODO
   return 0;
 }
