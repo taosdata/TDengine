@@ -1746,6 +1746,8 @@ TEST(tableMeta, updateStbMeta) {
 
   code = catalogUpdateTableMeta(pCtg, &rsp);
   ASSERT_EQ(code, 0);
+  code = catalogAsyncUpdateTableMeta(pCtg, &rsp);
+  ASSERT_EQ(code, 0);
   taosMemoryFreeClear(rsp.pSchemas);
 
   while (true) {

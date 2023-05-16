@@ -338,6 +338,7 @@ void ctgClearHandleMeta(SCatalog* pCtg, int64_t *pClearedSize, int64_t *pCleardN
       void*  key = taosHashGetKey(pCache, &len);
 
       if (pCache->pMeta && TSDB_SUPER_TABLE == pCache->pMeta->tableType) {
+        pCache = taosHashIterate(dbCache->tbCache, pCache);
         continue;
       }
       
@@ -346,10 +347,15 @@ void ctgClearHandleMeta(SCatalog* pCtg, int64_t *pClearedSize, int64_t *pCleardN
       atomic_sub_fetch_64(&dbCache->dbCacheSize, cacheSize);
       *pClearedSize += cacheSize;
       (*pCleardNum)++;
+
+      if (pCache->pMeta) {
+        CTG_META_NUM_DEC(pCache->pMeta->tableType);
+      }
       
       ctgFreeTbCacheImpl(pCache, true);
-
+      
       if (*pCleardNum >= CTG_CLEAR_CACHE_ROUND_TB_NUM) {
+        taosHashCancelIterate(dbCache->tbCache, pCache);
         goto _return;
       }
             
@@ -366,9 +372,7 @@ _return:
   }
 }
 
-void ctgClearAllHandleMeta(bool *roundDone) {
-  int64_t clearedSize = 0;
-  int64_t clearedNum = 0;
+void ctgClearAllHandleMeta(int64_t *clearedSize, int64_t *clearedNum, bool *roundDone) {
   SCatalog *pCtg = NULL;
 
   void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
@@ -376,7 +380,7 @@ void ctgClearAllHandleMeta(bool *roundDone) {
     pCtg = *(SCatalog **)pIter;
 
     if (pCtg) {
-      ctgClearHandleMeta(pCtg, &clearedSize, &clearedNum, roundDone);
+      ctgClearHandleMeta(pCtg, clearedSize, clearedNum, roundDone);
       if (*roundDone) {
         taosHashCancelIterate(gCtgMgmt.pCluster, pIter);
         break;

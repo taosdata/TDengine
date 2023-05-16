@@ -964,7 +964,7 @@ uint64_t ctgGetDbVgroupCacheSize(SDBVgInfo *pVg);
 uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth);
 uint64_t ctgGetClusterCacheSize(SCatalog *pCtg);
 void     ctgClearHandleMeta(SCatalog* pCtg, int64_t *pClearedSize, int64_t *pCleardNum, bool *roundDone);
-void     ctgClearAllHandleMeta(bool *roundDone);
+void     ctgClearAllHandleMeta(int64_t *clearedSize, int64_t *clearedNum, bool *roundDone);
 void     ctgProcessTimerEvent(void *param, void *tmrId);
 
 

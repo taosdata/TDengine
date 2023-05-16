@@ -791,7 +791,7 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
 
   CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
 
-  ctgDebug("action [%s] added into queue", opName);
+  ctgDebug("%sync action [%s] added into queue", syncOp ? "S": "As", opName);
 
   CTG_QUEUE_INC();
   CTG_STAT_RT_INC(numOfOpEnqueue, 1);
@@ -2286,21 +2286,22 @@ void ctgClearMetaCache(SCtgCacheOperation *operation) {
   if (pCtg) {
     ctgClearHandleMeta(pCtg, &clearedSize, &clearedNum, &roundDone);
   } else {
-    ctgClearAllHandleMeta(&roundDone);
+    ctgClearAllHandleMeta(&clearedSize, &clearedNum, &roundDone);
   }
 
-  qDebug("catalog finish one round meta clear, done:%d", roundDone);
+  qDebug("catalog finish one round meta clear, clearedSize:%" PRId64 ", clearedNum:%" PRId64 ", done:%d", clearedSize, clearedNum, roundDone);
 
   ctgGetGlobalCacheSize(&remainSize);
   int32_t cacheMaxSize = atomic_load_32(&tsMetaCacheMaxSize);
   
-  if (!CTG_CACHE_LOW(remainSize, cacheMaxSize)) {
+  if (CTG_CACHE_LOW(remainSize, cacheMaxSize)) {
     qDebug("catalog finish meta clear, remainSize:%" PRId64 ", cacheMaxSize:%dMB", remainSize, cacheMaxSize);
     taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
     return;
   }
 
   if (!roundDone) {
+    qDebug("catalog all meta cleared, remainSize:%" PRId64 ", cacheMaxSize:%dMB, to clear handle", remainSize, cacheMaxSize);
     ctgClearFreeCache(operation);
     taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
     return;

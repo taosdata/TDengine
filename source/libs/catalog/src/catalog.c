@@ -647,7 +647,8 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
       goto _return;
     }
   }
-  
+
+  qTrace("reset catalog timer");
   taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer);
 
 _return:
@@ -1104,6 +1105,22 @@ _return:
 
   CTG_API_LEAVE(code);
 }
+
+int32_t catalogAsyncUpdateTableMeta(SCatalog* pCtg, STableMetaRsp* pMsg) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pMsg) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgUpdateTbMeta(pCtg, pMsg, false));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
 
 int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo* pConn, SArray* pTables) {
   CTG_API_ENTER();
@@ -1569,6 +1586,13 @@ void catalogDestroy(void) {
 
   if (NULL == gCtgMgmt.pCluster || atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
     return;
+  }
+
+  if (gCtgMgmt.cacheTimer) {
+    taosTmrStop(gCtgMgmt.cacheTimer);
+    gCtgMgmt.cacheTimer = NULL;
+    taosTmrCleanUp(gCtgMgmt.timer);
+    gCtgMgmt.timer = NULL;
   }
 
   atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
