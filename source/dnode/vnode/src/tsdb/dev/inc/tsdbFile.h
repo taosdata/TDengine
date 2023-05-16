@@ -55,7 +55,7 @@ struct STFile {
   int64_t      size;
   union {
     struct {
-      int32_t lvl;
+      int32_t level;
       int32_t nseg;
     } stt;
   };

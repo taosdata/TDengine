@@ -125,7 +125,7 @@ static int32_t stt_to_json(const STFile *file, cJSON *json) {
   if (code) return code;
 
   /* lvl */
-  if (cJSON_AddNumberToObject(json, "lvl", file->stt.lvl) == NULL) {
+  if (cJSON_AddNumberToObject(json, "level", file->stt.level) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -148,9 +148,9 @@ static int32_t stt_from_json(const cJSON *json, STFile *file) {
   const cJSON *item;
 
   /* lvl */
-  item = cJSON_GetObjectItem(json, "lvl");
+  item = cJSON_GetObjectItem(json, "level");
   if (cJSON_IsNumber(item)) {
-    file->stt.lvl = item->valuedouble;
+    file->stt.level = item->valuedouble;
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
   }

@@ -16,7 +16,7 @@
 #include "inc/tsdbFSet.h"
 
 static int32_t stt_lvl_to_json(const SSttLvl *lvl, cJSON *json) {
-  if (cJSON_AddNumberToObject(json, "lvl", lvl->level) == NULL) {
+  if (cJSON_AddNumberToObject(json, "level", lvl->level) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -65,7 +65,7 @@ static int32_t add_file_to_stt_lvl(SSttLvl *lvl, STFileObj *fobj) {
 static int32_t json_to_stt_lvl(const cJSON *json, SSttLvl *lvl) {
   const cJSON *item1, *item2;
 
-  item1 = cJSON_GetObjectItem(json, "lvl");
+  item1 = cJSON_GetObjectItem(json, "level");
   if (cJSON_IsNumber(item1)) {
     lvl->level = item1->valuedouble;
   } else {
@@ -102,7 +102,7 @@ static int32_t add_stt_lvl(STFileSet *fset, SSttLvl *lvl) {
 static int32_t add_file_to_fset(STFileSet *fset, STFileObj *fobj) {
   if (fobj->f.type == TSDB_FTYPE_STT) {
     SSttLvl *lvl;
-    SSttLvl  tlvl = {.level = fobj->f.stt.lvl};
+    SSttLvl  tlvl = {.level = fobj->f.stt.level};
 
     SRBTreeNode *node = tRBTreeGet(&fset->lvlTree, &tlvl.rbtn);
     if (node) {
@@ -111,7 +111,7 @@ static int32_t add_file_to_fset(STFileSet *fset, STFileObj *fobj) {
       lvl = taosMemoryMalloc(sizeof(*lvl));
       if (!lvl) return TSDB_CODE_OUT_OF_MEMORY;
 
-      stt_lvl_init(lvl, fobj->f.stt.lvl);
+      stt_lvl_init(lvl, fobj->f.stt.level);
       add_stt_lvl(fset, lvl);
     }
     add_file_to_stt_lvl(lvl, fobj);
@@ -150,6 +150,7 @@ static int32_t fset_clear(STFileSet *fset) {
 
 int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   int32_t code = 0;
+  cJSON  *item1, *item2;
 
   // fid
   if (cJSON_AddNumberToObject(json, "fid", fset->fid) == NULL) {
@@ -164,13 +165,15 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   }
 
   // each level
-  cJSON *ajson = cJSON_AddArrayToObject(json, "stt");
-  if (ajson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
+  item1 = cJSON_AddArrayToObject(json, "stt levels");
+  if (item1 == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   SRBTreeIter iter = tRBTreeIterCreate(&fset->lvlTree, 1);
   for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
-    SSttLvl *lvl = TCONTAINER_OF(node, SSttLvl, rbtn);
-    code = stt_lvl_to_json(lvl, ajson);
+    item2 = cJSON_CreateObject();
+    if (!item2) return TSDB_CODE_OUT_OF_MEMORY;
+    cJSON_AddItemToArray(item1, item2);
+
+    code = stt_lvl_to_json(TCONTAINER_OF(node, SSttLvl, rbtn), item2);
     if (code) return code;
   }
 
