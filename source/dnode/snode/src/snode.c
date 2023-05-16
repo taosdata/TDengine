@@ -67,8 +67,9 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
 
   pTask->refCnt = 1;
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->inputQueue = streamQueueOpen();
-  pTask->outputQueue = streamQueueOpen();
+
+  pTask->inputQueue = streamQueueOpen(0);
+  pTask->outputQueue = streamQueueOpen(0);
 
   if (pTask->inputQueue == NULL || pTask->outputQueue == NULL) {
     return -1;
@@ -153,10 +154,14 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
 
   // 2.save task
+  taosWLockLatch(&pSnode->pMeta->lock);
   code = streamMetaAddDeployedTask(pSnode->pMeta, -1, pTask);
   if (code < 0) {
+    taosWUnLockLatch(&pSnode->pMeta->lock);
     return -1;
   }
+
+  taosWUnLockLatch(&pSnode->pMeta->lock);
 
   // 3.go through recover steps to fill history
   if (pTask->fillHistory) {

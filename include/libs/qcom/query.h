@@ -111,8 +111,8 @@ typedef struct STableMeta {
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
   // info
-  int16_t       sversion;
-  int16_t       tversion;
+  int32_t       sversion;
+  int32_t       tversion;
   STableComInfo tableInfo;
   SSchema       schema[];
 } STableMeta;

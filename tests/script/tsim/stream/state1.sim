@@ -18,16 +18,16 @@ sql use test;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, id int);
 
-print create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt1 as select  _wstart, count(*) c1 from t1 state_window(a);
+print create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1 from t1 state_window(a);
 
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt1 as select  _wstart, count(*) c1 from t1 state_window(a);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1 from t1 state_window(a);
 
 sql insert into t1(ts) values(1648791213000);
 
 $loop_count = 0
 loop0:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -46,7 +46,7 @@ sql insert into t1 values(1648791214000,1,2,3,1.0,3);
 $loop_count = 0
 loop1:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -66,7 +66,7 @@ sql insert into t1 values(1648791215000,2,2,3,1.0,4);
 $loop_count = 0
 loop2:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -84,7 +84,7 @@ sql insert into t1(ts) values(1648791216000);
 $loop_count = 0
 loop3:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -102,8 +102,8 @@ print step 2
 sql create database test2  vgroups 1;
 sql use test2;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-print create stream streams2 trigger at_once  watermark 1000s into streamt2 as select  _wstart, count(*) c1, count(d) c2 from t1 partition by b state_window(a)
-sql create stream streams2 trigger at_once  watermark 1000s into streamt2 as select  _wstart, count(*) c1, count(d) c2 from t1 partition by b state_window(a);
+print create stream streams2 trigger at_once  watermark 1000s IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select  _wstart, count(*) c1, count(d) c2 from t1 partition by b state_window(a)
+sql create stream streams2 trigger at_once  watermark 1000s IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select  _wstart, count(*) c1, count(d) c2 from t1 partition by b state_window(a);
 
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791213010,1,2,3,1.1);
@@ -111,7 +111,7 @@ sql insert into t1 values(1648791213010,1,2,3,1.1);
 $loop_count = 0
 loop4:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -132,7 +132,7 @@ sql insert into t1 values(1648791213005,2,2,3,1.1);
 $loop_count = 0
 loop5:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1

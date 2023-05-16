@@ -48,15 +48,14 @@ Confluent 提供了 Docker 和二进制包两种安装方式。本文仅介绍�
 
 ```
 curl -O http://packages.confluent.io/archive/7.1/confluent-7.1.1.tar.gz
-tar xzf confluent-7.1.1.tar.gz -C /opt/test
+tar xzf confluent-7.1.1.tar.gz -C /opt/
 ```
 
 然后需要把 `$CONFLUENT_HOME/bin` 目录加入 PATH。
 
 ```title=".profile"
 export CONFLUENT_HOME=/opt/confluent-7.1.1
-PATH=$CONFLUENT_HOME/bin
-export PATH
+export PATH=$CONFLUENT_HOME/bin:$PATH
 ```
 
 以上脚本可以追加到当前用户的 profile 文件（~/.profile 或 ~/.bash_profile）
@@ -333,7 +332,15 @@ DROP DATABASE IF EXISTS test;
 CREATE DATABASE test;
 USE test;
 CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
-INSERT INTO d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-03 14:38:05.000',10.30000,219,0.31000) d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-03 14:38:15.000',12.60000,218,0.33000) d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-03 14:38:16.800',12.30000,221,0.31000) d1002 USING meters TAGS(California.SanFrancisco, 3) VALUES('2018-10-03 14:38:16.650',10.30000,218,0.25000) d1003 USING meters TAGS(California.LosAngeles, 2) VALUES('2018-10-03 14:38:05.500',11.80000,221,0.28000) d1003 USING meters TAGS(California.LosAngeles, 2) VALUES('2018-10-03 14:38:16.600',13.40000,223,0.29000) d1004 USING meters TAGS(California.LosAngeles, 3) VALUES('2018-10-03 14:38:05.000',10.80000,223,0.29000) d1004 USING meters TAGS(California.LosAngeles, 3) VALUES('2018-10-03 14:38:06.500',11.50000,221,0.35000);
+
+INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:05.000',10.30000,219,0.31000) \
+            d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:15.000',12.60000,218,0.33000) \
+            d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:16.800',12.30000,221,0.31000) \
+            d1002 USING meters TAGS('California.SanFrancisco', 3) VALUES('2018-10-03 14:38:16.650',10.30000,218,0.25000) \
+            d1003 USING meters TAGS('California.LosAngeles', 2)   VALUES('2018-10-03 14:38:05.500',11.80000,221,0.28000) \
+            d1003 USING meters TAGS('California.LosAngeles', 2)   VALUES('2018-10-03 14:38:16.600',13.40000,223,0.29000) \
+            d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:05.000',10.80000,223,0.29000) \
+            d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:06.500',11.50000,221,0.35000);
 ```
 
 使用 TDengine CLI, 执行 SQL 文件。
@@ -388,7 +395,7 @@ confluent local services connect connector status
 如果按照前述操作，此时应有两个活跃的 connector。使用下面的命令 unload：
 
 ```
-confluent local services connect connector unload TDengineSourceConnector
+confluent local services connect connector unload TDengineSinkConnector
 confluent local services connect connector unload TDengineSourceConnector
 ```
 

@@ -127,7 +127,7 @@ To make full use of time-series data characteristics, TDengine adopts a strategy
 
 If the metric data of multiple DCPs are traditionally written into a single table, due to uncontrollable network delays, the timing of the data from different DCPs arriving at the server cannot be guaranteed, write operations must be protected by locks, and metric data from one DCP cannot be guaranteed to be continuously stored together. **One table for one data collection point can ensure the best performance of insert and query of a single data collection point to the greatest possible extent.**
 
-TDengine suggests using DCP ID as the table name (like d1001 in the above table). Each DCP may collect one or multiple metrics (like the `current`, `voltage`, `phase` as above). Each metric has a corresponding column in the table. The data type for a column can be int, float, string and others. In addition, the first column in the table must be a timestamp. TDengine uses the timestamp as the index, and won’t build the index on any metrics stored. Column wise storage is used.
+TDengine suggests using DCP ID as the table name (like d1001 in the above table). Each DCP may collect one or multiple metrics (like the `current`, `voltage`, `phase` as above). Each metric has a corresponding column in the table. The data type for a column can be int, float, string and others. In addition, the first column in the table must be a timestamp. TDengine uses the timestamp as the index, and won't build the index on any metrics stored. Column wise storage is used.
 
 Complex devices, such as connected cars, may have multiple DCPs. In this case, multiple tables are created for a single device, one table per DCP.
 

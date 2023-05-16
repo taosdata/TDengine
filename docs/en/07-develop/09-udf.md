@@ -252,9 +252,9 @@ create table battery(ts timestamp, vol1 float, vol2 float, vol3 float, deviceId 
 ```
 Create the UDF:
 ```bash
-create aggregate function max_vol as '/root/udf/libmaxvol.so' outputtype binary(64) bufsize 10240 language 'C'; 
+create aggregate function max_vol as '/root/udf/libmaxvol.so' outputtype binary(64) bufsize 10240 language 'C';
 ```
-Use the UDF in the query：
+Use the UDF in the query:
 ```bash
 select max_vol(vol1,vol2,vol3,deviceid) from battery;
 ```
@@ -271,9 +271,9 @@ select max_vol(vol1,vol2,vol3,deviceid) from battery;
 ## Implement a UDF in Python
 
 Implement the specified interface functions when implementing a UDF in Python.
-- implement `process` function for the scalar UDF。
-- implement `start`, `reduce`, `finish` for the aggregate UDF。
-- implement `init` for initialization and `destroy` for termination。
+- implement `process` function for the scalar UDF.
+- implement `start`, `reduce`, `finish` for the aggregate UDF.
+- implement `init` for initialization and `destroy` for termination.
 
 ### Implement a Scalar UDF in Python
 

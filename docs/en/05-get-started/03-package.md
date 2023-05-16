@@ -102,7 +102,7 @@ sudo apt-get install tdengine
 
 :::tip
 This installation method is supported only for Debian and Ubuntu.
-::::
+:::
 </TabItem>
 <TabItem label="Windows" value="windows">
 

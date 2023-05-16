@@ -82,6 +82,7 @@ typedef struct SCatalogReq {
   SArray* pUser;          // element is SUserAuthInfo
   SArray* pTableIndex;    // element is SNAME
   SArray* pTableCfg;      // element is SNAME
+  SArray* pTableTag;      // element is SNAME
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
@@ -105,6 +106,7 @@ typedef struct SMetaData {
   SArray*   pUser;        // pRes = SUserAuthRes*
   SArray*   pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
   SArray*   pTableCfg;    // pRes = STableCfg*
+  SArray*   pTableTag;    // pRes = SArray<STagVal>*
   SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
@@ -122,8 +124,8 @@ typedef struct SSTableVersion {
   char     stbName[TSDB_TABLE_NAME_LEN];
   uint64_t dbId;
   uint64_t suid;
-  int16_t  sversion;
-  int16_t  tversion;
+  int32_t  sversion;
+  int32_t  tversion;
   int32_t  smaVer;
 } SSTableVersion;
 
@@ -311,6 +313,8 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo);
 
 int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
+
+int32_t catalogGetTableTag(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
 
 int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableCfg** pCfg);
 

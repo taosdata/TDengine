@@ -46,8 +46,6 @@
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
-
 int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   taosThreadMutexLock(&pBuf->mutex);
@@ -84,20 +82,6 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   pMsg->destId = *destRaftId;
   syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
   return 0;
-}
-
-int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
-  int32_t            ret = 0;
-  SyncAppendEntries* pMsg = pRpcMsg->pCont;
-
-  if (syncNodeNeedSendAppendEntries(pSyncNode, destRaftId, pMsg)) {
-    ret = syncNodeSendAppendEntries(pSyncNode, destRaftId, pRpcMsg);
-  } else {
-    sNTrace(pSyncNode, "do not repcate to dnode:%d for index:%" PRId64, DID(destRaftId), pMsg->prevLogIndex + 1);
-    rpcFreeCont(pRpcMsg->pCont);
-  }
-
-  return ret;
 }
 
 int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {

@@ -5,7 +5,7 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 200
+sleep 1000
 sql connect
 
 sql drop database if exists test;
@@ -13,8 +13,8 @@ sql create database test  vgroups 1;
 sql use test;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));;
-sql create stream streams1 trigger at_once IGNORE EXPIRED 0  into streamt as select  _wstart ts, count(*) c1 from t1 where ts > 1648791210000 and ts < 1648791413000 interval(10s) fill(value, 100);
-sql create stream streams1a trigger at_once IGNORE EXPIRED 0  into streamta as select  _wstart ts, count(*) c1 from t1 where ts > 1648791210000 and ts < 1648791413000 interval(10s) fill(value_f, 100);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart ts, count(*) c1 from t1 where ts > 1648791210000 and ts < 1648791413000 interval(10s) fill(value, 100);
+sql create stream streams1a trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamta as select  _wstart ts, count(*) c1 from t1 where ts > 1648791210000 and ts < 1648791413000 interval(10s) fill(value_f, 100);
 sql insert into t1 values(1648791213000,1,2,3,1.0,'aaa');
 sleep 100
 sql insert into t1 values(1648791233000,1,2,3,1.0,'aaa');
@@ -25,7 +25,7 @@ sql insert into t1 values(1648791253000,1,2,3,1.0,'aaa');
 $loop_count = 0
 
 loop0:
-sleep 200
+sleep 1000
 sql select * from streamt order by ts;
 
 $loop_count = $loop_count + 1
@@ -84,7 +84,7 @@ print "force fill vaule"
 $loop_count = 0
 
 loop0a:
-sleep 200
+sleep 1000
 sql select * from streamta order by ts;
 
 $loop_count = $loop_count + 1
@@ -146,14 +146,14 @@ sql drop database if exists test2;
 sql create database test2  vgroups 1;
 sql use test2;
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0 into streamt2 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value, 100,200);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt2 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value, 100,200);
 sql insert into t1 values(1648791211000,1,1,1,1.0,'aaa') (1648791217000,2,2,2,2.0,'aaa') (1648791220000,3,3,3,3.0,'aaa');
 sql insert into t1 values(1648791213000,4,4,4,4.0,'aaa') (1648791215000,5,5,5,5.0,'aaa');
 
 $loop_count = 0
 
 loop1:
-sleep 200
+sleep 1000
 sql select * from streamt2 order by ts;
 
 $loop_count = $loop_count + 1
@@ -280,7 +280,7 @@ sql drop database if exists test3;
 sql create database test3  vgroups 1;
 sql use test3;
 sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
-sql create stream streams3 trigger at_once IGNORE EXPIRED 0  into streamt3 as select  _wstart as ts,  max(b), a+b, c from t1 where ts >= 1648791200000 and ts < 1648791261000 interval(10s) sliding(3s) fill(value, 100,200,300);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt3 as select  _wstart as ts,  max(b), a+b, c from t1 where ts >= 1648791200000 and ts < 1648791261000 interval(10s) sliding(3s) fill(value, 100,200,300);
 
 sql insert into t1 values(1648791220000,1,1,1,1.0,'aaa');
 sleep 100
@@ -291,7 +291,7 @@ sql insert into t1 values(1648791200000,1,1,1,1.0,'aaa');
 $loop_count = 0
 
 loop3:
-sleep 200
+sleep 1000
 sql select * from streamt3 order by ts;
 
 $loop_count = $loop_count + 1
@@ -471,8 +471,8 @@ sql create stable st(ts timestamp,a int,b int,c int, d double, s varchar(20) ) t
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
-sql create stream streams4 trigger at_once IGNORE EXPIRED 0  into streamt4 as select  _wstart ts, count(*) c1, concat(tbname, 'aaa') as pname, timezone()  from st where ts > 1648791000000 and ts < 1648793000000 partition by tbname interval(10s) fill(NULL);
-sql create stream streams4a trigger at_once IGNORE EXPIRED 0  into streamt4a as select  _wstart ts, count(*) c1, concat(tbname, 'aaa') as pname, timezone()  from st where ts > 1648791000000 and ts < 1648793000000 partition by tbname interval(10s) fill(NULL_F);
+sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt4 as select  _wstart ts, count(*) c1, concat(tbname, 'aaa') as pname, timezone()  from st where ts > 1648791000000 and ts < 1648793000000 partition by tbname interval(10s) fill(NULL);
+sql create stream streams4a trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt4a as select  _wstart ts, count(*) c1, concat(tbname, 'aaa') as pname, timezone()  from st where ts > 1648791000000 and ts < 1648793000000 partition by tbname interval(10s) fill(NULL_F);
 sql insert into t1 values(1648791213000,1,2,3,1.0,'aaa');
 sql insert into t1 values(1648791233000,1,2,3,1.0,'aaa');
 sql insert into t1 values(1648791273000,1,2,3,1.0,'aaa');
@@ -484,7 +484,7 @@ sql insert into t2 values(1648791273000,1,2,3,1.0,'bbb');
 $loop_count = 0
 
 loop4:
-sleep 200
+sleep 1000
 sql select * from streamt4 order by pname, ts;
 
 print ===> $data[0][0] , $data[0][1] , $data[0][2] , $data[0][3]
@@ -583,7 +583,7 @@ print "force fill null"
 $loop_count = 0
 
 loop4a:
-sleep 200
+sleep 1000
 sql select * from streamt4a order by pname, ts;
 
 print ===> $data[0][0] , $data[0][1] , $data[0][2] , $data[0][3]
