@@ -100,6 +100,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           SExprNode* pToBeRewrittenExpr = (SExprNode*)(*pNode);
           pCol->node.resType = pToBeRewrittenExpr->resType;
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
+          strcpy(pCol->node.userAlias, ((SExprNode*)pExpr)->userAlias);
           strcpy(pCol->colName, ((SExprNode*)pExpr)->aliasName);
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
             setColumnInfo((SFunctionNode*)pExpr, pCol);
