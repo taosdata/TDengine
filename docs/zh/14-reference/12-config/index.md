@@ -735,7 +735,6 @@ charset 的有效值是 UTF-8。
 | 16  |       maxTmrCtrl        | 是              | 否              | 3.0 行为未知                                      |
 | 17 |     monitorReplica      | 是              | 否              | 由 RAFT 协议管理多副本                            |
 | 18 |     smlTagNullName      | 是              | 否              | 3.0 行为未知                                      |
-| 19 |     keepColumnName      | 是              | 否              | 3.0 行为未知                                      |
 | 20 |    ratioOfQueryCores    | 是              | 否              | 由 线程池 相关配置参数决定                        |
 | 21 |   maxStreamCompDelay    | 是              | 否              | 3.0 行为未知                                      |
 | 22 | maxFirstStreamCompDelay | 是              | 否              | 3.0 行为未知                                      |

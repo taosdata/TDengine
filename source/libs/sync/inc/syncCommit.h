@@ -48,8 +48,6 @@ extern "C" {
 void syncOneReplicaAdvance(SSyncNode* pSyncNode);
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
 
-bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index);
-bool syncAgree(SSyncNode* pSyncNode, SyncIndex index);
 bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index);
 
 int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex);

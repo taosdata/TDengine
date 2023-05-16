@@ -77,7 +77,7 @@ description: 一些常见问题的解决方法汇总
 
  - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
 
-11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](https://docs.taosdata.com/3.0-preview/operation/diagnose/)。
+11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](../../operation/diagnose/)。
 
 ### 5. 遇到错误 Unable to resolve FQDN” 怎么办？
 

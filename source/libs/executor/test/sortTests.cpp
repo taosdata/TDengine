@@ -26,7 +26,7 @@
 #include "os.h"
 
 #include "executor.h"
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "taos.h"
 #include "tcompare.h"
 #include "tdatablock.h"

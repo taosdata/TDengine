@@ -1510,7 +1510,9 @@ void tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid) {
 // STSchema ========================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   STSchema *pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);
-  if (pTSchema == NULL) return NULL;
+  if (pTSchema == NULL) {
+    return NULL;
+  }
 
   pTSchema->numOfCols = numOfCols;
   pTSchema->version = version;

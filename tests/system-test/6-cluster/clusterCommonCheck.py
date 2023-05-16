@@ -207,7 +207,7 @@ class ClusterComCheck:
                 count+=1
         else:
             tdLog.debug(tdSql.queryResult)
-            tdLog.exit("stop mnodes  on dnode %d  failed in 10s ")
+            tdLog.exit(f"stop mnodes  on dnode {offlineDnodeNo}  failed in 10s ")
 
     def check3mnode2off(self,mnodeNums=3):
         count=0
@@ -226,7 +226,45 @@ class ClusterComCheck:
             count+=1
         else:
             tdLog.debug(tdSql.queryResult)
-            tdLog.exit("stop mnodes  on dnode %d  failed in 10s ")
+            tdLog.exit("stop mnodes  on dnode 2 or 3 failed in 10s")
+
+    def check_vgroups_status(self,vgroup_numbers=2,db_replica=3,count_number=10,db_name="db"):
+        """ check vgroups status in 10s after db vgroups status is changed """
+        vgroup_numbers = int(vgroup_numbers)
+        self.db_replica = int(db_replica)
+        tdLog.debug("start to check status of vgroups")
+        count=0
+        last_number=vgroup_numbers-1
+        while count < count_number:
+            time.sleep(1)
+            tdSql.query(f"show  {db_name}.vgroups;")
+            if  count == 0 :
+                if tdSql.checkRows(vgroup_numbers) :
+                    tdLog.success(f"{db_name} has {vgroup_numbers} vgroups" )
+                else:
+                    tdLog.exit(f"vgroup number of {db_name} is not correct")
+            if self.db_replica == 1 :
+                if  tdSql.queryResult[0][4] == 'leader' and tdSql.queryResult[1][4] == 'leader' and tdSql.queryResult[last_number][4] == 'leader':
+                    ready_time= (count + 1)
+                    tdLog.success(f"all vgroups of {db_name} are leaders in {count + 1} s")
+                    return True
+                count+=1
+            elif self.db_replica == 3 :
+                vgroup_status_first=[tdSql.queryResult[0][4],tdSql.queryResult[0][6],tdSql.queryResult[0][8]]
+
+                vgroup_status_last=[tdSql.queryResult[last_number][4],tdSql.queryResult[last_number][6],tdSql.queryResult[last_number][8]]
+                if  vgroup_status_first.count('leader') == 1 and vgroup_status_first.count('follower') == 2:
+                    if vgroup_status_last.count('leader') == 1 and vgroup_status_last.count('follower') == 2:
+                        ready_time= (count + 1)
+                        tdLog.success(f"elections of {db_name} all vgroups are ready in {ready_time} s")
+                        return True
+                count+=1
+        else:
+            tdLog.debug(tdSql.queryResult)
+            tdLog.notice(f"elections of {db_name} all vgroups are failed in{count}s ")
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno)
+            tdLog.exit("%s(%d) failed " % args)
 
 
 

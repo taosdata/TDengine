@@ -982,7 +982,6 @@ void tsBufSetCursor(STSBuf* pTSBuf, STSCursor* pCur) {
     return;
   }
 
-  //  assert(pCur->vgroupIndex != -1 && pCur->tsIndex >= 0 && pCur->blockIndex >= 0);
   if (pCur->vgroupIndex != -1) {
     tsBufGetBlock(pTSBuf, pCur->vgroupIndex, pCur->blockIndex);
   }

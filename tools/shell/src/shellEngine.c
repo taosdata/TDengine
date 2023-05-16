@@ -60,7 +60,6 @@ int32_t shellRunSingleCommand(char *command) {
   }
 
   if (shellRegexMatch(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
-    shellWriteHistory();
     return -1;
   }
 
@@ -607,7 +606,12 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       if (tsEnableScience) {
         printf("%*e", width, GET_FLOAT_VAL(val));
       } else {
-        printf("%*.5f", width, GET_FLOAT_VAL(val));
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.5f", width, GET_FLOAT_VAL(val));
+        if (n > TMAX(20, width)) {
+            printf("%*e", width, GET_FLOAT_VAL(val));
+        } else {
+            printf("%s", buf);
+        }
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
@@ -943,7 +947,6 @@ void shellWriteHistory() {
     }
     i = (i + 1) % SHELL_MAX_HISTORY_SIZE;
   }
-  taosFsyncFile(pFile);
   taosCloseFile(&pFile);
 }
 
