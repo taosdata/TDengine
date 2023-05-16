@@ -1,5 +1,6 @@
-name: Release 3.0.3.0 enterprise
-
+name: Release Power OEM enterprise
+type: feature
+logfile: logs/
 
 prepareActions:
   enable: false
@@ -27,7 +28,7 @@ postActions:
         - -n PowerDB
         - -p power
         - -e support@powerdb.com
-        - -d ../../community/release
+        - -d ../../community
         - -v 3.0.4.0
 
 
