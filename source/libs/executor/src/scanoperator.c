@@ -1912,7 +1912,6 @@ FETCH_NEXT_BLOCK:
   if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
-      /*pOperator->status = OP_EXEC_DONE;*/
       return NULL;
     }
 

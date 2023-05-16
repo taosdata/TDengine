@@ -947,6 +947,8 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
   SDecoder*   pCoder = &(SDecoder){0};
   SDeleteRes* pRes = &(SDeleteRes){0};
 
+  *pRefBlock = NULL;
+
   pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
   if (pRes->uidList == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -984,21 +986,13 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
   }
 
   taosArrayDestroy(pRes->uidList);
-
-  int32_t* pRef = taosMemoryMalloc(sizeof(int32_t));
-  *pRef = 1;
-
   *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
   if (pRefBlock == NULL) {
-    taosMemoryFree(pRef);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   (*pRefBlock)->type = STREAM_INPUT__REF_DATA_BLOCK;
   (*pRefBlock)->pBlock = pDelBlock;
-  (*pRefBlock)->dataRef = pRef;
-  atomic_add_fetch_32((*pRefBlock)->dataRef, 1);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1069,8 +1063,6 @@ int32_t tqProcessDeleteDataReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
       SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
       pRefBlock->type = STREAM_INPUT__REF_DATA_BLOCK;
       pRefBlock->pBlock = pDelBlock;
-      pRefBlock->dataRef = pRef;
-      atomic_add_fetch_32(pRefBlock->dataRef, 1);
 
       if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pRefBlock) < 0) {
         atomic_sub_fetch_32(pRef, 1);

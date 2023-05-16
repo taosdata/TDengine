@@ -29,7 +29,7 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem) {
   int32_t code = tAppendDataToInputQueue(pTask, pQueueItem);
   if (code < 0) {
-    tqError("s-task:%s failed to put into queue, too many, next ver:%" PRId64, pTask->id.idStr, /*pPackedData->ver*/ 0L);
+    tqError("s-task:%s failed to put into queue, too many", pTask->id.idStr);
     return -1;
   }
 
