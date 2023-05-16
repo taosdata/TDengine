@@ -190,9 +190,9 @@ int32_t tqStreamTasksScanWal(STQ* pTq);
 char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
-FORCE_INLINE bool tqIsHandleExec(STqHandle* pHandle) { return TMQ_HANDLE_STATUS_EXEC == pHandle->status; }
-FORCE_INLINE void tqSetHandleExec(STqHandle* pHandle) {pHandle->status = TMQ_HANDLE_STATUS_EXEC;}
-FORCE_INLINE void tqSetHandleIdle(STqHandle* pHandle) {pHandle->status = TMQ_HANDLE_STATUS_IDLE;}
+bool tqIsHandleExec(STqHandle* pHandle);
+void tqSetHandleExec(STqHandle* pHandle;
+void tqSetHandleIdle(STqHandle* pHandle);
 
 #ifdef __cplusplus
 }
