@@ -759,6 +759,14 @@ static bool pushDownCondOptIsTagEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
   if (OP_TYPE_EQUAL != pOper->opType) {
     return false;
   }
+  if (QUERY_NODE_COLUMN != nodeType(pOper->pLeft) || QUERY_NODE_COLUMN != nodeType(pOper->pRight)) {
+    return false;
+  }
+  SColumnNode* pLeft = (SColumnNode*)(pOper->pLeft);
+  SColumnNode* pRight = (SColumnNode*)(pOper->pRight);
+  if (pLeft->node.resType.type != pRight->node.resType.type) {
+    return false;
+  }
   SNodeList* pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
   SNodeList* pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
   if (pushDownCondOptIsTag(pOper->pLeft, pLeftCols)) {
