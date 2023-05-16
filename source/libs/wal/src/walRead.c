@@ -87,8 +87,9 @@ int32_t walNextValidMsg(SWalReader *pReader) {
       return -1;
     }
 
-    if (pReader->pHead->head.msgType == TDMT_VND_SUBMIT || pReader->pHead->head.msgType == TDMT_VND_DELETE ||
-        (IS_META_MSG(pReader->pHead->head.msgType) && pReader->cond.scanMeta)) {
+    int32_t type = pReader->pHead->head.msgType;
+    if (type == TDMT_VND_SUBMIT || ((type == TDMT_VND_DELETE) && (pReader->cond.deleteMsg == 1)) ||
+        (IS_META_MSG(type) && pReader->cond.scanMeta)) {
       if (walFetchBodyNew(pReader) < 0) {
         return -1;
       }
