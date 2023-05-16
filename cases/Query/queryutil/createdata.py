@@ -69,7 +69,66 @@ class TDCreateData():
         #drop:
         self.tdSql.execute('''drop database if exists %s ;''' %database)
 
+    def data_check(self, elm, expect_elm , throw=True) -> bool:
+        """
+        用途：用于在比较元素相等
+        输入：两元素
+        返回：正常，失败
+        """
+        if elm == expect_elm:
+            self.logger.debug(f"checkEqual success, elm={elm} expect_elm={expect_elm}")
+            return True
+        else:
+            if throw:
+                raise AssertionError(f"checkEqual error, elm={elm} expect_elm={expect_elm}")
+            else:
+                self._set_error_msg(f"checkEqual error, elm={elm} expect_elm={expect_elm}")
+                return False
+                    
+    def alter_local_slowlogthreshold(self):
+        #local variables 修改验证
+        show_sql = 'show local variables;'
+        
+        self.tdSql.query('''alter local 'slowlogthreshold' '10';''') #慢查询门限值，大于等于门限值认为是慢查询，单位：秒        
+        self.tdSql.query(show_sql)        
+        for i in range(self.tdSql.query_row):
+            if (self.tdSql.query_data[i][0] == 'slowLogThreshold'):      
+                self.data_check(self.tdSql.query_data[i][1],'10')
+        
+        #ALL: 启动所有类型记录 \ QUERY: 只记录查询 \ INSERT:只记录写入 \ OTHERS:除写入、查询外其他语句 \ NONE:不记录
+        self.tdSql.query('''alter local 'slowLogScope' 'NONE';''')
+        self.tdSql.query(show_sql)        
+        for i in range(self.tdSql.query_row):
+            if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
+                self.data_check(self.tdSql.query_data[i][1],'NONE')
+                
+        self.tdSql.query('''alter local 'slowLogScope' 'INSERT';''')
+        self.tdSql.query(show_sql)        
+        for i in range(self.tdSql.query_row):
+            if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
+                self.data_check(self.tdSql.query_data[i][1],'INSERT')
+                
+        self.tdSql.query('''alter local 'slowLogScope' 'QUERY';''')
+        self.tdSql.query(show_sql)        
+        for i in range(self.tdSql.query_row):
+            if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
+                self.data_check(self.tdSql.query_data[i][1],'QUERY')
+                
+        self.tdSql.query('''alter local 'slowLogScope' 'OTHERS';''')
+        self.tdSql.query(show_sql)        
+        for i in range(self.tdSql.query_row):
+            if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
+                self.data_check(self.tdSql.query_data[i][1],'OTHERS')
+                
+        self.tdSql.query('''alter local 'slowLogScope' 'ALL';''')
+        self.tdSql.query(show_sql)        
+        for i in range(self.tdSql.query_row):
+            if (self.tdSql.query_data[i][0] == 'slowLogScope'):      
+                self.data_check(self.tdSql.query_data[i][1],'ALL')
+        
+            
     def show_local_variables(self):
+        self.alter_local_slowlogthreshold()
         self.tdSql.query('''show local variables;''')
         for i in range(self.tdSql.query_row):
             self.logger.info("%s - %s"% (self.tdSql.query_data[i][0], self.tdSql.query_data[i][1]))
@@ -241,6 +300,9 @@ class TDCreateData():
         self.tdSql.checkData(0,0,3*self.num_random*n)
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
+        
+        self.add_data_random(database,n,1630000000000)
+        self.add_data_random(database,n,1640000000000)
     
     def alter_cachemodel(self,database):
         i = random.randint(0,5)
@@ -263,7 +325,53 @@ class TDCreateData():
             sql = "alter database %s cachemodel 'both' cachesize %d;"  %(database,cachesize)
             self.tdSql.query(sql,queryTimes=1)
         
+    def add_data_random(self,database,n,ts):
+        #增加数据稀疏
+        self.ts = ts
+        self.num_random = 100
+        fake = Faker('zh_CN')
+        random_num = random.randint(0,500)
+        
+        for i in range(self.num_random*n):        
+            self.tdSql.execute('''insert into stable_1_1  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                        % (self.ts + i*10000*random_num, fake.random_int(min=-2147483647, max=2147483647, step=1), 
+                        fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
+                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
+            self.tdSql.execute('''insert into  regular_table_1 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                        % (self.ts + i*10000*random_num, fake.random_int(min=-2147483647, max=2147483647, step=1) , 
+                        fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1) , 
+                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
 
+            self.tdSql.execute('''insert into stable_1_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+                        % (self.ts + i*10000*random_num -1, fake.random_int(min=0, max=2147483647, step=1), 
+                        fake.random_int(min=0, max=9223372036854775807, step=1), 
+                        fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
+                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
+            self.tdSql.execute('''insert into regular_table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+                        % (self.ts + i*10000*random_num, fake.random_int(min=0, max=2147483647, step=1), 
+                        fake.random_int(min=0, max=9223372036854775807, step=1), 
+                        fake.random_int(min=0, max=32767, step=1) , fake.random_int(min=0, max=127, step=1) , 
+                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
+            
+            self.tdSql.execute('''insert into stable_1_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+                        % (self.ts + i*10000*random_num +1, fake.random_int(min=-2147483647, max=0, step=1), 
+                        fake.random_int(min=-9223372036854775807, max=0, step=1), 
+                        fake.random_int(min=-32767, max=0, step=1) , fake.random_int(min=-127, max=0, step=1) , 
+                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +1))
+            self.tdSql.execute('''insert into regular_table_2 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 1, 'binary.%s', 'nchar.%s', %d) ;''' 
+                        % (self.ts + i*10000*random_num +1, fake.random_int(min=-2147483647, max=0, step=1), 
+                        fake.random_int(min=-9223372036854775807, max=0, step=1), 
+                        fake.random_int(min=-32767, max=0, step=1) , fake.random_int(min=-127, max=0, step=1) , 
+                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i +1))
+
+            self.tdSql.execute('''insert into stable_2_1 (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double, q_bool , q_binary , q_nchar, q_ts) values(%d, %d, %d, %d, %d, %f, %f, 0, 'binary.%s', 'nchar.%s', %d) ;''' 
+                        % (self.ts + i*10000*random_num, fake.random_int(min=-2147483647, max=2147483647, step=1), 
+                        fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
+                        fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
+                        fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
+            
     def dropandcreateDB_tsbs(self,database,n):
         self.ts = 1630000000000
         self.num_random = 10
@@ -453,6 +561,9 @@ class TDCreateData():
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
         
+        self.add_data_random(database,n,1630000000000)
+        self.add_data_random(database,n,1640000000000)
+        
     def dropandcreateDB_random_diff(self,database,n):
         self.ts = 1630000000000
         self.num_random = 100
@@ -580,6 +691,9 @@ class TDCreateData():
         self.tdSql.checkData(0,0,3*self.num_random*n)
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
+        
+        self.add_data_random(database,n,1630000000000)
+        self.add_data_random(database,n,1640000000000)
 
     def dropandcreateDB_random_concat(self,database,n):
         #为concat函数定制的，多binary和多nchar
@@ -762,6 +876,9 @@ class TDCreateData():
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
         
+        self.add_data_random(database,n,1630000000000)
+        self.add_data_random(database,n,1640000000000)
+        
                                
     def dropandcreateDB_null(self,database,n):
         self.num_null = 100
@@ -845,6 +962,9 @@ class TDCreateData():
         self.tdSql.checkData(0,0,570)
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,190)
+        
+        self.add_data_random(database,n,1630000000000)
+        self.add_data_random(database,n,1640000000000)
 
     def alter_column(self,sql):
         pass
