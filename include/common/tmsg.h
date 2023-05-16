@@ -1629,6 +1629,7 @@ typedef struct {
   char    fqdn[TSDB_FQDN_LEN];
   int32_t port;
   int8_t  force;
+  int8_t  unsafe;
 } SDropDnodeReq;
 
 int32_t tSerializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
