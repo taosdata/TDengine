@@ -556,6 +556,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2 - len, format, argpointer);
   va_end(argpointer);
 
+  len = len > LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2 ? LOG_MAX_LINE_DUMP_BUFFER_SIZE - 2 : len;
   buffer[len++] = '\n';
   buffer[len] = 0;
 
