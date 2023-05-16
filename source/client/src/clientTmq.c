@@ -2109,6 +2109,29 @@ int32_t tmq_get_vgroup_id(TAOS_RES* res) {
   }
 }
 
+int64_t tmq_get_vgroup_offset(TAOS_RES* res) {
+  if (TD_RES_TMQ(res)) {
+    SMqRspObj* pRspObj = (SMqRspObj*) res;
+    STqOffsetVal* pOffset = &pRspObj->rsp.rspOffset;
+    if (pOffset->type == TMQ_OFFSET__LOG) {
+      return pRspObj->rsp.rspOffset.version;
+    }
+  } else if (TD_RES_TMQ_META(res)) {
+    SMqMetaRspObj* pRspObj = (SMqMetaRspObj*)res;
+    if (pRspObj->metaRsp.rspOffset.type == TMQ_OFFSET__LOG) {
+      return pRspObj->metaRsp.rspOffset.version;
+    }
+  } else if (TD_RES_TMQ_METADATA(res)) {
+    SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*) res;
+    if (pRspObj->rsp.rspOffset.type == TMQ_OFFSET__LOG) {
+      return pRspObj->rsp.rspOffset.version;
+    }
+  }
+
+  // data from tsdb, no valid offset info
+  return -1;
+}
+
 const char* tmq_get_table_name(TAOS_RES* res) {
   if (TD_RES_TMQ(res)) {
     SMqRspObj* pRspObj = (SMqRspObj*)res;
