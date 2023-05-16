@@ -18,10 +18,14 @@ from util.sql import *
 from util.common import *
 from util.sqlset import *
 from util.dnodes import *
+from util.autogen import *
+from util.cluster import *
 
 import random
 import os
 import subprocess
+import shutil
+import time
     
 
 class TDTestCase:
@@ -30,23 +34,214 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
+        self.dnodes_num = 5
 
+        # get from global
+        # test
+        self.dnodes = cluster.dnodes
+        num = len(self.dnodes)
 
-    #     
+        if num != self.dnodes_num :
+            tdLog.exit(f" cluster dnode is not equal 5. num={num}")
+            return 
 
-
-    # run
-    def run(self):
-        # get from global 
-        tdDnodes =  tdDnodes_Get()
-        dnodes = tdDnodes.dnodes
-        num = len(dnodes)
         print(f" start dnode num={num} !")
         for i in range(num):
-            dnode = dnodes[i]
-            print(f"  dnode{i} deploay={dnode.deployed} ip={dnode.remoteIP} path={dnode.path}")
+            dnode = self.dnodes[i]
+            print(f"  dnode{i} dataDir={dnode.dataDir} ip={dnode.remoteIP} path={dnode.path}")
 
         print(" end !")
+
+
+    #  create data
+    def create_data(self):
+        gen = AutoGen()
+        gen.create_db(self.dbname, 8, 3)
+        gen.create_stable(self.stable, 5, 10, 8, 8)
+        gen.create_child(self.stable, "d", self.child_count)
+        gen.set_batch_size(1000)
+        gen.insert_data(self.insert_rows)
+
+        for i in range(self.dnodes_num):
+            sql = f"create qnode on dnode {i+1}"
+            tdSql.execute(sql)
+
+
+    # status
+    def check_status_corrent(self):
+        # query
+        tdSql.query(f" show {self.dbname}.vgroups")
+
+        # check 8 vgroups
+        tdSql.checkRows(8)
+
+        # check data corrent
+        for i in range(8):
+            leader = False
+            for j in range(3):
+                status = tdSql.getData(i, 4 + j*2)
+                if status == "leader":
+                    leader = True
+                elif status == "follower":
+                    pass
+                else:
+                    tdLog.info(f" check vgroups status not leader or follower. i={i} j={j} status={status}")
+                    return False
+            
+            # check leader
+            if  leader == False:
+                tdLog.info(f" check vgroups not found leader i={i} ")
+                return False
+
+        # info
+        tdLog.info("check vgroups status successful.")
+        return True
+
+
+
+    # check data corrent
+    def check_corrent(self):
+        # check status
+        status = False
+        for i in range(50): 
+            if self.check_status_corrent():
+                 status = True
+                 break
+            else:
+                time.sleep(0.2)
+                tdLog.info(f" sleep 200ms retry {i} to check status again...") 
+
+        if status == False:
+            tdLog.exit("check vgroups status failed, exit.")             
+            
+        # check rows count
+        sql = f"select count(ts) from {self.dbname}.{self.stable}"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, self.child_count* self.insert_rows)
+
+
+    # restore dnode
+    def restore_dnode(self, index):
+        tdLog.info(f"start restore dnode {index}")
+        dnode = self.dnodes[index - 1]
+        
+        # stop dnode
+        tdLog.info(f"stop dnode {index}")
+        dnode.stoptaosd()
+
+        # remove dnode folder
+        try:
+            shutil.rmtree(dnode.dataDir)
+            tdLog.info(f" delete dir {dnode.dataDir} successful")
+        except OSError as x:
+            tdLog.exit(f" remove path {dnode.dataDir} error : {x.strerror}")
+
+        dnode.starttaosd()
+        
+        # exec restore
+        sql = f"restore dnode {index}"
+        tdSql.execute(sql)
+        self.check_corrent()
+
+    # restore vnode
+    def restore_vnode(self, index):
+        tdLog.info(f"start restore vnode on dnode {index}")
+        dnode = self.dnodes[index - 1]
+        del_dir = f"{dnode.dataDir}/vnode"
+
+        # stop dnode
+        tdLog.info(f"stop dnode {index}")
+        dnode.stoptaosd()
+        
+        # remove dnode folder
+        try:
+            shutil.rmtree(del_dir)
+            tdLog.info(f" delete dir {del_dir} successful")
+        except OSError as x:
+            tdLog.exit(f" remove path {del_dir} error : {x.strerror}")
+
+        dnode.starttaosd()
+        
+        # exec restore
+        sql = f"restore vnode on dnode {index}"
+        tdSql.execute(sql)
+
+        # check result
+        self.check_corrent()
+
+        
+    # restore mnode
+    def restore_mnode(self, index):
+        tdLog.info(f"start restore mnode {index}")
+        dnode = self.dnodes[index - 1]
+        del_dir = f"{dnode.dataDir}/mnode"
+        
+        # stop dnode
+        tdLog.info(f"stop dnode {index}")
+        dnode.stoptaosd()
+
+        # remove dnode folder
+        try:
+            shutil.rmtree(del_dir)
+            tdLog.info(f" delete dir {del_dir} successful")
+        except OSError as x:
+            tdLog.exit(f" remove path {del_dir} error : {x.strerror}")
+
+        dnode.starttaosd()
+        
+        # exec restore
+        sql = f"restore mnode on dnode {index}"
+        tdSql.execute(sql)
+        self.check_corrent()
+
+
+    # restore qnode
+    def restore_qnode(self, index):
+        tdLog.info(f"start restore qnode on dnode {index}")
+        dnode = self.dnodes[index - 1]
+        del_dir = f"{dnode.dataDir}/qnode"
+
+        # stop dnode
+        tdLog.info(f"stop dnode {index}")
+        dnode.stoptaosd()
+
+        # remove dnode folder
+        try:
+            shutil.rmtree(del_dir)
+            tdLog.info(f" delete dir {del_dir} successful")
+        except OSError as x:
+            tdLog.exit(f" remove path {del_dir} error : {x.strerror}")
+
+        # start dnode 
+        dnode.starttaosd()
+        
+        # exec restore
+        sql = f"restore qnode on dnode {index}"
+        tdSql.execute(sql)
+        self.check_corrent()
+
+        # path exist
+        qfile = f"{del_dir}/qnode.json"
+        if os.path.exists(qfile) == False:
+            tdLog.exit(f" qnode restore failed. qnode.json is not exist. {qfile}")
+
+    
+    # run
+    def run(self):
+
+        # create data
+        self.dbname = "db"
+        self.stable = "st"
+        self.child_count = 10
+        self.insert_rows = 1000
+        self.create_data()
+
+        # remove dnode 
+        index = 1
+        self.restore_dnode(2)
+        self.restore_mnode(3)
+        self.restore_vnode(4)
+        self.restore_qnode(5)
 
     # stop
     def stop(self):

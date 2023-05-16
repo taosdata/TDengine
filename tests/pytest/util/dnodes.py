@@ -859,15 +859,4 @@ class TDDnodes:
     def getAsan(self):
         return self.asan
 
-global tdDnodes
 tdDnodes = TDDnodes()
-
-# global get
-def tdDnodes_Get():
-    global tdDnodes
-    return tdDnodes
-
-# global set
-def tdDnodes_Set(newInst):
-    global tdDnodes
-    tdDnodes = newInst
