@@ -28,7 +28,7 @@ postActions:
         - -n PowerDB
         - -p power
         - -e support@powerdb.com
-        - -d ../../community
+        - -d ../../community/release
         - -v 3.0.4.0
 
 
