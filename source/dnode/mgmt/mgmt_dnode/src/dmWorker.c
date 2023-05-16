@@ -91,6 +91,7 @@ static void *dmCrashReportThreadFp(void *param) {
         dError("failed to send crash report");
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
+          pFile = NULL;
           continue;
         }
       } else {
@@ -110,6 +111,7 @@ static void *dmCrashReportThreadFp(void *param) {
     
     if (pFile) {
       taosReleaseCrashLogFile(pFile, truncateFile);
+      pFile = NULL;
       truncateFile = false;
     }
     
