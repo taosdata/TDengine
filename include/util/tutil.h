@@ -102,10 +102,12 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 }
 
 #define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
-  if ((CODE)) {                            \
-    LINO = __LINE__;                       \
-    goto LABEL;                            \
-  }
+  do {                                     \
+    if ((CODE)) {                          \
+      LINO = __LINE__;                     \
+      goto LABEL;                          \
+    }                                      \
+  } while (0)
 
 #define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
   if ((ptr) == NULL) {                                 \

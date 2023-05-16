@@ -92,7 +92,7 @@ int32_t tsdbMerge(STsdb *pTsdb) {
 
   SMerger pMerger = {0};
   code = tsdbOpenMerger(pTsdb, &pMerger);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   for (int32_t i = 0; i < taosArrayGetSize(pTsdb->pFS->cstate); i++) {
     struct STFileSet *pFileSet = taosArrayGet(pTsdb->pFS->cstate, i);
@@ -101,11 +101,11 @@ int32_t tsdbMerge(STsdb *pTsdb) {
     }
 
     code = tsdbFileSetMerge(pFileSet);
-    TSDB_CHECK_CODE(code, lino, _exit)
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   code = tsdbCloseMerger(&pMerger);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {

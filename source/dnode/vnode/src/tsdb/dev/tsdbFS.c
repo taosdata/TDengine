@@ -175,20 +175,20 @@ static int32_t save_fs(int64_t eid, SArray *aTFileSet, const char *fname) {
   // fmtv
   if (cJSON_AddNumberToObject(json, "fmtv", 1) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit)
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // eid
   if (cJSON_AddNumberToObject(json, "eid", eid) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit)
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // fset
   cJSON *ajson = cJSON_AddArrayToObject(json, "fset");
   if (ajson == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit)
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
   for (int32_t i = 0; i < taosArrayGetSize(aTFileSet); i++) {
     STFileSet *pFileSet = (STFileSet *)taosArrayGet(aTFileSet, i);
@@ -196,7 +196,7 @@ static int32_t save_fs(int64_t eid, SArray *aTFileSet, const char *fname) {
 
     if ((item = cJSON_CreateObject()) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _exit)
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     code = tsdbFileSetToJson(pFileSet, item);
@@ -206,7 +206,7 @@ static int32_t save_fs(int64_t eid, SArray *aTFileSet, const char *fname) {
   }
 
   code = save_json(json, fname);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -225,7 +225,7 @@ static int32_t load_fs(const char *fname, SArray *aTFileSet, int64_t *eid) {
   // load json
   cJSON *json = NULL;
   code = load_json(fname, &json);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // parse json
   const cJSON *item;
@@ -235,7 +235,7 @@ static int32_t load_fs(const char *fname, SArray *aTFileSet, int64_t *eid) {
   if (cJSON_IsNumber(item)) {
     ASSERT(item->valuedouble == 1);
   } else {
-    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit)
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
   /* eid */
@@ -243,7 +243,7 @@ static int32_t load_fs(const char *fname, SArray *aTFileSet, int64_t *eid) {
   if (cJSON_IsNumber(item)) {
     eid[0] = item->valuedouble;
   } else {
-    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit)
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
   /* fset */
@@ -257,10 +257,10 @@ static int32_t load_fs(const char *fname, SArray *aTFileSet, int64_t *eid) {
       }
 
       code = tsdbFileSetFromJson(titem, pFileSet);
-      TSDB_CHECK_CODE(code, lino, _exit)
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else {
-    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit)
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
 _exit:
@@ -292,11 +292,11 @@ static int32_t commit_edit(STFileSystem *fs) {
   int32_t code;
   int32_t lino;
   if ((code = taosRenameFile(current_t, current))) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit)
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
   }
 
   code = apply_commit(fs);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -327,11 +327,11 @@ static int32_t abort_edit(STFileSystem *fs) {
   int32_t code;
   int32_t lino;
   if ((code = taosRemoveFile(fname))) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit)
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
   }
 
   code = apply_abort(fs);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -358,7 +358,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   STsdb  *pTsdb = fs->pTsdb;
 
   code = update_fs_if_needed(fs);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   char fCurrent[TSDB_FILENAME_LEN];
   char cCurrent[TSDB_FILENAME_LEN];
@@ -381,7 +381,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
         code = load_fs(cCurrent, fs->nstate, &fs->eid);
-        TSDB_CHECK_CODE(code, lino, _exit)
+        TSDB_CHECK_CODE(code, lino, _exit);
 
         code = commit_edit(fs);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -454,14 +454,14 @@ static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
       pSet = taosArrayInsert(pFS->nstate, idx, &fset);
       if (pSet == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
-        TSDB_CHECK_CODE(code, lino, _exit)
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
 
       tsdbFileSetInit(pSet);
     }
 
     code = tsdbFSetEdit(pSet, op);
-    TSDB_CHECK_CODE(code, lino, _exit)
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -476,7 +476,7 @@ int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = open_fs(fs[0], rollback);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -522,7 +522,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, int64_t eid, const SArray *aFileOp, EF
 
   // save fs
   code = save_fs(fs->eid, fs->nstate, current_t);
-  TSDB_CHECK_CODE(code, lino, _exit)
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {

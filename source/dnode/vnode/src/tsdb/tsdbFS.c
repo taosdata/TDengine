@@ -667,7 +667,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
         taosArrayRemove(pTsdb->fs.aDFileSet, iOld);
       } else {
         code = tsdbNewFileSet(pTsdb, &fSet, pSetNew);
-        TSDB_CHECK_CODE(code, lino, _exit)
+        TSDB_CHECK_CODE(code, lino, _exit);
 
         if (taosArrayInsert(pTsdb->fs.aDFileSet, iOld, &fSet) == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
@@ -683,7 +683,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
       taosArrayRemove(pTsdb->fs.aDFileSet, iOld);
     } else {
       code = tsdbNewFileSet(pTsdb, &fSet, pSetNew);
-      TSDB_CHECK_CODE(code, lino, _exit)
+      TSDB_CHECK_CODE(code, lino, _exit);
 
       if (taosArrayInsert(pTsdb->fs.aDFileSet, iOld, &fSet) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
