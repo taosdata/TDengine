@@ -144,8 +144,8 @@ typedef struct {
 typedef struct {
   bool           usbDongle;
   bool           officialVersion;
-  bool           connOfficialVersion;  // version 2 since 3.0.5.0
   bool           expired;
+  int8_t         flag;  // version 2 since 3.0.5.0
   uint32_t       expireTimeSec;
   uint64_t       curStorage;
   uint64_t       limitStorage;
@@ -175,6 +175,7 @@ typedef struct {
   bool          updateForced;
   bool          usbDongle;
   bool          officialVersion;
+  int8_t        flag;
   uint32_t      expireTimeSec;
   uint32_t      limitStorage;
   uint32_t      limitSpeed;
