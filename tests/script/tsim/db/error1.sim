@@ -50,11 +50,11 @@ if $data20 != d1 then
   return -1
 endi
 
-if $data22 != 2 then
+if $data23 != 2 then
   return -1
 endi
 
-if $data23 != 0 then
+if $data24 != 0 then
   return -1
 endi
 
@@ -89,11 +89,11 @@ if $data20 != d1 then
   return -1
 endi
 
-if $data22 != 5 then
+if $data23 != 5 then
   return -1
 endi
 
-if $data23 != 0 then
+if $data24 != 0 then
   return -1
 endi
 

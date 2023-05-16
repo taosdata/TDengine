@@ -1689,6 +1689,16 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
 
+    bytes = pShow->pMeta->pSchemas[cols].bytes;
+    buf = taosMemoryRealloc(buf, bytes);
+    if ('\0' == pDb->createUser[0]) {
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, "NULL", bytes);
+    } else {
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, pDb->createUser, bytes);
+    }
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, rows, buf, false);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
 

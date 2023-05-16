@@ -262,7 +262,7 @@ class TDTestCase:
             if index == -1:
                 continue
             
-            if tdSql.getData(index,15) == 'ready':
+            if tdSql.getData(index,16) == 'ready':
                 print("******************** index: %d"%index)
                 break
             
@@ -422,7 +422,7 @@ class TDTestCase:
             if index == -1:
                 continue
             
-            if tdSql.getData(index,15) == 'ready':
+            if tdSql.getData(index,16) == 'ready':
                 print("******************** index: %d"%index)
                 break
             

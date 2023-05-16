@@ -115,7 +115,7 @@ class TDTestCase:
         tdSql.query("select count(*) from stmt_db.stb2")
         tdSql.checkData(0, 0, 160)
         tdSql.query("select * from information_schema.ins_databases where name='stmt_db'")
-        tdSql.checkData(0, 14, "us")
+        tdSql.checkData(0, 15, "us")
 
         tdSql.execute("reset query cache")
         tdSql.query("select count(*) from (select distinct(tbname) from stmt_db.`stb2-2`)")
@@ -132,7 +132,7 @@ class TDTestCase:
         tdSql.query("select count(*) from rest_db.stb3")
         tdSql.checkData(0, 0, 160)
         tdSql.query("select * from information_schema.ins_databases where name='rest_db'")
-        tdSql.checkData(0, 14, "ns")
+        tdSql.checkData(0, 15, "ns")
 
         tdSql.execute("reset query cache")
         tdSql.query("select count(*) from (select distinct(tbname) from rest_db.`stb3-2`)")

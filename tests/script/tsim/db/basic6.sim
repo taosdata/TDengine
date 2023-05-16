@@ -25,25 +25,25 @@ endi
 if $data20 != $db then
   return -1
 endi
-if $data22 != 8 then
+if $data23 != 8 then
   return -1
 endi
-if $data23 != 0 then
+if $data24 != 0 then
   return -1
 endi
-if $data24 != 1 then
+if $data25 != 1 then
   return -1
 endi
-if $data26 != 2880m then
+if $data27 != 2880m then
   return -1
 endi
-if $data27 != 14400m,14400m,14400m then
+if $data28 != 14400m,14400m,14400m then
   return -1
 endi
-#if $data28 != 32 then
+#if $data29 != 32 then
 #  return -1
 #endi
-#if $data29 != 12 then
+#if $data30 != 12 then
 #  return -1
 #endi
 
@@ -72,13 +72,13 @@ print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data20 != $db then
   return -1
 endi
-if $data23 != 0 then
+if $data24 != 0 then
   return -1
 endi
-if $data24 != 1 then
+if $data25 != 1 then
   return -1
 endi
-if $data26 != 21600m then
+if $data27 != 21600m then
   return -1
 endi
 

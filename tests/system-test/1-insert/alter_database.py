@@ -29,7 +29,7 @@ class TDTestCase:
             tdSql.execute(f'alter database db buffer {buffer}')
             tdSql.query(
                 'select * from information_schema.ins_databases where name = "db"')
-            tdSql.checkEqual(tdSql.queryResult[0][8], buffer)
+            tdSql.checkEqual(tdSql.queryResult[0][9], buffer)
         tdSql.execute('drop database db')
         tdSql.execute('create database db vgroups 10')
         for buffer in self.buffer_error:
@@ -42,12 +42,12 @@ class TDTestCase:
             tdSql.execute(f'alter database db pages {pages}')
             tdSql.query(
                 'select * from information_schema.ins_databases where name = "db"')
-            tdSql.checkEqual(tdSql.queryResult[0][10], pages)
+            tdSql.checkEqual(tdSql.queryResult[0][11], pages)
         tdSql.execute('drop database db')
         tdSql.execute('create database db')
         tdSql.query(
             'select * from information_schema.ins_databases where name = "db"')
-        self.pages_error.append(tdSql.queryResult[0][10])
+        self.pages_error.append(tdSql.queryResult[0][11])
         for pages in self.pages_error:
             tdSql.error(f'alter database db pages {pages}')
         tdSql.execute('drop database db')
