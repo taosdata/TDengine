@@ -1590,6 +1590,8 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "INTERP function second parameter should be 0/1");
     }
+
+    pValue->notReserved = true;
   }
 
 #if 0
