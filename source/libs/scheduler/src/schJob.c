@@ -440,7 +440,7 @@ int32_t schNotifyUserExecRes(SSchJob *pJob) {
     schDumpJobExecRes(pJob, pRes);
   }
 
-  SCH_JOB_ELOG("sch start to invoke exec cb, code: %s", tstrerror(pJob->errCode));
+  SCH_JOB_DLOG("sch start to invoke exec cb, code: %s", tstrerror(pJob->errCode));
   (*pJob->userRes.execFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
   SCH_JOB_DLOG("sch end from exec cb, code: %s", tstrerror(pJob->errCode));
 
@@ -452,7 +452,7 @@ int32_t schNotifyUserFetchRes(SSchJob *pJob) {
 
   schDumpJobFetchRes(pJob, &pRes);
 
-  SCH_JOB_ELOG("sch start to invoke fetch cb, code: %s", tstrerror(pJob->errCode));
+  SCH_JOB_DLOG("sch start to invoke fetch cb, code: %s", tstrerror(pJob->errCode));
   (*pJob->userRes.fetchFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
   SCH_JOB_DLOG("sch end from fetch cb, code: %s", tstrerror(pJob->errCode));
 
@@ -811,7 +811,7 @@ int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
     tsem_wait(&pJob->rspSem);
   }
 
-  SCH_JOB_ELOG("job exec done, job status:%s, jobId:0x%" PRIx64, SCH_GET_JOB_STATUS_STR(pJob), pJob->refId);
+  SCH_JOB_DLOG("job exec done, job status:%s, jobId:0x%" PRIx64, SCH_GET_JOB_STATUS_STR(pJob), pJob->refId);
 
   return TSDB_CODE_SUCCESS;
 }

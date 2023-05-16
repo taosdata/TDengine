@@ -138,7 +138,7 @@ int32_t qwSendQueryRsp(QW_FPARAMS_DEF, int32_t msgType, SQWTaskCtx *ctx, int32_t
   if ((!quickRsp) || QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy) {
     if (!ctx->localExec) {
       qwBuildAndSendQueryRsp(msgType, &ctx->ctrlConnInfo, rspCode, ctx);
-      QW_TASK_ELOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, rspCode, tstrerror(rspCode));
+      QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, rspCode, tstrerror(rspCode));
     }
 
     ctx->queryRsped = true;
@@ -323,7 +323,6 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
 
     if (len == 0) {
       if (queryEnd) {
-        output.dataSize = 0;
         code = dsGetDataBlock(ctx->sinkHandle, &output);
         if (code) {
           QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
@@ -359,7 +358,6 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, *dataLen, &rsp));
 
     output.pData = rsp->data + *dataLen - len;
-    output.dataSize = len;
     code = dsGetDataBlock(ctx->sinkHandle, &output);
     if (code) {
       QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));

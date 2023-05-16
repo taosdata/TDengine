@@ -426,7 +426,7 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   STraceId* trace = &transMsg.info.traceId;
-  tGError("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
+  tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
           TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, tstrerror(transMsg.code));
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
@@ -966,7 +966,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   }
 
   if (status == 0) {
-    tError("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
+    tDebug("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
   } else {
     if (!uv_is_closing((uv_handle_t*)&pConn->stream)) {
       tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
@@ -1106,7 +1106,7 @@ void cliSend(SCliConn* pConn) {
     msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
 
-  tGError("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
+  tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
 
   uv_buf_t    wb = uv_buf_init((char*)pHead, msgLen);

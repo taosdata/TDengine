@@ -1035,7 +1035,7 @@ _return:
 int32_t ctgCallUserCb(void* param) {
   SCtgJob* pJob = (SCtgJob*)param;
 
-  qError("QID:0x%" PRIx64 " ctg start to call user cb with rsp %s", pJob->queryId, tstrerror(pJob->jobResCode));
+  qDebug("QID:0x%" PRIx64 " ctg start to call user cb with rsp %s", pJob->queryId, tstrerror(pJob->jobResCode));
 
   (*pJob->userFp)(&pJob->jobRes, pJob->userParam, pJob->jobResCode);
 

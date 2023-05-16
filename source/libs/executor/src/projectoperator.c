@@ -249,9 +249,6 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     return doGenerateSourceData(pOperator);
   }
 
-  int64_t st0 = taosGetTimestampUs();
-  int64_t st1 = 0, st2 = 0;
-
   while (1) {
     while (1) {
       blockDataCleanup(pRes);
@@ -263,7 +260,6 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         setOperatorCompleted(pOperator);
         break;
       }
-      st1 = taosGetTimestampUs();
 //      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
 //        qDebug("set status recv");
 //        pOperator->status = OP_EXEC_RECV;
@@ -304,8 +300,6 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       if (status == PROJECT_RETRIEVE_CONTINUE) {
         continue;
       }
-
-      st2 = taosGetTimestampUs();
 
       break;
     }
@@ -350,10 +344,6 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
-
-  if (p->info.rows > 0) {
-    qError("doProjection, open:%" PRId64 "us, project:%" PRId64 "us, rows:%" PRId64,st1-st0,st2-st1,p->info.rows);
   }
 
   return (p->info.rows > 0) ? p : NULL;
