@@ -1,0 +1,42 @@
+name: Release TDengine windows community package
+type: feature
+logfile: logs/
+
+
+
+prepareActions:
+  enable: false
+  actions: 
+    - pullTDinternal:
+        - python
+        - td_release_cfg/pullRepo.py
+        - --repo taosdata/TDinternal
+        - --target main
+        - --path .
+    - pullTDengine:
+        - python
+        - td_release_cfg/pullRepo.py
+        - --repo taosdata/TDengine
+        - --path ../../community
+        # - --target 373c128a7add2132e7b253ad71932c91f86548f6
+        - --target main
+
+postActions:
+  enable: false
+  actions:
+    - postTo131:
+        - scp ../../community/release/* root@192.168.1.131:/nas/TDengine/v3.0.3.0
+    - pushWebsite:
+        - ./new_release/upload-pkg.sh 3.0.1.2
+
+parameters:
+  target: windows
+  CPU: x64
+  verMode: edge
+  version: 3.0.4.1
+  CUSTOMER_NAME: ProDB
+  CUSTOMER_PROMPT: prodb
+  CUSTOMER_EMAIL: support@hanatech.com.cn
+  GRANT_VALUE: 60
+
+  
