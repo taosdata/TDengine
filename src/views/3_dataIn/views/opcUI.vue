@@ -322,7 +322,7 @@
                     placeholder="Regex Pattern Input"
                     v-model="p.value"
                     :disable="p.target.selectable"
-                    @change="searchDatas"
+                    @keydown.enter.native="searchDatas"
                   ></el-input>
                   <div>
                     <div class="searchList" v-loading="loading" v-if="configurationdata.length > 0">
@@ -713,21 +713,24 @@ export default {
             if (
               Object.hasOwnProperty.call(target, "required") &&
               target.required &&
-              target.value == null
+              (target.value == null || target.value == undefined || 
+              target.value?.length == 0)
             ) {
               Message({
                 type: "warning",
                 message: `${enterTip} ${target.name} `,
               });
               return;
-            } else if (target.value) {
+            } else {
               if (Array.isArray(target.value)) {
-                let str = "";
-                for (let i = 0; i < target.value.length; i++) {
-                  str += `${target.value[i]},`;
+                if (target.value?.length > 0) {
+                  let str = "";
+                  for (let i = 0; i < target.value.length; i++) {
+                    str += `${target.value[i]},`;
+                  }
+                  querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
                 }
-                querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
-              } else {
+              } else if(target.value != null || target.value != undefined) {
                 querystr += `${target.name}=${target.value}` + "&";
               }
             }
@@ -839,7 +842,7 @@ export default {
         this.dbsource[0].datasets.categories = categories;
       }
     },
-    searchDatas: debounce(function (value) {
+    searchDatas: debounce(function (e) {
       try {
         let data = this.dbsource[0];
         let endpoint = data.options.endpoint.value
@@ -884,7 +887,7 @@ export default {
         params = {
           from: `opc${this.protocol}${dns}`,
           categories: [this.activeName],
-          pattern: value,
+          pattern: e.target.value,
           offset: 1,
           limit: 10,
         };

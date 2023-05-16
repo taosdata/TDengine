@@ -133,6 +133,7 @@ import SQuery from "./subscribeQuery.vue";
 import Subquery from "./subquery.vue";
 import SQLEditor from "./sqlEditor.vue";
 import { createTopic } from "@/api/topic";
+import { validTopicSql } from "@/utils/validate"
 // const infoValidaterField = ["topic_name", "topic_type", "db_name"];
 export default {
   props: {
@@ -261,7 +262,12 @@ export default {
         params=this.previewSql
       } else {
         let sqlobj = this.handleSQLParams();
-        params=sqlobj.topic_sql
+        if(validTopicSql(sqlobj.topic_sql.trimStart())) {
+          params = sqlobj.topic_sql
+        } else {
+          this.errorText = this.$t('topic.validTopicSqlDesc');
+          return
+        }
       }
       this.requestIng = true;
       createTopic(params)

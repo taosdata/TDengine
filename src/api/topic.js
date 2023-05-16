@@ -9,7 +9,7 @@ export function getTopics(params) {
 export function getConsumers(params) {
   let { currentPage, pageSize } = params;
   const countSql = `select count(*) from performance_schema.perf_consumers;`;
-  const dataSql = `select * from performance_schema.perf_consumers`;
+  const dataSql = `select cast(consumer_id as binary(100)) as consumer_id, consumer_group, client_id, status, \`topics\`, up_time, subscribe_time, rebalance_time from performance_schema.perf_consumers;`;
   return getPaginationData(countSql, dataSql, currentPage, pageSize);
 }
 
