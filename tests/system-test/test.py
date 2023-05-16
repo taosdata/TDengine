@@ -385,6 +385,8 @@ if __name__ == "__main__":
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
             tdDnodes = ClusterDnodes(dnodeslist)
+            # set to global
+            tdDnodes_Set(tdDnodes)
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
             tdDnodes.setValgrind(valgrind)
@@ -555,6 +557,8 @@ if __name__ == "__main__":
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
             tdDnodes = ClusterDnodes(dnodeslist)
+            # set to global
+            tdDnodes_Set(tdDnodes)
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)
             tdDnodes.setValgrind(valgrind)
