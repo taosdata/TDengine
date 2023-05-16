@@ -20,12 +20,12 @@
 #include "tsimplehash.h"
 #include "tstreamFileState.h"
 
+#ifndef _STREAM_STATE_H_
+#define _STREAM_STATE_H_
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#ifndef _STREAM_STATE_H_
-#define _STREAM_STATE_H_
 
 // void*      streamBackendInit(const char* path);
 // void       streamBackendCleanup(void* arg);
