@@ -504,6 +504,8 @@ class TDTestQuery(TDTestQuery):
     def run(self):
         startTime = time.time() 
         
+        self.tdCreateData.alter_local_slowlogthreshold()  #设置慢查询
+        
         self.benchmark_insert_stb(self.source_taosd_list,self.dbnamejoin_local,'stb',self.join_tables,self.join_per_table_num,self.join_vgroups,self.replica) 
         self.base_sql_count(self.dbnamejoin_local,self.join_tables,self.join_per_table_num)
         self.run_sql(self.dbname,self.tables,self.per_table_num,self.dbnamejoin_local)   #前面用base的，后面用local的
