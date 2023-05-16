@@ -547,7 +547,7 @@ static int32_t hbGetUserBasicInfo(SClientHbKey *connKey, SHbParam *param, SClien
 
   int32_t code = 0;
 
-  if ((param->passVer != INT32_MIN) && (param->passVer <= pTscObj->passInfo.ver)) {
+  if (param && (param->passVer != INT32_MIN) && (param->passVer <= pTscObj->passInfo.ver)) {
     tscDebug("hb got user basic info, no need since passVer %d <= %d", param->passVer, pTscObj->passInfo.ver);
     goto _return;
   }
@@ -579,7 +579,9 @@ static int32_t hbGetUserBasicInfo(SClientHbKey *connKey, SHbParam *param, SClien
   }
 
   // assign the passVer
-  param->passVer = pTscObj->passInfo.ver;
+  if (param) {
+    param->passVer = pTscObj->passInfo.ver;
+  }
 
 _return:
   releaseTscObj(connKey->tscRid);
@@ -1196,4 +1198,6 @@ void hbDeregisterConn(STscObj *pTscObj, SClientHbKey connKey) {
 }
 
 // set heart beat thread quit mode , if quicByKill 1 then kill thread else quit from inner
-void taos_set_hb_quit(int8_t quitByKill) { clientHbMgr.quitByKill = quitByKill; }
+void taos_set_hb_quit(int8_t quitByKill) {
+  clientHbMgr.quitByKill = quitByKill;
+}
