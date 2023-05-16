@@ -384,6 +384,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateStreamStmt));
     case QUERY_NODE_DROP_STREAM_STMT:
       return makeNode(type, sizeof(SDropStreamStmt));
+    case QUERY_NODE_PAUSE_STREAM_STMT:
+      return makeNode(type, sizeof(SPauseStreamStmt));
+    case QUERY_NODE_RESUME_STREAM_STMT:
+      return makeNode(type, sizeof(SResumeStreamStmt));
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return makeNode(type, sizeof(SBalanceVgroupStmt));
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
@@ -455,6 +459,11 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SInsertStmt));
     case QUERY_NODE_QUERY:
       return makeNode(type, sizeof(SQuery));
+    case QUERY_NODE_RESTORE_DNODE_STMT:
+    case QUERY_NODE_RESTORE_QNODE_STMT:
+    case QUERY_NODE_RESTORE_MNODE_STMT:
+    case QUERY_NODE_RESTORE_VNODE_STMT:
+      return makeNode(type, sizeof(SRestoreComponentNodeStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -946,6 +955,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_DROP_STREAM_STMT:            // no pointer field
+    case QUERY_NODE_PAUSE_STREAM_STMT:           // no pointer field
+    case QUERY_NODE_RESUME_STREAM_STMT:          // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:         // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:  // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:           // no pointer field
@@ -1052,6 +1063,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pQuery->pPrepareRoot);
       break;
     }
+    case QUERY_NODE_RESTORE_DNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_QNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_MNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_VNODE_STMT:   // no pointer field
+      break;
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);

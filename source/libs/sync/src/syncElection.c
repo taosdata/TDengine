@@ -41,6 +41,8 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
 
   int32_t ret = 0;
   for (int i = 0; i < pNode->peersNum; ++i) {
+    if(pNode->peersNodeInfo[i].nodeRole == TAOS_SYNC_ROLE_LEARNER) continue;
+    
     SRpcMsg rpcMsg = {0};
     ret = syncBuildRequestVote(&rpcMsg, pNode->vgId);
     if (ret < 0) {

@@ -205,7 +205,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     STqReader* pReader = pExec->pTqReader;
     tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver);
-    while (tqNextBlockImpl(pReader)) {
+    while (tqNextBlockImpl(pReader, NULL)) {
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
       SSubmitTbData* pSubmitTbDataRet = NULL;

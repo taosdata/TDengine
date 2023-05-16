@@ -500,7 +500,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
           break;
         default:
           ASSERTS(0, "invalid row format");
-          return TSDB_CODE_IVLD_DATA_FMT;
+          return TSDB_CODE_INVALID_DATA_FMT;
       }
 
       if (bv == BIT_FLG_NONE) {
@@ -755,7 +755,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
   }
 
   if (pIter->pRow->flag == HAS_NULL) {
-    pIter->cv = COL_VAL_NULL(pTColumn->type, pTColumn->colId);
+    pIter->cv = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
     goto _exit;
   }
 
@@ -938,7 +938,7 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
       break;
     default:
       ASSERTS(0, "Invalid row flag");
-      return TSDB_CODE_IVLD_DATA_FMT;
+      return TSDB_CODE_INVALID_DATA_FMT;
   }
 
   while (pColData) {
@@ -963,7 +963,7 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
               break;
             default:
               ASSERTS(0, "Invalid row flag");
-              return TSDB_CODE_IVLD_DATA_FMT;
+              return TSDB_CODE_INVALID_DATA_FMT;
           }
 
           if (bv == BIT_FLG_NONE) {
@@ -1054,7 +1054,7 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
             pData = pv + ((uint32_t *)pKVIdx->idx)[iCol];
           } else {
             ASSERTS(0, "Invalid KV row format");
-            return TSDB_CODE_IVLD_DATA_FMT;
+            return TSDB_CODE_INVALID_DATA_FMT;
           }
 
           int16_t cid;
@@ -2441,7 +2441,7 @@ _exit:
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data) {
   int32_t code = 0;
-  if(data == NULL){
+  if (data == NULL) {
     for (int32_t i = 0; i < nRows; ++i) {
       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
     }
@@ -2455,8 +2455,9 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
       } else {
-        if(ASSERT(varDataTLen(data + offset) <= bytes)){
-          uError("var data length invalid, varDataTLen(data + offset):%d <= bytes:%d", (int)varDataTLen(data + offset), bytes);
+        if (ASSERT(varDataTLen(data + offset) <= bytes)) {
+          uError("var data length invalid, varDataTLen(data + offset):%d <= bytes:%d", (int)varDataTLen(data + offset),
+                 bytes);
           code = TSDB_CODE_INVALID_PARA;
           goto _exit;
         }

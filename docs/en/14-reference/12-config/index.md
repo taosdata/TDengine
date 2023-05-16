@@ -151,7 +151,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | -------- | -------------------------------------------- |
 | Applicable | Server Only                                 |
 | Meaning     |Switch for allowing TDengine to collect and report crash related information |
-| Value Range | 0,1   0: Not allowed；1：allowed                                 |
+| Value Range | 0,1   0: Not allowed; 1: allowed                                 |
 | Default Value   | 1                                           |
 
 
@@ -183,7 +183,7 @@ Please note the `taoskeeper` needs to be installed and running to create the `lo
 | -------- | -------------------------------- |
 | Applicable | Server only                     |
 | Meaning   | count()/hyperloglog() return value or not if the input data is empty or NULL |
-| Vlue Range | 0：Return empty line，1：Return 0       |
+| Vlue Range | 0: Return empty line, 1: Return 0       |
 | Default   | 1                            |
 | Notes | When this parameter is setting to 1, for queries containing GROUP BY, PARTITION BY and INTERVAL clause, and input data in certain groups or windows is empty or NULL, the corresponding groups or windows have no return values |
 
@@ -357,6 +357,17 @@ The charset that takes effect is UTF-8.
 | Meaning     | Maximum number of vnodes per dnode |
 | Value Range | 0-4096                                     |
 | Default Value | 2x the CPU cores                                                    |
+
+## Performance Tuning
+
+### numOfCommitThreads
+
+| Attribute     | Description                         |
+| ------------- | ----------------------------------- |
+| Applicable    | Server Only                         |
+| Meaning       | Maximum number of threads to commit |
+| Value Range   | 0-1024                              |
+| Default Value |                                     |
 
 ## Log Parameters
 
@@ -628,6 +639,16 @@ The charset that takes effect is UTF-8.
 | Default Value | 1                                                                                                                                                                       |
 | Note          | The core file is generated under root directory `systemctl start taosd`/`launchctl start com.tdengine.taosd` is used to start, or under the working directory if `taosd` is started directly on Linux/macOS Shell. |
 
+### enableScience
+
+| Attribute     | Description                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Applicable    |  Only taos-CLI client                                                                                                                                                      |
+| Meaning       | Whether to show float and double with the scientific notation                                                |
+| Value Range   | 0: false, 1: true                                                                                                                                                       |
+| Default Value | 0                                                                                                                                                                       |
+
+
 ### udf
 
 | Attribute     | Description                            |
@@ -640,7 +661,7 @@ The charset that takes effect is UTF-8.
 
 ## 3.0 Parameters
 
-| #   |        **参数**         | **Applicable to 2.x ** | **Applicable to  3.0 ** | Current behavior in 3.0             |
+| #   |        **Parameter**         | **Applicable to 2.x ** | **Applicable to  3.0 ** | Current behavior in 3.0             |
 | --- | :---------------------: | --------------- | --------------- | ------------------------------------------------- |
 | 1   |         firstEp         | Yes              | Yes              |                                                   |
 | 2   |        secondEp         | Yes              | Yes              |                                                   |

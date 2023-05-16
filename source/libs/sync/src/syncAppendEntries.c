@@ -126,8 +126,10 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     pReply->term = pMsg->term;
   }
 
-  syncNodeStepDown(ths, pMsg->term);
-  resetElect = true;
+  if(ths->raftCfg.cfg.nodeInfo[ths->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER){
+    syncNodeStepDown(ths, pMsg->term);
+    resetElect = true;
+  }
 
   if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
     sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",

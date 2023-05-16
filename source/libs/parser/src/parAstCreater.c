@@ -1025,23 +1025,23 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       pDbOptions->sstTrigger = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_TABLE_PREFIX: {
-      SValueNode *pNode = (SValueNode *)pVal;
+      SValueNode* pNode = (SValueNode*)pVal;
       if (TSDB_DATA_TYPE_BIGINT == pNode->node.resType.type || TSDB_DATA_TYPE_UBIGINT == pNode->node.resType.type) {
         pDbOptions->tablePrefix = taosStr2Int32(pNode->literal, NULL, 10);
       } else {
         snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table_prefix data type");
-        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;        
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
       }
       nodesDestroyNode((SNode*)pNode);
       break;
     }
-    case DB_OPTION_TABLE_SUFFIX:{
-      SValueNode *pNode = (SValueNode *)pVal;
+    case DB_OPTION_TABLE_SUFFIX: {
+      SValueNode* pNode = (SValueNode*)pVal;
       if (TSDB_DATA_TYPE_BIGINT == pNode->node.resType.type || TSDB_DATA_TYPE_UBIGINT == pNode->node.resType.type) {
         pDbOptions->tableSuffix = taosStr2Int32(pNode->literal, NULL, 10);
       } else {
         snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table_suffix data type");
-        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;        
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
       }
       nodesDestroyNode((SNode*)pNode);
       break;
@@ -1224,7 +1224,7 @@ SDataType createDataType(uint8_t type) {
 }
 
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
-  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = taosStr2Int16(pLen->z, NULL, 10)};
+  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = taosStr2Int32(pLen->z, NULL, 10)};
   return dt;
 }
 
@@ -1674,6 +1674,14 @@ SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, cons
   return (SNode*)pStmt;
 }
 
+SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRestoreComponentNodeStmt* pStmt = (SRestoreComponentNodeStmt*)nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  return (SNode*)pStmt;
+}
+
 SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTopicName(pCxt, pTopicName)) {
@@ -1944,6 +1952,32 @@ SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToke
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
   pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+}
+
+SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkStreamName(pCxt, pStreamName)) {
+    return NULL;
+  }
+  SPauseStreamStmt* pStmt = (SPauseStreamStmt*)nodesMakeNode(QUERY_NODE_PAUSE_STREAM_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+}
+
+SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, bool ignoreUntreated,
+                              SToken* pStreamName) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkStreamName(pCxt, pStreamName)) {
+    return NULL;
+  }
+  SResumeStreamStmt* pStmt = (SResumeStreamStmt*)nodesMakeNode(QUERY_NODE_RESUME_STREAM_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  pStmt->ignoreUntreated = ignoreUntreated;
   return (SNode*)pStmt;
 }
 

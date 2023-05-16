@@ -17,7 +17,10 @@
 #define _STREAM_INC_H_
 
 #include "executor.h"
+#include "query.h"
 #include "tstream.h"
+
+#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {

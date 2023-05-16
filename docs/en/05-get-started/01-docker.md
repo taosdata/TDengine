@@ -6,7 +6,7 @@ description: This document describes how to install TDengine in a Docker contain
 
 This document describes how to install TDengine in a Docker container and perform queries and inserts.
 
-- The easiest way to explore TDengine is through [TDengine Cloud](http://cloud.tdengine.com).
+- The easiest way to explore TDengine is through [TDengine Cloud](https://cloud.tdengine.com).
 - To get started with TDengine in a non-containerized environment, see [Quick Install from Package](../../get-started/package).
 - If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 

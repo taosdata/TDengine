@@ -250,6 +250,7 @@ typedef struct STagScanInfo {
   SSDataBlock*    pRes;
   SColMatchInfo   matchInfo;
   int32_t         curPos;
+  SLimitNode*     pSlimit;
   SReadHandle     readHandle;
   STableListInfo* pTableListInfo;
 } STagScanInfo;
@@ -309,6 +310,8 @@ typedef struct STimeWindowAggSupp {
   int64_t         waterMark;
   TSKEY           maxTs;
   TSKEY           minTs;
+  TSKEY           checkPointTs;
+  TSKEY           checkPointInterval;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 
@@ -360,9 +363,10 @@ typedef struct SStreamScanInfo {
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 
-  SSDataBlock* pCreateTbRes;
-  int8_t       igCheckUpdate;
-  int8_t       igExpired;
+  SSDataBlock*  pCreateTbRes;
+  int8_t        igCheckUpdate;
+  int8_t        igExpired;
+  SStreamState* pState;
 } SStreamScanInfo;
 
 typedef struct {
@@ -436,6 +440,7 @@ typedef struct SStreamIntervalOperatorInfo {
   SSDataBlock*       pPullDataRes;
   bool               isFinal;
   SArray*            pChildren;
+  int32_t            numOfChild;
   SStreamState*      pState;
   SWinKey            delKey;
   uint64_t           numOfDatapack;
@@ -567,7 +572,6 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr);
 void    cleanupExprSupp(SExprSupp* pSup);
 
-void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 
 int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                    const char* pkey, void* pState);
@@ -658,6 +662,7 @@ void    appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSu
 
 SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag);
 SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
+void         destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 
 void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                               SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
