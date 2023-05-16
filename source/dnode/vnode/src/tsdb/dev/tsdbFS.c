@@ -409,37 +409,33 @@ static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSe
 }
 
 static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
+  int32_t    code = 0;
+  int32_t    lino = 0;
   STFileSet *pSet = NULL;
+
   for (int32_t iop = 0; iop < taosArrayGetSize(aFileOp); iop++) {
     struct STFileOp *op = taosArrayGet(aFileOp, iop);
 
     if (pSet == NULL || pSet->fid != op->fid) {
       STFileSet fset = {.fid = op->fid};
-      pSet = taosArraySearch(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_EQ);
-    }
+      int32_t   idx = taosArraySearchIdx(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GE);
 
-    // create fset if need
-    if (pSet == NULL) {
-      ASSERT(op->oState.size == 0 && op->nState.size > 0);
-
-      STFileSet fset = {.fid = op->fid};
-      int32_t   idx = taosArraySearchIdx(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GT);
-
-      if (idx < 0) idx = taosArrayGetSize(pFS->nstate);
-
-      pSet = taosArrayInsert(pFS->nstate, idx, &fset);
-      if (pSet == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        TSDB_CHECK_CODE(code, lino, _exit);
+      pSet = NULL;
+      if (idx < 0) {
+        idx = taosArrayGetSize(pFS->nstate);
+      } else {
+        pSet = taosArrayGet(pFS->nstate, idx);
+        if (pSet->fid != op->fid) pSet = NULL;
       }
 
-      tsdbFileSetInit(pSet);
+      if (!pSet) {
+        pSet = taosArrayInsert(pFS->nstate, idx, &fset);
+        if (!pSet) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+        tsdbFileSetInit(pSet, op->fid);
+      }
     }
 
-    code = tsdbFSetEdit(pSet, op);
+    code = tsdbFileSetEdit(pSet, op);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

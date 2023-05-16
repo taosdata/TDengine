@@ -35,11 +35,9 @@ typedef enum {
 
 int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json);
 int32_t tsdbJsonToFileSet(const cJSON *json, STFileSet *fset);
-
-int32_t tsdbFileSetInit(STFileSet *pSet);
+int32_t tsdbFileSetInit(STFileSet *pSet, int32_t fid);
 int32_t tsdbFileSetClear(STFileSet *pSet);
-
-int32_t tsdbFSetEdit(STFileSet *pSet, const STFileOp *pOp);
+int32_t tsdbFileSetEdit(STFileSet *fset, const STFileOp *op);
 
 int32_t tsdbFSetCmprFn(const STFileSet *pSet1, const STFileSet *pSet2);
 
@@ -51,7 +49,7 @@ struct STFileOp {
 };
 
 typedef struct SSttLvl {
-  int32_t     lvl;      // level
+  int32_t     level;    // level
   int32_t     nstt;     // number of .stt files on this level
   SRBTree     sttTree;  // .stt file tree, sorted by cid
   SRBTreeNode rbtn;
