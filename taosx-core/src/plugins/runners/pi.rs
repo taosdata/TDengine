@@ -1,7 +1,7 @@
 use std::{
     io::prelude::*,
     num::ParseIntError,
-    time::Duration,
+    time::Duration, any,
 };
 
 use actix_web::web::Json;
@@ -59,6 +59,19 @@ struct PiConfig {
     #[serde(rename = "PointList")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     point_list: Vec<String>,
+    // backfill param
+    #[serde(rename = "FromTDengineLastTime")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    from_tdengine_last_time: Option<bool>,
+    #[serde(rename = "ToTDengineFirstTime")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    to_tdengine_first_time: Option<bool>,
+    #[serde(rename = "BackfillStartTime")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    backfill_start_time: Option<String>,
+    #[serde(rename = "BackfillEndTime")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    backfill_end_time: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -73,6 +86,8 @@ pub enum PiError {
     ValueConfigError(&'static str, &'static str, &'static str,),
     #[error("parse key {0} value error cause {1}")]
     ParseKeyValueError(&'static str, String),
+    #[error("Parse param error from {1} while parsing parameter {0}")]
+    ParseError(&'static str, String),
 }
 
 impl PiConfig {
@@ -140,6 +155,33 @@ impl PiConfig {
 
         let ipc_stream = format!("127.0.0.1:{ipc}");
         let sql_api = format!("http://127.0.0.1:{sql}");
+        let from_tdengine_last_time = if let Some(v) = dsn
+            .remove("FromTDengineLastTime")
+            .map(|v| {
+                v.parse::<bool>()
+                    .map_err(|err| PiError::ParseError("FromTDengineLastTime", v))
+            })
+            .transpose()?
+        {
+            Some(v)
+        } else {
+            None
+        };
+        let to_tdengine_first_time = if let Some(v) = dsn
+            .remove("ToTDengineFirstTime")
+            .map(|v| {
+                v.parse::<bool>()
+                    .map_err(|err| PiError::ParseError("ToTDengineFirstTime", v))
+            })
+            .transpose()?
+        {
+            Some(v)
+        } else {
+            None
+        };
+
+        let backfill_start_time = dsn.remove("BackfillStartTime");
+        let backfill_end_time = dsn.remove("BackfillEndTime");
 
         Ok(Self {
             server_name,
@@ -156,11 +198,16 @@ impl PiConfig {
             template_for_pi_point,
             template_for_af_element,
             point_list,
+            from_tdengine_last_time,
+            to_tdengine_first_time,
+            backfill_start_time,
+            backfill_end_time,
         })
     }
 }
 
 const PI_CONNECTOR_PATH: &'static str = "C:\\TDengine\\xplugins\\pi\\TDPIConnector.Service.exe";
+const PI_BACKFILL_PATH: &'static str = "C:\\TDengine\\xplugins\\pi\\TDBackfill.exe";
 
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 pub async fn pi_to_taos(
@@ -190,7 +237,7 @@ pub async fn pi_to_taos(
     let sql = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
-
+    let protocol = from.protocol.clone();
     let config = PiConfig::new(from, td_database.unwrap(), ipc, sql)?;
 
     let toml = toml::to_string(&config)?;
@@ -227,21 +274,38 @@ pub async fn pi_to_taos(
         retries += 1;
     }
 
-    let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
-    let child_command = command
+    let child_command;
+    if let Some(protocol) = protocol {
+        let mut command = async_process::Command::new(PI_BACKFILL_PATH);
+        if protocol == "backfill" {
+            child_command = command
+            .arg("-f")
+            .arg(&config_path)
+            .stdout(async_process::Stdio::inherit())
+            .stderr(async_process::Stdio::inherit())
+            .spawn()
+            .context("Start PI Backfill error")?;
+        } else {
+            anyhow::bail!("wrong protocol configed");
+        }
+    } else {
+        let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
+        child_command = command
         .arg("-f")
         .arg(&config_path)
         .stdout(async_process::Stdio::inherit())
         .stderr(async_process::Stdio::inherit())
         .spawn()
         .context("Start PI collector error")?;
+    }
+    
     let pid = child_command.id();
     log::info!("waiting for PI connector");
     tokio::spawn(async move {
         tokio::select! {
             output = child_command.output() => {
-                let output = output.context("PI connector run error")?;
-                log::info!("PI exit with status {}", output.status);
+                let output = output.context("PI connector or PI backfill run error")?;
+                log::info!("PI connector or PI backfill exit with status {}", output.status);
                 if !output.status.success() {
                     let len = output.stdout.len();
                     let err = if len > 200 {
