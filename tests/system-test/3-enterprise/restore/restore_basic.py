@@ -94,7 +94,7 @@ class TDTestCase:
                 return False
 
         # info
-        tdLog.info("check vgroups status successful.")
+        tdLog.info("check vgroups status successfully.")
         return True
 
 
@@ -103,13 +103,13 @@ class TDTestCase:
     def check_corrent(self):
         # check status
         status = False
-        for i in range(50): 
+        for i in range(100): 
             if self.check_status_corrent():
                  status = True
                  break
             else:
-                time.sleep(0.2)
-                tdLog.info(f" sleep 200ms retry {i} to check status again...") 
+                time.sleep(0.5)
+                tdLog.info(f"sleep 500ms retry {i} to check status again...") 
 
         if status == False:
             tdLog.exit("check vgroups status failed, exit.")             
@@ -132,9 +132,9 @@ class TDTestCase:
         # remove dnode folder
         try:
             shutil.rmtree(dnode.dataDir)
-            tdLog.info(f" delete dir {dnode.dataDir} successful")
+            tdLog.info(f"delete dir {dnode.dataDir} successful")
         except OSError as x:
-            tdLog.exit(f" remove path {dnode.dataDir} error : {x.strerror}")
+            tdLog.exit(f"remove path {dnode.dataDir} error : {x.strerror}")
 
         dnode.starttaosd()
         
@@ -156,9 +156,9 @@ class TDTestCase:
         # remove dnode folder
         try:
             shutil.rmtree(del_dir)
-            tdLog.info(f" delete dir {del_dir} successful")
+            tdLog.info(f"delete dir {del_dir} successful")
         except OSError as x:
-            tdLog.exit(f" remove path {del_dir} error : {x.strerror}")
+            tdLog.exit(f"remove path {del_dir} error : {x.strerror}")
 
         dnode.starttaosd()
         
@@ -183,9 +183,9 @@ class TDTestCase:
         # remove dnode folder
         try:
             shutil.rmtree(del_dir)
-            tdLog.info(f" delete dir {del_dir} successful")
+            tdLog.info(f"delete dir {del_dir} successful")
         except OSError as x:
-            tdLog.exit(f" remove path {del_dir} error : {x.strerror}")
+            tdLog.exit(f"remove path {del_dir} error : {x.strerror}")
 
         dnode.starttaosd()
         
@@ -208,9 +208,9 @@ class TDTestCase:
         # remove dnode folder
         try:
             shutil.rmtree(del_dir)
-            tdLog.info(f" delete dir {del_dir} successful")
+            tdLog.info(f"delete dir {del_dir} successful")
         except OSError as x:
-            tdLog.exit(f" remove path {del_dir} error : {x.strerror}")
+            tdLog.exit(f"remove path {del_dir} error : {x.strerror}")
 
         # start dnode 
         dnode.starttaosd()
@@ -223,7 +223,9 @@ class TDTestCase:
         # path exist
         qfile = f"{del_dir}/qnode.json"
         if os.path.exists(qfile) == False:
-            tdLog.exit(f" qnode restore failed. qnode.json is not exist. {qfile}")
+            tdLog.exit(f"qnode restore failed. qnode.json is not exist. {qfile}")
+        else:
+            tdLog.info(f"check qnode.json restore ok. {qfile}")
 
     
     # run
