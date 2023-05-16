@@ -1,10 +1,27 @@
 #include <gtest/gtest.h>
 
+#include "streamBackendRocksdb.h"
+#include "tstream.h"
 #include "tstreamUpdate.h"
 #include "ttime.h"
 
 using namespace std;
 #define MAX_NUM_SCALABLE_BF 100000
+
+class StreamStateEnv : public ::testing::Test {
+ protected:
+  virtual void SetUp() {
+    streamMetaInit();
+    backend = streamBackendInit(path);
+  }
+  virtual void TearDown() {
+    streamMetaCleanup();
+    // indexClose(index);
+  }
+
+  const char *path = TD_TMP_DIR_PATH "stream";
+  void       *backend;
+};
 
 bool equalSBF(SScalableBf *left, SScalableBf *right) {
   if (left->growth != right->growth) return false;
@@ -191,8 +208,9 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
   // updateInfoDestroy(pSU6);
   // updateInfoDestroy(pSU7);
 }
-
-int main(int argc, char *argv[]) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+// TEST()
+TEST(StreamStateEnv, test1) {}
+// int main(int argc, char *argv[]) {
+//   testing::InitGoogleTest(&argc, argv);
+//   return RUN_ALL_TESTS();
+// }
