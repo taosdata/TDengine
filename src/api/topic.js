@@ -25,7 +25,7 @@ export function createTopic(sql) {
 }
 
 export function delTopic(name) {
-  return sendSQLReq("DROP TOPIC " + name);
+  return sendSQLReq(`DROP TOPIC  \`${name}\``);
 }
 
 export function delConsumer(name) {

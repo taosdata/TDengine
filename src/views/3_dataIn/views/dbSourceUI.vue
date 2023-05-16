@@ -473,7 +473,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
-import { decrypt, debounce } from "@/utils/index";
+import { debounce } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   props: {

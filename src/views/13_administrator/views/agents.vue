@@ -14,7 +14,6 @@
       }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="agentList" size="mini">
-
       <el-table-column label="ID" prop="id" width="60"></el-table-column>
 
       <el-table-column
@@ -34,7 +33,7 @@
         width="200"
       >
         <template slot-scope="scope">
-          <span>{{ scope.row.connectors.join(',') }}</span>
+          <span>{{ scope.row.connectors.join(",") }}</span>
         </template></el-table-column
       >
       <el-table-column
@@ -159,7 +158,6 @@
 
         <el-form-item :label="$t('taosagents.connectors')" prop="connectors">
           <el-select v-model="ruleForm.connectors" placeholder="" multiple>
-
             <el-option
               v-for="db in connectorList"
               :key="db.id"
@@ -170,21 +168,17 @@
           </el-select>
         </el-form-item>
         <el-form-item
-
           :label="$t('taosagents.expire_date')"
           prop="expire_date"
           expire_time
-
         >
           <el-date-picker
             v-model="ruleForm.expire_date"
             style="width: 100%"
             :picker-options="expireTimeOPtion"
-
             type="date"
             format="yyyy-MM-dd"
           ></el-date-picker>
-
         </el-form-item>
       </el-form>
 
@@ -226,7 +220,6 @@
   </div>
 </template>
 <script>
-
 import {
   getAgentsData,
   addNewAgent,
@@ -265,7 +258,6 @@ export default {
         name: "",
         connectors: "",
         expire_date: "",
-
       },
       rules: {
         name: [
@@ -287,15 +279,12 @@ export default {
             message: this.$t("taosagents.rules.expire_date"),
             trigger: "blur",
             required: true,
-
-
           },
         ],
       },
       agentList: [],
 
       connectorList: [],
-
     };
   },
   computed: {
@@ -304,7 +293,7 @@ export default {
         return true;
       }
 
-      if (!this.ruleForm.connectors) {
+      if (this.ruleForm.connectors == "") {
         return true;
       }
       if (!this.ruleForm.expire_date) {
@@ -431,14 +420,15 @@ export default {
         let result = await getUIData();
         this.connectorList =
           result.length > 0
-            ? result.map((item) => {
-                return {
-                  id: item.id,
-                  name: item.name,
-                };
-              }).filter(val=>val.id!='tmq')
+            ? result
+                .map((item) => {
+                  return {
+                    id: item.id,
+                    name: item.name,
+                  };
+                })
+                .filter((val) => val.id != "tmq")
             : [];
-
       } catch (error) {
         console.log(error);
       }

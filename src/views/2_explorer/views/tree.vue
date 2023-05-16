@@ -60,7 +60,7 @@
                   effect="light"
                   placement="top"
                   :content="getTooltip(data, 'view')"
-                  v-if="!['sfile', 'nfile'].includes(data.typeName)"
+                  v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
                 >
                   <i
                     class="el-icon-view operate-icon"
@@ -85,13 +85,13 @@
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'edit')"
-                    v-if="!['sfile', 'nfile'].includes(data.typeName)"
+                    v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
                   >
                     <i
                       v-permission
                       class="el-icon-edit operate-icon"
                       @click.stop="edit(data, node)"
-                      v-if="!['sfile', 'nfile'].includes(data.typeName)"
+                      v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
                     ></i>
                   </el-tooltip>
                   <template v-if="isRoot === 'root'">
@@ -113,13 +113,13 @@
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'del')"
-                    v-if="!['sfile', 'nfile'].includes(data.typeName)"
+                    v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
                   >
                     <i
                       v-permission
                       class="el-icon-delete operate-icon"
                       @click.stop="del(data, node)"
-                      v-if="!['sfile', 'nfile'].includes(data.typeName)"
+                      v-if="!['sfile', 'nfile','column','tag'].includes(data.typeName)"
                     ></i>
                   </el-tooltip>
                 </template>
@@ -185,6 +185,7 @@ import PanelHeader from "./components/panelHeader.vue";
 import VueEasyTree from "@/components/Tree";
 import { deepClone } from "@/utils";
 import moment from "moment";
+import { Message } from "element-ui";
 const clickNoChange = ["sql", "xterm"];
 export default {
   props: {
@@ -557,6 +558,9 @@ export default {
               .then(() => {
                 this.$message.success(this.$t("delSucc"));
               })
+              .catch((err) => {
+                err.desc && Message.error(err.desc);
+              })
               .finally(() => {
                 this.requesting = false;
               });
@@ -580,6 +584,9 @@ export default {
               })
               .then(() => {
                 this.$message.success(this.$t("delSucc"));
+              })
+              .catch((err) => {
+                err.desc && Message.error(err.desc);
               })
               .finally(() => {
                 this.requesting = false;
@@ -606,6 +613,9 @@ export default {
               .dispatch("tables/deleteTable", data.name)
               .then(() => {
                 this.$message.success(this.$t("delSucc"));
+              })
+              .catch((err) => {
+                err.desc && Message.error(err.desc);
               })
               .finally(() => {
                 this.requesting = false;
@@ -662,6 +672,12 @@ export default {
           view: this.$t("data.viewTable"),
           del: this.$t("data.delTable"),
         },
+        column:{
+          view:this.$t("data.viewTable"),
+        },
+        tag:{
+          view:this.$t("data.viewTable"),
+        }
       };
       return obj[data.typeName][operate];
     },
