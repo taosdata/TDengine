@@ -56,10 +56,11 @@ type PointsConfig struct {
 }
 
 type CollectConfig struct {
-	Interval int64           `json:"interval,omitempty" yaml:"interval" toml:"interval"`
-	Limit    int             `json:"limit,omitempty" yaml:"limit" toml:"limit"`
-	Ua       UaCollectConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
-	Da       DaCollectConfig `json:"da,omitempty" yaml:"da" toml:"da"`
+	Interval    int64           `json:"interval,omitempty" yaml:"interval" toml:"interval"`
+	Limit       int             `json:"limit,omitempty" yaml:"limit" toml:"limit"`
+	ContainsBad bool            `json:"contains_bad,omitempty" yaml:"contains_bad" toml:"contains_bad"`
+	Ua          UaCollectConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
+	Da          DaCollectConfig `json:"da,omitempty" yaml:"da" toml:"da"`
 }
 
 type UaCollectConfig struct {
@@ -211,10 +212,12 @@ func (r *ReportConfig) Validate() error {
 
 type NodeValue struct {
 	Identifier string    `json:"identifier,omitempty"`
+	Name       string    `json:"name,omitempty"`
 	Timestamp  time.Time `json:"timestamp,omitempty"`
 	Now        time.Time `json:"now,omitempty"`
 	Value      any       `json:"value,omitempty"`
 	ValueType  ValueType `json:"value_type,omitempty"`
+	Status     int64     `json:"status,omitempty"`
 }
 
 type Point struct {

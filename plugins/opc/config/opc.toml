@@ -26,6 +26,7 @@ regex = "^My.*" # regex for point name
 [collect]
 interval = 1 # collect data interval in second for opc ua observe mode and opc da
 limit = 200 # max node for read in one request.
+contains_bad = false # collect bad node when collect data
 
 [collect.ua]
 collect_mode = "subscribe" # observe or subscribe. default is observe

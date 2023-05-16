@@ -29,19 +29,25 @@ const (
 	disconnected
 )
 
+type daTag struct {
+	tag       string
+	name      string
+	valueType common.ValueType
+}
+
 type reader struct {
-	client     opc.Connection
-	server     string
-	nodes      []string
-	tags       []string
-	valueTypes map[string]common.ValueType
-	state      state
-	interval   time.Duration
-	pointLimit int
-	pointRegex *regexp.Regexp
-	mutex      sync.Mutex
-	done       chan struct{}
-	debug      bool
+	client      opc.Connection
+	server      string
+	nodes       []string
+	tags        map[string]*daTag
+	state       state
+	interval    time.Duration
+	pointLimit  int
+	pointRegex  *regexp.Regexp
+	mutex       sync.Mutex
+	done        chan struct{}
+	containsBad bool
+	debug       bool
 }
 
 func newReader(config common.Config) (*reader, error) {
@@ -53,16 +59,6 @@ func newReader(config common.Config) (*reader, error) {
 		config.Collect.Interval = 1
 	}
 
-	tags := make([]string, 0, len(config.Collect.Da.Tags))
-	valueTypes := make(map[string]common.ValueType, len(config.Collect.Da.Tags))
-	for _, tag := range config.Collect.Da.Tags {
-		tags = append(tags, tag.Tag)
-		vt, err := common.ValueTypeFromString(tag.ValueType)
-		if err != nil {
-			return nil, fmt.Errorf("create opc da connector error %v", err)
-		}
-		valueTypes[tag.Tag] = vt
-	}
 	var pointRegex *regexp.Regexp
 	if len(config.Points.Regex) > 0 {
 		reg, err := regexp.Compile(config.Points.Regex)
@@ -73,16 +69,35 @@ func newReader(config common.Config) (*reader, error) {
 	}
 
 	r := reader{
-		server:     config.Connect.Da.Server,
-		nodes:      config.Connect.Da.Nodes,
-		valueTypes: valueTypes,
-		tags:       tags,
-		interval:   time.Duration(config.Collect.Interval) * time.Second,
-		pointLimit: config.Points.Limit,
-		pointRegex: pointRegex,
-		done:       make(chan struct{}, 1),
-		debug:      config.Debug,
+		server:      config.Connect.Da.Server,
+		nodes:       config.Connect.Da.Nodes,
+		interval:    time.Duration(config.Collect.Interval) * time.Second,
+		pointLimit:  config.Points.Limit,
+		pointRegex:  pointRegex,
+		done:        make(chan struct{}, 1),
+		containsBad: config.Collect.ContainsBad,
+		debug:       config.Debug,
 	}
+
+	allTags, err := r.getAllTags(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("get all da node error %v", err)
+	}
+	tagName := make(map[string]string, len(allTags))
+	for _, tag := range allTags {
+		tagName[tag.ID] = tag.Name
+	}
+
+	tags := make(map[string]*daTag, len(config.Collect.Da.Tags))
+	for _, tag := range config.Collect.Da.Tags {
+		vt, err := common.ValueTypeFromString(tag.ValueType)
+		if err != nil {
+			return nil, fmt.Errorf("create opc da connector error %v", err)
+		}
+		tags[tag.Tag] = &daTag{tag: tag.Tag, name: tagName[tag.Tag], valueType: vt}
+	}
+	r.tags = tags
+
 	return &r, nil
 }
 
@@ -102,7 +117,11 @@ func (r *reader) connect(_ context.Context) error {
 		r.client.Close()
 	}
 
-	conn, err := opc.NewConnection(r.server, r.nodes, r.tags)
+	tags := make([]string, 0, len(r.tags))
+	for _, t := range r.tags {
+		tags = append(tags, t.tag)
+	}
+	conn, err := opc.NewConnection(r.server, r.nodes, tags)
 	if err != nil {
 		return fmt.Errorf("connect to opc da error. %v", err)
 	}
@@ -165,16 +184,18 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 					if r.debug {
 						log.Printf("## read data for identifier. id %s. item %v, value type %T", id, item, item.Value)
 					}
-					if !item.Good() {
+					if !item.Good() && !r.containsBad {
 						log.Printf("## read data for identifier %q status %v is not ok ", id, item)
 						continue
 					}
 					ch <- &common.NodeValue{
 						Identifier: id,
+						Name:       r.tags[id].name,
 						Timestamp:  item.Timestamp,
 						Now:        time.Now(),
 						Value:      item.Value,
-						ValueType:  r.valueTypes[id],
+						ValueType:  r.tags[id].valueType,
+						Status:     int64(uint32(item.Quality)),
 					}
 				}
 			}
@@ -190,7 +211,7 @@ func (r *reader) getAllTags(ctx context.Context) ([]common.Point, error) {
 	}
 	tree, err := opc.CreateBrowser(r.server, r.nodes)
 	if err != nil {
-		return nil, fmt.Errorf("create browser error %v", err)
+		return nil, fmt.Errorf("get all tags error. create browser error %v", err)
 	}
 
 	return r.browse(tree), nil
