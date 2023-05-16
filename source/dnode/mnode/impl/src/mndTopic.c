@@ -740,7 +740,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   mndTransSetDbName(pTrans, pTopic->db, NULL);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mndReleaseTopic(pMnode, pTopic);
     mndTransDrop(pTrans);
     return -1;

@@ -52,7 +52,7 @@ static bool    mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
-static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
+static bool    mndTransPerformFinishedStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsLeader(pMnode); }
 
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
@@ -872,7 +872,7 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
   return conflict;
 }
 
-int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
+int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans) {
   if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
     if (strlen(pTrans->dbname) == 0 && strlen(pTrans->stbname) == 0) {
       terrno = TSDB_CODE_MND_TRANS_CONFLICT;
@@ -891,7 +891,7 @@ int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     return -1;
   }
 
@@ -1528,7 +1528,7 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
   return continueExec;
 }
 
-static bool mndTransPerfromPreFinishedStage(SMnode *pMnode, STrans *pTrans) {
+static bool mndTransPerformPreFinishStage(SMnode *pMnode, STrans *pTrans) {
   if (mndCannotExecuteTransAction(pMnode)) return false;
 
   bool    continueExec = true;
@@ -1547,7 +1547,7 @@ static bool mndTransPerfromPreFinishedStage(SMnode *pMnode, STrans *pTrans) {
   return continueExec;
 }
 
-static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
+static bool mndTransPerformFinishedStage(SMnode *pMnode, STrans *pTrans) {
   bool continueExec = false;
 
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
@@ -1605,14 +1605,14 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans, bool isLeader) {
         break;
       case TRN_STAGE_PRE_FINISH:
         if (isLeader) {
-          continueExec = mndTransPerfromPreFinishedStage(pMnode, pTrans);
+          continueExec = mndTransPerformPreFinishStage(pMnode, pTrans);
         } else {
           mInfo("trans:%d, can not pre-finish since not leader", pTrans->id);
           continueExec = false;
         }
         break;
       case TRN_STAGE_FINISHED:
-        continueExec = mndTransPerfromFinishedStage(pMnode, pTrans);
+        continueExec = mndTransPerformFinishedStage(pMnode, pTrans);
         break;
       default:
         continueExec = false;
