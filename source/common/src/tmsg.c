@@ -1718,7 +1718,12 @@ int32_t tDeserializeSDropDnodeReq(void *buf, int32_t bufLen, SDropDnodeReq *pReq
   if (tDecodeCStrTo(&decoder, pReq->fqdn) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->port) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->force) < 0) return -1;
-  if (tDecodeI8(&decoder, &pReq->unsafe) < 0) return -1;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->unsafe) < 0) return -1;
+  } else {
+    pReq->unsafe = false;
+  }
+  
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
