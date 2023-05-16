@@ -430,7 +430,7 @@
                     ></el-checkbox>
                   </template>
                 </template>
-                <template v-if="p.hint.type && p.hint.type === 'bool'">
+                <template v-else-if="p.hint.type && p.hint.type === 'bool'">
                   <!-- <el-radio-group v-model="p.value">
                     <el-radio v-for="c in p.choices" :key="c" :label="c">
                       {{ c }}
