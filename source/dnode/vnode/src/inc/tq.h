@@ -102,6 +102,7 @@ typedef struct {
   STqExecHandle execHandle;    // exec
   SRpcMsg*      msg;
   int32_t       noDataPollCnt;
+  int8_t        exec;
 } STqHandle;
 
 typedef struct {
@@ -184,6 +185,7 @@ int32_t tqStreamTasksScanWal(STQ* pTq);
 char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
+bool    tqIsHandleExecuting(STqHandle* pHandle);
 
 #ifdef __cplusplus
 }
