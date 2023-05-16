@@ -109,7 +109,10 @@ void* streamBackendInit(const char* path) {
     if (err != NULL) {
       qError("failed to open rocksdb, path:%s, reason:%s", path, err);
       taosMemoryFreeClear(err);
+      rocksdb_list_column_families_destroy(cfs, nCf);
+      goto _EXIT;
     }
+
   } else {
     /*
       list all cf and get prefix
@@ -151,6 +154,11 @@ _EXIT:
 }
 void streamBackendCleanup(void* arg) {
   SBackendHandle* pHandle = (SBackendHandle*)arg;
+  if (pHandle == NULL || pHandle->db == NULL) {
+    taosMemoryFree(pHandle);
+    return;
+  }
+
   RocksdbCfInst** pIter = (RocksdbCfInst**)taosHashIterate(pHandle->cfInst, NULL);
   while (pIter != NULL) {
     RocksdbCfInst* inst = *pIter;
@@ -158,7 +166,6 @@ void streamBackendCleanup(void* arg) {
     taosHashIterate(pHandle->cfInst, pIter);
   }
   taosHashCleanup(pHandle->cfInst);
-
   rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
   char*                   err = NULL;
   rocksdb_flush(pHandle->db, flushOpt, &err);
@@ -167,8 +174,8 @@ void streamBackendCleanup(void* arg) {
     taosMemoryFree(err);
   }
   rocksdb_flushoptions_destroy(flushOpt);
-
   rocksdb_close(pHandle->db);
+
   rocksdb_options_destroy(pHandle->dbOpt);
   rocksdb_env_destroy(pHandle->env);
   rocksdb_cache_destroy(pHandle->cache);
@@ -180,7 +187,6 @@ void streamBackendCleanup(void* arg) {
     taosMemoryFree(head);
     head = tdListPopHead(pHandle->list);
   }
-  // rocksdb_compactionfilterfactory_destroy(pHandle->filterFactory);
   tdListFree(pHandle->list);
   taosThreadMutexDestroy(&pHandle->cfMutex);
 

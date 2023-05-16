@@ -90,6 +90,10 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   pMeta->streamBackend = streamBackendInit(streamPath);
+  if (pMeta->streamBackend == NULL) {
+    terrno = -1;
+    goto _err;
+  }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
   taosMemoryFree(streamPath);
@@ -105,7 +109,6 @@ _err:
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
-  // if (pMeta->streamBackend) streamBackendCleanup(pMeta->streamBackend);
   taosMemoryFree(pMeta);
   qError("failed to open stream meta");
   return NULL;
