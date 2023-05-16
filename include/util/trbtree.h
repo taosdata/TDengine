@@ -67,9 +67,9 @@ struct SRBTree {
 };
 
 struct SRBTreeIter {
-  int8_t       asc;
-  SRBTree     *pTree;
-  SRBTreeNode *pNode;
+  int8_t         asc;
+  const SRBTree *pTree;
+  SRBTreeNode   *pNode;
 };
 
 #ifdef __cplusplus

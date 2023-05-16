@@ -20,20 +20,24 @@ static int32_t stt_lvl_to_json(const SSttLvl *lvl, cJSON *json) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  cJSON *arr = cJSON_AddArrayToObject(json, "stt");
-  if (arr == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  cJSON *ajson = cJSON_AddArrayToObject(json, "stt");
+  if (ajson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  // TODO: .stt files
-  // STFile *f;
-  // LISTD_FOREACH(&lvl->fstt, f, listNode) {
-  //   cJSON *item = cJSON_CreateObject();
-  //   if (item == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  SRBTreeIter iter = tRBTreeIterCreate(&lvl->sttTree, 1);
+  for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
+    STFileObj *fobj = TCONTAINER_OF(node, STFileObj, rbtn);
 
-  //   int32_t code = tsdbTFileToJson(f, item);
-  //   if (code) return code;
+    cJSON *item = cJSON_CreateObject();
+    if (item == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  //   cJSON_AddItemToArray(arr, item);
-  // }
+    int32_t code = tsdbTFileToJson(&fobj->f, item);
+    if (code) {
+      cJSON_Delete(item);
+      return code;
+    }
+
+    cJSON_AddItemToArray(ajson, item);
+  }
 
   return 0;
 }
@@ -69,24 +73,20 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
       continue;
     }
 
-    // code = tsdbTFileToJson(fset->farr[ftype], json);
-    // if (code) return code;
+    code = tsdbTFileToJson(&fset->farr[ftype]->f, json);
+    if (code) return code;
   }
 
   // each level
   cJSON *ajson = cJSON_AddArrayToObject(json, "stt");
   if (ajson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  SSttLvl *sttLvl;
-  // LISTD_FOREACH(&fset->lvl0, sttLvl, listNode) {
-  //   cJSON *ljson = cJSON_CreateObject();
-  //   if (ljson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
-  //   code = stt_lvl_to_json(sttLvl, ljson);
-  //   if (code) return code;
-
-  //   cJSON_AddItemToArray(ajson, ljson);
-  // }
+  SRBTreeIter iter = tRBTreeIterCreate(&fset->lvlTree, 1);
+  for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
+    SSttLvl *lvl = TCONTAINER_OF(node, SSttLvl, rbtn);
+    code = stt_lvl_to_json(lvl, ajson);
+    if (code) return code;
+  }
 
   return 0;
 }

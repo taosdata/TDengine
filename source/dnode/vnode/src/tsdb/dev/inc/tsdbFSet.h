@@ -60,7 +60,7 @@ typedef struct SSttLvl {
 struct STFileSet {
   int32_t    fid;
   STFileObj *farr[TSDB_FTYPE_MAX];  // file array
-  SRBTree    lvlTree;               // level tree of .stt
+  SRBTree    lvlTree;               // SRBTree<SSttLvl>, level tree of .stt
 };
 
 #ifdef __cplusplus

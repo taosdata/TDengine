@@ -118,6 +118,8 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define VND_CHECK_CODE(CODE, LINO, LABEL) TSDB_CHECK_CODE(CODE, LINO, LABEL)
 
+#define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
+
 #ifdef __cplusplus
 }
 #endif
