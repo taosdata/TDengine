@@ -265,9 +265,10 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         # nchar
         # * legal nchar could not be larger than 16374/4
         stb_name = self.tdCom.get_long_name()
-        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])} c0=f 1626006833639000000'
+        legal_length = int(len(self.tdCom.get_long_name(self.tdCom.boundary_config["TAG_COLUMN_MAX_LENGTH"]))/4)
+        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(legal_length)} c0=f 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-        input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(legal_length+1)} c0=f 1626006833639000000'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
@@ -559,7 +560,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.checkNotEqual(tb_name1, tb_name3)
 
-    # * tag binary max is 16384, col+ts binary max  49151
     def tag_col_binary_max_length_check(self):
         """
         every binary and nchar must be length+2
@@ -571,15 +571,14 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         input_sql = f'{stb_name},id={tb_name},t0=t c0=f 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
-        # # * check col，col+ts max in describe ---> 16143
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c4="{self.tdCom.get_long_name(7)}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}" 1626006833639000000'
         # old logic
         # input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c4="{self.tdCom.get_long_name(12)}" 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c4="{self.tdCom.get_long_name(9)}" 1626006833639000000'
+        input_sql = f'{stb_name},t0=t c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c2="{self.tdCom.get_long_name(1)}" 1626006833639000000'
         # old logic
         # input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c2="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c3="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"])}",c4="{self.tdCom.get_long_name(13)}" 1626006833639000000'
         try:
@@ -590,7 +589,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
 
-    # * tag nchar max is 16374/4, col+ts nchar max  49151
     def tag_col_nchar_max_length_check(self):
         """
         check nchar length limit
@@ -601,16 +599,13 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         tb_name = f'{stb_name}_1'
         input_sql = f'{stb_name},id={tb_name},t2={self.tdCom.get_long_name(1)} c0=f 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
-
-        # * legal nchar could not be larger than 16374/4
-        # TODO confirm
-        # input_sql = f'{stb_name},t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]-9)},t2={self.tdCom.get_long_name(1)} c0=f 1626006833639000000'
+        legal_length = int(len(self.tdCom.get_long_name(self.tdCom.boundary_config["TAG_COLUMN_MAX_LENGTH"]))/4)
         # * when < 1024 nchar_length -> 2^n
-        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]-17)},t2={self.tdCom.get_long_name(1)} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(legal_length-19)},t2={self.tdCom.get_long_name(1)} c0=f 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
-        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]-16)},t2={self.tdCom.get_long_name(1)} c0=f 1626006833639000000'
+        input_sql = f'{stb_name},t1={self.tdCom.get_long_name(legal_length-18)},t2={self.tdCom.get_long_name(1)} c0=f 1626006833639000000'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
@@ -619,11 +614,11 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
 
-        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1)} c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c2=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c3=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c4=L"{self.tdCom.get_long_name(3)}" 1626006833639000000'
+        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1)} c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c2=t,c3=t,c4=t,c5=t 1626006833639000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1)} c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c2=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c3=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c4=L"{self.tdCom.get_long_name(5)}" 1626006833639000000'
+        input_sql = f'{stb_name},t2={self.tdCom.get_long_name(1)} c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}",c2=t,c3=t,c4=t,c5=t,c6=t 1626006833639000000'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             raise Exception("should not reach here")
@@ -1117,9 +1112,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(int(end_time-start_time)<2, True)
 
     def test(self):
-        # self.ts_3264()
-        # self.tag_col_nchar_max_length_check()
-        self.tag_col_binary_max_length_check()
+        self.tbname_tags_cols_name_check()
         return
         self.tdSql.execute('drop database if exists iot_dev;')
         self.tdSql.execute('create database if not exists iot_dev precision "ns";')
@@ -1208,7 +1201,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.chinese_check()
             self.spell_check()
             self.default_type_check()
-            # self.tbname_tags_cols_name_check()
+            self.tbname_tags_cols_name_check()
             self.stb_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
@@ -1222,7 +1215,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
 
-            self.ts_2828(10, 10, 5)
+            self.ts_2828(10, 10, 3)
             self.ts_3053()
             self.ts_3146()
             self.ts_3116()
