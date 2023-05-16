@@ -37,7 +37,7 @@ typedef enum {
 #define TSDB_FTYPE_MAX (TSDB_FTYPE_TOMB + 1)
 
 int32_t tsdbTFileToJson(const STFile *f, cJSON *json);
-int32_t tsdbTFileFromJson(const cJSON *json, tsdb_ftype_t ftype, STFile **f);
+int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f);
 
 // create/destroy
 int32_t tsdbTFileCreate(const STFile *pFile, STFile **f);

@@ -111,7 +111,7 @@ static int32_t save_json(const cJSON *json, const char *fname) {
     goto _exit;
   }
 
-  if (taosWriteFile(fp, data, strlen(data) + 1) < 0) {
+  if (taosWriteFile(fp, data, strlen(data)) < 0) {
     code = TAOS_SYSTEM_ERROR(code);
     goto _exit;
   }
@@ -130,7 +130,7 @@ _exit:
 
 static int32_t load_json(const char *fname, cJSON **json) {
   int32_t code = 0;
-  void   *data = NULL;
+  char   *data = NULL;
 
   TdFilePtr fp = taosOpenFile(fname, TD_FILE_READ);
   if (fp == NULL) return TAOS_SYSTEM_ERROR(code);
@@ -141,7 +141,7 @@ static int32_t load_json(const char *fname, cJSON **json) {
     goto _exit;
   }
 
-  data = taosMemoryMalloc(size);
+  data = taosMemoryMalloc(size + 1);
   if (data == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -151,6 +151,7 @@ static int32_t load_json(const char *fname, cJSON **json) {
     code = TAOS_SYSTEM_ERROR(code);
     goto _exit;
   }
+  data[size] = '\0';
 
   json[0] = cJSON_Parse(data);
   if (json[0] == NULL) {
@@ -170,7 +171,7 @@ static int32_t save_fs(SArray *aTFileSet, const char *fname) {
   int32_t lino = 0;
 
   cJSON *json = cJSON_CreateObject();
-  if (json == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (!json) return TSDB_CODE_OUT_OF_MEMORY;
 
   // fmtv
   if (cJSON_AddNumberToObject(json, "fmtv", 1) == NULL) {
@@ -180,9 +181,7 @@ static int32_t save_fs(SArray *aTFileSet, const char *fname) {
 
   // fset
   cJSON *ajson = cJSON_AddArrayToObject(json, "fset");
-  if (ajson == NULL) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
-  }
+  if (!ajson) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   for (int32_t i = 0; i < taosArrayGetSize(aTFileSet); i++) {
     STFileSet *pFileSet = (STFileSet *)taosArrayGet(aTFileSet, i);
     cJSON     *item;
@@ -206,7 +205,7 @@ _exit:
   return code;
 }
 
-static int32_t load_fs(const char *fname, SArray *aTFileSet, int64_t *eid) {
+static int32_t load_fs(const char *fname, SArray *aTFileSet) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -228,25 +227,15 @@ static int32_t load_fs(const char *fname, SArray *aTFileSet, int64_t *eid) {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
-  /* eid */
-  item = cJSON_GetObjectItem(json, "eid");
-  if (cJSON_IsNumber(item)) {
-    eid[0] = item->valuedouble;
-  } else {
-    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
-  }
-
   /* fset */
   item = cJSON_GetObjectItem(json, "fset");
   if (cJSON_IsArray(item)) {
     const cJSON *titem;
     cJSON_ArrayForEach(titem, item) {
-      STFileSet *pFileSet;
-      if ((pFileSet = taosArrayReserve(aTFileSet, 1)) == NULL) {
-        TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
-      }
+      STFileSet *fset = taosArrayReserve(aTFileSet, 1);
+      if (!fset) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
 
-      code = tsdbFileSetFromJson(titem, pFileSet);
+      code = tsdbJsonToFileSet(titem, fset);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else {
@@ -359,7 +348,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   current_fname(pTsdb, mCurrent, TSDB_FCURRENT_M);
 
   if (taosCheckExistFile(fCurrent)) {  // current.json exists
-    code = load_fs(fCurrent, fs->cstate, &fs->neid);
+    code = load_fs(fCurrent, fs->cstate);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (taosCheckExistFile(cCurrent)) {
@@ -370,7 +359,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
         code = abort_edit(fs);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        code = load_fs(cCurrent, fs->nstate, &fs->eid);
+        code = load_fs(cCurrent, fs->nstate);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         code = commit_edit(fs);

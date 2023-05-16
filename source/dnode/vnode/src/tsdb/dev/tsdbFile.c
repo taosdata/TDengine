@@ -212,23 +212,23 @@ int32_t tsdbTFileToJson(const STFile *file, cJSON *json) {
   }
 }
 
-int32_t tsdbTFileFromJson(const cJSON *json, tsdb_ftype_t ftype, STFile **f) {
-  const cJSON *item = cJSON_GetObjectItem(json, g_tfile_info[ftype].suffix);
-  if (cJSON_IsObject(item)) {
-    f[0] = (STFile *)taosMemoryMalloc(sizeof(*f[0]));
-    if (f[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f) {
+  f[0] = (STFile){.type = ftype};
 
-    int32_t code = g_tfile_info[ftype].from_json(item, f[0]);
-    if (code) {
-      taosMemoryFree(f[0]);
-      f[0] = NULL;
-      return code;
-    }
-    tsdbTFileInit(NULL /* TODO */, f[0]);
+  if (ftype == TSDB_FTYPE_STT) {
+    int32_t code = g_tfile_info[ftype].from_json(json, f);
+    if (code) return code;
   } else {
-    f[0] = NULL;
+    const cJSON *item = cJSON_GetObjectItem(json, g_tfile_info[ftype].suffix);
+    if (cJSON_IsObject(item)) {
+      int32_t code = g_tfile_info[ftype].from_json(item, f);
+      if (code) return code;
+    } else {
+      return TSDB_CODE_NOT_FOUND;
+    }
   }
 
+  // TODO: tsdbTFileInit(NULL, f);
   return 0;
 }
 

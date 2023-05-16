@@ -56,6 +56,29 @@ static int32_t add_file(STFileSet *fset, STFile *f) {
   return 0;
 }
 
+static int32_t stt_lvl_cmpr(const SRBTreeNode *n1, const SRBTreeNode *n2) {
+  SSttLvl *lvl1 = TCONTAINER_OF(n1, SSttLvl, rbtn);
+  SSttLvl *lvl2 = TCONTAINER_OF(n2, SSttLvl, rbtn);
+
+  if (lvl1->lvl < lvl2->lvl) {
+    return -1;
+  } else if (lvl1->lvl > lvl2->lvl) {
+    return 1;
+  }
+  return 0;
+}
+
+static int32_t fset_init(STFileSet *fset) {
+  memset(fset, 0, sizeof(*fset));
+  tRBTreeCreate(&fset->lvlTree, stt_lvl_cmpr);
+  return 0;
+}
+
+static int32_t fset_clear(STFileSet *fset) {
+  // TODO
+  return 0;
+}
+
 int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   int32_t code = 0;
 
@@ -85,8 +108,10 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   return 0;
 }
 
-int32_t tsdbFileSetFromJson(const cJSON *json, STFileSet *fset) {
+int32_t tsdbJsonToFileSet(const cJSON *json, STFileSet *fset) {
   const cJSON *item;
+
+  fset_init(fset);
 
   /* fid */
   item = cJSON_GetObjectItem(json, "fid");
@@ -96,9 +121,19 @@ int32_t tsdbFileSetFromJson(const cJSON *json, STFileSet *fset) {
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
+  int32_t code;
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    // int32_t code = tsdbTFileFromJson(json, ftype, &fset->farr[ftype]->f);
-    // if (code) return code;
+    STFile tf;
+    code = tsdbJsonToTFile(json, ftype, &tf);
+    if (code == TSDB_CODE_NOT_FOUND) {
+      continue;
+    } else if (code) {
+      return code;
+    } else {
+      // TODO
+      // code = tsdbFileObjCreate(&tf, &fset->farr[ftype]);
+      // if (code) return code;
+    }
   }
 
   // each level
