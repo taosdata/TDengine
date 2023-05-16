@@ -206,9 +206,6 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 }
 
 func (r *reader) getAllTags(ctx context.Context) ([]common.Point, error) {
-	if err := r.ensureConnect(ctx); err != nil {
-		return nil, err
-	}
 	tree, err := opc.CreateBrowser(r.server, r.nodes)
 	if err != nil {
 		return nil, fmt.Errorf("get all tags error. create browser error %v", err)
@@ -227,7 +224,7 @@ func (r *reader) browse(tree *opc.Tree) (points []common.Point) {
 			break
 		}
 
-		t := front.Value.(*opc.Tree)
+		t := l.Remove(front).(*opc.Tree)
 		for _, leave := range t.Leaves {
 			if r.pointRegex != nil && !r.pointRegex.MatchString(leave.Name) {
 				continue
@@ -237,7 +234,7 @@ func (r *reader) browse(tree *opc.Tree) (points []common.Point) {
 				ID:   leave.Tag,
 				Name: leave.Name,
 			})
-			if len(points) >= r.pointLimit {
+			if r.pointLimit > 0 && len(points) >= r.pointLimit {
 				return
 			}
 		}
