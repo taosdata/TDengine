@@ -52,7 +52,7 @@ static bool    mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
-static bool    mndTransPerformFinishedStage(SMnode *pMnode, STrans *pTrans);
+static bool    mndTransPerformFinishStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsLeader(pMnode); }
 
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
@@ -458,7 +458,7 @@ static const char *mndTransStr(ETrnStage stage) {
       return "commit";
     case TRN_STAGE_COMMIT_ACTION:
       return "commitAction";
-    case TRN_STAGE_FINISHED:
+    case TRN_STAGE_FINISH:
       return "finished";
     case TRN_STAGE_PRE_FINISH:
       return "pre-finish";
@@ -607,7 +607,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   }
 
   if (pOld->stage == TRN_STAGE_PRE_FINISH) {
-    pOld->stage = TRN_STAGE_FINISHED;
+    pOld->stage = TRN_STAGE_FINISH;
     mTrace("trans:%d, stage from pre-finish to finished since perform update action", pNew->id);
   }
 
@@ -961,7 +961,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   bool    sendRsp = false;
   int32_t code = pTrans->code;
 
-  if (pTrans->stage == TRN_STAGE_FINISHED) {
+  if (pTrans->stage == TRN_STAGE_FINISH) {
     sendRsp = true;
   }
 
@@ -1476,7 +1476,7 @@ static bool mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans) {
 
   if (code == 0) {
     pTrans->code = 0;
-    pTrans->stage = TRN_STAGE_FINISHED;  // TRN_STAGE_PRE_FINISH is not necessary
+    pTrans->stage = TRN_STAGE_FINISH;  // TRN_STAGE_PRE_FINISH is not necessary
     mInfo("trans:%d, stage from commitAction to finished", pTrans->id);
     continueExec = true;
   } else {
@@ -1535,7 +1535,7 @@ static bool mndTransPerformPreFinishStage(SMnode *pMnode, STrans *pTrans) {
   int32_t code = mndTransPreFinish(pMnode, pTrans);
 
   if (code == 0) {
-    pTrans->stage = TRN_STAGE_FINISHED;
+    pTrans->stage = TRN_STAGE_FINISH;
     mInfo("trans:%d, stage from pre-finish to finish", pTrans->id);
     continueExec = true;
   } else {
@@ -1547,7 +1547,7 @@ static bool mndTransPerformPreFinishStage(SMnode *pMnode, STrans *pTrans) {
   return continueExec;
 }
 
-static bool mndTransPerformFinishedStage(SMnode *pMnode, STrans *pTrans) {
+static bool mndTransPerformFinishStage(SMnode *pMnode, STrans *pTrans) {
   bool continueExec = false;
 
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
@@ -1611,8 +1611,8 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans, bool isLeader) {
           continueExec = false;
         }
         break;
-      case TRN_STAGE_FINISHED:
-        continueExec = mndTransPerformFinishedStage(pMnode, pTrans);
+      case TRN_STAGE_FINISH:
+        continueExec = mndTransPerformFinishStage(pMnode, pTrans);
         break;
       default:
         continueExec = false;
