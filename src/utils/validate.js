@@ -95,7 +95,7 @@ export function isIPUrl(url) {
 }
 
 export function validUnit(arg) {
-  return /^(([1-9][0-9]*))+(([hdm0-9]))$/g.test(arg)
+  return /^(([1-9][0-9]*))+(([hdm0-9]))(,(([1-9][0-9]*))+(([hdm0-9]))){0,2}$/g.test(arg)
 }
 
 export function validRetentions(arg) {
