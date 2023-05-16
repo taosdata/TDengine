@@ -384,9 +384,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
           consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
 
   int code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);
-  taosWLockLatch(&pTq->lock);
   tqSetHandleIdle(pHandle);
-  taosWUnLockLatch(&pTq->lock);
   return code;
 }
 
