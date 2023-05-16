@@ -196,7 +196,7 @@ impl Cli {
                 let port_pool = PortPool::default();
                 mqtt_to_taos(
                     args.from,
-                    None,
+                    None, // todo: support parser in cli mode
                     args.to,
                     args.jobs,
                     &port_pool,

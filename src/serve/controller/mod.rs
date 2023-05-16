@@ -14,6 +14,7 @@ use chrono::{DateTime, Utc};
 use dashmap::{DashMap, DashSet};
 use flume::Sender;
 use itertools::Itertools;
+use serde::de::IntoDeserializer;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
@@ -395,7 +396,10 @@ impl TaskController {
             transform: vec![],
             from,
             to: task.to.parse()?,
-            parser: None,
+            parser: task
+                .parser
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()).unwrap()),
             jobs: task.jobs as _,
             compression_level: task.compression_level.map(Into::into),
             force: task.force,
@@ -694,7 +698,8 @@ impl TaskController {
         task.patch_labels();
         let res = sqlx::query(
             "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
-                 `created_at`, `status`, `after_delete`, `trigger`, `via`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 `created_at`, `status`, `after_delete`, `trigger`, `via`, `parser`) \
+                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&task.name)
         .bind(&task.from)
@@ -707,6 +712,7 @@ impl TaskController {
         .bind(&task.after_delete)
         .bind(&task.trigger)
         .bind(&task.via)
+        .bind(&task.parser)
         .execute(&self.pool)
         .await?;
         let id = res.last_insert_rowid();
@@ -1240,6 +1246,11 @@ pub struct Task {
     #[schema(example = "local:/path/to/backup/test")]
     pub to: String,
 
+    /// The parser of the task stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub parser: Option<serde_json::Value>,
+
     /// Cluster identifier for stream to. **Deprecated**, use labels instead.
     #[schema(example = "null")]
     #[serde(default)]
@@ -1617,47 +1628,63 @@ pub(super) struct NewTask {
     /// For schedule trigger:
     ///
     /// - Run hourly/daily/weekly/monthly: "schedule:@daily"
-    /// - Run with crontab schedule: "schedule:0 0 * * *", checkout https://crontab.guru/ for human-readable crontab.
-    #[schema(example = "schedule:0 0 * * *")]
+    /// - Run with crontab schedule: "schedule:@daily", checkout https://crontab.guru/ for human-readable crontab.
+    #[schema(example = "schedule:@daily")]
     pub trigger: Option<String>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
     from: String,
     /// The stream data source cluster id.
+    #[schema(example = "null")]
     from_cluster: Option<String>,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
     // #[serde(default)]
+    #[schema(example = "null")]
     oneshot_topic: Option<String>,
 
     /// The target of the stream.
     #[schema(example = "local:/tmp/taosx/test")]
     to: String,
+
+    /// The parser of the task stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    #[schema(example = "null")]
+    pub parser: Option<serde_json::Value>,
+
     /// The stream data target cluster id.
+    #[schema(example = "null")]
     to_cluster: Option<String>,
 
     /// Agent id
+    #[schema(example = "null")]
     via: Option<i64>,
 
     /// Set if the target database should be cleared before running task.
     #[serde(default)]
+    #[schema(example = "null")]
     clear: bool,
 
     /// Jobs number
     #[serde(default)]
+    #[schema(example = "null")]
     jobs: u16,
 
     /// Compression level when need (for backup only)
     #[serde(default)]
+    #[schema(example = "null")]
     compression_level: Option<u8>,
 
     /// Force to do some risking steps.
     #[serde(default)]
+    #[schema(example = "null")]
     force: bool,
 
     /// Add after_delete hook action, the string would be action name, with or without some configuration.
     ///
     /// It will do nothing if the action is not supported by a specific task case.
+    #[schema(example = "null")]
     after_delete: Option<String>,
 
     /// Labels for a task.
@@ -1670,6 +1697,7 @@ pub(super) struct NewTask {
     /// Do not start immediately. Default is false, means start immediately after created.
     ///
     #[serde(default)]
+    #[schema(example = "null")]
     not_start: bool,
 }
 
