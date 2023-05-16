@@ -165,7 +165,7 @@ _exit:
   return code;
 }
 
-static int32_t save_fs(int64_t eid, SArray *aTFileSet, const char *fname) {
+static int32_t save_fs(SArray *aTFileSet, const char *fname) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -178,31 +178,21 @@ static int32_t save_fs(int64_t eid, SArray *aTFileSet, const char *fname) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  // eid
-  if (cJSON_AddNumberToObject(json, "eid", eid) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
   // fset
   cJSON *ajson = cJSON_AddArrayToObject(json, "fset");
   if (ajson == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
   for (int32_t i = 0; i < taosArrayGetSize(aTFileSet); i++) {
     STFileSet *pFileSet = (STFileSet *)taosArrayGet(aTFileSet, i);
     cJSON     *item;
 
-    if ((item = cJSON_CreateObject()) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    item = cJSON_CreateObject();
+    if (!item) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    cJSON_AddItemToArray(ajson, item);
 
     code = tsdbFileSetToJson(pFileSet, item);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    cJSON_AddItemToArray(ajson, item);
   }
 
   code = save_json(json, fname);
@@ -396,7 +386,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
     code = scan_and_fix_fs(fs);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    code = save_fs(0, fs->cstate, fCurrent);
+    code = save_fs(fs->cstate, fCurrent);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -521,7 +511,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, int64_t eid, const SArray *aFileOp, EF
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // save fs
-  code = save_fs(fs->eid, fs->nstate, current_t);
+  code = save_fs(fs->nstate, current_t);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

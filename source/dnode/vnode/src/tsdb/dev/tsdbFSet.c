@@ -20,7 +20,7 @@ static int32_t stt_lvl_to_json(const SSttLvl *lvl, cJSON *json) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  cJSON *ajson = cJSON_AddArrayToObject(json, "stt");
+  cJSON *ajson = cJSON_AddArrayToObject(json, "files");
   if (ajson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   SRBTreeIter iter = tRBTreeIterCreate(&lvl->sttTree, 1);
@@ -29,14 +29,10 @@ static int32_t stt_lvl_to_json(const SSttLvl *lvl, cJSON *json) {
 
     cJSON *item = cJSON_CreateObject();
     if (item == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    cJSON_AddItemToArray(ajson, item);
 
     int32_t code = tsdbTFileToJson(&fobj->f, item);
-    if (code) {
-      cJSON_Delete(item);
-      return code;
-    }
-
-    cJSON_AddItemToArray(ajson, item);
+    if (code) return code;
   }
 
   return 0;
@@ -69,9 +65,7 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   }
 
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    if (fset->farr[ftype] == NULL) {
-      continue;
-    }
+    if (fset->farr[ftype] == NULL) continue;
 
     code = tsdbTFileToJson(&fset->farr[ftype]->f, json);
     if (code) return code;

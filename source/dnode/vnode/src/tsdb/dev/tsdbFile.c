@@ -203,10 +203,13 @@ int32_t tsdbTFileClear(STFile *pFile) {
 }
 
 int32_t tsdbTFileToJson(const STFile *file, cJSON *json) {
-  cJSON *tjson = cJSON_AddObjectToObject(json, g_tfile_info[file->type].suffix);
-  if (tjson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
-  return g_tfile_info[file->type].to_json(file, tjson);
+  if (file->type == TSDB_FTYPE_STT) {
+    return g_tfile_info[file->type].to_json(file, json);
+  } else {
+    cJSON *item = cJSON_AddObjectToObject(json, g_tfile_info[file->type].suffix);
+    if (item == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    return g_tfile_info[file->type].to_json(file, item);
+  }
 }
 
 int32_t tsdbTFileFromJson(const cJSON *json, tsdb_ftype_t ftype, STFile **f) {
