@@ -247,7 +247,9 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
     if (contLen == sizeof(SWalCkHead)) {
       break;
     } else if (contLen == 0 && !seeked) {
-      walReadSeekVerImpl(pRead, fetchVer);
+      if(walReadSeekVerImpl(pRead, fetchVer) < 0){
+        return -1;
+      }
       seeked = true;
       continue;
     } else {
@@ -354,7 +356,9 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead) {
     if (contLen == sizeof(SWalCkHead)) {
       break;
     } else if (contLen == 0 && !seeked) {
-      walReadSeekVerImpl(pRead, ver);
+      if(walReadSeekVerImpl(pRead, ver) < 0){
+        return -1;
+      }
       seeked = true;
       continue;
     } else {
@@ -488,7 +492,10 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     if (contLen == sizeof(SWalCkHead)) {
       break;
     } else if (contLen == 0 && !seeked) {
-      walReadSeekVerImpl(pReader, ver);
+      if(walReadSeekVerImpl(pReader, ver) < 0){
+        taosThreadMutexUnlock(&pReader->mutex);
+        return -1;
+      }
       seeked = true;
       continue;
     } else {

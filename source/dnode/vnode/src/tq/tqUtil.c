@@ -185,7 +185,6 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
       // lock
       taosWLockLatch(&pTq->lock);
       code = tqRegisterPushHandle(pTq, pHandle, pMsg);
-      tqSetHandleIdle(pHandle);
       taosWUnLockLatch(&pTq->lock);
       tDeleteSMqDataRsp(&dataRsp);
       return code;
@@ -206,9 +205,6 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
             consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
     tDeleteSMqDataRsp(&dataRsp);
   }
-  taosWLockLatch(&pTq->lock);
-  tqSetHandleIdle(pHandle);
-  taosWUnLockLatch(&pTq->lock);
 
   return code;
 }

@@ -358,16 +358,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", consumerId, vgId, req.subKey);
     taosMsleep(5);
   }
-  tqSetHandleExec(pHandle);
-  taosWUnLockLatch(&pTq->lock);
 
   // 2. check re-balance status
   if (pHandle->consumerId != consumerId) {
     tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
             consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
     terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+    taosWUnLockLatch(&pTq->lock);
     return -1;
   }
+  tqSetHandleExec(pHandle);
+  taosWUnLockLatch(&pTq->lock);
 
   // 3. update the epoch value
   int32_t savedEpoch = pHandle->epoch;
@@ -382,7 +383,11 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, reqId:0x%" PRIx64,
           consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
 
-  return tqExtractDataForMq(pTq, pHandle, &req, pMsg);
+  int code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);
+  taosWLockLatch(&pTq->lock);
+  tqSetHandleIdle(pHandle);
+  taosWUnLockLatch(&pTq->lock);
+  return code;
 }
 
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
