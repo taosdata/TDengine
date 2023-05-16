@@ -73,7 +73,7 @@ static int32_t open_committer_writer(SCommitter *pCommitter) {
     config.file.fid = pCommitter->fid;
     config.file.cid = pCommitter->eid;
     config.file.size = 0;
-    config.file.stt.lvl = 0;
+    config.file.stt.level = 0;
     config.file.stt.nseg = 0;
 
     tsdbTFileInit(pTsdb, &config.file);

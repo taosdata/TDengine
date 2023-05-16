@@ -261,9 +261,9 @@ static int32_t commit_edit(STFileSystem *fs) {
 
   current_fname(fs->pTsdb, current, TSDB_FCURRENT);
   if (fs->etype == TSDB_FEDIT_COMMIT) {
-    current_fname(fs->pTsdb, current, TSDB_FCURRENT_C);
+    current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_C);
   } else if (fs->etype == TSDB_FEDIT_MERGE) {
-    current_fname(fs->pTsdb, current, TSDB_FCURRENT_M);
+    current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_M);
   } else {
     ASSERT(0);
   }
