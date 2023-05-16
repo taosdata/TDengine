@@ -38,8 +38,59 @@ static int32_t stt_lvl_to_json(const SSttLvl *lvl, cJSON *json) {
   return 0;
 }
 
-static int32_t stt_lvl_from_json(const cJSON *json, SSttLvl *lvl) {
-  // TODO
+static int32_t stt_file_cmpr(const SRBTreeNode *n1, const SRBTreeNode *n2) {
+  STFileObj *f1 = TCONTAINER_OF(n1, STFileObj, rbtn);
+  STFileObj *f2 = TCONTAINER_OF(n2, STFileObj, rbtn);
+  if (f1->f.cid < f2->f.cid) {
+    return -1;
+  } else if (f1->f.cid > f2->f.cid) {
+    return 1;
+  }
+  return 0;
+}
+
+static int32_t stt_lvl_init(SSttLvl *lvl) {
+  lvl->lvl = 0;
+  lvl->nstt = 0;
+  tRBTreeCreate(&lvl->sttTree, stt_file_cmpr);
+  return 0;
+}
+
+static int32_t add_file_to_stt_lvl(SSttLvl *lvl, STFileObj *fobj) {
+  lvl->nstt++;
+  tRBTreePut(&lvl->sttTree, &fobj->rbtn);
+  return 0;
+}
+
+static int32_t json_to_stt_lvl(const cJSON *json, SSttLvl *lvl) {
+  stt_lvl_init(lvl);
+
+  const cJSON *item1, *item2;
+
+  item1 = cJSON_GetObjectItem(json, "lvl");
+  if (cJSON_IsNumber(item1)) {
+    lvl->lvl = item1->valuedouble;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  item1 = cJSON_GetObjectItem(json, "files");
+  if (cJSON_IsArray(item1)) {
+    cJSON_ArrayForEach(item2, item1) {
+      STFileObj *fobj;
+
+      int32_t code = tsdbTFileObjCreate(&fobj);
+      if (code) return code;
+
+      code = tsdbJsonToTFile(item2, TSDB_FTYPE_STT, &fobj->f);
+      if (code) return code;
+
+      add_file_to_stt_lvl(lvl, fobj);
+    }
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
   return 0;
 }
 
@@ -53,6 +104,11 @@ static int32_t add_file(STFileSet *fset, STFile *f) {
     // fset->farr[f->type] = f;
   }
 
+  return 0;
+}
+
+static int32_t add_stt_lvl(STFileSet *fset, SSttLvl *lvl) {
+  tRBTreePut(&fset->lvlTree, &lvl->rbtn);
   return 0;
 }
 
@@ -109,37 +165,48 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
 }
 
 int32_t tsdbJsonToFileSet(const cJSON *json, STFileSet *fset) {
-  const cJSON *item;
+  const cJSON *item1, *item2;
 
   fset_init(fset);
 
   /* fid */
-  item = cJSON_GetObjectItem(json, "fid");
-  if (cJSON_IsNumber(item)) {
-    fset->fid = item->valueint;
+  item1 = cJSON_GetObjectItem(json, "fid");
+  if (cJSON_IsNumber(item1)) {
+    fset->fid = item1->valueint;
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
   int32_t code;
+  STFile  tf;
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    STFile tf;
     code = tsdbJsonToTFile(json, ftype, &tf);
     if (code == TSDB_CODE_NOT_FOUND) {
       continue;
     } else if (code) {
       return code;
     } else {
-      // TODO
-      // code = tsdbFileObjCreate(&tf, &fset->farr[ftype]);
-      // if (code) return code;
+      code = tsdbTFileObjCreate(&fset->farr[ftype]);
+      if (code) return code;
+      fset->farr[ftype]->f = tf;
     }
   }
 
   // each level
-  item = cJSON_GetObjectItem(json, "stt");
-  if (cJSON_IsArray(item)) {
-    // TODO
+  item1 = cJSON_GetObjectItem(json, "stt");
+  if (cJSON_IsArray(item1)) {
+    cJSON_ArrayForEach(item2, item1) {
+      SSttLvl *lvl = taosMemoryCalloc(1, sizeof(*lvl));
+      if (lvl == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+      code = json_to_stt_lvl(item2, lvl);
+      if (code) {
+        taosMemoryFree(lvl);
+        return code;
+      }
+
+      add_stt_lvl(fset, lvl);
+    }
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
   }

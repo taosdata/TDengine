@@ -36,16 +36,15 @@ typedef enum {
 #define TSDB_FTYPE_MIN TSDB_FTYPE_HEAD
 #define TSDB_FTYPE_MAX (TSDB_FTYPE_TOMB + 1)
 
+// STFile
 int32_t tsdbTFileToJson(const STFile *f, cJSON *json);
 int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f);
-
-// create/destroy
-int32_t tsdbTFileCreate(const STFile *pFile, STFile **f);
-int32_t tsdbTFileDestroy(STFile *pFile);
-
-// init/clear
 int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile);
 int32_t tsdbTFileClear(STFile *pFile);
+
+// STFileObj
+int32_t tsdbTFileObjCreate(STFileObj **fobj);
+int32_t tsdbTFileObjDestroy(STFileObj *fobj);
 
 struct STFile {
   char         fname[TSDB_FILENAME_LEN];
@@ -63,9 +62,9 @@ struct STFile {
 };
 
 struct STFileObj {
-  SRBTreeNode rbtn;
-  int32_t     ref;
-  STFile      f;
+  SRBTreeNode      rbtn;
+  volatile int32_t ref;
+  STFile           f;
 };
 
 #ifdef __cplusplus
