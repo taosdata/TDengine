@@ -93,6 +93,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = f'{self.tdCom.get_long_name()} 0 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
+        print(input_sql)
         stb_name = input_sql.split(" ")[0]
         self.tdCom.check_res(input_sql, stb_name, ts=0)
         input_sql = f'{self.tdCom.get_long_name()} 1626006833640 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
@@ -267,13 +268,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        # nchar
-        # * legal nchar could not be larger than 16374/4
         stb_name = self.tdCom.get_long_name()
-        input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}'
+        legal_length = int(len(self.tdCom.get_long_name(self.tdCom.boundary_config["TAG_COLUMN_MAX_LENGTH"]))/4)
+        input_sql = f'{stb_name} 1626006833640 t t1={self.tdCom.get_long_name(legal_length)}'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-
-        input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}'
+        input_sql = f'{stb_name} 1626006833640 t t1={self.tdCom.get_long_name(legal_length+1)}'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
@@ -575,23 +574,21 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         self.tdSql.checkNotEqual(tb_name1, tb_name3)
 
-    # * tag nchar max is 16374/4, col+ts nchar max  49151
-    def tag_col_binary_max_length_check(self):
+    def tag_max_length_check(self):
         """
-        check nchar length limit
+        check tag length limit
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name()
         input_sql = f'{stb_name} 1626006833640 f t2={self.tdCom.get_long_name(1)}'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-
-        # * legal nchar could not be larger than 16374/4
-        input_sql = f'{stb_name} 1626006833640 f t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])} t2={self.tdCom.get_long_name(1)}'
+        legal_length = int(len(self.tdCom.get_long_name(self.tdCom.boundary_config["TAG_COLUMN_MAX_LENGTH"]))/4)
+        input_sql = f'{stb_name} 1626006833640 f t1={self.tdCom.get_long_name(legal_length-2)} t2={self.tdCom.get_long_name(1)}'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
-        input_sql = f'{stb_name} 1626006833640 f t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])} t2={self.tdCom.get_long_name(2)}'
+        input_sql = f'{stb_name} 1626006833640 f t1={self.tdCom.get_long_name(legal_length-1)} t2={self.tdCom.get_long_name(1)}'
         try:
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
@@ -1010,11 +1007,12 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def test(self):
-        self.batch_insert_check()
+        self.tbname_tags_cols_name_check()
         return
 
     def run(self):
         # self.test()
+        # return
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.no_id_stb_exist_check()
@@ -1024,7 +1022,6 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                 self.tag_md5_check()
                 self.tbname_tags_cols_name_check()
         else:
-            # return
             self.init_check()
             self.bool_check()
             self.symbols_check()
@@ -1046,7 +1043,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.blank_check()
             self.duplicate_id_tag_col_insert_check()
             self.duplicate_insert_exist_check()
-            # self.tag_col_binary_max_length_check()
+            self.tag_max_length_check()
             self.batch_insert_check()
             self.multiInsert_check(100)
             self.batch_error_insert_check()
@@ -1058,7 +1055,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.spell_check()
             self.point_trans_check()
             self.defaultType_check()
-            # self.tbname_tags_cols_name_check()
+            self.tbname_tags_cols_name_check()
             self.stb_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_at_insert_multi_thread_check()
