@@ -250,10 +250,61 @@ _exit:
   return code;
 }
 
-static int32_t apply_commit(STFileSystem *fs) {
-  int32_t i1 = 0, i2 = 0;
-
+static int32_t apply_commit_add_fset(STFileSystem *fs, const STFileSet *fset) {
   // TODO
+  return 0;
+}
+static int32_t apply_commit_del_fset(STFileSystem *fs, const STFileSet *fset) {
+  // TODO
+  return 0;
+}
+static int32_t apply_commit_upd_fset(STFileSystem *fs, STFileSet *fset_from, const STFileSet *fset_to) {
+  // TODO
+  return 0;
+}
+static int32_t apply_commit(STFileSystem *fs) {
+  int32_t code = 0;
+  int32_t i1 = 0, i2 = 0;
+  int32_t n1 = taosArrayGetSize(fs->cstate);
+  int32_t n2 = taosArrayGetSize(fs->nstate);
+
+  while (i1 < n1 || i2 < n2) {
+    STFileSet *fset1 = i1 < n1 ? (STFileSet *)taosArrayGet(fs->cstate, i1) : NULL;
+    STFileSet *fset2 = i2 < n2 ? (STFileSet *)taosArrayGet(fs->nstate, i2) : NULL;
+
+    if (fset1 && fset2) {
+      if (fset1->fid < fset2->fid) {
+        // delete fset1
+        code = apply_commit_del_fset(fs, fset1);
+        if (code) return code;
+        n1--;
+      } else if (fset1->fid > fset2->fid) {
+        // create new file set with fid of fset2->fid
+        code = apply_commit_add_fset(fs, fset2);
+        if (code) return code;
+        i1++;
+        n1++;
+      } else {
+        // edit
+        code = apply_commit_upd_fset(fs, fset1, fset2);
+        if (code) return code;
+        i1++;
+        i2++;
+      }
+    } else if (fset1) {
+      // delete fset1
+      code = apply_commit_del_fset(fs, fset1);
+      if (code) return code;
+      n1--;
+    } else {
+      // create new file set with fid of fset2->fid
+      code = apply_commit_add_fset(fs, fset2);
+      if (code) return code;
+      i1++;
+      n1++;
+    }
+  }
+
   return 0;
 }
 
