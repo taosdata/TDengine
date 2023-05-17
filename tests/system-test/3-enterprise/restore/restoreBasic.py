@@ -28,11 +28,10 @@ import shutil
 import time
     
 
-class TDTestCase:
+class RestoreBasic:
     # init
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         self.dnodes_num = 5
 
@@ -41,17 +40,15 @@ class TDTestCase:
         self.dnodes = cluster.dnodes
         num = len(self.dnodes)
 
-        if num != self.dnodes_num :
-            tdLog.exit(f" cluster dnode is not equal 5. num={num}")
-            return 
+        if num < self.dnodes_num :
+            tdLog.exit(f" cluster dnode is less than {self.dnodes_num}. num={num}")
 
-        print(f" start dnode num={num} !")
-        for i in range(num):
-            dnode = self.dnodes[i]
-            print(f"  dnode{i} dataDir={dnode.dataDir} ip={dnode.remoteIP} path={dnode.path}")
-
-        print(" end !")
-
+        # create data
+        self.dbname = "db"
+        self.stable = "st"
+        self.child_count = 100
+        self.insert_rows = 10000
+        self.create_data()
 
     #  create data
     def create_data(self):
@@ -96,8 +93,6 @@ class TDTestCase:
         # info
         tdLog.info("check vgroups status successfully.")
         return True
-
-
 
     # check data corrent
     def check_corrent(self):
@@ -226,29 +221,9 @@ class TDTestCase:
             tdLog.exit(f"qnode restore failed. qnode.json is not exist. {qfile}")
         else:
             tdLog.info(f"check qnode.json restore ok. {qfile}")
-
     
-    # run
-    def run(self):
-
-        # create data
-        self.dbname = "db"
-        self.stable = "st"
-        self.child_count = 10
-        self.insert_rows = 1000
-        self.create_data()
-
-        # remove dnode 
-        index = 1
-        self.restore_dnode(2)
-        self.restore_mnode(3)
-        self.restore_vnode(4)
-        self.restore_qnode(5)
-
     # stop
     def stop(self):
         tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+
