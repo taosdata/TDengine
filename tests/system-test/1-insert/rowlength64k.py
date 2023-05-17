@@ -63,10 +63,7 @@ class TDTestCase:
             stable_sql = "select * from db.%s where loc match '[a-z]'" %stable_name
             tdSql.query(stable_sql) 
 
-    def run(self):
-        tdSql.prepare()
-        
-        startTime_all = time.time()  
+    def run_8(self):  
 
         print("==============step8,stable table , mix data type==============")
         sql = "create stable db.stable_16(ts timestamp, "
@@ -183,6 +180,8 @@ class TDTestCase:
 
         self.ins_query()
         
+    def run_9(self):  
+        
         print("==============step9,stable table , mix data type==============")
         sql = "create stable db.stable_26(ts timestamp, "
         sql += "col4090 int ,"  
@@ -297,6 +296,9 @@ class TDTestCase:
         tdSql.error(sql)
 
         self.ins_query()
+        
+    def run_1(self):  
+ 
 
         print("==============step1, regular table, 1 ts + 4094 cols + 1 binary==============")
         startTime = time.time() 
@@ -359,7 +361,8 @@ class TDTestCase:
         tdSql.checkCols(4096)
 
         self.ins_query()
-
+        
+    def run_2(self):  
 
         print("==============step2,regular table error col or value==============")
         tdLog.info('test regular table exceeds row num') 
@@ -394,6 +397,9 @@ class TDTestCase:
         tdSql.error(sql)
 
         self.ins_query()
+        
+    def run_3(self):  
+ 
 
         print("==============step3,regular table , mix data type==============")
         startTime = time.time() 
@@ -639,8 +645,9 @@ class TDTestCase:
         tdSql.error(sql)
 
         self.ins_query()
-
-
+        
+    def run_4(self):  
+ 
         print("==============step4, super table , 1 ts + 4090 cols + 4 tags ==============")
         startTime = time.time() 
         sql = "create stable db.stable_1(ts timestamp, "
@@ -727,7 +734,9 @@ class TDTestCase:
         tdSql.checkCols(4092)
 
         self.ins_query()
-
+        
+    def run_5(self):  
+ 
         print("==============step5,stable table , mix data type==============")
         sql = "create stable db.stable_3(ts timestamp, "
         for i in range(500):
@@ -949,6 +958,9 @@ class TDTestCase:
         tdSql.error(sql)
 
         self.ins_query()
+        
+    def run_6(self):  
+ 
         
         print("==============step6,stable table , mix data type==============")
         sql = "create stable db.stable_6(ts timestamp, "
@@ -1208,6 +1220,9 @@ class TDTestCase:
         sql += "col4091 binary(341))"  
         sql += " tags (loc binary(16371),tag_1 int,tag_2 int,tag_3 int) " 
         tdSql.error(sql)
+        
+    def run_7(self):  
+ 
 
         print("==============step7, super table error col ==============")
         tdLog.info('test exceeds row num') 
@@ -1248,6 +1263,21 @@ class TDTestCase:
 
         self.ins_query()
 
+
+    def run(self):
+        tdSql.prepare()
+        
+        startTime_all = time.time() 
+        self.run_8() 
+        self.run_9() 
+        self.run_1() 
+        self.run_2() 
+        # self.run_3() 
+        # self.run_4() 
+        # self.run_5() 
+        # self.run_6() 
+        # self.run_7() 
+        
         endTime_all = time.time()
         print("total time %ds" % (endTime_all - startTime_all))        
 
