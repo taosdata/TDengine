@@ -888,7 +888,7 @@ export default {
           from: `opc${this.protocol}${dns}`,
           categories: [this.activeName],
           pattern: e.target.value,
-          offset: 1,
+          offset: 0,
           limit: 10,
         };
         const viaObj = {
