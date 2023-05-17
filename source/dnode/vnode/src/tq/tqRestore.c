@@ -137,8 +137,6 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     // append the data for the stream
-//    tqDebug("vgId:%d s-task:%s wal reader seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.currentVer);
-
     SStreamQueueItem* pItem = NULL;
     int32_t code = extractMsgFromWal(pTask->exec.pWalReader, (void**) &pItem, pTask->id.idStr);
     if (code != TSDB_CODE_SUCCESS) {  // failed, continue
