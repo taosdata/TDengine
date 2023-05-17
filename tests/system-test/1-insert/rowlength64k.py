@@ -1256,9 +1256,9 @@ class TDTestCase:
         sql = "alter table db.stable_4 modify column col4091 binary(102); "
         tdSql.error(sql)
         sql = "alter table db.stable_4 modify tag loc nchar(20); "
-        tdSql.query("select * from db.table_40")
+        tdSql.query("select * from db.table_70")
         tdSql.checkCols(4092)
-        tdSql.query("describe db.table_40")
+        tdSql.query("describe db.table_70")
         tdSql.checkRows(4096)
 
         self.ins_query()
