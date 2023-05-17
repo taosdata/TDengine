@@ -1523,7 +1523,4 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
   return 0;
 }
-int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  return 0;
-  return 0;
-}
+int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) { return 0; }
