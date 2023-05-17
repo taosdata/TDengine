@@ -1444,6 +1444,18 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     return;
   }
 
+  if (strcasecmp(option, "activeCode") == 0) {
+    // TODO
+    printf("%s:%d set activeCode: %s\n", __func__, __LINE__, value);
+    return;
+  }
+
+  if (strcasecmp(option, "cActiveCode") == 0) {
+    // TODO
+    printf("%s:%d set cActiveCode: %s\n", __func__, __LINE__, value);
+    return;
+  }
+
   const char *options[] = {
       "dDebugFlag",   "vDebugFlag",   "mDebugFlag",   "wDebugFlag",    "sDebugFlag",   "tsdbDebugFlag", "tqDebugFlag",
       "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",  "tdbDebugFlag", "tmrDebugFlag",  "uDebugFlag",

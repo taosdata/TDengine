@@ -635,6 +635,70 @@ _OVER:
   return code;
 }
 
+static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfgReq) {
+  int32_t  code = -1;
+  int32_t  action = -1;
+  SSdbRaw *pRaw = NULL;
+  STrans  *pTrans = NULL;
+
+  if (strncasecmp(pCfgReq->config, "activeCode", 10) == 0) {
+    action = 0;
+  } else if (strncasecmp(pCfgReq->config, "cActiveCode", 11) == 0) {
+    action = 1;
+  }
+
+  if (action == -1) {
+    code = TSDB_CODE_INVALID_CFG;
+    mWarn("dnode:%d, config dnode, app:%p config:%s value:%s, failed since %s", pCfgReq->dnodeId, pReq->info.ahandle,
+          pCfgReq->config, pCfgReq->value, tstrerror(code));
+
+    return code;
+  }
+
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    if (pDnode->id != pCfgReq->dnodeId && pCfgReq->dnodeId != -1) {
+      continue;
+    }
+
+    pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "cfg-dnode");
+    if (pTrans == NULL) goto _OVER;
+    if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
+    SDnodeObj tmpDnode = *pDnode;
+    if (action == 0) {
+      strncpy(tmpDnode.active, pCfgReq->value, TSDB_ACTIVE_KEY_LEN);
+    } else if (action == 1) {
+      strncpy(tmpDnode.connActive, pCfgReq->value, TSDB_CONN_ACTIVE_KEY_LEN);
+    } else {
+      ASSERT(0);
+    }
+
+    pRaw = mndDnodeActionEncode(&tmpDnode);
+    if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
+
+    mInfo("dnode:%d, config dnode, cfg:%d, app:%p config:%s value:%s", pDnode->id, pCfgReq->dnodeId, pReq->info.ahandle,
+          pCfgReq->config, pCfgReq->value);
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
+  sdbFreeRaw(pRaw);
+  return code;
+}
+
 static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SSdb         *pSdb = pMnode->pSdb;
@@ -970,6 +1034,28 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "monitor");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+#ifdef TD_ENTERPRISE
+  } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
+    int32_t idx = (strncasecmp(cfgReq.config, "a", 1) == 0) ? 10 : 11;
+    if (' ' != cfgReq.config[idx] && 0 != cfgReq.config[idx]) {
+      mError("dnode:%d, failed to config activeCode since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+
+    if ((idx == 10 && strlen(cfgReq.value) > TSDB_ACTIVE_KEY_LEN) ||
+        (idx == 11 && strlen(cfgReq.value) > TSDB_CONN_ACTIVE_KEY_LEN)) {
+      mError("dnode:%d, failed to config activeCode since value out of range. conf:%s, val:%s", cfgReq.dnodeId,
+             cfgReq.config, cfgReq.value);
+      terrno = TSDB_CODE_INVALID_OPTION;
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, idx == 10 ? "activeCode" : "cActiveCode");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
+
+    mndConfigDnode(pMnode, pReq, &cfgReq);
+#endif
   } else {
     bool findOpt = false;
     for (int32_t d = 0; d < optionSize; ++d) {
@@ -1023,7 +1109,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
         tSerializeSDCfgDnodeReq(pBuf, bufLen, &dcfgReq);
         mInfo("dnode:%d, send config req to dnode, app:%p config:%s value:%s", cfgReq.dnodeId, pReq->info.ahandle,
               dcfgReq.config, dcfgReq.value);
-        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .info = pReq->info};
+        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
         tmsgSendReq(&epSet, &rpcMsg);
         code = 0;
       }
