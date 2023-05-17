@@ -398,12 +398,17 @@
                   </template>
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
-                <template v-if="p.hint === 'bool'">
-                  <el-radio-group v-model="p.value">
+                <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
+                  <!-- <el-radio-group v-model="p.value">
                     <el-radio v-for="c in p.choices" :key="c" :label="c">
                       {{ c }}
                     </el-radio>
-                  </el-radio-group>
+                  </el-radio-group> -->
+                  <el-checkbox
+                    v-model="p.value"
+                    true-label="true"
+                    false-label="false"
+                  ></el-checkbox>
                 </template>
                 <template
                   v-if="
@@ -421,6 +426,14 @@
                     :picker-options="
                       p.name == 'beginTime' ? startOption : endOption
                     "
+                    placeholder="Please select the date"
+                  >
+                  </el-date-picker>
+                </template>
+                <template v-if="p.hint?.type == 'datetime'">
+                  <el-date-picker
+                    v-model="p.value"
+                    type="datetime"
                     placeholder="Please select the date"
                   >
                   </el-date-picker>
@@ -473,6 +486,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
+import moment from 'moment'
 import { debounce } from "@/utils/index";
 export default {
   name: "DbSourceUI",
@@ -687,6 +701,11 @@ export default {
               return;
             } else {
               if (data.groups[index].params[g].value) {
+                if(data.groups[index].params[g].name === 'BackfillStartTime'
+                  || data.groups[index].params[g].name === 'BackfillEndTime'
+                ) {
+                  data.groups[index].params[g].value = moment(data.groups[index].params[g].value).utc().format()
+                }
                 querystr +=
                   `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                   "&";
@@ -783,7 +802,7 @@ export default {
           }
         } else {
           let piParams = {
-            from: this.tagName == "influxdb" ? "influxdb" + dns : "pi" + dns,
+            from: this.tagName == "influxdb" ? "influxdb" + dns : this.tagName + dns,
             name: localStorage.getItem("datainName"),
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
             // name: localStorage.getItem("datainName"),

@@ -105,6 +105,10 @@ export default {
             this.currentName = "opcui";
             this.tagName = "mqtt";
             break;
+          case "pibackfill":
+            this.currentName = "ui";
+            this.tagName = "pibackfill";
+          break;
         }
       } else {
         switch (id) {
@@ -134,6 +138,10 @@ export default {
             this.currentName = "opcui";
             this.tagName = "mqtt";
             break;
+          case "pibackfill":
+            this.currentName = "ui";
+            this.tagName = "pibackfill";
+          break;
         }
         this.isEditable = true;
         this.editId = editid;
@@ -170,7 +178,7 @@ export default {
           if (keys === "protocol") {
             targetObj.protocol["value"] = targetObj.protocol.choices.filter(
               (o) => o.name == "--"
-            )[0].name;
+            )[0]?.name;
           }
         } else {
           targetObj[keys] = source[keys];
