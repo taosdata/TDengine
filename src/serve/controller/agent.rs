@@ -93,10 +93,6 @@ impl Agent {
                 .as_ref()
                 .map(|c| c.and_hms_opt(0, 0, 0).unwrap().timestamp())
                 .unwrap_or(NaiveDate::MAX.and_hms_opt(0, 0, 0).unwrap().timestamp()),
-            name: self.name.clone(),
-            cluster_id: self.cluster_id.clone(),
-            user_id: self.user_id.clone(),
-            connectors: self.connectors.clone(),
         }
     }
     pub fn jwt_encode(&self, secret: impl AsRef<[u8]>) -> String {
@@ -161,11 +157,6 @@ pub struct AgentClaims {
     pub iat: i64,
     /// Unix epoch in seconds for expire time.
     pub exp: i64,
-    /// Agent name
-    pub name: String,
-    pub cluster_id: String,
-    pub user_id: String,
-    pub connectors: AgentConnectors,
 }
 
 impl AgentClaims {
