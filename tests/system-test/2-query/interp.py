@@ -182,6 +182,35 @@ class TDTestCase:
         tdSql.checkData(2, 0, 1)
         tdSql.checkData(3, 0, 1)
 
+        ## test fill value with string
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 'abc')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(1, 0, 0)
+        tdSql.checkData(2, 0, 0)
+        tdSql.checkData(3, 0, 0)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, '123')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 123)
+        tdSql.checkData(1, 0, 123)
+        tdSql.checkData(2, 0, 123)
+        tdSql.checkData(3, 0, 123)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, '123.123')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 123)
+        tdSql.checkData(1, 0, 123)
+        tdSql.checkData(2, 0, 123)
+        tdSql.checkData(3, 0, 123)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, '12abc')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 12)
+        tdSql.checkData(1, 0, 12)
+        tdSql.checkData(2, 0, 12)
+        tdSql.checkData(3, 0, 12)
+
         tdLog.printNoPrefix("==========step5:fill prev")
 
         ## {. . .}
