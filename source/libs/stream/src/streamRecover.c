@@ -224,12 +224,19 @@ int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req*
 
 int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
   void* exec = pTask->exec.pExecutor;
+  const char* id = pTask->id.idStr;
 
-  qDebug("s-task:%s recover step2(blocking stage) started", pTask->id.idStr);
+  int64_t st = taosGetTimestampMs();
+  qDebug("s-task:%s recover step2(blocking stage) started", id);
   if (qStreamSourceRecoverStep2(exec, ver) < 0) {
   }
 
-  return streamScanExec(pTask, 100);
+  int32_t code = streamScanExec(pTask, 100);
+
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+  qDebug("s-task:%s recover step2(blocking stage) ended, elapsed time:%.2fs", id,  el);
+
+  return code;
 }
 
 int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
