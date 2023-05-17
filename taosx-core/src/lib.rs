@@ -105,7 +105,7 @@ impl TaskOpts {
                 ("taos", "parquet") => {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
                 }
-                ("pi", "taos") => {
+                ("pi" | "pibackfill", "taos") => {
                     plugins::pi_to_taos(
                         from.clone(),
                         transform.clone(),
