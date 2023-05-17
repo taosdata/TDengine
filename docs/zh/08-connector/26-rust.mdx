@@ -64,6 +64,13 @@ taos = "*"
 taos = { version = "*", default-features = false, features = ["ws"] }
 ```
 
+当仅启用 `ws` 特性时，可同时指定 `r2d2` 使得在同步（blocking/sync）模式下使用 [r2d2] 作为连接池：
+
+```toml
+[dependencies]
+taos = { version = "*", default-features = false, features = ["r2d2", "ws"] }
+```
+
 </TabItem>
 
 <TabItem value="native" label="仅原生连接">
@@ -252,26 +259,24 @@ let conn: Taos = cfg.build();
 
 ### 连接池
 
-在复杂应用中，建议启用连接池。[taos] 的连接池使用 [r2d2] 实现。
+在复杂应用中，建议启用连接池。[taos] 的连接池默认（异步模式）使用 [deadpool] 实现。
 
 如下，可以生成一个默认参数的连接池。
 
 ```rust
-let pool = TaosBuilder::from_dsn(dsn)?.pool()?;
+let pool: Pool<TaosBuilder> = TaosBuilder::from_dsn("taos:///")
+    .unwrap()
+    .pool()
+    .unwrap();
 ```
 
 同样可以使用连接池的构造器，对连接池参数进行设置：
 
 ```rust
-let dsn = "taos://localhost:6030";
-
-let opts = PoolBuilder::new()
-    .max_size(5000) // max connections
-    .max_lifetime(Some(Duration::from_secs(60 * 60))) // lifetime of each connection
-    .min_idle(Some(1000)) // minimal idle connections
-    .connection_timeout(Duration::from_secs(2));
-
-let pool = TaosBuilder::from_dsn(dsn)?.with_pool_builder(opts)?;
+let pool: Pool<TaosBuilder> = Pool::builder(Manager::from_dsn(self.dsn.clone()).unwrap().0)
+    .max_size(88)  // 最大连接数
+    .build()
+    .unwrap();
 ```
 
 在应用代码中，使用 `pool.get()?` 来获取一个连接对象 [Taos]。
@@ -511,6 +516,7 @@ consumer.unsubscribe().await;
 其他相关结构体 API 使用说明请移步 Rust 文档托管网页：<https://docs.rs/taos>。
 
 [taos]: https://github.com/taosdata/rust-connector-taos
+[deadpool]: https://crates.io/crates/deadpool
 [r2d2]: https://crates.io/crates/r2d2
 [TaosBuilder]: https://docs.rs/taos/latest/taos/struct.TaosBuilder.html
 [TaosCfg]: https://docs.rs/taos/latest/taos/struct.TaosCfg.html
