@@ -197,7 +197,7 @@ void tqClose(STQ*);
 int  tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int  tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 int  tqUnregisterPushHandle(STQ* pTq, void* pHandle);
-int  tqStartStreamTasks(STQ* pTq);    // restore all stream tasks after vnode launching completed.
+int  tqStartStreamTasks(STQ* pTq);  // restore all stream tasks after vnode launching completed.
 
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
@@ -404,6 +404,10 @@ struct SVnode {
 #define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
 #define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
 #define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
+
+#define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
+#define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
+#define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
 
 struct STbUidStore {
   tb_uid_t  suid;

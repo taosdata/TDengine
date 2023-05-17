@@ -305,10 +305,6 @@ void    tsdbUntakeReadSnap(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proa
 // tsdbMerge.c ==============================================================================================
 int32_t tsdbMerge(STsdb *pTsdb);
 
-#define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
-#define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
-#define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
-
 // tsdbDiskData ==============================================================================================
 int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
 void   *tDiskDataBuilderDestroy(SDiskDataBuilder *pBuilder);
