@@ -154,22 +154,32 @@ func packData(values []*common.NodeValue, schema *arrow.Schema, valueFunc append
 	recordBuilder := array.NewRecordBuilder(memory.NewGoAllocator(), schema)
 	defer recordBuilder.Release()
 
-	field0 := recordBuilder.Field(0).(*array.StringBuilder) // id
-	defer field0.Release()
-	field1 := recordBuilder.Field(1).(*array.TimestampBuilder) // ts
-	defer field1.Release()
-	field2 := recordBuilder.Field(2).(*array.TimestampBuilder) // now
-	defer field2.Release()
-	field3 := recordBuilder.Field(3) // value
-	defer field3.Release()
+	field0 := recordBuilder.Field(0).(*array.StringBuilder)    // id
+	field1 := recordBuilder.Field(1).(*array.StringBuilder)    // name
+	field2 := recordBuilder.Field(2).(*array.TimestampBuilder) // ts
+	field3 := recordBuilder.Field(3).(*array.TimestampBuilder) // now
+	field4 := recordBuilder.Field(4)                           // value
+	field5 := recordBuilder.Field(5).(*array.Int64Builder)     // status
+
+	defer func(fields ...array.Builder) {
+		for _, field := range fields {
+			field.Release()
+		}
+	}(field0, field1, field2, field3, field4, field5)
 
 	for _, value := range values {
-		field0.Append(value.Identifier)
-		field1.Append(arrow.Timestamp(value.Timestamp.UnixMilli()))
-		field2.Append(arrow.Timestamp(value.Now.UnixMilli()))
-		if err := valueFunc(field3, value.Value); err != nil {
+		field0.Append(value.Identifier)                             // id
+		field1.Append(value.Name)                                   // name
+		field2.Append(arrow.Timestamp(value.Timestamp.UnixMilli())) // ts
+		field3.Append(arrow.Timestamp(value.Now.UnixMilli()))       //now
+
+		if value.Value == nil {
+			field4.AppendNull() // value
+		} else if err := valueFunc(field4, value.Value); err != nil { // value
 			return nil, fmt.Errorf("append value field error %v", err)
 		}
+
+		field5.Append(value.Status) // status
 	}
 
 	return recordBuilder.NewRecord(), nil
@@ -229,9 +239,11 @@ func getSchema(valueType common.ValueType) (*arrow.Schema, error) {
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "id", Type: arrow.BinaryTypes.String},
+			{Name: "name", Type: arrow.BinaryTypes.String},
 			{Name: "ts", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},       // server timestamp
 			{Name: "received", Type: &arrow.TimestampType{Unit: arrow.Millisecond}}, // client timestamp
 			{Name: "value", Type: dataType},
+			{Name: "status", Type: arrow.PrimitiveTypes.Int64},
 		},
 		&meta,
 	)

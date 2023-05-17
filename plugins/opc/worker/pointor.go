@@ -6,6 +6,7 @@ import (
 	"collector/connector/opcda"
 	"collector/connector/opcua"
 	"context"
+	"fmt"
 	"log"
 )
 
@@ -25,9 +26,16 @@ func NewOpcPointer(config common.Config) (pointer Pointer, err error) {
 	if config.OpcType == common.OpcTypeUA {
 		config.Collect.Ua = common.UaCollectConfig{} // don't need collecting config when get all points
 		c, err = opcua.NewConnector(config)
-	} else {
+	}
+	if config.OpcType == common.OpcTypeDA {
 		config.Collect.Da = common.DaCollectConfig{} // don't need collecting config when get all points
 		c, err = opcda.NewConnector(config)
+	}
+	if err != nil {
+		return
+	}
+	if c == nil {
+		return nil, fmt.Errorf("unknown opc type %s", config.OpcType)
 	}
 
 	pointer = &OpcPointer{connector: c}
