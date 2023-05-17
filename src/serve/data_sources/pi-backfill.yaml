@@ -1,6 +1,6 @@
 ---
-id: pi-backfill
-name: PI-BACKFILL
+id: pibackfill
+name: PIBACKFILL
 description: |
   A data source plugin for PI system.
 type: uri

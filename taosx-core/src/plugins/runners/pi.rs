@@ -237,7 +237,7 @@ pub async fn pi_to_taos(
     let sql = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
-    let protocol = from.protocol.clone();
+    let driver = from.driver.clone();
     let config = PiConfig::new(from, td_database.unwrap(), ipc, sql)?;
 
     let toml = toml::to_string(&config)?;
@@ -275,28 +275,30 @@ pub async fn pi_to_taos(
     }
 
     let child_command;
-    if let Some(protocol) = protocol {
-        let mut command = async_process::Command::new(PI_BACKFILL_PATH);
-        if protocol == "backfill" {
+    match driver.as_str() {
+        "pi" => {
+            let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
             child_command = command
             .arg("-f")
             .arg(&config_path)
             .stdout(async_process::Stdio::inherit())
             .stderr(async_process::Stdio::inherit())
             .spawn()
-            .context("Start PI Backfill error")?;
-        } else {
-            anyhow::bail!("wrong protocol configed");
+            .context("Start PI collector error")?;
+        },
+        "pibackfill" => {
+            let mut command = async_process::Command::new(PI_BACKFILL_PATH);
+            child_command = command
+                .arg("-f")
+                .arg(&config_path)
+                .stdout(async_process::Stdio::inherit())
+                .stderr(async_process::Stdio::inherit())
+                .spawn()
+                .context("Start PI Backfill error")?;
+        },
+        _ => {
+            anyhow::bail!("wrong driver configed");
         }
-    } else {
-        let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
-        child_command = command
-        .arg("-f")
-        .arg(&config_path)
-        .stdout(async_process::Stdio::inherit())
-        .stderr(async_process::Stdio::inherit())
-        .spawn()
-        .context("Start PI collector error")?;
     }
     
     let pid = child_command.id();
