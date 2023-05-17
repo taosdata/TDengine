@@ -359,7 +359,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   while (tqIsHandleExec(pHandle)) {
-    tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", consumerId, vgId, req.subKey);
+    tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
     taosMsleep(5);
   }
 
@@ -372,6 +372,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     return -1;
   }
   tqSetHandleExec(pHandle);
+  tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
   taosWUnLockLatch(&pTq->lock);
 
   // 3. update the epoch value
@@ -389,6 +390,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
   int code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);
   tqSetHandleIdle(pHandle);
+  tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, , set handle idle, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
   return code;
 }
 
@@ -555,7 +557,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     goto end;
   } else {
     while (tqIsHandleExec(pHandle)) {
-      tqDebug("sub req vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
+      tqDebug("sub req vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry, pHandle:%p", vgId, pHandle->subKey, pHandle);
       taosMsleep(5);
     }
 
