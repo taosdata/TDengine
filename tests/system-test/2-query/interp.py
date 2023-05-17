@@ -3143,6 +3143,42 @@ class TDTestCase:
         tdSql.checkData(7,  2, 15)
         tdSql.checkData(8,  2, None)
 
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(NULL)")
+
+        tdSql.checkRows(27)
+        for i in range(0, 9):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(9, 18):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        for i in range(18, 27):
+            tdSql.checkData(i, 0, 'ctb3_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(8,  1, '2020-02-01 00:00:17.000')
+
+        tdSql.checkData(9,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(17, 1, '2020-02-01 00:00:17.000')
+
+        tdSql.checkData(18, 1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(26, 1, '2020-02-01 00:00:17.000')
+
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(NULL)")
+
+        tdSql.checkRows(18)
+        for i in range(0, 9):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(9, 17):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(8,  1, '2020-02-01 00:00:17.000')
+
+        tdSql.checkData(9,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(17, 1, '2020-02-01 00:00:17.000')
+
         # fill value
         # normal table
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{tbname_null} range('2020-02-02 00:00:01', '2020-02-02 00:00:11') every(1s) fill(value, 0)")
@@ -3315,6 +3351,42 @@ class TDTestCase:
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
         tdSql.checkData(8,  2, 0)
+
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(value, 0)")
+
+        tdSql.checkRows(27)
+        for i in range(0, 9):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(9, 18):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        for i in range(18, 27):
+            tdSql.checkData(i, 0, 'ctb3_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(8,  1, '2020-02-01 00:00:17.000')
+
+        tdSql.checkData(9,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(17, 1, '2020-02-01 00:00:17.000')
+
+        tdSql.checkData(18, 1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(26, 1, '2020-02-01 00:00:17.000')
+
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(value, 0)")
+
+        tdSql.checkRows(18)
+        for i in range(0, 9):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(9, 18):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(8,  1, '2020-02-01 00:00:17.000')
+
+        tdSql.checkData(9,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(17, 1, '2020-02-01 00:00:17.000')
 
         # fill prev
         # normal table
@@ -3489,6 +3561,36 @@ class TDTestCase:
         tdSql.checkData(7,  2, 15)
         tdSql.checkData(8,  2, 15)
 
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(prev)")
+
+        tdSql.checkRows(14)
+        for i in range(0, 9):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(9, 13):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(8,  1, '2020-02-01 00:00:17.000')
+
+        tdSql.checkData(9,  1, '2020-02-01 00:00:09.000')
+        tdSql.checkData(13, 1, '2020-02-01 00:00:17.000')
+
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(prev)")
+
+        tdSql.checkRows(14)
+        for i in range(0, 9):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(9, 13):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(8,  1, '2020-02-01 00:00:17.000')
+
+        tdSql.checkData(9,  1, '2020-02-01 00:00:09.000')
+        tdSql.checkData(13, 1, '2020-02-01 00:00:17.000')
+
         # fill next
         # normal table
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{tbname_null} range('2020-02-02 00:00:01', '2020-02-02 00:00:11') every(1s) fill(next)")
@@ -3650,6 +3752,36 @@ class TDTestCase:
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
 
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(next)")
+
+        tdSql.checkRows(15)
+        for i in range(0, 7):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(7, 15):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(6,  1, '2020-02-01 00:00:13.000')
+
+        tdSql.checkData(7,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(14, 1, '2020-02-01 00:00:15.000')
+
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(next)")
+
+        tdSql.checkRows(15)
+        for i in range(0, 7):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(7, 15):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(6,  1, '2020-02-01 00:00:13.000')
+
+        tdSql.checkData(7,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(14, 1, '2020-02-01 00:00:15.000')
+
         # fill linear
         # normal table
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{tbname_null} range('2020-02-02 00:00:01', '2020-02-02 00:00:11') every(1s) fill(linear)")
@@ -3810,6 +3942,36 @@ class TDTestCase:
         tdSql.checkData(5,  2, 11)
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
+
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0, 1) from {dbname}.{stbname_null} partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+
+        tdSql.checkRows(11)
+        for i in range(0, 7):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(7, 11):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(6,  1, '2020-02-01 00:00:13.000')
+
+        tdSql.checkData(7,  1, '2020-02-01 00:00:09.000')
+        tdSql.checkData(10, 1, '2020-02-01 00:00:15.000')
+
+        tdSql.query(f"select tbname, _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null partition by tbname range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+
+        tdSql.checkRows(11)
+        for i in range(0, 7):
+            tdSql.checkData(i, 0, 'ctb1_null')
+
+        for i in range(7, 11):
+            tdSql.checkData(i, 0, 'ctb2_null')
+
+        tdSql.checkData(0,  1, '2020-02-01 00:00:01.000')
+        tdSql.checkData(6,  1, '2020-02-01 00:00:13.000')
+
+        tdSql.checkData(7,  1, '2020-02-01 00:00:09.000')
+        tdSql.checkData(10, 1, '2020-02-01 00:00:15.000')
 
 
         tdLog.printNoPrefix("======step 15: test interp pseudo columns")
