@@ -46,23 +46,23 @@ typedef struct STqOffsetStore STqOffsetStore;
 
 // tqPush
 
-typedef struct {
-  // msg info
-  int64_t consumerId;
-  int64_t reqOffset;
-  int64_t processedVer;
-  int32_t epoch;
-  // rpc info
-  int64_t        reqId;
-  SRpcHandleInfo rpcInfo;
-  tmr_h          timerId;
-  int8_t         tmrStopped;
-  // exec
-  int8_t       inputStatus;
-  int8_t       execStatus;
-  SStreamQueue inputQ;
-  SRWLatch     lock;
-} STqPushHandle;
+//typedef struct {
+//  // msg info
+//  int64_t consumerId;
+//  int64_t reqOffset;
+//  int64_t processedVer;
+//  int32_t epoch;
+//  // rpc info
+//  int64_t        reqId;
+//  SRpcHandleInfo rpcInfo;
+//  tmr_h          timerId;
+//  int8_t         tmrStopped;
+//  // exec
+//  int8_t       inputStatus;
+//  int8_t       execStatus;
+//  SStreamQueue inputQ;
+//  SRWLatch     lock;
+//} STqPushHandle;
 
 // tqExec
 
@@ -90,6 +90,11 @@ typedef struct {
   int32_t      numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
+typedef enum tq_handle_status{
+  TMQ_HANDLE_STATUS_IDLE = 0,
+  TMQ_HANDLE_STATUS_EXEC = 1,
+}tq_handle_status;
+
 typedef struct {
   char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int64_t       consumerId;
@@ -98,18 +103,18 @@ typedef struct {
   int64_t       snapshotVer;
   SWalReader*   pWalReader;
   SWalRef*      pRef;
-  STqPushHandle pushHandle;    // push
+//  STqPushHandle pushHandle;    // push
   STqExecHandle execHandle;    // exec
   SRpcMsg*      msg;
   int32_t       noDataPollCnt;
-  int8_t        exec;
+  tq_handle_status        status;
 } STqHandle;
 
-typedef struct {
-  SMqDataRsp*    pDataRsp;
-  char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  SRpcHandleInfo info;
-} STqPushEntry;
+//typedef struct {
+//  SMqDataRsp*    pDataRsp;
+//  char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
+//  SRpcHandleInfo info;
+//} STqPushEntry;
 
 struct STQ {
   SVnode*         pVnode;
@@ -185,7 +190,6 @@ int32_t tqStreamTasksScanWal(STQ* pTq);
 char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
-bool    tqIsHandleExecuting(STqHandle* pHandle);
 
 #ifdef __cplusplus
 }
