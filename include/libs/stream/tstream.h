@@ -137,7 +137,6 @@ typedef struct {
 typedef struct {
   int8_t       type;
   int64_t      ver;
-  int32_t*     dataRef;
   SSDataBlock* pBlock;
 } SStreamRefDataBlock;
 

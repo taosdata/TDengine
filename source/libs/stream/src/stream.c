@@ -288,16 +288,11 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
   int8_t type = pItem->type;
 
   if (type == STREAM_INPUT__DATA_SUBMIT) {
-    SStreamDataSubmit2* pSubmitBlock = streamSubmitBlockClone((SStreamDataSubmit2*)pItem);
-    if (pSubmitBlock == NULL) {
-      qDebug("task %d %p submit enqueue failed since out of memory", pTask->id.taskId, pTask);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
-      return -1;
-    }
-
-    int32_t numOfBlocks = taosQueueItemSize(pTask->inputQueue->queue) + 1;
-    double size = taosQueueMemorySize(pTask->inputQueue->queue) / 1048576.0;
+    SStreamDataSubmit2* pSubmitBlock = (SStreamDataSubmit2*)pItem;
+    int32_t total = taosQueueItemSize(pTask->inputQueue->queue) + 1;
+    qDebug("s-task:%s submit enqueue %p %p msgLen:%d ver:%" PRId64 ", total in queue:%d", pTask->id.idStr,
+           pItem, pSubmitBlock->submit.msgStr, pSubmitBlock->submit.msgLen,
+           pSubmitBlock->submit.ver, total);
 
     qDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
            pSubmitBlock->submit.msgLen, pSubmitBlock->submit.ver, numOfBlocks, size);

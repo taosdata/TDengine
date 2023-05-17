@@ -125,6 +125,11 @@ int32_t  metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, in
                                int32_t payloadLen, double selectivityRatio);
 int32_t  metaUidCacheClear(SMeta *pMeta, uint64_t suid);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
+int32_t  metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
+int32_t  metaGetCachedTbGroup(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray** pList);
+int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
+                              int32_t payloadLen);
+
 int64_t  metaGetTbNum(SMeta *pMeta);
 int64_t  metaGetNtbNum(SMeta *pMeta);
 typedef struct {
@@ -177,9 +182,9 @@ typedef struct STsdbReader STsdbReader;
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
 
-int32_t tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
-int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-                       SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr, bool countOnly);
+int32_t      tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
+                            SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr, bool countOnly, SHashObj** pIgnoreTables);
+int32_t      tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
 
 void         tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
 void         tsdbReaderClose(STsdbReader *pReader);
@@ -197,6 +202,7 @@ int32_t      tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int3
 void         tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
 void         tsdbReaderSetCloseFlag(STsdbReader *pReader);
 
+int32_t tsdbReuseCacherowsReader(void* pReader, void* pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
@@ -264,7 +270,7 @@ int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
 int32_t tqNextBlockInWal(STqReader* pReader);
 bool    tqNextBlockImpl(STqReader *pReader, const char* idstr);
 
-int32_t extractSubmitMsgFromWal(SWalReader *pReader, SPackedData *pPackedData);
+int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, const char* idstr);

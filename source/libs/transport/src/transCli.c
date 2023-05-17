@@ -966,7 +966,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   }
 
   if (status == 0) {
-    tTrace("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
+    tDebug("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
   } else {
     if (!uv_is_closing((uv_handle_t*)&pConn->stream)) {
       tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
