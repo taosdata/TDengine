@@ -689,13 +689,10 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
 
 int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SStbObj *pStb) {
   SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
   int32_t contLen;
 
   void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0);
   if (pReq == NULL) {
-    sdbCancelFetch(pSdb, pIter);
-    sdbRelease(pSdb, pVgroup);
     return -1;
   }
 
@@ -709,11 +706,8 @@ int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgO
   action.retryCode = TSDB_CODE_TDB_STB_NOT_EXIST;
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
-    sdbCancelFetch(pSdb, pIter);
-    sdbRelease(pSdb, pVgroup);
     return -1;
   }
-  sdbRelease(pSdb, pVgroup);
 
   return 0;
 }
