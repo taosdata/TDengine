@@ -810,7 +810,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     temp_path.close()?;
     // let json = String::from_utf8_lossy(&output.stdout);
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    log::trace!("opc datasets : {}", serde_json::to_string(&res).unwrap_or("".to_string()));
+    log::debug!("opc datasets : {}", serde_json::to_string(&res).unwrap_or("".to_string()));
     let options = vec![OptionSet {
         name: "table".to_string(),
         description: Some("Table name".to_string()),
