@@ -4,13 +4,6 @@ name: PIBACKFILL
 description: |
   A data source plugin for PI system.
 type: uri
-protocol:
-  display: Protocol
-  description: Only support backfill for now.
-  choices:
-    - name: backfill
-      display: BACKFILL
-      description: BACKFILL
 options:
   host:
     display: Server
