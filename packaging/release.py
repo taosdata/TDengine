@@ -98,7 +98,7 @@ def buildAndInstallOPCOnWindows():
     
     opc_install_path = os.path.join(install_path, "xplugins", "opc")
     initDirectory(opc_install_path)
-    opc_path = os.path.join(opc_connector_path, "dist/windows_386", opc_app_name)
+    opc_path = os.path.join(opc_connector_path, "dist", "windows_386", opc_app_name)
     try:
         shutil.copy2(opc_path, opc_install_path)
     except FileNotFoundError as e:
