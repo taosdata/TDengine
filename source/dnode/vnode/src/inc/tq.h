@@ -110,12 +110,6 @@ typedef struct {
   tq_handle_status        status;
 } STqHandle;
 
-//typedef struct {
-//  SMqDataRsp*    pDataRsp;
-//  char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
-//  SRpcHandleInfo info;
-//} STqPushEntry;
-
 struct STQ {
   SVnode*         pVnode;
   char*           path;
@@ -195,7 +189,6 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq);
-bool    tqIsHandleExecuting(STqHandle* pHandle);
 #ifdef __cplusplus
 }
 #endif

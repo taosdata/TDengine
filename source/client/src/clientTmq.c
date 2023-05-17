@@ -1430,6 +1430,9 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
     clientVg.offsetInfo.committedOffset = offsetNew;
     clientVg.offsetInfo.walVerBegin = -1;
     clientVg.offsetInfo.walVerEnd = -1;
+    clientVg.seekUpdated = false;
+    clientVg.receivedInfoFromVnode = false;
+
     taosArrayPush(pTopic->vgs, &clientVg);
   }
 }
@@ -1858,9 +1861,10 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
       if (pollRspWrapper->metaRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
-        if(pollRspWrapper->metaRsp.rspOffset.type != 0){    // if offset is validate
+        if (!pVg->seekUpdated) {
           pVg->offsetInfo.currentOffset = pollRspWrapper->metaRsp.rspOffset;
         }
+
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         // build rsp
         SMqMetaRspObj* pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);
@@ -1878,9 +1882,10 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
       if (pollRspWrapper->taosxRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
-        if(pollRspWrapper->taosxRsp.rspOffset.type != 0){    // if offset is validate
+        if (!pVg->seekUpdated) {  // if offset is validate
           pVg->offsetInfo.currentOffset = pollRspWrapper->taosxRsp.rspOffset;
         }
+
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
 
         if (pollRspWrapper->taosxRsp.blockNum == 0) {

@@ -307,13 +307,6 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     return -1;
   }
 
-  if (pOffset->val.type == TMQ_OFFSET__LOG) {
-    STqHandle* pHandle = taosHashGet(pTq->pHandle, pOffset->subKey, strlen(pOffset->subKey));
-    if (pHandle && (walRefVer(pHandle->pRef, pOffset->val.version) < 0)) {
-      return -1;
-    }
-  }
-
   return 0;
 }
 
@@ -381,16 +374,6 @@ int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) 
     pOffset->val.version = ever;
   }
 
-  ASSERT(0);
-  if (offset.val.type == TMQ_OFFSET__LOG) {
-    taosWLockLatch(&pTq->lock);
-    STqHandle* pHandle = taosHashGet(pTq->pHandle, offset.subKey, strlen(offset.subKey));
-    if (pHandle && (walSetRefVer(pHandle->pRef, offset.val.version) < 0)) {
-      taosWUnLockLatch(&pTq->lock);
-      return -1;
-    }
-    taosWUnLockLatch(&pTq->lock);
-
   // save the new offset value
   if (pSavedOffset != NULL) {
     tqDebug("vgId:%d sub:%s seek to:%" PRId64 " prev offset:%" PRId64, vgId, pOffset->subKey, pOffset->val.version,
@@ -404,7 +387,6 @@ int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) 
     return -1;
   }
 
-  walReaderSeekVer(pHandle->execHandle.pTqReader->pWalReader, vgOffset.offset.val.version);
   tqDebug("topic:%s, vgId:%d consumer:0x%" PRIx64 " offset is update to:%" PRId64, vgOffset.offset.subKey, vgId,
           vgOffset.consumerId, vgOffset.offset.val.version);
 
@@ -575,6 +557,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
+  int32_t vgId = TD_VID(pTq->pVnode);
 
   tqDebug("vgId:%d, tq process delete sub req %s", vgId, pReq->subKey);
   int32_t code = 0;
@@ -586,13 +569,9 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
       taosMsleep(5);
     }
+
     if (pHandle->pRef) {
       walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
-    }
-
-    while (tqIsHandleExecuting(pHandle)) {
-      tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
-      taosMsleep(5);
     }
 
     code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
