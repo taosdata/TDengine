@@ -716,9 +716,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
   SLRUCache *pCache = pTsdb->lruCache;
   for (int i = 0, j = 0; i < num_keys && j < TARRAY_SIZE(remainCols); ++i) {
     SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
-    SIdxKey  *idxKey = taosArrayGet(remainCols, j);
-    int16_t   cid = idxKey->key.cid;
-    SLastCol  noneCol = {.ts = TSKEY_MIN, .colVal = COL_VAL_NONE(cid, pr->pSchema->columns[pr->pSlotIds[i]].type)};
+    SIdxKey  *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[j];
     if (pLastCol) {
       SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
       *pTmpLastCol = *pLastCol;
@@ -747,6 +745,7 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
       ++j;
     }
   }
+
   taosMemoryFree(values_list);
   taosMemoryFree(values_list_sizes);
 
@@ -759,14 +758,13 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
 
 int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype) {
   int32_t    code = 0;
+  SArray    *remainCols = NULL;
   SLRUCache *pCache = pTsdb->lruCache;
   SArray    *pCidList = pr->pCidList;
   int        num_keys = TARRAY_SIZE(pCidList);
 
-  SArray *remainCols = NULL;
-
   for (int i = 0; i < num_keys; ++i) {
-    int16_t cid = *(int16_t *)taosArrayGet(pCidList, i);
+    int16_t cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
 
     SLastKey *key = &(SLastKey){.ltype = ltype, .uid = uid, .cid = cid};
 
@@ -775,7 +773,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
       SLastCol lastCol = *pLastCol;
-      reallocVarData(&lastCol.colVal);
+      // reallocVarData(&lastCol.colVal);
       taosArrayPush(pLastArray, &lastCol);
 
       if (h) {
@@ -796,7 +794,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
   if (remainCols && TARRAY_SIZE(remainCols) > 0) {
     taosThreadMutexLock(&pTsdb->lruMutex);
     for (int i = 0; i < TARRAY_SIZE(remainCols);) {
-      SIdxKey   *idxKey = taosArrayGet(remainCols, i);
+      SIdxKey   *idxKey = &((SIdxKey *)TARRAY_DATA(remainCols))[i];
       LRUHandle *h = taosLRUCacheLookup(pCache, &idxKey->key, ROCKS_KEY_LEN);
       if (h) {
         SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
@@ -1551,9 +1549,15 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         if (code) goto _err;
       }
 
+      int  nTmpCols = nCols;
+      bool hasTs = false;
+      if (aCols[0] == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        --nTmpCols;
+        hasTs = true;
+      }
       for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
-        state->pLoadInfo[i].colIds = aCols;
-        state->pLoadInfo[i].numOfCols = nCols;
+        state->pLoadInfo[i].colIds = hasTs ? aCols + 1 : aCols;
+        state->pLoadInfo[i].numOfCols = nTmpCols;
         state->pLoadInfo[i].isLast = isLast;
       }
       tMergeTreeOpen(&state->mergeTree, 1, *state->pDataFReader, state->suid, state->uid,

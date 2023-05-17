@@ -306,12 +306,14 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       tsdbCacheGetBatch(pr->pTsdb, pKeyInfo->uid, pRow, pr, ltype);
       // tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, ltype);
       if (TARRAY_SIZE(pRow) <= 0) {
-        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClearEx(pRow, freeItem);
+        taosArrayClear(pRow);
         continue;
       }
       SLastCol* pColVal = taosArrayGet(pRow, 0);
       if (COL_VAL_IS_NONE(&pColVal->colVal)) {
-        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClearEx(pRow, freeItem);
+        taosArrayClear(pRow);
         continue;
       }
 
@@ -368,7 +370,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
       }
 
-      taosArrayClearEx(pRow, freeItem);
+      // taosArrayClearEx(pRow, freeItem);
+      taosArrayClear(pRow);
     }
 
     if (hasRes) {
@@ -380,17 +383,20 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
       if (TARRAY_SIZE(pRow) <= 0) {
-        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClearEx(pRow, freeItem);
+        taosArrayClear(pRow);
         continue;
       }
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
       if (COL_VAL_IS_NONE(&pColVal->colVal)) {
-        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClearEx(pRow, freeItem);
+        taosArrayClear(pRow);
         continue;
       }
 
       saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
-      taosArrayClearEx(pRow, freeItem);
+      // taosArrayClearEx(pRow, freeItem);
+      taosArrayClear(pRow);
 
       taosArrayPush(pTableUidList, &uid);
 
@@ -418,7 +424,8 @@ _end:
   }
 
   taosMemoryFree(pRes);
-  taosArrayDestroyEx(pRow, freeItem);
+  // taosArrayDestroyEx(pRow, freeItem);
+  taosArrayDestroy(pRow);
   taosArrayDestroyEx(pLastCols, freeItem);
 
   return code;
