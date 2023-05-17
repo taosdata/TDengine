@@ -22,6 +22,7 @@
 #include "sclInt.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "tsimplehash.h"
 #include "ttime.h"
 
 bool filterRangeCompGi(const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
@@ -260,7 +261,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 19;
       } else if (optr == OP_TYPE_NMATCH) {
         comparFn = 20;
-      } else if (optr == OP_TYPE_LIKE) { /* wildcard query using like operator */
+      } else if (optr == OP_TYPE_LIKE) {     /* wildcard query using like operator */
         comparFn = 7;
       } else if (optr == OP_TYPE_NOT_LIKE) { /* wildcard query using like operator */
         comparFn = 26;
@@ -1633,7 +1634,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
           SDataType  *dType = &var->node.resType;
           qDebug("VAL%d => [type:%d][val:%" PRIx64 "]", i, dType->type, var->datum.i);  // TODO
         } else if (field->data) {
-          qDebug("VAL%d => [type:NIL][val:NIL]", i);  // TODO
+          qDebug("VAL%d => [type:NIL][val:NIL]", i);                                    // TODO
         }
       }
 
@@ -3957,59 +3958,96 @@ typedef enum {
 typedef struct {
   SFltSclDatumKind kind;
   union {
-    int64_t  val; // for int64, uint64 and double and bool (1 true, 0 false)
-    struct {
-      uint32_t nData; // TODO maybe remove this and make pData len prefixed?
-      uint8_t *pData;
-    }; // for varchar, nchar
+    int64_t val;       // for int64, uint64 and double and bool (1 true, 0 false)
+    uint8_t *pData; // for varchar, nchar
   } datum;
-  SDataType type; // TODO: original data type, may not be used?
+  SDataType type;      // TODO: original data type, may not be used?
 } SFltSclDatum;
 
 typedef struct {
   SFltSclDatum val;
-  bool excl;
-  bool start;
+  bool         excl;
+  bool         start;
 } SFltSclPoint;
 
 typedef struct {
   SFltSclDatum low;
   SFltSclDatum high;
-  bool lowExcl;
-  bool highExcl;
+  bool         lowExcl;
+  bool         highExcl;
 } SFltSclRange;
 
-int32_t fltSclCompareDatum(SFltSclDatum* val1, SFltSclDatum* val2) {
+int32_t fltSclCompareWithFloat64(SFltSclDatum *val1, SFltSclDatum *val2) {
+  // val2->kind == int64
   switch (val1->kind) {
-    case FLT_SCL_DATUM_KIND_NULL: {
-      if (val2->kind == FLT_SCL_DATUM_KIND_NULL) return 0 ; else return -1;
-      break;
+    case FLT_SCL_DATUM_KIND_UINT64:
+      return compareUint64Double(&val1->datum.val, &val2->datum.val);
+    case FLT_SCL_DATUM_KIND_INT64:
+      return compareInt64Double(&val1->datum.val, &val2->datum.val);
+    case FLT_SCL_DATUM_KIND_FLOAT64: {
+      return compareDoubleVal(&val1->datum.val, &val2->datum.val);
     }
-    case FLT_SCL_DATUM_KIND_MIN: {
-      if (val2->kind == FLT_SCL_DATUM_KIND_NULL) return 1;
-      else {
-        if (val2->kind == FLT_SCL_DATUM_KIND_MIN) return 0; else return -1;
-      }
-      break;
+    //TODO: varchar, nchar
+    default:
+      qError("not support comparsion. %d, %d", val1->kind, val2->kind);
+      return (val1->kind - val2->kind);
+  }
+}
+
+int32_t fltSclCompareWithInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
+  // val2->kind == int64
+  switch (val1->kind) {
+    case FLT_SCL_DATUM_KIND_UINT64:
+      return compareUint64Int64(&val1->datum.val, &val2->datum.val);
+    case FLT_SCL_DATUM_KIND_INT64:
+      return compareInt64Val(&val1->datum.val, &val2->datum.val);
+    case FLT_SCL_DATUM_KIND_FLOAT64: {
+      return compareDoubleInt64(&val1->datum.val, &val2->datum.val);
     }
-    case FLT_SCL_DATUM_KIND_MAX: {
-      if (val2->kind == FLT_SCL_DATUM_KIND_MAX) return 0; else return 1;
+    //TODO: varchar, nchar
+    default:
+      qError("not support comparsion. %d, %d", val1->kind, val2->kind);
+      return (val1->kind - val2->kind);
+  }
+}
+
+int32_t fltSclCompareWithUInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
+  // val2 kind == uint64
+  switch (val1->kind) {
+    case FLT_SCL_DATUM_KIND_UINT64:
+      return compareUint64Val(&val1->datum.val, &val2->datum.val);
+    case FLT_SCL_DATUM_KIND_INT64:
+      return compareInt64Uint64(&val1->datum.val, &val2->datum.val);
+    case FLT_SCL_DATUM_KIND_FLOAT64: {
+      return compareDoubleUint64(&val1->datum.val, &val2->datum.val);
     }
+    //TODO: varchar, nchar
+    default:
+      qError("not support comparsion. %d, %d", val1->kind, val2->kind);
+      return (val1->kind - val2->kind);
+  }
+}
+
+int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
+  if (val2->kind == FLT_SCL_DATUM_KIND_NULL || val2->kind == FLT_SCL_DATUM_KIND_MIN ||
+      val2->kind == FLT_SCL_DATUM_KIND_MAX) {
+    if (val1->kind == FLT_SCL_DATUM_KIND_NULL || val1->kind == FLT_SCL_DATUM_KIND_MIN ||
+        val1->kind == FLT_SCL_DATUM_KIND_MAX) {
+      return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
+    }
+  }
+
+  switch (val2->kind) {
     case FLT_SCL_DATUM_KIND_UINT64: {
-      return compareUint64Val(&val1->datum.val, &val1->datum.val);
+      return fltSclCompareWithUInt64(val1, val2);
     }
     case FLT_SCL_DATUM_KIND_INT64: {
-      return compareInt64Val(&val1->datum.val, &val2->datum.val);
+      return fltSclCompareWithInt64(val1, val2);
     }
     case FLT_SCL_DATUM_KIND_FLOAT64: {
-      return compareFloatDouble(&val1->datum.val, &val2->datum.val);
+      return fltSclCompareWithFloat64(val1, val2);
     }
-    case FLT_SCL_DATUM_KIND_NCHAR: {
-      return compareLenPrefixedWStr(&val1->datum.pData, &val2->datum.pData); //TODO
-    }
-    case FLT_SCL_DATUM_KIND_VARCHAR: {
-      return compareLenPrefixedStr(&val1->datum.pData, &val2->datum.pData); //TODO
-    }
+    //TODO: varchar/nchar
     default:
       fltError("not supported kind. just return 0");
       return 0;
@@ -4018,124 +4056,114 @@ int32_t fltSclCompareDatum(SFltSclDatum* val1, SFltSclDatum* val2) {
   return 0;
 }
 
-bool fltSclLessPoint(SFltSclPoint* pt1, SFltSclPoint* pt2) {
+bool fltSclLessPoint(SFltSclPoint *pt1, SFltSclPoint *pt2) {
   // first value compare
   int32_t cmp = fltSclCompareDatum(&pt1->val, &pt2->val);
   if (cmp != 0) {
-    return cmp < 0 ;
+    return cmp < 0;
   }
 
   if (pt1->start && pt2->start) {
-      return !pt1->excl && pt2->excl;
-    } else if (pt1->start) {
-      return pt1->excl && !pt2->excl;
-    } else if (pt2->start) {
-      return pt1->excl || pt2->excl;
-    }
+    return !pt1->excl && pt2->excl;
+  } else if (pt1->start) {
+    return pt1->excl && !pt2->excl;
+  } else if (pt2->start) {
+    return pt1->excl || pt2->excl;
+  }
   return pt1->excl && !pt2->excl;
 }
 
-int32_t fltSclMergeSort(SArray* pts1, SArray* pts2, SArray* result) {
+int32_t fltSclMergeSort(SArray *pts1, SArray *pts2, SArray *result) {
   size_t len1 = taosArrayGetSize(pts1);
   size_t len2 = taosArrayGetSize(pts2);
   size_t i = 0;
   size_t j = 0;
   while (i < len1 && j < len2) {
-      SFltSclPoint* pt1 = taosArrayGet(pts1, i);
-      SFltSclPoint* pt2 = taosArrayGet(pts2, j);
-      bool less = fltSclLessPoint(pt1, pt2);
-      if (less) {
+    SFltSclPoint *pt1 = taosArrayGet(pts1, i);
+    SFltSclPoint *pt2 = taosArrayGet(pts2, j);
+    bool          less = fltSclLessPoint(pt1, pt2);
+    if (less) {
       taosArrayPush(result, pt1);
       ++i;
-      } else {
+    } else {
       taosArrayPush(result, pt2);
       ++j;
-      }
+    }
   }
   if (i < len1) {
-      for (; i < len1; ++i) {
-      SFltSclPoint* pt1 = taosArrayGet(pts1, i);
+    for (; i < len1; ++i) {
+      SFltSclPoint *pt1 = taosArrayGet(pts1, i);
       taosArrayPush(result, pt1);
-      }
+    }
   }
   if (j < len2) {
-      for (; j < len2; ++j) {
+    for (; j < len2; ++j) {
       SFltSclPoint *pt2 = taosArrayGet(pts2, j);
       taosArrayPush(result, pt2);
-      }
+    }
   }
   return 0;
 }
 
 // pts1 and pts2 must be ordered and de-duplicated and each range can not be a range of another range
-int32_t fltSclMerge(SArray* pts1, SArray* pts2, bool isUnion, SArray* merged) {
+int32_t fltSclMerge(SArray *pts1, SArray *pts2, bool isUnion, SArray *merged) {
   size_t len1 = taosArrayGetSize(pts1);
   size_t len2 = taosArrayGetSize(pts2);
-  //first merge sort pts1 and pts2
-  SArray* all = taosArrayInit(len1 + len2, sizeof(SFltSclPoint));
+  // first merge sort pts1 and pts2
+  SArray *all = taosArrayInit(len1 + len2, sizeof(SFltSclPoint));
   fltSclMergeSort(pts1, pts2, all);
   int32_t countRequired = (isUnion) ? 1 : 2;
   int32_t count = 0;
   for (int32_t i = 0; i < taosArrayGetSize(all); ++i) {
-      SFltSclPoint* pt = taosArrayGet(pts1, i);
-      if (pt->start) {
-        ++count;
-        if (count == countRequired) {
-          taosArrayPush(merged, pt);
-        }
-      } else {
-        if (count == countRequired) {
-          taosArrayPush(merged, pt);
-        }
-        --count;
+    SFltSclPoint *pt = taosArrayGet(pts1, i);
+    if (pt->start) {
+      ++count;
+      if (count == countRequired) {
+        taosArrayPush(merged, pt);
       }
+    } else {
+      if (count == countRequired) {
+        taosArrayPush(merged, pt);
+      }
+      --count;
+    }
   }
   taosArrayDestroy(all);
   return 0;
 }
 
+int32_t fltSclIntersect(SArray *pts1, SArray *pts2, SArray *merged) { return fltSclMerge(pts1, pts2, false, merged); }
 
-int32_t fltSclIntersect(SArray* pts1, SArray* pts2, SArray* merged) {
-  return fltSclMerge(pts1, pts2, false, merged);
-}
-
-int32_t fltSclUnion(SArray* pts1, SArray* pts2, SArray* merged) {
-  return fltSclMerge(pts1, pts2, true, merged);
-}
-
+int32_t fltSclUnion(SArray *pts1, SArray *pts2, SArray *merged) { return fltSclMerge(pts1, pts2, true, merged); }
 
 typedef struct {
-  SColumnNode* colNode;
-  SValueNode* valNode;
+  SColumnNode  *colNode;
+  SValueNode   *valNode;
   EOperatorType type;
-} SFltSclScalarOp;
+} SFltSclOperator;
 
-// simple define it, TODO: implement later
-typedef struct {
-  SColumnNode* colNode;
-} SFltSclConstColumn;
+//TODO: column, constant, operator, and/or/not
 
-// simple define it, TODO: implement later
-typedef struct {
-  SValueNode* value;
-} SFltSclConstant;
-
-
-int32_t fltSclBuildRangeFromScalarFunc(SFltSclScalarOp* func, SFltSclPoint* points) {
-
+int32_t fltSclBuildRangeFromOperator(SFltSclOperator *sclOper, SSHashObj* obj) {
+  switch (sclOper->type) {
+    case OP_TYPE_GREATER_THAN: {
+    }
+      break;
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
-
 typedef struct {
-  bool useRange;
-  SHashObj* colRanges;
+  bool      useRange;
+  SHashObj *colRanges;
 } SFltSclOptCtx;
 
-static EDealRes fltSclMayBeOptimed(SNode* pNode, void* pCtx) {
-  SFltSclOptCtx* ctx = (SFltSclOptCtx*)pCtx;
+static EDealRes fltSclMayBeOptimed(SNode *pNode, void *pCtx) {
+  SFltSclOptCtx *ctx = (SFltSclOptCtx *)pCtx;
   return DEAL_RES_CONTINUE;
 }
-
 
 int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
   SFltSclOptCtx ctx;
