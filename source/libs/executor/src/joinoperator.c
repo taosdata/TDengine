@@ -477,7 +477,7 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
 }
 
 static int32_t mergeJoinCreateBuildTable(SJoinOperatorInfo* pInfo, SArray* rightRowLocations,SSHashObj** ppHashObj) {
-  int32_t buildTableCap = MIN(taosArrayGetSize(rightRowLocations), 4096);
+  int32_t buildTableCap = TMIN(taosArrayGetSize(rightRowLocations), 256);
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   SSHashObj* buildTable = tSimpleHashInit(buildTableCap,  hashFn);
   for (int32_t i = 0; i < taosArrayGetSize(rightRowLocations); ++i) {
@@ -611,7 +611,7 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
     leftRowLocations = taosArrayInit(8, sizeof(SRowLocation));
     leftCreatedBlocks = taosArrayInit(8, POINTER_BYTES);
 
-    SArray* rightRowLocations = taosArrayInit(8, sizeof(SRowLocation));
+    rightRowLocations = taosArrayInit(8, sizeof(SRowLocation));
     rightCreatedBlocks = taosArrayInit(8, POINTER_BYTES);
 
     mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 0, pJoinInfo->leftCol.slotId, pJoinInfo->pLeft,

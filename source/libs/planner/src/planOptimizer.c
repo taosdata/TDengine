@@ -806,6 +806,10 @@ static int32_t pushDownCondOptJoinExtractTagEqualLogicCond(SJoinLogicNode* pJoin
 }
 
 static int32_t pushDownCondOptJoinExtractTagEqualCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  if (NULL == pJoin->pOnConditions) {
+    pJoin->pTagEqualConditions = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions) &&
       LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)(pJoin->pOnConditions))->condType) {
     return pushDownCondOptJoinExtractTagEqualLogicCond(pJoin);
