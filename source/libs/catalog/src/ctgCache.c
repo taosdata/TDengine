@@ -46,6 +46,7 @@ SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"OthTblMeta", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_OTHERTABLE_META,
     {"TblSMA    ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_TBL_SMA,
     {"TblCfg    ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_TBL_CFG,
+    {"TblTag    ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_TBL_TAG,
     {"IndexInfo ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_INDEX_INFO,
     {"User      ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_USER,
     {"UDF       ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_UDF,
@@ -1783,7 +1784,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
     goto _return;
   }
 
-  if (dbInfo->vgVersion < 0 || taosHashGetSize(dbInfo->vgHash) <= 0) {
+  if (dbInfo->vgVersion < 0 || (taosHashGetSize(dbInfo->vgHash) <= 0 && !IS_SYS_DBNAME(dbFName))) {
     ctgDebug("invalid db vgInfo, dbFName:%s, vgHash:%p, vgVersion:%d, vgHashSize:%d", dbFName, dbInfo->vgHash,
              dbInfo->vgVersion, taosHashGetSize(dbInfo->vgHash));
     CTG_ERR_JRET(TSDB_CODE_APP_ERROR);
@@ -1824,7 +1825,10 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
       goto _return;
     }
 
-    atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetDbVgroupCacheSize(vgCache->vgInfo));
+    uint64_t groupCacheSize = ctgGetDbVgroupCacheSize(vgCache->vgInfo);
+    ctgDebug("sub dbGroupCacheSize %" PRIu64 " from db, dbFName:%s", groupCacheSize, dbFName);
+
+    atomic_sub_fetch_64(&dbCache->dbCacheSize, groupCacheSize);
     
     freeVgInfo(vgInfo);
     CTG_DB_NUM_RESET(CTG_CI_DB_VGROUP);
@@ -1839,7 +1843,9 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
 
   ctgWUnlockVgInfo(dbCache);
 
-  atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetDbVgroupCacheSize(vgCache->vgInfo));
+  uint64_t groupCacheSize = ctgGetDbVgroupCacheSize(vgCache->vgInfo);
+  atomic_add_fetch_64(&dbCache->dbCacheSize, groupCacheSize);
+  ctgDebug("add dbGroupCacheSize %" PRIu64 " from db, dbFName:%s", groupCacheSize, dbFName);
 
   dbCache = NULL;
 
