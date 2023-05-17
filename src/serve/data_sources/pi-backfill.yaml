@@ -68,14 +68,14 @@ groups:
   - name: BackfillStartTime
     display: Backfill Start Time
     hint:
-      type: time
+      type: datetime
     description: |
       The start time for backfilling data. If not provided, the start time will be the earliest time available.
     placeholder: "YYYY-MM-DDTHH:mm:ssZ"
   - name: BackfillEndTime
     display: Backfill End Time
     hint:
-      type: time
+      type: datetime
     description: |
       The start time for backfilling data. If not provided, the start time will be the earliest time available.
     placeholder: "YYYY-MM-DDTHH:mm:ssZ"
