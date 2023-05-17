@@ -131,6 +131,7 @@ int32_t streamTaskEnqueueBlocks(SStreamTask* pTask, const SStreamDispatchReq* pR
     if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {  // input queue is full, upstream is blocked now
+      taosFreeQitem(pData);
       status = TASK_INPUT_STATUS__BLOCKED;
     }
   } else {
@@ -174,6 +175,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
     if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {
+      taosFreeQitem(pData);
       status = TASK_INPUT_STATUS__FAILED;
     }
   } else {
