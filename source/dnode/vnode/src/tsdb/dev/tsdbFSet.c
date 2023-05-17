@@ -275,6 +275,7 @@ int32_t tsdbFileSetInitEx(const STFileSet *fset1, STFileSet *fset2) {
     SSttLvl *lvl1 = TCONTAINER_OF(node, SSttLvl, rbtn);
     SSttLvl *lvl2 = taosMemoryCalloc(1, sizeof(*lvl2));
     if (lvl2 == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    stt_lvl_init(lvl2, lvl1->level);
     add_stt_lvl(fset2, lvl2);
 
     SRBTreeIter iter2 = tRBTreeIterCreate(&lvl1->sttTree, 1);
