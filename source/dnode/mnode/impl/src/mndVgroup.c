@@ -1456,7 +1456,7 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
     mInfo("vgId:%d, will add 1 vnode and force remove 1 vnode", pVgroup->vgId);
     if (mndAddVnodeToVgroup(pMnode, pTrans, &newVg, pArray) != 0) return -1;
     newVg.replica--;
-    SVnodeGid del = newVg.vnodeGid[vnIndex];
+    //SVnodeGid del = newVg.vnodeGid[vnIndex];
     newVg.vnodeGid[vnIndex] = newVg.vnodeGid[newVg.replica];
     memset(&newVg.vnodeGid[newVg.replica], 0, sizeof(SVnodeGid));
     {
