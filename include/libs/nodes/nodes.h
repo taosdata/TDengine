@@ -307,6 +307,7 @@ void    nodesDestroyAllocator(int64_t allocatorId);
 
 SNode* nodesMakeNode(ENodeType type);
 void   nodesDestroyNode(SNode* pNode);
+void   nodesFree(void* p);
 
 SNodeList* nodesMakeList();
 int32_t    nodesListAppend(SNodeList* pList, SNode* pNode);

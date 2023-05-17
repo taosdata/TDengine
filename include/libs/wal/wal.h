@@ -210,8 +210,7 @@ SWalRef *walRefCommittedVer(SWal *);
 
 SWalRef *walOpenRef(SWal *);
 void     walCloseRef(SWal *pWal, int64_t refId);
-int32_t  walRefVer(SWalRef *, int64_t ver);
-void     walUnrefVer(SWalRef *);
+int32_t  walSetRefVer(SWalRef *, int64_t ver);
 
 // helper function for raft
 bool walLogExist(SWal *, int64_t ver);

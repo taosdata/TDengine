@@ -54,7 +54,7 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
     if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execCol.qmsg) < 0) return -1;
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     pHandle->execHandle.execDb.pFilterOutTbUid =
-        taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+        taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     int32_t size = 0;
     if (tDecodeI32(pDecoder, &size) < 0) return -1;
     for (int32_t i = 0; i < size; i++) {
@@ -295,7 +295,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       code = -1;
       goto end;
     }
-    walRefVer(handle.pRef, handle.snapshotVer);
+    walSetRefVer(handle.pRef, handle.snapshotVer);
 
     SReadHandle reader = {
         .meta = pTq->pVnode->pMeta,
@@ -352,7 +352,9 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, 0);
     }
     tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, vgId);
+    taosWLockLatch(&pTq->lock);
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));
+    taosWUnLockLatch(&pTq->lock);
   }
 
 end:

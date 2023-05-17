@@ -2594,7 +2594,9 @@ static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo, SNode* pCondit
   if (NULL == pConditions) {
     return true;
   }
-
+  if (LIST_LENGTH(pInfo->pAgg->pGroupKeys) != 0) {
+    return false;
+  }
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pConditions)) {
     return tbCntScanOptIsEligibleLogicCond(pInfo, (SLogicConditionNode*)pConditions);
   }

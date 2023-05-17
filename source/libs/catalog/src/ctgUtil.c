@@ -236,6 +236,7 @@ void ctgFreeTbCache(SCtgDBCache* dbCache) {
 }
 
 void ctgFreeVgInfoCache(SCtgDBCache* dbCache) { freeVgInfo(dbCache->vgCache.vgInfo); }
+void ctgFreeCfgInfoCache(SCtgDBCache* dbCache) { freeDbCfgInfo(dbCache->cfgCache.cfgInfo); }
 
 void ctgFreeDbCache(SCtgDBCache* dbCache) {
   if (NULL == dbCache) {
@@ -243,6 +244,7 @@ void ctgFreeDbCache(SCtgDBCache* dbCache) {
   }
 
   ctgFreeVgInfoCache(dbCache);
+  ctgFreeCfgInfoCache(dbCache);
   ctgFreeStbMetaCache(dbCache);
   ctgFreeTbCache(dbCache);
 }
@@ -1073,10 +1075,10 @@ int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2) {
   }
 }
 
-int32_t ctgDbVgVersionSearchCompare(const void* key1, const void* key2) {
-  if (*(int64_t*)key1 < ((SDbVgVersion*)key2)->dbId) {
+int32_t ctgDbCacheInfoSearchCompare(const void* key1, const void* key2) {
+  if (*(int64_t*)key1 < ((SDbCacheInfo*)key2)->dbId) {
     return -1;
-  } else if (*(int64_t*)key1 > ((SDbVgVersion*)key2)->dbId) {
+  } else if (*(int64_t*)key1 > ((SDbCacheInfo*)key2)->dbId) {
     return 1;
   } else {
     return 0;
@@ -1093,10 +1095,10 @@ int32_t ctgStbVersionSortCompare(const void* key1, const void* key2) {
   }
 }
 
-int32_t ctgDbVgVersionSortCompare(const void* key1, const void* key2) {
-  if (((SDbVgVersion*)key1)->dbId < ((SDbVgVersion*)key2)->dbId) {
+int32_t ctgDbCacheInfoSortCompare(const void* key1, const void* key2) {
+  if (((SDbCacheInfo*)key1)->dbId < ((SDbCacheInfo*)key2)->dbId) {
     return -1;
-  } else if (((SDbVgVersion*)key1)->dbId > ((SDbVgVersion*)key2)->dbId) {
+  } else if (((SDbCacheInfo*)key1)->dbId > ((SDbCacheInfo*)key2)->dbId) {
     return 1;
   } else {
     return 0;
@@ -1267,16 +1269,20 @@ static void* ctgCloneDbVgroup(void* pSrc) { return taosArrayDup((const SArray*)p
 
 static void ctgFreeDbVgroup(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
-static void* ctgCloneDbCfgInfo(void* pSrc) {
+void* ctgCloneDbCfgInfo(void* pSrc) {
   SDbCfgInfo* pDst = taosMemoryMalloc(sizeof(SDbCfgInfo));
   if (NULL == pDst) {
     return NULL;
   }
   memcpy(pDst, pSrc, sizeof(SDbCfgInfo));
+  pDst->pRetensions = taosArrayDup(((SDbCfgInfo *)pSrc)->pRetensions, NULL);
   return pDst;
 }
 
-static void ctgFreeDbCfgInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
+static void ctgFreeDbCfgInfo(void* p) { 
+  SDbCfgInfo* pDst = (SDbCfgInfo *)((SMetaRes*)p)->pRes;
+  freeDbCfgInfo(pDst);
+}
 
 static void* ctgCloneDbInfo(void* pSrc) {
   SDbInfo* pDst = taosMemoryMalloc(sizeof(SDbInfo));
