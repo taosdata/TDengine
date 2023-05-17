@@ -664,7 +664,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   }
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-    pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
+    SWalFilterCond cond = {.deleteMsg = 1};
+    pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond);
   }
 
   streamSetupTrigger(pTask);
@@ -868,7 +869,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   memcpy(serializedReq, &req, len);
 
   // dispatch msg
-  tqDebug("s-task:%s start recover block stage", pTask->id.idStr);
+  tqDebug("s-task:%s start to recover blocking stage", pTask->id.idStr);
 
   SRpcMsg rpcMsg = {
       .code = 0, .contLen = len, .msgType = TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE, .pCont = serializedReq};
@@ -891,6 +892,9 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
+
+  qDebug("s-task:%s set the start wal offset to be:%"PRId64, pTask->id.idStr, sversion);
+  walReaderSeekVer(pTask->exec.pWalReader, sversion);
 
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
@@ -958,7 +962,60 @@ int32_t tqProcessTaskRecoverFinishRsp(STQ* pTq, SRpcMsg* pMsg) {
   return 0;
 }
 
-int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
+int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock) {
+  SDecoder*   pCoder = &(SDecoder){0};
+  SDeleteRes* pRes = &(SDeleteRes){0};
+
+  *pRefBlock = NULL;
+
+  pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
+  if (pRes->uidList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  tDecoderInit(pCoder, (uint8_t*)pData, len);
+  tDecodeDeleteRes(pCoder, pRes);
+  tDecoderClear(pCoder);
+
+  int32_t numOfTables = taosArrayGetSize(pRes->uidList);
+  if (numOfTables == 0 || pRes->affectedRows == 0) {
+    taosArrayDestroy(pRes->uidList);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
+  blockDataEnsureCapacity(pDelBlock, numOfTables);
+  pDelBlock->info.rows = numOfTables;
+  pDelBlock->info.version = ver;
+
+  for (int32_t i = 0; i < numOfTables; i++) {
+    // start key column
+    SColumnInfoData* pStartCol = taosArrayGet(pDelBlock->pDataBlock, START_TS_COLUMN_INDEX);
+    colDataSetVal(pStartCol, i, (const char*)&pRes->skey, false);  // end key column
+    SColumnInfoData* pEndCol = taosArrayGet(pDelBlock->pDataBlock, END_TS_COLUMN_INDEX);
+    colDataSetVal(pEndCol, i, (const char*)&pRes->ekey, false);
+    // uid column
+    SColumnInfoData* pUidCol = taosArrayGet(pDelBlock->pDataBlock, UID_COLUMN_INDEX);
+    int64_t*         pUid = taosArrayGet(pRes->uidList, i);
+    colDataSetVal(pUidCol, i, (const char*)pUid, false);
+
+    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, GROUPID_COLUMN_INDEX), i);
+    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), i);
+    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), i);
+  }
+
+  taosArrayDestroy(pRes->uidList);
+  *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
+  if (pRefBlock == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pRefBlock)->type = STREAM_INPUT__REF_DATA_BLOCK;
+  (*pRefBlock)->pBlock = pDelBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tqProcessDeleteDataReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   bool        failed = false;
   SDecoder*   pCoder = &(SDecoder){0};
   SDeleteRes* pRes = &(SDeleteRes){0};
@@ -978,6 +1035,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     taosArrayDestroy(pRes->uidList);
     return 0;
   }
+
   SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
   blockDataEnsureCapacity(pDelBlock, sz);
   pDelBlock->info.rows = sz;
@@ -1024,8 +1082,6 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
       SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
       pRefBlock->type = STREAM_INPUT__REF_DATA_BLOCK;
       pRefBlock->pBlock = pDelBlock;
-      pRefBlock->dataRef = pRef;
-      atomic_add_fetch_32(pRefBlock->dataRef, 1);
 
       if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pRefBlock) < 0) {
         atomic_sub_fetch_32(pRef, 1);

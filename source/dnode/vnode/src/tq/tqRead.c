@@ -294,32 +294,51 @@ void tqCloseReader(STqReader* pReader) {
 }
 
 int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
-  if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
+  if (walReaderSeekVer(pReader->pWalReader, ver) < 0) {
     return -1;
   }
   tqDebug("wal reader seek to ver:%"PRId64" %s", ver, id);
   return 0;
 }
 
-int32_t extractSubmitMsgFromWal(SWalReader* pReader, SPackedData* pPackedData) {
-  if (walNextValidMsg(pReader) < 0) {
-    return -1;
+int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id) {
+  int32_t code = walNextValidMsg(pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  void*   pBody = POINTER_SHIFT(pReader->pHead->head.body, sizeof(SSubmitReq2Msg));
-  int32_t len = pReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
   int64_t ver = pReader->pHead->head.version;
 
-  void* data = taosMemoryMalloc(len);
-  if (data == NULL) {
-    // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then retry
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", 0);
-    return -1;
+  if (pReader->pHead->head.msgType == TDMT_VND_SUBMIT) {
+    void*   pBody = POINTER_SHIFT(pReader->pHead->head.body, sizeof(SSubmitReq2Msg));
+    int32_t len = pReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
+
+    void* data = taosMemoryMalloc(len);
+    if (data == NULL) {
+      // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then retry
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", 0);
+      return -1;
+    }
+
+    memcpy(data, pBody, len);
+    SPackedData data1 = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
+
+    *pItem = (SStreamQueueItem*)streamDataSubmitNew(data1, STREAM_INPUT__DATA_SUBMIT);
+    if (*pItem == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tqError("%s failed to create data submit for stream since out of memory", id);
+      return terrno;
+    }
+  } else if (pReader->pHead->head.msgType == TDMT_VND_DELETE) {
+    void*   pBody = POINTER_SHIFT(pReader->pHead->head.body, sizeof(SMsgHead));
+    int32_t len = pReader->pHead->head.bodyLen - sizeof(SMsgHead);
+
+    extractDelDataBlock(pBody, len, ver, (SStreamRefDataBlock**)pItem);
+  } else {
+    ASSERT(0);
   }
 
-  memcpy(data, pBody, len);
-  *pPackedData = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
   return 0;
 }
 

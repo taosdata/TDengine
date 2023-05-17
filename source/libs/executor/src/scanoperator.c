@@ -1821,7 +1821,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
 
-  qDebug("stream scan called");
+  qDebug("stream scan started, %s", GET_TASKID(pTaskInfo));
 
   if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
       pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
@@ -1830,13 +1830,13 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1) {
       pTSInfo->base.cond.startVersion = 0;
       pTSInfo->base.cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer1;
-      qDebug("stream recover step 1, from %" PRId64 " to %" PRId64, pTSInfo->base.cond.startVersion,
+      qDebug("stream recover step1, verRange:%" PRId64 " - %" PRId64, pTSInfo->base.cond.startVersion,
              pTSInfo->base.cond.endVersion);
       pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN1;
     } else {
       pTSInfo->base.cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer1 + 1;
       pTSInfo->base.cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer2;
-      qDebug("stream recover step 2, from %" PRId64 " to %" PRId64, pTSInfo->base.cond.startVersion,
+      qDebug("stream recover step2, verRange:%" PRId64 " - %" PRId64, pTSInfo->base.cond.startVersion,
              pTSInfo->base.cond.endVersion);
       pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN2;
     }
@@ -1941,7 +1941,6 @@ FETCH_NEXT_BLOCK:
   if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
-      /*pOperator->status = OP_EXEC_DONE;*/
       return NULL;
     }
 
