@@ -314,7 +314,7 @@ static void tsdbCacheDeleter(const void *key, size_t keyLen, void *value) {
   if (pLastCol->dirty) {
     // TODO: queue into dirty list, free it after save to backstore
   } else {
-    if (IS_VAR_DATA_TYPE(pLastCol->colVal.type) && pLastCol->colVal.value.nData > 0) {
+    if (IS_VAR_DATA_TYPE(pLastCol->colVal.type) /* && pLastCol->colVal.value.nData > 0*/) {
       taosMemoryFree(pLastCol->colVal.value.pData);
     }
 

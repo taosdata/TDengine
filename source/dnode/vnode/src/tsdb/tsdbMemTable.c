@@ -737,7 +737,9 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   if (key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.ts;
   }
-  tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
+    tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
+  }
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
