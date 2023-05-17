@@ -99,7 +99,7 @@ impl InfluxdbConfig {
         let taosx_port = ipc;
 
         // the task config
-        let task_mode = dsn.remove("mode").ok_or_else(|| "normal").unwrap();
+        let task_mode = dsn.remove("mode").unwrap_or("normal".to_string());
         let task_buckets = dsn
             .remove("buckets")
             .unwrap_or_default()
