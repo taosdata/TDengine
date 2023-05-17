@@ -15,6 +15,7 @@
 
 #include "tstreamFileState.h"
 
+#include "query.h"
 #include "streamBackendRocksdb.h"
 #include "taos.h"
 #include "tcommon.h"
@@ -154,9 +155,7 @@ void streamFileStateClear(SStreamFileState* pFileState) {
   clearExpiredRowBuff(pFileState, 0, true);
 }
 
-bool needClearDiskBuff(SStreamFileState* pFileState) {
-  return pFileState->flushMark > 0;
-}
+bool needClearDiskBuff(SStreamFileState* pFileState) { return pFileState->flushMark > 0; }
 
 void popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, uint64_t max, bool used) {
   uint64_t  i = 0;
@@ -325,7 +324,9 @@ bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen) {
 void releaseRowBuffPos(SRowBuffPos* pBuff) { pBuff->beUsed = false; }
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
-  clearExpiredRowBuff(pFileState, pFileState->maxTs - pFileState->deleteMark, false);
+  int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs) ? INT64_MIN
+                                                                           : pFileState->maxTs - pFileState->deleteMark;
+  clearExpiredRowBuff(pFileState, mark, false);
   return pFileState->usedBuffs;
 }
 
@@ -356,7 +357,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     }
 
     SStateKey sKey = {.key = *((SWinKey*)pPos->pKey), .opNum = ((SStreamState*)pFileState->pFileStore)->number};
-    code = streamStatePutBatch(pFileState->pFileStore, "state", batch, &sKey, pPos->pRowBuff, pFileState->rowSize);
+    code = streamStatePutBatch(pFileState->pFileStore, "state", batch, &sKey, pPos->pRowBuff, pFileState->rowSize, 0);
     qDebug("===stream===put %" PRId64 " to disc, res %d", sKey.key.ts, code);
   }
   if (streamStateGetBatchSize(batch) > 0) {
@@ -372,7 +373,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       int32_t len = 0;
       sprintf(keyBuf, "%s:%" PRId64 "", taskKey, ((SStreamState*)pFileState->pFileStore)->checkPointId);
       streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
-      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
+      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
       taosMemoryFree(valBuf);
     }
     {
@@ -381,7 +382,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       int32_t len = 0;
       memcpy(keyBuf, taskKey, strlen(taskKey));
       len = sprintf(valBuf, "%" PRId64 "", ((SStreamState*)pFileState->pFileStore)->checkPointId);
-      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
+      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
     }
     streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
@@ -440,7 +441,9 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
 
 int32_t recoverSnapshot(SStreamFileState* pFileState) {
   int32_t code = TSDB_CODE_SUCCESS;
-  deleteExpiredCheckPoint(pFileState, pFileState->maxTs - pFileState->deleteMark);
+  int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs) ? INT64_MIN
+                                                                           : pFileState->maxTs - pFileState->deleteMark;
+  deleteExpiredCheckPoint(pFileState, mark);
   void*   pStVal = NULL;
   int32_t len = 0;
 

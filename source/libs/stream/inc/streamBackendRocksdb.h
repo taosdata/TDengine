@@ -16,8 +16,6 @@
 #ifndef _STREAM_BACKEDN_ROCKSDB_H_
 #define _STREAM_BACKEDN_ROCKSDB_H_
 
-#include "executor.h"
-
 #include "rocksdb/c.h"
 // #include "streamInc.h"
 #include "streamState.h"
@@ -112,14 +110,6 @@ int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, voi
 
 void streamStateDestroy_rocksdb(SStreamState* pState, bool remove);
 
-void*   streamStateCreateBatch();
-int32_t streamStateGetBatchSize(void* pBatch);
-void    streamStateClearBatch(void* pBatch);
-void    streamStateDestroyBatch(void* pBatch);
-int32_t streamStatePutBatch(SStreamState* pState, const char* cfName, rocksdb_writebatch_t* pBatch, void* key,
-                            void* val, int32_t vlen);
-int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch);
-
 // default cf
 int32_t streamDefaultPut_rocksdb(SStreamState* pState, const void* key, void* pVal, int32_t pVLen);
 int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** pVal, int32_t* pVLen);
@@ -138,7 +128,7 @@ int32_t streamStateGetBatchSize(void* pBatch);
 void    streamStateClearBatch(void* pBatch);
 void    streamStateDestroyBatch(void* pBatch);
 int32_t streamStatePutBatch(SStreamState* pState, const char* cfName, rocksdb_writebatch_t* pBatch, void* key,
-                            void* val, int32_t vlen);
+                            void* val, int32_t vlen, int64_t ttl);
 int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch);
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 #endif
