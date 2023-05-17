@@ -1,14 +1,10 @@
-use std::{
-    io::prelude::*,
-    num::ParseIntError,
-    time::Duration, any,
-};
+use std::{io::prelude::*, num::ParseIntError, time::Duration};
 
 use actix_web::web::Json;
 use anyhow::Context;
 use itertools::Itertools;
-use serde_json::{Value, Map};
-use taos::{AsyncTBuilder, Dsn, TaosBuilder, IntoDsn};
+use serde_json::{Map, Value};
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -83,7 +79,7 @@ pub enum PiError {
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
     #[error("config value {0} error, the value needs between {1} and {2}")]
-    ValueConfigError(&'static str, &'static str, &'static str,),
+    ValueConfigError(&'static str, &'static str, &'static str),
     #[error("parse key {0} value error cause {1}")]
     ParseKeyValueError(&'static str, String),
     #[error("Parse param error from {1} while parsing parameter {0}")]
@@ -147,11 +143,15 @@ impl PiConfig {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect_vec();
-        let point_list = super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(",")).map_err(|err| PiError::ParseKeyValueError("PointList", err))?.unwrap_or_default().split(',')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
+        let point_list =
+            super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
+                .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect_vec();
 
         let ipc_stream = format!("127.0.0.1:{ipc}");
         let sql_api = format!("http://127.0.0.1:{sql}");
@@ -257,6 +257,7 @@ pub async fn pi_to_taos(
         None,
         cancel.clone(),
         with_agent,
+        None,
     )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -416,14 +417,12 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         extend_data_set(&mut dataset, &result, data.offset, data.limit);
     });
 
-
     temp_path.close()?;
     Ok(dataset)
 }
 
 fn map_dataset(map: &Map<String, Value>, key: &str, category: &str) -> Vec<DataSet> {
-    map
-        .get(key)
+    map.get(key)
         .unwrap()
         .as_array()
         .unwrap()
@@ -439,7 +438,12 @@ fn map_dataset(map: &Map<String, Value>, key: &str, category: &str) -> Vec<DataS
         .collect_vec()
 }
 
-fn extend_data_set(dataset: &mut Vec<DataSet>, extended_vec: &Vec<DataSet>, offset: usize, limit: usize) {
+fn extend_data_set(
+    dataset: &mut Vec<DataSet>,
+    extended_vec: &Vec<DataSet>,
+    offset: usize,
+    limit: usize,
+) {
     let page_index = (offset - 1) * limit;
     let len = extended_vec.len();
     if len >= page_index + limit {

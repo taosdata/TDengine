@@ -1,4 +1,4 @@
-opc_type = "opcua" # opcua or opcda (only for windows)
+opc_type = "fake" # opcua or opcda (only for windows)
 debug = true # debug mode. only for testing, should not be used in production
 
 [connect]
@@ -15,9 +15,18 @@ auth_method = "Anonymous" # Authentication Method. Certificate/UserName/Anonymou
 username = "" # Required for auth_method == "UserName"
 password = "" # Required for auth_method == "UserName"
 
+[connect.da]  # opc da config.
+server = "Matrikon.OPC.Simulation.1" # opc da server
+nodes = ["localhost"] # opc da nodes
+
+[points] # config for collect opc points.
+limit = 200 # max points return in one request
+regex = "^My.*" # regex for point name
+
 [collect]
 interval = 1 # collect data interval in second for opc ua observe mode and opc da
-limit = 2 # max node for read in one request.
+limit = 200 # max node for read in one request.
+contains_bad = false # collect bad node when collect data
 
 [collect.ua]
 collect_mode = "subscribe" # observe or subscribe. default is observe
@@ -25,18 +34,6 @@ collect_mode = "subscribe" # observe or subscribe. default is observe
 [[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
 id = "ns=2;i=2"
 value_type = "bigint"
-
-[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=2;i=3"
-value_type = "bigint"
-
-[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=2;i=4"
-value_type = "double"
-
-[[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=2;i=5"
-value_type = "double"
 
 [[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
 id = "ns=2;i=6"
@@ -48,6 +45,6 @@ value_type = "double"
 
 [report]
 remote = "127.0.0.1:8000" # taosx's address ip:port or socket path
-concurrent = 10
+concurrent = 2
 batch_size = 2
 batch_timeout = 10

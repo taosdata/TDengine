@@ -64,7 +64,8 @@ func createReaders(config common.Config) (readers []*reader, err error) {
 }
 
 func createReader(config common.Config, nodes []common.NodeConfig) (*reader, error) {
-	return newReader(config.Debug, config.Connect.Ua, config.Collect.Ua.CollectMode, nodes, config.Collect.Interval)
+	return newReader(config.Debug, config.Connect.Ua, config.Points, config.Collect.Ua.CollectMode, nodes,
+		config.Collect.Interval, config.Collect.ContainsBad)
 }
 
 func (c *UaConnector) Connect(ctx context.Context) error {

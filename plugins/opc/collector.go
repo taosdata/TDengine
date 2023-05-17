@@ -17,6 +17,7 @@ import (
 func main() {
 	log.SetOutput(os.Stderr) // log to stderr
 
+	log.Printf("## opc collector version [%s] start ...", version.Version)
 	ctx := context.Background()
 	points := flag.NewFlagSet("points", flag.ExitOnError)
 	pointConfigPath := points.String("conf", "", "use --conf to set config path")
