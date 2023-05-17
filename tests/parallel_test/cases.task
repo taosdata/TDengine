@@ -536,6 +536,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py

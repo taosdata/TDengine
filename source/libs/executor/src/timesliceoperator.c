@@ -310,6 +310,11 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           break;
         }
 
+        if (end.key != INT64_MIN && end.key < pSliceInfo->current) {
+          hasInterp = false;
+          break;
+        }
+
         if (start.key == INT64_MIN || end.key == INT64_MIN) {
           colDataSetNULL(pDst, rows);
           break;

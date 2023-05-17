@@ -135,6 +135,7 @@ typedef struct {
   int8_t scanUncommited;
   int8_t scanNotApplied;
   int8_t scanMeta;
+  int8_t deleteMsg;
   int8_t enableRef;
 } SWalFilterCond;
 
@@ -212,8 +213,7 @@ SWalRef *walRefCommittedVer(SWal *);
 
 SWalRef *walOpenRef(SWal *);
 void     walCloseRef(SWal *pWal, int64_t refId);
-int32_t  walRefVer(SWalRef *, int64_t ver);
-void     walUnrefVer(SWalRef *);
+int32_t  walSetRefVer(SWalRef *, int64_t ver);
 
 // helper function for raft
 bool walLogExist(SWal *, int64_t ver);

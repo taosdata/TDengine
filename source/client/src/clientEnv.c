@@ -110,7 +110,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   if (duration >= (tsSlowLogThreshold * 1000000UL)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (tsSlowLogScope & reqType) {
-      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s", 
+      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
         taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration, pRequest->sqlstr);
     }
   }
