@@ -2945,6 +2945,13 @@ class TDTestCase:
         tdLog.printNoPrefix("======step 14: test interp pseudo columns")
         tdSql.error(f"select _irowts, c6 from {dbname}.{tbname}")
 
+        tdLog.printNoPrefix("======step 14: test interp in nested query")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{stbname}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{stbname}) partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1}) partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
