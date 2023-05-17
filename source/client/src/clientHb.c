@@ -791,27 +791,20 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     return NULL;
   }
 
-  int64_t rid = -1;
-  int32_t code = 0;
-
-  void *pIter = taosHashIterate(pAppHbMgr->activeInfo, NULL);
-
-  SClientHbReq *pOneReq = pIter;
-  SClientHbKey *connKey = pOneReq ? &pOneReq->connKey : NULL;
-  if (connKey != NULL) rid = connKey->tscRid;
-
-  STscObj *pTscObj = (STscObj *)acquireTscObj(rid);
-  if (pTscObj == NULL) {
-    tFreeClientHbBatchReq(pBatchReq);
-    return NULL;
-  }
-
+  void    *pIter = NULL;
   SHbParam param = {0};
+  while ((pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter))) {
+    SClientHbReq *pOneReq = pIter;
+    SClientHbKey *connKey = &pOneReq->connKey;
+    STscObj      *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
 
-  while (pIter != NULL) {
+    if (!pTscObj) {
+      continue;
+    }
+
     pOneReq = taosArrayPush(pBatchReq->reqs, pOneReq);
 
-    switch (pOneReq->connKey.connType) {
+    switch (connKey->connType) {
       case CONN_TYPE__QUERY: {
         if (param.clusterId == 0) {
           // init
@@ -824,24 +817,16 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
       default:
         break;
     }
-    if (clientHbMgr.reqHandle[pOneReq->connKey.connType]) {
-      code = (*clientHbMgr.reqHandle[pOneReq->connKey.connType])(&pOneReq->connKey, &param, pOneReq);
+    if (clientHbMgr.reqHandle[connKey->connType]) {
+      int32_t code = (*clientHbMgr.reqHandle[connKey->connType])(connKey, &param, pOneReq);
       if (code) {
         tscWarn("hbGatherAllInfo failed since %s, tscRid:%" PRIi64 ", connType:%" PRIi8, tstrerror(code),
-                pOneReq->connKey.tscRid, pOneReq->connKey.connType);
+                connKey->tscRid, connKey->connType);
       }
     }
 
-    if (code) {
-      pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
-      pOneReq = pIter;
-      continue;
-    }
-
-    pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
-    pOneReq = pIter;
+    releaseTscObj(connKey->tscRid);
   }
-  releaseTscObj(rid);
 
   return pBatchReq;
 }
