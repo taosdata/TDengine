@@ -100,7 +100,6 @@ _err:
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
-  // if (pMeta->streamBackend) streamBackendCleanup(pMeta->streamBackend);
   taosMemoryFree(pMeta);
   qError("failed to open stream meta");
   return NULL;
@@ -130,7 +129,6 @@ void streamMetaClose(SStreamMeta* pMeta) {
 
   taosHashCleanup(pMeta->pTasks);
   taosRemoveRef(pMeta->streamBackendId, pMeta->streamBackendRid);
-  // streamBackendCleanup(pMeta->streamBackend);
   taosCloseRef(pMeta->streamBackendId);
   pMeta->pTaskList = taosArrayDestroy(pMeta->pTaskList);
   taosMemoryFree(pMeta->path);
