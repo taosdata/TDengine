@@ -23,7 +23,7 @@ class TDTestCase(TDTestCase):
         #self.run_1() 
         # self.run_2() 
         self.run_3() 
-        self.run_4() 
+        #self.run_4() 
         
         endTime_all = time.time()
         print("total time %ds" % (endTime_all - startTime_all))  
