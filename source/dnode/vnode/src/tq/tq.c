@@ -389,6 +389,7 @@ int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) 
     return -1;
   }
 
+  walReaderSeekVer(pHandle->execHandle.pTqReader->pWalReader, vgOffset.offset.val.version);
   tqDebug("topic:%s, vgId:%d consumer:0x%" PRIx64 " offset is update to:%" PRId64, vgOffset.offset.subKey, vgId,
           vgOffset.consumerId, vgOffset.offset.val.version);
 
