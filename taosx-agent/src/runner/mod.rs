@@ -1,9 +1,9 @@
-use std::{fmt::Display};
+use std::fmt::Display;
 
 use anyhow::Result;
 use dashmap::DashMap;
 use taosx_core::TaskOpts;
-use tokio::{task::JoinHandle};
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
@@ -67,8 +67,13 @@ pub fn spawn_runner(
                                 compression_level: task.compression_level.map(Into::into),
                                 force: task.force,
                                 cancel,
+                                parser: None,
                                 // port_pool: ONCE,
-                                with_agent: Some((task.id, endpoint.to_string(), token.to_string())),
+                                with_agent: Some((
+                                    task.id,
+                                    endpoint.to_string(),
+                                    token.to_string(),
+                                )),
                             };
                             let pool = port_pool.clone();
                             let handle = tokio::spawn(async move { opts.run(&pool).await });

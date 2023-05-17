@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Result;
 
@@ -16,9 +16,9 @@ use taosx_ipc::{prelude::*, stream::components::ListOfStructBuilder};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    #[cfg(not(target_os = "windows"))]
-    let stream = std::os::unix::net::UnixStream::connect("./taosx.sock")?;
-    #[cfg(target_os = "windows")]
+    // #[cfg(not(target_os = "windows"))]
+    // let stream = std::os::unix::net::UnixStream::connect("./taosx.sock")?;
+    // #[cfg(target_os = "windows")]
     let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
     // let timestamp_type = DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None);
 
@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
         let mut binary_builder = BinaryBuilder::new();
         binary_builder.append_value(r#"{"ts": 1681699204689, "pre": 123.4}"#);
         let payload = binary_builder.finish();
-        dbg!(&timestamp);
+        // dbg!(&timestamp);
         let batch = RecordBatch::try_new(
             Arc::new(schema.clone()),
             vec![
@@ -82,15 +82,16 @@ async fn main() -> Result<()> {
                 Arc::new(payload),
             ],
         )?;
-        dbg!(&batch);
+        // dbg!(&batch);
 
         writer.write(&batch)?;
 
         records += batch.num_rows();
         println!("written {} record batch", records);
-        if records >= 1 {
-            break;
-        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        // if records >= 1 {
+        //     break;
+        // }
         ms += 1;
     }
     Ok(())

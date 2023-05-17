@@ -34,7 +34,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::IntoStreamingRequest;
 use tracing::{debug, info, instrument};
 
-use crate::OPCConfig;
+use crate::{OPCConfig, Parser};
 
 use super::runners::opc::{opc_config_blocking, opc_config_from, OpcTableConfig};
 use taosx_ipc::{
@@ -197,6 +197,7 @@ async fn ipc_tcp_read(
     lock: Arc<Mutex<()>>,
     config: Option<OpcTableConfig>,
     cancel: CancellationToken,
+    parser: Option<Parser>,
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
@@ -208,7 +209,7 @@ async fn ipc_tcp_read(
             log::debug!("cancel IPC worker");
             Ok(())
         },
-        done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config) => {
+        done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, parser) => {
             log::info!("IPC stopped");
             done
         }
@@ -225,7 +226,7 @@ async fn ipc_unix_read(
 ) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
-    ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config).await
+    ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, None).await
 }
 
 // #[instrument(skip(taos, record, names, marks))]
@@ -377,13 +378,203 @@ async fn consume_flat_record(
     _taos: &Taos,
     record: &FlatMessage,
     _count: &mut usize,
+    parser: Option<&Parser>,
 ) -> anyhow::Result<()> {
+    // let stmt = Stmt::init(_taos)?;
+    let mut max_lengths = HashMap::new();
+
     for message in record.records() {
-        let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
-        // let mut stmt = Stmt::init(&taos)?;
-        // process id, ts, value
-        dbg!(&cv_vec);
-        // TODO transfer to transformer
+        let batch = message.record();
+        if let Some(parser) = parser {
+            let batch = parser.parse_message_from_records(batch)?;
+            // dbg!(&batch);
+            match batch {
+                crate::plugins::transform::Message::Raw(_) => todo!(),
+                crate::plugins::transform::Message::Tables(_) => todo!(),
+                crate::plugins::transform::Message::ChildTables(_) => todo!(),
+                crate::plugins::transform::Message::Records(message) => {
+                    for records in message {
+                        // dbg!(&records);
+                        let views = taosx_ipc::stream::reader::record_batch_to_column_view(
+                            &records.records,
+                        );
+                        let schema = records.records.schema();
+                        let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
+                        let table_name = records.table.name.as_str();
+                        let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
+                        raw.with_field_names(&columns).with_table_name(table_name);
+                        info!("{}", &raw.pretty_format());
+
+                        loop {
+                            let var_views = views
+                                .iter()
+                                .zip(&columns)
+                                .filter(|(v, _)| v.as_ty().is_var_type())
+                                .map(|(view, name)| {
+                                    (name, view.as_ty(), view.max_variable_length())
+                                })
+                                .collect_vec();
+                            if var_views.len() > 0 {
+                                for (name, ty, length) in var_views {
+                                    if let Some(max) = max_lengths.get(*name) {
+                                        if *max >= length {
+                                            continue;
+                                        }
+                                    }
+                                    loop {
+                                        let res = _taos.describe(table_name).await;
+                                        match res {
+                                            Ok(desc) => {
+                                                if let Some(col) =
+                                                    desc.iter().find(|f| f.field() == name.as_str())
+                                                {
+                                                    debug_assert!(ty == col.ty());
+                                                    if col.length() < length {
+                                                        let table = records
+                                                            .table
+                                                            .using
+                                                            .as_deref()
+                                                            .unwrap_or(table_name);
+                                                        let sql = format!(
+                                                        "alter table `{table}` modify column `{}` {}({})",
+                                                        name,
+                                                        ty,
+                                                        length
+                                                        );
+                                                        _taos.exec(&sql).await.unwrap();
+                                                        max_lengths
+                                                            .insert(name.to_string(), length);
+                                                        continue;
+                                                    }
+                                                }
+                                                break;
+                                            }
+                                            Err(err) => {
+                                                dbg!(&err);
+                                                if let Some(sql) = records.stable_sql() {
+                                                    dbg!(&sql);
+                                                    _taos.exec(&sql).await.unwrap();
+                                                    let sql = records.table_sql();
+
+                                                    loop {
+                                                        if let Err(err) = _taos.exec(&sql).await {
+                                                            if err.to_string().contains("[0x2605]")
+                                                            {
+                                                                let table = records
+                                                                    .table
+                                                                    .using
+                                                                    .as_deref()
+                                                                    .unwrap();
+                                                                let desc = _taos
+                                                                    .describe(table)
+                                                                    .await
+                                                                    .unwrap();
+                                                                for f in desc.iter().filter(|f| {
+                                                                    f.is_tag()
+                                                                        && f.ty().is_var_type()
+                                                                }) {
+                                                                    let sql = format!(
+                                                        "alter table `{table}` modify tag `{}` {}({})",
+                                                        f.field(),
+                                                        f.ty(),
+                                                        f.length() * 2
+                                                        );
+                                                                    _taos.exec(&sql).await.unwrap();
+                                                                    continue;
+                                                                }
+                                                            } else {
+                                                                Err(err)?;
+                                                            }
+                                                        }
+                                                        break;
+                                                    }
+                                                    //.inspect_err(|err| tracing::warn!("{}", err))?
+                                                } else {
+                                                    let sql = records.table_sql();
+                                                    dbg!(&sql);
+                                                    _taos.exec(&sql).await.unwrap();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if let Err(err) = _taos.write_raw_block(&raw).await {
+                                dbg!(&err);
+                                let err_str = err.to_string();
+                                if err_str.contains("[0x2603]") {
+                                    if let Some(sql) = records.stable_sql() {
+                                        dbg!(&sql);
+                                        _taos.exec(&sql).await.unwrap();
+                                        let sql = records.table_sql();
+
+                                        loop {
+                                            if let Err(err) = _taos.exec(&sql).await {
+                                                if err.to_string().contains("[0x2605]") {
+                                                    let table =
+                                                        records.table.using.as_deref().unwrap();
+                                                    let desc = _taos.describe(table).await.unwrap();
+                                                    for f in desc.iter().filter(|f| {
+                                                        f.is_tag() && f.ty().is_var_type()
+                                                    }) {
+                                                        let sql = format!(
+                                                        "alter table `{table}` modify tag `{}` {}({})",
+                                                        f.field(),
+                                                        f.ty(),
+                                                        f.length() * 2
+                                                        );
+                                                        _taos.exec(&sql).await.unwrap();
+                                                        continue;
+                                                    }
+                                                } else {
+                                                    Err(err)?;
+                                                }
+                                            }
+                                            break;
+                                        }
+                                        //.inspect_err(|err| tracing::warn!("{}", err))?
+                                    } else {
+                                        let sql = records.table_sql();
+                                        dbg!(&sql);
+                                        _taos.exec(&sql).await.unwrap();
+                                    }
+
+                                    continue;
+                                } else if err_str.contains("[0x2605]") {
+                                    // container length is too short.
+                                    let desc = _taos.describe(table_name).await.unwrap();
+                                    let table =
+                                        records.table.using.as_deref().unwrap_or(table_name);
+                                    for f in
+                                        desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type())
+                                    {
+                                        let sql = format!(
+                                            "alter table `{table}` modify column `{}` {}({})",
+                                            f.field(),
+                                            f.ty(),
+                                            f.length() * 2
+                                        );
+                                        _taos.exec(&sql).await.unwrap();
+                                    }
+                                } else {
+                                    Err(err)?;
+                                    break;
+                                }
+                                continue;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(batch);
+            // let mut stmt = Stmt::init(&taos)?;
+            // process id, ts, value
+            dbg!(&cv_vec);
+            anyhow::bail!("Parser should be set with flat stream");
+        }
     }
     Ok(())
 }
@@ -443,6 +634,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
+    parser: Option<&Parser>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
     for record in ipc_reader {
@@ -451,7 +643,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_flat_record(&taos, &record, &mut count).await?;
+            consume_flat_record(&taos, &record, &mut count, parser).await?;
 
             ipc_ack_writer.write_ok()?;
         }
@@ -468,6 +660,7 @@ async fn ipc_process<R: Read, W: Write>(
     ipc_ack_writer: AckWriter<W>,
     lock: Arc<Mutex<()>>,
     config: Option<OpcTableConfig>,
+    parser: Option<Parser>,
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
     let metadata = ipc_reader.metadata();
@@ -494,7 +687,9 @@ async fn ipc_process<R: Read, W: Write>(
     }
     match stream_type {
         StreamType::Line => todo!(),
-        StreamType::Flat => ipc_flat_stream_reader(&taos, ipc_reader, ipc_ack_writer).await?,
+        StreamType::Flat => {
+            ipc_flat_stream_reader(&taos, ipc_reader, ipc_ack_writer, parser.as_ref()).await?
+        }
         StreamType::Lush => ipc_lush_stream_reader(&taos, ipc_reader, ipc_ack_writer).await?,
         StreamType::Point => ipc_point_reader(&taos, ipc_reader, ipc_ack_writer, config).await?,
     }
@@ -582,7 +777,8 @@ impl<'a> IpcStreamWorker<'a> {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .unwrap();
-                consume_flat_record(&self.taos, &record, &mut count).await?;
+                // todo: parser
+                consume_flat_record(&self.taos, &record, &mut count, None).await?;
                 Ok(count)
             }
             StreamType::Lush => {
@@ -795,6 +991,7 @@ pub fn listen_tcp_socket(
     config: Option<OpcTableConfig>,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
+    parser: Option<Parser>,
 ) -> anyhow::Result<std::sync::mpsc::Sender<()>> {
     let addr = socket.as_ref();
     use socket2::{Domain, Socket, Type};
@@ -852,9 +1049,11 @@ pub fn listen_tcp_socket(
                         let pool = target.clone();
                         let lock = sql_lock.clone();
                         let config = config.clone();
+                        let parser = parser.clone();
                         runtime.spawn(async move {
                             let res =
-                                ipc_tcp_read(client, pool, stream, lock, config, cancel).await;
+                                ipc_tcp_read(client, pool, stream, lock, config, cancel, parser)
+                                    .await;
                             if let Err(err) = res {
                                 // panic!("{err:?}");
                                 log::error!("ipc read err: {}", err);

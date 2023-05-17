@@ -400,7 +400,13 @@ impl DataSourceDefinition {
                     if let Some(value) = dsn.remove(target.name.clone()) {
                         if !value.is_empty() {
                             if target.multiple == true {
-                                target.value = Some(serde_json::Value::Array(value.split(",").into_iter().map(|v| serde_json::Value::String(v.to_string())).collect()));
+                                target.value = Some(serde_json::Value::Array(
+                                    value
+                                        .split(",")
+                                        .into_iter()
+                                        .map(|v| serde_json::Value::String(v.to_string()))
+                                        .collect(),
+                                ));
                             } else {
                                 target.value = Some(serde_json::Value::String(value));
                             }
