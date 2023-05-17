@@ -928,10 +928,10 @@ export default {
         }
         let params = null;
         params = {
-          from: `pi://${host}${subject}`,
+          from: `${this.tagName}://${host}${subject}`,
           categories: [this.activeName],
           pattern: e.target.value,
-          offset: 1,
+          offset: 0,
           limit: 10,
         };
         const viaObj = {
