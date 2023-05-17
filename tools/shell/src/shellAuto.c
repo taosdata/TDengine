@@ -329,7 +329,7 @@ TdThreadMutex tiresMutex;
 TdThread* threads[WT_FROM_DB_CNT];
 // obtain var name  with sql from server
 char varTypes[WT_VAR_CNT][64] = {
-    "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id >",  "<user_name>",    "<topic_name>", "<stream_name>",
+    "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id>",  "<user_name>",    "<topic_name>", "<stream_name>",
     "<udf_name>",   "<all_table>", "<function>", "<keyword>",    "<tb_actions>",   "<db_options>", "<alter_db_options>",
     "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", "<udf_language>"};
 
