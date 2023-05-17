@@ -1615,8 +1615,23 @@ const fn is_false(b: &bool) -> bool {
     !*b
 }
 
+/// Create new task with json object.
+///
+/// Required properties:
+///
+/// - *name*: The task name.
+/// - *from*: The data source DSN.
+/// - *to*: The data sink DSN.
+///
 #[derive(
     Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
+)]
+#[schema(
+    example = json!({
+        "name": "demo",
+        "from": "tmq:///test?group.id=test-test2&client.id=taosx",
+        "to": "taos:///test2"
+    })
 )]
 pub(super) struct NewTask {
     stream_type: Option<String>,
@@ -1635,12 +1650,10 @@ pub(super) struct NewTask {
     #[schema(example = "tmq:///test")]
     from: String,
     /// The stream data source cluster id.
-    #[schema(example = "null")]
     from_cluster: Option<String>,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
     // #[serde(default)]
-    #[schema(example = "null")]
     oneshot_topic: Option<String>,
 
     /// The target of the stream.
@@ -1650,41 +1663,33 @@ pub(super) struct NewTask {
     /// The parser of the task stream.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[sqlx(default)]
-    #[schema(example = "null")]
     pub parser: Option<serde_json::Value>,
 
     /// The stream data target cluster id.
-    #[schema(example = "null")]
     to_cluster: Option<String>,
 
     /// Agent id
-    #[schema(example = "null")]
     via: Option<i64>,
 
     /// Set if the target database should be cleared before running task.
     #[serde(default)]
-    #[schema(example = "null")]
     clear: bool,
 
     /// Jobs number
     #[serde(default)]
-    #[schema(example = "null")]
     jobs: u16,
 
     /// Compression level when need (for backup only)
     #[serde(default)]
-    #[schema(example = "null")]
     compression_level: Option<u8>,
 
     /// Force to do some risking steps.
     #[serde(default)]
-    #[schema(example = "null")]
     force: bool,
 
     /// Add after_delete hook action, the string would be action name, with or without some configuration.
     ///
     /// It will do nothing if the action is not supported by a specific task case.
-    #[schema(example = "null")]
     after_delete: Option<String>,
 
     /// Labels for a task.
@@ -1697,7 +1702,6 @@ pub(super) struct NewTask {
     /// Do not start immediately. Default is false, means start immediately after created.
     ///
     #[serde(default)]
-    #[schema(example = "null")]
     not_start: bool,
 }
 
@@ -1806,13 +1810,15 @@ impl From<NewTask> for NewTaskV1 {
     sqlx::FromRow,
 )]
 #[serde(default)]
+#[schema(example = json!({"from": "tmq:///test", "to": "taos:///test2"}))]
 pub(super) struct UpdateTask {
     /// Update trigger,
     trigger: Option<String>,
+    /// *Deprecated*.
     stream_type: Option<String>,
     /// The stream data source.
     from: Option<String>,
-    /// The stream data source cluster id.
+    /// *Deprecated*. The stream data source cluster id.
     from_cluster: Option<String>,
     /// Use oneshot topic for a task, delete the topic after task deleted.
     oneshot_topic: Option<String>,
@@ -1820,10 +1826,11 @@ pub(super) struct UpdateTask {
     to: Option<String>,
     /// Agent id
     via: Option<i64>,
-    /// The stream data target cluster id.
+    /// *Deprecated*. The stream data target cluster id.
     to_cluster: Option<String>,
     /// Jobs number
     jobs: Option<u16>,
+    /// *Deprecated*.
     compression_level: Option<u8>,
     force: Option<bool>,
     /// Labels for a task.
