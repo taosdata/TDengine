@@ -308,6 +308,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
              STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE,
              numOfBlocks, size);
       streamDataSubmitDestroy(pSubmitBlock);
+      taosFreeQitem(pSubmitBlock);
       return -1;
     }
 
