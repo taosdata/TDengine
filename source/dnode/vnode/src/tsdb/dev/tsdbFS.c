@@ -89,16 +89,6 @@ static int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   return 0;
 }
 
-static int32_t fs_from_json_str(const char *pData, STFileSystem *pFS) {
-  int32_t code = 0;
-  int32_t lino;
-
-  ASSERTS(0, "TODO: Not implemented yet");
-
-_exit:
-  return code;
-}
-
 static int32_t save_json(const cJSON *json, const char *fname) {
   int32_t code = 0;
 
@@ -251,15 +241,25 @@ _exit:
 }
 
 static int32_t apply_commit_add_fset(STFileSystem *fs, const STFileSet *fset) {
-  // TODO
+  int32_t idx = taosArraySearchIdx(fs->cstate, fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GT);
+  if (idx < 0) idx = taosArrayGetSize(fs->cstate);
+
+  STFileSet *pFileSet = taosArrayInsert(fs->cstate, idx, fset);
+  if (pFileSet == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  int32_t code = tsdbFileSetInitEx(fset, pFileSet);
+  if (code) return code;
+
   return 0;
 }
 static int32_t apply_commit_del_fset(STFileSystem *fs, const STFileSet *fset) {
   // TODO
+  ASSERT(0);
   return 0;
 }
 static int32_t apply_commit_upd_fset(STFileSystem *fs, STFileSet *fset_from, const STFileSet *fset_to) {
   // TODO
+  ASSERT(0);
   return 0;
 }
 static int32_t apply_commit(STFileSystem *fs) {

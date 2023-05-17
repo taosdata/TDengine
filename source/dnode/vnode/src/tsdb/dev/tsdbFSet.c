@@ -258,6 +258,38 @@ int32_t tsdbFileSetEdit(STFileSet *fset, const STFileOp *op) {
 
 int32_t tsdbFileSetInit(STFileSet *pSet, int32_t fid) { return fset_init(pSet, fid); }
 
+int32_t tsdbFileSetInitEx(const STFileSet *fset1, STFileSet *fset2) {
+  int32_t code;
+
+  fset_init(fset2, fset1->fid);
+  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset1->farr[ftype] == NULL) continue;
+
+    code = tsdbTFileObjCreate(&fset2->farr[ftype]);
+    if (code) return code;
+    fset2->farr[ftype]->f = fset1->farr[ftype]->f;
+  }
+
+  SRBTreeIter iter = tRBTreeIterCreate(&fset1->lvlTree, 1);
+  for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
+    SSttLvl *lvl1 = TCONTAINER_OF(node, SSttLvl, rbtn);
+    SSttLvl *lvl2 = taosMemoryCalloc(1, sizeof(*lvl2));
+    if (lvl2 == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    add_stt_lvl(fset2, lvl2);
+
+    SRBTreeIter iter2 = tRBTreeIterCreate(&lvl1->sttTree, 1);
+    for (SRBTreeNode *node2 = tRBTreeIterNext(&iter2); node2; node2 = tRBTreeIterNext(&iter2)) {
+      STFileObj *fobj1 = TCONTAINER_OF(node2, STFileObj, rbtn);
+      STFileObj *fobj2;
+      code = tsdbTFileObjCreate(&fobj2);
+      if (code) return code;
+      fobj2->f = fobj1->f;
+      add_file_to_stt_lvl(lvl2, fobj2);
+    }
+  }
+  return 0;
+}
+
 int32_t tsdbFileSetClear(STFileSet *pSet) {
   // TODO
   return 0;

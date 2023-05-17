@@ -138,7 +138,7 @@ size_t taosArrayGetSize(const SArray* pArray);
  * @param index
  * @param pData
  */
-void* taosArrayInsert(SArray* pArray, size_t index, void* pData);
+void* taosArrayInsert(SArray* pArray, size_t index, const void* pData);
 
 /**
  * set data in array
