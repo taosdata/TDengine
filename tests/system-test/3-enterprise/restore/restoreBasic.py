@@ -58,6 +58,10 @@ class RestoreBasic:
         gen.create_child(self.stable, "d", self.child_count)
         gen.set_batch_size(1000)
         gen.insert_data(self.insert_rows)
+        
+        tdSql.execute(f"flush database {self.dbname}")
+        # put some duplicate ts on wal
+        gen.insert_data(self.insert_rows%100)
 
         for i in range(self.dnodes_num):
             sql = f"create qnode on dnode {i+1}"
@@ -135,6 +139,7 @@ class RestoreBasic:
         
         # exec restore
         sql = f"restore dnode {index}"
+        tdLog.info(sql)
         tdSql.execute(sql)
         self.check_corrent()
 
