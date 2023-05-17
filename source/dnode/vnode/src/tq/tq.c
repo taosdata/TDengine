@@ -319,10 +319,14 @@ int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   if (tDecodeMqVgOffset(&decoder, &vgOffset) < 0) {
+    tqError("vgId:%d failed to decode seek msg", vgId);
     return -1;
   }
 
   tDecoderClear(&decoder);
+
+  tqDebug("topic:%s, vgId:%d process offset seek by consumer:0x%" PRIx64 ", req offset:%" PRId64,
+          vgOffset.offset.subKey, vgId, vgOffset.consumerId, vgOffset.offset.val.version);
 
   STqOffset* pOffset = &vgOffset.offset;
   if (pOffset->val.type != TMQ_OFFSET__LOG) {
@@ -384,6 +388,9 @@ int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) 
     tqError("failed to save offset, vgId:%d sub:%s seek to %" PRId64, vgId, pOffset->subKey, pOffset->val.version);
     return -1;
   }
+
+  tqDebug("topic:%s, vgId:%d consumer:0x%" PRIx64 " offset is update to:%" PRId64, vgOffset.offset.subKey, vgId,
+          vgOffset.consumerId, vgOffset.offset.val.version);
 
   return 0;
 }
