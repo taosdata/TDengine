@@ -8,7 +8,7 @@ ARG cpuType
 RUN echo ${pkgFile} && echo ${dirName}
 
 RUN apt update
-RUN apt install -y curl vim gdb tmux
+RUN apt install -y curl vim gdb tmux valgrind jq net-tools
 
 COPY ${pkgFile} /root/
 ENV TINI_VERSION v0.19.0
@@ -26,5 +26,5 @@ COPY ./run.sh /usr/bin/
 COPY ./bin/* /usr/bin/
 
 ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
-CMD ["bash", "-c", "/usr/bin/run.sh"]
+CMD ["exec", "bash", "-c", "/usr/bin/run.sh"]
 VOLUME [ "/var/lib/taos", "/var/log/taos" ]

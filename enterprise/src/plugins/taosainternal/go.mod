@@ -6,7 +6,7 @@ require (
 	github.com/gin-contrib/static v0.0.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.14.0
-	github.com/taosdata/taosadapter/v3 v3.0.0-20230413032900-e02ddb2e1aef
+	github.com/taosdata/taosadapter/v3 v3.0.0-20230515023326-565ca212637b
 )
 
 require (
@@ -100,7 +100,7 @@ require (
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
-	github.com/taosdata/driver-go/v3 v3.1.1-0.20230223094157-1e3d76461430 // indirect
+	github.com/taosdata/driver-go/v3 v3.1.1-0.20230427094808-ba2c7d3a0f37 // indirect
 	github.com/tidwall/gjson v1.14.1 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect

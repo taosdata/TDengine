@@ -8,6 +8,7 @@ TAOS_TIMEOUT_SECOND=${TAOS_TIMEOUT_SECOND:-10}
 BACKUP_CORE_FOLDER=/var/log/corefile
 ALERT_URL=app/system/alert/add
 ALERT_DISABLE_FILE=/var/log/disable_alert
+REBOOT_COUNT_RESET_FILE=/var/log/reset_reboot
 START_TAOSD_MAX_NUMBER=${START_TAOSD_MAX_NUMBER:-3}
 start_taosd_count=0
 START_TAOSADAPTER_MAX_NUMBER=${START_TAOSADAPTER_MAX_NUMBER:-3}
@@ -17,6 +18,19 @@ SLEEP_INTERVAL=${SLEEP_INTERVAL:-10}
 echo "ADMIN_URL: ${ADMIN_URL}"
 echo "TAOS_TIMEOUT_SECOND: ${TAOS_TIMEOUT_SECOND}"
 
+pid=""
+function sigterm_handler() {
+    echo "`date` sigterm received"
+    if [ ! -z "$pid" ]; then
+	echo "send sigterm to $pid"
+        if [ -d "/var/log" ]; then
+            echo "`date` send sigterm to $pid" >>/var/log/run.log
+        fi
+        kill -15 $pid
+        wait $pid
+    fi
+}
+trap "echo SIGTERM; sigterm_handler; date; exit" SIGTERM
 function set_service_state() {
     #echo "set service state: $1, $2"
     service_state="$1"
@@ -76,11 +90,11 @@ function check_taosd() {
     fi
 }
 function post_error_msg() {
+    echo "app_name: ${app_name}"
+    echo "service_state: ${service_state}"
+    echo "`date` service_msg: ${service_msg}"
     if [ ! -z "${ADMIN_URL}" ]; then
         taos_version=`taos --version`
-        echo "app_name: ${app_name}"
-        echo "service_state: ${service_state}"
-        echo "`date` service_msg: ${service_msg}"
         echo "${taos_version}"
         if [ -f ${ALERT_DISABLE_FILE} ]; then
             echo "alert disabled"
@@ -237,7 +251,24 @@ function check_disk() {
     fi
 }
 function run_taosd() {
-    taosd
+    local count=0
+    trap "echo SIGTERM; sigterm_handler; exit" SIGTERM
+    if [ -d "/var/log" ]; then
+        echo "`date` taosd start" >>/var/log/run.log
+    fi
+    taosd &
+    pid=$!
+    wait $pid
+    local ret=$?
+    echo "`date` taosd exit $ret"
+    if [ -d "/var/log" ]; then
+        echo "`date` taosd exit $ret" >>/var/log/run.log
+    fi
+    if [ $ret -eq 0 ]; then
+        echo "`date` exit caused by sigterm"
+        return
+    fi
+    echo "`date` set taosd state"
     set_service_state "error" "taosd exit"
     # post error msg
     # check crash or OOM
@@ -263,15 +294,19 @@ while ((1))
 do
     check_disk
     # echo "outer loop: $a"
-    output=`timeout $TAOS_TIMEOUT_SECOND taos -k`
+    output=`timeout $TAOS_TIMEOUT_SECOND taos -k | tail -n 1`
     if [ -z "${output}" ]; then
         echo "`date` taos -k error"
         status=""
     else
         status=${output:0:1}
     fi
-    # echo $output
-    # echo $status
+    # echo "taos -k output: $output"
+    # echo "taos status: $status"
+    if [ -f ${REBOOT_COUNT_RESET_FILE} ]; then
+        start_taosd_count=0
+        start_taosadapter_count=0
+    fi
     if [ "$status"x = "0"x ]
     then
         echo "start taosd count: ${start_taosd_count}"
@@ -282,6 +317,7 @@ do
         start_taosd_count=$(( start_taosd_count + 1 ))
         # taosd_start_time=`date +%s`
         run_taosd &
+        pid=$!
     fi
     # echo "$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
     if [ "$status"x = "2"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST"x = "1"x ] && [ "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x = "0"x ]
