@@ -169,7 +169,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   int      code = 0;
 
   SMqDataRsp dataRsp = {0};
-  tqInitDataRsp(&dataRsp, pRequest, pHandle->execHandle.subType);
+  tqInitDataRsp(&dataRsp, pRequest);
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
