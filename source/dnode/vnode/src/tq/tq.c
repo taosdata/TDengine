@@ -25,7 +25,6 @@ static int32_t tqInitialize(STQ* pTq);
 static FORCE_INLINE bool tqIsHandleExec(STqHandle* pHandle) { return TMQ_HANDLE_STATUS_EXEC == pHandle->status; }
 static FORCE_INLINE void tqSetHandleExec(STqHandle* pHandle) {pHandle->status = TMQ_HANDLE_STATUS_EXEC;}
 static FORCE_INLINE void tqSetHandleIdle(STqHandle* pHandle) {pHandle->status = TMQ_HANDLE_STATUS_IDLE;}
-static FORCE_INLINE void tqSetHandleDelete(STqHandle* pHandle) {pHandle->status = TMQ_HANDLE_STATUS_DELETE;}
 
 int32_t tqInit() {
   int8_t old;
