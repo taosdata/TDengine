@@ -177,8 +177,8 @@ pub async fn mqtt_to_taos(
     let mqtt = if cfg!(target_os = "windows") {
         "C:\\TDengine\\xplugins\\mqtt\\taosmqtt.exe"
     } else {
-        // "/usr/local/taos/xplugins/mqtt/taosmqtt"
-        "mqtt-fake"
+        "/usr/local/taos/xplugins/mqtt/taosmqtt"
+        // "mqtt-fake"
     };
     let mut command = tokio::process::Command::new(mqtt);
     let mut child = command
