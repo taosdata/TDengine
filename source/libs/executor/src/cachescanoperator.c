@@ -240,7 +240,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
       if (NULL == pInfo->pLastrowReader) {
         code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
-                                       taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader,
+                                       taosArrayGetSize(pInfo->matchInfo.pList), pInfo->pCidList, pInfo->pSlotIds, suid, &pInfo->pLastrowReader,
                                        pTaskInfo->id.str);
         if (code != TSDB_CODE_SUCCESS) {
           pInfo->currentGroupIndex += 1;
