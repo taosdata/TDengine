@@ -93,6 +93,7 @@ typedef struct {
 typedef enum tq_handle_status{
   TMQ_HANDLE_STATUS_IDLE = 0,
   TMQ_HANDLE_STATUS_EXEC = 1,
+  TMQ_HANDLE_STATUS_DELETE = 2,
 }tq_handle_status;
 
 typedef struct {
