@@ -30,7 +30,7 @@ class TDTestCase:
     
     # run
     def run(self):
-        self.basic.restore_dnode(4)
+        self.basic.restore_vnode(4)
 
     # stop
     def stop(self):

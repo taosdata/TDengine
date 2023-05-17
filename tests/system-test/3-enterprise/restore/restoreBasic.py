@@ -164,6 +164,7 @@ class RestoreBasic:
         
         # exec restore
         sql = f"restore vnode on dnode {index}"
+        tdLog.info(sql)
         tdSql.execute(sql)
 
         # check result
@@ -191,6 +192,7 @@ class RestoreBasic:
         
         # exec restore
         sql = f"restore mnode on dnode {index}"
+        tdLog.info(sql)
         tdSql.execute(sql)
         self.check_corrent()
 
@@ -217,6 +219,7 @@ class RestoreBasic:
         
         # exec restore
         sql = f"restore qnode on dnode {index}"
+        tdLog.info(sql)
         tdSql.execute(sql)
         self.check_corrent()
 
