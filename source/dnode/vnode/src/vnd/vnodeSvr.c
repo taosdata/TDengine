@@ -375,14 +375,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       break;
     /* TQ */
     case TDMT_VND_TMQ_SUBSCRIBE:
-      if (tqProcessSubscribeReq(pVnode->pTq, version, pReq, len) < 0) {
-        goto _err;
-      }
+      if (tqProcessSubscribeReq(pVnode->pTq, version, pReq, len) < 0) goto _err;
       break;
     case TDMT_VND_TMQ_DELETE_SUB:
-      if (tqProcessDeleteSubReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
-        goto _err;
-      }
+      if (tqProcessDeleteSubReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) goto _err;
       break;
     case TDMT_VND_TMQ_COMMIT_OFFSET:
       if (tqProcessOffsetCommitReq(pVnode->pTq, version, pReq, pMsg->contLen - sizeof(SMsgHead)) < 0) {
@@ -434,6 +430,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
+
+    case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
+      if (tqProcessStreamCheckPointReq(pVnode->pTq, version, pReq, len) < 0) goto _err;
+      break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp) < 0) {
@@ -455,6 +455,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, version, pReq, len, pRsp);
       goto _exit;
+
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;

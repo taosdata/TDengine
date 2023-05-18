@@ -1492,7 +1492,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
     tqInfo("vgId:%d no stream tasks exist", vgId);
-    taosWUnLockLatch(&pTq->pStreamMeta->lock);
+    taosWUnLockLatch(&pMeta->lock);
     return 0;
   }
 
@@ -1500,7 +1500,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
   if (pMeta->walScanCounter > 1) {
     tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->walScanCounter);
-    taosWUnLockLatch(&pTq->pStreamMeta->lock);
+    taosWUnLockLatch(&pMeta->lock);
     return 0;
   }
 
@@ -1508,7 +1508,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   if (pRunReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("vgId:%d failed to create msg to start wal scanning to launch stream tasks, code:%s", vgId, terrstr());
-    taosWUnLockLatch(&pTq->pStreamMeta->lock);
+    taosWUnLockLatch(&pMeta->lock);
     return -1;
   }
 
@@ -1519,8 +1519,17 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
   tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
-  taosWUnLockLatch(&pTq->pStreamMeta->lock);
+  taosWUnLockLatch(&pMeta->lock);
 
   return 0;
 }
-int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) { return 0; }
+int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* pMsg, int32_t msgLen) {
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  char*        msg = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
+  int32_t      len = msgLen - sizeof(SMsgHead);
+
+  taosWLockLatch(&pMeta->lock);
+  taosWUnLockLatch(&pMeta->lock);
+  return 0;
+}

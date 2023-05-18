@@ -1106,21 +1106,18 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
   int sLen = stateKeyEncode(&sKey, sKeyStr);
   int eLen = stateKeyEncode(&eKey, eKeyStr);
 
-  char toStringStart[128] = {0};
-  char toStringEnd[128] = {0};
-  if (qDebugFlag & DEBUG_TRACE) {
-    stateKeyToString(&sKey, toStringStart);
-    stateKeyToString(&eKey, toStringEnd);
-  }
-
   char* err = NULL;
   rocksdb_delete_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, pState->pTdbState->pHandle[1],
                           sKeyStr, sLen, eKeyStr, eLen, &err);
-  // rocksdb_compact_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->pHandle[0], sKeyStr, sLen, eKeyStr,
-  // eLen);
   if (err != NULL) {
+    char toStringStart[128] = {0};
+    char toStringEnd[128] = {0};
+    stateKeyToString(&sKey, toStringStart);
+    stateKeyToString(&eKey, toStringEnd);
     qWarn("failed to delete range cf(state) start: %s, end:%s, reason:%s", toStringStart, toStringEnd, err);
     taosMemoryFree(err);
+  } else {
+    rocksdb_compact_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->pHandle[1], sKeyStr, sLen, eKeyStr, eLen);
   }
 
   return 0;
@@ -1768,28 +1765,31 @@ _end:
 }
 int32_t streamStateSessionClear_rocksdb(SStreamState* pState) {
   qDebug("streamStateSessionClear_rocksdb");
-  SSessionKey      key = {.win.skey = 0, .win.ekey = 0, .groupId = 0};
-  SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext_rocksdb(pState, &key);
+  SStateSessionKey skey = {.key.win.skey = 0, .key.win.ekey = 0, .key.groupId = 0, .opNum = 0};
+  SStateSessionKey ekey = {
+      .key.win.skey = INT64_MAX, .key.win.ekey = INT64_MAX, .key.groupId = UINT64_MAX, .opNum = INT64_MAX};
 
-  while (1) {
-    SSessionKey delKey = {0};
-    void*       buf = NULL;
-    int32_t     size = 0;
-    int32_t     code = streamStateSessionGetKVByCur_rocksdb(pCur, &delKey, &buf, &size);
-    if (code == 0 && size > 0) {
-      memset(buf, 0, size);
-      // refactor later
-      streamStateSessionPut_rocksdb(pState, &delKey, buf, size);
-    } else {
-      taosMemoryFreeClear(buf);
-      break;
-    }
-    taosMemoryFreeClear(buf);
+  char skeyStr[128] = {0}, ekeyStr[128] = {0};
+  int  slen = stateSessionKeyEncode(&skey, skeyStr);
+  int  elen = stateSessionKeyEncode(&ekey, ekeyStr);
 
-    streamStateCurNext_rocksdb(pState, pCur);
+  char* err = NULL;
+  rocksdb_delete_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, pState->pTdbState->pHandle[3],
+                          skeyStr, slen, ekeyStr, elen, &err);
+  if (err != NULL) {
+    char toStringStart[128] = {0};
+    char toStringEnd[128] = {0};
+
+    stateSessionKeyToString(&skey, toStringStart);
+    stateSessionKeyToString(&ekey, toStringEnd);
+    qWarn("failed to delete range cf(state) start: %s, end:%s, reason:%s", toStringStart, toStringEnd, err);
+
+    taosMemoryFree(err);
+  } else {
+    rocksdb_compact_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->pHandle[3], skeyStr, slen, ekeyStr, elen);
   }
-  streamStateFreeCur(pCur);
-  return -1;
+
+  return 0;
 }
 int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey* key, char* pKeyData,
                                               int32_t keyDataLen, state_key_cmpr_fn fn, void** pVal, int32_t* pVLen) {

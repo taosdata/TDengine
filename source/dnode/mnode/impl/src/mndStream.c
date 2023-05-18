@@ -69,6 +69,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_PAUSE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_RESUME_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
@@ -887,7 +888,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   if (pTrans == NULL) return -1;
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
-    mError("failed to checkpoin since stream %s not found", tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
+    mError("failed to checkpoint since stream %s", tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
     mndReleaseStream(pMnode, pStream);
     mndTransDrop(pTrans);
     return -1;
