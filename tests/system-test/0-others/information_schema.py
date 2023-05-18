@@ -176,8 +176,10 @@ class TDTestCase:
             self.str107 += 'tP+2soIXpP'
         self.str108 = self.str107 + '='
         self.str109 = self.str108 + '+'
-        self.str254 = self.str108 + self.str108 + '0123456789001234567890012345678901234567'
+        self.str254 = self.str108 + self.str108 + '01234567890123456789012345678901234567'
         self.str255 = self.str254 + '='
+        self.str256 = self.str254 + '=('
+        self.str257 = self.str254 + '=()'
         self.str510 = self.str255 + self.str255
         tdSql.error('alter dnode 1 "activeCode" "a"')
         tdSql.error('alter dnode 1 "activeCode" "' + self.str107 + '"')
@@ -192,16 +194,17 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.queryResult[0][1],'')
         tdSql.error('alter dnode 1 "cActiveCode" "a"')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str107 + '"')
-        tdSql.execute('alter dnode 1 "cActiveCode" "' + self.str254 + '"')
+        tdSql.error('alter dnode 1 "cActiveCode" "' + self.str256 + '"')
         tdSql.error('alter all dnodes "cActiveCode" "' + self.str255 + '"')
+        tdSql.execute('alter all dnodes "cActiveCode" "' + self.str254 + '"')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str510 + '"')
         tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
         tdSql.checkEqual(tdSql.queryResult[0][0],"")
         tdSql.checkEqual(tdSql.queryResult[0][1],self.str254)
         tdSql.execute('alter dnode 1 "cActiveCode" "' + self.str109 + '"')
         tdSql.query(f'show dnodes')
-        tdSql.checkEqual(tdSql.queryResult[0][0],self.str109)
-        tdSql.execute('alter all dnodes "activeCode" ""')
+        tdSql.checkEqual(tdSql.queryResult[0][9],self.str109)
+        tdSql.execute('alter all dnodes "cActiveCode" ""')
         tdSql.query(f'select c_active_code from information_schema.ins_dnodes')
         tdSql.checkEqual(tdSql.queryResult[0][0],'')
 
