@@ -982,7 +982,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   taosThreadMutexUnlock(&pTsdb->rCache.rMutex);
 
 _exit:
-  taosMemoryFree(pTSchema);
+  // taosMemoryFree(pTSchema);
 
   return code;
 }
