@@ -1057,6 +1057,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       mError("dnode:%d, failed to config activeCode since %s", cfgReq.dnodeId, terrstr());
       return -1;
     }
+    return 0;
   } else if (strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
     if (' ' != cfgReq.config[11] && 0 != cfgReq.config[11]) {
       mError("dnode:%d, failed to config cActiveCode since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
@@ -1078,6 +1079,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       mError("dnode:%d, failed to config cActiveCode since %s", cfgReq.dnodeId, terrstr());
       return -1;
     }
+    return 0;
 #endif
   } else {
     bool findOpt = false;
