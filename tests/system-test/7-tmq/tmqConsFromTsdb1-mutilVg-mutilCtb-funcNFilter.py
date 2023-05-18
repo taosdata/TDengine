@@ -199,11 +199,11 @@ class TDTestCase:
         tdLog.info("start consume processor 0")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
+        tdLog.info("wait start consume notify")
+        tmqCom.getStartConsumeNotifyFromTmqsim()        
         tdLog.info("wait commit notify")
-        tmqCom.getStartCommitNotifyFromTmqsim()
-        # tdLog.info("wait start consume notify")
-        # tmqCom.getStartConsumeNotifyFromTmqsim()
-
+        tmqCom.getStartCommitNotifyFromTmqsim(rows=2)
+        
         tdLog.info("pkill consume processor")
         tdCom.killProcessor("tmq_sim")
 
