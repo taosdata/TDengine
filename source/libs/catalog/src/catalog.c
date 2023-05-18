@@ -698,6 +698,22 @@ _return:
   CTG_API_NLEAVE();
 }
 
+int32_t ctgGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg) {
+  CTG_ERR_RET(ctgReadDBCfgFromCache(pCtg, dbFName, pDbCfg));
+
+  if (pDbCfg->cfgVersion < 0) {
+    CTG_ERR_RET(ctgGetDBCfgFromMnode(pCtg, pConn, dbFName, pDbCfg, NULL));
+    SDbCfgInfo *pCfg = ctgCloneDbCfgInfo(pDbCfg);    
+    if (NULL == pCfg) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    
+    CTG_ERR_RET(ctgUpdateDbCfgEnqueue(pCtg, dbFName, pDbCfg->dbId, pCfg, false));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t catalogInit(SCatalogCfg* cfg) {
   if (gCtgMgmt.pCluster) {
@@ -995,6 +1011,23 @@ int32_t catalogUpdateDBVgInfo(SCatalog* pCtg, const char* dbFName, uint64_t dbId
   }
 
   code = ctgUpdateVgroupEnqueue(pCtg, dbFName, dbId, dbInfo, false);
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogUpdateDbCfg(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SDbCfgInfo* cfgInfo) {
+  CTG_API_ENTER();
+
+  int32_t code = 0;
+
+  if (NULL == pCtg || NULL == dbFName || NULL == cfgInfo) {
+    freeDbCfgInfo(cfgInfo);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  code = ctgUpdateDbCfgEnqueue(pCtg, dbFName, dbId, cfgInfo, false);
 
 _return:
 
@@ -1430,14 +1463,14 @@ int32_t catalogGetExpiredSTables(SCatalog* pCtg, SSTableVersion** stables, uint3
   CTG_API_LEAVE(ctgMetaRentGet(&pCtg->stbRent, (void**)stables, num, sizeof(SSTableVersion)));
 }
 
-int32_t catalogGetExpiredDBs(SCatalog* pCtg, SDbVgVersion** dbs, uint32_t* num) {
+int32_t catalogGetExpiredDBs(SCatalog* pCtg, SDbCacheInfo** dbs, uint32_t* num) {
   CTG_API_ENTER();
 
   if (NULL == pCtg || NULL == dbs || NULL == num) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  CTG_API_LEAVE(ctgMetaRentGet(&pCtg->dbRent, (void**)dbs, num, sizeof(SDbVgVersion)));
+  CTG_API_LEAVE(ctgMetaRentGet(&pCtg->dbRent, (void**)dbs, num, sizeof(SDbCacheInfo)));
 }
 
 int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_t* num) {
@@ -1485,9 +1518,7 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  CTG_CACHE_NHIT_INC(CTG_CI_DB_CFG, 1);
-
-  CTG_API_LEAVE(ctgGetDBCfgFromMnode(pCtg, pConn, dbFName, pDbCfg, NULL));
+  CTG_API_LEAVE(ctgGetDBCfg(pCtg, pConn, dbFName, pDbCfg));
 }
 
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo) {
