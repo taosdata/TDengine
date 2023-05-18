@@ -1269,8 +1269,6 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t  vgId = pParam->vgId;
   uint64_t requestId = pParam->requestId;
 
-  taosMemoryFree(pParam);
-
   if (code != 0) {
     if (pMsg->pData) taosMemoryFree(pMsg->pData);
     if (pMsg->pEpSet) taosMemoryFree(pMsg->pEpSet);
@@ -1314,6 +1312,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pParam);
+
     return 0;
   }
 
@@ -1379,6 +1379,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   tsem_post(&tmq->rspSem);
   taosReleaseRef(tmqMgmt.rsetId, refId);
+  taosMemoryFree(pParam);
 
   return 0;
 
@@ -1394,6 +1395,7 @@ CREATE_MSG_FAIL:
 
   tsem_post(&tmq->rspSem);
   taosReleaseRef(tmqMgmt.rsetId, refId);
+  taosMemoryFree(pParam);
 
   return -1;
 }
