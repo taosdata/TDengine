@@ -11,33 +11,40 @@ version = "1.0.0"
 
 clean:
 	echo "Cleaning dist folder"
-	rm -f dist/*
+	rm -rf dist/*
 	if [ ! -d dist ]; then mkdir dist; fi
 
 darwin_amd64:
 	echo "Building for darwin amd64"
-	GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/opc-collector_darwin_amd64
+	if [ ! -d dist/darwin_amd64 ]; then mkdir -p dist/darwin_amd64; fi
+	GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/darwin_amd64/opc-collector
 
 darwin_arm64:
 	echo "Building for darwin arm64"
-	GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/opc-collector_darwin_arm64
+	if [ ! -d dist/darwin_arm64 ]; then mkdir -p dist/darwin_arm64; fi
+	GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/darwin_arm64/opc-collector
 
 linux_amd64:
 	echo "Building for linux amd64"
-	GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/opc-collector_linux_amd64
+	if [ ! -d dist/linux_amd64 ]; then mkdir -p dist/linux_amd64; fi
+	GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/linux_amd64/opc-collector
 
 linux_arm:
 	echo "Building for linux arm"
-	GOOS=linux GOARCH=arm go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/opc-collector_linux_arm
+	if [ ! -d dist/linux_arm ]; then mkdir -p dist/linux_arm; fi
+	GOOS=linux GOARCH=arm go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/linux_arm/opc-collector
 
 linux_arm_64:
 	echo "Building for linux arm64"
-	GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/opc-collector_linux_arm64
+	if [ ! -d dist/linux_arm64 ]; then mkdir -p dist/linux_arm64; fi
+	GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/linux_arm64/opc-collector
 
 windows:
 	echo "Building for windows"
-	GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/opc-collector_windows_amd64.exe
+	if [ ! -d dist/windows_amd64 ]; then mkdir -p dist/windows_amd64; fi
+	GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/windows_amd64/opc-collector.exe
 
 windows_386:
 	echo "Building for windows 386"
-	GOOS=windows GOARCH=386 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/opc-collector_windows_386.exe
+	if [ ! -d dist/windows_386 ]; then mkdir -p dist/windows_386; fi
+	GOOS=windows GOARCH=386 go build -ldflags "-s -w -X 'collector/version.Version=$(version)'" -o dist/windows_386/opc-collector.exe

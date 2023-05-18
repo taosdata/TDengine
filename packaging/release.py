@@ -93,12 +93,12 @@ def buildAndInstallOPCOnWindows():
     # 32位编译
     os.environ["GOOS"] = "windows"
     os.environ["GOARCH"] = "386"
-    opc_app_name = "opc-collector_windows_386.exe"
-    os.system(f"go build -o dist/{opc_app_name}")
+    opc_app_name = "opc-collector.exe"
+    os.system(f"go build -o dist/windows_386/{opc_app_name}")
     
     opc_install_path = os.path.join(install_path, "xplugins", "opc")
     initDirectory(opc_install_path)
-    opc_path = os.path.join(opc_connector_path, "dist", opc_app_name)
+    opc_path = os.path.join(opc_connector_path, "dist", "windows_386", opc_app_name)
     try:
         shutil.copy2(opc_path, opc_install_path)
     except FileNotFoundError as e:

@@ -601,33 +601,13 @@ fn process_table_info(
 }
 
 const OPC_CONNECTOR_PATH: &str = {
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    #[cfg(all(target_os = "windows"))]
     {
-        "C:\\TDengine\\xplugins\\opc\\opc-collector_windows_amd64.exe"
+        "C:\\TDengine\\xplugins\\opc\\opc-collector.exe"
     }
-    #[cfg(all(target_os = "windows", target_arch = "x86"))]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        "C:\\TDengine\\xplugins\\opc\\opc-collector_windows_386.exe"
-    }
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    {
-        "/usr/local/taos/xplugins/opc/opc-collector_linux_amd64"
-    }
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    {
-        "/usr/local/taos/xplugins/opc/opc-collector_linux_arm64"
-    }
-    #[cfg(all(target_os = "linux", target_arch = "arm"))]
-    {
-        "/usr/local/taos/xplugins/opc/opc-collector_linux_arm"
-    }
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    {
-        "/usr/local/taos/xplugins/opc/opc-collector_darwin_amd64"
-    }
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        "/usr/local/taos/xplugins/opc/opc-collector_darwin_arm64"
+        "/usr/local/taos/xplugins/opc/opc-collector"
     }
 };
 
