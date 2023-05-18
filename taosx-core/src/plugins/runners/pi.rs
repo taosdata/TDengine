@@ -398,8 +398,8 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .stdout(async_process::Stdio::piped())
         .stderr(async_process::Stdio::piped())
         .output()
-        .await
-        .context("Start PI collector error")?;
+        .await?;
+        // .context("Start PI collector error")?;
     log::info!("PI Connector exit with status {}", output.status);
 
     let json: Value = serde_json::from_slice(&output.stdout)?;
@@ -444,7 +444,7 @@ fn extend_data_set(
     offset: usize,
     limit: usize,
 ) {
-    let page_index = (offset - 1) * limit;
+    let page_index = offset * limit;
     let len = extended_vec.len();
     if len >= page_index + limit {
         dataset.extend_from_slice(&extended_vec[page_index..page_index + limit]);
