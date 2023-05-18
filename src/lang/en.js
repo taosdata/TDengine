@@ -7,7 +7,7 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
-  enableagent:'Enable Agent',
+  disbleagent:'Disable Agent',
   warning:'Warning',
   ok:'OK',
   changepwdtip:'Password is successfully changed, please log in again',
@@ -911,6 +911,8 @@ export default {
     timeseries: 'Time Series',
     version: 'Version',
     license: 'License',
+    stables: "STables",
+    tables: "Table",
     select_topic_tip: 'Please select the topic',
     add_new_user: 'Add New User',
     expire_time: 'Expire Time',

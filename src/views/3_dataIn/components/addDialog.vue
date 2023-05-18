@@ -7,11 +7,6 @@
     :destroy-on-close="true"
     @closed="closeDialog"
   >
-    <div class="switch-agent" v-if="agentList.length > 0">
-      <span class="label">{{ $t("enableagent") }}</span>
-      <el-switch v-model="switchVal" @change="changeAgent"></el-switch>
-    </div>
-
     <el-form
       :model="ruleForm"
       :rules="rules"
@@ -24,20 +19,20 @@
       <el-form-item
         :label="$t('datasource.agent')"
         prop="agent"
-        required
-        v-if="switchVal"
       >
         <el-select
           v-model="ruleForm.agent"
           :placeholder="$t('datasource.agenttip')"
           @change="selectAgenttype"
         >
+          <el-option value="null" :label="$t('disbleagent')"></el-option>
           <el-option
             :label="`${item.id}. ${item.name}`"
             :value="item.id"
             v-for="item in agentList"
             :key="item.id"
           ></el-option>
+          <el-option value="add" :label="$t('taosagents.createnewagent')"></el-option>
         </el-select>
       </el-form-item>
       <el-form-item :label="$t('datasource.sourcetype')" prop="type">
@@ -100,7 +95,7 @@ export default {
       if (!this.ruleForm.name) {
         return true;
       }
-      if(!this.ruleForm.agent&&this.switchVal){
+      if(!this.ruleForm.agent){
         return true
       }
       return false;
@@ -110,7 +105,6 @@ export default {
     return {
       visible: true,
       agentList: [],
-      switchVal: false,
       originalTypes: [],
       ruleForm: {
         agent: "",
@@ -118,12 +112,12 @@ export default {
         name: "",
       },
       rules: {
-        agent: [
-          {
-            required: true,
-            message: this.$t("datasource.agenttip"),
-          },
-        ],
+        // agent: [
+        //   {
+        //     required: true,
+        //     message: this.$t("datasource.agenttip"),
+        //   },
+        // ],
         type: [
           {
             required: true,
@@ -152,31 +146,27 @@ export default {
     },
     selectAgenttype() {
       this.ruleForm.type = "";
-      this.originalTypes = deepClone(
-        this.agentList
-          .filter((item) => item.id == this.ruleForm.agent)[0]
-          .connectors.map((val) => {
-            return {
-              id: val,
-              name: this.dataTypeMap.get(val),
-            };
-          })
-      );
+      if(this.ruleForm.agent === 'add') {
+        this.$emit('addAgent')
+        this.ruleForm.agent = ""
+      } else if (this.ruleForm.agent !== 'null') {
+        this.originalTypes = deepClone(
+          this.agentList
+            .filter((item) => item.id == this.ruleForm.agent)[0]
+            .connectors.map((val) => {
+              return {
+                id: val,
+                name: this.dataTypeMap.get(val),
+              };
+            })
+        );
+      }
     },
     closeDialog() {
       this.$refs.ruleForm.resetFields();
       // this.switchVal = false;
       // this.ruleForm.agent = "";
       this.$emit("closeDialog");
-    },
-    changeAgent() {
-      console.log(this.switchVal, "是否启用代理", this.typeList);
-      this.$refs.ruleForm.resetFields();
-      if (this.switchVal) {
-        this.getAgentDataType();
-      } else {
-        this.originalTypes = deepClone(this.typeList);
-      }
     },
     async getAgentDataType() {
       try {

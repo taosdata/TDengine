@@ -1,128 +1,136 @@
 <template>
-  <div class="data-source">
-    <div class="flexEnd">
-      <el-button
-        plain
-        @click="dialog = true"
-        size="small"
-        icon="el-icon-plus"
-        >{{ $t("datasource.addsource") }}</el-button
-      >
-    </div>
-    <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column
-        :label="$t('datasource.name')"
-        prop="localname"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('datasource.type')"
-        prop="localtype"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('datasource.target')"
-        prop="target"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('datasource.createat')"
-        prop="created_at"
-      ></el-table-column>
-      <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
-
-      <el-table-column :label="$t('datasource.status')" prop="status">
-        <template slot-scope="scope">
-          <div class="status-operation">
-            <el-tooltip
-              v-if="
-                ['stopped', 'finished', 'failed'].includes(
-                  scope.row.status.toLowerCase()
-                )
-              "
-              placement="bottom"
-              effect="light"
-              popper-class="datain"
-            >
-              <div v-html="scope.row.last_modified_at" slot="content"></div>
-              <div slot="content" v-html="scope.row.reason"></div>
-              <span style="width: 80px; display: inline-block">{{
+  <div>
+    <p class="title">
+      <span>{{ $t('dataIn.dataSources') }}</span>
+    </p>
+    <div class="data-source">
+      <div class="flexEnd">
+        <el-button
+          plain
+          @click="dialog = true"
+          size="small"
+          icon="el-icon-plus"
+          >{{ $t("datasource.addsource") }}</el-button
+        >
+      </div>
+      <el-table style="margin-top: 20px" :data="topicList" size="mini" max-height="250">
+        <el-table-column
+          :label="$t('datasource.name')"
+          prop="localname"
+        ></el-table-column>
+        <el-table-column
+          :label="$t('datasource.type')"
+          prop="localtype"
+        ></el-table-column>
+        <el-table-column
+          :label="$t('datasource.target')"
+          prop="target"
+        ></el-table-column>
+        <el-table-column
+          :label="$t('datasource.createat')"
+          prop="created_at"
+        ></el-table-column>
+        <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
+  
+        <el-table-column :label="$t('datasource.status')" prop="status">
+          <template slot-scope="scope">
+            <div class="status-operation">
+              <el-tooltip
+                v-if="
+                  ['stopped', 'finished', 'failed'].includes(
+                    scope.row.status.toLowerCase()
+                  )
+                "
+                placement="bottom"
+                effect="light"
+                popper-class="datain"
+              >
+                <div v-html="scope.row.last_modified_at" slot="content"></div>
+                <div slot="content" v-html="scope.row.reason"></div>
+                <span style="width: 80px; display: inline-block">{{
+                  scope.row.status
+                }}</span>
+              </el-tooltip>
+              <span style="width: 80px; display: inline-block" v-else>{{
                 scope.row.status
               }}</span>
-            </el-tooltip>
-            <span style="width: 80px; display: inline-block" v-else>{{
-              scope.row.status
-            }}</span>
-            <template v-if="scope.row.status.toLowerCase() !== 'running'">
-              <el-tooltip
-                placement="bottom"
-                effect="light"
-                :content="$t('datasource.excutestart')"
-              >
-                <el-button
-                  plain
-                  size="small"
-                  @click="start(scope.row)"
-                  icon="el-icon-qidong"
-                ></el-button>
-              </el-tooltip>
-            </template>
-            <template v-else>
-              <el-tooltip
-                placement="bottom"
-                effect="light"
-                :content="$t('datasource.excutestop')"
-              >
-                <el-button
-                  plain
-                  size="small"
-                  @click="stop(scope.row)"
-                  icon="el-icon-tingzhi"
-                ></el-button
-              ></el-tooltip>
-            </template>
-          </div>
-          <!-- <template v-if="['stopped','finished','failed'].includes(scope.row.status.toLowerCase())">
-            <div class="finished-time">{{scope.row.last_modified_at}}</div>
-            <div class="reason">{{scope.row.reason}}</div>
-          </template> -->
-        </template>
-      </el-table-column>
-      <el-table-column
-        :label="$t('datasource.operation')"
-        width="100"
-        class="action"
-      >
-        <template slot-scope="scope">
-          <el-button
-            type="primay"
-            size="small"
-            :disabled="
-              (scope.row.from_detail === undefined ||
-              scope.row.status.toLowerCase() == 'running') ||
-              !getEditStatus(scope.row.labels)
-            "
-            @click="edit(scope.row)"
-            icon="el-icon-edit"
-          ></el-button>
-          <el-button
-            plain
-            size="small"
-            @click="del(scope.row)"
-            icon="el-icon-delete"
-          ></el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-    <div v-if="dialog">
-      <AddDialog :typeList="typeList" @closeDialog="closeDialog"></AddDialog>
+              <template v-if="scope.row.status.toLowerCase() !== 'running'">
+                <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('datasource.excutestart')"
+                >
+                  <el-button
+                    plain
+                    size="small"
+                    @click="start(scope.row)"
+                    icon="el-icon-qidong"
+                  ></el-button>
+                </el-tooltip>
+              </template>
+              <template v-else>
+                <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('datasource.excutestop')"
+                >
+                  <el-button
+                    plain
+                    size="small"
+                    @click="stop(scope.row)"
+                    icon="el-icon-tingzhi"
+                  ></el-button
+                ></el-tooltip>
+              </template>
+            </div>
+            <!-- <template v-if="['stopped','finished','failed'].includes(scope.row.status.toLowerCase())">
+              <div class="finished-time">{{scope.row.last_modified_at}}</div>
+              <div class="reason">{{scope.row.reason}}</div>
+            </template> -->
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="$t('datasource.operation')"
+          width="100"
+          class="action"
+        >
+          <template slot-scope="scope">
+            <el-button
+              type="primay"
+              size="small"
+              :disabled="
+                (scope.row.from_detail === undefined ||
+                scope.row.status.toLowerCase() == 'running') ||
+                !getEditStatus(scope.row.labels)
+              "
+              @click="edit(scope.row)"
+              icon="el-icon-edit"
+            ></el-button>
+            <el-button
+              plain
+              size="small"
+              @click="del(scope.row)"
+              icon="el-icon-delete"
+            ></el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div v-if="dialog">
+        <AddDialog :typeList="typeList" @closeDialog="closeDialog" @addAgent="addAgent"></AddDialog>
+      </div>
+      <el-pagination
+        class="pagination"
+        layout="total, prev, pager, next"
+        :current-page.sync="currentPage"
+        :page-size="pageSize"
+        :hide-on-single-page="true"
+        :total="total"
+        @current-change="handlePageChange"
+      ></el-pagination>
     </div>
-    <el-pagination
-      class="pagination"
-      layout="total, prev, pager, next"
-      :current-page.sync="currentPage"
-      :page-size="pageSize"
-      :hide-on-single-page="true"
-      :total="total"
-      @current-change="handlePageChange"
-    ></el-pagination>
+    <div class="agent" style="margin-top: 20px;">
+      <Agents ref="agents"/>
+    </div>
   </div>
 </template>
 <script>
@@ -130,9 +138,10 @@ import { Message } from "element-ui";
 import { getDatain } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
+import Agents from '../components/agents.vue'
 export default {
   name: "DataSource",
-  components: { AddDialog },
+  components: { AddDialog, Agents },
   props: {
     sourceList: {
       type: Array,
@@ -291,6 +300,10 @@ export default {
     closeDialog() {
       this.dialog = false;
     },
+    // 显示添加代理弹框
+    addAgent() {
+      this.$refs.agents.add()
+    }
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
@@ -322,5 +335,26 @@ export default {
 }
 ::v-deep.input.el-input__inner {
   width: 172px !important;
+}
+.title{
+    background-color: #ecf8ff;
+    border-left-color: #50bfff;
+    color: #333;
+    border-left-width: 5px;
+    border-left-style: solid;
+    border-radius: 4px;
+    font-size: 16px;
+    margin: 10px 0;
+    padding: 8px 16px;
+}
+.flexEnd{
+  position: absolute;
+  top:15px;
+  z-index: 9999;
+  right: 10px;
+  .el-button{
+    border: none;
+    background: transparent;
+  }
 }
 </style>

@@ -81,7 +81,6 @@
       class="margin-top"
       title=""
       :column="3"
-      border
     >
       <el-descriptions-item v-for="item in licenseList" :key="item.key" :label='$t(`topic.${item.key}`)' :labelStyle='style'>
         <span style="color:#333;"> {{item.value}}</span>
@@ -241,8 +240,9 @@ th.el-descriptions-item__cell.el-descriptions-item__label.is-bordered-label{
 td.el-descriptions-item__cell.el-descriptions-item__content{
   width:200px;
 }
-.el-descriptions .is-bordered .el-descriptions-item__cell{
+.el-descriptions .el-descriptions-item__cell{
   padding:12px 5px;
+  border-bottom: 1px solid #dfe6ec;
 }
 }
 </style>

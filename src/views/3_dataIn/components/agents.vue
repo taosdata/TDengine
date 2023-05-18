@@ -1,36 +1,25 @@
 <template>
   <div class="dnode-block">
-    <div class="flexEnd">
-      <el-button
-        plain
-        @click="refresh"
-        size="small"
-        icon="el-icon-refresh"
-        :disabled="requestIng"
-        >{{ $t("refresh") }}</el-button
-      >
-      <el-button plain @click="add" size="small" icon="el-icon-plus">{{
-        $t("taosagents.createnewagent")
-      }}</el-button>
+    <div style="font-size: 18px;">
+      <p class="title">
+        <span>{{ $t("topic.agent") }}</span>
+      </p>
     </div>
-    <el-table style="margin-top: 20px" :data="agentList" size="mini">
-      <el-table-column label="ID" prop="id" width="60"></el-table-column>
-
-      <el-table-column
+    <el-table style="margin-top: 20px" :data="agentList" size="mini" max-height="250">
+      <el-table-column label="ID" prop="id" ></el-table-column>
+      <!-- <el-table-column
         :label="$t('taosagents.cluster_id')"
         prop="cluster_id"
         width="200"
-      ></el-table-column>
+      ></el-table-column> -->
       <el-table-column
         :label="$t('taosagents.name')"
         prop="name"
-        width="200"
       ></el-table-column>
 
       <el-table-column
         :label="$t('taosagents.connectors')"
         prop="connectors"
-        width="200"
       >
         <template slot-scope="scope">
           <span>{{ scope.row.connectors.join(",") }}</span>
@@ -39,19 +28,17 @@
       <el-table-column
         :label="$t('taosagents.created_at')"
         prop="created_at"
-        width="250"
       ></el-table-column>
-      <el-table-column
+      <!-- <el-table-column
         :label="$t('taosagents.dsn')"
         prop="dsn"
         width="200"
-      ></el-table-column>
+      ></el-table-column> -->
       <el-table-column
         :label="$t('taosagents.expire_date')"
         prop="expire_date"
-        width="200"
       ></el-table-column>
-      <el-table-column
+      <!-- <el-table-column
         :label="$t('taosagents.last_modified_at')"
         prop="last_modified_at"
         width="250"
@@ -86,12 +73,12 @@
             }}</span>
           </div>
         </template>
-      </el-table-column>
-      <el-table-column
+      </el-table-column> -->
+      <!-- <el-table-column
         :label="$t('taosagents.user_id')"
         prop="user_id"
-      ></el-table-column>
-      <el-table-column :label="$t('taosuser.operation')" width="150">
+      ></el-table-column> -->
+      <el-table-column :label="$t('taosuser.operation')" width="100">
         <template slot-scope="scope">
           <!-- <el-switch
             :value="scope.row.status.toLowerCase() == 'running'"
@@ -496,5 +483,16 @@ export default {
       display: flex;
     }
   }
+}
+.title{
+    background-color: #ecf8ff;
+    border-left-color: #50bfff;
+    color: #333;
+    border-left-width: 5px;
+    border-left-style: solid;
+    border-radius: 4px;
+    font-size: 16px;
+    margin: 10px 0;
+    padding: 8px 16px;
 }
 </style>
