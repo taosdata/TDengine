@@ -269,6 +269,9 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     qDebug("s-task:%s start to extract data block from inputQ", pTask->id.idStr);
 
     while (1) {
+      if (streamTaskShouldPause(&pTask->status)) {
+        return 0;
+      }
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
         if (pTask->taskLevel == TASK_LEVEL__SOURCE && batchSize < MIN_STREAM_EXEC_BATCH_NUM && times < 5) {

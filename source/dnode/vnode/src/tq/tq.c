@@ -1449,7 +1449,11 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     }
 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    tqStartStreamTasks(pTq);
+    if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+      tqStartStreamTasks(pTq);
+    } else {
+      streamSchedExec(pTask);
+    }
   }
 
   return 0;
