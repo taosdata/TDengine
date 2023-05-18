@@ -2418,6 +2418,36 @@ static bool tagScanOptShouldBeOptimized(SLogicNode* pNode) {
   return true;
 }
 
+static SLogicNode* tagScanOptFindAncestorWithSlimit(SLogicNode* pTableScanNode) {
+  SLogicNode* pNode = pTableScanNode->pParent;
+  while (NULL != pNode) {
+    if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) || QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) ||
+        QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode) || QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode)) {
+      return NULL;
+    }
+    if (NULL != pNode->pSlimit) {
+      return pNode;
+    }
+    pNode = pNode->pParent;
+  }
+  return NULL;
+}
+
+static void tagScanOptCloneAncestorSlimit(SLogicNode* pTableScanNode) {
+  if (NULL != pTableScanNode->pSlimit) {
+    return;
+  }
+
+  SLogicNode* pNode = tagScanOptFindAncestorWithSlimit(pTableScanNode);
+  if (NULL != pNode) {
+    //TODO: only set the slimit now. push down slimit later
+    pTableScanNode->pSlimit = nodesCloneNode(pNode->pSlimit);
+    ((SLimitNode*)pTableScanNode->pSlimit)->limit += ((SLimitNode*)pTableScanNode->pSlimit)->offset;
+    ((SLimitNode*)pTableScanNode->pSlimit)->offset = 0;
+  }
+  return;
+}
+
 static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SScanLogicNode* pScanNode = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, tagScanOptShouldBeOptimized);
   if (NULL == pScanNode) {
@@ -2458,6 +2488,7 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
     NODES_CLEAR_LIST(pAgg->pChildren);
   }
   nodesDestroyNode((SNode*)pAgg);
+  tagScanOptCloneAncestorSlimit((SLogicNode*)pScanNode);
   pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
 }
@@ -2597,7 +2628,9 @@ static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo, SNode* pCondit
   if (NULL == pConditions) {
     return true;
   }
-
+  if (LIST_LENGTH(pInfo->pAgg->pGroupKeys) != 0) {
+    return false;
+  }
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pConditions)) {
     return tbCntScanOptIsEligibleLogicCond(pInfo, (SLogicConditionNode*)pConditions);
   }

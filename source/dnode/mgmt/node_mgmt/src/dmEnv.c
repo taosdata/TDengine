@@ -169,6 +169,8 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     return -1;
   }
 
+  dInfo("start to process create-node-request");
+
   pWrapper = &pDnode->wrappers[ntype];
   if (taosMkDir(pWrapper->path) != 0) {
     dmReleaseWrapper(pWrapper);
@@ -178,6 +180,75 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   }
 
   taosThreadMutexLock(&pDnode->mutex);
+  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
+
+  dInfo("node:%s, start to create", pWrapper->name);
+  int32_t code = (*pWrapper->func.createFp)(&input, pMsg);
+  if (code != 0) {
+    dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
+  } else {
+    dInfo("node:%s, has been created", pWrapper->name);
+    code = dmOpenNode(pWrapper);
+    if (code == 0) {
+      code = dmStartNode(pWrapper);
+    }
+    pWrapper->deployed = true;
+    pWrapper->required = true;
+  }
+
+  taosThreadMutexUnlock(&pDnode->mutex);
+  return code;
+}
+
+static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
+  SDnode *pDnode = dmInstance();
+
+  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
+  if (pWrapper == NULL) {
+    dError("fail to process alter node type since node not exist");
+    return -1;
+  }
+  dmReleaseWrapper(pWrapper);
+
+  dInfo("node:%s, start to process alter-node-type-request", pWrapper->name);
+
+  pWrapper = &pDnode->wrappers[ntype];
+
+  if(pWrapper->func.nodeRoleFp != NULL){
+    ESyncRole role = (*pWrapper->func.nodeRoleFp)(pWrapper->pMgmt);
+    dInfo("node:%s, checking node role:%d", pWrapper->name, role);
+    if(role == TAOS_SYNC_ROLE_VOTER){
+      dError("node:%s, failed to alter node type since node already is role:%d", pWrapper->name, role);
+      terrno = TSDB_CODE_MNODE_ALREADY_IS_VOTER;
+      return -1;
+    }
+  }
+
+  if(pWrapper->func.isCatchUpFp != NULL){
+    dInfo("node:%s, checking node catch up", pWrapper->name);
+    if((*pWrapper->func.isCatchUpFp)(pWrapper->pMgmt) != 1){
+      terrno = TSDB_CODE_MNODE_NOT_CATCH_UP;
+      return -1;
+    }
+  }
+
+  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pWrapper->name);
+
+  taosThreadMutexLock(&pDnode->mutex);
+
+  dInfo("node:%s, stopping node", pWrapper->name);
+  dmStopNode(pWrapper);
+  dInfo("node:%s, closing node", pWrapper->name);
+  dmCloseNode(pWrapper);
+
+  pWrapper = &pDnode->wrappers[ntype];
+  if (taosMkDir(pWrapper->path) != 0) {
+    dmReleaseWrapper(pWrapper);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
+    return -1;
+  }
+
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
   dInfo("node:%s, start to create", pWrapper->name);
@@ -251,6 +322,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .name = pWrapper->name,
       .pData = &pWrapper->pDnode->data,
       .processCreateNodeFp = dmProcessCreateNodeReq,
+      .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
       .getVnodeLoadsFp = dmGetVnodeLoads,

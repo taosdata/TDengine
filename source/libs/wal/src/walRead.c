@@ -62,9 +62,6 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
 void walCloseReader(SWalReader *pReader) {
   taosCloseFile(&pReader->pIdxFile);
   taosCloseFile(&pReader->pLogFile);
-  /*if (pReader->cond.enableRef) {*/
-  /*taosHashRemove(pReader->pWal->pRefHash, &pReader->readerId, sizeof(int64_t));*/
-  /*}*/
   taosMemoryFreeClear(pReader->pHead);
   taosMemoryFree(pReader);
 }
@@ -74,22 +71,25 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   int64_t lastVer = walGetLastVer(pReader->pWal);
   int64_t committedVer = walGetCommittedVer(pReader->pWal);
   int64_t appliedVer = walGetAppliedVer(pReader->pWal);
+
   if(appliedVer < committedVer){   // wait apply ver equal to commit ver, otherwise may lost data when consume data [TD-24010]
     wDebug("vgId:%d, wal apply ver:%"PRId64" smaller than commit ver:%"PRId64, pReader->pWal->cfg.vgId, appliedVer, committedVer);
-//    taosMsleep(10);
   }
-//  int64_t endVer = pReader->cond.scanUncommited ? lastVer : committedVer;
+
   int64_t endVer = TMIN(appliedVer, committedVer);
 
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
          ", applied index:%" PRId64", end index:%" PRId64,
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer, endVer);
+
   while (fetchVer <= endVer) {
     if (walFetchHeadNew(pReader, fetchVer) < 0) {
       return -1;
     }
-    if (pReader->pHead->head.msgType == TDMT_VND_SUBMIT ||
-        (IS_META_MSG(pReader->pHead->head.msgType) && pReader->cond.scanMeta)) {
+
+    int32_t type = pReader->pHead->head.msgType;
+    if (type == TDMT_VND_SUBMIT || ((type == TDMT_VND_DELETE) && (pReader->cond.deleteMsg == 1)) ||
+        (IS_META_MSG(type) && pReader->cond.scanMeta)) {
       if (walFetchBodyNew(pReader) < 0) {
         return -1;
       }
@@ -98,14 +98,23 @@ int32_t walNextValidMsg(SWalReader *pReader) {
       if (walSkipFetchBodyNew(pReader) < 0) {
         return -1;
       }
+
       fetchVer = pReader->curVersion;
     }
   }
+
   return -1;
 }
 
 int64_t walReaderGetCurrentVer(const SWalReader *pReader) { return pReader->curVersion; }
 int64_t walReaderGetValidFirstVer(const SWalReader *pReader) { return walGetFirstVer(pReader->pWal); }
+
+void walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever) {
+  *sver = walGetFirstVer(pReader->pWal);
+  int64_t lastVer = walGetLastVer(pReader->pWal);
+  int64_t committedVer = walGetCommittedVer(pReader->pWal);
+  *ever = pReader->cond.scanUncommited ? lastVer : committedVer;
+}
 
 static int64_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int64_t ver) {
   int64_t ret = 0;
@@ -249,7 +258,9 @@ static int32_t walFetchHeadNew(SWalReader *pRead, int64_t fetchVer) {
     if (contLen == sizeof(SWalCkHead)) {
       break;
     } else if (contLen == 0 && !seeked) {
-      walReadSeekVerImpl(pRead, fetchVer);
+      if(walReadSeekVerImpl(pRead, fetchVer) < 0){
+        return -1;
+      }
       seeked = true;
       continue;
     } else {
@@ -278,6 +289,7 @@ static int32_t walFetchBodyNew(SWalReader *pReader) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
+
     pReader->pHead = ptr;
     pReadHead = &pReader->pHead->head;
     pReader->capacity = pReadHead->bodyLen;
@@ -293,14 +305,11 @@ static int32_t walFetchBodyNew(SWalReader *pReader) {
              pReader->pWal->cfg.vgId, pReader->pHead->head.version, ver);
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     }
-//    pRead->curInvalid = 1;
     return -1;
   }
 
   if (walValidBodyCksum(pReader->pHead) != 0) {
     wError("vgId:%d, wal fetch body error:%" PRId64 ", since body checksum not passed", pReader->pWal->cfg.vgId, ver);
-//    pRead->curInvalid = 1;
-
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
@@ -356,7 +365,9 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead) {
     if (contLen == sizeof(SWalCkHead)) {
       break;
     } else if (contLen == 0 && !seeked) {
-      walReadSeekVerImpl(pRead, ver);
+      if(walReadSeekVerImpl(pRead, ver) < 0){
+        return -1;
+      }
       seeked = true;
       continue;
     } else {
@@ -490,7 +501,10 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     if (contLen == sizeof(SWalCkHead)) {
       break;
     } else if (contLen == 0 && !seeked) {
-      walReadSeekVerImpl(pReader, ver);
+      if(walReadSeekVerImpl(pReader, ver) < 0){
+        taosThreadMutexUnlock(&pReader->mutex);
+        return -1;
+      }
       seeked = true;
       continue;
     } else {

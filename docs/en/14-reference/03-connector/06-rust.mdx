@@ -11,6 +11,7 @@ import TabItem from '@theme/TabItem';
 import Preparition from "./_preparation.mdx"
 import RustInsert from "../../07-develop/03-insert-data/_rust_sql.mdx"
 import RustBind from "../../07-develop/03-insert-data/_rust_stmt.mdx"
+import RustSml from "../../07-develop/03-insert-data/_rust_schemaless.mdx"
 import RustQuery from "../../07-develop/04-query-data/_rust.mdx"
 
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
@@ -120,7 +121,7 @@ The parameters are described as follows:
 - **username/password**: Username and password used to create connections.
 - **host/port**: Specifies the server and port to establish a connection. If you do not specify a hostname or port, native connections default to `localhost:6030` and Websocket connections default to `localhost:6041`.
 - **database**: Specify the default database to connect to. It's optional.
-- **params**：Optional parameters.
+- **params**: Optional parameters.
 
 A sample DSN description string is as follows:
 
@@ -231,6 +232,10 @@ There are two ways to query data: Using built-in types or the [serde](https://se
 #### STMT Write
 
 <RustBind />
+
+#### Schemaless Write
+
+<RustSml />
 
 ### Query data
 

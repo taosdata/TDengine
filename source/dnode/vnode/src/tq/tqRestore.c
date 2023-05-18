@@ -132,20 +132,28 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
         }
 
         // append the data for the stream
-        tqDebug("vgId:%d s-task:%s wal reader seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.currentVer);
+        tqDebug("vgId:%d s-task:%s wal reader initial seek to ver:%" PRId64, vgId, pTask->id.idStr,
+                pTask->chkInfo.currentVer);
       }
     }
 
-    SPackedData packData = {0};
-    int32_t code = extractSubmitMsgFromWal(pTask->exec.pWalReader, &packData);
+    // append the data for the stream
+    SStreamQueueItem* pItem = NULL;
+    int32_t           code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, pTask->id.idStr);
     if (code != TSDB_CODE_SUCCESS) {  // failed, continue
+      streamMetaReleaseTask(pStreamMeta, pTask);
+      continue;
+    }
+
+    // delete ignore
+    if (pItem == NULL) {
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 
     noNewDataInWal = false;
 
-    code = tqAddBlockNLaunchTask(pTask, &packData);
+    code = tqAddInputBlockNLaunchTask(pTask, pItem);
     if (code == TSDB_CODE_SUCCESS) {
       pTask->chkInfo.currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
       tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr,

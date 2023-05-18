@@ -34,7 +34,6 @@ typedef struct SStateWindowInfo {
   SStateKeys*       pStateKey;
 } SStateWindowInfo;
 
-
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo     binfo;
   SAggSupporter      aggSup;
@@ -1107,7 +1106,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
   bool    masterScan = true;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
-  int16_t bytes = pStateColInfoData->info.bytes;
+  int32_t bytes = pStateColInfoData->info.bytes;
 
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
@@ -1615,7 +1614,7 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamInt
   }
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup.parentType = type;
-  pScanInfo->windowSup.pIntervalAggSup =  &pInfo->aggSup;
+  pScanInfo->windowSup.pIntervalAggSup = &pInfo->aggSup;
   if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = updateInfoInitP(&pInfo->interval, pInfo->twAggSup.waterMark);
   }
@@ -2504,7 +2503,8 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
       qDebug("===stream===clear semi operator");
     } else {
-      if (pInfo->twAggSup.maxTs > 0 && pInfo->twAggSup.maxTs - pInfo->twAggSup.checkPointInterval > pInfo->twAggSup.checkPointTs) {
+      if (pInfo->twAggSup.maxTs > 0 &&
+          pInfo->twAggSup.maxTs - pInfo->twAggSup.checkPointInterval > pInfo->twAggSup.checkPointTs) {
         streamStateCommit(pInfo->pState);
         streamStateDeleteCheckPoint(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
         pInfo->twAggSup.checkPointTs = pInfo->twAggSup.maxTs;
@@ -2533,7 +2533,6 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
 
   while (1) {
     if (isTaskKilled(pTaskInfo)) {
-
       if (pInfo->pUpdated != NULL) {
         pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
       }
@@ -2887,7 +2886,7 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
   pScanInfo->pState = pAggSup->pState;
-  if ( (!pScanInfo->igCheckUpdate || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) && !pScanInfo->pUpdateInfo ) {
+  if ((!pScanInfo->igCheckUpdate || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) && !pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark);
   }
   pScanInfo->twAggSup = *pTwSup;
@@ -2923,8 +2922,8 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SqlFunctionCtx* pCtx, 
     bufSize = pageSize * 4;
   }
   if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    qError("Init stream agg supporter failed since %s", terrstr(terrno));
+    terrno = TSDB_CODE_NO_DISKSPACE;
+    qError("Init stream agg supporter failed since %s, tempDir:%s", terrstr(), tsTempDir);
     return terrno;
   }
   int32_t code = createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, "function", tsTempDir);
@@ -3091,6 +3090,7 @@ SStreamStateCur* getNextSessionWinInfo(SStreamAggSupporter* pAggSup, SSHashObj* 
   pNextWin->sessionWin = pCurWin->sessionWin;
   int32_t code = streamStateSessionGetKVByCur(pCur, &pNextWin->sessionWin, &pNextWin->pOutputBuf, &size);
   if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(pNextWin->pOutputBuf);
     SET_SESSION_WIN_INVALID(*pNextWin);
   }
   return pCur;
@@ -3110,6 +3110,7 @@ static void compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pC
     SResultWindowInfo winInfo = {0};
     SStreamStateCur*  pCur = getNextSessionWinInfo(pAggSup, pStUpdated, pCurWin, &winInfo);
     if (!IS_VALID_SESSION_WIN(winInfo) || !isInWindow(pCurWin, winInfo.sessionWin.win.skey, pAggSup->gap)) {
+      taosMemoryFree(winInfo.pOutputBuf);
       streamStateFreeCur(pCur);
       break;
     }
@@ -3125,6 +3126,7 @@ static void compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pC
     removeSessionResult(pStUpdated, pAggSup->pResultRows, winInfo.sessionWin);
     doDeleteSessionWindow(pAggSup, &winInfo.sessionWin);
     streamStateFreeCur(pCur);
+    taosMemoryFree(winInfo.pOutputBuf);
   }
 }
 
@@ -4753,7 +4755,8 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       return pInfo->binfo.pRes;
     }
     setOperatorCompleted(pOperator);
-    if (pInfo->twAggSup.maxTs > 0 && pInfo->twAggSup.maxTs - pInfo->twAggSup.checkPointInterval > pInfo->twAggSup.checkPointTs) {
+    if (pInfo->twAggSup.maxTs > 0 &&
+        pInfo->twAggSup.maxTs - pInfo->twAggSup.checkPointInterval > pInfo->twAggSup.checkPointTs) {
       streamStateCommit(pInfo->pState);
       streamStateDeleteCheckPoint(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
       setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);

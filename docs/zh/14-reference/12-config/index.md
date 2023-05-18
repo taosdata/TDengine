@@ -356,7 +356,7 @@ charset 的有效值是 UTF-8。
 | 适用范围 | 仅服务端适用                |
 | 含义     | dnode 支持的最大 vnode 数目 |
 | 取值范围 | 0-4096                      |
-| 缺省值   | CPU 核数的 2 倍                         |
+| 缺省值   | CPU 核数的 2 倍             |
 
 ## 性能调优
 
@@ -366,6 +366,7 @@ charset 的有效值是 UTF-8。
 | -------- | ---------------------- |
 | 适用范围 | 仅服务端适用           |
 | 含义     | 设置写入线程的最大数量 |
+| 取值范围 | 0-1024                 |
 | 缺省值   |                        |
 
 ## 日志相关
@@ -734,7 +735,6 @@ charset 的有效值是 UTF-8。
 | 16  |       maxTmrCtrl        | 是              | 否              | 3.0 行为未知                                      |
 | 17 |     monitorReplica      | 是              | 否              | 由 RAFT 协议管理多副本                            |
 | 18 |     smlTagNullName      | 是              | 否              | 3.0 行为未知                                      |
-| 19 |     keepColumnName      | 是              | 否              | 3.0 行为未知                                      |
 | 20 |    ratioOfQueryCores    | 是              | 否              | 由 线程池 相关配置参数决定                        |
 | 21 |   maxStreamCompDelay    | 是              | 否              | 3.0 行为未知                                      |
 | 22 | maxFirstStreamCompDelay | 是              | 否              | 3.0 行为未知                                      |

@@ -57,9 +57,9 @@
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 ,,y,script,./test.sh -f tsim/dnode/vnode_clean.sim
-,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim 
-,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim 
-,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim 
+,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim
 ,,y,script,./test.sh -f tsim/import/basic.sim
 ,,y,script,./test.sh -f tsim/import/commit.sim
 ,,y,script,./test.sh -f tsim/import/large.sim
@@ -332,9 +332,9 @@
 ,,y,script,./test.sh -f tsim/catalog/alterInCurrent.sim
 ,,y,script,./test.sh -f tsim/scalar/in.sim
 ,,y,script,./test.sh -f tsim/scalar/scalar.sim
-,,y,script,./test.sh -f tsim/scalar/filter.sim 
-,,y,script,./test.sh -f tsim/scalar/caseWhen.sim 
-,,y,script,./test.sh -f tsim/scalar/tsConvert.sim 
+,,y,script,./test.sh -f tsim/scalar/filter.sim
+,,y,script,./test.sh -f tsim/scalar/caseWhen.sim
+,,y,script,./test.sh -f tsim/scalar/tsConvert.sim
 ,,y,script,./test.sh -f tsim/alter/cached_schema_after_alter.sim
 ,,y,script,./test.sh -f tsim/alter/dnode.sim
 ,,y,script,./test.sh -f tsim/alter/table.sim
@@ -479,6 +479,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3
+
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/basic5.py
@@ -495,7 +500,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py -N 3 -n 3
@@ -535,6 +541,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -564,7 +571,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
-#,,n,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py
@@ -572,7 +579,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/boundary.py
 ,,n,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_comment.py
-,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
+#,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
 #,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
 #,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/mutil_stage.py
@@ -769,6 +776,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_systable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stmt_error.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py
@@ -810,7 +818,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
-#,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
+#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
+,,n,system-test,python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
@@ -1320,6 +1329,7 @@
 ,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
 ,,y,script,./test.sh -f tsim/query/tableCount.sim 
+,,y,script,./test.sh -f tsim/query/tag_scan.sim 
 ,,y,script,./test.sh -f tsim/query/nullColSma.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim

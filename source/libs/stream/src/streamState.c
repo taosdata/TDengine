@@ -22,6 +22,7 @@
 #include "tcoding.h"
 #include "tcommon.h"
 #include "tcompare.h"
+#include "tref.h"
 #include "ttimer.h"
 
 #define MAX_TABLE_NAME_NUM 2000000
@@ -91,6 +92,7 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
 }
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
+  qWarn("open stream state, %s", path);
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -99,7 +101,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   pState->pTdbState = taosMemoryCalloc(1, sizeof(STdbState));
   if (pState->pTdbState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    streamStateDestroy(pState);
+    streamStateDestroy(pState, true);
     return NULL;
   }
 
@@ -110,9 +112,14 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
   }
+  pState->taskId = pTask->id.taskId;
+  pState->streamId = pTask->id.streamId;
 #ifdef USE_ROCKSDB
-  int code = streamInitBackend(pState, statePath);
+  // qWarn("open stream state1");
+  taosAcquireRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
+  int code = streamStateOpenBackend(pTask->pMeta->streamBackend, pState);
   if (code == -1) {
+    taosReleaseRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
     taosMemoryFree(pState);
     pState = NULL;
   }
@@ -120,6 +127,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   pState->pFileState = NULL;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
   pState->parNameMap = tSimpleHashInit(1024, hashFn);
+
   return pState;
 
 #else
@@ -202,14 +210,17 @@ _err:
   tdbTbClose(pState->pTdbState->pParNameDb);
   tdbTbClose(pState->pTdbState->pParTagDb);
   tdbClose(pState->pTdbState->db);
-  streamStateDestroy(pState);
+  streamStateDestroy(pState, false);
   return NULL;
 #endif
 }
 
-void streamStateClose(SStreamState* pState) {
+void streamStateClose(SStreamState* pState, bool remove) {
+  SStreamTask* pTask = pState->pTdbState->pOwner;
 #ifdef USE_ROCKSDB
-  streamCleanBackend(pState);
+  // streamStateCloseBackend(pState);
+  streamStateDestroy(pState, remove);
+  taosReleaseRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
 #else
   tdbCommit(pState->pTdbState->db, pState->pTdbState->txn);
   tdbPostCommit(pState->pTdbState->db, pState->pTdbState->txn);
@@ -221,7 +232,6 @@ void streamStateClose(SStreamState* pState) {
   tdbTbClose(pState->pTdbState->pParTagDb);
   tdbClose(pState->pTdbState->db);
 #endif
-  streamStateDestroy(pState);
 }
 
 int32_t streamStateBegin(SStreamState* pState) {
@@ -392,7 +402,8 @@ int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, vo
 #ifdef USE_ROCKSDB
   int32_t code = 0;
   void*   batch = streamStateCreateBatch();
-  code = streamStatePutBatch(pState, "default", batch, pKey, pVal, vLen);
+
+  code = streamStatePutBatch(pState, "default", batch, pKey, pVal, vLen, 0);
   if (code != 0) {
     return code;
   }
@@ -1081,10 +1092,10 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
 #endif
 }
 
-void streamStateDestroy(SStreamState* pState) {
+void streamStateDestroy(SStreamState* pState, bool remove) {
 #ifdef USE_ROCKSDB
   streamFileStateDestroy(pState->pFileState);
-  streamStateDestroy_rocksdb(pState);
+  streamStateDestroy_rocksdb(pState, remove);
   tSimpleHashCleanup(pState->parNameMap);
   // do nothong
 #endif

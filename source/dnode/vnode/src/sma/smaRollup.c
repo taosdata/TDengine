@@ -90,7 +90,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
       }
 
       if (isDeepFree && pItem->pStreamState) {
-        streamStateClose(pItem->pStreamState);
+        streamStateClose(pItem->pStreamState, false);
       }
 
       if (isDeepFree && pInfo->taskInfo[i]) {

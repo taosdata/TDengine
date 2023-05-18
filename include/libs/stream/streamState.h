@@ -20,13 +20,17 @@
 #include "tsimplehash.h"
 #include "tstreamFileState.h"
 
+#ifndef _STREAM_STATE_H_
+#define _STREAM_STATE_H_
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef _STREAM_STATE_H_
-#define _STREAM_STATE_H_
-
+// void*      streamBackendInit(const char* path);
+// void       streamBackendCleanup(void* arg);
+// SListNode* streamBackendAddCompare(void* backend, void* arg);
+// void       streamBackendDelCompare(void* backend, void* arg);
 typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
 
 typedef struct STdbState {
@@ -35,11 +39,14 @@ typedef struct STdbState {
   rocksdb_writeoptions_t*          writeOpts;
   rocksdb_readoptions_t*           readOpts;
   rocksdb_options_t**              cfOpts;
-  rocksdb_comparator_t**           pCompare;
   rocksdb_options_t*               dbOpt;
   struct SStreamTask*              pOwner;
   void*                            param;
   void*                            env;
+  SListNode*                       pComparNode;
+  void*                            pBackendHandle;
+  char                             idstr[64];
+  void*                            compactFactory;
 
   TDB* db;
   TTB* pStateDb;
@@ -58,13 +65,15 @@ typedef struct {
   int32_t           number;
   SSHashObj*        parNameMap;
   int64_t           checkPointId;
+  int32_t           taskId;
+  int64_t           streamId;
 } SStreamState;
 
 SStreamState* streamStateOpen(char* path, struct SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);
-void          streamStateClose(SStreamState* pState);
+void          streamStateClose(SStreamState* pState, bool remove);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);
-void          streamStateDestroy(SStreamState* pState);
+void          streamStateDestroy(SStreamState* pState, bool remove);
 int32_t       streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark);
 
 typedef struct {
@@ -148,11 +157,11 @@ typedef struct SStateSessionKey {
   int64_t     opNum;
 } SStateSessionKey;
 
-typedef struct streamValue {
+typedef struct SStreamValue {
   int64_t unixTimestamp;
   int32_t len;
-  char    data[0];
-} streamValue;
+  char*   data;
+} SStreamValue;
 
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
 int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);

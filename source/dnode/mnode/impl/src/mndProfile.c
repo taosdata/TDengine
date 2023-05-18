@@ -286,6 +286,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.connType = connReq.connType;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
   connectRsp.svrTimestamp = taosGetTimestampSec();
+  connectRsp.passVer = pUser->passVersion;
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
@@ -533,7 +534,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       case HEARTBEAT_KEY_DBINFO: {
         void   *rspMsg = NULL;
         int32_t rspLen = 0;
-        mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbVgVersion), &rspMsg, &rspLen);
+        mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbCacheInfo), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
           taosArrayPush(hbRsp.info, &kv1);
@@ -546,6 +547,16 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableVersion), &rspMsg, &rspLen);
         if (rspMsg && rspLen > 0) {
           SKv kv1 = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
+          taosArrayPush(hbRsp.info, &kv1);
+        }
+        break;
+      }
+      case HEARTBEAT_KEY_USER_PASSINFO: {
+        void   *rspMsg = NULL;
+        int32_t rspLen = 0;
+        mndValidateUserPassInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserPassVersion), &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_USER_PASSINFO, .valueLen = rspLen, .value = rspMsg};
           taosArrayPush(hbRsp.info, &kv1);
         }
         break;

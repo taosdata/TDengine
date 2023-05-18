@@ -14,8 +14,17 @@
  */
 
 #include "executor.h"
+#include "streamBackendRocksdb.h"
 #include "streamInc.h"
+#include "tref.h"
 #include "ttimer.h"
+
+static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
+static int32_t      streamBackendId = 0;
+static void         streamMetaEnvInit() { streamBackendId = taosOpenRef(20, streamBackendCleanup); }
+
+void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
+void streamMetaCleanup() { taosCloseRef(streamBackendId); }
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
   int32_t      code = -1;
@@ -30,18 +39,16 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   sprintf(streamPath, "%s/%s", path, "stream");
   pMeta->path = taosStrdup(streamPath);
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0) < 0) {
-    taosMemoryFree(streamPath);
     goto _err;
   }
+  memset(streamPath, 0, len);
 
   sprintf(streamPath, "%s/%s", pMeta->path, "checkpoints");
   code = taosMulModeMkDir(streamPath, 0755);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
-    taosMemoryFree(streamPath);
     goto _err;
   }
-  taosMemoryFree(streamPath);
 
   if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb, 0) < 0) {
     goto _err;
@@ -72,17 +79,35 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->vgId = vgId;
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
+  pMeta->streamBackendId = streamBackendId;
+
+  memset(streamPath, 0, len);
+  sprintf(streamPath, "%s/%s", pMeta->path, "state");
+  code = taosMulModeMkDir(streamPath, 0755);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    goto _err;
+  }
+
+  pMeta->streamBackend = streamBackendInit(streamPath);
+  pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
+
+  taosMemoryFree(streamPath);
+
   taosInitRWLatch(&pMeta->lock);
   return pMeta;
 
 _err:
+  taosMemoryFree(streamPath);
   taosMemoryFree(pMeta->path);
   if (pMeta->pTasks) taosHashCleanup(pMeta->pTasks);
   if (pMeta->pTaskList) taosArrayDestroy(pMeta->pTaskList);
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
+  // if (pMeta->streamBackend) streamBackendCleanup(pMeta->streamBackend);
   taosMemoryFree(pMeta);
+  qError("failed to open stream meta");
   return NULL;
 }
 
@@ -109,6 +134,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
   }
 
   taosHashCleanup(pMeta->pTasks);
+  taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
   pMeta->pTaskList = taosArrayDestroy(pMeta->pTaskList);
   taosMemoryFree(pMeta->path);
   taosMemoryFree(pMeta);
@@ -242,13 +268,10 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
-
-    // taosWLockLatch(&pMeta->lock);
-
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
 
-    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__STOP);
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
 
     int32_t num = taosArrayGetSize(pMeta->pTaskList);
     for (int32_t i = 0; i < num; ++i) {

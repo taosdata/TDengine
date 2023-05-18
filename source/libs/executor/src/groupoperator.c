@@ -872,9 +872,9 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   getBufferPgSize(pInfo->binfo.pRes->info.rowSize, &defaultPgsz, &defaultBufsz);
 
   if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
+    terrno = TSDB_CODE_NO_DISKSPACE;
     pTaskInfo->code = terrno;
-    qError("Create partition operator info failed since %s", terrstr(terrno));
+    qError("Create partition operator info failed since %s, tempDir:%s", terrstr(), tsTempDir);
     goto _error;
   }
 

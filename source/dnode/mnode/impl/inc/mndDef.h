@@ -118,7 +118,7 @@ typedef enum {
 } ETrnPolicy;
 
 typedef enum {
-  TRN_EXEC_PRARLLEL = 0,
+  TRN_EXEC_PARALLEL = 0,
   TRN_EXEC_SERIAL = 1,
 } ETrnExec;
 
@@ -177,6 +177,7 @@ typedef struct {
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
   int64_t     mTraceId;
+  TdThreadMutex    mutex;
 } STrans;
 
 typedef struct {
@@ -205,6 +206,8 @@ typedef struct {
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
   char       ep[TSDB_EP_LEN];
+  char       active[TSDB_ACTIVE_KEY_LEN];
+  char       connActive[TSDB_CONN_ACTIVE_KEY_LEN];
 } SDnodeObj;
 
 typedef struct {
@@ -215,6 +218,8 @@ typedef struct {
   bool       syncRestore;
   int64_t    stateStartTime;
   SDnodeObj* pDnode;
+  int32_t    role;
+  SyncIndex  lastIndex;
 } SMnodeObj;
 
 typedef struct {
@@ -278,6 +283,7 @@ typedef struct {
   int8_t    reserve;
   int32_t   acctId;
   int32_t   authVersion;
+  int32_t   passVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;
@@ -341,6 +347,7 @@ typedef struct {
   ESyncState syncState;
   bool       syncRestore;
   bool       syncCanRead;
+  ESyncRole  nodeRole;
 } SVnodeGid;
 
 typedef struct {
@@ -361,7 +368,7 @@ typedef struct {
   int8_t    compact;
   int8_t    isTsma;
   int8_t    replica;
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   void*     pTsma;
   int32_t   numOfCachedTables;
 } SVgObj;

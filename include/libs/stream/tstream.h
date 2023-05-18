@@ -13,16 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
 #include "os.h"
-#include "query.h"
 #include "streamState.h"
 #include "tdatablock.h"
 #include "tdbInt.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tqueue.h"
-#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -137,7 +134,6 @@ typedef struct {
 typedef struct {
   int8_t       type;
   int64_t      ver;
-  int32_t*     dataRef;
   SSDataBlock* pBlock;
 } SStreamRefDataBlock;
 
@@ -340,13 +336,16 @@ typedef struct SStreamMeta {
   TTB*         pTaskDb;
   TTB*         pCheckpointDb;
   SHashObj*    pTasks;
-  SArray*      pTaskList;   // SArray<task_id*>
+  SArray*      pTaskList;  // SArray<task_id*>
   void*        ahandle;
   TXN*         txn;
   FTaskExpand* expandFunc;
   int32_t      vgId;
   SRWLatch     lock;
   int32_t      walScanCounter;
+  void*        streamBackend;
+  int32_t      streamBackendId;
+  int64_t      streamBackendRid;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -565,6 +564,8 @@ int32_t streamAggRecoverPrepare(SStreamTask* pTask);
 // int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask);
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId);
 
+void         streamMetaInit();
+void         streamMetaCleanup();
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
