@@ -32,6 +32,11 @@ pub struct Args {
 }
 #[config]
 #[derive(Parser, Debug)]
+#[clap(
+    name = build::CUS_CLI_NAME,
+    author, version = build::VERBOSE_VERSION,
+    about = build::CUS_CLI_ABOUT,
+    long_about = build::CUS_CLI_ABOUT)]
 pub struct ArgsParser {
     /// Listen to ip:port address.
     #[clap(short = 'e', long)]

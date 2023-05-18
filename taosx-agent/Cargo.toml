@@ -10,6 +10,7 @@ anyhow = "1"
 atty = "0.2.14"
 clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "2.0.0"
+const_format = "0.2"
 dotenv = "0.15.0"
 log = { version = "0.4", features = ["serde"] }
 shadow-rs = "0.21.0"
