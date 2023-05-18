@@ -1,6 +1,0 @@
-[03/30 08:08:52.140115] ERROR: failed to connect native (null):6030, code: 0x8000000b, reason: Unable to establish connection
-[03/30 08:08:52.140136] ERROR: insert test process failed
-[03/30 08:09:02.860424] ERROR: failed to connect native (null):6030, code: 0x8000000b, reason: Unable to establish connection
-[03/30 08:09:02.860445] ERROR: insert test process failed
-[03/30 08:10:57.082603] ERROR: failed to connect native (null):6030, code: 0x8000000b, reason: Unable to establish connection
-[03/30 08:10:57.082626] ERROR: insert test process failed
