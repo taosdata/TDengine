@@ -438,7 +438,6 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
 
 static int32_t mergeJoinFillBuildTable(SJoinOperatorInfo* pInfo, SArray* rightRowLocations) {
   for (int32_t i = 0; i < taosArrayGetSize(rightRowLocations); ++i) {
-    tSimpleHashClear(pInfo->rightBuildTable);
     SRowLocation* rightRow = taosArrayGet(rightRowLocations, i);
     int32_t keyLen = fillKeyBufFromTagCols(pInfo->rightTagCols, rightRow->pDataBlock, rightRow->pos, pInfo->rightTagKeyBuf);
     SArray** ppRows = tSimpleHashGet(pInfo->rightBuildTable, pInfo->rightTagKeyBuf, keyLen);
