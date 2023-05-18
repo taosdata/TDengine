@@ -2674,6 +2674,29 @@ TSKEY compareTs(void* pKey) {
   return pWinKey->ts;
 }
 
+int32_t getSelectivityBufSize(SqlFunctionCtx* pCtx) {
+  if (pCtx->subsidiaries.rowLen == 0) {
+    int32_t rowLen = 0;
+    for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
+      SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
+      rowLen += pc->pExpr->base.resSchema.bytes;
+    }
+
+    return rowLen + pCtx->subsidiaries.num * sizeof(bool);
+  } else {
+    return pCtx->subsidiaries.rowLen;
+  }
+}
+
+int32_t getMaxFunResSize(SExprSupp* pSup, int32_t numOfCols) {
+  int32_t size = 0;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+      int32_t resSize = getSelectivityBufSize(pSup->pCtx + i);
+      size = TMAX(size, resSize);
+  }
+  return size;
+}
+
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                      SExecTaskInfo* pTaskInfo, int32_t numOfChild) {
   SIntervalPhysiNode*          pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
@@ -2720,8 +2743,11 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
+  pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
+  *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
+  streamStateSetNumber(pInfo->pState, -1);
   int32_t code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
-                            pTaskInfo->streamInfo.pState);
+                            pInfo->pState);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -2729,10 +2755,6 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   initStreamFunciton(pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs);
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
-
-  pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
-  *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
-  streamStateSetNumber(pInfo->pState, -1);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   pInfo->numOfChild = numOfChild;
@@ -2766,7 +2788,8 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->numOfDatapack = 0;
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
-  pInfo->pState->pFileState = streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize,
+  int32_t funResSize= getMaxFunResSize(&pOperator->exprSupp, numOfCols);
+  pInfo->pState->pFileState = streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize,
                                                   compareTs, pInfo->pState, pInfo->twAggSup.deleteMark);
   pInfo->dataVersion = 0;
 
@@ -4889,9 +4912,13 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->primaryTsIndex = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
+  pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
+  *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
+  streamStateSetNumber(pInfo->pState, -1);
+
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState);
+                    pInfo->pState);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -4912,10 +4939,6 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
 
-  pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
-  *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
-  streamStateSetNumber(pInfo->pState, -1);
-
   pInfo->pPhyNode = NULL;  // create new child
   pInfo->pPullDataMap = NULL;
   pInfo->pPullWins = NULL;  // SPullWindowInfo
@@ -4928,7 +4951,8 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->numOfDatapack = 0;
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
-  pInfo->pState->pFileState = streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize,
+  int32_t funResSize= getMaxFunResSize(pSup, numOfCols);
+  pInfo->pState->pFileState = streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize,
                                                   compareTs, pInfo->pState, pInfo->twAggSup.deleteMark);
 
   setOperatorInfo(pOperator, "StreamIntervalOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, true, OP_NOT_OPENED,

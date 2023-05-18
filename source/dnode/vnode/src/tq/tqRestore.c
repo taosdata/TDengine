@@ -132,13 +132,14 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
         }
 
         // append the data for the stream
-        tqDebug("vgId:%d s-task:%s wal reader initial seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.currentVer);
+        tqDebug("vgId:%d s-task:%s wal reader initial seek to ver:%" PRId64, vgId, pTask->id.idStr,
+                pTask->chkInfo.currentVer);
       }
     }
 
     // append the data for the stream
     SStreamQueueItem* pItem = NULL;
-    int32_t code = extractMsgFromWal(pTask->exec.pWalReader, (void**) &pItem, pTask->id.idStr);
+    int32_t           code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, pTask->id.idStr);
     if (code != TSDB_CODE_SUCCESS) {  // failed, continue
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
@@ -160,7 +161,6 @@ int32_t createStreamRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     } else {
       tqError("s-task:%s append input queue failed, ver:%" PRId64, pTask->id.idStr, pTask->chkInfo.currentVer);
     }
-
 
     streamMetaReleaseTask(pStreamMeta, pTask);
   }

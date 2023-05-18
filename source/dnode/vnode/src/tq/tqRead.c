@@ -325,7 +325,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id) {
     memcpy(data, pBody, len);
     SPackedData data1 = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
 
-    *pItem = (SStreamQueueItem*)streamDataSubmitNew(data1, STREAM_INPUT__DATA_SUBMIT);
+    *pItem = (SStreamQueueItem*)streamDataSubmitNew(&data1, STREAM_INPUT__DATA_SUBMIT);
     if (*pItem == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tqError("%s failed to create data submit for stream since out of memory", id);
@@ -445,8 +445,8 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
 
   int32_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
   while (pReader->nextBlk < numOfBlocks) {
-    tqDebug("tq reader next data block, len:%d ver:%" PRId64 " index:%d/%d, %s", pReader->msg.msgLen,
-            pReader->msg.ver, pReader->nextBlk, numOfBlocks, idstr);
+    tqDebug("tq reader next data block, len:%d ver:%" PRId64 " index:%d/%d, %s", pReader->msg.msgLen, pReader->msg.ver,
+            pReader->nextBlk, numOfBlocks, idstr);
 
     SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
     if (pReader->tbIdHash == NULL) {
@@ -703,8 +703,9 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, const char* id) {
           SColVal colVal;
           tRowGet(pRow, pTSchema, sourceIdx, &colVal);
           if (colVal.cid < pColData->info.colId) {
-//            tqDebug("colIndex:%d column id:%d in row, ignore, the required colId:%d, total cols in schema:%d",
-//                    sourceIdx, colVal.cid, pColData->info.colId, pTSchema->numOfCols);
+            //            tqDebug("colIndex:%d column id:%d in row, ignore, the required colId:%d, total cols in
+            //            schema:%d",
+            //                    sourceIdx, colVal.cid, pColData->info.colId, pTSchema->numOfCols);
             sourceIdx++;
             continue;
           } else if (colVal.cid == pColData->info.colId) {
