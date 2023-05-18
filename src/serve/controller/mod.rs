@@ -330,10 +330,14 @@ static ONCE: OnceCell<PortPool> = OnceCell::const_new();
 
 impl TaskController {
     pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
-        let path = std::path::Path::new(sqlite);
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                std::fs::create_dir_all(&dir).context("Cannot create directory for database")?;
+        if !sqlite.contains(":memory:") {
+            let file = sqlite.replacen("sqlite:", "", 1);
+            let path = std::path::Path::new(&file);
+            if let Some(dir) = path.parent() {
+                if !dir.exists() {
+                    std::fs::create_dir_all(&dir)
+                        .context("Cannot create directory for database")?;
+                }
             }
         }
         let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
@@ -754,7 +758,7 @@ impl TaskController {
                 })*
             };
         }
-        add_bind_sql!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via);
+        add_bind_sql!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
 
         if sql.len() == 0 {
             let task = self.get(id).await?.unwrap();
@@ -772,7 +776,7 @@ impl TaskController {
                 })*
             };
         }
-        bind_fields!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via);
+        bind_fields!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
 
         let res = query.execute(&self.pool).await?;
 
@@ -1828,6 +1832,12 @@ pub(super) struct UpdateTask {
     to: Option<String>,
     /// Agent id
     via: Option<i64>,
+
+    /// The parser of the task stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub parser: Option<serde_json::Value>,
+
     /// *Deprecated*. The stream data target cluster id.
     to_cluster: Option<String>,
     /// Jobs number
