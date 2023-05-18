@@ -2952,6 +2952,17 @@ class TDTestCase:
         tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{stbname}) partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
         tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1}) partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
 
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union select * from {dbname}.{ctbname2}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union select * from {dbname}.{ctbname2} order by ts) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union all select * from {dbname}.{ctbname2}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union all select * from {dbname}.{ctbname2} order by ts) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union all select * from {dbname}.{ctbname2}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union all select * from {dbname}.{ctbname2} order by ts) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from (select * from {ctbname1}, {ctbname2} where {ctbname1}.ts = {ctbname2}.ts) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
