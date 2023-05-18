@@ -67,7 +67,7 @@
     } else if ((v2) == (_max_val_)) {         \
       result = -1;                            \
     } else if ((v1) > (v2)) {                 \
-      return = 1;                             \
+      return 1;                               \
     } else if ((v1) < (v2)) {                 \
       result = -1;                            \
     }                                         \
