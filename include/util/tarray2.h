@@ -40,9 +40,9 @@ extern "C" {
 
 #define TARRAY2_INITIALIZER \
   { 0, 0, NULL }
-#define TARRAY2_SIZE(a)    ((a)->size)
-#define TARRAY2_GET(a, i)  ((a)->data[i])
-#define TARRAY2_GETP(a, i) (&((a)->data[i]))
+#define TARRAY2_SIZE(a)        ((a)->size)
+#define TARRAY2_ELEM(a, i)     ((a)->data[i])
+#define TARRAY2_ELEM_PTR(a, i) (&((a)->data[i]))
 
 static FORCE_INLINE int32_t tarray2_make_room(int32_t *c, void **pp, int32_t elem_size) {
   int32_t capacity = c[0] ? (c[0] << 1) : TARRAY2_MIN_SIZE;
@@ -104,8 +104,9 @@ static FORCE_INLINE int32_t tarray2_make_room(int32_t *c, void **pp, int32_t ele
   do {                                                                                                 \
     if ((idx) < (a)->size) {                                                                           \
       if (cb) cb((a)->data + (idx));                                                                   \
-      if ((idx) < (a)->size - 1)                                                                       \
+      if ((idx) < (a)->size - 1) {                                                                     \
         memmove((a)->data + (idx), (a)->data + (idx) + 1, sizeof(*(a)->data) * ((a)->size - (idx)-1)); \
+      }                                                                                                \
       (a)->size--;                                                                                     \
     }                                                                                                  \
   } while (0)
