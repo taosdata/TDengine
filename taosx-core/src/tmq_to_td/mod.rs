@@ -497,7 +497,7 @@ pub async fn tmq_to_td(
             });
         }
         for _ in 0..jobs {
-            let consumer = rx.recv()?;
+            let consumer = rx.recv_async().await?;
             consumers.push(consumer);
         }
         let duration = consumer_timer.elapsed();
