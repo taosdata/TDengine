@@ -196,6 +196,8 @@ class TDTestCase:
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str107 + '"')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str256 + '"')
         tdSql.error('alter all dnodes "cActiveCode" "' + self.str255 + '"')
+        tdSql.error('alter all dnodes "cActiveCode" "' + self.str256 + '"')
+        tdSql.error('alter all dnodes "cActiveCode" "' + self.str257 + '"')
         tdSql.execute('alter all dnodes "cActiveCode" "' + self.str254 + '"')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str510 + '"')
         tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
