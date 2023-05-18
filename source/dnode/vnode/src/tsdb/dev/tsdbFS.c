@@ -284,6 +284,7 @@ static int32_t apply_commit(STFileSystem *fs) {
         if (code) return code;
         i1++;
         n1++;
+        i2++;
       } else {
         // edit
         code = apply_commit_upd_fset(fs, fset1, fset2);
@@ -302,6 +303,7 @@ static int32_t apply_commit(STFileSystem *fs) {
       if (code) return code;
       i1++;
       n1++;
+      i2++;
     }
   }
 

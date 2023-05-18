@@ -61,13 +61,13 @@ int32_t tsdbSttFWriteDLData(SSttFileWriter *pWriter, TABLEID *tbid, SDelData *pD
 
 struct SSttFileWriterConfig {
   STsdb    *pTsdb;
-  STFile    file;
   int32_t   maxRow;
   int32_t   szPage;
   int8_t    cmprAlg;
   SSkmInfo *pSkmTb;
   SSkmInfo *pSkmRow;
   uint8_t **aBuf;
+  STFile    file;
 };
 
 #ifdef __cplusplus

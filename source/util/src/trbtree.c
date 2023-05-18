@@ -443,7 +443,7 @@ SRBTreeNode *tRBTreeDropMax(SRBTree *pTree) {
   return pNode;
 }
 
-SRBTreeNode *tRBTreeGet(SRBTree *pTree, const SRBTreeNode *pKeyNode) {
+SRBTreeNode *tRBTreeGet(const SRBTree *pTree, const SRBTreeNode *pKeyNode) {
   SRBTreeNode *pNode = pTree->root;
 
   while (pNode != pTree->NIL) {

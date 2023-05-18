@@ -295,3 +295,9 @@ int32_t tsdbFileSetClear(STFileSet *pSet) {
   // TODO
   return 0;
 }
+
+const SSttLvl *tsdbFileSetGetLvl(const STFileSet *fset, int32_t level) {
+  SSttLvl      tlvl = {.level = level};
+  SRBTreeNode *node = tRBTreeGet(&fset->lvlTree, &tlvl.rbtn);
+  return node ? TCONTAINER_OF(node, SSttLvl, rbtn) : NULL;
+}

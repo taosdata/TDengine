@@ -24,6 +24,7 @@ extern "C" {
 
 typedef struct STFileSet STFileSet;
 typedef struct STFileOp  STFileOp;
+typedef struct SSttLvl   SSttLvl;
 
 typedef enum {
   TSDB_FOP_NONE = 0,
@@ -39,8 +40,9 @@ int32_t tsdbFileSetInit(STFileSet *pSet, int32_t fid);
 int32_t tsdbFileSetInitEx(const STFileSet *fset1, STFileSet *fset2);
 int32_t tsdbFileSetClear(STFileSet *pSet);
 int32_t tsdbFileSetEdit(STFileSet *fset, const STFileOp *op);
-
 int32_t tsdbFSetCmprFn(const STFileSet *pSet1, const STFileSet *pSet2);
+
+const SSttLvl *tsdbFileSetGetLvl(const STFileSet *fset, int32_t level);
 
 struct STFileOp {
   tsdb_fop_t op;
@@ -49,12 +51,12 @@ struct STFileOp {
   STFile     nState;  // new file state
 };
 
-typedef struct SSttLvl {
+struct SSttLvl {
   int32_t     level;    // level
   int32_t     nstt;     // number of .stt files on this level
   SRBTree     sttTree;  // .stt file tree, sorted by cid
   SRBTreeNode rbtn;
-} SSttLvl;
+};
 
 struct STFileSet {
   int32_t    fid;

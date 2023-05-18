@@ -39,7 +39,7 @@ void         tRBTreeDrop(SRBTree *pTree, SRBTreeNode *z);
 SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey);
 SRBTreeNode *tRBTreeDropMin(SRBTree *pTree);
 SRBTreeNode *tRBTreeDropMax(SRBTree *pTree);
-SRBTreeNode *tRBTreeGet(SRBTree *pTree, const SRBTreeNode *pKeyNode);
+SRBTreeNode *tRBTreeGet(const SRBTree *pTree, const SRBTreeNode *pKeyNode);
 
 // SRBTreeIter =============================================
 #define tRBTreeIterCreate(tree, ascend) \

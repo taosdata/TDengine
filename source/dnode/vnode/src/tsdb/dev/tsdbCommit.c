@@ -37,56 +37,105 @@ typedef struct {
   int32_t          expLevel;
   TSKEY            minKey;
   TSKEY            maxKey;
-  const STFileSet *pFileSet;
+  const STFileSet *fset;
 
   // writer
   SSttFileWriter *pWriter;
 } SCommitter;
 
-static int32_t open_committer_writer(SCommitter *pCommitter) {
+static int32_t open_writer_with_new_stt(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino = 0;
   STsdb  *pTsdb = pCommitter->pTsdb;
-  int32_t vid = TD_VID(pTsdb->pVnode);
+  SVnode *pVnode = pTsdb->pVnode;
+  int32_t vid = TD_VID(pVnode);
 
-  SSttFileWriterConfig config = {
-      .pTsdb = pCommitter->pTsdb,
-      .maxRow = pCommitter->maxRow,
-      .szPage = pTsdb->pVnode->config.tsdbPageSize,
-      .cmprAlg = pCommitter->cmprAlg,
-      .pSkmTb = NULL,
-      .pSkmRow = NULL,
-      .aBuf = NULL,
-  };
+  SSttFileWriterConfig config;
+  SDiskID              did;
 
-  if (pCommitter->pFileSet) {
-    // TODO
-    ASSERT(0);
-  } else {
-    config.file.type = TSDB_FTYPE_STT;
-
-    if (tfsAllocDisk(pTsdb->pVnode->pTfs, pCommitter->expLevel, &config.file.did) < 0) {
-      code = TSDB_CODE_FS_NO_VALID_DISK;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-
-    config.file.fid = pCommitter->fid;
-    config.file.cid = pCommitter->eid;
-    config.file.size = 0;
-    config.file.stt.level = 0;
-    config.file.stt.nseg = 0;
-
-    tsdbTFileInit(pTsdb, &config.file);
+  if (tfsAllocDisk(pVnode->pTfs, pCommitter->expLevel, &did) < 0) {
+    code = TSDB_CODE_FS_NO_VALID_DISK;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
+
+  config.pTsdb = pTsdb;
+  config.maxRow = pCommitter->maxRow;
+  config.szPage = pVnode->config.tsdbPageSize;
+  config.cmprAlg = pCommitter->cmprAlg;
+  config.pSkmTb = NULL;
+  config.pSkmRow = NULL;
+  config.aBuf = NULL;
+  config.file.type = TSDB_FTYPE_STT;
+  config.file.did = did;
+  config.file.fid = pCommitter->fid;
+  config.file.cid = pCommitter->eid;
+  config.file.size = 0;
+  config.file.stt.level = 0;
+  config.file.stt.nseg = 0;
+  tsdbTFileInit(pTsdb, &config.file);
 
   code = tsdbSttFWriterOpen(&config, &pCommitter->pWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, fid:%d", vid, __func__, lino, tstrerror(code), pCommitter->fid);
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+  } else {
+    tsdbDebug("vgId:%d %s success", vid, __func__);
   }
   return code;
+}
+static int32_t open_writer_with_exist_stt(SCommitter *pCommitter, const STFile *pFile) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  STsdb  *pTsdb = pCommitter->pTsdb;
+  SVnode *pVnode = pTsdb->pVnode;
+  int32_t vid = TD_VID(pVnode);
+
+  SSttFileWriterConfig config = {
+      //
+      .pTsdb = pTsdb,
+      .maxRow = pCommitter->maxRow,
+      .szPage = pVnode->config.tsdbPageSize,
+      .cmprAlg = pCommitter->cmprAlg,
+      .pSkmTb = NULL,
+      .pSkmRow = NULL,
+      .aBuf = NULL,
+      .file = *pFile  //
+  };
+
+  code = tsdbSttFWriterOpen(&config, &pCommitter->pWriter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+  } else {
+    tsdbDebug("vgId:%d %s success", vid, __func__);
+  }
+  return code;
+}
+static int32_t open_committer_writer(SCommitter *pCommitter) {
+  if (!pCommitter->fset) {
+    return open_writer_with_new_stt(pCommitter);
+  }
+
+  const SSttLvl *lvl0 = tsdbFileSetGetLvl(pCommitter->fset, 0);
+  if (lvl0 == NULL) {
+    return open_writer_with_new_stt(pCommitter);
+  }
+
+  SRBTreeNode *node = tRBTreeMax(&lvl0->sttTree);
+  if (node == NULL) {
+    return open_writer_with_new_stt(pCommitter);
+  } else {
+    STFileObj *fobj = TCONTAINER_OF(node, STFileObj, rbtn);
+    if (fobj->f.stt.nseg >= pCommitter->sttTrigger) {
+      return open_writer_with_new_stt(pCommitter);
+    } else {
+      return open_writer_with_exist_stt(pCommitter, &fobj->f);
+    }
+  }
 }
 
 static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, TABLEID *tbid, TSDBROW *pRow) {
@@ -211,7 +260,7 @@ static int32_t commit_fset_start(SCommitter *pCommitter) {
   pCommitter->expLevel = tsdbFidLevel(pCommitter->fid, &pTsdb->keepCfg, taosGetTimestampSec());
   pCommitter->nextKey = TSKEY_MAX;
 
-  tsdbFSGetFSet(pTsdb->pFS, pCommitter->fid, &pCommitter->pFileSet);
+  tsdbFSGetFSet(pTsdb->pFS, pCommitter->fid, &pCommitter->fset);
 
   tsdbDebug("vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64 " expLevel:%d", vid, __func__, pCommitter->fid,
             pCommitter->minKey, pCommitter->maxKey, pCommitter->expLevel);
