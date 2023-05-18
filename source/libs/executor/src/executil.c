@@ -135,7 +135,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
 
   size_t  keyLen = 0;
   int32_t iter = 0;
-  int32_t bufLen = 0, offset = 0;
+  int64_t bufLen = 0, offset = 0;
 
   // todo move away and record this during create window
   while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
