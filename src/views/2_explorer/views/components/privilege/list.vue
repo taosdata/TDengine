@@ -58,7 +58,7 @@
         :prop="isUser ? 'joinDate' : 'create_time'"
       >
       </el-table-column> -->
-      <el-table-column fixed="right" :label="$t('operation')" width="100">
+      <el-table-column fixed="right" :label="$t('operate')" width="100">
         <template slot-scope="{ row }">
           <el-switch
             @click.native.stop
@@ -235,7 +235,7 @@ export default {
     },
     statusChange(val, data) {
       this.$confirm(
-        this.getTipName(data, val ? "enable" : "disable"),
+        this.getTipName(data, val ? this.$t("enable") : this.$t("disable")),
         this.$t("tips"),
         {
           confirmButtonText: this.$t("confirm"),
@@ -247,7 +247,7 @@ export default {
         sendSQLReq(`REVOKE ${data.privilege} ON \`${this.$store.state.dbs.selected_db}\` FROM \`${data.user_name}\``).then(res=>{
           
           if(res&&res.rows==1){
-            Message.success('Opeartion Successfully')
+            Message.success(this.$t('operateSucc'))
             this.refresh()
           }
         })

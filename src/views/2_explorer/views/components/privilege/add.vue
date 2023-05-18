@@ -21,7 +21,7 @@
         <el-checkbox-group v-model="checkList" class="check-role" :min="1">
           <el-checkbox label="Data Reader"></el-checkbox>
           <el-checkbox label="Data Writer"></el-checkbox>
-          <el-checkbox label="Database Admin"></el-checkbox>
+          <!-- <el-checkbox label="Database Admin"></el-checkbox> -->
         </el-checkbox-group>
       </el-form-item>
       <el-form-item label=" ">
@@ -61,7 +61,7 @@ export default {
 
       grantMap: new Map([
         ["Data Writer", "WRITE"],
-        ["Database Admin", "ALL"],
+        // ["Database Admin", "ALL"],
         ["Data Reader", "READ"],
       ]),
     };
@@ -101,9 +101,9 @@ export default {
             let sql = `grant ${grantStr}  ON ${this.$store.state.dbs.selected_db}.* TO ${this.info.user_name};`;
             await sendSQLReq(sql).then((res) => {
               if (res && res.rows == 1) {
-                Message.success("Add Successfully");
+                Message.success(this.$t('addSucc'));
               }else{
-                Message.error("Add failed");
+                Message.error(this.$t('operateFail'));
               }
               this.$emit('close',true)
             });

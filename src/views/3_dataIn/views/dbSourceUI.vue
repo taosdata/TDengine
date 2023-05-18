@@ -420,7 +420,7 @@
                   <el-input
                     placeholder="Regex Pattern Input"
                     v-model="p.value"
-                    @change="searchDatas"
+                    @keydown.enter.native="searchDatas"
                   ></el-input>
                   <div>
                     <div
@@ -518,12 +518,17 @@
                   </template>
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
-                <template v-if="p.hint === 'bool'">
-                  <el-radio-group v-model="p.value">
+                <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
+                  <!-- <el-radio-group v-model="p.value">
                     <el-radio v-for="c in p.choices" :key="c" :label="c">
                       {{ c }}
                     </el-radio>
-                  </el-radio-group>
+                  </el-radio-group> -->
+                  <el-checkbox
+                    v-model="p.value"
+                    true-label="true"
+                    false-label="false"
+                  ></el-checkbox>
                 </template>
                 <template
                   v-if="
@@ -546,6 +551,14 @@
                       p.name == 'beginTime' ? startOption : endOption
                     "
                     :placeholder="p.placeholder"
+                  >
+                  </el-date-picker>
+                </template>
+                <template v-if="p.hint?.type == 'datetime'">
+                  <el-date-picker
+                    v-model="p.value"
+                    type="datetime"
+                    placeholder="Please select the date"
                   >
                   </el-date-picker>
                 </template>
@@ -593,6 +606,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
+import moment from 'moment'
 import { debounce } from "@/utils/index";
 export default {
   name: "DbSourceUI",
@@ -831,6 +845,11 @@ export default {
               return;
             } else {
               if (data.groups[index].params[g].value) {
+                if(data.groups[index].params[g].name === 'BackfillStartTime'
+                  || data.groups[index].params[g].name === 'BackfillEndTime'
+                ) {
+                  data.groups[index].params[g].value = moment(data.groups[index].params[g].value).utc().format()
+                }
                 querystr +=
                   `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                   "&";
@@ -851,21 +870,24 @@ export default {
             if (
               Object.hasOwnProperty.call(target, "required") &&
               target.required &&
-              target.value == null
+              (target.value == null || target.value == undefined || 
+              target.value?.length == 0)
             ) {
               Message({
                 type: "warning",
                 message: `${enterTip} ${target.name} `,
               });
               return;
-            } else if (target.value) {
+            } else {
               if (Array.isArray(target.value)) {
-                let str = "";
-                for (let i = 0; i < target.value.length; i++) {
-                  str += `${target.value[i]},`;
+                if (target.value?.length > 0) {
+                  let str = "";
+                  for (let i = 0; i < target.value.length; i++) {
+                    str += `${target.value[i]},`;
+                  }
+                  querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
                 }
-                querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
-              } else {
+              } else if(target.value != null || target.value != undefined) {
                 querystr += `${target.name}=${target.value}` + "&";
               }
             }
@@ -957,7 +979,7 @@ export default {
           }
         } else {
           let piParams = {
-            from: this.tagName == "influxdb" ? "influxdb" + dns : "pi" + dns,
+            from: this.tagName == "influxdb" ? "influxdb" + dns : this.tagName + dns,
             name: localStorage.getItem("datainName"),
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
             // name: localStorage.getItem("datainName"),
@@ -1063,7 +1085,7 @@ export default {
         this.dbsource[0].datasets.categories = categories;
       }
     },
-    searchDatas: debounce(function (value) {
+    searchDatas: debounce(function (e) {
       try {
         let data = this.dbsource[0];
         let host = data.options.host.value ? data.options.host.value : "";
@@ -1087,10 +1109,10 @@ export default {
         }
         let params = null;
         params = {
-          from: `pi://${host}${subject}`,
+          from: `${this.tagName}://${host}${subject}`,
           categories: [this.activeName],
-          pattern: value,
-          offset: 1,
+          pattern: e.target.value,
+          offset: 0,
           limit: 10,
         };
         const viaObj = {

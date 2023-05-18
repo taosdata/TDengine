@@ -241,8 +241,8 @@ export default {
         ],
         directory: [
           {
-            message: "Please enter the directory",
-            trigger: "blur",
+            required: true,
+            message: this.$t('taosuser.directoryRequired'),
           },
         ],
       },

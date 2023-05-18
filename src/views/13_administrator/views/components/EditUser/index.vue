@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-loading="loading">
     <el-form
       :model="ruleForm"
       :rules="rules"
@@ -117,6 +117,7 @@ export default {
     },
   },
   async created() {
+    this.loading = true;
     this.selectedDatabasePrivileges = {};
     this.selectedTopicPrivileges = {};
     this.prevSelectedDatabasePrivileges = {};
@@ -173,6 +174,7 @@ export default {
       prevTopicPrivileges: {},
       selectedTopicPrivileges: {},
       confirmStatus: false,
+      loading: false
     };
   },
   methods: {
@@ -273,12 +275,14 @@ export default {
         `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege = 'subscribe';`
       )
         .then((res) => {
+          this.loading = false
           res.data.map((data) => {
             this.$set(this.selectedTopicPrivileges, data[2], ["Subscribe"]);
             this.prevTopicPrivileges = this.selectedTopicPrivileges;
           });
         })
         .catch((err) => {
+          this.loading = false
           this.$emit("close");
           return Promise.reject(err);
         });

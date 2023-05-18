@@ -736,7 +736,8 @@ export default {
     slidingTip: "时间窗口在两次查询计算之间向前移动的时间步长。",
     delayTip: "即watermark，这是在执行查询之前等待无序数据的时间。",
     stableUpperRequired: "超级表不能为空",
-    tableUpperRequired: "表名不能为空"
+    tableUpperRequired: "表名不能为空",
+    validStreamSqlDesc: "不支持的SQL语句对于创建流计算"
   },
   topic: {
     agent:'代理',
@@ -800,7 +801,8 @@ export default {
     user_name_required: "请选择用户名",
     topicNameError: "请输入主题名称",
     topicNameExist: "主题名称已经存在",
-    delTopic: "删除主题"
+    delTopic: "删除主题",
+    validTopicSqlDesc: "不支持的SQL语句对于创建主题"
   },
   landing: {
     title: "欢迎使用 TDengine Cloud ，让我们从了解基本概念开始。",
@@ -1475,7 +1477,8 @@ export default {
     every7day: '每7天',
     every30day: '每30天',
     fromsourceRequired: '请选择来源',
-    targetdsnRequired: '请输入目标DSN'
+    targetdsnRequired: '请输入目标DSN',
+    directoryRequired: '请输入目录'
   },
   taosagents:{
     edittitle:'编辑代理',

@@ -893,7 +893,8 @@ export default {
     learnMoreTip: `To learn more about stream processing, please check <a target='_blank' href="docsUrl">documentation</a>`,
     delayTip: "The watermark is the amount of time to wait for out-of-order data before executing a query.",
     stableUpperRequired: "The STABLE cannot be empty",
-    tableUpperRequired: "The TABLE cannot be empty"
+    tableUpperRequired: "The TABLE cannot be empty",
+    validStreamSqlDesc: "SQL statements are not supported for creating stream"
   },
   topic: {
     agent:'Agent',
@@ -1003,7 +1004,8 @@ export default {
     user_name_required: "Please select User Name",
     topicNameError: "Please enter Topic Name",
     topicNameExist: "Topic Name already exists",
-    delTopic: "Delete Topic"
+    delTopic: "Delete Topic",
+    validTopicSqlDesc: "SQL statements are not supported for creating topics"
   },
 
   landing: {
@@ -1708,7 +1710,8 @@ export default {
     every7day: 'Every 7 days',
     every30day: 'Every 30 days',
     fromsourceRequired: 'Please select the source',
-    targetdsnRequired: 'Please input the target dsn'
+    targetdsnRequired: 'Please input the target dsn',
+    directoryRequired: 'Please input the directory'
   },
   taosagents:{
     edittitle:'Edit Agent',

@@ -25,7 +25,7 @@
           <el-table-column width="100" :label="$t('stream.watermark')" prop="watermark"></el-table-column>
           <el-table-column width="100" :label="$t('stream.trigger')" prop="trigger"></el-table-column>
 
-          <el-table-column label="Action" width="80">
+          <el-table-column :label="$t('operate')" width="80">
             <template slot-scope="scope">
               <el-button  plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
             </template>
@@ -152,7 +152,7 @@
           type: "warning",
         }).then(async () => {
           this.requestIng = true;
-          await delStream(data.stream_name)
+          await delStream(`\`${data.stream_name}\``)
             .then(() => {
               this.$message.success(this.$t("delSucc"));
             })
@@ -160,7 +160,10 @@
               this.requestIng = false;
               this.currentPage = 1;
               this.getStreams();
-            });
+            })
+            .catch(res => {
+              this.$message.error(res?.desc)
+            })
         });
       },
       handlePageChange() {

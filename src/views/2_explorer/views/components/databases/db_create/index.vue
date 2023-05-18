@@ -432,8 +432,8 @@
                   <el-input-number
                     size="small"
                     v-model="db_form.table_prefix"
-                    :min="1"
-                    :max="192"
+                    :min="-191"
+                    :max="191"
                     controls-position="right"
                     class="form_item"
                     :disabled="isEdit"
@@ -450,8 +450,8 @@
                   <el-input-number
                     size="small"
                     v-model="db_form.table_suffix"
-                    :min="1"
-                    :max="192"
+                    :min="-191"
+                    :max="191"
                     controls-position="right"
                     class="form_item"
                     :disabled="isEdit"
