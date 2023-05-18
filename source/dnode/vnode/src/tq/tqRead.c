@@ -386,7 +386,7 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id) {
       pReader->nextBlk = 0;
     }
 
-    size_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
+    int32_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
     while (pReader->nextBlk < numOfBlocks) {
       tqDebug("tq reader next data block %d/%d, len:%d %" PRId64 " %d", pReader->nextBlk,
           numOfBlocks, pReader->msg.msgLen, pReader->msg.ver, pReader->nextBlk);
