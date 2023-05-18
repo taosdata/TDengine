@@ -251,7 +251,7 @@ export default {
     programming: "Programming",
     healthreport: 'Health Report',
     backup: "Backup",
-    admin: "Admin",
+    admin: "System Management",
     cluster: 'Cluster'
   },
   login: {
@@ -1094,6 +1094,8 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
+    iptip:'Please enter the correct IP address',
+    porttip:'Please enter the correct Port',
     ok:'OK',
     cancel:'Cancel',
     deletetip:'Are you sure  to delete ',

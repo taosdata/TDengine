@@ -8,7 +8,6 @@
     <el-table
       :max-height="height"
       size="mini"
-      @row-click="rowClick"
       style="margin-top: 10px"
       :data="list"
       class="w100"
