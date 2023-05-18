@@ -97,7 +97,7 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
             topics.extend(databases);
             return Ok(topics);
         }
-        "pi" => {
+        "pi" | "pibackfill" => {
             // pi
             return pi_datasets(data).await;
         }
