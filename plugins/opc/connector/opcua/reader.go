@@ -67,6 +67,9 @@ func newReader(debug bool, connectConfig common.UaConnectConfig, pointConfig com
 		}
 		r.pointRegex = reg
 	}
+	if err := r.connect(context.Background()); err != nil {
+		return nil, fmt.Errorf("connect error %v", err)
+	}
 
 	if err := r.initNodeMetricMapping(); err != nil {
 		return nil, err

@@ -7,7 +7,6 @@ import (
 	"collector/connector/opcua"
 	"context"
 	"fmt"
-	"log"
 )
 
 type Pointer interface {
@@ -43,10 +42,6 @@ func NewOpcPointer(config common.Config) (pointer Pointer, err error) {
 }
 
 func (p *OpcPointer) GetAllPoints(ctx context.Context) ([]common.Point, error) {
-	if err := p.connector.Connect(ctx); err != nil {
-		log.Println("## connect opc error ", err)
-		return nil, err
-	}
 	return p.connector.GetAllPoints(ctx)
 }
 
