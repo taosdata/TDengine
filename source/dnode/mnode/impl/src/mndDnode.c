@@ -1055,8 +1055,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t vlen = strlen(cfgReq.value);
     if (vlen > 0 && ((idx == 10 && vlen != (TSDB_ACTIVE_KEY_LEN - 1)) ||
                      (idx == 11 && (vlen > (TSDB_CONN_ACTIVE_KEY_LEN - 1) || vlen < (TSDB_ACTIVE_KEY_LEN - 1))))) {
-      mError("dnode:%d, failed to config activeCode since invalid vlen. conf:%s, val:%s", cfgReq.dnodeId, cfgReq.config,
-             cfgReq.value);
+      mError("dnode:%d, failed to config activeCode since invalid vlen:%d. conf:%s, val:%s", cfgReq.dnodeId, vlen,
+             cfgReq.config, cfgReq.value);
       terrno = TSDB_CODE_INVALID_OPTION;
       return -1;
     }
