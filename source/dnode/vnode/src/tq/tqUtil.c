@@ -249,7 +249,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   }
 
   if (offset->type == TMQ_OFFSET__LOG) {
-    verifyOffset(pHandle->pWalReader, offset);
+    walReaderVerifyOffset(pHandle->pWalReader, offset);
     int64_t fetchVer = offset->version + 1;
     pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {

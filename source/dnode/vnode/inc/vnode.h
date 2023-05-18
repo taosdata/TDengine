@@ -185,7 +185,6 @@ typedef struct STsdbReader STsdbReader;
 int32_t      tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
                             SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr, bool countOnly, SHashObj** pIgnoreTables);
 int32_t      tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
-
 void         tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
 void         tsdbReaderClose(STsdbReader *pReader);
 int32_t      tsdbNextDataBlock(STsdbReader *pReader, bool *hasNext);
@@ -198,8 +197,6 @@ int64_t      tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 void        *tsdbGetIdx(SMeta *pMeta);
 void        *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t     tsdbGetReaderMaxVersion(STsdbReader *pReader);
-int32_t      tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
-void         tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
 void         tsdbReaderSetCloseFlag(STsdbReader *pReader);
 
 int32_t tsdbReuseCacherowsReader(void* pReader, void* pTableIdList, int32_t numOfTables);
@@ -267,7 +264,7 @@ int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
-int32_t tqNextBlockInWal(STqReader* pReader);
+bool    tqNextBlockInWal(STqReader* pReader, const char* idstr);
 bool    tqNextBlockImpl(STqReader *pReader, const char* idstr);
 
 int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id);
