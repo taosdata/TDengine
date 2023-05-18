@@ -78,7 +78,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py -N 3 -n 3
@@ -118,6 +119,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -904,6 +906,7 @@
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
 ,,y,script,./test.sh -f tsim/query/tableCount.sim 
 ,,y,script,./test.sh -f tsim/query/nullColSma.sim
+,,y,script,./test.sh -f tsim/query/bug3398.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim

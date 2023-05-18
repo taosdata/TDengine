@@ -316,6 +316,10 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
 }
 
 SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
+  if (NULL == pSrc) {
+    return NULL;
+  }
+  
   if (pSrc->size == 0) {  // empty array list
     return taosArrayInit(8, pSrc->elemSize);
   }

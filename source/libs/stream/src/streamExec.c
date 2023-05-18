@@ -60,7 +60,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
 
     SArray* pBlockList = pMerged->submits;
     int32_t numOfBlocks = taosArrayGetSize(pBlockList);
-    qDebug("st-task:%s %p set submit input (merged), batch num:%d", pTask->id.idStr, pTask, numOfBlocks);
+    qDebug("s-task:%s %p set submit input (merged), batch num:%d", pTask->id.idStr, pTask, numOfBlocks);
     qSetMultiStreamInput(pExecutor, pBlockList->pData, numOfBlocks, STREAM_INPUT__MERGED_SUBMIT);
   } else if (pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
     const SStreamRefDataBlock* pRefBlock = (const SStreamRefDataBlock*)data;

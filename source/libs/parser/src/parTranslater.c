@@ -827,7 +827,7 @@ static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColum
     strcpy(pCol->node.aliasName, pCol->colName);
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    strcpy(pCol->node.userAlias, pCol->colName);
+    strcpy(pCol->node.userAlias, pExpr->userAlias);
   }
   pCol->node.resType = pExpr->resType;
 }
@@ -1760,6 +1760,7 @@ static int32_t rewriteFuncToValue(STranslateContext* pCxt, char* pLiteral, SNode
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pVal->node.aliasName, ((SExprNode*)*pNode)->aliasName);
+  strcpy(pVal->node.userAlias, ((SExprNode*)*pNode)->userAlias);
   pVal->node.resType = ((SExprNode*)*pNode)->resType;
   if (NULL == pLiteral) {
     pVal->isNull = true;
@@ -2739,6 +2740,7 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
   } else {
     len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
     strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
+    len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
     strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
   }
 

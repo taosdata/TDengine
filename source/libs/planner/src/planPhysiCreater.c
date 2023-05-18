@@ -1646,6 +1646,9 @@ static int32_t createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, 
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pChildren, (SNode*)pChild);
     }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
