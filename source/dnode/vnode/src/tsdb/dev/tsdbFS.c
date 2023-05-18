@@ -240,6 +240,14 @@ _exit:
   return code;
 }
 
+static bool is_same_file(const STFile *f1, const STFile f2) {
+  if (f1->type != f2.type) return false;
+  if (f1->did.level != f2.did.level) return false;
+  if (f1->did.id != f2.did.id) return false;
+  if (f1->cid != f2.cid) return false;
+  return true;
+}
+
 static int32_t apply_commit_add_fset(STFileSystem *fs, const STFileSet *fset) {
   int32_t idx = taosArraySearchIdx(fs->cstate, fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GT);
   if (idx < 0) idx = taosArrayGetSize(fs->cstate);
@@ -258,6 +266,22 @@ static int32_t apply_commit_del_fset(STFileSystem *fs, const STFileSet *fset) {
   return 0;
 }
 static int32_t apply_commit_upd_fset(STFileSystem *fs, STFileSet *fset_from, const STFileSet *fset_to) {
+  for (tsdb_ftype_t ftype = TSDB_FTYPE_HEAD; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    STFileObj *fobj_from = fset_from->farr[ftype];
+    STFileObj *fobj_to = fset_to->farr[ftype];
+
+    if (!fobj_from && !fobj_to) continue;
+
+    // TODO
+    ASSERT(0);
+    if (fobj_from && fobj_to) {
+      // TODO
+    } else if (fobj_from) {
+      // TODO
+    } else {
+      // TODO
+    }
+  }
   // TODO
   ASSERT(0);
   return 0;

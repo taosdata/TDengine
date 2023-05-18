@@ -333,7 +333,7 @@ static int32_t open_committer(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *pCom
   pCommitter->minRow = pInfo->info.config.tsdbCfg.minRows;
   pCommitter->maxRow = pInfo->info.config.tsdbCfg.maxRows;
   pCommitter->cmprAlg = pInfo->info.config.tsdbCfg.compression;
-  pCommitter->sttTrigger = 2;  // TODO
+  pCommitter->sttTrigger = 1;  // TODO
 
   pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
   pCommitter->aFileOp = taosArrayInit(16, sizeof(STFileOp));

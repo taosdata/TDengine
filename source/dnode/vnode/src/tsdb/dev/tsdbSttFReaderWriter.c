@@ -533,6 +533,7 @@ int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct STFi
   int32_t lino = 0;
 
   if (!abort) {
+    ppWriter[0]->tFile.stt.nseg++;
     if (ppWriter[0]->bData.nRow > 0) {
       code = write_timeseries_block(ppWriter[0]);
       TSDB_CHECK_CODE(code, lino, _exit);
