@@ -600,7 +600,7 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
       pJoinInfo->rowCtx.leftRowLocations = leftRowLocations;
       pJoinInfo->rowCtx.leftCreatedBlocks = leftCreatedBlocks;
       pJoinInfo->rowCtx.rightCreatedBlocks = rightCreatedBlocks;
-      pJoinInfo->rowCtx.rightUseBuildTable = true;
+      pJoinInfo->rowCtx.rightUseBuildTable = rightUseBuildTable;
       pJoinInfo->rowCtx.rightRowLocations = rightRowLocations;
   }
   return TSDB_CODE_SUCCESS;
