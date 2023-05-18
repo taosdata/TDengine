@@ -27,6 +27,7 @@ SStreamQueue* streamQueueOpen(int64_t cap) {
   taosSetQueueCapacity(pQueue->queue, cap);
   taosSetQueueMemoryCapacity(pQueue->queue, cap * 1024);
   return pQueue;
+
 FAIL:
   if (pQueue->queue) taosCloseQueue(pQueue->queue);
   if (pQueue->qall) taosFreeQall(pQueue->qall);
