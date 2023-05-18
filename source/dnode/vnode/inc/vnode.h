@@ -267,7 +267,7 @@ int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
-int32_t tqNextBlockInWal(STqReader* pReader);
+bool    tqNextBlockInWal(STqReader* pReader, const char* idstr);
 bool    tqNextBlockImpl(STqReader *pReader, const char* idstr);
 
 int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id);
