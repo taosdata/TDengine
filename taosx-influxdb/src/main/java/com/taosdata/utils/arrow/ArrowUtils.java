@@ -313,29 +313,29 @@ public class ArrowUtils {
             case "boolean":
             case "bool": {
                 BitVector bitVector = (BitVector) structVector.getChild(dataName);
-                bitVector.setSafe(index, ((boolean) dataValue) ? 1 : 0);
+                bitVector.setSafe(index, ((Boolean) dataValue).booleanValue() ? 1 : 0);
                 break;
             }
             case "integer":
             case "int": {
                 IntVector intVector = (IntVector) structVector.getChild(dataName);
-                intVector.setSafe(index, (int) dataValue);
+                intVector.setSafe(index, ((Number) dataValue).intValue());
                 break;
             }
             case "long":
             case "bigint": {
                 BigIntVector bigIntVector = (BigIntVector) structVector.getChild(dataName);
-                bigIntVector.setSafe(index, (long) dataValue);
+                bigIntVector.setSafe(index, ((Number) dataValue).longValue());
                 break;
             }
             case "float": {
                 Float4Vector float4Vector = (Float4Vector) structVector.getChild(dataName);
-                float4Vector.setSafe(index, ((Double) dataValue).floatValue());
+                float4Vector.setSafe(index, ((Number) dataValue).floatValue());
                 break;
             }
             case "double": {
                 Float8Vector float8Vector = (Float8Vector) structVector.getChild(dataName);
-                float8Vector.setSafe(index, (double) dataValue);
+                float8Vector.setSafe(index, ((Number) dataValue).doubleValue());
                 break;
             }
             case "date":
