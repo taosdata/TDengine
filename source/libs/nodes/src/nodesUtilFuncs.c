@@ -2054,7 +2054,7 @@ char* nodesGetNameFromColumnNode(SNode* pNode) {
     return "NULL";
   }
 
-  return ((SColumnNode*)pNode)->colName;
+  return ((SColumnNode*)pNode)->node.userAlias;
 }
 
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
