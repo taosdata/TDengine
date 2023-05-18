@@ -14,10 +14,7 @@
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
-            <el-select
-              v-model="dbsource[0].protocol.value"
-              placeholder="Please select protocol"
-            >
+            <el-select v-model="dbsource[0].protocol.value" placeholder="" style="margin-bottom:8px;">
               <el-option
                 v-for="c in dbsource[0].protocol.choices"
                 :key="c.name"
@@ -55,8 +52,8 @@
             >
             <div class="label-value" v-if="dbsource[0].options.endpoint">
               <el-input
+                style="margin-bottom:8px;"
                 v-model="dbsource[0].options.endpoint.value"
-                oninput="value=>value.replace()"
                 :placeholder="
                   dbsource[0].options.endpoint
                     ? dbsource[0].options.endpoint.placeholder
@@ -160,7 +157,107 @@
           ></div>
         </div>
         <div class="authen-content">
-          <el-radio-group v-model="dbsource[0].authentication.value">
+          <el-tabs
+            v-model="dbsource[0].authentication.value"
+            @tab-click="handleClick"
+          >
+            <template v-for="at in dbsource[0].authentication.alternatives">
+              <el-tab-pane :name="at.name" :key="at.name" :label="at.display">
+                <template v-if="at.name == 'plain'">
+                  <div class="plain">
+                    <div class="plain-item">
+                      <span class="label">{{at.username
+                          .display
+                      }}</span>
+                      <div style="flex: 1">
+                        <el-input
+                          style="margin-bottom: 8px"
+                          v-model="
+                            at.username
+                              .value
+                          "
+                        ></el-input>
+                        <p
+                          class="description"
+                          v-html="
+                            transforHtml(
+                              at.username.description
+                            )
+                          "
+                        ></p>
+                      </div>
+                    </div>
+
+                    <div class="plain-item">
+                      <span class="label">{{
+                        at.password
+                          .display
+                      }}</span>
+                      <div style="flex: 1">
+                        <el-input
+                          type="password"
+                          style="margin-bottom: 8px"
+                          v-model="at.password.value"
+                        ></el-input>
+                        <p
+                          class="description"
+                          v-html="
+                            transforHtml(at.password.description)"
+                        ></p>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <div
+                  v-else
+                  v-for="(p, index) in at.params"
+                  :key="index"
+                  style="
+                    width: 100%;
+                    display: flex;
+                    align-items: baseline;
+                    margin-bottom: 8px;
+                  "
+                >
+                  <span :class="['label', p.required ? 'required' : '']">{{
+                    p.display
+                  }}</span>
+
+                  <div style="flex: 1">
+                    <template v-if="p.hint && p.hint.choices">
+                      <el-select
+                        v-model="p.value"
+                        placeholder=""
+                        style="margin-left: 0px; width: 100%;margin-bottom:8px;"
+                      >
+                        <el-option
+                          v-for="c in p.hint.choices"
+                          :key="c"
+                          :label="c"
+                          :value="c"
+                        ></el-option>
+                      </el-select>
+                    </template>
+                    <el-input
+                      v-else
+                      v-model="p.value"
+                      :type="
+                        p.name == 'password' || p.name == 'token'
+                          ? 'password'
+                          : 'text'
+                      "
+                      style="margin-bottom: 8px"
+                    ></el-input>
+                    <div
+                      class="description"
+                      v-html="transforHtml(p.description)"
+                    ></div>
+                  </div>
+                </div>
+              </el-tab-pane>
+            </template>
+          </el-tabs>
+          <!-- <el-radio-group v-model="dbsource[0].authentication.value">
             <template v-for="at in dbsource[0].authentication.alternatives">
               <el-radio :key="at.name" :label="at.name"
                 >{{ at.display }}
@@ -257,7 +354,7 @@
                 </div>
               </div>
             </template>
-          </div>
+          </div> -->
         </div>
       </section>
       <section
@@ -293,7 +390,7 @@
                       v-model="p.target.value"
                       :multiple="p.target.multiple"
                       :allow-create="p.target.editable"
-                      :placeholder="p.target.placeholder"
+                      placeholder=""
                       filterable
                       default-first-option
                     >
@@ -325,7 +422,11 @@
                     @change="searchDatas"
                   ></el-input>
                   <div>
-                    <div class="searchList" v-loading="loading" v-if="configurationdata.length > 0">
+                    <div
+                      class="searchList"
+                      v-loading="loading"
+                      v-if="configurationdata.length > 0"
+                    >
                       <div
                         v-for="c in configurationdata"
                         :key="c.id"
@@ -352,10 +453,7 @@
                             >
                               {{ o.name }}
                             </span>
-                            <el-input
-                              placeholder="Please enter "
-                              v-model="o.value"
-                            />
+                            <el-input placeholder="" v-model="o.value" />
                           </div>
                         </div>
                         <div>
@@ -394,16 +492,13 @@
               </span>
               <div class="label-value">
                 <template v-if="p.hint === 'str' || p.hint === 'timeout'">
-                  <el-input
-                    v-model="p.value"
-                    placeholder="Please enter "
-                  ></el-input>
+                  <el-input v-model="p.value" placeholder=""></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
                   <template v-if="p.hint.choices">
                     <el-select
                       v-model="p.value"
-                      placeholder="Please select"
+                      placeholder=""
                       style="margin-left: -15px"
                     >
                       <el-option
@@ -416,7 +511,12 @@
                   </template>
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
-                <template v-if="(p.hint === 'bool' || p.hint.type === 'bool')&&p.name=='clean_session'">
+                <template
+                  v-if="
+                    (p.hint === 'bool' || p.hint.type === 'bool') &&
+                    p.name == 'clean_session'
+                  "
+                >
                   <el-radio-group v-model="p.value" v-if="p.choices">
                     <el-radio v-for="c in p.choices" :key="c" :label="c">
                       {{ c }}
@@ -444,7 +544,11 @@
                     p.hint === 'integer'
                   "
                 >
-                  <el-input-number v-model="p.value" :min="p.hint.min" :max="p.hint.max"></el-input-number>
+                  <el-input-number
+                    v-model="p.value"
+                    :min="p.hint.min"
+                    :max="p.hint.max"
+                  ></el-input-number>
                 </template>
                 <div
                   v-html="transforHtml(p.description)"
@@ -460,11 +564,7 @@
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
         <span class="label">Target Database</span>
-        <el-select
-          v-model="dbname"
-          placeholder="Please select"
-          style="margin-left: -15px"
-        >
+        <el-select v-model="dbname" placeholder="" style="margin-left: -15px">
           <el-option
             v-for="db in dblist"
             :key="db['node-key']"
@@ -495,12 +595,12 @@ import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt, debounce } from "@/utils/index";
-import PThreeCheckbox from '../components/pThreeCheckbox.vue';
+import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 
 export default {
   name: "DbSourceUI",
   components: {
-    'p-three-checkbox': PThreeCheckbox,
+    "p-three-checkbox": PThreeCheckbox,
   },
   props: {
     tagName: {
@@ -549,7 +649,7 @@ export default {
       activeDataSet: {},
       activeName: "",
       checkboxData: {
-        label: '',
+        label: "",
         disabled: false,
       },
       // dbsource: [],
@@ -565,7 +665,7 @@ export default {
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
-      console.log('dd',this.dbsource[0]);
+    console.log("dd", this.dbsource[0]);
   },
   watch: {
     dbName: {
@@ -680,11 +780,11 @@ export default {
               return;
             } else {
               if (data.groups[index].params[g].value) {
-                if(data.groups[index].params[g].name === 'use_received_time') {
-                  if(data.groups[index].params[g].value !== 0) {
-                    let value = data.groups[index].params[g].value === 1
+                if (data.groups[index].params[g].name === "use_received_time") {
+                  if (data.groups[index].params[g].value !== 0) {
+                    let value = data.groups[index].params[g].value === 1;
                     querystr +=
-                    `${data.groups[index].params[g].name}=${value}` + "&";
+                      `${data.groups[index].params[g].name}=${value}` + "&";
                   }
                 } else {
                   querystr +=
@@ -842,7 +942,7 @@ export default {
     searchDatas: debounce(function (value) {
       try {
         let data = this.dbsource[0];
-        let endpoint = data.options.endpoint.value
+        let endpoint = data.options.endpoint.value;
         let enterTip = this.$t("dataIn.enterTip");
         if (!endpoint) {
           Message({
@@ -851,25 +951,25 @@ export default {
           });
           return;
         }
-       
-        let dns = ""
-        let querystr = ""
-        if(data.authentication.value=='certificates'){
-          data.authentication.alternatives[2].params.forEach(val=>{
-            querystr += val.value?`${val.name}=${val.value}&`:''
-          })
+
+        let dns = "";
+        let querystr = "";
+        if (data.authentication.value == "certificates") {
+          data.authentication.alternatives[2].params.forEach((val) => {
+            querystr += val.value ? `${val.name}=${val.value}&` : "";
+          });
         }
-         if(data.authentication.value=='plain'){
-          if(data.authentication.alternatives[1].username.value){
-            dns += `://${data.authentication.alternatives[1].username.value}`
+        if (data.authentication.value == "plain") {
+          if (data.authentication.alternatives[1].username.value) {
+            dns += `://${data.authentication.alternatives[1].username.value}`;
           }
-          if(data.authentication.alternatives[1].password.value){
-            dns += `:${data.authentication.alternatives[1].password.value}`
+          if (data.authentication.alternatives[1].password.value) {
+            dns += `:${data.authentication.alternatives[1].password.value}`;
           }
-          dns +=`@`
-         }else{
-          dns +=`://`
-         }
+          dns += `@`;
+        } else {
+          dns += `://`;
+        }
         if (
           data.options.endpoint &&
           JSON.stringify(data.options.endpoint) !== "{}"
@@ -879,7 +979,7 @@ export default {
           }`;
         }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        
+
         let params = null;
         params = {
           from: `opc${this.protocol}${dns}`,
@@ -890,20 +990,22 @@ export default {
         };
         const viaObj = {
           via: this.$parent.agentID,
-        }
-        if(viaObj.via) {
-          Object.assign(params,viaObj)
+        };
+        if (viaObj.via) {
+          Object.assign(params, viaObj);
         }
         this.loading = true;
-        getUaAndDaData(params).then((res) => {
-          this.loading = false;
-          this.configurationdata = res;
-        }).catch((err) => {
-            Message({
-            type: 'error',
-            message: err
+        getUaAndDaData(params)
+          .then((res) => {
+            this.loading = false;
+            this.configurationdata = res;
           })
-        })
+          .catch((err) => {
+            Message({
+              type: "error",
+              message: err,
+            });
+          });
       } catch (error) {
         this.loading = false;
       }
@@ -1075,7 +1177,7 @@ export default {
       align-items: center;
     }
   }
-  
+
   .target {
     display: flex;
     margin-top: 24px;

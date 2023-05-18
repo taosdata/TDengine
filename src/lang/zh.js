@@ -174,7 +174,7 @@ export default {
     dataOut: '数据输出',
     cluster: "集群",
     settings: "设置",
-    admin: "用户",
+    admin: "系统管理",
     programming: "编程",
     healthreport: "健康报告",
     visualize: "可视化",
@@ -868,6 +868,8 @@ export default {
   },
 
   datasource: {
+    iptip:'请输入正确的ip地址',
+    porttip:'请输入正确的端口号',
     ok:'确定',
     cancel:'取消',
     deletetip:'确定删除 ',

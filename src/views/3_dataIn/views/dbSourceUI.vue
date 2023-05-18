@@ -15,7 +15,8 @@
           <div class="label-value">
             <el-select
               v-model="dbsource[0].protocol.value"
-              placeholder="Please select protocol"
+              placeholder=""
+              style="margin-bottom: 8px"
             >
               <el-option
                 v-for="c in dbsource[0].protocol.choices"
@@ -42,8 +43,9 @@
             <div class="label-value">
               <el-input
                 v-model="dbsource[0].options.host.value"
-                oninput="value=>value.replace()"
+                @change="changeHost(dbsource[0].options.host.display)"
                 :placeholder="dbsource[0].options.host.placeholder"
+                style="margin-bottom: 8px"
               ></el-input>
               <div
                 v-html="transforHtml(dbsource[0].options.host.description)"
@@ -67,6 +69,8 @@
               <el-input
                 v-model="dbsource[0].options.port.value"
                 :placeholder="dbsource[0].options.port.placeholder"
+                @change="changePort"
+                style="margin-bottom: 8px"
               ></el-input>
               <div
                 v-html="transforHtml(dbsource[0].options.port.description)"
@@ -129,6 +133,7 @@
             <el-input
               :placeholder="dbsource[0].options.subject.placeholder"
               v-model="dbsource[0].options.subject.value"
+              style="margin-bottom: 8px"
             ></el-input>
             <div
               v-html="transforHtml(dbsource[0].options.subject.description)"
@@ -151,7 +156,118 @@
           ></div>
         </div>
         <div class="authen-content">
-          <el-radio-group v-model="dbsource[0].authentication.value">
+          <el-tabs
+            v-model="dbsource[0].authentication.value"
+            @tab-click="handleClick"
+          >
+            <template v-for="at in dbsource[0].authentication.alternatives">
+              <el-tab-pane :name="at.name" :key="at.name" :label="at.display">
+                <template v-if="at.name == 'plain'">
+                  <div class="plain">
+                    <div class="plain-item">
+                      <span class="label">{{
+                        dbsource[0].authentication.alternatives[0].username
+                          .display
+                      }}</span>
+                      <div style="flex:1;">
+                        <el-input
+                          style="margin-bottom: 8px"
+                          v-model="
+                            dbsource[0].authentication.alternatives[0].username
+                              .value
+                          "
+                        ></el-input>
+                        <p
+                          class="description"
+                          v-html="
+                            transforHtml(
+                              dbsource[0].authentication.alternatives[0]
+                                .username.description
+                            )
+                          "
+                        ></p>
+                      </div>
+                    </div>
+
+                    <div class="plain-item">
+                      <span class="label">{{
+                        dbsource[0].authentication.alternatives[0].password
+                          .display
+                      }}</span>
+                      <div style="flex:1;">
+                        <el-input
+                          type="password"
+                          style="margin-bottom: 8px"
+                          v-model="
+                            dbsource[0].authentication.alternatives[0].password
+                              .value
+                          "
+                        ></el-input>
+                        <p
+                          class="description"
+                          v-html="
+                            transforHtml(
+                              dbsource[0].authentication.alternatives[0]
+                                .password.description
+                            )
+                          "
+                        ></p>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+
+                <div
+                  v-else
+                  v-for="(p, index) in at.params"
+                  :key="index"
+                  style="
+                    width: 100%;
+                    display: flex;
+                    align-items: baseline;
+                    margin-bottom: 8px;
+                  "
+                >
+                  <span :class="['label', p.required ? 'required' : '']">{{
+                    p.display
+                  }}</span>
+
+                  <div style="flex: 1">
+                    <template v-if="p.hint && p.hint.choices"> 
+                      <el-select
+                      v-model="p.value"
+                      placeholder=""
+                      style="margin-left: 0px;width:100%"
+                    >
+                      <el-option
+                        v-for="c in p.hint.choices"
+                        :key="c"
+                        :label="c"
+                        :value="c"
+                      ></el-option>
+                    </el-select>
+                    </template>
+                    <el-input
+                      v-else
+                      v-model="p.value"
+                      :type="
+                        p.name == 'password' || p.name == 'token'
+                          ? 'password'
+                          : 'text'
+                      "
+                      style="margin-bottom: 8px"
+                    ></el-input>
+                    <div
+                      class="description"
+                      v-html="transforHtml(p.description)"
+                    ></div>
+                  </div>
+                </div>
+              </el-tab-pane>
+            </template>
+          </el-tabs>
+
+          <!-- <el-radio-group v-model="dbsource[0].authentication.value">
             <template v-for="at in dbsource[0].authentication.alternatives">
               <el-radio :key="at.name" :label="at.name"
                 >{{ at.display }}
@@ -160,8 +276,8 @@
                 >
               </el-radio>
             </template>
-          </el-radio-group>
-          <div class="authen-details">
+          </el-radio-group> -->
+          <!-- <div class="authen-details">
             <template v-if="dbsource[0].authentication.value == 'plain'">
               <div class="plain">
                 <div class="plain-item">
@@ -193,6 +309,7 @@
                   }}</span>
                   <div style="width: 100%">
                     <el-input
+                      type="password"
                       v-model="
                         dbsource[0].authentication.alternatives[0].password
                           .value
@@ -223,7 +340,6 @@
                   flex-direction: column;
                 "
               >
-                <!-- <span class="label">{{ al.display }}</span> -->
                 <div
                   v-for="(p, index) in al.params"
                   :key="index"
@@ -240,7 +356,7 @@
                 </div>
               </div>
             </template>
-          </div>
+          </div> -->
         </div>
       </section>
       <section
@@ -307,7 +423,11 @@
                     @change="searchDatas"
                   ></el-input>
                   <div>
-                    <div class="searchList" v-loading="loading" v-if="configurationdata.length > 0">
+                    <div
+                      class="searchList"
+                      v-loading="loading"
+                      v-if="configurationdata.length > 0"
+                    >
                       <div
                         v-for="c in configurationdata"
                         :key="c.id"
@@ -334,10 +454,7 @@
                             >
                               {{ o.name }}
                             </span>
-                            <el-input
-                              placeholder="Please enter "
-                              v-model="o.value"
-                            />
+                            <el-input placeholder="" v-model="o.value" />
                           </div>
                         </div>
                         <div>
@@ -362,7 +479,7 @@
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
-              <span>{{ item.name }}</span>
+              <span>{{ item.display ? item.display : item.name }}</span>
             </div>
             <div
               class="description"
@@ -375,17 +492,20 @@
                 {{ p.display ? p.display : p.name }}
               </span>
               <div class="label-value">
-                <template v-if="p.hint === 'str' || p.hint === 'timeout'||p.hint.type=='timeout'">
-                  <el-input
-                    v-model="p.value"
-                    placeholder="Please enter "
-                  ></el-input>
+                <template
+                  v-if="
+                    p.hint === 'str' ||
+                    p.hint === 'timeout' ||
+                    p.hint.type == 'timeout'
+                  "
+                >
+                  <el-input v-model="p.value" placeholder=""></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
                   <template v-if="p.hint.choices">
                     <el-select
                       v-model="p.value"
-                      placeholder="Please select"
+                      placeholder=""
                       style="margin-left: -15px"
                     >
                       <el-option
@@ -411,7 +531,11 @@
                     p.hint === 'integer'
                   "
                 >
-                  <el-input-number v-model="p.value" :min="p.hint.min" :max="p.hint.max"></el-input-number>
+                  <el-input-number
+                    v-model="p.value"
+                    :min="p.hint.min"
+                    :max="p.hint.max"
+                  ></el-input-number>
                 </template>
                 <template v-if="p.hint == 'time'">
                   <el-date-picker
@@ -421,7 +545,7 @@
                     :picker-options="
                       p.name == 'beginTime' ? startOption : endOption
                     "
-                    placeholder="Please select the date"
+                    :placeholder="p.placeholder"
                   >
                   </el-date-picker>
                 </template>
@@ -439,11 +563,7 @@
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
         <span class="label">Target Database</span>
-        <el-select
-          v-model="dbname"
-          placeholder="Please select"
-          style="margin-left: -15px"
-        >
+        <el-select v-model="dbname" placeholder="" >
           <el-option
             v-for="db in dblist"
             :key="db['node-key']"
@@ -530,6 +650,10 @@ export default {
       endOption: {
         disabledDate: (time) => endTimeOption(time),
       },
+      ipRegex:
+        /^(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$/,
+      isIP: true,
+      isPort: true,
       disable: false,
       address: "",
       port: "",
@@ -571,6 +695,17 @@ export default {
     },
   },
   methods: {
+    changeHost(host) {
+      if (host.toLowerCase().includes("ip")) {
+        this.isIP = this.ipRegex.test(this.dbsource[0].options.host.value);
+      }
+    },
+    changePort() {
+      this.isPort =
+        /^([0-9]|[1-9]\d{1,3}|[1-5]\d{4}|6[0-4]\d{4}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$/.test(
+          this.dbsource[0].options.port.value
+        );
+    },
     transforHtml(val) {
       if (val) {
         return marked.parse(val);
@@ -649,12 +784,21 @@ export default {
           //     data.options.host.value ? data.options.host.value : ""
           //   }
           // `;
-        } 
-        else {
+        } else {
+          if (this.tagName == "influxdb") {
+            if (data.options.host.value && !this.isIP) {
+              Message.warning(this.$t("datasource.iptip"));
+              return;
+            }
+          }
           dns += `://${data.options.host.value ? data.options.host.value : ""}`;
         }
 
         if (data.options.port) {
+          if (!this.isPort && this.tagName == "influxdb") {
+            Message.warning(this.$t("datasource.porttip"));
+            return;
+          }
           dns +=
             (Object.is(data.options.port.value, null) ||
             !data.options.port.value
@@ -662,14 +806,14 @@ export default {
               : ":") +
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
-       
+
         dns += data.options.subject.value
           ? "/" + data.options.subject.value
           : "";
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
-         
+
         for (let index = 0; index < data.groups.length; index++) {
           //   for (let j = 0; j < data.groups[index].params.length; j++) {
           for (let g of Object.keys(data.groups[index].params)) {
@@ -727,11 +871,44 @@ export default {
             }
           }
         }
-        if(this.tagName=='influxdb'){
-          let orginfo=data.authentication.alternatives[0].params
-          let orgId=orginfo.filter(item=>item.name=='orgId')[0].value
-          let token=orginfo.filter(item=>item.name=='token')[0].value
-          querystr+=`orgId=${orgId}&token=${token}`
+        if (this.tagName == "influxdb") {
+          let result = this.dbsource[0].authentication.alternatives.filter(
+            (item) => item.name == this.dbsource[0].authentication.value
+          );
+          result[0].params.forEach((p) => {
+            querystr += `${p.name}=${p.value}&`;
+          });
+
+          let requireTip = "";
+          //influxdb需要校验authentication和task
+          result.forEach((item) => {
+            item.params.forEach((p) => {
+              if (
+                Object.hasOwnProperty.call(p, "required") &&
+                p.value == null
+              ) {
+                requireTip += `${p.display}` + ",";
+              }
+            });
+          });
+          this.dbsource[0].groups.forEach((group) => {
+            group.params.forEach((p) => {
+              if (
+                Object.hasOwnProperty.call(p, "required") &&
+                p.value == null
+              ) {
+                requireTip += `${p.display}` + ",";
+              }
+            });
+          });
+          console.log(requireTip, this.isIP, this.isPort, "搜寻所有避暑醒目");
+          if (requireTip != "") {
+            Message({
+              type: "warning",
+              message: `${enterTip} ${requireTip.replace(/,$/g, "")} `,
+            });
+            return;
+          }
         }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
 
@@ -794,7 +971,11 @@ export default {
               `user::${localStorage.getItem("username")}`,
             ],
           };
-          console.log(this.$parent,this.$parent.agentID,'this.$parent.agentID');
+          console.log(
+            this.$parent,
+            this.$parent.agentID,
+            "this.$parent.agentID"
+          );
           if (this.$parent.agentID) {
             piParams["via"] = this.$parent.agentID;
           }
@@ -914,20 +1095,22 @@ export default {
         };
         const viaObj = {
           via: this.$parent.agentID,
-        }
-        if(viaObj.via) {
-          Object.assign(params,viaObj)
+        };
+        if (viaObj.via) {
+          Object.assign(params, viaObj);
         }
         this.loading = true;
-        getUaAndDaData(params).then((res) => {
-          this.loading = false;
-          this.configurationdata = res;
-        }).catch((err) => {
-            Message({
-            type: 'error',
-            message: err
+        getUaAndDaData(params)
+          .then((res) => {
+            this.loading = false;
+            this.configurationdata = res;
           })
-        })
+          .catch((err) => {
+            Message({
+              type: "error",
+              message: err,
+            });
+          });
       } catch (error) {
         this.loading = false;
       }
@@ -941,6 +1124,12 @@ export default {
   justify-content: space-around;
   //   padding-right: 300px;
   display: flex;
+  :deep {
+    .el-input__inner {
+      border: none !important;
+      box-shadow: inset 0 0 0 1px rgb(190, 188, 188);
+    }
+  }
   .label-value {
     display: flex;
     flex-direction: column;
@@ -950,10 +1139,11 @@ export default {
   }
   .left-ui {
     section:not(:first-child) {
-      border: 1px solid #e3e4e6;
+      border: 1px solid #ececef;
       margin-bottom: 20px;
       border-radius: 12px;
       padding: 15px;
+      // border-bottom: 1px solid #ececef;
     }
     .block-title {
       span {
@@ -973,7 +1163,7 @@ export default {
       position: relative;
       &::before {
         content: "*";
-        position: absolute;
+        // position: absolute;
         color: red;
         font-size: 14px;
         line-height: 25px;
@@ -1035,6 +1225,7 @@ export default {
       .el-input {
         flex: 1;
         display: flex;
+        width: 100%;
       }
       .el-select {
         margin-left: 0px !important;

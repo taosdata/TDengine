@@ -72,7 +72,7 @@
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'add')"
-                    v-if="['sfile', 'nfile'].includes(data.typeName)"
+                    v-if="['sfile', 'nfile','stable'].includes(data.typeName)"
                   >
                     <i
                       v-permission
