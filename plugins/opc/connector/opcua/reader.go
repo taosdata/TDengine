@@ -44,6 +44,7 @@ type reader struct {
 	debug          bool
 	containsBad    bool
 	mutex          sync.Mutex
+	once           sync.Once
 }
 
 func newReader(debug bool, connectConfig common.UaConnectConfig, pointConfig common.PointsConfig, collectMode string, nodes []common.NodeConfig, interval int64, containsBad bool) (*reader, error) {
@@ -74,6 +75,7 @@ func newReader(debug bool, connectConfig common.UaConnectConfig, pointConfig com
 	if err := r.initNodeMetricMapping(); err != nil {
 		return nil, err
 	}
+
 	return r, nil
 }
 
@@ -113,22 +115,6 @@ func (r *reader) connect(ctx context.Context) error {
 
 	r.state = opcua.Connected
 	log.Printf("## create reader %p and connected to opc ua server", r)
-
-	if len(r.nodes) > 0 {
-		nodeToRegister := make([]*ua.NodeID, len(r.nodes))
-		for i, v := range r.nodes {
-			nodeToRegister[i] = v.nodeID
-		}
-		regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: nodeToRegister})
-		if err != nil {
-			return fmt.Errorf("register node failed: %w", err)
-		}
-		nodesToRead := make([]*ua.ReadValueID, len(regResp.RegisteredNodeIDs))
-		for i, v := range regResp.RegisteredNodeIDs {
-			nodesToRead[i] = &ua.ReadValueID{NodeID: v}
-		}
-		r.nodesToRead = nodesToRead
-	}
 	return nil
 }
 
@@ -146,20 +132,20 @@ func (r *reader) ensureConnected(ctx context.Context) error {
 }
 
 func (r *reader) stop(ctx context.Context) {
-	defer close(r.done)
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-	if r.state == opcua.Disconnected {
-		return
-	}
-	if r.client == nil {
-		return
-	}
-	if err := r.client.CloseWithContext(ctx); err != nil {
-		log.Println("## close opc ua connection error", err)
-	}
-	r.client = nil
-	r.state = opcua.Disconnected
+	r.once.Do(func() {
+		defer close(r.done)
+		if r.state == opcua.Disconnected {
+			return
+		}
+		if r.client == nil {
+			return
+		}
+		if err := r.client.CloseWithContext(ctx); err != nil {
+			log.Println("## close opc ua connection error", err)
+		}
+		r.client = nil
+		r.state = opcua.Disconnected
+	})
 }
 
 // initNodeMetricMapping builds nodes from the configuration
@@ -189,6 +175,29 @@ func (r *reader) initNodeMetricMapping() error {
 		r.nodes = append(r.nodes, &uaNode{nodeID: nid, name: r.nodeToPoint(ctx, r.client.Node(nid)).Name, valueType: vt})
 	}
 
+	if err := r.registerNodes(); err != nil {
+		return fmt.Errorf("register nodes error %v", err)
+	}
+
+	return nil
+}
+
+func (r *reader) registerNodes() error {
+	if len(r.nodes) > 0 {
+		nodeToRegister := make([]*ua.NodeID, len(r.nodes))
+		for i, v := range r.nodes {
+			nodeToRegister[i] = v.nodeID
+		}
+		regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: nodeToRegister})
+		if err != nil {
+			return fmt.Errorf("register node failed: %w", err)
+		}
+		nodesToRead := make([]*ua.ReadValueID, len(regResp.RegisteredNodeIDs))
+		for i, v := range regResp.RegisteredNodeIDs {
+			nodesToRead[i] = &ua.ReadValueID{NodeID: v}
+		}
+		r.nodesToRead = nodesToRead
+	}
 	return nil
 }
 
@@ -201,6 +210,7 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 	}
 
 	go func() {
+		defer r.stop(ctx)
 		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 		ticker := time.NewTicker(r.interval)
@@ -214,7 +224,7 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 			case <-checkConnTicker.C:
 				if r.state == opcua.Connected && !r.OpcConnected() {
 					log.Println("## opc ua connection is not alive")
-					return
+					panic("opc ua connection is not alive")
 				}
 			case <-r.done:
 				return
@@ -307,6 +317,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 	}
 
 	go func() {
+		defer r.stop(ctx)
 		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 		defer func() {
@@ -328,7 +339,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 			case <-checkConnTicker.C:
 				if !r.OpcConnected() {
 					log.Println("## opc ua connection is not alive")
-					return
+					panic("opc ua connection is not alive")
 				}
 			case <-r.done:
 				return
@@ -402,18 +413,10 @@ func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, c
 	}
 
 	for i, node := range r.nodes {
-		res, err := sub.Monitor(ua.TimestampsToReturnBoth, opcua.NewMonitoredItemCreateRequestWithDefaults(
-			node.nodeID, ua.AttributeIDValue, uint32(i)))
-		if err != nil {
+		if _, err = sub.Monitor(ua.TimestampsToReturnBoth, opcua.NewMonitoredItemCreateRequestWithDefaults(
+			node.nodeID, ua.AttributeIDValue, uint32(i))); err != nil {
 			log.Println("## subscribe monitor failed ", err)
 			return nil, nil, fmt.Errorf("subscribe monitor failed: %w", err)
-		}
-
-		for _, r := range res.Results {
-			if r.StatusCode != ua.StatusOK {
-				log.Println("## subscribe monitor status error", r.StatusCode)
-				return nil, nil, fmt.Errorf("subscribe monitor status error")
-			}
 		}
 	}
 	return

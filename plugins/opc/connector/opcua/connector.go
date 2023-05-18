@@ -93,6 +93,7 @@ func (c *UaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, er
 			defer c.wait.Done()
 			if err := c.collect(ctx, r); err != nil {
 				log.Println("## collect error", err)
+				panic(err)
 			}
 		}(r)
 	}
