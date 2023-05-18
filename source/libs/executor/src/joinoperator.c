@@ -436,15 +436,16 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
   return 0;
 }
 
-static int32_t mergeJoinFillBuildTable(SJoinOperatorInfo* pInfo, SArray* rightRowLocations,SSHashObj* buildTable) {
+static int32_t mergeJoinFillBuildTable(SJoinOperatorInfo* pInfo, SArray* rightRowLocations) {
   for (int32_t i = 0; i < taosArrayGetSize(rightRowLocations); ++i) {
+    tSimpleHashClear(pInfo->rightBuildTable);
     SRowLocation* rightRow = taosArrayGet(rightRowLocations, i);
     int32_t keyLen = fillKeyBufFromTagCols(pInfo->rightTagCols, rightRow->pDataBlock, rightRow->pos, pInfo->rightTagKeyBuf);
-    SArray** ppRows = tSimpleHashGet(buildTable, pInfo->rightTagKeyBuf, keyLen);
+    SArray** ppRows = tSimpleHashGet(pInfo->rightBuildTable, pInfo->rightTagKeyBuf, keyLen);
     if (!ppRows) {
       SArray* rows = taosArrayInit(4, sizeof(SRowLocation));
       taosArrayPush(rows, rightRow);
-      tSimpleHashPut(buildTable, pInfo->rightTagKeyBuf, keyLen, &rows, POINTER_BYTES);
+      tSimpleHashPut(pInfo->rightBuildTable, pInfo->rightTagKeyBuf, keyLen, &rows, POINTER_BYTES);
     } else {
       taosArrayPush(*ppRows, rightRow);
     }
@@ -568,7 +569,7 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
     mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 1, pJoinInfo->rightCol.slotId, pJoinInfo->pRight,
                                              pJoinInfo->rightPos, timestamp, rightRowLocations, rightCreatedBlocks);
     if (pJoinInfo->pTagEqualConditions != NULL && taosArrayGetSize(rightRowLocations) > 16) {
-      mergeJoinFillBuildTable(pJoinInfo, rightRowLocations, pJoinInfo->rightBuildTable);
+      mergeJoinFillBuildTable(pJoinInfo, rightRowLocations);
       rightUseBuildTable = true;
       taosArrayDestroy(rightRowLocations);
       rightRowLocations = NULL;
