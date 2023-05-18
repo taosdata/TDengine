@@ -326,20 +326,15 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
   int32_t code = 0;
 
   // 1, fetch schema
-  STSchema *pTSchema = pTsdb->rCache.pTSchema;
+  STSchema *pTSchema = NULL;
   int32_t   sver = TSDBROW_SVERSION(pRow);
-  if (!pTSchema || sver != pTSchema->version) {
-    if (pTSchema) {
-      taosMemoryFree(pTSchema);
-    }
-    code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema);
-    if (code != TSDB_CODE_SUCCESS) {
-      terrno = code;
-      return -1;
-    }
 
-    pTsdb->rCache.pTSchema = pTSchema;
+  code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return -1;
   }
+
   // 2, iterate col values into array
   SArray *aColVal = taosArrayInit(32, sizeof(SColVal));
 
@@ -463,7 +458,7 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
 
 _exit:
   taosArrayDestroy(aColVal);
-  // taosMemoryFree(pTSchema);
+  taosMemoryFree(pTSchema);
   return code;
 }
 
@@ -908,15 +903,12 @@ int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsR
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey) {
   int32_t code = 0;
   // fetch schema
-  STSchema *pTSchema = pTsdb->rCache.pTSchema;
-  if (!pTSchema) {
-    code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pTSchema);
-    if (code != TSDB_CODE_SUCCESS) {
-      terrno = code;
-      return -1;
-    }
-
-    pTsdb->rCache.pTSchema = pTSchema;
+  STSchema *pTSchema = NULL;
+  int       sver = -1;
+  code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pTSchema);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return -1;
   }
 
   // build keys & multi get from rocks
@@ -983,7 +975,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   taosThreadMutexUnlock(&pTsdb->rCache.rMutex);
 
 _exit:
-  // taosMemoryFree(pTSchema);
+  taosMemoryFree(pTSchema);
 
   return code;
 }
