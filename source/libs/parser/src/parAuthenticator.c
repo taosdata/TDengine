@@ -70,7 +70,7 @@ static EDealRes authSubquery(SAuthCxt* pCxt, SNode* pStmt) {
   return TSDB_CODE_SUCCESS == authQuery(pCxt, pStmt) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
-static int32_t mergeStableTagCond(SNode** pWhere, SNode** pTagCond) {
+static int32_t mergeStableTagCond(SNode** pWhere, SNode* pTagCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   if (NULL == pLogicCond) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -78,7 +78,7 @@ static int32_t mergeStableTagCond(SNode** pWhere, SNode** pTagCond) {
   pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
   pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   pLogicCond->condType = LOGIC_COND_TYPE_AND;
-  int32_t code = nodesListMakeStrictAppend(&pLogicCond->pParameterList, *pTagCond);
+  int32_t code = nodesListMakeStrictAppend(&pLogicCond->pParameterList, pTagCond);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeAppend(&pLogicCond->pParameterList, *pWhere);
   }
@@ -106,7 +106,7 @@ static int32_t appendStableTagCond(SNode** pWhere, SNode* pTagCond) {
     return nodesListStrictAppend(((SLogicConditionNode*)*pWhere)->pParameterList, pTagCondCopy);
   }
 
-  return mergeStableTagCond(pWhere, &pTagCondCopy);
+  return mergeStableTagCond(pWhere, pTagCondCopy);
 }
 
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {

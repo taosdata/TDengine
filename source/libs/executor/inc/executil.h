@@ -15,6 +15,7 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
+#include "executor.h"
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
@@ -22,7 +23,6 @@
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
 #include "vnode.h"
-#include "executor.h"
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
@@ -37,9 +37,7 @@
     memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
-#define GET_RES_WINDOW_KEY_LEN(_l)     ((_l) + sizeof(uint64_t))
-
-#define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
+#define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 
 typedef struct SGroupResInfo {
   int32_t index;
@@ -67,7 +65,7 @@ typedef struct SResultRowPosition {
 typedef struct SResKeyPos {
   SResultRowPosition pos;
   uint64_t           groupId;
-  char key[];
+  char               key[];
 } SResKeyPos;
 
 typedef struct SResultRowInfo {
@@ -89,11 +87,29 @@ typedef struct SColMatchInfo {
 } SColMatchInfo;
 
 typedef struct SExecTaskInfo SExecTaskInfo;
-typedef struct STableListInfo STableListInfo;
+
+typedef struct STableListIdInfo {
+  uint64_t suid;
+  uint64_t uid;
+  int32_t  tableType;
+} STableListIdInfo;
+
+// If the numOfOutputGroups is 1, the data blocks that belongs to different groups will be provided randomly
+// The numOfOutputGroups is specified by physical plan. and will not be affect by numOfGroups
+typedef struct STableListInfo {
+  bool             oneTableForEachGroup;
+  int32_t          numOfOuputGroups;  // the data block will be generated one by one
+  int32_t*         groupOffset;       // keep the offset value for each group in the tableList
+  SArray*          pTableList;
+  SHashObj*        map;     // speedup acquire the tableQueryInfo by table uid
+  STableListIdInfo idInfo;  // this maybe the super table or ordinary table
+} STableListInfo;
+
 struct SqlFunctionCtx;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo);
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
+                                SExecTaskInfo* pTaskInfo);
 
 STableListInfo* tableListCreate();
 void*           tableListDestroy(STableListInfo* pTableListInfo);

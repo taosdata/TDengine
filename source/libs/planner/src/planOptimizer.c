@@ -2560,7 +2560,7 @@ static bool tbCntScanOptIsEligibleAggFuncs(SNodeList* pAggFuncs) {
       return false;
     }
   }
-  return true;
+  return LIST_LENGTH(pAggFuncs) > 0;
 }
 
 static bool tbCntScanOptIsEligibleAgg(SAggLogicNode* pAgg) {
@@ -2628,7 +2628,9 @@ static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo, SNode* pCondit
   if (NULL == pConditions) {
     return true;
   }
-
+  if (LIST_LENGTH(pInfo->pAgg->pGroupKeys) != 0) {
+    return false;
+  }
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pConditions)) {
     return tbCntScanOptIsEligibleLogicCond(pInfo, (SLogicConditionNode*)pConditions) &&
            LIST_LENGTH(pInfo->pAgg->pGroupKeys) == 0;

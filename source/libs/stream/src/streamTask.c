@@ -27,7 +27,7 @@ SStreamTask* tNewStreamTask(int64_t streamId) {
   pTask->id.streamId = streamId;
 
   char buf[128] = {0};
-  sprintf(buf, "0x%"PRIx64"-%d", pTask->id.streamId, pTask->id.taskId);
+  sprintf(buf, "0x%" PRIx64 "-%d", pTask->id.streamId, pTask->id.taskId);
 
   pTask->id.idStr = taosStrdup(buf);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
@@ -171,7 +171,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
 void tFreeStreamTask(SStreamTask* pTask) {
   qDebug("free s-task:%s", pTask->id.idStr);
-
+  int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
   if (pTask->inputQueue) {
     streamQueueClose(pTask->inputQueue);
   }
@@ -193,8 +193,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   taosArrayDestroyP(pTask->childEpInfo, taosMemoryFree);
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
-    tDeleteSSchemaWrapper(pTask->tbSink.pSchemaWrapper);
+    tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);
+    tSimpleHashCleanup(pTask->tbSink.pTblInfo);
   }
 
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -204,10 +205,10 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->pState) {
-    streamStateClose(pTask->pState);
+    streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
   }
 
-  if (pTask->id.idStr != NULL)  {
+  if (pTask->id.idStr != NULL) {
     taosMemoryFree((void*)pTask->id.idStr);
   }
 

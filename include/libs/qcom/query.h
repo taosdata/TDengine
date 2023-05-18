@@ -116,8 +116,8 @@ typedef struct STableMeta {
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
   // info
-  int16_t       sversion;
-  int16_t       tversion;
+  int32_t       sversion;
+  int32_t       tversion;
   STableComInfo tableInfo;
   SSchema       schema[];
 } STableMeta;
@@ -260,6 +260,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
 int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
 void    freeVgInfo(SDBVgInfo* vgInfo);
+void    freeDbCfgInfo(SDbCfgInfo *pInfo);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));

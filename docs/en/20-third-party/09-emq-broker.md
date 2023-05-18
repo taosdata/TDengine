@@ -47,7 +47,7 @@ Select "Rule" in the "Rule Engine" on the left and click the "Create" button: !
 
 ### Edit SQL fields
 
-Copy SQL bellow and paste it to the SQL edit area：
+Copy SQL bellow and paste it to the SQL edit area:
 
 ```sql
 SELECT
@@ -76,7 +76,8 @@ Select "WebHook" and fill in the request URL as the address and port of the serv
 
 ### Edit "action"
 
-Edit the resource configuration to add the key/value pairing for Authorization. If you use the default TDengine username and password then the value of key Authorization is：
+Edit the resource configuration to add the key/value pairing for Authorization. If you use the default TDengine username and password then the value of key Authorization is:
+
 ```
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
