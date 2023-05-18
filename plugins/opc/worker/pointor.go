@@ -7,6 +7,7 @@ import (
 	"collector/connector/opcua"
 	"context"
 	"fmt"
+	"sort"
 )
 
 type Pointer interface {
@@ -42,7 +43,16 @@ func NewOpcPointer(config common.Config) (pointer Pointer, err error) {
 }
 
 func (p *OpcPointer) GetAllPoints(ctx context.Context) ([]common.Point, error) {
-	return p.connector.GetAllPoints(ctx)
+	points, err := p.connector.GetAllPoints(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	sort.SliceStable(points, func(i, j int) bool {
+		return points[i].ID < points[j].ID
+	})
+
+	return points, nil
 }
 
 func (p *OpcPointer) Exist(ctx context.Context) {
