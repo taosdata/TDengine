@@ -81,6 +81,9 @@ func (r *reader) connect(ctx context.Context) error {
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	if r.state == opcua.Connected {
+		return nil
+	}
 
 	r.state = opcua.Connecting
 	opts, err := r.setupOptions(ctx)
@@ -159,6 +162,10 @@ func (r *reader) stop(ctx context.Context) {
 // initNodeMetricMapping builds nodes from the configuration
 func (r *reader) initNodeMetricMapping() error {
 	ctx := context.Background()
+	if err := r.ensureConnected(ctx); err != nil {
+		return fmt.Errorf("init node metric mapping error %v", err)
+	}
+
 	existing := make(map[string]struct{}, len(r.collectNodes))
 	for _, node := range r.collectNodes {
 		if _, ok := existing[node.ID]; ok {
