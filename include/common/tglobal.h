@@ -77,10 +77,6 @@ extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 
-// dnode
-extern char tsActive[];
-extern char tsConnActive[];
-
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
 

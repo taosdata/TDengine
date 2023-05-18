@@ -66,10 +66,6 @@ int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
 
-// dnode
-char tsActive[TSDB_ACTIVE_KEY_LEN] = {0};
-char tsConnActive[TSDB_CONN_ACTIVE_KEY_LEN] = {0};
-
 // vnode
 int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
 
@@ -494,9 +490,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, 0) != 0) return -1;
   if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, 0) != 0) return -1;
 
-  if (cfgAddString(pCfg, "activeCode", tsActive, 0) != 0) return -1;
-  if (cfgAddString(pCfg, "cActiveCode", tsConnActive, 0) != 0) return -1;
-
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, 0) != 0) return -1;
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, 0) != 0) return -1;
@@ -892,9 +885,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
   tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
 
-  tstrncpy(tsActive, cfgGetItem(pCfg, "activeCode")->str, sizeof(tsActive));
-  tstrncpy(tsConnActive, cfgGetItem(pCfg, "cActiveCode")->str, sizeof(tsConnActive));
-
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
   tstrncpy(tsUdfdLdLibPath, cfgGetItem(pCfg, "udfdLdLibPath")->str, sizeof(tsUdfdLdLibPath));
@@ -937,10 +927,6 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
       } else if (strcasecmp("assert", name) == 0) {
         tsAssert = cfgGetItem(pCfg, "assert")->bval;
-      } else if (strcasecmp("activeCode", name) == 0) {
-        SConfigItem *pActiveItem = cfgGetItem(pCfg, "activeCode");
-        snprintf(tsActive, sizeof(tsActive), "%s", pActiveItem->str);
-        cfgSetItem(pCfg, "activeCode", tsActive, pActiveItem->stype);
       }
       break;
     }
@@ -960,12 +946,7 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
       } else if (strcasecmp("crashReporting", name) == 0) {
         tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
-      } else if (strcasecmp("cActiveCode", name) == 0) {
-        SConfigItem *pActiveItem = cfgGetItem(pCfg, "cActiveCode");
-        snprintf(tsConnActive, sizeof(tsConnActive), "%s", pActiveItem->str);
-        cfgSetItem(pCfg, "cActiveCode", tsActive, pActiveItem->stype);
       }
-
       break;
     }
     case 'd': {
