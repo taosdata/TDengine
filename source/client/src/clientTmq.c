@@ -1089,7 +1089,7 @@ _failed:
 }
 
 int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
-  const int32_t   MAX_RETRY_COUNT = 120 * 2;  // let's wait for 2 mins at most
+  const int32_t   MAX_RETRY_COUNT = 120 * 60;  // let's wait for 2 mins at most
   const SArray*   container = &topic_list->container;
   int32_t         sz = taosArrayGetSize(container);
   void*           buf = NULL;
@@ -1186,7 +1186,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == doAskEp(tmq)) {
     if (retryCnt++ > MAX_RETRY_COUNT) {
       tscError("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry:%d in 500ms", tmq->consumerId, retryCnt);
-      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      code = TSDB_CODE_MND_CONSUMER_NOT_READY;
       goto FAIL;
     }
 
