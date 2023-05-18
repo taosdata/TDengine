@@ -544,8 +544,13 @@ static SNode* createGroupingSetNode(SNode* pExpr) {
   return (SNode*)pGroupingSet;
 }
 
-static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
+static EGroupAction getDistinctGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
   return (pCxt->pPlanCxt->streamQuery || NULL != pSelect->pLimit || NULL != pSelect->pSlimit) ? GROUP_ACTION_KEEP
+                                                                                              : GROUP_ACTION_NONE;
+}
+
+static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
+  return ((pCxt->pPlanCxt->streamQuery || NULL != pSelect->pLimit || NULL != pSelect->pSlimit) && !pSelect->isDistinct) ? GROUP_ACTION_KEEP
                                                                                               : GROUP_ACTION_NONE;
 }
 
@@ -1152,7 +1157,7 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pAgg->node.groupAction = GROUP_ACTION_CLEAR;
+  pAgg->node.groupAction = getDistinctGroupAction(pCxt, pSelect);
   pAgg->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
