@@ -171,6 +171,11 @@ option(
    ON 
 )
 
+option(
+   BUILD_RELEASE
+   "If build release version"
+   OFF
+)
 
 # open this flag to use dev code, make sure it is off in release version
 option(

@@ -200,13 +200,7 @@ void streamFreeQitem(SStreamQueueItem* data) {
     taosFreeQitem(pMerge);
   } else if (type == STREAM_INPUT__REF_DATA_BLOCK) {
     SStreamRefDataBlock* pRefBlock = (SStreamRefDataBlock*)data;
-
-    int32_t ref = atomic_sub_fetch_32(pRefBlock->dataRef, 1);
-    ASSERT(ref >= 0);
-    if (ref == 0) {
-      blockDataDestroy(pRefBlock->pBlock);
-      taosMemoryFree(pRefBlock->dataRef);
-    }
+    blockDataDestroy(pRefBlock->pBlock);
     taosFreeQitem(pRefBlock);
   }
 }

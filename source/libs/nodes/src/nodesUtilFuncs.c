@@ -87,7 +87,7 @@ static void* nodesCalloc(int32_t num, int32_t size) {
   return (char*)p + 1;
 }
 
-static void nodesFree(void* p) {
+void nodesFree(void* p) {
   char* ptr = (char*)p - 1;
   if (0 == *ptr) {
     taosMemoryFree(ptr);
