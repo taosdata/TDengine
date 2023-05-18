@@ -1390,7 +1390,7 @@ CREATE_MSG_FAIL:
     if(pVg){
       atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
     }
-    taosWLockLatch(&tmq->lock);
+    taosWUnLockLatch(&tmq->lock);
   }
 
   tsem_post(&tmq->rspSem);
