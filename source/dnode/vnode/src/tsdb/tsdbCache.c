@@ -927,7 +927,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     int16_t cid = pTSchema->columns[i].colId;
 
     size_t klen = ROCKS_KEY_LEN;
-    char  *keys = taosMemoryCalloc(2, klen);
+    char  *keys = taosMemoryCalloc(2, sizeof(SLastKey));
     ((SLastKey *)keys)[0] = (SLastKey){.ltype = 1, .uid = uid, .cid = cid};
     ((SLastKey *)keys)[1] = (SLastKey){.ltype = 0, .uid = uid, .cid = cid};
 
