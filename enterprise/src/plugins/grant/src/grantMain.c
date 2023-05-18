@@ -65,11 +65,11 @@
         return 1;                             \
       }                                       \
     } else if ((v2) == (_max_val_)) {         \
-      return -1;                              \
-    } else if ((v1) < (v2)) {                 \
-      return -1;                              \
+      result = -1;                            \
     } else if ((v1) > (v2)) {                 \
-      return 1;                               \
+      return = 1;                             \
+    } else if ((v1) < (v2)) {                 \
+      result = -1;                            \
     }                                         \
   } while (0)
 
@@ -1100,11 +1100,12 @@ static void grantStatusCheck(SMnode *pMnode, uint32_t curTime) {
 }
 
 static int32_t grantStatusCompare(SGrantStatus *p1, SGrantStatus *p2) {
-  bool offical1 = grantIsOfficial(p1);
-  bool offical2 = grantIsOfficial(p2);
+  int32_t result = 0;
+  bool    offical1 = grantIsOfficial(p1);
+  bool    offical2 = grantIsOfficial(p2);
 
   if (offical1 < offical2) {
-    return -1;
+    result = -1;
   } else if (offical1 > offical2) {
     return 1;
   }
@@ -1115,14 +1116,15 @@ static int32_t grantStatusCompare(SGrantStatus *p1, SGrantStatus *p2) {
   GRANT_ITEM_COMPARE(p1->limitDbs, p2->limitDbs, GRANT_DATABASE_LIMITS);
   GRANT_ITEM_COMPARE(p1->limitDnodes, p2->limitDnodes, GRANT_DNODE_LIMITS);
   GRANT_ITEM_COMPARE(p1->limitCpuCores, p2->limitCpuCores, GRANT_CPU_LIMITS);
-  return 0;
+  return result;
 }
 
 static int32_t grantConnStatusCompare(SGrantStatus *p1, SGrantStatus *p2) {
-  bool official1 = IS_GRANT_CONNECTORS_OFFICIAL(p1);
-  bool official2 = IS_GRANT_CONNECTORS_OFFICIAL(p2);
+  int32_t result = 0;
+  bool    official1 = IS_GRANT_CONNECTORS_OFFICIAL(p1);
+  bool    official2 = IS_GRANT_CONNECTORS_OFFICIAL(p2);
   if (official1 < official2) {
-    return -1;
+    result = -1;
   } else if (official1 > official2) {
     return 1;
   }
@@ -1133,7 +1135,7 @@ static int32_t grantConnStatusCompare(SGrantStatus *p1, SGrantStatus *p2) {
     GRANT_ITEM_COMPARE(pItem->speed, qItem->speed, GRANT_CONN_LIMITS);
     GRANT_ITEM_COMPARE(pItem->expire, qItem->expire, GRANT_CONN_EXPIRE_LIMITS);
   }
-  return 0;
+  return result;
 }
 
 #endif
@@ -1179,8 +1181,8 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
       status.limitCpuCores = pGrantMsg->limitCpuCores;
 
       // take effect right now when grants upgrade
-      int32_t grantCompare = grantStatusCompare(&grantStatus, &status);
-      if (grantCompare < 0) {
+      int32_t grantCompare = grantStatusCompare(&status, &grantStatus);
+      if (grantCompare > 0) {
         if (grantStatus.officialVersion == status.officialVersion) {
           // use larger value
           grantStatusAssignLimits(&grantStatus, &status, true);
@@ -1197,8 +1199,8 @@ static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, 
       GRANT_CONN_OFFICIAL(&status) = GRANT_CONN_OFFICIAL(pGrantMsg);
       memcpy(GRANT_CONN_ITEMS(&status), GRANT_CONN_ITEMS(pGrantMsg), sizeof(SGrantConnItem) * GRANT_CONN_NUM);
       // take effect right now when grants upgrade
-      int32_t grantCompare = grantConnStatusCompare(&grantStatus, &status);
-      if (grantCompare < 0) {
+      int32_t grantCompare = grantConnStatusCompare(&status, &grantStatus);
+      if (grantCompare > 0) {
         if (GRANT_CONN_OFFICIAL(&grantStatus) == GRANT_CONN_OFFICIAL(&status)) {
           // use larger value
           grantConnStatusAssignLimits(&grantStatus, &status, true);
@@ -1553,8 +1555,8 @@ int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus, S
 #endif
   // version 2: support activeCode/connectors activeCode since 3.0.5.0
   if (tSerializeGrantConnMsg(&encoder, &pStatus->connectors) < 0) return -1;
-  if (tEncodeBinary(&encoder, pInfo->active, TSDB_ACTIVE_KEY_LEN - 1) < 0) return -1;
-  if (tEncodeBinary(&encoder, pInfo->connActive, TSDB_CONN_ACTIVE_KEY_LEN - 1) < 0) return -1;
+  if (tEncodeBinary(&encoder, pInfo->active, TSDB_ACTIVE_KEY_LEN) < 0) return -1;
+  if (tEncodeBinary(&encoder, pInfo->connActive, TSDB_CONN_ACTIVE_KEY_LEN) < 0) return -1;
   // end of version 2
 
   tEndEncode(&encoder);
