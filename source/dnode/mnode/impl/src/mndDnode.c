@@ -227,6 +227,14 @@ static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
 static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew) {
   mTrace("dnode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
   pOld->updateTime = pNew->updateTime;
+#ifdef TD_ENTERPRISE
+  if (strncmp(pOld->active, pNew->active, TSDB_ACTIVE_KEY_LEN) != 0) {
+    strncpy(pOld->active, pNew->active, TSDB_ACTIVE_KEY_LEN);
+  }
+  if (strncmp(pOld->connActive, pNew->connActive, TSDB_CONN_ACTIVE_KEY_LEN) != 0) {
+    strncpy(pOld->connActive, pNew->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
+  }
+#endif
   return 0;
 }
 
@@ -636,7 +644,6 @@ _OVER:
 }
 
 static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfgReq) {
-  int32_t  code = -1;
   int32_t  action = -1;
   SSdbRaw *pRaw = NULL;
   STrans  *pTrans = NULL;
@@ -648,11 +655,11 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   }
 
   if (action == -1) {
-    code = TSDB_CODE_INVALID_CFG;
+    terrno = TSDB_CODE_INVALID_CFG;
     mWarn("dnode:%d, config dnode, app:%p config:%s value:%s, failed since %s", pCfgReq->dnodeId, pReq->info.ahandle,
-          pCfgReq->config, pCfgReq->value, tstrerror(code));
+          pCfgReq->config, pCfgReq->value, terrstr());
 
-    return code;
+    return -1;
   }
 
   SSdb *pSdb = pMnode->pSdb;
@@ -666,9 +673,11 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
       continue;
     }
 
-    pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "cfg-dnode");
-    if (pTrans == NULL) goto _OVER;
-    if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+    if (!pTrans) {
+      pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "cfg-dnode");
+      if (!pTrans) goto _OVER;
+      if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+    }
 
     SDnodeObj tmpDnode = *pDnode;
     if (action == 0) {
@@ -690,13 +699,14 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
     sdbRelease(pSdb, pDnode);
   }
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  code = 0;
+  if (pTrans && mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+
+  terrno = 0;
 
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
-  return code;
+  return terrno;
 }
 
 static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
@@ -1042,11 +1052,11 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       terrno = TSDB_CODE_INVALID_CFG;
       return -1;
     }
-
-    if ((idx == 10 && strlen(cfgReq.value) > TSDB_ACTIVE_KEY_LEN) ||
-        (idx == 11 && strlen(cfgReq.value) > TSDB_CONN_ACTIVE_KEY_LEN)) {
-      mError("dnode:%d, failed to config activeCode since value out of range. conf:%s, val:%s", cfgReq.dnodeId,
-             cfgReq.config, cfgReq.value);
+    int32_t vlen = strlen(cfgReq.value);
+    if ((idx == 10 && vlen != (TSDB_ACTIVE_KEY_LEN - 1)) ||
+        (idx == 11 && (vlen > (TSDB_CONN_ACTIVE_KEY_LEN -1) || vlen < (TSDB_ACTIVE_KEY_LEN - 1))) {
+      mError("dnode:%d, failed to config activeCode since invalid vlen. conf:%s, val:%s", cfgReq.dnodeId, cfgReq.config,
+             cfgReq.value);
       terrno = TSDB_CODE_INVALID_OPTION;
       return -1;
     }
@@ -1054,7 +1064,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     strcpy(dcfgReq.config, idx == 10 ? "activeCode" : "cActiveCode");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
 
-    mndConfigDnode(pMnode, pReq, &cfgReq);
+    if (mndConfigDnode(pMnode, pReq, &cfgReq) != 0) {
+      mError("dnode:%d, failed to config since %s", cfgReq.dnodeId, terrstr());
+      return -1;
+    }
 #endif
   } else {
     bool findOpt = false;
