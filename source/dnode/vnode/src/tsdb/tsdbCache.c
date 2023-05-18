@@ -932,7 +932,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     ((SLastKey *)keys)[1] = (SLastKey){.ltype = 0, .uid = uid, .cid = cid};
 
     keys_list[i] = keys;
-    keys_list[num_keys + i] = keys + klen;
+    keys_list[num_keys + i] = keys + sizeof(SLastKey);
     keys_list_sizes[i] = klen;
     keys_list_sizes[num_keys + i] = klen;
   }
@@ -940,6 +940,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   size_t *values_list_sizes = taosMemoryCalloc(num_keys * 2, sizeof(size_t));
   char  **errs = taosMemoryCalloc(num_keys * 2, sizeof(char *));
   taosThreadMutexLock(&pTsdb->rCache.rMutex);
+  rocksMayWrite(pTsdb, true);
   rocksdb_multi_get(pTsdb->rCache.db, pTsdb->rCache.readoptions, num_keys * 2, (const char *const *)keys_list,
                     keys_list_sizes, values_list, values_list_sizes, errs);
   for (int i = 0; i < num_keys; ++i) {
@@ -957,7 +958,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     SLastCol *pLastCol = tsdbCacheDeserialize(values_list[i]);
     if (NULL != pLastCol && (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
       SLastKey *key = &(SLastKey){.ltype = 1, .uid = uid, .cid = pLastCol->colVal.cid};
-      size_t    klen = sizeof(*key);
+      size_t    klen = ROCKS_KEY_LEN;
 
       rocksdb_writebatch_delete(wb, (char *)key, klen);
       taosLRUCacheErase(pTsdb->lruCache, key, klen);
@@ -966,7 +967,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
     pLastCol = tsdbCacheDeserialize(values_list[i + num_keys]);
     if (NULL != pLastCol && (pLastCol->ts <= eKey && pLastCol->ts >= sKey)) {
       SLastKey *key = &(SLastKey){.ltype = 0, .uid = uid, .cid = pLastCol->colVal.cid};
-      size_t    klen = sizeof(*key);
+      size_t    klen = ROCKS_KEY_LEN;
 
       rocksdb_writebatch_delete(wb, (char *)key, klen);
       taosLRUCacheErase(pTsdb->lruCache, key, klen);
@@ -978,7 +979,7 @@ int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKE
   taosMemoryFree(values_list);
   taosMemoryFree(values_list_sizes);
 
-  rocksMayWrite(pTsdb, false);
+  rocksMayWrite(pTsdb, true);
   taosThreadMutexUnlock(&pTsdb->rCache.rMutex);
 
 _exit:
