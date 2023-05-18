@@ -1697,13 +1697,13 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
 
     while (1) {
-      int32_t type = tqNextBlockInWal(pInfo->tqReader);
+      bool hasResult = tqNextBlockInWal(pInfo->tqReader, id);
       SSDataBlock* pRes = pInfo->tqReader->pResBlock;
 
       // curVersion move to next, so currentOffset = curVersion - 1
       tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion - 1);
 
-      if (type == FETCH_TYPE__DATA) {
+      if (hasResult) {
         qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
@@ -1711,7 +1711,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
         }
-      } else if (type == FETCH_TYPE__NONE) {
+      } else {
         qDebug("doQueueScan get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
         return NULL;
       }
@@ -2074,66 +2074,43 @@ FETCH_NEXT_BLOCK:
       return pInfo->pUpdateRes;
     }
 
-    const char* id = GET_TASKID(pTaskInfo);
-    SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+    const char*     id = GET_TASKID(pTaskInfo);
+    SSDataBlock*    pBlock = pInfo->pRes;
+    SDataBlockInfo* pBlockInfo = &pBlock->info;
     int32_t         totalBlocks = taosArrayGetSize(pInfo->pBlockLists);
 
   NEXT_SUBMIT_BLK:
+
     while (1) {
-      if (pInfo->tqReader->msg.msgStr == NULL) {
-        if (pInfo->validBlockIndex >= totalBlocks) {
-          updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
-          doClearBufferedBlocks(pInfo);
+      bool         hasResult = tqNextBlockInWal(pInfo->tqReader, id);
+      SSDataBlock* pRes = pInfo->tqReader->pResBlock;
 
-          qDebug("stream scan return empty, all %d submit blocks consumed, %s", totalBlocks, id);
-          void* buff = NULL;
-          // int32_t len = streamScanOperatorEncode(pInfo, &buff);
-          // if (len > 0) {
-          //   streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), buff, len);
-          // }
-          taosMemoryFreeClear(buff);
-          return NULL;
-        }
+      blockDataCleanup(pBlock);
 
-        int32_t      current = pInfo->validBlockIndex++;
-        SPackedData* pSubmit = taosArrayGet(pInfo->pBlockLists, current);
-
-        qDebug("set %d/%d as the input submit block, %s", current, totalBlocks, id);
-        if (tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) < 0) {
-          qError("submit msg messed up when initializing stream submit block %p, current %d/%d, %s", pSubmit, current, totalBlocks, id);
-          continue;
-        }
-      }
-
-      blockDataCleanup(pInfo->pRes);
-
-      while (tqNextBlockImpl(pInfo->tqReader, id)) {
-        int32_t code = tqRetrieveDataBlock(pInfo->tqReader, id);
-        if (code != TSDB_CODE_SUCCESS || pInfo->tqReader->pResBlock->info.rows == 0) {
-          continue;
-        }
-
-        setBlockIntoRes(pInfo, pInfo->tqReader->pResBlock, false);
+      if (hasResult) {
+        qDebug("stream scan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
+               pTaskInfo->streamInfo.currentOffset.version);
+        setBlockIntoRes(pInfo, pRes, true);
 
         if (pInfo->pCreateTbRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
           return pInfo->pCreateTbRes;
         }
 
-        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
-        doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
-        pInfo->pRes->info.dataLoad = 1;
-        blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pBlock);
+        doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        pBlock->info.dataLoad = 1;
+        blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
+      } else {
+        updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
+        doClearBufferedBlocks(pInfo);
 
-        if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
-          break;
-        }
+        qDebug("stream scan return empty, all %d submit blocks consumed, %s", totalBlocks, id);
+        return NULL;
       }
 
       if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
         break;
-      } else {
-        continue;
       }
     }
 
@@ -2141,9 +2118,9 @@ FETCH_NEXT_BLOCK:
     pInfo->numOfExec++;
     pOperator->resultInfo.totalRows += pBlockInfo->rows;
 
-    qDebug("stream scan get source rows:%" PRId64", %s", pBlockInfo->rows, id);
+    qDebug("stream scan get source rows:%" PRId64 ", %s", pBlockInfo->rows, id);
     if (pBlockInfo->rows > 0) {
-      return pInfo->pRes;
+      return pBlock;
     }
 
     if (pInfo->pUpdateDataRes->info.rows > 0) {
@@ -2151,10 +2128,84 @@ FETCH_NEXT_BLOCK:
     }
 
     goto NEXT_SUBMIT_BLK;
-  } else {
-    ASSERT(0);
-    return NULL;
+
+    //      } else {
+    //        qDebug("stream scan get none from log, return, version:%" PRId64,
+    //        pTaskInfo->streamInfo.currentOffset.version); return NULL;
+    //      }
+
+    //    while (1) {
+    //      if (pInfo->tqReader->msg.msgStr == NULL) {
+    //        if (pInfo->validBlockIndex >= totalBlocks) {
+    //          updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
+    //          doClearBufferedBlocks(pInfo);
+    //
+    //          qDebug("stream scan return empty, all %d submit blocks consumed, %s", totalBlocks, id);
+    //          return NULL;
+    //        }
+    //
+    //        int32_t      current = pInfo->validBlockIndex++;
+    //        SPackedData* pSubmit = taosArrayGet(pInfo->pBlockLists, current);
+    //
+    //        qDebug("set %d/%d as the input submit block, %s", current, totalBlocks, id);
+    //        if (tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) < 0) {
+    //          qError("submit msg messed up when initializing stream submit block %p, current %d/%d, %s", pSubmit,
+    //          current, totalBlocks, id); continue;
+    //        }
+    //      }
+    //
+    //      blockDataCleanup(pInfo->pRes);
+    //
+    //      while (tqNextBlockImpl(pInfo->tqReader, id)) {
+    //        int32_t code = tqRetrieveDataBlock(pInfo->tqReader, id);
+    //        if (code != TSDB_CODE_SUCCESS || pInfo->tqReader->pResBlock->info.rows == 0) {
+    //          continue;
+    //        }
+    //
+    //        setBlockIntoRes(pInfo, pInfo->tqReader->pResBlock, false);
+    //
+    //        if (pInfo->pCreateTbRes->info.rows > 0) {
+    //          pInfo->scanMode = STREAM_SCAN_FROM_RES;
+    //          return pInfo->pCreateTbRes;
+    //        }
+    //
+    //        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
+    //        doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    //        pInfo->pRes->info.dataLoad = 1;
+    //        blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+    //
+    //        if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
+    //          break;
+    //        }
+    //      }
+    //
+    //      if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
+    //        break;
+    //      } else {
+    //        continue;
+    //      }
+    //    }
+    //
+    //    // record the scan action.
+    //    pInfo->numOfExec++;
+    //    pOperator->resultInfo.totalRows += pBlockInfo->rows;
+    //
+    //    qDebug("stream scan get source rows:%" PRId64", %s", pBlockInfo->rows, id);
+    //    if (pBlockInfo->rows > 0) {
+    //      return pInfo->pRes;
+    //    }
+    //
+    //    if (pInfo->pUpdateDataRes->info.rows > 0) {
+    //      goto FETCH_NEXT_BLOCK;
+    //    }
+    //
+    //    goto NEXT_SUBMIT_BLK;
+    //  } else {
+    //    ASSERT(0);
+    //    return NULL;
+    //  }
   }
+  return NULL;
 }
 
 static SArray* extractTableIdList(const STableListInfo* pTableListInfo) {

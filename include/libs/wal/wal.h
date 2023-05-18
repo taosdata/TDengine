@@ -142,7 +142,7 @@ typedef struct {
 typedef struct SWalReader SWalReader;
 
 // todo hide this struct
-typedef struct SWalReader {
+struct SWalReader {
   SWal          *pWal;
   int64_t        readerId;
   TdFilePtr      pLogFile;
@@ -154,7 +154,7 @@ typedef struct SWalReader {
   SWalFilterCond cond;
   // TODO remove it
   SWalCkHead *pHead;
-} SWalReader;
+};
 
 // module initialization
 int32_t walInit();
@@ -201,6 +201,7 @@ int32_t     walNextValidMsg(SWalReader *pRead);
 int64_t     walReaderGetCurrentVer(const SWalReader *pReader);
 int64_t     walReaderGetValidFirstVer(const SWalReader *pReader);
 void        walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever);
+void        walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal* pOffset);
 
 // only for tq usage
 void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);
