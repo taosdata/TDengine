@@ -12,12 +12,14 @@
       :isEditable="isEditable"
       ref="table"
     ></component>
+    <MqttConnector></MqttConnector>
   </div>
 </template>
 <script>
 import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
+import MqttConnector from '../components/mqttConnector.vue'
 import { getUIData } from "@/api/explorer/datain";
 
 export default {
@@ -26,6 +28,7 @@ export default {
     dbsource: DataSource,
     ui: DbSourceUI,
     opcui: OpcUI,
+    MqttConnector
   },
   data() {
     return {
