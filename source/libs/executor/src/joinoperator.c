@@ -515,6 +515,12 @@ static void mergeJoinDestroyTSRangeCtx(SJoinOperatorInfo* pJoinInfo, SArray* lef
     taosArrayDestroy(rightRowLocations);
   }
   if (rightUseBuildTable) {
+    void* p = NULL;
+    int32_t iter = 0;
+    while ((p = tSimpleHashIterate(pJoinInfo->rightBuildTable, p, &iter)) != NULL) {
+      SArray* rows = (*(SArray**)p);
+      taosArrayDestroy(rows);
+    }
     tSimpleHashClear(pJoinInfo->rightBuildTable);
   }
 
