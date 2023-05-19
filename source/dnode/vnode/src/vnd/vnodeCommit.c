@@ -453,8 +453,10 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 #endif
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbCacheCommit(pVnode->pTsdb);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (!TSDB_CACHE_NO(pVnode->config)) {
+    code = tsdbCacheCommit(pVnode->pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   if (VND_IS_RSMA(pVnode)) {
     code = smaCommit(pVnode->pSma, pInfo);

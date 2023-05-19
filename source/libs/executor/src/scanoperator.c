@@ -1697,13 +1697,13 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
 
     while (1) {
-      int32_t type = tqNextBlockInWal(pInfo->tqReader);
+      bool hasResult = tqNextBlockInWal(pInfo->tqReader, id);
       SSDataBlock* pRes = pInfo->tqReader->pResBlock;
 
       // curVersion move to next, so currentOffset = curVersion - 1
       tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion - 1);
 
-      if (type == FETCH_TYPE__DATA) {
+      if (hasResult) {
         qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
@@ -1711,7 +1711,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         if (pInfo->pRes->info.rows > 0) {
           return pInfo->pRes;
         }
-      } else if (type == FETCH_TYPE__NONE) {
+      } else {
         qDebug("doQueueScan get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
         return NULL;
       }
@@ -2074,8 +2074,9 @@ FETCH_NEXT_BLOCK:
       return pInfo->pUpdateRes;
     }
 
-    const char* id = GET_TASKID(pTaskInfo);
-    SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+    const char*     id = GET_TASKID(pTaskInfo);
+    SSDataBlock*    pBlock = pInfo->pRes;
+    SDataBlockInfo* pBlockInfo = &pBlock->info;
     int32_t         totalBlocks = taosArrayGetSize(pInfo->pBlockLists);
 
   NEXT_SUBMIT_BLK:
@@ -2086,12 +2087,6 @@ FETCH_NEXT_BLOCK:
           doClearBufferedBlocks(pInfo);
 
           qDebug("stream scan return empty, all %d submit blocks consumed, %s", totalBlocks, id);
-          void* buff = NULL;
-          // int32_t len = streamScanOperatorEncode(pInfo, &buff);
-          // if (len > 0) {
-          //   streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), buff, len);
-          // }
-          taosMemoryFreeClear(buff);
           return NULL;
         }
 
@@ -2105,7 +2100,7 @@ FETCH_NEXT_BLOCK:
         }
       }
 
-      blockDataCleanup(pInfo->pRes);
+      blockDataCleanup(pBlock);
 
       while (tqNextBlockImpl(pInfo->tqReader, id)) {
         int32_t code = tqRetrieveDataBlock(pInfo->tqReader, id);
@@ -2120,10 +2115,10 @@ FETCH_NEXT_BLOCK:
           return pInfo->pCreateTbRes;
         }
 
-        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
-        doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
-        pInfo->pRes->info.dataLoad = 1;
-        blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+        doCheckUpdate(pInfo, pBlockInfo->window.ekey, pBlock);
+        doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        pBlock->info.dataLoad = 1;
+        blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
 
         if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
           break;
@@ -2143,7 +2138,7 @@ FETCH_NEXT_BLOCK:
 
     qDebug("stream scan get source rows:%" PRId64", %s", pBlockInfo->rows, id);
     if (pBlockInfo->rows > 0) {
-      return pInfo->pRes;
+      return pBlock;
     }
 
     if (pInfo->pUpdateDataRes->info.rows > 0) {
@@ -2151,10 +2146,9 @@ FETCH_NEXT_BLOCK:
     }
 
     goto NEXT_SUBMIT_BLK;
-  } else {
-    ASSERT(0);
-    return NULL;
   }
+
+  return NULL;
 }
 
 static SArray* extractTableIdList(const STableListInfo* pTableListInfo) {
@@ -2242,44 +2236,6 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
 
     return NULL;
   }
-  //  else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
-  //    int64_t fetchVer = pTaskInfo->streamInfo.prepareStatus.version + 1;
-  //
-  //    while(1){
-  //      if (tqFetchLog(pInfo->tqReader->pWalReader, pInfo->sContext->withMeta, &fetchVer, &pInfo->pCkHead) < 0) {
-  //        qDebug("tmqsnap tmq poll: consumer log end. offset %" PRId64, fetchVer);
-  //        pTaskInfo->streamInfo.lastStatus.version = fetchVer;
-  //        pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;
-  //        return NULL;
-  //      }
-  //      SWalCont* pHead = &pInfo->pCkHead->head;
-  //      qDebug("tmqsnap tmq poll: consumer log offset %" PRId64 " msgType %d", fetchVer, pHead->msgType);
-  //
-  //      if (pHead->msgType == TDMT_VND_SUBMIT) {
-  //        SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
-  //        tqReaderSetDataMsg(pInfo->tqReader, pCont, 0);
-  //        SSDataBlock* block = tqLogScanExec(pInfo->sContext->subType, pInfo->tqReader, pInfo->pFilterOutTbUid,
-  //        &pInfo->pRes); if(block){
-  //          pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;
-  //          pTaskInfo->streamInfo.lastStatus.version = fetchVer;
-  //          qDebug("tmqsnap fetch data msg, ver:%" PRId64 ", type:%d", pHead->version, pHead->msgType);
-  //          return block;
-  //        }else{
-  //          fetchVer++;
-  //        }
-  //      } else{
-  //        ASSERT(pInfo->sContext->withMeta);
-  //        ASSERT(IS_META_MSG(pHead->msgType));
-  //        qDebug("tmqsnap fetch meta msg, ver:%" PRId64 ", type:%d", pHead->version, pHead->msgType);
-  //        pTaskInfo->streamInfo.metaRsp.rspOffset.version = fetchVer;
-  //        pTaskInfo->streamInfo.metaRsp.rspOffset.type = TMQ_OFFSET__LOG;
-  //        pTaskInfo->streamInfo.metaRsp.resMsgType = pHead->msgType;
-  //        pTaskInfo->streamInfo.metaRsp.metaRspLen = pHead->bodyLen;
-  //        pTaskInfo->streamInfo.metaRsp.metaRsp = taosMemoryMalloc(pHead->bodyLen);
-  //        memcpy(pTaskInfo->streamInfo.metaRsp.metaRsp, pHead->body, pHead->bodyLen);
-  //        return NULL;
-  //      }
-  //    }
   return NULL;
 }
 

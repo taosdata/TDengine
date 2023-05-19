@@ -434,11 +434,13 @@ confluent local services connect connector unload TDengineSourceConnector
 ### TDengine Source Connector 特有的配置
 
 1. `connection.database`: 源数据库名称，无缺省值。
-2. `topic.prefix`： 数据导入 kafka 后 topic 名称前缀。 使用 `topic.prefix` + `connection.database` 名称作为完整 topic 名。默认为空字符串 ""。
-3. `timestamp.initial`: 数据同步起始时间。格式为'yyyy-MM-dd HH:mm:ss'。默认为 "1970-01-01 00:00:00"。
-4. `poll.interval.ms`: 拉取数据间隔，单位为 ms。默认为 1000。
+2. `topic.prefix`： 数据导入 kafka 时使用的 topic 名称的前缀。默认为空字符串 ""。
+3. `timestamp.initial`: 数据同步起始时间。格式为'yyyy-MM-dd HH:mm:ss'，若未指定则从指定 DB 中最早的一条记录开始。
+4. `poll.interval.ms`: 检查是否有新建或删除的表的时间间隔，单位为 ms。默认为 1000。
 5. `fetch.max.rows` : 检索数据库时最大检索条数。 默认为 100。
-6. `out.format`: 数据格式。取值 line 或 json。line 表示 InfluxDB Line 协议格式， json 表示 OpenTSDB JSON 格式。默认为 line。
+6. `out.format`: 数据格式。取值为 `line`， 表示 InfluxDB Line 协议格式
+7. `query.interval.ms`: 从 TDengine 一次读取数据的时间跨度，需要根据表中的数据特征合理配置，避免一次查询的数据量过大或过小；在具体的环境中建议通过测试设置一个较优值，默认值为 1000.
+8. `topic.per.stable`: 如果设置为true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix>-<connection.database>-<stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix>-<connection.database>`
 
 ## 其他说明
 
