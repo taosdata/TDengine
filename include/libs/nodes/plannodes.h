@@ -112,7 +112,7 @@ typedef struct SJoinLogicNode {
   SNode*     pOnConditions;
   bool       isSingleTableJoin;
   EOrder     inputTsOrder;
-  SNode*     pEqualOnConditions;
+  SNode*     pColEqualOnConditions;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -406,7 +406,7 @@ typedef struct SSortMergeJoinPhysiNode {
   SNode*     pOnConditions;
   SNodeList* pTargets;
   EOrder     inputTsOrder;
-  SNode*     pEqualOnCondtions;
+  SNode*     pColEqualOnConditions;
 } SSortMergeJoinPhysiNode;
 
 typedef struct SAggPhysiNode {

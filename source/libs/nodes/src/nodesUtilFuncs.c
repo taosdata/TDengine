@@ -1072,7 +1072,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyNode(pLogicNode->pMergeCondition);
       nodesDestroyNode(pLogicNode->pOnConditions);
-      nodesDestroyNode(pLogicNode->pEqualOnConditions);
+      nodesDestroyNode(pLogicNode->pColEqualOnConditions);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
@@ -1205,7 +1205,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pMergeCondition);
       nodesDestroyNode(pPhyNode->pOnConditions);
       nodesDestroyList(pPhyNode->pTargets);
-      nodesDestroyNode(pPhyNode->pEqualOnCondtions);
+      nodesDestroyNode(pPhyNode->pColEqualOnConditions);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {

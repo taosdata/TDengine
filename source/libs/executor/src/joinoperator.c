@@ -52,7 +52,7 @@ typedef struct SJoinOperatorInfo {
   int32_t      rightPos;
   SColumnInfo  rightCol;
   SNode*       pCondAfterMerge;
-  SNode*       pEqualOnConditions;
+  SNode*       pColEqualOnConditions;
 
   SArray*      leftEqOnCondCols;
   char*        leftEqOnCondKeyBuf;
@@ -117,13 +117,13 @@ static void extractEqualOnCondColsFromOper(SJoinOperatorInfo* pInfo, SOperatorIn
   }
 }
 
-static void extractTagEqualCondCols(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownStream, SNode* pTagEqualNode,
+static void extractEqualOnCondCols(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownStream, SNode* pEqualOnCondNode,
                                     SArray* leftTagEqCols, SArray* rightTagEqCols) {
   SColumn left = {0};
   SColumn right = {0};
-  if (nodeType(pTagEqualNode) == QUERY_NODE_LOGIC_CONDITION && ((SLogicConditionNode*)pTagEqualNode)->condType == LOGIC_COND_TYPE_AND) {
+  if (nodeType(pEqualOnCondNode) == QUERY_NODE_LOGIC_CONDITION && ((SLogicConditionNode*)pEqualOnCondNode)->condType == LOGIC_COND_TYPE_AND) {
     SNode* pNode = NULL;
-    FOREACH(pNode, ((SLogicConditionNode*)pTagEqualNode)->pParameterList) {
+    FOREACH(pNode, ((SLogicConditionNode*)pEqualOnCondNode)->pParameterList) {
       SOperatorNode* pOperNode = (SOperatorNode*)pNode;
       extractEqualOnCondColsFromOper(pInfo, pDownStream, pOperNode, &left, &right);
       taosArrayPush(leftTagEqCols, &left);
@@ -132,8 +132,8 @@ static void extractTagEqualCondCols(SJoinOperatorInfo* pInfo, SOperatorInfo** pD
     return;
   }
 
-  if (nodeType(pTagEqualNode) == QUERY_NODE_OPERATOR) {
-    SOperatorNode* pOperNode = (SOperatorNode*)pTagEqualNode;
+  if (nodeType(pEqualOnCondNode) == QUERY_NODE_OPERATOR) {
+    SOperatorNode* pOperNode = (SOperatorNode*)pEqualOnCondNode;
     extractEqualOnCondColsFromOper(pInfo, pDownStream, pOperNode, &left, &right);
     taosArrayPush(leftTagEqCols, &left);
     taosArrayPush(rightTagEqCols, &right);
@@ -259,11 +259,11 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     pInfo->inputOrder = TSDB_ORDER_DESC;
   }
 
-  pInfo->pEqualOnConditions = pJoinNode->pEqualOnCondtions;
-  if (pInfo->pEqualOnConditions != NULL) {
+  pInfo->pColEqualOnConditions = pJoinNode->pColEqualOnConditions;
+  if (pInfo->pColEqualOnConditions != NULL) {
     pInfo->leftEqOnCondCols = taosArrayInit(4, sizeof(SColumn));
     pInfo->rightEqOnCondCols = taosArrayInit(4, sizeof(SColumn));
-    extractTagEqualCondCols(pInfo, pDownstream, pInfo->pEqualOnConditions, pInfo->leftEqOnCondCols, pInfo->rightEqOnCondCols);
+    extractEqualOnCondCols(pInfo, pDownstream, pInfo->pColEqualOnConditions, pInfo->leftEqOnCondCols, pInfo->rightEqOnCondCols);
     initTagColskeyBuf(&pInfo->leftEqOnCondKeyLen, &pInfo->leftEqOnCondKeyBuf, pInfo->leftEqOnCondCols);
     initTagColskeyBuf(&pInfo->rightEqOnCondKeyLen, &pInfo->rightEqOnCondKeyBuf, pInfo->rightEqOnCondCols);
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
@@ -309,7 +309,7 @@ static void mergeJoinDestoryBuildTable(SSHashObj* pBuildTable) {
 
 void destroyMergeJoinOperator(void* param) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
-  if (pJoinOperator->pEqualOnConditions != NULL) {
+  if (pJoinOperator->pColEqualOnConditions != NULL) {
     mergeJoinDestoryBuildTable(pJoinOperator->rightBuildTable);
     taosMemoryFreeClear(pJoinOperator->rightEqOnCondKeyBuf);
     taosArrayDestroy(pJoinOperator->rightEqOnCondCols);
@@ -567,7 +567,7 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
                                              pJoinInfo->leftPos, timestamp, leftRowLocations, leftCreatedBlocks);
     mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 1, pJoinInfo->rightCol.slotId, pJoinInfo->pRight,
                                              pJoinInfo->rightPos, timestamp, rightRowLocations, rightCreatedBlocks);
-    if (pJoinInfo->pEqualOnConditions != NULL && taosArrayGetSize(rightRowLocations) > 16) {
+    if (pJoinInfo->pColEqualOnConditions != NULL && taosArrayGetSize(rightRowLocations) > 16) {
       mergeJoinFillBuildTable(pJoinInfo, rightRowLocations);
       rightUseBuildTable = true;
       taosArrayDestroy(rightRowLocations);
