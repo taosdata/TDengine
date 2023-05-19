@@ -48,11 +48,10 @@ struct STFileSystem {
   tsem_t  canEdit;
   int32_t state;
   int64_t neid;
-  SArray *cstate;  // current state, SArray<STFileSet>
-  // new state
   EFEditT etype;
   int64_t eid;
-  SArray *nstate;  // staging state, SArray<STFileSet>
+  TARRAY2(STFileSet *) cstate;
+  TARRAY2(STFileSet *) nstate;
 };
 
 #ifdef __cplusplus

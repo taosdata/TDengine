@@ -94,15 +94,15 @@ int32_t tsdbMerge(STsdb *pTsdb) {
   code = tsdbOpenMerger(pTsdb, &pMerger);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pTsdb->pFS->cstate); i++) {
-    struct STFileSet *pFileSet = taosArrayGet(pTsdb->pFS->cstate, i);
-    if (!tsdbFileSetShouldMerge(pFileSet)) {
-      continue;
-    }
+  // for (int32_t i = 0; i < taosArrayGetSize(pTsdb->pFS->cstate); i++) {
+  // struct STFileSet *pFileSet = taosArrayGet(pTsdb->pFS->cstate, i);
+  // if (!tsdbFileSetShouldMerge(pFileSet)) {
+  //   continue;
+  // }
 
-    code = tsdbFileSetMerge(pFileSet);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  // code = tsdbFileSetMerge(pFileSet);
+  // TSDB_CHECK_CODE(code, lino, _exit);
+  // }
 
   code = tsdbCloseMerger(&pMerger);
   TSDB_CHECK_CODE(code, lino, _exit);

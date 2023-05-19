@@ -44,12 +44,19 @@ extern "C" {
 #define TARRAY2_ELEM(a, i)     ((a)->data[i])
 #define TARRAY2_ELEM_PTR(a, i) (&((a)->data[i]))
 
-static FORCE_INLINE int32_t tarray2_make_room(int32_t *c, void **pp, int32_t elem_size) {
-  int32_t capacity = c[0] ? (c[0] << 1) : TARRAY2_MIN_SIZE;
-  void   *p = taosMemoryRealloc(pp[0], capacity * elem_size);
+static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
+                                              int32_t es,   // expected size
+                                              int32_t sz    // size of element
+) {
+  TARRAY2(void) *a = arg;
+  int32_t capacity = a->capacity ? (a->capacity << 1) : TARRAY2_MIN_SIZE;
+  while (capacity < es) {
+    capacity <<= 1;
+  }
+  void *p = taosMemoryRealloc(a->data, capacity * sz);
   if (p == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  c[0] = capacity;
-  pp[0] = p;
+  a->capacity = capacity;
+  a->data = p;
   return 0;
 }
 
@@ -60,11 +67,11 @@ static FORCE_INLINE int32_t tarray2_make_room(int32_t *c, void **pp, int32_t ele
     (a)->data = NULL;   \
   } while (0)
 
-#define TARRAY2_FREE(a)        \
-  do {                         \
-    if ((a)->data) {           \
-      taosMemoryFree(a->data); \
-    }                          \
+#define TARRAY2_FREE(a)          \
+  do {                           \
+    if ((a)->data) {             \
+      taosMemoryFree((a)->data); \
+    }                            \
   } while (0)
 
 #define TARRAY2_CLEAR(a, cb)                    \
@@ -84,7 +91,7 @@ static FORCE_INLINE int32_t tarray2_make_room(int32_t *c, void **pp, int32_t ele
   ({                                                                                                 \
     int32_t __ret = 0;                                                                               \
     if ((a)->size >= (a)->capacity) {                                                                \
-      __ret = tarray2_make_room(&(a)->capacity, (void **)&(a)->data, sizeof(*(a)->data));            \
+      __ret = tarray2_make_room(&(a), (a)->size + 1, sizeof(*(a)->data));                            \
     }                                                                                                \
     if (!__ret) {                                                                                    \
       if ((a)->size > (idx)) {                                                                       \

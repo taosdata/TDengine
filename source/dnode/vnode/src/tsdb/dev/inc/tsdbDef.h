@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tarray2.h"
 #include "tsdb.h"
 
 #ifndef _TD_TSDB_DEF_H_

@@ -41,27 +41,20 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   fs[0] = taosMemoryCalloc(1, sizeof(*fs[0]));
   if (fs[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  fs[0]->cstate = taosArrayInit(16, sizeof(STFileSet));
-  fs[0]->nstate = taosArrayInit(16, sizeof(STFileSet));
-  if (fs[0]->cstate == NULL || fs[0]->nstate == NULL) {
-    taosArrayDestroy(fs[0]->nstate);
-    taosArrayDestroy(fs[0]->cstate);
-    taosMemoryFree(fs[0]);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
   fs[0]->pTsdb = pTsdb;
-  fs[0]->state = TSDB_FS_STATE_NONE;
   tsem_init(&fs[0]->canEdit, 0, 1);
+  fs[0]->state = TSDB_FS_STATE_NONE;
   fs[0]->neid = 0;
+  TARRAY2_INIT(&fs[0]->cstate);
+  TARRAY2_INIT(&fs[0]->nstate);
 
   return 0;
 }
 
 static int32_t destroy_fs(STFileSystem **fs) {
   if (fs[0] == NULL) return 0;
-  taosArrayDestroy(fs[0]->nstate);
-  taosArrayDestroy(fs[0]->cstate);
+  TARRAY2_FREE(&fs[0]->cstate);
+  TARRAY2_FREE(&fs[0]->nstate);
   tsem_destroy(&fs[0]->canEdit);
   taosMemoryFree(fs[0]);
   fs[0] = NULL;
@@ -249,14 +242,14 @@ static bool is_same_file(const STFile *f1, const STFile f2) {
 }
 
 static int32_t apply_commit_add_fset(STFileSystem *fs, const STFileSet *fset) {
-  int32_t idx = taosArraySearchIdx(fs->cstate, fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GT);
-  if (idx < 0) idx = taosArrayGetSize(fs->cstate);
+  // int32_t idx = taosArraySearchIdx(fs->cstate, fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GT);
+  // if (idx < 0) idx = taosArrayGetSize(fs->cstate);
 
-  STFileSet *pFileSet = taosArrayInsert(fs->cstate, idx, fset);
-  if (pFileSet == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  // STFileSet *pFileSet = taosArrayInsert(fs->cstate, idx, fset);
+  // if (pFileSet == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t code = tsdbFileSetInitEx(fset, pFileSet);
-  if (code) return code;
+  // int32_t code = tsdbFileSetInitEx(fset, pFileSet);
+  // if (code) return code;
 
   return 0;
 }
@@ -289,12 +282,12 @@ static int32_t apply_commit_upd_fset(STFileSystem *fs, STFileSet *fset_from, con
 static int32_t apply_commit(STFileSystem *fs) {
   int32_t code = 0;
   int32_t i1 = 0, i2 = 0;
-  int32_t n1 = taosArrayGetSize(fs->cstate);
-  int32_t n2 = taosArrayGetSize(fs->nstate);
+  int32_t n1 = TARRAY2_SIZE(&fs->cstate);
+  int32_t n2 = TARRAY2_SIZE(&fs->nstate);
 
   while (i1 < n1 || i2 < n2) {
-    STFileSet *fset1 = i1 < n1 ? (STFileSet *)taosArrayGet(fs->cstate, i1) : NULL;
-    STFileSet *fset2 = i2 < n2 ? (STFileSet *)taosArrayGet(fs->nstate, i2) : NULL;
+    STFileSet *fset1 = i1 < n1 ? TARRAY2_ELEM(&fs->cstate, i1) : NULL;
+    STFileSet *fset2 = i2 < n2 ? TARRAY2_ELEM(&fs->nstate, i2) : NULL;
 
     if (fset1 && fset2) {
       if (fset1->fid < fset2->fid) {
@@ -427,8 +420,8 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   current_fname(pTsdb, mCurrent, TSDB_FCURRENT_M);
 
   if (taosCheckExistFile(fCurrent)) {  // current.json exists
-    code = load_fs(fCurrent, fs->cstate);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    // code = load_fs(fCurrent, fs->cstate);
+    // TSDB_CHECK_CODE(code, lino, _exit);
 
     if (taosCheckExistFile(cCurrent)) {
       // current.c.json exists
@@ -438,8 +431,8 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
         code = abort_edit(fs);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        code = load_fs(cCurrent, fs->nstate);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        // code = load_fs(cCurrent, fs->nstate);
+        // TSDB_CHECK_CODE(code, lino, _exit);
 
         code = commit_edit(fs);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -454,8 +447,8 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
     code = scan_and_fix_fs(fs);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    code = save_fs(fs->cstate, fCurrent);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    // code = save_fs(fs->cstate, fCurrent);
+    // TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -496,22 +489,22 @@ static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
     struct STFileOp *op = taosArrayGet(aFileOp, iop);
 
     if (pSet == NULL || pSet->fid != op->fid) {
-      STFileSet fset = {.fid = op->fid};
-      int32_t   idx = taosArraySearchIdx(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GE);
+      // STFileSet fset = {.fid = op->fid};
+      // int32_t   idx = taosArraySearchIdx(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GE);
 
-      pSet = NULL;
-      if (idx < 0) {
-        idx = taosArrayGetSize(pFS->nstate);
-      } else {
-        pSet = taosArrayGet(pFS->nstate, idx);
-        if (pSet->fid != op->fid) pSet = NULL;
-      }
+      // pSet = NULL;
+      // if (idx < 0) {
+      //   idx = taosArrayGetSize(pFS->nstate);
+      // } else {
+      //   pSet = taosArrayGet(pFS->nstate, idx);
+      //   if (pSet->fid != op->fid) pSet = NULL;
+      // }
 
-      if (!pSet) {
-        pSet = taosArrayInsert(pFS->nstate, idx, &fset);
-        if (!pSet) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
-        tsdbFileSetInit(pSet, op->fid);
-      }
+      // if (!pSet) {
+      //   pSet = taosArrayInsert(pFS->nstate, idx, &fset);
+      //   if (!pSet) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+      //   tsdbFileSetInit(pSet, op->fid);
+      // }
     }
 
     code = tsdbFileSetEdit(pSet, op);
@@ -575,8 +568,8 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, int64_t eid, const SArray *aFileOp, EF
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // save fs
-  code = save_fs(fs->nstate, current_t);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // code = save_fs(fs->nstate, current_t);
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -601,7 +594,7 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
 }
 
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **ppFSet) {
-  STFileSet fset = {.fid = fid};
-  ppFSet[0] = taosArraySearch(fs->cstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_EQ);
+  // STFileSet fset = {.fid = fid};
+  // ppFSet[0] = taosArraySearch(fs->cstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_EQ);
   return 0;
 }
