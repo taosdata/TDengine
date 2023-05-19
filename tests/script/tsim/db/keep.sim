@@ -42,10 +42,10 @@ sql alter database keepdb keep 60
 sql flush database keepdb
 sql select * from information_schema.ins_databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
-if $data22 != 2 then
+if $data23 != 2 then
   return -1
 endi
-if $data27 != 86400m,86400m,86400m then
+if $data28 != 86400m,86400m,86400m then
   return -1
 endi
 
@@ -83,10 +83,10 @@ endi
 print ======== step6 alter db
 sql alter database keepdb keep 30
 sql select * from information_schema.ins_databases
-if $data22 != 2 then
+if $data23 != 2 then
   return -1
 endi
-if $data27 != 43200m,43200m,43200m then
+if $data28 != 43200m,43200m,43200m then
   return -1
 endi
 

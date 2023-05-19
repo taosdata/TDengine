@@ -129,7 +129,7 @@ if $system_content != Windows_NT then
     return -1
   endi
   print d2 ==> $data(d2)[15]
-  if $data(d2)[15] != creating then
+  if $data(d2)[16] != creating then
     return -1
   endi
 
