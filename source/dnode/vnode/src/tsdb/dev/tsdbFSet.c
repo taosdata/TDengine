@@ -208,6 +208,11 @@ int32_t tsdbTFileSetEdit(STFileSet *fset, const STFileOp *op) {
   return 0;
 }
 
+int32_t tsdbTFileSetEditEx(const STFileSet *fset1, STFileSet *fset) {
+  // TODO
+  return 0;
+}
+
 int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   fset[0] = taosMemoryCalloc(1, sizeof(STFileSet));
   if (fset[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -268,4 +273,10 @@ const SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level) {
   // return node ? TCONTAINER_OF(node, SSttLvl, rbtn) : NULL;
   // TODO
   return NULL;
+}
+
+int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2) {
+  if (fset1[0]->fid < fset2[0]->fid) return -1;
+  if (fset1[0]->fid > fset2[0]->fid) return 1;
+  return 0;
 }

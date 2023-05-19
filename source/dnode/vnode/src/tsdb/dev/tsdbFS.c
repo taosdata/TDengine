@@ -499,39 +499,37 @@ static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSe
   return 0;
 }
 
-static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
-  int32_t    code = 0;
-  int32_t    lino = 0;
-  STFileSet *pSet = NULL;
+static int32_t edit_fs(TFileSetArray *fset_arr, const TFileOpArray *op_arr) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
-  for (int32_t iop = 0; iop < taosArrayGetSize(aFileOp); iop++) {
-    struct STFileOp *op = taosArrayGet(aFileOp, iop);
+  STFileSet      *fset = NULL;
+  const STFileOp *op;
+  TARRAY2_FOREACH_PTR(op_arr, op) {
+    if (!fset || fset->fid != op->fid) {
+      STFileSet tfset = {.fid = op->fid};
+      fset = &tfset;
+      fset = TARRAY2_SEARCH(fset_arr, &fset, tsdbTFileSetCmprFn, TD_EQ);
 
-    if (pSet == NULL || pSet->fid != op->fid) {
-      // STFileSet fset = {.fid = op->fid};
-      // int32_t   idx = taosArraySearchIdx(pFS->nstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GE);
+      if (!fset) {
+        code = tsdbTFileSetInit(op->fid, &fset);
+        TSDB_CHECK_CODE(code, lino, _exit);
 
-      // pSet = NULL;
-      // if (idx < 0) {
-      //   idx = taosArrayGetSize(pFS->nstate);
-      // } else {
-      //   pSet = taosArrayGet(pFS->nstate, idx);
-      //   if (pSet->fid != op->fid) pSet = NULL;
-      // }
-
-      // if (!pSet) {
-      //   pSet = taosArrayInsert(pFS->nstate, idx, &fset);
-      //   if (!pSet) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
-      //   tsdbFileSetInit(pSet, op->fid);
-      // }
+        code = TARRAY2_SORT_INSERT(fset_arr, fset, tsdbTFileSetCmprFn);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
     }
 
-    code = tsdbTFileSetEdit(pSet, op);
+    code = tsdbTFileSetEdit(fset, op);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (0) {
+      // TODO check if the file set should be deleted
+    }
   }
 
 _exit:
-  return 0;
+  return code;
 }
 
 int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback) {
@@ -588,7 +586,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype) 
   fs->etype = etype;
 
   // edit
-  code = edit_fs(fs, aFileOp);
+  code = edit_fs(&fs->nstate, NULL /* TODO */);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // save fs

@@ -27,6 +27,7 @@ typedef struct STFileOp  STFileOp;
 typedef struct SSttLvl   SSttLvl;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 typedef TARRAY2(SSttLvl *) TSttLvlArray;
+typedef TARRAY2(STFileOp) TFileOpArray;
 
 typedef enum {
   TSDB_FOP_NONE = 0,
@@ -43,7 +44,10 @@ int32_t tsdbTFileSetClear(STFileSet **fset);
 int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json);
 int32_t tsdbJsonToTFileSet(const cJSON *json, STFileSet **fset);
 
+int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2);
+
 int32_t tsdbTFileSetEdit(STFileSet *fset, const STFileOp *op);
+int32_t tsdbTFileSetEditEx(const STFileSet *fset1, STFileSet *fset);
 
 const SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level);
 

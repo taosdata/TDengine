@@ -24,7 +24,6 @@ extern "C" {
 
 /* Exposed Handle */
 typedef struct STFileSystem STFileSystem;
-typedef TARRAY2(STFileOp) TFileOpArray;
 
 typedef enum {
   TSDB_FEDIT_COMMIT = 1,  //

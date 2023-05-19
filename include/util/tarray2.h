@@ -93,9 +93,6 @@ static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
     TARRAY2_FREE(a);              \
   } while (0)
 
-#define TARRAY2_SEARCH(a, ep, cmp, flag) \
-  (((a)->size == 0) ? NULL : taosbsearch(ep, (a)->data, (a)->size, sizeof(typeof((a)->data[0])), cmp, flag))
-
 #define TARRAY2_INSERT(a, idx, e)                                                                              \
   ({                                                                                                           \
     int32_t __ret = 0;                                                                                         \
@@ -115,6 +112,24 @@ static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
 #define TARRAY2_INSERT_P(a, idx, ep) TARRAY2_INSERT(a, idx, *(ep))
 #define TARRAY2_APPEND(a, e)         TARRAY2_INSERT(a, (a)->size, e)
 #define TARRAY2_APPEND_P(a, ep)      TARRAY2_APPEND(a, *(ep))
+
+#define TARRAY2_SEARCH(a, ep, cmp, flag) \
+  (((a)->size == 0) ? NULL               \
+                    : taosbsearch(ep, (a)->data, (a)->size, sizeof(typeof((a)->data[0])), (__compar_fn_t)cmp, flag))
+
+#define TARRAY2_SEARCH_IDX(a, ep, cmp, flag)                  \
+  ({                                                          \
+    typeof((a)->data) __p = TARRAY2_SEARCH(a, ep, cmp, flag); \
+    __p ? __p - (a)->data : -1;                               \
+  })
+
+#define TARRAY2_SORT_INSERT(a, e, cmp)                       \
+  ({                                                         \
+    int32_t __idx = TARRAY2_SEARCH_IDX(a, &(e), cmp, TD_GT); \
+    TARRAY2_INSERT(a, __idx < 0 ? (a)->size : __idx, e);     \
+  })
+
+#define TARRAY2_SORT_INSERT_P(a, ep, cmp) TARRAY2_SORT_INSERT(a, *(ep), cmp)
 
 #define TARRAY2_REMOVE(a, idx, cb)                                                                             \
   do {                                                                                                         \
