@@ -34,7 +34,7 @@ typedef struct {
 static SStreamGlobalEnv streamEnv;
 
 int32_t streamDispatch(SStreamTask* pTask);
-int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData);
+int32_t streamConvertDispatchMsgToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData);
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData);
 int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* data);
 

@@ -121,24 +121,22 @@ int32_t streamSchedExec(SStreamTask* pTask) {
 
 int32_t streamTaskEnqueueBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
   SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
-  int8_t            status;
 
-  // enqueue data block
-  if (pData != NULL) {
+  int8_t status = 0;
+  if (pData == NULL) {
+    streamTaskInputFail(pTask);
+    status = TASK_INPUT_STATUS__FAILED;
+    qDebug("vgId:%d, s-task:%s failed to received dispatch msg, reason: out of memory", pTask->pMeta->vgId, pTask->id.idStr);
+  } else {
     pData->type = STREAM_INPUT__DATA_BLOCK;
     pData->srcVgId = pReq->dataSrcVgId;
-    // decode
-    /*pData->blocks = pReq->data;*/
-    /*pBlock->sourceVer = pReq->sourceVer;*/
-    streamDispatchReqToData(pReq, pData);
+
+    streamConvertDispatchMsgToData(pReq, pData);
     if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {  // input queue is full, upstream is blocked now
       status = TASK_INPUT_STATUS__BLOCKED;
     }
-  } else {
-    streamTaskInputFail(pTask);
-    status = TASK_INPUT_STATUS__FAILED;
   }
 
   // rsp by input status
@@ -219,7 +217,7 @@ int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
 }
 
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
-  qDebug("s-task:%s receive dispatch msg from taskId:%d(vgId:%d)", pTask->id.idStr, pReq->upstreamTaskId,
+  qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d)", pTask->id.idStr, pReq->upstreamTaskId,
          pReq->upstreamNodeId);
 
   // todo add the input queue buffer limitation
@@ -294,16 +292,13 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
   double  size = QUEUE_MEM_SIZE_IN_MB(pTask->inputQueue->queue);
 
   if (type == STREAM_INPUT__DATA_SUBMIT) {
-    int32_t numOfBlocks = taosQueueItemSize(pTask->inputQueue->queue) + 1;
-    double  size = QUEUE_MEM_SIZE_IN_MB(pTask->inputQueue->queue);
-
     SStreamDataSubmit* px = (SStreamDataSubmit*)pItem;
     qDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
-           px->submit.msgLen, px->submit.ver, numOfBlocks, size);
+           px->submit.msgLen, px->submit.ver, total, size);
 
     if ((pTask->taskLevel == TASK_LEVEL__SOURCE) && tInputQueueIsFull(pTask)) {
       qError("s-task:%s input queue is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) abort",
-             pTask->id.idStr, STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE, numOfBlocks,
+             pTask->id.idStr, STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE, total,
              size);
       streamDataSubmitDestroy(px);
       taosFreeQitem(pItem);
@@ -312,22 +307,20 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
-    int32_t numOfBlocks = taosQueueItemSize(pTask->inputQueue->queue) + 1;
-    double  size = QUEUE_MEM_SIZE_IN_MB(pTask->inputQueue->queue);
-
     if ((pTask->taskLevel == TASK_LEVEL__SOURCE) && (tInputQueueIsFull(pTask))) {
       qError("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
-             pTask->id.idStr, STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE, numOfBlocks,
+             pTask->id.idStr, STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE, total,
              size);
       return -1;
     }
 
-    qDebug("s-task:%s data block enqueue, total in queue:%d", pTask->id.idStr, numOfBlocks);
+    qDebug("s-task:%s data block enqueue, total in queue:%d", pTask->id.idStr, total);
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (type == STREAM_INPUT__GET_RES) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+    qDebug("s-task:%s data block enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
   }
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
