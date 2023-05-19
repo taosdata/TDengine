@@ -100,7 +100,7 @@ impl Cli {
     pub(super) async fn run_with(
         self,
         _opts: super::GlobalOpts,
-        rt: tokio::runtime::Runtime,
+        rt: impl Into<Option<tokio::runtime::Runtime>>,
     ) -> Result<()> {
         #[derive(OpenApi)]
         #[openapi(
@@ -180,7 +180,7 @@ impl Cli {
             "sqlite:taosx.db".to_string()
         };
 
-        let controller = TaskControllerRef::from_sqlite_with_runtime(&database_url, rt).await?;
+        let controller = TaskControllerRef::from_sqlite(&database_url).await?;
 
         if !self.do_not_resume {
             log::info!("resume all tasks");
