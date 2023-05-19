@@ -230,6 +230,9 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     // dbg!(&from, &database);
     let use_topic_name = from.remove("use.topic.name");
     let use_table_name = from.remove("use.table.name");
+    if from.get("timeout").is_none() {
+        from.set("timeout", "5s");
+    }
 
     let builder = TaosBuilder::from_dsn(&from)?;
     let source = builder.build().await?;
