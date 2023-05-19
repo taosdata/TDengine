@@ -179,24 +179,24 @@ fn main() -> Result<()> {
         match cmd {
             Commands::Run(cmd) => runtime.block_on(cmd.run_with(args.globals))?,
             Commands::Serve(cli) => {
-                let rt = tokio::runtime::Builder::new_multi_thread()
-                    .max_blocking_threads(4096)
-                    .thread_name("runner")
-                    .worker_threads(worker_threads)
-                    .enable_all()
-                    .build()?;
-                runtime.block_on(cli.run_with(args.globals, rt))?;
+                // let rt = tokio::runtime::Builder::new_multi_thread()
+                //     .max_blocking_threads(4096)
+                //     .thread_name("runner")
+                //     .worker_threads(worker_threads)
+                //     .enable_all()
+                //     .build()?;
+                runtime.block_on(cli.run_with(args.globals, None))?;
             }
             Commands::External(_) => bail!("unknown subcommand"),
         }
     } else {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .max_blocking_threads(4096)
-            .thread_name("runner")
-            .worker_threads(worker_threads)
-            .enable_all()
-            .build()?;
-        runtime.block_on(serve::Cli::default().run_with(args.globals, rt))?;
+        // let rt = tokio::runtime::Builder::new_multi_thread()
+        //     .max_blocking_threads(4096)
+        //     .thread_name("runner")
+        //     .worker_threads(worker_threads)
+        //     .enable_all()
+        //     .build()?;
+        runtime.block_on(serve::Cli::default().run_with(args.globals, None))?;
     }
     Ok(())
 }
