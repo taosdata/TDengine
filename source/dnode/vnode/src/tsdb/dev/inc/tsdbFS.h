@@ -24,6 +24,7 @@ extern "C" {
 
 /* Exposed Handle */
 typedef struct STFileSystem STFileSystem;
+typedef TARRAY2(STFileOp) TFileOpArray;
 
 typedef enum {
   TSDB_FEDIT_COMMIT = 1,  //
@@ -36,7 +37,7 @@ int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback);
 int32_t tsdbCloseFS(STFileSystem **fs);
 // txn
 int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid);
-int32_t tsdbFSEditBegin(STFileSystem *fs, int64_t eid, const SArray *aFileOp, EFEditT etype);
+int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *pFS);
 int32_t tsdbFSEditAbort(STFileSystem *pFS);
 // other
@@ -49,7 +50,6 @@ struct STFileSystem {
   int32_t       state;
   int64_t       neid;
   EFEditT       etype;
-  int64_t       eid;
   TFileSetArray cstate;
   TFileSetArray nstate;
 };

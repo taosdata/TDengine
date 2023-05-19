@@ -363,7 +363,7 @@ static int32_t close_committer(SCommitter *pCommiter, int32_t eno) {
   int32_t vid = TD_VID(pCommiter->pTsdb->pVnode);
 
   if (eno == 0) {
-    code = tsdbFSEditBegin(pCommiter->pTsdb->pFS, pCommiter->eid, pCommiter->aFileOp, TSDB_FEDIT_COMMIT);
+    code = tsdbFSEditBegin(pCommiter->pTsdb->pFS, pCommiter->aFileOp, TSDB_FEDIT_COMMIT);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     // TODO

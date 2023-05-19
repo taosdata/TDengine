@@ -190,7 +190,7 @@ static int32_t load_fs(const char *fname, TFileSetArray *arr) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  TARRAY2_CLEAR(arr, NULL);
+  TARRAY2_CLEAR(arr, tsdbTFileSetClear);
 
   // load json
   cJSON *json = NULL;
@@ -352,7 +352,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(fs->pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d %s success, eid:%" PRId64 " etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, fs->eid, fs->etype);
+    tsdbInfo("vgId:%d %s success, etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, fs->etype);
   }
   return code;
 }
@@ -387,7 +387,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed since %s", TD_VID(fs->pTsdb->pVnode), __func__, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d %s success, eid:%" PRId64 " etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, fs->eid, fs->etype);
+    tsdbInfo("vgId:%d %s success, etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, fs->etype);
   }
   return code;
 }
@@ -399,6 +399,23 @@ static int32_t scan_and_fix_fs(STFileSystem *pFS) {
 
 static int32_t update_fs_if_needed(STFileSystem *pFS) {
   // TODO
+  return 0;
+}
+
+static int32_t tsdbFSDupState(const TFileSetArray *src, TFileSetArray *dst) {
+  TARRAY2_CLEAR(dst, tsdbTFileSetClear);
+
+  const STFileSet *fset1;
+  TARRAY2_FOREACH(src, fset1) {
+    STFileSet *fset;
+
+    int32_t code = tsdbTFileSetInitEx(fset1, &fset);
+    if (code) return code;
+
+    code = TARRAY2_APPEND(dst, fset);
+    if (code) return code;
+  }
+
   return 0;
 }
 
@@ -430,8 +447,8 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
         code = abort_edit(fs);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        // code = load_fs(cCurrent, fs->nstate);
-        // TSDB_CHECK_CODE(code, lino, _exit);
+        code = load_fs(cCurrent, &fs->nstate);
+        TSDB_CHECK_CODE(code, lino, _exit);
 
         code = commit_edit(fs);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -442,6 +459,9 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
       code = abort_edit(fs);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
+
+    code = tsdbFSDupState(&fs->cstate, &fs->nstate);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     code = scan_and_fix_fs(fs);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -546,36 +566,41 @@ int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid) {
   return 0;
 }
 
-int32_t tsdbFSEditBegin(STFileSystem *fs, int64_t eid, const SArray *aFileOp, EFEditT etype) {
+// TODO: remove eid
+int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype) {
   int32_t code = 0;
   int32_t lino;
   char    current_t[TSDB_FILENAME_LEN];
 
-  if (etype == TSDB_FEDIT_COMMIT) {
-    current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_C);
-  } else {
-    current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_M);
+  switch (etype) {
+    case TSDB_FEDIT_COMMIT:
+      current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_C);
+      break;
+    case TSDB_FEDIT_MERGE:
+      current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_M);
+      break;
+    default:
+      ASSERT(0);
   }
 
   tsem_wait(&fs->canEdit);
 
   fs->etype = etype;
-  fs->eid = eid;
 
   // edit
   code = edit_fs(fs, aFileOp);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // save fs
-  // code = save_fs(fs->nstate, current_t);
-  // TSDB_CHECK_CODE(code, lino, _exit);
+  code = save_fs(&fs->nstate, current_t);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, eid:%" PRId64 " etype:%d", TD_VID(fs->pTsdb->pVnode), __func__,
-              lino, tstrerror(code), fs->eid, etype);
+    tsdbError("vgId:%d %s failed at line %d since %s, etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, lino,
+              tstrerror(code), etype);
   } else {
-    tsdbInfo("vgId:%d %s done, eid:%" PRId64 " etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, fs->eid, etype);
+    tsdbInfo("vgId:%d %s done, etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, etype);
   }
   return code;
 }
