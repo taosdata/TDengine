@@ -7,7 +7,7 @@ import (
 	"collector/connector/opcua"
 	"context"
 	"fmt"
-	"log"
+	"sort"
 )
 
 type Pointer interface {
@@ -43,11 +43,16 @@ func NewOpcPointer(config common.Config) (pointer Pointer, err error) {
 }
 
 func (p *OpcPointer) GetAllPoints(ctx context.Context) ([]common.Point, error) {
-	if err := p.connector.Connect(ctx); err != nil {
-		log.Println("## connect opc error ", err)
+	points, err := p.connector.GetAllPoints(ctx)
+	if err != nil {
 		return nil, err
 	}
-	return p.connector.GetAllPoints(ctx)
+
+	sort.SliceStable(points, func(i, j int) bool {
+		return points[i].ID < points[j].ID
+	})
+
+	return points, nil
 }
 
 func (p *OpcPointer) Exist(ctx context.Context) {
