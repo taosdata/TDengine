@@ -365,9 +365,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     }
 
     double el = (taosGetTimestampMs() - st) / 1000.0;
-    qDebug("s-task:%s exec end, elapsed time:%.2fs, result size:%.2fMiB", pTask->id.idStr, el, resSize/1048576.0);
 
-    if (taosArrayGetSize(pRes) != 0) {
+    int32_t numOfBlocks = taosArrayGetSize(pRes);
+    qDebug("s-task:%s exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", pTask->id.idStr, el, resSize/1048576.0, numOfBlocks);
+
+    if (numOfBlocks > 0) {
       SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
       if (qRes == NULL) {
         taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
