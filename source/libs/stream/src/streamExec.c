@@ -124,7 +124,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     assignOneDataBlock(&block, output);
     block.info.childId = pTask->selfChildId;
 
-    (*resSize) += blockDataGetSize(output);
+    (*resSize) += blockDataGetSize(output) + sizeof(SSDataBlock) + sizeof(SColumnInfoData) * blockDataGetNumOfCols(&block);
     taosArrayPush(pRes, &block);
 
     qDebug("s-task:%s (child %d) executed and get block, total blocks:%d, size:%.2fMiB", pTask->id.idStr, pTask->selfChildId, (int32_t)taosArrayGetSize(pRes),
