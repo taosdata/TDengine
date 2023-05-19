@@ -461,7 +461,7 @@ async fn test_tmq_to_local() -> anyhow::Result<()> {
     taos.exec_many([
         "DROP TOPIC IF EXISTS tmq_to_local",
         "DROP DATABASE IF EXISTS tmq_to_local",
-        "CREATE DATABASE tmq_to_local",
+        "CREATE DATABASE tmq_to_local wal_retention_period 3600",
         "USE tmq_to_local",
         "CREATE STABLE stb1 (ts TIMESTAMP, v1 BOOL) TAGS(j1 json)",
         "CREATE TOPIC tmq_to_local WITH META AS DATABASE tmq_to_local",

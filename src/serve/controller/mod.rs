@@ -2149,7 +2149,7 @@ mod tests {
         controller.start_task(&task).await?;
 
         // sleep to wait for task started.
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         
         // let task_after_start = controller.get(task.id).await?;
         // dbg!(&task_after_start);
