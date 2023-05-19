@@ -153,7 +153,7 @@ pipeline {
         INTERNAL_ROOT='/var/data/jenkins/workspace/TDinternal'
         TAOSTEST_ROOT='/var/data/jenkins/workspace/taos-test-framework'
         TESTNG_ROOT='/var/data/jenkins/workspace/TestNG'
-        BRANCH_NAME='3.0'
+        BRANCH_NAME="${env.TEST_BRANCH}"
         NEW_VERSION='3.0.0.100'
         FILE_WEB_SERVER='http://192.168.0.218:8081/'
     }
