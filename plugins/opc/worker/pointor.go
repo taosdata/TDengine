@@ -6,7 +6,8 @@ import (
 	"collector/connector/opcda"
 	"collector/connector/opcua"
 	"context"
-	"log"
+	"fmt"
+	"sort"
 )
 
 type Pointer interface {
@@ -25,9 +26,16 @@ func NewOpcPointer(config common.Config) (pointer Pointer, err error) {
 	if config.OpcType == common.OpcTypeUA {
 		config.Collect.Ua = common.UaCollectConfig{} // don't need collecting config when get all points
 		c, err = opcua.NewConnector(config)
-	} else {
+	}
+	if config.OpcType == common.OpcTypeDA {
 		config.Collect.Da = common.DaCollectConfig{} // don't need collecting config when get all points
 		c, err = opcda.NewConnector(config)
+	}
+	if err != nil {
+		return
+	}
+	if c == nil {
+		return nil, fmt.Errorf("unknown opc type %s", config.OpcType)
 	}
 
 	pointer = &OpcPointer{connector: c}
@@ -35,11 +43,16 @@ func NewOpcPointer(config common.Config) (pointer Pointer, err error) {
 }
 
 func (p *OpcPointer) GetAllPoints(ctx context.Context) ([]common.Point, error) {
-	if err := p.connector.Connect(ctx); err != nil {
-		log.Println("## connect opc error ", err)
+	points, err := p.connector.GetAllPoints(ctx)
+	if err != nil {
 		return nil, err
 	}
-	return p.connector.GetAllPoints(ctx)
+
+	sort.SliceStable(points, func(i, j int) bool {
+		return points[i].ID < points[j].ID
+	})
+
+	return points, nil
 }
 
 func (p *OpcPointer) Exist(ctx context.Context) {

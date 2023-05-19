@@ -47,6 +47,7 @@ pub struct TaskOpts {
     pub from: Dsn,
     pub transform: Vec<Action>,
     pub to: Dsn,
+    pub parser: Option<plugins::Parser>,
     pub jobs: usize,
     pub compression_level: Option<usize>,
     pub force: bool,
@@ -74,6 +75,7 @@ impl TaskOpts {
             from,
             transform,
             to,
+            parser,
             jobs,
             compression_level: _,
             force,
@@ -138,7 +140,7 @@ impl TaskOpts {
                 ("mqtt", "taos") => {
                     plugins::mqtt_to_taos(
                         from.clone(),
-                        transform.clone(),
+                        parser.clone(),
                         to.clone(),
                         *jobs,
                         port_pool,

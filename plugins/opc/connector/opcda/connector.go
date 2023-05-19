@@ -19,10 +19,6 @@ func NewConnector(_ common.Config) (connector.Connector, error) {
 
 var _ connector.Connector = (*DaConnector)(nil)
 
-func (d DaConnector) Connect(_ context.Context) error {
-	panic("implement me")
-}
-
 func (d DaConnector) Stop(_ context.Context) {
 	panic("implement me")
 }

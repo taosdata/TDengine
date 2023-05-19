@@ -76,10 +76,11 @@ impl GlobalOpts {
     pub fn executor_worker_threads(&self) -> usize {
         let min = std::thread::available_parallelism()
             .map(|v| v.get() * 2)
-            .unwrap_or(16);
+            .unwrap_or(16)
+            .max(8);
 
-        if self.jobs > min {
-            self.jobs
+        if self.jobs + 2 > min {
+            self.jobs + 2
         } else {
             min
         }
@@ -115,6 +116,10 @@ fn main() -> Result<()> {
 
     let mut builder = pretty_env_logger::formatted_timed_builder();
     builder.filter_level(args.globals.verbose.log_level_filter());
+    builder.filter_module("tokio", log::LevelFilter::Warn);
+    builder.filter_module("tungstenite", log::LevelFilter::Warn);
+    builder.filter_module("tokio_tungstenite", log::LevelFilter::Warn);
+    builder.filter_module("mio", log::LevelFilter::Warn);
     let debug = args.globals.debug;
     builder
         .format_module_path(true)
@@ -162,35 +167,33 @@ fn main() -> Result<()> {
         .is_test(false)
         .init();
 
-    let rt = tokio::runtime::Builder::new_multi_thread()
+    let worker_threads = args.globals.executor_worker_threads();
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(4096)
-        .thread_name("taosx-runner")
+        .thread_name("taosx")
+        .worker_threads(worker_threads)
         .enable_all()
         .build()?;
-
     if let Some(cmd) = args.commands {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(args.globals.executor_worker_threads())
-            .max_blocking_threads(1024)
-            .thread_name("taosx")
-            .enable_all()
-            .build()?;
         match cmd {
             Commands::Run(cmd) => runtime.block_on(cmd.run_with(args.globals))?,
-            Commands::Serve(cli) => runtime.block_on(cli.run_with(args.globals, rt))?,
+            Commands::Serve(cli) => {
+                let rt = tokio::runtime::Builder::new_multi_thread()
+                    .max_blocking_threads(4096)
+                    .thread_name("runner")
+                    .worker_threads(worker_threads)
+                    .enable_all()
+                    .build()?;
+                runtime.block_on(cli.run_with(args.globals, rt))?;
+            }
             Commands::External(_) => bail!("unknown subcommand"),
         }
     } else {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .max_blocking_threads(1024)
-            .worker_threads(args.globals.executor_worker_threads())
-            .thread_name("taosx")
-            .worker_threads(
-                std::thread::available_parallelism()
-                    .map(|v| v.get())
-                    .unwrap_or(8)
-                    * 2,
-            )
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .max_blocking_threads(4096)
+            .thread_name("runner")
+            .worker_threads(worker_threads)
             .enable_all()
             .build()?;
         runtime.block_on(serve::Cli::default().run_with(args.globals, rt))?;

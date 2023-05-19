@@ -21,6 +21,7 @@ type Config struct {
 	OpcType string        `json:"opc_type,omitempty" yaml:"opc_type" toml:"opc_type"` // metric type, `opcua` or `opcda`(only for windows)
 	Debug   bool          `json:"debug,omitempty" yaml:"debug" toml:"debug"`          // debug mode, default is false. only for debug, should be false in production
 	Connect ConnectConfig `json:"connect,omitempty" yaml:"connect" toml:"connect"`
+	Points  PointsConfig  `json:"points,omitempty" yaml:"points" toml:"points"`
 	Collect CollectConfig `json:"collect,omitempty" yaml:"collect" toml:"collect"`
 	Report  ReportConfig  `json:"report,omitempty" yaml:"report" toml:"report"`
 }
@@ -48,11 +49,18 @@ type DaConnectConfig struct {
 	Nodes  []string `json:"nodes,omitempty" yaml:"nodes" toml:"nodes"`    // nodes to collect
 }
 
+// PointsConfig is used for collecting points
+type PointsConfig struct {
+	Limit int    `json:"limit,omitempty" yaml:"limit" toml:"limit"`
+	Regex string `json:"regex,omitempty" yaml:"regex" toml:"regex"`
+}
+
 type CollectConfig struct {
-	Interval int64           `json:"interval,omitempty" yaml:"interval" toml:"interval"`
-	Limit    int             `json:"limit,omitempty" yaml:"limit" toml:"limit"`
-	Ua       UaCollectConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
-	Da       DaCollectConfig `json:"da,omitempty" yaml:"da" toml:"da"`
+	Interval    int64           `json:"interval,omitempty" yaml:"interval" toml:"interval"`
+	Limit       int             `json:"limit,omitempty" yaml:"limit" toml:"limit"`
+	ContainsBad bool            `json:"contains_bad,omitempty" yaml:"contains_bad" toml:"contains_bad"`
+	Ua          UaCollectConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
+	Da          DaCollectConfig `json:"da,omitempty" yaml:"da" toml:"da"`
 }
 
 type UaCollectConfig struct {
@@ -204,10 +212,12 @@ func (r *ReportConfig) Validate() error {
 
 type NodeValue struct {
 	Identifier string    `json:"identifier,omitempty"`
+	Name       string    `json:"name,omitempty"`
 	Timestamp  time.Time `json:"timestamp,omitempty"`
 	Now        time.Time `json:"now,omitempty"`
 	Value      any       `json:"value,omitempty"`
 	ValueType  ValueType `json:"value_type,omitempty"`
+	Status     int64     `json:"status,omitempty"`
 }
 
 type Point struct {
