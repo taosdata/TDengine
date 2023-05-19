@@ -1,4 +1,5 @@
 ﻿using log4net;
+using log4net.Config;
 using System;
 using System.ServiceProcess;
 using TDPIConnector.Core;
@@ -21,9 +22,12 @@ namespace TDPIConnector.Service
         private static readonly ILog logger = LogManager.GetLogger(typeof(Program));
         static void Main(string[] args)
         {
+            GlobalContext.Properties["applicationName"] = "pi-connector";
+            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             //Installer installer = new Installer();
             //installer.OnBeforeInstall(null, null);
             logger.Info($"TD PI start, version:{version}");
+
             if (args != null && args.Length == 1 && (args[0][0] == '-' || args[0][0] == '/'))
             {
                 switch (args[0].Substring(1).ToLower())
