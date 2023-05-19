@@ -210,12 +210,13 @@ static void tsdbCloseRocksCache(STsdb *pTsdb) {
 
 static void rocksMayWrite(STsdb *pTsdb, bool force) {
   rocksdb_writebatch_t *wb = pTsdb->rCache.writebatch;
-
-  if (force || rocksdb_writebatch_count(wb) >= 1024) {
+  int                   count = rocksdb_writebatch_count(wb);
+  if ((force && count > 0) || count >= 1024) {
     char *err = NULL;
     rocksdb_write(pTsdb->rCache.db, pTsdb->rCache.writeoptions, wb, &err);
     if (NULL != err) {
-      tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
+      tsdbError("vgId:%d, %s failed at line %d, count: %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, count,
+                err);
       rocksdb_free(err);
     }
 
