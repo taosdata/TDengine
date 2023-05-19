@@ -4223,6 +4223,16 @@ int32_t fltSclBuildRangePoints(SFltSclOperator* oper, SArray* points) {
       taosArrayPush(points, &end);
       break;
     }
+    case OP_TYPE_GREATER_EQUAL: {
+      SFltSclDatum start;
+      fltSclBuildDatumFromValueNode(&start, oper->valNode);
+      SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
+      SFltSclDatum end  = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
+      SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
+      taosArrayPush(points, &start);
+      taosArrayPush(points, &end);
+    }
+      case
     default: {
       qError("not supported op");
       break;
