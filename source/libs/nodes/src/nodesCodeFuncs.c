@@ -171,6 +171,10 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateStreamStmt";
     case QUERY_NODE_DROP_STREAM_STMT:
       return "DropStreamStmt";
+    case QUERY_NODE_PAUSE_STREAM_STMT:
+      return "PauseStreamStmt";
+    case QUERY_NODE_RESUME_STREAM_STMT:
+      return "ResumeStreamStmt";
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return "BalanceVgroupStmt";
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
@@ -5506,6 +5510,7 @@ static const char* jkDropDnodeStmtDnodeId = "DnodeId";
 static const char* jkDropDnodeStmtFqdn = "Fqdn";
 static const char* jkDropDnodeStmtPort = "Port";
 static const char* jkDropDnodeStmtForce = "Force";
+static const char* jkDropDnodeStmtUnsafe = "Unsafe";
 
 static int32_t dropDnodeStmtToJson(const void* pObj, SJson* pJson) {
   const SDropDnodeStmt* pNode = (const SDropDnodeStmt*)pObj;
@@ -5519,6 +5524,9 @@ static int32_t dropDnodeStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkDropDnodeStmtForce, pNode->force);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkDropDnodeStmtUnsafe, pNode->unsafe);
   }
 
   return code;
@@ -5536,6 +5544,9 @@ static int32_t jsonToDropDnodeStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkDropDnodeStmtForce, &pNode->force);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkDropDnodeStmtUnsafe, &pNode->unsafe);
   }
 
   return code;

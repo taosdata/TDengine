@@ -12,10 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -304,6 +306,11 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         }
 
         if (!pLinearInfo->isStartSet || !pLinearInfo->isEndSet) {
+          hasInterp = false;
+          break;
+        }
+
+        if (end.key != INT64_MIN && end.key < pSliceInfo->current) {
           hasInterp = false;
           break;
         }
@@ -892,8 +899,10 @@ void destroyTimeSliceOperatorInfo(void* param) {
   }
   taosArrayDestroy(pInfo->pLinearInfo);
 
-  taosMemoryFree(pInfo->pPrevGroupKey->pData);
-  taosMemoryFree(pInfo->pPrevGroupKey);
+  if (pInfo->pPrevGroupKey) {
+    taosMemoryFree(pInfo->pPrevGroupKey->pData);
+    taosMemoryFree(pInfo->pPrevGroupKey);
+  }
 
   cleanupExprSupp(&pInfo->scalarSup);
 

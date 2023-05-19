@@ -1,0 +1,71 @@
+drop database if exists d0;
+create database d0 replica 1 keep 365 minRows 100 maxRows 4096 comp 2 vgroups 2 precision 'ms';
+use d0;
+create table if not exists almlog (starttime timestamp,endtime timestamp,durationtime int, alarmno int, alarmtext nchar(256),isactive nchar(64)) tags (mcid nchar(16));
+create table if not exists mplog (starttime timestamp,mpid int, paravalue nchar(256),mptype nchar(32)) tags (mcid nchar(16));
+create table if not exists mdlog (starttime timestamp,endtime timestamp,durationtime int, statuscode int, npcgmname nchar(256),attr int) tags (mcid nchar(16));
+create table if not exists nrglog (updatetime timestamp,energyvalue double,enerygyincrease double) tags (mcid nchar(16),enerygytype nchar(16));
+
+create table almlog_m201 using almlog tags("m201");
+create table almlog_m0103 using almlog tags("m0103");
+create table almlog_m0103_20031 using almlog tags("m0103");
+create table almlog_m0103_20032 using almlog tags("m0103");
+create table almlog_m0103_3003 using almlog tags("m0103");
+create table almlog_m0103_20033 using almlog tags("m0103");
+create table almlog_m0103_30031 using almlog tags("m0103");
+create table almlog_m0201 using almlog tags("m0201");
+create table almlog_m0102 using almlog tags("m0102");
+create table almlog_m0101 using almlog tags("m0101");
+create table almlog_m1002 using almlog tags("m1002");
+
+create table mplog_m0204_4 using mplog tags("m0204");
+create table mplog_m0204_5 using mplog tags("m0204");
+create table mplog_m0204_6 using mplog tags("m0204");
+create table mplog_m0204_12 using mplog tags("m0204");
+create table mplog_m0204 using mplog tags("m0204");
+create table mplog_m201 using mplog tags("m201");
+create table mplog_m0102 using mplog tags("m0102");
+create table mplog_m1101 using mplog tags("m1101");
+
+create table mdlog_m0102 using mplog tags("m0102");
+create table mdlog_m0504 using mplog tags("m0504");
+create table mdlog_m0505 using mplog tags("m0505");
+create table mdlog_m0507 using mplog tags("m0507");
+create table mdlog_m1002 using mplog tags("m1002");
+create table mdlog_m3201 using mplog tags("m3201");
+create table mdlog_m0201 using mplog tags("m0201");
+create table mdlog_m1102 using mplog tags("m1102");
+create table mdlog_m201 using mplog tags("m201");
+
+create table nrglog_m201_electricvalue1 using nrglog tags("m201","electricValue1");
+create table nrglog_m201_oilvalue1 using nrglog tags("m201","oilValue1");
+create table nrglog_m201_gasvalue1 using nrglog tags("m201","gasValue1");
+create table nrglog_m201_watervalue1 using nrglog tags("m201","waterValue1");
+create table nrglog_m0101_oilvalue1 using nrglog tags("m0101","oilValue1");
+create table nrglog_m0101_watervalue1 using nrglog tags("m0101","waterValue1");
+create table nrglog_m0102_gasvalue1 using nrglog tags("m0102","gasValue1");
+create table nrglog_m1903 using nrglog tags("m1903",NULL);
+create table nrglog_m2802 using nrglog tags("m2802",NULL);
+create table nrglog_m2101 using nrglog tags("m2101",NULL);
+create table nrglog_m0102 using nrglog tags("m0102",NULL);
+create table nrglog_m0101_electricvalue1 using nrglog tags("m0101","electricValue1");
+create table nrglog_m0101_gasvalue1 using nrglog tags("m0101","gasValue1");
+create table nrglog_m0102_electricvalue1 using nrglog tags("m0102","electricValue1");
+create table nrglog_m0102_oilvalue1 using nrglog tags("m0102","oilValue1");
+create table nrglog_m0102_watervalue1 using nrglog tags("m0102","waterValue1");
+
+
+insert into almlog_m0103 values(now,now+1s,10,0,'','dismissed');
+insert into almlog_m0103_20031 values(now,now+1s,10,20031,'','dismissed');
+insert into almlog_m0103_20032 values(now,now+1s,10,20032,'','dismissed');
+insert into almlog_m0103_3003 values(now,now+1s,10,3003,'','dismissed');
+insert into almlog_m0103_20033 values(now,now+1s,10,20033,'','dismissed');
+insert into almlog_m0103_30031 values(now,now+1s,10,30031,'','dismissed');
+
+flush database d0;
+
+show table tags from almlog;
+
+select *,tbname from d0.almlog where mcid='m0103';
+
+select table_name from information_schema.ins_tables where db_name='d0';

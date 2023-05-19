@@ -83,6 +83,9 @@ int main(int argc, char *argv[]) {
 #endif
   taos_init();
 
+  // kill heart-beat thread when quit
+  taos_set_hb_quit(1);
+
   if (shell.args.is_dump_config) {
     shellDumpConfig();
     taos_cleanup();

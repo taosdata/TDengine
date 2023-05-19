@@ -1,6 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/cfg.sh -n dnode1 -c qDebugflag -v 143 
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
@@ -51,7 +51,7 @@ print =============== query data from child table
 $loop_count = 0
 
 loop0:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -91,7 +91,7 @@ print =============== query data from child table
 $loop_count = 0
 
 loop1:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -130,7 +130,7 @@ print =============== query data from child table
 $loop_count = 0
 
 loop2:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then

@@ -69,8 +69,6 @@ SArray* taosArrayInit_s(size_t elemSize, size_t initialSize) {
 }
 
 static int32_t taosArrayResize(SArray* pArray) {
-  assert(pArray->size >= pArray->capacity);
-
   size_t size = pArray->capacity;
   size = (size << 1u);
 
@@ -252,12 +250,15 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
 }
 
 void taosArraySet(SArray* pArray, size_t index, void* pData) {
-  assert(index < pArray->size);
+  ASSERT(index < pArray->size);
   memcpy(TARRAY_GET_ELEM(pArray, index), pData, pArray->elemSize);
 }
 
 void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
-  assert(cnt <= pArray->size);
+  if (cnt > pArray->size) {
+    cnt = pArray->size;
+  }
+
   pArray->size = pArray->size - cnt;
   if (pArray->size == 0 || cnt == 0) {
     return;
@@ -266,12 +267,15 @@ void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
 }
 
 void taosArrayPopTailBatch(SArray* pArray, size_t cnt) {
-  assert(cnt <= pArray->size);
+  if (cnt >= pArray->size) {
+    cnt = pArray->size;
+  }
+
   pArray->size = pArray->size - cnt;
 }
 
 void taosArrayRemove(SArray* pArray, size_t index) {
-  assert(index < pArray->size);
+  ASSERT(index < pArray->size);
 
   if (index == pArray->size - 1) {
     taosArrayPop(pArray);
@@ -312,6 +316,10 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
 }
 
 SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
+  if (NULL == pSrc) {
+    return NULL;
+  }
+  
   if (pSrc->size == 0) {  // empty array list
     return taosArrayInit(8, pSrc->elemSize);
   }
@@ -483,7 +491,8 @@ void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t 
 // todo remove it
 // order array<type *>
 void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param) {
-  taosArrayGetSize(pArray) > 8 ? taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
+  taosqsort(pArray->pData, pArray->size, pArray->elemSize, param, fn);
+//  taosArrayGetSize(pArray) > 8 ? taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
 }
 
 void taosArraySwap(SArray* a, SArray* b) {

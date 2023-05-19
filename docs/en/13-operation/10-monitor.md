@@ -22,11 +22,11 @@ wget https://github.com/taosdata/grafanaplugin/raw/master/dashboards/TDinsight.s
 chmod +x TDinsight.sh
 ```
 
-Prepare：
+Prepare:
 
 1. TDengine Server
 
-   - The URL of REST service：for example `http://localhost:6041` if TDengine is deployed locally
+   - The URL of REST service: for example `http://localhost:6041` if TDengine is deployed locally
    - User name and password
 
 2. Grafana Alert Notification
