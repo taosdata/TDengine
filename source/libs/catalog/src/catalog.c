@@ -716,6 +716,7 @@ int32_t ctgGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName
 
 
 int32_t catalogInit(SCatalogCfg* cfg) {
+  qDebug("catalogInit start");
   if (gCtgMgmt.pCluster) {
     qError("catalog already initialized");
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
