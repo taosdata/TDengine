@@ -1157,7 +1157,7 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pAgg->node.groupAction = getDistinctGroupAction(pCxt, pSelect);
+  pAgg->node.groupAction = GROUP_ACTION_CLEAR;//getDistinctGroupAction(pCxt, pSelect);
   pAgg->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pAgg->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
