@@ -358,9 +358,19 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       return -1;
     }
 
+    // 2. check re-balance status
+    if (pHandle->consumerId != consumerId) {
+      tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+              consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
+      terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+      taosWUnLockLatch(&pTq->lock);
+      return -1;
+    }
+
     bool exec = tqIsHandleExec(pHandle);
     if(!exec) {
       tqSetHandleExec(pHandle);
+      tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
       taosWUnLockLatch(&pTq->lock);
       break;
     }
@@ -369,17 +379,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
     taosMsleep(10);
   }
-
-  // 2. check re-balance status
-  if (pHandle->consumerId != consumerId) {
-    tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
-            consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
-    terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
-    code = -1;
-    goto end;
-  }
-
-  tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
 
   // 3. update the epoch value
   int32_t savedEpoch = pHandle->epoch;
@@ -396,7 +395,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
   code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);
 
-end:
   tqSetHandleIdle(pHandle);
   tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, , set handle idle, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
   return code;
