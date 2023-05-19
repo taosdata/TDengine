@@ -434,7 +434,7 @@ confluent local services connect connector unload TDengineSourceConnector
 ### TDengine Source Connector 特有的配置
 
 1. `connection.database`: 源数据库名称，无缺省值。
-2. `topic.prefix`： 数据导入 kafka 后 topic 名称前缀。 使用 `topic.prefix` + `connection.database` 名称作为完整 topic 名。默认为空字符串 ""。
+2. `topic.prefix`： 数据导入 kafka 时使用的 topic 名称的前缀。默认为空字符串 ""。
 3. `timestamp.initial`: 数据同步起始时间。格式为'yyyy-MM-dd HH:mm:ss'，若未指定则从指定 DB 中最早的一条记录开始。
 4. `poll.interval.ms`: 检查是否有新建或删除的表的时间间隔，单位为 ms。默认为 1000。
 5. `fetch.max.rows` : 检索数据库时最大检索条数。 默认为 100。
