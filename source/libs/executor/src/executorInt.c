@@ -715,7 +715,8 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
           pCtx[j].resultInfo->numOfRes = pRow->numOfRows;
         }
       }
-
+      
+      blockDataEnsureCapacity(pBlock, pBlock->info.rows + pCtx[j].resultInfo->numOfRes);
       int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
       if (TAOS_FAILED(code)) {
         qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
