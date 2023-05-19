@@ -77,45 +77,55 @@ static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
 #define TARRAY2_CLEAR(a, cb)                    \
   do {                                          \
     if (cb) {                                   \
+      void (*cb_)(void *) = (cb);               \
       for (int32_t i = 0; i < (a)->size; ++i) { \
-        cb((a)->data + i);                      \
+        cb_((a)->data + i);                     \
       }                                         \
     }                                           \
     (a)->size = 0;                              \
   } while (0)
 
-#define TARRAY2_SEARCH(a, ep, cmp, flag) \
-  (((a)->size == 0) ? NULL : taosbsearch(ep, (a)->data, (a)->size, sizeof((a)->data[0]), cmp, flag))
+#define TARRAY2_CLEAR_FREE(a, cb) \
+  do {                            \
+    TARRAY2_CLEAR(a, cb);         \
+    TARRAY2_FREE(a);              \
+  } while (0)
 
-#define TARRAY2_INSERT(a, idx, e)                                                                    \
-  ({                                                                                                 \
-    int32_t __ret = 0;                                                                               \
-    if ((a)->size >= (a)->capacity) {                                                                \
-      __ret = tarray2_make_room(&(a), (a)->size + 1, sizeof(*(a)->data));                            \
-    }                                                                                                \
-    if (!__ret) {                                                                                    \
-      if ((a)->size > (idx)) {                                                                       \
-        memmove((a)->data + (idx) + 1, (a)->data + (idx), sizeof(*(a)->data) * ((a)->size - (idx))); \
-      }                                                                                              \
-      (a)->data[(idx)] = e;                                                                          \
-      (a)->size++;                                                                                   \
-    }                                                                                                \
-    __ret;                                                                                           \
+#define TARRAY2_SEARCH(a, ep, cmp, flag) \
+  (((a)->size == 0) ? NULL : taosbsearch(ep, (a)->data, (a)->size, sizeof(typeof((a)->data[0])), cmp, flag))
+
+#define TARRAY2_INSERT(a, idx, e)                                                                              \
+  ({                                                                                                           \
+    int32_t __ret = 0;                                                                                         \
+    if ((a)->size >= (a)->capacity) {                                                                          \
+      __ret = tarray2_make_room(&(a), (a)->size + 1, sizeof(typeof((a)->data[0])));                            \
+    }                                                                                                          \
+    if (!__ret) {                                                                                              \
+      if ((a)->size > (idx)) {                                                                                 \
+        memmove((a)->data + (idx) + 1, (a)->data + (idx), sizeof(typeof((a)->data[0])) * ((a)->size - (idx))); \
+      }                                                                                                        \
+      (a)->data[(idx)] = e;                                                                                    \
+      (a)->size++;                                                                                             \
+    }                                                                                                          \
+    __ret;                                                                                                     \
   })
 
 #define TARRAY2_INSERT_P(a, idx, ep) TARRAY2_INSERT(a, idx, *(ep))
 #define TARRAY2_APPEND(a, e)         TARRAY2_INSERT(a, (a)->size, e)
 #define TARRAY2_APPEND_P(a, ep)      TARRAY2_APPEND(a, *(ep))
 
-#define TARRAY2_REMOVE(a, idx, cb)                                                                     \
-  do {                                                                                                 \
-    if ((idx) < (a)->size) {                                                                           \
-      if (cb) cb((a)->data + (idx));                                                                   \
-      if ((idx) < (a)->size - 1) {                                                                     \
-        memmove((a)->data + (idx), (a)->data + (idx) + 1, sizeof(*(a)->data) * ((a)->size - (idx)-1)); \
-      }                                                                                                \
-      (a)->size--;                                                                                     \
-    }                                                                                                  \
+#define TARRAY2_REMOVE(a, idx, cb)                                                                             \
+  do {                                                                                                         \
+    if ((idx) < (a)->size) {                                                                                   \
+      if (cb) {                                                                                                \
+        void (*cb_)(void *) = cb;                                                                              \
+        cb_((a)->data + (idx));                                                                                \
+      }                                                                                                        \
+      if ((idx) < (a)->size - 1) {                                                                             \
+        memmove((a)->data + (idx), (a)->data + (idx) + 1, sizeof(typeof(*(a)->data)) * ((a)->size - (idx)-1)); \
+      }                                                                                                        \
+      (a)->size--;                                                                                             \
+    }                                                                                                          \
   } while (0)
 
 #define TARRAY2_FOREACH(a, e)         for (int32_t __i = 0; __i < (a)->size && ((e) = (a)->data[__i], 1); __i++)

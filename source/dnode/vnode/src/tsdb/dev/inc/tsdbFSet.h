@@ -25,6 +25,8 @@ extern "C" {
 typedef struct STFileSet STFileSet;
 typedef struct STFileOp  STFileOp;
 typedef struct SSttLvl   SSttLvl;
+typedef TARRAY2(STFileSet *) TFileSetArray;
+typedef TARRAY2(SSttLvl *) TSttLvlArray;
 
 typedef enum {
   TSDB_FOP_NONE = 0,
@@ -34,11 +36,12 @@ typedef enum {
   TSDB_FOP_TRUNCATE,
 } tsdb_fop_t;
 
+int32_t tsdbFileSetInit(int32_t fid, STFileSet **fset);
+int32_t tsdbFileSetInitEx(const STFileSet *fset1, STFileSet **fset2);
+int32_t tsdbFileSetClear(STFileSet **fset);
+
 int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json);
-int32_t tsdbJsonToFileSet(const cJSON *json, STFileSet *fset);
-int32_t tsdbFileSetInit(STFileSet *pSet, int32_t fid);
-int32_t tsdbFileSetInitEx(const STFileSet *fset1, STFileSet *fset2);
-int32_t tsdbFileSetClear(STFileSet *pSet);
+int32_t tsdbJsonToFileSet(const cJSON *json, STFileSet **fset);
 int32_t tsdbFileSetEdit(STFileSet *fset, const STFileOp *op);
 int32_t tsdbFSetCmprFn(const STFileSet *pSet1, const STFileSet *pSet2);
 
@@ -59,9 +62,9 @@ struct SSttLvl {
 };
 
 struct STFileSet {
-  int32_t    fid;
-  STFileObj *farr[TSDB_FTYPE_MAX];  // file array
-  SRBTree    lvlTree;               // SRBTree<SSttLvl>, level tree of .stt
+  int32_t      fid;
+  STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
+  TSttLvlArray lvlArr;                // level array
 };
 
 #ifdef __cplusplus

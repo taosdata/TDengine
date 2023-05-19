@@ -79,11 +79,11 @@ static int32_t json_to_stt_lvl(const cJSON *json, SSttLvl *lvl) {
     cJSON_ArrayForEach(item2, item1) {
       STFileObj *fobj;
 
-      int32_t code = tsdbTFileObjCreate(&fobj);
-      if (code) return code;
+      // int32_t code = tsdbTFileObjCreate(&fobj);
+      // if (code) return code;
 
-      code = tsdbJsonToTFile(item2, TSDB_FTYPE_STT, &fobj->f);
-      if (code) return code;
+      // code = tsdbJsonToTFile(item2, TSDB_FTYPE_STT, &fobj->f);
+      // if (code) return code;
 
       add_file_to_stt_lvl(lvl, fobj);
     }
@@ -95,29 +95,29 @@ static int32_t json_to_stt_lvl(const cJSON *json, SSttLvl *lvl) {
 }
 
 static int32_t add_stt_lvl(STFileSet *fset, SSttLvl *lvl) {
-  tRBTreePut(&fset->lvlTree, &lvl->rbtn);
+  // tRBTreePut(&fset->lvlTree, &lvl->rbtn);
   return 0;
 }
 
 static int32_t add_file_to_fset(STFileSet *fset, STFileObj *fobj) {
-  if (fobj->f.type == TSDB_FTYPE_STT) {
-    SSttLvl *lvl;
-    SSttLvl  tlvl = {.level = fobj->f.stt.level};
+  // if (fobj->f.type == TSDB_FTYPE_STT) {
+  //   SSttLvl *lvl;
+  //   SSttLvl  tlvl = {.level = fobj->f.stt.level};
 
-    SRBTreeNode *node = tRBTreeGet(&fset->lvlTree, &tlvl.rbtn);
-    if (node) {
-      lvl = TCONTAINER_OF(node, SSttLvl, rbtn);
-    } else {
-      lvl = taosMemoryMalloc(sizeof(*lvl));
-      if (!lvl) return TSDB_CODE_OUT_OF_MEMORY;
+  //   SRBTreeNode *node = tRBTreeGet(&fset->lvlTree, &tlvl.rbtn);
+  //   if (node) {
+  //     lvl = TCONTAINER_OF(node, SSttLvl, rbtn);
+  //   } else {
+  //     lvl = taosMemoryMalloc(sizeof(*lvl));
+  //     if (!lvl) return TSDB_CODE_OUT_OF_MEMORY;
 
-      stt_lvl_init(lvl, fobj->f.stt.level);
-      add_stt_lvl(fset, lvl);
-    }
-    add_file_to_stt_lvl(lvl, fobj);
-  } else {
-    fset->farr[fobj->f.type] = fobj;
-  }
+  //     stt_lvl_init(lvl, fobj->f.stt.level);
+  //     add_stt_lvl(fset, lvl);
+  //   }
+  //   add_file_to_stt_lvl(lvl, fobj);
+  // } else {
+  //   fset->farr[fobj->f.type] = fobj;
+  // }
 
   return 0;
 }
@@ -134,14 +134,14 @@ static int32_t stt_lvl_cmpr(const SRBTreeNode *n1, const SRBTreeNode *n2) {
   return 0;
 }
 
-static int32_t fset_init(STFileSet *fset, int32_t fid) {
-  fset->fid = fid;
-  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    fset->farr[ftype] = NULL;
-  }
-  tRBTreeCreate(&fset->lvlTree, stt_lvl_cmpr);
-  return 0;
-}
+// static int32_t fset_init(STFileSet *fset, int32_t fid) {
+//   fset->fid = fid;
+//   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+//     fset->farr[ftype] = NULL;
+//   }
+//   tRBTreeCreate(&fset->lvlTree, stt_lvl_cmpr);
+//   return 0;
+// }
 
 static int32_t fset_clear(STFileSet *fset) {
   // TODO
@@ -167,64 +167,64 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   // each level
   item1 = cJSON_AddArrayToObject(json, "stt levels");
   if (item1 == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  SRBTreeIter iter = tRBTreeIterCreate(&fset->lvlTree, 1);
-  for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
+  const SSttLvl *lvl;
+  TARRAY2_FOREACH(&fset->lvlArr, lvl) {
     item2 = cJSON_CreateObject();
     if (!item2) return TSDB_CODE_OUT_OF_MEMORY;
     cJSON_AddItemToArray(item1, item2);
 
-    code = stt_lvl_to_json(TCONTAINER_OF(node, SSttLvl, rbtn), item2);
+    code = stt_lvl_to_json(lvl, item2);
     if (code) return code;
   }
 
   return 0;
 }
 
-int32_t tsdbJsonToFileSet(const cJSON *json, STFileSet *fset) {
-  const cJSON *item1, *item2;
-  int32_t      code;
-  STFile       tf;
+int32_t tsdbJsonToFileSet(const cJSON *json, STFileSet **fset) {
+  // const cJSON *item1, *item2;
+  // int32_t      code;
+  // STFile       tf;
 
-  /* fid */
-  item1 = cJSON_GetObjectItem(json, "fid");
-  if (cJSON_IsNumber(item1)) {
-    fset->fid = item1->valueint;
-  } else {
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
+  // /* fid */
+  // item1 = cJSON_GetObjectItem(json, "fid");
+  // if (cJSON_IsNumber(item1)) {
+  //   fset->fid = item1->valueint;
+  // } else {
+  //   return TSDB_CODE_FILE_CORRUPTED;
+  // }
 
-  fset_init(fset, fset->fid);
-  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    code = tsdbJsonToTFile(json, ftype, &tf);
-    if (code == TSDB_CODE_NOT_FOUND) {
-      continue;
-    } else if (code) {
-      return code;
-    } else {
-      code = tsdbTFileObjCreate(&fset->farr[ftype]);
-      if (code) return code;
-      fset->farr[ftype]->f = tf;
-    }
-  }
+  // fset_init(fset, fset->fid);
+  // for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+  //   code = tsdbJsonToTFile(json, ftype, &tf);
+  //   if (code == TSDB_CODE_NOT_FOUND) {
+  //     continue;
+  //   } else if (code) {
+  //     return code;
+  //   } else {
+  //     code = tsdbTFileObjCreate(&fset->farr[ftype]);
+  //     if (code) return code;
+  //     fset->farr[ftype]->f = tf;
+  //   }
+  // }
 
-  // each level
-  item1 = cJSON_GetObjectItem(json, "stt");
-  if (cJSON_IsArray(item1)) {
-    cJSON_ArrayForEach(item2, item1) {
-      SSttLvl *lvl = taosMemoryCalloc(1, sizeof(*lvl));
-      if (lvl == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  // // each level
+  // item1 = cJSON_GetObjectItem(json, "stt");
+  // if (cJSON_IsArray(item1)) {
+  //   cJSON_ArrayForEach(item2, item1) {
+  //     SSttLvl *lvl = taosMemoryCalloc(1, sizeof(*lvl));
+  //     if (lvl == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-      code = json_to_stt_lvl(item2, lvl);
-      if (code) {
-        taosMemoryFree(lvl);
-        return code;
-      }
+  //     code = json_to_stt_lvl(item2, lvl);
+  //     if (code) {
+  //       taosMemoryFree(lvl);
+  //       return code;
+  //     }
 
-      add_stt_lvl(fset, lvl);
-    }
-  } else {
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
+  //     add_stt_lvl(fset, lvl);
+  //   }
+  // } else {
+  //   return TSDB_CODE_FILE_CORRUPTED;
+  // }
 
   return 0;
 }
@@ -242,7 +242,7 @@ int32_t tsdbFileSetEdit(STFileSet *fset, const STFileOp *op) {
       || 0                  /* TODO*/
   ) {
     STFileObj *fobj;
-    code = tsdbTFileObjCreate(&fobj);
+    // code = tsdbTFileObjCreate(&fobj);
     if (code) return code;
     fobj->f = op->nState;
     add_file_to_fset(fset, fobj);
@@ -256,48 +256,85 @@ int32_t tsdbFileSetEdit(STFileSet *fset, const STFileOp *op) {
   return 0;
 }
 
-int32_t tsdbFileSetInit(STFileSet *pSet, int32_t fid) { return fset_init(pSet, fid); }
+int32_t tsdbFileSetInit(int32_t fid, STFileSet **fset) {
+  fset[0] = taosMemoryCalloc(1, sizeof(STFileSet));
+  if (fset[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-int32_t tsdbFileSetInitEx(const STFileSet *fset1, STFileSet *fset2) {
-  int32_t code;
-
-  fset_init(fset2, fset1->fid);
-  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    if (fset1->farr[ftype] == NULL) continue;
-
-    code = tsdbTFileObjCreate(&fset2->farr[ftype]);
-    if (code) return code;
-    fset2->farr[ftype]->f = fset1->farr[ftype]->f;
-  }
-
-  SRBTreeIter iter = tRBTreeIterCreate(&fset1->lvlTree, 1);
-  for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
-    SSttLvl *lvl1 = TCONTAINER_OF(node, SSttLvl, rbtn);
-    SSttLvl *lvl2 = taosMemoryCalloc(1, sizeof(*lvl2));
-    if (lvl2 == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-    stt_lvl_init(lvl2, lvl1->level);
-    add_stt_lvl(fset2, lvl2);
-
-    SRBTreeIter iter2 = tRBTreeIterCreate(&lvl1->sttTree, 1);
-    for (SRBTreeNode *node2 = tRBTreeIterNext(&iter2); node2; node2 = tRBTreeIterNext(&iter2)) {
-      STFileObj *fobj1 = TCONTAINER_OF(node2, STFileObj, rbtn);
-      STFileObj *fobj2;
-      code = tsdbTFileObjCreate(&fobj2);
-      if (code) return code;
-      fobj2->f = fobj1->f;
-      add_file_to_stt_lvl(lvl2, fobj2);
-    }
-  }
+  fset[0]->fid = fid;
+  TARRAY2_INIT(&fset[0]->lvlArr);
   return 0;
 }
 
-int32_t tsdbFileSetClear(STFileSet *pSet) {
-  // TODO
+int32_t tsdbFileSetInitEx(const STFileSet *fset1, STFileSet **fset) {
+  int32_t code = tsdbFileSetInit(fset1->fid, fset);
+  if (code) return code;
+
+  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset1->farr[ftype] == NULL) continue;
+
+    code = tsdbTFileObjCreate(&fset1->farr[ftype]->f, &fset[0]->farr[ftype]);
+    if (code) {
+      tsdbFileSetClear(fset);
+      return code;
+    }
+  }
+
+  const SSttLvl *lvl1;
+  TARRAY2_FOREACH(&fset1->lvlArr, lvl1) {
+    SSttLvl *lvl;
+    // code = stt_lvl_init_ex(lvl1, &lvl);
+    if (code) {
+      tsdbFileSetClear(fset);
+      return code;
+    }
+  }
+
+  // SRBTreeIter iter = tRBTreeIterCreate(&fset1->lvlTree, 1);
+  // for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
+  //   SSttLvl *lvl1 = TCONTAINER_OF(node, SSttLvl, rbtn);
+  //   SSttLvl *lvl2 = taosMemoryCalloc(1, sizeof(*lvl2));
+  //   if (lvl2 == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  //   stt_lvl_init(lvl2, lvl1->level);
+  //   add_stt_lvl(fset2, lvl2);
+
+  //   SRBTreeIter iter2 = tRBTreeIterCreate(&lvl1->sttTree, 1);
+  //   for (SRBTreeNode *node2 = tRBTreeIterNext(&iter2); node2; node2 = tRBTreeIterNext(&iter2)) {
+  //     STFileObj *fobj1 = TCONTAINER_OF(node2, STFileObj, rbtn);
+  //     STFileObj *fobj2;
+  //     code = tsdbTFileObjCreate(&fobj2);
+  //     if (code) return code;
+  //     fobj2->f = fobj1->f;
+  //     add_file_to_stt_lvl(lvl2, fobj2);
+  //   }
+  // }
+  return 0;
+}
+
+int32_t tsdbFileSetClear(STFileSet **fset) {
+  if (fset[0]) {
+    for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+      // if (fset[0]->farr[ftype]) {
+      //   tsdbTFileObjDestroy(&fset[0]->farr[ftype]);
+      //   fset[0]->farr[ftype] = NULL;
+      // }
+    }
+
+    // TODO
+    // SSttLvl *lvl;
+    // TARRAY2_FOREACH(&fset[0]->lvlArr, lvl) {
+    //   // stt_lvl_clear(&lvl);
+    // }
+
+    taosMemoryFree(fset[0]);
+    fset[0] = NULL;
+  }
   return 0;
 }
 
 const SSttLvl *tsdbFileSetGetLvl(const STFileSet *fset, int32_t level) {
-  SSttLvl      tlvl = {.level = level};
-  SRBTreeNode *node = tRBTreeGet(&fset->lvlTree, &tlvl.rbtn);
-  return node ? TCONTAINER_OF(node, SSttLvl, rbtn) : NULL;
+  // SSttLvl      tlvl = {.level = level};
+  // SRBTreeNode *node = tRBTreeGet(&fset->lvlTree, &tlvl.rbtn);
+  // return node ? TCONTAINER_OF(node, SSttLvl, rbtn) : NULL;
+  // TODO
+  return NULL;
 }

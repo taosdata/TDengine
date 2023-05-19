@@ -44,14 +44,14 @@ int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **ppFSet);
 
 /* Exposed Structs */
 struct STFileSystem {
-  STsdb  *pTsdb;
-  tsem_t  canEdit;
-  int32_t state;
-  int64_t neid;
-  EFEditT etype;
-  int64_t eid;
-  TARRAY2(STFileSet *) cstate;
-  TARRAY2(STFileSet *) nstate;
+  STsdb        *pTsdb;
+  tsem_t        canEdit;
+  int32_t       state;
+  int64_t       neid;
+  EFEditT       etype;
+  int64_t       eid;
+  TFileSetArray cstate;
+  TFileSetArray nstate;
 };
 
 #ifdef __cplusplus

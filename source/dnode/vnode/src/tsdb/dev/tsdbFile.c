@@ -232,7 +232,7 @@ int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f) {
   return 0;
 }
 
-int32_t tsdbTFileObjCreate(STFileObj **fobj) {
+int32_t tsdbTFileObjCreate(const STFile *f, STFileObj **fobj) {
   fobj[0] = taosMemoryMalloc(sizeof(STFileObj));
   if (!fobj[0]) return TSDB_CODE_OUT_OF_MEMORY;
 
