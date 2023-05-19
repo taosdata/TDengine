@@ -171,7 +171,7 @@ static int32_t save_fs(const TFileSetArray *arr, const char *fname) {
     if (!item) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
     cJSON_AddItemToArray(ajson, item);
 
-    code = tsdbFileSetToJson(fset, item);
+    code = tsdbTFileSetToJson(fset, item);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -214,7 +214,7 @@ static int32_t load_fs(const char *fname, TFileSetArray *arr) {
     const cJSON *titem;
     cJSON_ArrayForEach(titem, item) {
       STFileSet *fset;
-      code = tsdbJsonToFileSet(titem, &fset);
+      code = tsdbJsonToTFileSet(titem, &fset);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = TARRAY2_APPEND(arr, fset);
@@ -506,7 +506,7 @@ static int32_t edit_fs(STFileSystem *pFS, const SArray *aFileOp) {
       // }
     }
 
-    code = tsdbFileSetEdit(pSet, op);
+    code = tsdbTFileSetEdit(pSet, op);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

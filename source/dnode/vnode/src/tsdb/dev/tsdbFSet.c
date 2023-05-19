@@ -15,18 +15,48 @@
 
 #include "inc/tsdbFSet.h"
 
-static int32_t stt_lvl_to_json(const SSttLvl *lvl, cJSON *json) {
+static int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
+  lvl[0] = taosMemoryMalloc(sizeof(SSttLvl));
+  if (lvl[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  lvl[0]->level = level;
+  TARRAY2_INIT(&lvl[0]->farr);
+  return 0;
+}
+static void    tsdbSttLvlClearFObj(void *data) { tsdbTFileObjUnref(*(STFileObj **)data); }
+static int32_t tsdbSttLvlClear(SSttLvl **lvl) {
+  TARRAY2_CLEAR_FREE(&lvl[0]->farr, tsdbSttLvlClearFObj);
+  taosMemoryFree(lvl[0]);
+  lvl[0] = NULL;
+  return 0;
+}
+static int32_t tsdbSttLvlInitEx(const SSttLvl *lvl1, SSttLvl **lvl) {
+  int32_t code = tsdbSttLvlInit(lvl1->level, lvl);
+  if (code) return code;
+
+  const STFileObj *fobj1;
+  TARRAY2_FOREACH(&lvl1->farr, fobj1) {
+    STFileObj *fobj;
+    code = tsdbTFileObjInit(&fobj1->f, &fobj);
+    if (code) {
+      tsdbSttLvlClear(lvl);
+      return code;
+    }
+
+    TARRAY2_APPEND(&lvl[0]->farr, fobj);
+  }
+  return 0;
+}
+
+static int32_t tsdbSttLvlToJson(const SSttLvl *lvl, cJSON *json) {
   if (cJSON_AddNumberToObject(json, "level", lvl->level) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   cJSON *ajson = cJSON_AddArrayToObject(json, "files");
   if (ajson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
-  SRBTreeIter iter = tRBTreeIterCreate(&lvl->sttTree, 1);
-  for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
-    STFileObj *fobj = TCONTAINER_OF(node, STFileObj, rbtn);
-
+  const STFileObj *fobj;
+  TARRAY2_FOREACH(&lvl->farr, fobj) {
     cJSON *item = cJSON_CreateObject();
     if (item == NULL) return TSDB_CODE_OUT_OF_MEMORY;
     cJSON_AddItemToArray(ajson, item);
@@ -38,117 +68,47 @@ static int32_t stt_lvl_to_json(const SSttLvl *lvl, cJSON *json) {
   return 0;
 }
 
-static int32_t stt_file_cmpr(const SRBTreeNode *n1, const SRBTreeNode *n2) {
-  STFileObj *f1 = TCONTAINER_OF(n1, STFileObj, rbtn);
-  STFileObj *f2 = TCONTAINER_OF(n2, STFileObj, rbtn);
-  if (f1->f.cid < f2->f.cid) {
-    return -1;
-  } else if (f1->f.cid > f2->f.cid) {
-    return 1;
-  }
-  return 0;
-}
-
-static int32_t stt_lvl_init(SSttLvl *lvl, int32_t level) {
-  lvl->level = level;
-  lvl->nstt = 0;
-  tRBTreeCreate(&lvl->sttTree, stt_file_cmpr);
-  return 0;
-}
-
-static int32_t add_file_to_stt_lvl(SSttLvl *lvl, STFileObj *fobj) {
-  lvl->nstt++;
-  tRBTreePut(&lvl->sttTree, &fobj->rbtn);
-  return 0;
-}
-
-static int32_t json_to_stt_lvl(const cJSON *json, SSttLvl *lvl) {
+static int32_t tsdbJsonToSttLvl(const cJSON *json, SSttLvl **lvl) {
   const cJSON *item1, *item2;
+  int32_t      level;
 
   item1 = cJSON_GetObjectItem(json, "level");
   if (cJSON_IsNumber(item1)) {
-    lvl->level = item1->valuedouble;
+    level = item1->valuedouble;
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
-  stt_lvl_init(lvl, lvl->level);
+  int32_t code = tsdbSttLvlInit(level, lvl);
+  if (code) return code;
 
   item1 = cJSON_GetObjectItem(json, "files");
-  if (cJSON_IsArray(item1)) {
-    cJSON_ArrayForEach(item2, item1) {
-      STFileObj *fobj;
-
-      // int32_t code = tsdbTFileObjCreate(&fobj);
-      // if (code) return code;
-
-      // code = tsdbJsonToTFile(item2, TSDB_FTYPE_STT, &fobj->f);
-      // if (code) return code;
-
-      add_file_to_stt_lvl(lvl, fobj);
-    }
-  } else {
+  if (!cJSON_IsArray(item1)) {
+    tsdbSttLvlClear(lvl);
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
-  return 0;
-}
+  cJSON_ArrayForEach(item2, item1) {
+    STFile tf;
+    code = tsdbJsonToTFile(item2, TSDB_FTYPE_STT, &tf);
+    if (code) {
+      tsdbSttLvlClear(lvl);
+      return code;
+    }
 
-static int32_t add_stt_lvl(STFileSet *fset, SSttLvl *lvl) {
-  // tRBTreePut(&fset->lvlTree, &lvl->rbtn);
-  return 0;
-}
+    STFileObj *fobj;
+    code = tsdbTFileObjInit(&tf, &fobj);
+    if (code) {
+      tsdbSttLvlClear(lvl);
+      return code;
+    }
 
-static int32_t add_file_to_fset(STFileSet *fset, STFileObj *fobj) {
-  // if (fobj->f.type == TSDB_FTYPE_STT) {
-  //   SSttLvl *lvl;
-  //   SSttLvl  tlvl = {.level = fobj->f.stt.level};
-
-  //   SRBTreeNode *node = tRBTreeGet(&fset->lvlTree, &tlvl.rbtn);
-  //   if (node) {
-  //     lvl = TCONTAINER_OF(node, SSttLvl, rbtn);
-  //   } else {
-  //     lvl = taosMemoryMalloc(sizeof(*lvl));
-  //     if (!lvl) return TSDB_CODE_OUT_OF_MEMORY;
-
-  //     stt_lvl_init(lvl, fobj->f.stt.level);
-  //     add_stt_lvl(fset, lvl);
-  //   }
-  //   add_file_to_stt_lvl(lvl, fobj);
-  // } else {
-  //   fset->farr[fobj->f.type] = fobj;
-  // }
-
-  return 0;
-}
-
-static int32_t stt_lvl_cmpr(const SRBTreeNode *n1, const SRBTreeNode *n2) {
-  SSttLvl *lvl1 = TCONTAINER_OF(n1, SSttLvl, rbtn);
-  SSttLvl *lvl2 = TCONTAINER_OF(n2, SSttLvl, rbtn);
-
-  if (lvl1->level < lvl2->level) {
-    return -1;
-  } else if (lvl1->level > lvl2->level) {
-    return 1;
+    TARRAY2_APPEND(&lvl[0]->farr, fobj);
   }
   return 0;
 }
 
-// static int32_t fset_init(STFileSet *fset, int32_t fid) {
-//   fset->fid = fid;
-//   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-//     fset->farr[ftype] = NULL;
-//   }
-//   tRBTreeCreate(&fset->lvlTree, stt_lvl_cmpr);
-//   return 0;
-// }
-
-static int32_t fset_clear(STFileSet *fset) {
-  // TODO
-  return 0;
-}
-
-int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
+int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json) {
   int32_t code = 0;
   cJSON  *item1, *item2;
 
@@ -165,7 +125,7 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
   }
 
   // each level
-  item1 = cJSON_AddArrayToObject(json, "stt levels");
+  item1 = cJSON_AddArrayToObject(json, "stt lvl");
   if (item1 == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   const SSttLvl *lvl;
   TARRAY2_FOREACH(&fset->lvlArr, lvl) {
@@ -173,90 +133,82 @@ int32_t tsdbFileSetToJson(const STFileSet *fset, cJSON *json) {
     if (!item2) return TSDB_CODE_OUT_OF_MEMORY;
     cJSON_AddItemToArray(item1, item2);
 
-    code = stt_lvl_to_json(lvl, item2);
+    code = tsdbSttLvlToJson(lvl, item2);
     if (code) return code;
   }
 
   return 0;
 }
 
-int32_t tsdbJsonToFileSet(const cJSON *json, STFileSet **fset) {
-  // const cJSON *item1, *item2;
-  // int32_t      code;
-  // STFile       tf;
+int32_t tsdbJsonToTFileSet(const cJSON *json, STFileSet **fset) {
+  int32_t      code;
+  const cJSON *item1, *item2;
+  int32_t      fid;
+  STFile       tf;
 
-  // /* fid */
-  // item1 = cJSON_GetObjectItem(json, "fid");
-  // if (cJSON_IsNumber(item1)) {
-  //   fset->fid = item1->valueint;
-  // } else {
-  //   return TSDB_CODE_FILE_CORRUPTED;
-  // }
+  // fid
+  item1 = cJSON_GetObjectItem(json, "fid");
+  if (cJSON_IsNumber(item1)) {
+    fid = item1->valuedouble;
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
 
-  // fset_init(fset, fset->fid);
-  // for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-  //   code = tsdbJsonToTFile(json, ftype, &tf);
-  //   if (code == TSDB_CODE_NOT_FOUND) {
-  //     continue;
-  //   } else if (code) {
-  //     return code;
-  //   } else {
-  //     code = tsdbTFileObjCreate(&fset->farr[ftype]);
-  //     if (code) return code;
-  //     fset->farr[ftype]->f = tf;
-  //   }
-  // }
+  code = tsdbTFileSetInit(fid, fset);
+  if (code) return code;
 
-  // // each level
-  // item1 = cJSON_GetObjectItem(json, "stt");
-  // if (cJSON_IsArray(item1)) {
-  //   cJSON_ArrayForEach(item2, item1) {
-  //     SSttLvl *lvl = taosMemoryCalloc(1, sizeof(*lvl));
-  //     if (lvl == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    code = tsdbJsonToTFile(json, ftype, &tf);
+    if (code == TSDB_CODE_NOT_FOUND) {
+      continue;
+    } else if (code) {
+      tsdbTFileSetClear(fset);
+      return code;
+    }
+  }
 
-  //     code = json_to_stt_lvl(item2, lvl);
-  //     if (code) {
-  //       taosMemoryFree(lvl);
-  //       return code;
-  //     }
+  // each level
+  item1 = cJSON_GetObjectItem(json, "stt lvl");
+  if (cJSON_IsArray(item1)) {
+    cJSON_ArrayForEach(item2, item1) {
+      SSttLvl *lvl;
+      code = tsdbJsonToSttLvl(item2, &lvl);
+      if (code) {
+        tsdbTFileSetClear(fset);
+        return code;
+      }
 
-  //     add_stt_lvl(fset, lvl);
-  //   }
-  // } else {
-  //   return TSDB_CODE_FILE_CORRUPTED;
-  // }
+      TARRAY2_APPEND(&(*fset)->lvlArr, lvl);
+    }
+  } else {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
 
   return 0;
 }
 
-int32_t tsdbFSetCmprFn(const STFileSet *pSet1, const STFileSet *pSet2) {
-  if (pSet1->fid < pSet2->fid) return -1;
-  if (pSet1->fid > pSet2->fid) return 1;
-  return 0;
-}
-
-int32_t tsdbFileSetEdit(STFileSet *fset, const STFileOp *op) {
+int32_t tsdbTFileSetEdit(STFileSet *fset, const STFileOp *op) {
   int32_t code = 0;
 
-  if (op->oState.size == 0  //
-      || 0                  /* TODO*/
-  ) {
-    STFileObj *fobj;
-    // code = tsdbTFileObjCreate(&fobj);
-    if (code) return code;
-    fobj->f = op->nState;
-    add_file_to_fset(fset, fobj);
-  } else if (op->nState.size == 0) {
-    // delete
-    ASSERT(0);
-  } else {
-    // modify
-    ASSERT(0);
-  }
+  // if (op->oState.size == 0  //
+  //     || 0                  /* TODO*/
+  // ) {
+  //   STFileObj *fobj;
+  //   // code = tsdbTFileObjCreate(&fobj);
+  //   if (code) return code;
+  //   fobj->f = op->nState;
+  //   add_file_to_fset(fset, fobj);
+  // } else if (op->nState.size == 0) {
+  //   // delete
+  //   ASSERT(0);
+  // } else {
+  //   // modify
+  //   ASSERT(0);
+  // }
   return 0;
 }
 
-int32_t tsdbFileSetInit(int32_t fid, STFileSet **fset) {
+int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   fset[0] = taosMemoryCalloc(1, sizeof(STFileSet));
   if (fset[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
@@ -265,16 +217,16 @@ int32_t tsdbFileSetInit(int32_t fid, STFileSet **fset) {
   return 0;
 }
 
-int32_t tsdbFileSetInitEx(const STFileSet *fset1, STFileSet **fset) {
-  int32_t code = tsdbFileSetInit(fset1->fid, fset);
+int32_t tsdbTFileSetInitEx(const STFileSet *fset1, STFileSet **fset) {
+  int32_t code = tsdbTFileSetInit(fset1->fid, fset);
   if (code) return code;
 
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset1->farr[ftype] == NULL) continue;
 
-    code = tsdbTFileObjCreate(&fset1->farr[ftype]->f, &fset[0]->farr[ftype]);
+    code = tsdbTFileObjInit(&fset1->farr[ftype]->f, &fset[0]->farr[ftype]);
     if (code) {
-      tsdbFileSetClear(fset);
+      tsdbTFileSetClear(fset);
       return code;
     }
   }
@@ -282,56 +234,35 @@ int32_t tsdbFileSetInitEx(const STFileSet *fset1, STFileSet **fset) {
   const SSttLvl *lvl1;
   TARRAY2_FOREACH(&fset1->lvlArr, lvl1) {
     SSttLvl *lvl;
-    // code = stt_lvl_init_ex(lvl1, &lvl);
+    code = tsdbSttLvlInitEx(lvl1, &lvl);
     if (code) {
-      tsdbFileSetClear(fset);
+      tsdbTFileSetClear(fset);
       return code;
     }
+
+    TARRAY2_APPEND(&fset[0]->lvlArr, lvl);
   }
 
-  // SRBTreeIter iter = tRBTreeIterCreate(&fset1->lvlTree, 1);
-  // for (SRBTreeNode *node = tRBTreeIterNext(&iter); node; node = tRBTreeIterNext(&iter)) {
-  //   SSttLvl *lvl1 = TCONTAINER_OF(node, SSttLvl, rbtn);
-  //   SSttLvl *lvl2 = taosMemoryCalloc(1, sizeof(*lvl2));
-  //   if (lvl2 == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  //   stt_lvl_init(lvl2, lvl1->level);
-  //   add_stt_lvl(fset2, lvl2);
-
-  //   SRBTreeIter iter2 = tRBTreeIterCreate(&lvl1->sttTree, 1);
-  //   for (SRBTreeNode *node2 = tRBTreeIterNext(&iter2); node2; node2 = tRBTreeIterNext(&iter2)) {
-  //     STFileObj *fobj1 = TCONTAINER_OF(node2, STFileObj, rbtn);
-  //     STFileObj *fobj2;
-  //     code = tsdbTFileObjCreate(&fobj2);
-  //     if (code) return code;
-  //     fobj2->f = fobj1->f;
-  //     add_file_to_stt_lvl(lvl2, fobj2);
-  //   }
-  // }
   return 0;
 }
 
-int32_t tsdbFileSetClear(STFileSet **fset) {
-  if (fset[0]) {
-    for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-      // if (fset[0]->farr[ftype]) {
-      //   tsdbTFileObjDestroy(&fset[0]->farr[ftype]);
-      //   fset[0]->farr[ftype] = NULL;
-      // }
-    }
+int32_t tsdbTFileSetClear(STFileSet **fset) {
+  if (!fset[0]) return 0;
 
-    // TODO
-    // SSttLvl *lvl;
-    // TARRAY2_FOREACH(&fset[0]->lvlArr, lvl) {
-    //   // stt_lvl_clear(&lvl);
-    // }
-
-    taosMemoryFree(fset[0]);
-    fset[0] = NULL;
+  for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset[0]->farr[ftype] == NULL) continue;
+    tsdbTFileObjUnref(fset[0]->farr[ftype]);
   }
+
+  TARRAY2_CLEAR_FREE(&fset[0]->lvlArr, tsdbSttLvlClear);
+
+  taosMemoryFree(fset[0]);
+  fset[0] = NULL;
+
   return 0;
 }
 
-const SSttLvl *tsdbFileSetGetLvl(const STFileSet *fset, int32_t level) {
+const SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level) {
   // SSttLvl      tlvl = {.level = level};
   // SRBTreeNode *node = tRBTreeGet(&fset->lvlTree, &tlvl.rbtn);
   // return node ? TCONTAINER_OF(node, SSttLvl, rbtn) : NULL;

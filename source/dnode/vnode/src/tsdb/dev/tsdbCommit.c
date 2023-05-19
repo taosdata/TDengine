@@ -72,7 +72,7 @@ static int32_t open_writer_with_new_stt(SCommitter *pCommitter) {
   config.file.size = 0;
   config.file.stt.level = 0;
   config.file.stt.nseg = 0;
-  tsdbTFileInit(pTsdb, &config.file);
+  // tsdbTFileInit(pTsdb, &config.file);
 
   code = tsdbSttFWriterOpen(&config, &pCommitter->pWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -120,21 +120,22 @@ static int32_t open_committer_writer(SCommitter *pCommitter) {
     return open_writer_with_new_stt(pCommitter);
   }
 
-  const SSttLvl *lvl0 = tsdbFileSetGetLvl(pCommitter->fset, 0);
+  const SSttLvl *lvl0 = tsdbTFileSetGetLvl(pCommitter->fset, 0);
   if (lvl0 == NULL) {
     return open_writer_with_new_stt(pCommitter);
   }
 
-  SRBTreeNode *node = tRBTreeMax(&lvl0->sttTree);
+  SRBTreeNode *node = NULL;  // tRBTreeMax(&lvl0->sttTree);
   if (node == NULL) {
     return open_writer_with_new_stt(pCommitter);
   } else {
-    STFileObj *fobj = TCONTAINER_OF(node, STFileObj, rbtn);
-    if (fobj->f.stt.nseg >= pCommitter->sttTrigger) {
-      return open_writer_with_new_stt(pCommitter);
-    } else {
-      return open_writer_with_exist_stt(pCommitter, &fobj->f);
-    }
+    // STFileObj *fobj = TCONTAINER_OF(node, STFileObj, rbtn);
+    // if (fobj->f.stt.nseg >= pCommitter->sttTrigger) {
+    //   return open_writer_with_new_stt(pCommitter);
+    // } else {
+    //   return open_writer_with_exist_stt(pCommitter, &fobj->f);
+    // }
+    return 0;
   }
 }
 

@@ -36,6 +36,8 @@ extern "C" {
     TYPE   *data;     \
   }
 
+typedef void (*TArray2Cb)(void *);
+
 #define TARRAY2_MIN_SIZE 16
 
 #define TARRAY2_INITIALIZER \
@@ -77,7 +79,7 @@ static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
 #define TARRAY2_CLEAR(a, cb)                    \
   do {                                          \
     if (cb) {                                   \
-      void (*cb_)(void *) = (cb);               \
+      TArray2Cb cb_ = (TArray2Cb)(cb);          \
       for (int32_t i = 0; i < (a)->size; ++i) { \
         cb_((a)->data + i);                     \
       }                                         \
@@ -98,7 +100,7 @@ static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
   ({                                                                                                           \
     int32_t __ret = 0;                                                                                         \
     if ((a)->size >= (a)->capacity) {                                                                          \
-      __ret = tarray2_make_room(&(a), (a)->size + 1, sizeof(typeof((a)->data[0])));                            \
+      __ret = tarray2_make_room((a), (a)->size + 1, sizeof(typeof((a)->data[0])));                             \
     }                                                                                                          \
     if (!__ret) {                                                                                              \
       if ((a)->size > (idx)) {                                                                                 \
@@ -118,7 +120,7 @@ static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
   do {                                                                                                         \
     if ((idx) < (a)->size) {                                                                                   \
       if (cb) {                                                                                                \
-        void (*cb_)(void *) = cb;                                                                              \
+        TArray2Cb cb_ = (TArray2Cb)(cb);                                                                       \
         cb_((a)->data + (idx));                                                                                \
       }                                                                                                        \
       if ((idx) < (a)->size - 1) {                                                                             \

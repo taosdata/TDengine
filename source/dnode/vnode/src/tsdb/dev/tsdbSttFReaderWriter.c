@@ -479,7 +479,7 @@ static int32_t open_stt_fwriter(SSttFileWriter *pWriter) {
     flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
   }
 
-  code = tsdbOpenFile(pWriter->config.file.fname, pWriter->config.szPage, flag, &pWriter->pFd);
+  code = tsdbOpenFile(NULL /*pWriter->config.file.fname*/, pWriter->config.szPage, flag, &pWriter->pFd);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pWriter->tFile.size == 0) {
@@ -494,7 +494,7 @@ _exit:
     if (pWriter->pFd) tsdbCloseFile(&pWriter->pFd);
     tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done, fname:%s size:%" PRId64, vid, __func__, pWriter->config.file.fname,
+    tsdbDebug("vgId:%d %s done, fname:%s size:%" PRId64, vid, __func__, "" /*pWriter->config.file.fname*/,
               pWriter->config.file.size);
   }
   return code;
