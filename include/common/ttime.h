@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define TIME_IS_VAR_DURATION(_t) ((_t) == 'n' || (_t) == 'y' || (_t) == 'N' || (_t) == 'Y')
+#define IS_CALENDAR_TIME_DURATION(_t) ((_t) == 'n' || (_t) == 'y' || (_t) == 'N' || (_t) == 'Y')
 
 #define TIME_UNIT_NANOSECOND  'b'
 #define TIME_UNIT_MICROSECOND 'u'

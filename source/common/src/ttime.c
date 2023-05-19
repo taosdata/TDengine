@@ -709,8 +709,6 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
   return getDuration(*duration, *unit, duration, timePrecision);
 }
 
-#define IS_CALENDAR_TIME_DURATION(_d) (((_d) == 'n') || ((_d) == 'y'))
-
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   if (duration == 0) {
     return t;
