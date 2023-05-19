@@ -3191,7 +3191,8 @@ typedef struct {
   char     dbFName[TSDB_DB_FNAME_LEN];
   uint64_t suid;
   int32_t  version;
-  SArray*  pIndex;
+  int32_t  indexSize;
+  SArray*  pIndex;  // STableIndexInfo
 } STableIndexRsp;
 
 int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
