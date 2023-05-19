@@ -319,7 +319,7 @@ char *shellDumpHexValue(char *buf, const char *val, int32_t length) {
 
 void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
   if (val == NULL) {
-    taosFprintfFile(pFile, "%s", "\\NULL");
+    taosFprintfFile(pFile, "NULL");
     return;
   }
 
