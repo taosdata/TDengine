@@ -95,9 +95,6 @@ export default {
       if (!this.ruleForm.name) {
         return true;
       }
-      if(!this.ruleForm.agent){
-        return true
-      }
       return false;
     },
   },

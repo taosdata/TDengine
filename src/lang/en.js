@@ -251,7 +251,7 @@ export default {
     programming: "Programming",
     healthreport: 'Health Report',
     backup: "Backup",
-    admin: "Admin",
+    admin: "System management",
     cluster: 'Cluster'
   },
   login: {
@@ -553,6 +553,8 @@ export default {
     log: "Log",
     export: "Export",
     info: "Info",
+    CHILD_TABLEInfo: "Subtable Info",
+    NORMAL_TABLEInfo: 'Table Info',
     tableInfo: "Subtable Info",
     stableInfo: "STable Info",
     databaseInfo: "DB Info",

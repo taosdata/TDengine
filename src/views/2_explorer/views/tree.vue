@@ -508,7 +508,9 @@ export default {
       this.$store.state.console.currentComponent = "Info";
       this.$store.commit(
         "console/SET_TAB_NAME",
-        this.$t(`console.${data.typeName}Info`)
+        this.$t(`console.${data.typeName === 'table' 
+        ? data.type 
+        : data.typeName}Info`)
       );
       this.$store.state.console.partActive = "detail";
     },
