@@ -6,8 +6,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     tmq::{check_tmq_dsn, group_id_hash, TmqMetrics},
-    Action,
+    Action, 
 };
+use dashmap::DashMap;
+use taos::taos_query::tmq::Assignment;
 
 async fn write_data(
     id: usize,
@@ -253,6 +255,7 @@ async fn sync(
     actions: Vec<Action>,
     cancel: CancellationToken,
     metrics: Arc<TmqMetrics>,
+    offsets: Arc<DashMap<String, Vec<Assignment>>>,
 ) -> Result<()> {
     log::info!("[{id}] task start");
     let mut stream = consumer.stream();
@@ -269,6 +272,12 @@ async fn sync(
                 break;
             }
             next = stream.try_next() => {
+                let assignments = consumer.assignments().await.unwrap();
+                log::debug!("assignment: {:?}", assignments);
+                for (topic, assignment) in assignments {
+                    offsets.insert(topic, assignment);
+                }
+        
                 if let Some((offset, message)) = next? {
                     metrics.messages.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
@@ -311,6 +320,7 @@ pub async fn tmq_to_td(
     mut to: Dsn,
     jobs: usize,
     cancel: CancellationToken,
+    offsets: Arc<DashMap<String, Vec<Assignment>>>,
 ) -> Result<()> {
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
@@ -497,7 +507,7 @@ pub async fn tmq_to_td(
             });
         }
         for _ in 0..jobs {
-            let consumer = rx.recv()?;
+            let consumer = rx.recv_async().await?;
             consumers.push(consumer);
         }
         let duration = consumer_timer.elapsed();
@@ -519,6 +529,7 @@ pub async fn tmq_to_td(
             let cancellation = cancel.clone();
             let metrics = metrics.clone();
             let sender = consumers_sender.clone();
+            let offsets = offsets.clone();
             let handle = tokio::spawn(async move {
                 sync(
                     task_id,
@@ -529,6 +540,7 @@ pub async fn tmq_to_td(
                     actions,
                     cancellation,
                     metrics,
+                    offsets,
                 )
                 .await
             });
@@ -543,6 +555,7 @@ pub async fn tmq_to_td(
     for handle in handles {
         let _ = handle.await??;
     }
+    log::debug!("consumers tasks offsets: {:?}", offsets);
 
     log::info!("stop all consumers({})", task_id);
     for _ in 0..task_id {

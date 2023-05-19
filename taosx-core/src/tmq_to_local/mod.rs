@@ -17,6 +17,9 @@ use crate::{
     tmq::{check_tmq_dsn, StopAt, TmqMetrics, Topic},
 };
 
+use dashmap::DashMap;
+use taos::taos_query::tmq::Assignment;
+
 struct ZFileMan {
     path: PathBuf,
     // db: String,
@@ -152,6 +155,7 @@ async fn backup(
     cancel: CancellationToken,
     metrics: Arc<TmqMetrics>,
     stop_at: Option<DateTime<Local>>,
+    offsets: Arc<DashMap<String, Vec<Assignment>>>,
 ) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
@@ -164,6 +168,12 @@ async fn backup(
                 break;
             }
             next = stream.try_next() => {
+                let assignments = consumer.assignments().await.unwrap();
+                log::debug!("assignment: {:?}", assignments);
+                for (topic, assignment) in assignments {
+                    offsets.insert(topic, assignment);
+                }
+                
                 if let Some((offset, message)) = next? {
                     metrics
                         .messages
@@ -268,6 +278,7 @@ pub async fn tmq_to_local(
     jobs: usize,
     force: bool,
     cancel: CancellationToken,
+    offsets: Arc<DashMap<String, Vec<Assignment>>>,
 ) -> Result<()> {
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
@@ -415,8 +426,9 @@ pub async fn tmq_to_local(
             let cancel = cancel.clone();
             let metrics = metrics.clone();
             let sender = consumers_sender.clone();
+            let offsets = offsets.clone();
             let handle = tokio::spawn(backup(
-                sender, consumer, man, task_id, barrier, cancel, metrics, stop_at,
+                sender, consumer, man, task_id, barrier, cancel, metrics, stop_at, offsets,
             ));
             handles.push(handle);
             task_id += 1;
@@ -460,6 +472,7 @@ async fn test_tmq_to_local() -> anyhow::Result<()> {
         "local:./tmq_to_local_out".parse()?,
         1,
         true,
+        Default::default(),
         Default::default(),
     )
     .await?;
