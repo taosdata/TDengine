@@ -20,7 +20,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__RECOVER_PREPARE);
-    qDebug("s-task:%s set task status:%d and start recover", pTask->id.idStr, pTask->status.taskStatus);
+    qDebug("s-task:%s set task status:%d and start to recover", pTask->id.idStr, pTask->status.taskStatus);
 
     streamSetParamForRecover(pTask);
     streamSourceRecoverPrepareStep1(pTask, version);
@@ -46,6 +46,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
     streamSetParamForRecover(pTask);
     streamAggRecoverPrepare(pTask);
   } else if (pTask->taskLevel == TASK_LEVEL__SINK) {
+    // sink nodes has no specified operation for fill history
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
   }
 
@@ -71,23 +72,23 @@ int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
     req.downstreamTaskId = pTask->fixedEpDispatcher.taskId;
     pTask->checkReqId = req.reqId;
 
-    qDebug("s-task:%s at node %d check downstream task %d at node %d", pTask->id.idStr, pTask->nodeId, req.downstreamTaskId,
+    qDebug("s-task:%s at node %d check downstream task:%d at node %d", pTask->id.idStr, pTask->nodeId, req.downstreamTaskId,
            req.downstreamNodeId);
     streamDispatchCheckMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
 
-    int32_t vgSz = taosArrayGetSize(vgInfo);
-    pTask->recoverTryingDownstream = vgSz;
-    pTask->checkReqIds = taosArrayInit(vgSz, sizeof(int64_t));
+    int32_t numOfVgs = taosArrayGetSize(vgInfo);
+    pTask->recoverTryingDownstream = numOfVgs;
+    pTask->checkReqIds = taosArrayInit(numOfVgs, sizeof(int64_t));
 
-    for (int32_t i = 0; i < vgSz; i++) {
+    for (int32_t i = 0; i < numOfVgs; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       req.reqId = tGenIdPI64();
       taosArrayPush(pTask->checkReqIds, &req.reqId);
       req.downstreamNodeId = pVgInfo->vgId;
       req.downstreamTaskId = pVgInfo->taskId;
-      qDebug("s-task:%s at node %d check downstream task %d at node %d (shuffle)", pTask->id.idStr, pTask->nodeId,
+      qDebug("s-task:%s at node %d check downstream task:%d at node %d (shuffle)", pTask->id.idStr, pTask->nodeId,
              req.downstreamTaskId, req.downstreamNodeId);
       streamDispatchCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
@@ -161,7 +162,7 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
         taosArrayDestroy(pTask->checkReqIds);
         pTask->checkReqIds = NULL;
 
-        qDebug("s-task:%s all downstream tasks:%d are ready, now enter into recover stage", pTask->id.idStr, numOfReqs);
+        qDebug("s-task:%s all %d downstream tasks are ready, now enter into recover stage", pTask->id.idStr, numOfReqs);
         streamTaskLaunchRecover(pTask, version);
       }
     } else if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
