@@ -9,17 +9,16 @@
       :dbName="dbName"
       :tagName="tagName"
       :protocol="protocol"
+      :mqttParser='mqttParser'
       :isEditable="isEditable"
       ref="table"
     ></component>
-    <MqttConnector></MqttConnector>
   </div>
 </template>
 <script>
 import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
-import MqttConnector from '../components/mqttConnector.vue'
 import { getUIData } from "@/api/explorer/datain";
 
 export default {
@@ -27,8 +26,8 @@ export default {
   components: {
     dbsource: DataSource,
     ui: DbSourceUI,
-    opcui: OpcUI,
-    MqttConnector
+    opcui: OpcUI
+    
   },
   data() {
     return {
@@ -41,6 +40,7 @@ export default {
       dbName: "",
       isEditable: false,
       agentID: "",
+      mqttParser:null
     };
   },
   created() {

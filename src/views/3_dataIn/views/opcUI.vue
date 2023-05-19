@@ -603,6 +603,12 @@ export default {
     "p-three-checkbox": PThreeCheckbox,
   },
   props: {
+    mqttParser:{
+      type:Object,
+      default:()=>{
+        return null
+      }
+    },
     tagName: {
       type: String,
       default: "opcua",
@@ -665,7 +671,7 @@ export default {
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
-    console.log("dd", this.dbsource[0]);
+    console.log("dd", this.dbsource[0],this.mqttParser,'mqtt初始化');
   },
   watch: {
     dbName: {
@@ -847,6 +853,7 @@ export default {
             //     : "+"
             //   : "") +
             dns,
+          parse:this.mqttParser,
           name: localStorage.getItem("datainName"),
           to:
             "taos+" +

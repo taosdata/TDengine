@@ -95,8 +95,8 @@
             type="primay"
             size="small"
             :disabled="
-              (scope.row.from_detail === undefined ||
-              scope.row.status.toLowerCase() == 'running') ||
+              scope.row.from_detail === undefined ||
+              scope.row.status.toLowerCase() == 'running' ||
               !getEditStatus(scope.row.labels)
             "
             @click="edit(scope.row)"
@@ -112,7 +112,14 @@
       </el-table-column>
     </el-table>
     <div v-if="dialog">
-      <AddDialog :typeList="typeList" @closeDialog="closeDialog"></AddDialog>
+      <AddDialog
+        :typeList="typeList"
+        @closeDialog="closeDialog"
+        @showMqttDialog="showMqttDialog"
+      ></AddDialog>
+    </div>
+    <div v-if="mqttdialog">
+      <MqttParserDialog @closeMqttDialog='closeMqttDialog'></MqttParserDialog>
     </div>
     <el-pagination
       class="pagination"
@@ -130,9 +137,10 @@ import { Message } from "element-ui";
 import { getDatain } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
+import MqttParserDialog from "../components/mqttConnector.vue";
 export default {
   name: "DataSource",
-  components: { AddDialog },
+  components: { AddDialog, MqttParserDialog },
   props: {
     sourceList: {
       type: Array,
@@ -148,25 +156,25 @@ export default {
 
   data() {
     return {
+      disable:true,
       typeList: [],
-
+      mqttdialog: false,
       dbsource: null,
       pageSize: 10,
       currentPage: 1,
       total: 10,
       dialog: false,
-
-      // rules:{
-      //   agent:[
-      //     {
-      //       required:true,
-      //     }
-      //   ]
-      // },
       topicList: [],
     };
   },
   methods: {
+    
+    closeMqttDialog(){
+      this.mqttdialog=false
+    },
+    showMqttDialog(){
+      this.mqttdialog=true
+    },
     handlePageChange() {},
     //非root用户不能修改root下创建的数据源
     getEditStatus(data) {
@@ -180,8 +188,8 @@ export default {
         } else {
           return false;
         }
-      }else{
-        return false
+      } else {
+        return false;
       }
     },
     del(data) {
@@ -242,8 +250,7 @@ export default {
         return Promise.reject(err);
       }
     },
-    
-   
+
     start(data, index) {
       try {
         this.$confirm(
