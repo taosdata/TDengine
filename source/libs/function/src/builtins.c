@@ -1639,6 +1639,15 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+static EFuncReturnRows interpEstReturnRows(SFunctionNode* pFunc) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (1 < numOfParams && 1 == ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i) {
+    return FUNC_RETURN_ROWS_INDEFINITE;
+  } else {
+    return FUNC_RETURN_ROWS_N;
+  }
+}
+
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // forbid null as first/last input, since first(c0, null, 1) may have different number of input
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
@@ -2499,7 +2508,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc    = getSelectivityFuncEnv,
     .initFunc      = functionSetup,
     .processFunc   = NULL,
-    .finalizeFunc  = NULL
+    .finalizeFunc  = NULL,
+    .estimateReturnRowsFunc = interpEstReturnRows
   },
   {
     .name = "derivative",
