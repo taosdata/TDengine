@@ -748,7 +748,7 @@ static bool pushDownCondOptIsTableColumn(SNode* pNode, SNodeList* pTableCols) {
   return pushDownCondOptBelongThisTable(pNode, pTableCols);
 }
 
-static bool pushDownCondOptIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond) {
+static bool pushDownCondOptIsColEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond) {
   if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
     return false;
   }
@@ -775,14 +775,14 @@ static bool pushDownCondOptIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond) {
   return false;
 }
 
-static int32_t pushDownCondOptJoinExtractEqualOnLogicCond(SJoinLogicNode* pJoin) {
+static int32_t pushDownCondOptJoinExtractColEqualOnLogicCond(SJoinLogicNode* pJoin) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pJoin->pOnConditions);
 
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pEqualOnConds = NULL;
   SNode*     pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
-    if (pushDownCondOptIsEqualOnCond(pJoin, pCond)) {
+    if (pushDownCondOptIsColEqualOnCond(pJoin, pCond)) {
       code = nodesListMakeAppend(&pEqualOnConds, nodesCloneNode(pCond));
     }
   }
@@ -802,17 +802,17 @@ static int32_t pushDownCondOptJoinExtractEqualOnLogicCond(SJoinLogicNode* pJoin)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t pushDownCondOptJoinExtractEqualOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+static int32_t pushDownCondOptJoinExtractColEqualOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pOnConditions) {
     pJoin->pColEqualOnConditions = NULL;
     return TSDB_CODE_SUCCESS;
   }
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions) &&
       LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)(pJoin->pOnConditions))->condType) {
-    return pushDownCondOptJoinExtractEqualOnLogicCond(pJoin);
+    return pushDownCondOptJoinExtractColEqualOnLogicCond(pJoin);
   }
 
-  if (pushDownCondOptIsEqualOnCond(pJoin, pJoin->pOnConditions)) {
+  if (pushDownCondOptIsColEqualOnCond(pJoin, pJoin->pOnConditions)) {
     pJoin->pColEqualOnConditions = nodesCloneNode(pJoin->pOnConditions);
   }
 
@@ -854,7 +854,7 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = pushDownCondOptJoinExtractEqualOnCond(pCxt, pJoin);
+    code = pushDownCondOptJoinExtractColEqualOnCond(pCxt, pJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
