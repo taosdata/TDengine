@@ -342,14 +342,22 @@ async fn consume_point_record(
     config: &OpcTableConfig,
 ) -> anyhow::Result<()> {
     for message in record.records() {
-        let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
-        // process id, ts, value
+        let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+        // process id, name, ts, value, status
         let schema = message.schema();
         let id_index = schema.index_of("id")?;
+        let name_index = schema.index_of("name")?;
         let server_ts_index = schema.index_of("ts")?;
         let value_index = schema.index_of("value")?;
         let received_index = schema.index_of("received")?;
-        let id_cv = cv_vec.remove(id_index);
+        let status_index = schema.index_of("status")?;
+        let id_cv = cv_vec.get(id_index).unwrap();
+        let name_cv = cv_vec.get(name_index).unwrap();
+        let server_ts_cv = cv_vec.get(server_ts_index).unwrap();
+        let received_ts_cv = cv_vec.get(received_index).unwrap();
+        let value_cv = cv_vec.get(value_index).unwrap();
+        let status_cv = cv_vec.get(status_index).unwrap();
+
         let table_info = &config.table_info;
         let ts_cloumn = &config.ts_cloumn_name;
         for i in 0..id_cv.len() {
@@ -361,45 +369,20 @@ async fn consume_point_record(
             }
             let (table, field, _) = table_info.unwrap();
             let (ts_cloumn_name, server_ts_column_name) = ts_cloumn.get(table).unwrap();
+            let mut new_cv_vec = Vec::new();
             let sql = if config.use_received_time {
                 let server_ts_column_name = server_ts_column_name.clone().unwrap();
-                if server_ts_index > value_index && server_ts_index > received_index {
-                    if value_index > received_index {
-                        format!("insert into {table} ({ts_cloumn_name}, {field}, {server_ts_column_name}) values (?, ?, ?)")
-                    } else {
-                        format!("insert into {table} ({field}, {ts_cloumn_name}, {server_ts_column_name}) values (?, ?, ?)")
-                    }
-                } else if value_index > server_ts_index && value_index > received_index {
-                    if server_ts_index > received_index {
-                        format!("insert into {table} ({ts_cloumn_name}, {server_ts_column_name}, {field}) values (?, ?, ?)")
-                    } else {
-                        format!("insert into {table} ({server_ts_column_name}, {ts_cloumn_name}, {field}) values (?, ?, ?)")
-                    }
-                } else {
-                    if value_index > server_ts_index {
-                        format!("insert into {table} ({server_ts_column_name}, {field}, {ts_cloumn_name}) values (?, ?, ?)")
-                    } else {
-                        format!("insert into {table} ({field}, {server_ts_column_name}, {ts_cloumn_name}) values (?, ?, ?)")
-                    }
-                }
+                new_cv_vec.push(received_ts_cv.slice(i..i+1).unwrap());
+                new_cv_vec.push(value_cv.slice(i..i+1).unwrap());
+                new_cv_vec.push(server_ts_cv.slice(i..i+1).unwrap());
+                format!("insert into {table} ({ts_cloumn_name}, {field}, {server_ts_column_name}) values (?, ?, ?)")
             } else {
-                if id_index < received_index {
-                    cv_vec.remove(received_index - 1);
-                } else {
-                    cv_vec.remove(received_index);
-                }
-                if server_ts_index > value_index {
-                    format!("insert into {table} ({field}, {ts_cloumn_name}) values (?, ?)")
-                } else {
-                    format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
-                }
+                new_cv_vec.push(server_ts_cv.slice(i..i+1).unwrap());
+                new_cv_vec.push(value_cv.slice(i..i+1).unwrap());
+                format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
             };
             debug!("sql: {}", sql);
             stmt.prepare(&sql).unwrap();
-            let new_cv_vec = cv_vec
-                .iter()
-                .map(|t_cv| t_cv.slice(i..i + 1).unwrap())
-                .collect_vec();
             stmt.bind(&new_cv_vec.as_slice())
                 .context("STMT binding error")?;
             stmt.add_batch().context("STMT adding batch error")?;
