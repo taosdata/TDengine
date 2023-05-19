@@ -3112,6 +3112,10 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
     // load the last data block of current table
     STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)pStatus->pTableIter;
     if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pScanInfo->uid, sizeof(pScanInfo->uid))) {
+      // reset the index in last block when handing a new file
+      doCleanupTableScanInfo(pScanInfo);
+      pStatus->mapDataCleaned = true;
+
       bool hasNexTable = moveToNextTable(pUidList, pStatus);
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;
