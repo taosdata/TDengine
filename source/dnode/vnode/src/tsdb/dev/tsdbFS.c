@@ -240,44 +240,6 @@ static bool is_same_file(const STFile *f1, const STFile f2) {
   return true;
 }
 
-static int32_t apply_commit_add_fset(STFileSystem *fs, const STFileSet *fset) {
-  // int32_t idx = taosArraySearchIdx(fs->cstate, fset, (__compar_fn_t)tsdbFSetCmprFn, TD_GT);
-  // if (idx < 0) idx = taosArrayGetSize(fs->cstate);
-
-  // STFileSet *pFileSet = taosArrayInsert(fs->cstate, idx, fset);
-  // if (pFileSet == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
-  // int32_t code = tsdbFileSetInitEx(fset, pFileSet);
-  // if (code) return code;
-
-  return 0;
-}
-static int32_t apply_commit_del_fset(STFileSystem *fs, const STFileSet *fset) {
-  // TODO
-  ASSERT(0);
-  return 0;
-}
-static int32_t apply_commit_upd_fset(STFileSystem *fs, STFileSet *fset_from, const STFileSet *fset_to) {
-  for (tsdb_ftype_t ftype = TSDB_FTYPE_HEAD; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    STFileObj *fobj_from = fset_from->farr[ftype];
-    STFileObj *fobj_to = fset_to->farr[ftype];
-
-    if (!fobj_from && !fobj_to) continue;
-
-    // TODO
-    ASSERT(0);
-    if (fobj_from && fobj_to) {
-      // TODO
-    } else if (fobj_from) {
-      // TODO
-    } else {
-      // TODO
-    }
-  }
-  // TODO
-  ASSERT(0);
-  return 0;
-}
 static int32_t apply_commit(STFileSystem *fs) {
   int32_t code = 0;
   int32_t i1 = 0, i2 = 0;
@@ -291,35 +253,37 @@ static int32_t apply_commit(STFileSystem *fs) {
     if (fset1 && fset2) {
       if (fset1->fid < fset2->fid) {
         // delete fset1
-        code = apply_commit_del_fset(fs, fset1);
-        if (code) return code;
-        n1--;
+        TARRAY2_REMOVE(&fs->cstate, i1, tsdbTFileSetClear);
+        n1 = TARRAY2_SIZE(&fs->cstate);
       } else if (fset1->fid > fset2->fid) {
         // create new file set with fid of fset2->fid
-        code = apply_commit_add_fset(fs, fset2);
+        code = tsdbTFileSetInitEx(fset2, &fset1);
+        if (code) return code;
+        code = TARRAY2_SORT_INSERT(&fs->cstate, fset1, tsdbTFileSetCmprFn);
         if (code) return code;
         i1++;
-        n1++;
         i2++;
+        n1 = TARRAY2_SIZE(&fs->cstate);
       } else {
         // edit
-        code = apply_commit_upd_fset(fs, fset1, fset2);
+        code = tsdbTFileSetEditEx(fset2, fset1);
         if (code) return code;
         i1++;
         i2++;
       }
     } else if (fset1) {
       // delete fset1
-      code = apply_commit_del_fset(fs, fset1);
-      if (code) return code;
-      n1--;
+      TARRAY2_REMOVE(&fs->cstate, i1, tsdbTFileSetClear);
+      n1 = TARRAY2_SIZE(&fs->cstate);
     } else {
       // create new file set with fid of fset2->fid
-      code = apply_commit_add_fset(fs, fset2);
+      code = tsdbTFileSetInitEx(fset2, &fset1);
+      if (code) return code;
+      code = TARRAY2_SORT_INSERT(&fs->cstate, fset1, tsdbTFileSetCmprFn);
       if (code) return code;
       i1++;
-      n1++;
       i2++;
+      n1 = TARRAY2_SIZE(&fs->cstate);
     }
   }
 

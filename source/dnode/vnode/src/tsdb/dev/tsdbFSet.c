@@ -209,6 +209,7 @@ int32_t tsdbTFileSetEdit(STFileSet *fset, const STFileOp *op) {
 }
 
 int32_t tsdbTFileSetEditEx(const STFileSet *fset1, STFileSet *fset) {
+  ASSERT(fset1->fid == fset->fid);
   // TODO
   return 0;
 }

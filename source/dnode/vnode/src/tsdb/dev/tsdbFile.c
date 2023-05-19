@@ -229,22 +229,48 @@ int32_t tsdbTFileObjInit(const STFile *f, STFileObj **fobj) {
   fobj[0] = taosMemoryMalloc(sizeof(*fobj[0]));
   if (!fobj[0]) return TSDB_CODE_OUT_OF_MEMORY;
 
+  taosThreadMutexInit(&fobj[0]->mutex, NULL);
   fobj[0]->f = *f;
+  fobj[0]->state = TSDB_FSTATE_EXIST;
   fobj[0]->ref = 1;
   // TODO: generate the file name
   return 0;
 }
 
 int32_t tsdbTFileObjRef(STFileObj *fobj) {
-  int32_t nRef = atomic_fetch_add_32(&fobj->ref, 1);
+  int32_t nRef;
+  taosThreadMutexLock(&fobj->mutex);
+  nRef = fobj->ref++;
+  taosThreadMutexUnlock(&fobj->mutex);
   ASSERT(nRef > 0);
   return 0;
 }
 
 int32_t tsdbTFileObjUnref(STFileObj *fobj) {
-  int32_t nRef = atomic_sub_fetch_32(&fobj->ref, 1);
+  int32_t nRef;
+  taosThreadMutexLock(&fobj->mutex);
+  nRef = --fobj->ref;
+  taosThreadMutexUnlock(&fobj->mutex);
+
   ASSERT(nRef >= 0);
+
   if (nRef == 0) {
+    if (fobj->state == TSDB_FSTATE_REMOVED) {
+      // TODO: add the file name
+      taosRemoveFile(fobj->fname);
+    }
+    taosMemoryFree(fobj);
+  }
+  return 0;
+}
+
+int32_t tsdbTFileRemove(STFileObj *fobj) {
+  taosThreadMutexLock(&fobj->mutex);
+  fobj->state = TSDB_FSTATE_REMOVED;
+  int32_t nRef = --fobj->ref;
+  taosThreadMutexUnlock(&fobj->mutex);
+  if (nRef == 0) {
+    taosRemoveFile(fobj->fname);
     taosMemoryFree(fobj);
   }
   return 0;

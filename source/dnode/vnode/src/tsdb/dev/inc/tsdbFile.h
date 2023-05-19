@@ -45,6 +45,7 @@ int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f);
 int32_t tsdbTFileObjInit(const STFile *f, STFileObj **fobj);
 int32_t tsdbTFileObjRef(STFileObj *fobj);
 int32_t tsdbTFileObjUnref(STFileObj *fobj);
+int32_t tsdbTFileRemove(STFileObj *fobj);
 
 struct STFile {
   tsdb_ftype_t type;
@@ -60,10 +61,17 @@ struct STFile {
   };
 };
 
+enum {
+  TSDB_FSTATE_EXIST = 1,
+  TSDB_FSTATE_REMOVED,
+};
+
 struct STFileObj {
-  STFile           f;
-  volatile int32_t ref;
-  char             fname[TSDB_FILENAME_LEN];
+  TdThreadMutex mutex;
+  STFile        f;
+  int32_t       state;
+  int32_t       ref;
+  char          fname[TSDB_FILENAME_LEN];
 };
 
 #ifdef __cplusplus
