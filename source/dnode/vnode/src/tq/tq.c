@@ -569,20 +569,22 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
              req.newConsumerId);
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
 //      atomic_store_32(&pHandle->epoch, 0);
-      // kill executing task
-      qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
-      if (pTaskInfo != NULL) {
-        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
-      }
-      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-        qStreamCloseTsdbReader(pTaskInfo);
-      }
-      // remove if it has been register in the push manager, and return one empty block to consumer
-      taosWLockLatch(&pTq->lock);
-      tqUnregisterPushHandle(pTq, pHandle);
-      taosWUnLockLatch(&pTq->lock);
-      ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
     }
+
+    // kill executing task
+    qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
+    if (pTaskInfo != NULL) {
+      qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
+    }
+
+    taosWLockLatch(&pTq->lock);
+    if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      qStreamCloseTsdbReader(pTaskInfo);
+    }
+    // remove if it has been register in the push manager, and return one empty block to consumer
+    tqUnregisterPushHandle(pTq, pHandle);
+    taosWUnLockLatch(&pTq->lock);
+    ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
   }
 
 end:
