@@ -105,9 +105,10 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
         block.info.childId = pTask->selfChildId;
         taosArrayPush(pRes, &block);
 
-        qDebug("task %d(child %d) processed retrieve, reqId %" PRId64, pTask->id.taskId, pTask->selfChildId,
+        qDebug("s-task:%s(child %d) processed retrieve, reqId:0x%" PRIx64, pTask->id.idStr, pTask->selfChildId,
                pRetrieveBlock->reqId);
       }
+
       break;
     }
 
@@ -118,12 +119,12 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
       continue;
     }
 
-    qDebug("s-task:%s (child %d) executed and get block", pTask->id.idStr, pTask->selfChildId);
-
     SSDataBlock block = {0};
     assignOneDataBlock(&block, output);
     block.info.childId = pTask->selfChildId;
     taosArrayPush(pRes, &block);
+
+    qDebug("s-task:%s (child %d) executed and get block, total blocks:%d", pTask->id.idStr, pTask->selfChildId, (int32_t)taosArrayGetSize(pRes));
   }
 
   return 0;
