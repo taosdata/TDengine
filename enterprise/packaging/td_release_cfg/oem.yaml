@@ -1,5 +1,6 @@
-name: Release 3.0.3.0 enterprise
-
+name: Release Power OEM enterprise
+type: feature
+logfile: logs/
 
 prepareActions:
   enable: false
@@ -42,24 +43,23 @@ parameters:
     OSTYPE: Linux
     CPUTYPE: x64
     WEBSOCKET: true
-    BUILD_HTTP: false
-    BUILD_TOOLS: true
-    BUILD_EXPLORER: true
-    JEMALLOC_ENABLED: true
     BUILD_TAOSX: true
-    BUILD_CLOUD: false
-    VERNUMBER: 3.0.3.0
-    VERCOMPATIBLE: 3.0.0.0
-    PAGMODE: full
     SOMODE: dynamic
     DBNAME: taos
     VERTYPE: stable
     VERDATE: true
     GITINFO: community/$(git rev-parse --verify HEAD)
     GITINFOI: enterprise/$(git rev-parse --verify HEAD)
+    VERNUMBER: 3.0.3.0
+    VERCOMPATIBLE: 3.0.0.0
+    BUILD_HTTP: internal
+    BUILD_TOOLS: true
+    BUILD_EXPLORER: true
+    JEMALLOC_ENABLED: true
     CUS_NAME: TDengine
     CUS_PROMPT: taos
     CUS_EMAIL: support@taosdata.com
+    GRANT_VALUE: 60
 
   OEMFLAG:
    enable:
@@ -72,29 +72,29 @@ parameters:
        suppoert@power.com
 
   allBins:
-  - &remove communityScriptDir/remove.sh
-  - &set_core communityScriptDir/set_core.sh
-  - &startPre communityScriptDir/startPre.sh
-  - &clientName buildDir/bin/taos
-  - &taosadapter buildDir/bin/taosadapter
-  - &serverName buildDir/bin/taosd
-  - &taosd-dump-cfg communityScriptDir/taosd-dump-cfg.gdb
-  - &taos-explorer buildDir/bin/power-explorer
-  - &taoskeeper releaseDir/build-taoskeeper/taoskeeper
-  - &udfd buildDir/bin/udfd
-  - &get_client  communityScriptDir/get_client.sh
-  - &remove_client communityScriptDir/remove_client.sh
-  - &install_client communityScriptDir/install_client.sh
-  - &install_server communityScriptDir/install.sh
+   - &remove communityScriptDir/remove.sh
+   - &set_core communityScriptDir/set_core.sh
+   - &startPre communityScriptDir/startPre.sh
+   - &clientName buildDir/bin/taos
+   - &taosadapter buildDir/bin/taosadapter
+   - &serverName buildDir/bin/taosd
+   - &taosd-dump-cfg communityScriptDir/taosd-dump-cfg.gdb
+   - &taos-explorer buildDir/bin/power-explorer
+   - &taoskeeper releaseDir/build-taoskeeper/taoskeeper
+   - &udfd buildDir/bin/udfd
+   - &get_client  communityScriptDir/get_client.sh
+   - &remove_client communityScriptDir/remove_client.sh
+   - &install_client communityScriptDir/install_client.sh
+   - &install_server communityScriptDir/install.sh
 
   taosxBins:
-  - &taosx buildDir/bin/taosx
+   - &taosx buildDir/bin/taosx
   taosToolsBins:
-  - &taosdump buildDir/bin/taosdump
-  - &taosBenchmark buildDir/bin/taosBenchmark
-  - &tdengine-datasource_zip buildDir/bin/tdengine-datasource.zip
-  - &tdengine-datasource_zip_md5sum buildDir/bin/tdengine-datasource.zip.md5sum
-  - &TDinsight buildDir/bin/TDinsight.sh
+   - &taosdump buildDir/bin/taosdump
+   - &taosBenchmark buildDir/bin/taosBenchmark
+   - &tdengine-datasource_zip buildDir/bin/tdengine-datasource.zip
+   - &tdengine-datasource_zip_md5sum buildDir/bin/tdengine-datasource.zip.md5sum
+   - &TDinsight buildDir/bin/TDinsight.sh
   libs:
     - &libtaos  buildDir/lib/libtaos.so.
     - &libtaows buildDir/lib/libtaosws.so
@@ -158,16 +158,24 @@ parameters:
             init.d:
               - *rpm_server
               - *deb_server
-            jemalloc: true
+            jemalloc: folder
           driver:
             - *libtaos
             - *libtaows
             - vercomp.txt
           install.sh: *install_server
-          share:
-            srv:
-              - *taosx_service
-              - *taosexplorer_service
+          share: 
+            - admin:
+               folder: true
+               src: webDir/admin
+            - etc:
+               folder: true
+               src: buildDir/share/etc
+            - srv:
+               folder: true
+               src: buildDir/share/srv
+            - admin/images:
+                src: webDir/png/taos.png
 
       client:
         enable: true
