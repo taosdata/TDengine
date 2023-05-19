@@ -232,10 +232,10 @@ pub async fn pi_to_taos(
     with_agent: Option<(i64, String, String)>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: PI or PIBACKFILL");
-    // #[cfg(not(target_os = "windows"))]
-    // {
-    //     anyhow::bail!("PI connector support only windows platform");
-    // }
+    #[cfg(not(target_os = "windows"))]
+    {
+        anyhow::bail!("PI connector support only windows platform");
+    }
     let td_database = to.subject.clone();
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
 
