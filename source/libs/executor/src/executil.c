@@ -1742,12 +1742,12 @@ int32_t convertFillType(int32_t mode) {
   return type;
 }
 
-static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery) {
+void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery) {
   if (ascQuery) {
-    *w = getAlignQueryTimeWindow(pInterval, pInterval->precision, ts);
+    *w = getAlignQueryTimeWindow(pInterval, ts);
   } else {
     // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-    *w = getAlignQueryTimeWindow(pInterval, pInterval->precision, ts);
+    *w = getAlignQueryTimeWindow(pInterval, ts);
 
     int64_t key = w->skey;
     while (key < ts) {  // moving towards end
@@ -1764,7 +1764,7 @@ static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindo
 static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
   STimeWindow w = {0};
 
-  w.skey = taosTimeTruncate(ts, pInterval, pInterval->precision);
+  w.skey = taosTimeTruncate(ts, pInterval);
   w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   return w;
 }
@@ -1798,6 +1798,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   if (pRow) {
     w = pRow->win;
   }
+
   // in case of typical time window, we can calculate time window directly.
   if (w.skey > ts || w.ekey < ts) {
     w = doCalculateTimeWindow(ts, pInterval);
@@ -1810,6 +1811,34 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   }
 
   return w;
+}
+
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
+  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
+  if (!IS_CALENDAR_TIME_DURATION(pInterval->slidingUnit)) {
+    tw->skey += pInterval->sliding * factor;
+    tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    return;
+  }
+
+  // convert key to second
+  int64_t key = convertTimePrecision(tw->skey, pInterval->precision, TSDB_TIME_PRECISION_MILLI) / 1000;
+
+  int64_t duration = pInterval->sliding;
+  if (pInterval->slidingUnit == 'y') {
+    duration *= 12;
+  }
+
+  struct tm tm;
+  time_t    t = (time_t) key;
+  taosLocalTime(&t, &tm, NULL);
+
+  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + duration * factor);
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+  tw->skey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000LL, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
+
+  tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
 }
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {

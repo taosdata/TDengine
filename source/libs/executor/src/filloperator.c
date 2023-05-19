@@ -255,10 +255,10 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
                             const char* id, SInterval* pInterval, int32_t fillType, int32_t order) {
   SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols, pValNode);
 
+  STimeWindow w = {0};
   int64_t     startKey = (order == TSDB_ORDER_ASC) ? win.skey : win.ekey;
-  STimeWindow w = getAlignQueryTimeWindow(pInterval, pInterval->precision, startKey);
-  w = getFirstQualifiedTimeWindow(startKey, &w, pInterval, order);
 
+  getInitialStartTimeWindow(pInterval, startKey, &w, order);
   pInfo->pFillInfo = taosCreateFillInfo(w.skey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
                                         pInfo->primaryTsCol, order, id);
 
@@ -400,13 +400,13 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
 TSKEY getNextWindowTs(TSKEY ts, SInterval* pInterval) {
   STimeWindow win = {.skey = ts, .ekey = ts};
-  getNextIntervalWindow(pInterval, &win, TSDB_ORDER_ASC);
+  getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
   return win.skey;
 }
 
 TSKEY getPrevWindowTs(TSKEY ts, SInterval* pInterval) {
   STimeWindow win = {.skey = ts, .ekey = ts};
-  getNextIntervalWindow(pInterval, &win, TSDB_ORDER_DESC);
+  getNextTimeWindow(pInterval, &win, TSDB_ORDER_DESC);
   return win.skey;
 }
 
