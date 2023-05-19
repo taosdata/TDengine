@@ -883,10 +883,6 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
       }
       pStart += pDstCol->info.bytes;
     }
-
-    if (pCtx->saveHandle.pState) {
-      tdbFree((void*)p);
-    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3123,7 +3119,7 @@ void* serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsid
   return buf;
 }
 
-static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, size_t length, STupleKey* key,
+static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, size_t length, SWinKey* key,
                                STuplePos* pPos) {
   STuplePos p = {0};
   if (pHandle->pBuf != NULL) {
@@ -3171,7 +3167,7 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
 int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   prepareBuf(pCtx);
 
-  STupleKey key;
+  SWinKey key;
   if (pCtx->saveHandle.pBuf == NULL) {
     SColumnInfoData* pColInfo = taosArrayGet(pSrcBlock->pDataBlock, 0);
     if (pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -3179,7 +3175,6 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
 
       key.groupId = pSrcBlock->info.id.groupId;
       key.ts = skey;
-      key.exprIdx = pCtx->exprIdx;
     }
   }
 
@@ -5576,7 +5571,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   int32_t len = sprintf(st + VARSTR_HEADER_SIZE,
-                        "Total_Blocks=[%d] Total_Size=[%.2f Kb] Average_size=[%.2f Kb] Compression_Ratio=[%.2f %c]",
+                        "Total_Blocks=[%d] Total_Size=[%.2f KB] Average_size=[%.2f KB] Compression_Ratio=[%.2f %c]",
                         pData->numOfBlocks, pData->totalSize / 1024.0, averageSize / 1024.0, compRatio, '%');
 
   varDataSetLen(st, len);

@@ -52,7 +52,7 @@ TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBench
 ### Ubuntu 18.04 及以上版本 & Debian：
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev
+sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev
 ```
 
 #### 为 taos-tools 安装编译需要的软件
@@ -352,4 +352,4 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 
 # 加入技术交流群
 
-TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小 T 为好友，即可入群。
+TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine1"，加小 T 为好友，即可入群。

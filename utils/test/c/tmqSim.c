@@ -232,7 +232,7 @@ void saveConfigToLogFile() {
       taosFprintfFile(g_fp, "%s:%s, ", g_stConfInfo.stThreads[i].key[k], g_stConfInfo.stThreads[i].value[k]);
     }
     taosFprintfFile(g_fp, "\n");
-    taosFprintfFile(g_fp, "  expect rows: %" PRIx64 "\n", g_stConfInfo.stThreads[i].expectMsgCnt);
+    taosFprintfFile(g_fp, "  expect rows: %" PRId64 "\n", g_stConfInfo.stThreads[i].expectMsgCnt);
   }
 
   char tmpString[128];

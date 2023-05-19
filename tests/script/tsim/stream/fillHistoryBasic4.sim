@@ -1,0 +1,553 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print =============== create database
+sql create database test vgroups 1;
+sql select * from information_schema.ins_databases
+if $rows != 3 then
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+sql use test;
+
+sql create database test2 vgroups 1;
+sql select * from information_schema.ins_databases;
+
+sql use test2;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+sql insert into t1 values(1648791223001,2,2,3,1.1);
+sql insert into t1 values(1648791233002,3,2,3,2.1);
+sql insert into t1 values(1648791243003,4,2,3,3.1);
+sql insert into t1 values(1648791213004,4,2,3,4.1);
+
+print create stream stream2 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s)
+sql create stream stream2 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
+
+$loop_count = 0
+loop0:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
+
+if $rows != 4 then
+  print ======$rows
+  goto loop0
+endi
+
+# row 0
+if $data01 != 2 then
+  print ======$data01
+  goto loop0
+endi
+
+if $data02 != 2 then
+  print ======$data02
+  goto loop0
+endi
+
+if $data03 != 5 then
+  print ======$data03
+  goto loop0
+endi
+
+if $data04 != 2 then
+  print ======$data04
+  goto loop0
+endi
+
+if $data05 != 3 then
+  print ======$data05
+  goto loop0
+endi
+
+# row 1
+if $data11 != 1 then
+  print ======$data11
+  goto loop0
+endi
+
+if $data12 != 1 then
+  print ======$data12
+  goto loop0
+endi
+
+if $data13 != 2 then
+  print ======$data13
+  goto loop0
+endi
+
+if $data14 != 2 then
+  print ======$data14
+  goto loop0
+endi
+
+if $data15 != 3 then
+  print ======$data15
+  goto loop0
+endi
+
+# row 2
+if $data21 != 1 then
+  print ======$data21
+  goto loop0
+endi
+
+if $data22 != 1 then
+  print ======$data22
+  goto loop0
+endi
+
+if $data23 != 3 then
+  print ======$data23
+  goto loop0
+endi
+
+if $data24 != 2 then
+  print ======$data24
+  goto loop0
+endi
+
+if $data25 != 3 then
+  print ======$data25
+  goto loop0
+endi
+
+# row 3
+if $data31 != 1 then
+  print ======$data31
+  goto loop0
+endi
+
+if $data32 != 1 then
+  print ======$data32
+  goto loop0
+endi
+
+if $data33 != 4 then
+  print ======$data33
+  goto loop0
+endi
+
+if $data34 != 2 then
+  print ======$data34
+  goto loop0
+endi
+
+if $data35 != 3 then
+  print ======$data35
+  goto loop0
+endi
+
+sql insert into t1 values(1648791223001,12,14,13,11.1);
+
+$loop_count = 0
+loop07:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sql select * from streamt;
+
+print    count(*) , count(d) , sum(a) , max(b) , min(c)
+print 0: $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+print 1: $data10 , $data11 , $data12 , $data13 , $data14 , $data15
+
+if $rows != 4 then
+  print ======$rows
+  goto loop07
+endi
+
+# row 0
+if $data01 != 2 then
+  print ======$data01
+  goto loop07
+endi
+
+if $data02 != 2 then
+  print ======$data02
+  goto loop07
+endi
+
+if $data03 != 5 then
+  print ======$data03
+  goto loop07
+endi
+
+if $data04 != 2 then
+  print ======$data04
+  goto loop07
+endi
+
+if $data05 != 3 then
+  print ======$data05
+  goto loop07
+endi
+
+# row 1
+if $data11 != 1 then
+  print ======$data11
+  goto loop07
+endi
+
+if $data12 != 1 then
+  print ======$data12
+  goto loop07
+endi
+
+if $data13 != 12 then
+  print ======$data13
+  goto loop07
+endi
+
+if $data14 != 14 then
+  print ======$data14
+  goto loop07
+endi
+
+if $data15 != 13 then
+  print ======$data15
+  goto loop07
+endi
+
+# row 2
+if $data21 != 1 then
+  print ======$data21
+  goto loop07
+endi
+
+if $data22 != 1 then
+  print ======$data22
+  goto loop07
+endi
+
+if $data23 != 3 then
+  print ======$data23
+  goto loop07
+endi
+
+if $data24 != 2 then
+  print ======$data24
+  goto loop07
+endi
+
+if $data25 != 3 then
+  print ======$data25
+  goto loop07
+endi
+
+# row 3
+if $data31 != 1 then
+  print ======$data31
+  goto loop07
+endi
+
+if $data32 != 1 then
+  print ======$data32
+  goto loop07
+endi
+
+if $data33 != 4 then
+  print ======$data33
+  goto loop07
+endi
+
+if $data34 != 2 then
+  print ======$data34
+  goto loop07
+endi
+
+if $data35 != 3 then
+  print ======$data35
+  goto loop07
+endi
+
+sql insert into t1 values(1648791223002,12,14,13,11.1);
+
+$loop_count = 0
+loop08:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
+
+# row 1
+if $data11 != 2 then
+  print ======$data11
+  goto loop08
+endi
+
+if $data12 != 2 then
+  print ======$data12
+  goto loop08
+endi
+
+if $data13 != 24 then
+  print ======$data13
+  goto loop08
+endi
+
+if $data14 != 14 then
+  print ======$data14
+  goto loop08
+endi
+
+if $data15 != 13 then
+  print ======$data15
+  goto loop08
+endi
+
+sql insert into t1 values(1648791223003,12,14,13,11.1);
+
+$loop_count = 0
+loop09:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
+
+# row 1
+if $data11 != 3 then
+  print ======$data11
+  goto loop09
+endi
+
+if $data12 != 3 then
+  print ======$data12
+  goto loop09
+endi
+
+if $data13 != 36 then
+  print ======$data13
+  goto loop09
+endi
+
+if $data14 != 14 then
+  print ======$data14
+  goto loop09
+endi
+
+if $data15 != 13 then
+  print ======$data15
+  goto loop09
+endi
+
+sql insert into t1 values(1648791223001,1,1,1,1.1);
+sql insert into t1 values(1648791223002,2,2,2,2.1);
+sql insert into t1 values(1648791223003,3,3,3,3.1);
+
+$loop_count = 0
+loop010:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
+
+# row 1
+if $data11 != 3 then
+  print ======$data11
+  goto loop010
+endi
+
+if $data12 != 3 then
+  print ======$data12
+  goto loop010
+endi
+
+if $data13 != 6 then
+  print ======$data13
+  goto loop010
+endi
+
+if $data14 != 3 then
+  print ======$data14
+  goto loop010
+endi
+
+if $data15 != 1 then
+  print ======$data15
+  goto loop010
+endi
+
+sql insert into t1 values(1648791233003,3,2,3,2.1);
+sql insert into t1 values(1648791233002,5,6,7,8.1);
+sql insert into t1 values(1648791233002,3,2,3,2.1);
+
+$loop_count = 0
+loop011:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
+
+# row 2
+if $data21 != 2 then
+  print ======$data21
+  goto loop011
+endi
+
+if $data22 != 2 then
+  print ======$data22
+  goto loop011
+endi
+
+if $data23 != 6 then
+  print ======$data23
+  goto loop011
+endi
+
+if $data24 != 2 then
+  print ======$data24
+  goto loop011
+endi
+
+if $data25 != 3 then
+  print ======$data25
+  goto loop011
+endi
+
+sql insert into t1 values(1648791213004,4,2,3,4.1) (1648791213006,5,4,7,9.1) (1648791213004,40,20,30,40.1) (1648791213005,4,2,3,4.1);
+
+$loop_count = 0
+loop012:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
+
+# row 0
+if $data01 != 4 then
+  print ======$data01
+  goto loop012
+endi
+
+if $data02 != 4 then
+  print ======$data02
+  goto loop012
+endi
+
+if $data03 != 50 then
+  print ======$data03 != 50
+  goto loop012
+endi
+
+if $data04 != 20 then
+  print ======$data04 != 20
+  goto loop012
+endi
+
+if $data05 != 3 then
+  print ======$data05
+  goto loop012
+endi
+
+sql insert into t1 values(1648791223004,4,2,3,4.1) (1648791233006,5,4,7,9.1) (1648791223004,40,20,30,40.1) (1648791233005,4,2,3,4.1);
+
+$loop_count = 0
+loop013:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
+
+# row 1
+if $data11 != 4 then
+  print ======$data11
+  goto loop013
+endi
+
+if $data12 != 4 then
+  print ======$data12
+  goto loop013
+endi
+
+if $data13 != 46 then
+  print ======$data13 != 46
+  goto loop013
+endi
+
+if $data14 != 20 then
+  print ======$data14 != 20
+  goto loop013
+endi
+
+if $data15 != 1 then
+  print ======$data15
+  goto loop013
+endi
+
+# row 2
+if $data21 != 4 then
+  print ======$data21
+  goto loop013
+endi
+
+if $data22 != 4 then
+  print ======$data22
+  goto loop013
+endi
+
+if $data23 != 15 then
+  print ======$data23
+  goto loop013
+endi
+
+if $data24 != 4 then
+  print ======$data24
+  goto loop013
+endi
+
+if $data25 != 3 then
+  print ======$data25
+  goto loop013
+endi
+
+print ======over
+
