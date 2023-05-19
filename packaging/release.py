@@ -1,17 +1,28 @@
 import argparse
-import sys
-import shutil
-import platform
 import os
+import platform
+import shutil
 import subprocess
+import sys
+from datetime import datetime
+
 import toml
 
+
+def get_current_commit():
+    cmd = "git rev-parse HEAD".split()
+    return subprocess.check_output(cmd).decode().strip()
+
+
+mqtt_version = "1.0.0"
+commit_id = get_current_commit()
+current_day = datetime.now().strftime("%Y-%m-%d")
 cus_name = "TDengine"
 taosx_agent_name = "taosx-agent"
 connector_array = []
 version = ''
 install_path = ''
-packagServerName = ''
+package_server_name = ''
 current_os = platform.system()
 script_path = os.path.abspath(sys.argv[0])
 script_dir = os.path.dirname(script_path)
@@ -20,7 +31,8 @@ taosx_dir = os.path.abspath(os.path.join(script_dir, ".."))
 
 test_process = ''
 
-def getTaosxVersion():
+
+def get_taosx_version():
     global version
     cargo_toml_path = os.path.join(taosx_dir, "Cargo.toml")
     print("cargo_toml_path:", cargo_toml_path)
@@ -28,13 +40,15 @@ def getTaosxVersion():
         cargo_toml = toml.load(f)
         version = cargo_toml['package']['version']
 
-def getTaosxAgentOutputName():
+
+def get_taosx_agent_output_name():
     if current_os == 'Windows':  # Windows操作系统
         return taosx_agent_name + ".exe"
     else:
         return taosx_agent_name
 
-def setDefaultParam():
+
+def set_default_param():
     global install_path
 
     if current_os == 'Windows':  # Windows操作系统
@@ -47,9 +61,10 @@ def setDefaultParam():
         print('Unknown operating system:', current_os)
         sys.exit()
 
-def readArgs():
-    global connector_array, packagServerName, test_process
-    getTaosxVersion()
+
+def read_args():
+    global connector_array, package_server_name, test_process
+    get_taosx_version()
     parser = argparse.ArgumentParser()
 
     # 添加 -c 参数，connector集合
@@ -67,25 +82,26 @@ def readArgs():
     result = "".join([f"-{elem}" for elem in connector_array])
 
     if current_os == 'Windows':
-        packagServerName = f'{taosx_agent_name}-v{version}{result}-installer'
+        package_server_name = f'{taosx_agent_name}-v{version}{result}-installer'
     elif current_os == 'Darwin':
-        packagServerName = f'{taosx_agent_name}-v{version}{result}-Mac-installer'
+        package_server_name = f'{taosx_agent_name}-v{version}{result}-Mac-installer'
     elif current_os == 'Linux':
-        packagServerName = f'{taosx_agent_name}-v{version}{result}-Linux-installer'
+        package_server_name = f'{taosx_agent_name}-v{version}{result}-Linux-installer'
     else:
         print('Unknown operating system:', current_os)
-        sys.exit()   
+        sys.exit()
 
 
-def printParam():      
+def print_param():
     print('PARAM connector_array', connector_array)
     print('PARAM version:', version)
     print('PARAM install_path:', install_path)
     print('PARAM release_path:', release_path)
-    print('PARAM packagServerName:', packagServerName)
+    print('PARAM packagServerName:', package_server_name)
     print('')
 
-def buildAndInstallOPCOnWindows():
+
+def build_and_install_opc_on_windows():
     print("buildAndInstallOPC on windows start...")
     opc_connector_path = os.path.join(taosx_dir, "plugins", "opc")
     os.chdir(opc_connector_path)
@@ -95,9 +111,9 @@ def buildAndInstallOPCOnWindows():
     os.environ["GOARCH"] = "386"
     opc_app_name = "opc-collector.exe"
     os.system(f"go build -o dist/windows_386/{opc_app_name}")
-    
+
     opc_install_path = os.path.join(install_path, "xplugins", "opc")
-    initDirectory(opc_install_path)
+    init_directory(opc_install_path)
     opc_path = os.path.join(opc_connector_path, "dist", "windows_386", opc_app_name)
     try:
         shutil.copy2(opc_path, opc_install_path)
@@ -105,18 +121,25 @@ def buildAndInstallOPCOnWindows():
         print("Build OPC failed: ", e.strerror)
         sys.exit()
 
-def buildAndInstallMQTTOnWindows():
+
+def build_and_install_mqtt_on_windows():
     print("buildAndInstallMQTT on windows start...")
     mqtt_connector_path = os.path.join(taosx_dir, "plugins", "mqtt")
     os.chdir(mqtt_connector_path)
-
+    print(mqtt_connector_path)
     os.environ["GOOS"] = "windows"
     os.environ["GOARCH"] = "amd64"
     mqtt_app_name = "taosmqtt.exe"
-    os.system(f"go build -o dist/{mqtt_app_name}")
+    base_build = f"go build -o dist/{mqtt_app_name}"
+    extend = f" -ldflags \"-X github.com/taosdata/taosx/plugins/mqtt/version.Version={mqtt_version} " \
+             f"-X github.com/taosdata/taosx/plugins/mqtt/version.Commit={commit_id} " \
+             f"-X github.com/taosdata/taosx/plugins/mqtt/version.BuildTime={current_day}\""
+    build = base_build + extend
+    print(build)
+    os.system(build)
 
     mqtt_install_path = os.path.join(install_path, "xplugins", "mqtt")
-    initDirectory(mqtt_install_path)
+    init_directory(mqtt_install_path)
     mqtt_path = os.path.join(mqtt_connector_path, "dist", mqtt_app_name)
     try:
         shutil.copy2(mqtt_path, mqtt_install_path)
@@ -124,22 +147,24 @@ def buildAndInstallMQTTOnWindows():
         print("Build MQTT failed: ", e.strerror)
         sys.exit()
 
-def buildAndInstallOPC():
+
+def build_and_install_opc():
     if current_os == 'Windows':
-        buildAndInstallOPCOnWindows()
+        build_and_install_opc_on_windows()
     else:
         print('buildAndInstallOPC not supported on operating system:', current_os)
         sys.exit()
 
-def buildAndInstallMQTT():
+
+def build_and_install_mqtt():
     if current_os == 'Windows':
-        buildAndInstallMQTTOnWindows()
+        build_and_install_mqtt_on_windows()
     else:
         print('buildAndInstallMQTT not supported on operating system:', current_os)
         sys.exit()
 
 
-def buildAndInstallPI():
+def build_and_install_pi():
     if current_os != 'Windows':
         print(" PI Connector is only compatible with the Windows operating system.")
         sys.exit()
@@ -157,7 +182,7 @@ def buildAndInstallPI():
         sys.exit()
 
     pi_install_path = os.path.join(install_path, "xplugins", "pi")
-    initDirectory(pi_install_path)
+    init_directory(pi_install_path)
 
     backfill_path = os.path.join(pi_connector_path, "TDBackfill", "bin", "Release")
     for filename in os.listdir(backfill_path):
@@ -172,7 +197,8 @@ def buildAndInstallPI():
         if os.path.isfile(filepath):
             shutil.copy2(filepath, pi_install_path)
 
-def copyTaosAgentServiceFile(taosx_install_path):
+
+def copy_taos_agent_service_file(taosx_install_path):
     taosx_agent_path = os.path.join(taosx_dir, "taosx-agent", "bin")
     for filename in os.listdir(taosx_agent_path):
         if filename.startswith("taosx-agent-srv"):
@@ -180,52 +206,56 @@ def copyTaosAgentServiceFile(taosx_install_path):
             if os.path.isfile(filepath):
                 shutil.copy2(filepath, taosx_install_path)
 
-def copyTaosAgentCfg(taos_cfg_path):
+
+def copy_taos_agent_cfg(taos_cfg_path):
     taosx_agent_cfg = os.path.join(taosx_dir, "taosx-agent", "examples", "agent.example.toml")
     try:
         shutil.copy2(taosx_agent_cfg, taos_cfg_path)
     except FileNotFoundError as e:
-        print("Copy TaosX Agent cfg from {} to {} failed: {}".format(taosx_agent_cfg, taos_cfg_path,  e.strerror))
+        print("Copy TaosX Agent cfg from {} to {} failed: {}".format(taosx_agent_cfg, taos_cfg_path, e.strerror))
         sys.exit()
 
-def buildAndInstallTaosX():
+
+def build_and_install_taosx():
     print("buildAndInstallTaosX Agent start...")
     os.chdir(taosx_dir)
     os.system('cargo build --release --package taosx-agent')
 
     taox_install_path = os.path.join(install_path, "bin")
-    checkDirectory(taox_install_path)
-    taosx_agent_path = os.path.join(taosx_dir, "target", "release", getTaosxAgentOutputName())
+    check_directory(taox_install_path)
+    taosx_agent_path = os.path.join(taosx_dir, "target", "release", get_taosx_agent_output_name())
     try:
         shutil.copy2(taosx_agent_path, taox_install_path)
     except FileNotFoundError as e:
-        print("Copy TaosX to {} failed: {}".format(taosx_agent_path,  e.strerror))
+        print("Copy TaosX to {} failed: {}".format(taosx_agent_path, e.strerror))
         sys.exit()
 
-    copyTaosAgentServiceFile(taox_install_path)
+    copy_taos_agent_service_file(taox_install_path)
     taos_cfg_path = os.path.join(install_path, "cfg")
-    copyTaosAgentCfg(taos_cfg_path)
-   
-def packageOnWindows():
+    copy_taos_agent_cfg(taos_cfg_path)
+
+
+def package_on_windows():
     os.chdir(script_dir)
-    result = subprocess.run(f'iscc /F"{packagServerName}" /DMyAppVersion="{version}" '
+    result = subprocess.run(f'iscc /F"{package_server_name}" /DMyAppVersion="{version}" '
                             f'/DMyAppSourceDir="{install_path}" '
                             f'/DCusName="{cus_name}" '
                             f'/DTaosXAgentName="{taosx_agent_name}" '
                             f'{script_dir}/taosx.iss /O{taosx_dir}/release', shell=True)
     if result.returncode != 0:
-        print(f'package {packagServerName} failed')
+        print(f'package {package_server_name} failed')
         sys.exit(1)
+
 
 def package():
     if current_os == 'Windows':
-        packageOnWindows()
+        package_on_windows()
     else:
         print('packaging not supported on operating system:', current_os)
-        sys.exit()      
+        sys.exit()
 
-   
-def initDirectory(path):
+
+def init_directory(path):
     try:
         shutil.rmtree(path)
     except FileNotFoundError:
@@ -239,69 +269,73 @@ def initDirectory(path):
     except Exception as e:
         print('Error:', e)
         sys.exit()
- 
-def checkDirectory(path):
+
+
+def check_directory(path):
     try:
         if not os.path.exists(path):
             os.makedirs(path)
     except Exception as e:
         print('Error:', e)
         sys.exit()
-        
-def initInstallDirectory():
+
+
+def init_install_directory():
     print("initInstallDirectory {}...".format(install_path))
-    checkDirectory(install_path)
-    checkDirectory(os.path.join(install_path, "cfg"))
+    check_directory(install_path)
+    check_directory(os.path.join(install_path, "cfg"))
 
     opc_install_path = os.path.join(install_path, "xplugins", "opc")
-    initDirectory(opc_install_path)
+    init_directory(opc_install_path)
 
     pi_install_path = os.path.join(install_path, "xplugins", "pi")
-    initDirectory(pi_install_path)
+    init_directory(pi_install_path)
 
     mqtt_install_path = os.path.join(install_path, "xplugins", "mqtt")
-    initDirectory(mqtt_install_path)
+    init_directory(mqtt_install_path)
 
 
-def initReleaseDirectory():
+def init_release_directory():
     print("initReleaseDirectory {}...".format(release_path))
-    checkDirectory(release_path)
+    check_directory(release_path)
 
-def testHanle(process):
+
+def test_handle(process):
     if process == "pi":
         print("Calling PI function...")
-        buildAndInstallPI()
+        build_and_install_pi()
     elif process == "opc":
         print("Calling OPC function...")
-        buildAndInstallOPC()
+        build_and_install_opc()
     elif process == 'mqtt':
         print("Calling MQTT function...")
-        buildAndInstallMQTT()
+        build_and_install_mqtt()
     elif process == "package":
         print("Calling Package function...")
         package()
     elif process == "taosx":
         print("Calling Taosx function...")
-        buildAndInstallTaosX()
+        build_and_install_taosx()
     else:
         print("Invalid input. Please enter valid input.")
-  
-if __name__ == '__main__':
-    setDefaultParam()
-    readArgs()
-    printParam()
-    if test_process != '':
-        testHanle(test_process)
-        sys.exit()
-    initInstallDirectory()
 
-    buildAndInstallTaosX()
+
+if __name__ == '__main__':
+    set_default_param()
+    read_args()
+    print_param()
+    if test_process != '':
+        test_handle(test_process)
+        sys.exit()
+    init_install_directory()
+
+    build_and_install_taosx()
     if "pi" in connector_array:
-        buildAndInstallPI()
+        build_and_install_pi()
     if "opc" in connector_array:
-        buildAndInstallOPC()
+        build_and_install_opc()
     if "mqtt" in connector_array:
-        buildAndInstallMQTT()
-        
-    initReleaseDirectory()
+        build_and_install_mqtt()
+
+    init_release_directory()
     package()
