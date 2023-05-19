@@ -1,5 +1,6 @@
-name: Release 3.0.3.0 enterprise
-
+name: Release Power OEM enterprise
+type: feature
+logfile: logs/
 
 prepareActions:
   enable: false
@@ -28,7 +29,7 @@ postActions:
         - -p power
         - -e support@powerdb.com
         - -d ../../community/release
-        - -v 3.0.4.0
+        - -v 3.0.4.1
 
 
 parameters:
@@ -49,7 +50,7 @@ parameters:
     VERDATE: true
     GITINFO: community/$(git rev-parse --verify HEAD)
     GITINFOI: enterprise/$(git rev-parse --verify HEAD)
-    VERNUMBER: 3.0.3.0
+    VERNUMBER: 3.0.4.1
     VERCOMPATIBLE: 3.0.0.0
     BUILD_HTTP: internal
     BUILD_TOOLS: true
@@ -64,11 +65,11 @@ parameters:
    enable:
        true
    CUS_NAME:
-       PowerDB 
+       ProDB 
    CUS_PROMPT:
-       power
+       prodb
    CUS_EMAIL: 
-       suppoert@power.com
+       support@hanatech.com.cn
 
   allBins:
    - &remove communityScriptDir/remove.sh
