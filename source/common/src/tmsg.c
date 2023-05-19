@@ -1566,21 +1566,21 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
     char db[TSDB_DB_FNAME_LEN] = {0};
     if (tDecodeCStrTo(pDecoder, db) < 0) return -1;
     int32_t len = strlen(db);
-    taosHashPut(pRsp->createdDbs, db, len, db, len);
+    taosHashPut(pRsp->createdDbs, db, len, db, len + 1);
   }
 
   for (int32_t i = 0; i < numOfReadDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     if (tDecodeCStrTo(pDecoder, db) < 0) return -1;
     int32_t len = strlen(db);
-    taosHashPut(pRsp->readDbs, db, len, db, len);
+    taosHashPut(pRsp->readDbs, db, len, db, len + 1);
   }
 
   for (int32_t i = 0; i < numOfWriteDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     if (tDecodeCStrTo(pDecoder, db) < 0) return -1;
     int32_t len = strlen(db);
-    taosHashPut(pRsp->writeDbs, db, len, db, len);
+    taosHashPut(pRsp->writeDbs, db, len, db, len + 1);
   }
 
   if (!tDecodeIsEnd(pDecoder)) {
@@ -3416,6 +3416,7 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
   if (tEncodeCStr(&encoder, pRsp->dbFName) < 0) return -1;
   if (tEncodeU64(&encoder, pRsp->suid) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->version) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->indexSize) < 0) return -1;
   int32_t num = taosArrayGetSize(pRsp->pIndex);
   if (tEncodeI32(&encoder, num) < 0) return -1;
   if (num > 0) {
@@ -3461,6 +3462,7 @@ int32_t tDeserializeSTableIndexRsp(void *buf, int32_t bufLen, STableIndexRsp *pR
   if (tDecodeCStrTo(&decoder, pRsp->dbFName) < 0) return -1;
   if (tDecodeU64(&decoder, &pRsp->suid) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->version) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->indexSize) < 0) return -1;
   int32_t num = 0;
   if (tDecodeI32(&decoder, &num) < 0) return -1;
   if (num > 0) {
@@ -3735,6 +3737,7 @@ int32_t tSerializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
     if (tEncodeCStr(&encoder, pIndexRsp->dbFName) < 0) return -1;
     if (tEncodeU64(&encoder, pIndexRsp->suid) < 0) return -1;
     if (tEncodeI32(&encoder, pIndexRsp->version) < 0) return -1;
+    if (tEncodeI32(&encoder, pIndexRsp->indexSize) < 0) return -1;
     int32_t num = taosArrayGetSize(pIndexRsp->pIndex);
     if (tEncodeI32(&encoder, num) < 0) return -1;
     for (int32_t i = 0; i < num; ++i) {
@@ -3797,6 +3800,7 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
     if (tDecodeCStrTo(&decoder, tableIndexRsp.dbFName) < 0) return -1;
     if (tDecodeU64(&decoder, &tableIndexRsp.suid) < 0) return -1;
     if (tDecodeI32(&decoder, &tableIndexRsp.version) < 0) return -1;
+    if (tDecodeI32(&decoder, &tableIndexRsp.indexSize) < 0) return -1;
     int32_t num = 0;
     if (tDecodeI32(&decoder, &num) < 0) return -1;
     if (num > 0) {

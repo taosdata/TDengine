@@ -748,7 +748,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     return terrno;
   }
 
-  if (taosSetCfg(tsCfg, pStmt->config)) {
+  if (taosApplyLocalCfg(tsCfg, pStmt->config)) {
     return terrno;
   }
 
