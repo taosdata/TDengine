@@ -14,7 +14,11 @@
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
-            <el-select v-model="dbsource[0].protocol.value" placeholder="" style="margin-bottom:8px;">
+            <el-select
+              v-model="dbsource[0].protocol.value"
+              placeholder=""
+              style="margin-bottom: 8px"
+            >
               <el-option
                 v-for="c in dbsource[0].protocol.choices"
                 :key="c.name"
@@ -52,7 +56,7 @@
             >
             <div class="label-value" v-if="dbsource[0].options.endpoint">
               <el-input
-                style="margin-bottom:8px;"
+                style="margin-bottom: 8px"
                 v-model="dbsource[0].options.endpoint.value"
                 :placeholder="
                   dbsource[0].options.endpoint
@@ -166,33 +170,21 @@
                 <template v-if="at.name == 'plain'">
                   <div class="plain">
                     <div class="plain-item">
-                      <span class="label">{{at.username
-                          .display
-                      }}</span>
+                      <span class="label">{{ at.username.display }}</span>
                       <div style="flex: 1">
                         <el-input
                           style="margin-bottom: 8px"
-                          v-model="
-                            at.username
-                              .value
-                          "
+                          v-model="at.username.value"
                         ></el-input>
                         <p
                           class="description"
-                          v-html="
-                            transforHtml(
-                              at.username.description
-                            )
-                          "
+                          v-html="transforHtml(at.username.description)"
                         ></p>
                       </div>
                     </div>
 
                     <div class="plain-item">
-                      <span class="label">{{
-                        at.password
-                          .display
-                      }}</span>
+                      <span class="label">{{ at.password.display }}</span>
                       <div style="flex: 1">
                         <el-input
                           type="password"
@@ -201,8 +193,7 @@
                         ></el-input>
                         <p
                           class="description"
-                          v-html="
-                            transforHtml(at.password.description)"
+                          v-html="transforHtml(at.password.description)"
                         ></p>
                       </div>
                     </div>
@@ -228,7 +219,11 @@
                       <el-select
                         v-model="p.value"
                         placeholder=""
-                        style="margin-left: 0px; width: 100%;margin-bottom:8px;"
+                        style="
+                          margin-left: 0px;
+                          width: 100%;
+                          margin-bottom: 8px;
+                        "
                       >
                         <el-option
                           v-for="c in p.hint.choices"
@@ -563,7 +558,7 @@
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
-        <span class="label">Target Database</span>
+        <span class="label required">Target Database</span>
         <el-select v-model="dbname" placeholder="" style="margin-left: -15px">
           <el-option
             v-for="db in dblist"
@@ -819,8 +814,9 @@ export default {
             if (
               Object.hasOwnProperty.call(target, "required") &&
               target.required &&
-              (target.value == null || target.value == undefined || 
-              target.value?.length == 0)
+              (target.value == null ||
+                target.value == undefined ||
+                target.value?.length == 0)
             ) {
               Message({
                 type: "warning",
@@ -836,14 +832,20 @@ export default {
                   }
                   querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
                 }
-              } else if(target.value != null || target.value != undefined) {
+              } else if (target.value != null || target.value != undefined) {
                 querystr += `${target.name}=${target.value}` + "&";
               }
             }
           }
         }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-
+        if (!this.dbname) {
+          Message({
+            type: "warning",
+            message: `${enterTip} target database `,
+          });
+          return;
+        }
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
@@ -894,7 +896,6 @@ export default {
       this.isShowConfiguration = false;
       this.configurationdata = [];
       this.activeDataSet = {};
-      // console.log(tab, event);
     },
 
     handleSelBtn() {

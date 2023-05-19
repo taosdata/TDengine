@@ -575,7 +575,7 @@
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
-        <span class="label">Target Database</span>
+        <span class="label required">Target Database</span>
         <el-select v-model="dbname" placeholder="" >
           <el-option
             v-for="db in dblist"
@@ -923,7 +923,6 @@ export default {
               }
             });
           });
-          console.log(requireTip, this.isIP, this.isPort, "搜寻所有避暑醒目");
           if (requireTip != "") {
             Message({
               type: "warning",
@@ -933,7 +932,13 @@ export default {
           }
         }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-
+        if(!this.dbname){
+          Message({
+              type: "warning",
+              message: `${enterTip} target database `,
+            });
+            return;
+        }
         let apiParams = {
           from:
             "tmq" +
@@ -993,11 +998,6 @@ export default {
               `user::${localStorage.getItem("username")}`,
             ],
           };
-          console.log(
-            this.$parent,
-            this.$parent.agentID,
-            "this.$parent.agentID"
-          );
           if (this.$parent.agentID) {
             piParams["via"] = this.$parent.agentID;
           }
@@ -1029,7 +1029,6 @@ export default {
       this.isShowConfiguration = false;
       this.configurationdata = [];
       this.activeDataSet = {};
-      // console.log(tab, event);
     },
 
     handleSelBtn() {
