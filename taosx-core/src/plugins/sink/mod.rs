@@ -234,6 +234,7 @@ async fn consume_lush_record(
     taos: &Taos,
     stmt: &mut Stmt,
     record: LushMessage,
+    columns: &Vec<String>,
     names: &str,
     marks: &str,
     records: &mut usize,
@@ -266,15 +267,60 @@ async fn consume_lush_record(
                             if let Some(tb) = record.meta_sql(Some(String::from(table_name))) {
                                 info!("sql: {tb}");
                                 taos.exec_sync(&tb)?;
-                                // rt.block_on(taos.exec(&tb))?;
                                 stmt.set_tbname(table_name)?;
                             }
                         }
-                        stmt.bind(data_vec.as_slice())?;
-                        stmt.add_batch().unwrap();
-                        let n = stmt.execute()?;
-
-                        info!("written [{n}] records for table {table_name}");
+                        debug_assert!(columns.len() == data_vec.len());
+                        let mut column_value_pairs:Vec<(String, String)> = Vec::new();
+                        for (index, v) in data_vec.iter().enumerate() {
+                            let mut i = 0;
+                            while i < v.len() {
+                                let mut temp_column_value_pair= column_value_pairs.get_mut(i);
+                                if temp_column_value_pair.is_none() {
+                                    let pair = (String::new(), String::new());
+                                    column_value_pairs.insert(i, pair);
+                                    temp_column_value_pair= column_value_pairs.get_mut(i);
+                                }
+                                let temp_column_value_pair = temp_column_value_pair.unwrap();
+                                if let Some(v) = v.get(i) {
+                                    if !v.is_null() {
+                                        temp_column_value_pair.0.push_str(columns[index].as_str());
+                                        temp_column_value_pair.0.push_str(",");
+                                        temp_column_value_pair.1.push('\'');
+                                        temp_column_value_pair.1.push_str(v.into_value().to_string().unwrap().as_str());
+                                        temp_column_value_pair.1.push('\'');
+                                        temp_column_value_pair.1.push_str(",");
+                                    } else {
+                                        // ignore null columnview
+                                        println!("column view {} is null", columns[index]);
+                                    }
+                                } else {
+                                    println!("column view {} is null", columns[index]);
+                                }
+                                i = i + 1;
+                            }   
+                        }
+                        column_value_pairs.into_iter().for_each(|(mut c, mut v)| {
+                            let mut column_names = String::from("(");
+                            let mut values = String::from("(");
+                            c.pop();
+                            column_names.push_str(c.as_str());
+                            column_names.push(')');
+                            v.pop();
+                            values.push_str(v.as_str());
+                            values.push(')');
+                            let sql = format!("insert into {table_name} {column_names} VALUES {values}");
+                            log::debug!("sql: {sql}");
+                            let res = taos.exec_sync(sql);
+                            match res {
+                                Ok(num) => {
+                                    info!("written [{num}] records for table {table_name}");
+                                }
+                                Err(err) => {
+                                    log::error!("written err for {table_name} cause: {}", err);
+                                }
+                            }
+                        });
                     } else {
                         stmt.bind(data_vec.as_slice())?;
                         stmt.add_batch().unwrap();
@@ -296,14 +342,22 @@ async fn consume_point_record(
     config: &OpcTableConfig,
 ) -> anyhow::Result<()> {
     for message in record.records() {
-        let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
-        // process id, ts, value
+        let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+        // process id, name, ts, value, status
         let schema = message.schema();
         let id_index = schema.index_of("id")?;
+        let name_index = schema.index_of("name")?;
         let server_ts_index = schema.index_of("ts")?;
         let value_index = schema.index_of("value")?;
         let received_index = schema.index_of("received")?;
-        let id_cv = cv_vec.remove(id_index);
+        let status_index = schema.index_of("status")?;
+        let id_cv = cv_vec.get(id_index).unwrap();
+        let name_cv = cv_vec.get(name_index).unwrap();
+        let server_ts_cv = cv_vec.get(server_ts_index).unwrap();
+        let received_ts_cv = cv_vec.get(received_index).unwrap();
+        let value_cv = cv_vec.get(value_index).unwrap();
+        let status_cv = cv_vec.get(status_index).unwrap();
+
         let table_info = &config.table_info;
         let ts_cloumn = &config.ts_cloumn_name;
         for i in 0..id_cv.len() {
@@ -315,45 +369,20 @@ async fn consume_point_record(
             }
             let (table, field, _) = table_info.unwrap();
             let (ts_cloumn_name, server_ts_column_name) = ts_cloumn.get(table).unwrap();
+            let mut new_cv_vec = Vec::new();
             let sql = if config.use_received_time {
                 let server_ts_column_name = server_ts_column_name.clone().unwrap();
-                if server_ts_index > value_index && server_ts_index > received_index {
-                    if value_index > received_index {
-                        format!("insert into {table} ({ts_cloumn_name}, {field}, {server_ts_column_name}) values (?, ?, ?)")
-                    } else {
-                        format!("insert into {table} ({field}, {ts_cloumn_name}, {server_ts_column_name}) values (?, ?, ?)")
-                    }
-                } else if value_index > server_ts_index && value_index > received_index {
-                    if server_ts_index > received_index {
-                        format!("insert into {table} ({ts_cloumn_name}, {server_ts_column_name}, {field}) values (?, ?, ?)")
-                    } else {
-                        format!("insert into {table} ({server_ts_column_name}, {ts_cloumn_name}, {field}) values (?, ?, ?)")
-                    }
-                } else {
-                    if value_index > server_ts_index {
-                        format!("insert into {table} ({server_ts_column_name}, {field}, {ts_cloumn_name}) values (?, ?, ?)")
-                    } else {
-                        format!("insert into {table} ({field}, {server_ts_column_name}, {ts_cloumn_name}) values (?, ?, ?)")
-                    }
-                }
+                new_cv_vec.push(received_ts_cv.slice(i..i+1).unwrap());
+                new_cv_vec.push(value_cv.slice(i..i+1).unwrap());
+                new_cv_vec.push(server_ts_cv.slice(i..i+1).unwrap());
+                format!("insert into {table} ({ts_cloumn_name}, {field}, {server_ts_column_name}) values (?, ?, ?)")
             } else {
-                if id_index < received_index {
-                    cv_vec.remove(received_index - 1);
-                } else {
-                    cv_vec.remove(received_index);
-                }
-                if server_ts_index > value_index {
-                    format!("insert into {table} ({field}, {ts_cloumn_name}) values (?, ?)")
-                } else {
-                    format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
-                }
+                new_cv_vec.push(server_ts_cv.slice(i..i+1).unwrap());
+                new_cv_vec.push(value_cv.slice(i..i+1).unwrap());
+                format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
             };
             debug!("sql: {}", sql);
             stmt.prepare(&sql).unwrap();
-            let new_cv_vec = cv_vec
-                .iter()
-                .map(|t_cv| t_cv.slice(i..i + 1).unwrap())
-                .collect_vec();
             stmt.bind(&new_cv_vec.as_slice())
                 .context("STMT binding error")?;
             stmt.add_batch().context("STMT adding batch error")?;
@@ -585,7 +614,7 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
-    let columns = ipc_reader.columns();
+    let columns = ipc_reader.columns().into_iter().map(|s| format!("{s}")).collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
     let mut stmt = Stmt::init(taos)?;
@@ -598,7 +627,7 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_lush_record(&taos, &mut stmt, record, &names, &marks, &mut count).await?;
+            consume_lush_record(&taos, &mut stmt, record, &columns, &names, &marks, &mut count).await?;
             ipc_ack_writer.write_ok()?;
         }
     }
@@ -782,7 +811,7 @@ impl<'a> IpcStreamWorker<'a> {
                 Ok(count)
             }
             StreamType::Lush => {
-                let columns = self.parser.columns();
+                let columns = self.parser.columns().into_iter().map(|s| format!("{s}")).collect_vec();
                 let names = columns.iter().map(|n| format!("`{n}`")).join(",");
                 let marks = std::iter::repeat('?').take(columns.len()).join(",");
 
@@ -794,7 +823,7 @@ impl<'a> IpcStreamWorker<'a> {
                 })
                 .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
                 // let stmt = unsafe { &mut *self.stmt.get() };
-                consume_lush_record(&self.taos, stmt, record, &names, &marks, &mut count).await?;
+                consume_lush_record(&self.taos, stmt, record, &columns, &names, &marks, &mut count).await?;
                 Ok(count)
             }
             StreamType::Point => {

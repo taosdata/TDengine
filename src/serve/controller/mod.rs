@@ -1355,6 +1355,7 @@ lazy_static::lazy_static! {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
         def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/pi-backfill.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
@@ -1366,6 +1367,7 @@ lazy_static::lazy_static! {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
         def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/pi-backfill.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opc.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());

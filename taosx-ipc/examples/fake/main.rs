@@ -3,7 +3,7 @@ use anyhow::Result;
 use arrow::{
     array::{BinaryBuilder, Float64Builder, Int32Builder, TimestampMillisecondBuilder},
     datatypes::DataType,
-    ipc::writer::StreamWriter,
+    ipc::{writer::StreamWriter, NullBuilder, Null},
 };
 
 use taosx_ipc::prelude::*;
@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
 
     let lush_builder = LushMessageBuilder::new()
         .with_stable(
-            "meters",
+            "meters---",
             vec![
                 IpcField::new("ts", false, timestamp_type, IpcDataType::Timestamp),
                 IpcField::new("c1", false, ArrowDataType::Int32, IpcDataType::Int32),
@@ -118,16 +118,16 @@ async fn main() -> Result<()> {
 
         builder
             .field_builder::<Int32Builder>(1)
-            .unwrap()
-            .append_value(100i32);
+            .unwrap().append_null();
+            // .append_value(Null);
         builder
             .field_builder::<Float64Builder>(2)
             .unwrap()
-            .append_value(100.);
+            .append_value(100.1);
         builder
             .field_builder::<BinaryBuilder>(3)
             .unwrap()
-            .append_value("中文".as_bytes());
+            .append_value("中文0".as_bytes());
         builder
             .field_builder::<BinaryBuilder>(4)
             .unwrap()
@@ -148,12 +148,12 @@ async fn main() -> Result<()> {
             .append_value(101i32);
         builder
             .field_builder::<Float64Builder>(2)
-            .unwrap()
-            .append_value(101.);
+            .unwrap().append_null();
+            // .append_value(101.);
         builder
             .field_builder::<BinaryBuilder>(3)
             .unwrap()
-            .append_value("中文0".as_bytes());
+            .append_value("中文1".as_bytes());
         builder
             .field_builder::<BinaryBuilder>(4)
             .unwrap()
@@ -175,11 +175,11 @@ async fn main() -> Result<()> {
         builder
             .field_builder::<Float64Builder>(2)
             .unwrap()
-            .append_value(102.);
+            .append_value(102.3);
         builder
             .field_builder::<BinaryBuilder>(3)
-            .unwrap()
-            .append_value("中文2".as_bytes());
+            .unwrap().append_null();
+            // .append_value("中文2".as_bytes());
         builder
             .field_builder::<BinaryBuilder>(4)
             .unwrap()
@@ -201,7 +201,7 @@ async fn main() -> Result<()> {
         builder
             .field_builder::<Float64Builder>(2)
             .unwrap()
-            .append_value(103.);
+            .append_value(103.4);
         builder
             .field_builder::<BinaryBuilder>(3)
             .unwrap()
