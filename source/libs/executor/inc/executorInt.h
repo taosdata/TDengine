@@ -213,6 +213,7 @@ typedef struct STableScanInfo {
   SScanInfo       scanInfo;
   int32_t         scanTimes;
   SSDataBlock*    pResBlock;
+  SHashObj*       pIgnoreTables;
   SSampleExecInfo sample;  // sample execution info
   int32_t         currentGroupId;
   int32_t         currentTable;
@@ -298,7 +299,6 @@ typedef struct SPartitionBySupporter {
 typedef struct SPartitionDataInfo {
   uint64_t groupId;
   char*    tbname;
-  SArray*  tags;
   SArray*  rowIds;
 } SPartitionDataInfo;
 

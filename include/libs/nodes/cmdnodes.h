@@ -249,6 +249,7 @@ typedef struct SDropDnodeStmt {
   char      fqdn[TSDB_FQDN_LEN];
   int32_t   port;
   bool      force;
+  bool      unsafe;
 } SDropDnodeStmt;
 
 typedef struct SAlterDnodeStmt {

@@ -178,3 +178,8 @@ option(
    ON 
 )
 
+option(
+   BUILD_RELEASE
+   "If build release version"
+   OFF
+)

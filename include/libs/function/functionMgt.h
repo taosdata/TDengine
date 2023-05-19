@@ -241,6 +241,7 @@ typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_SMA_LOAD,
   FUNC_DATA_REQUIRED_NOT_LOAD,
   FUNC_DATA_REQUIRED_FILTEROUT,
+  FUNC_DATA_REQUIRED_ALL_FILTEROUT,
 } EFuncDataRequired;
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);

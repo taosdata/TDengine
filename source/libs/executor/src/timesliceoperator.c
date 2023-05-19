@@ -310,6 +310,11 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           break;
         }
 
+        if (end.key != INT64_MIN && end.key < pSliceInfo->current) {
+          hasInterp = false;
+          break;
+        }
+
         if (start.key == INT64_MIN || end.key == INT64_MIN) {
           colDataSetNULL(pDst, rows);
           break;
@@ -894,8 +899,10 @@ void destroyTimeSliceOperatorInfo(void* param) {
   }
   taosArrayDestroy(pInfo->pLinearInfo);
 
-  taosMemoryFree(pInfo->pPrevGroupKey->pData);
-  taosMemoryFree(pInfo->pPrevGroupKey);
+  if (pInfo->pPrevGroupKey) {
+    taosMemoryFree(pInfo->pPrevGroupKey->pData);
+    taosMemoryFree(pInfo->pPrevGroupKey);
+  }
 
   cleanupExprSupp(&pInfo->scalarSup);
 

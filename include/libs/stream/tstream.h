@@ -110,14 +110,14 @@ typedef struct {
   int64_t     ver;
   int32_t*    dataRef;
   SPackedData submit;
-} SStreamDataSubmit2;
+} SStreamDataSubmit;
 
 typedef struct {
   int8_t  type;
   int64_t ver;
   SArray* dataRefs;  // SArray<int32_t*>
   SArray* submits;   // SArray<SPackedSubmit>
-} SStreamMergedSubmit2;
+} SStreamMergedSubmit;
 
 typedef struct {
   int8_t type;
@@ -134,7 +134,6 @@ typedef struct {
 typedef struct {
   int8_t       type;
   int64_t      ver;
-  int32_t*     dataRef;
   SSDataBlock* pBlock;
 } SStreamRefDataBlock;
 
@@ -206,10 +205,10 @@ static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
 
 void* streamQueueNextItem(SStreamQueue* queue);
 
-SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit, int32_t type);
-void                streamDataSubmitDestroy(SStreamDataSubmit2* pDataSubmit);
+SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type);
+void                streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit);
 
-SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit);
+SStreamDataSubmit* streamSubmitBlockClone(SStreamDataSubmit* pSubmit);
 
 typedef struct {
   char*              qmsg;

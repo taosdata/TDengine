@@ -242,6 +242,7 @@ static SKeyword keywordTable[] = {
     {"TSERIES",              TK_TSERIES},
     {"TTL",                  TK_TTL},
     {"UNION",                TK_UNION},
+    {"UNSAFE",               TK_UNSAFE},
     {"UNSIGNED",             TK_UNSIGNED},
     {"UNTREATED",            TK_UNTREATED},
     {"UPDATE",               TK_UPDATE},

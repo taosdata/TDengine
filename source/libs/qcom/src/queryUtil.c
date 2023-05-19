@@ -553,3 +553,11 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+void freeDbCfgInfo(SDbCfgInfo *pInfo) {
+  if (pInfo) {
+    taosArrayDestroy(pInfo->pRetensions);
+  }
+  taosMemoryFree(pInfo);
+}
+

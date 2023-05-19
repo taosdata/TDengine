@@ -18,7 +18,7 @@ from util.sql import *
 
 
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar = 1):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -39,10 +39,9 @@ class TDTestCase:
         tdSql.execute('insert into tb values (now - 5m , NULL)')
         tdSql.execute('insert into tb values (now - 6m , 10)')
         tdSql.execute('insert into tb values (now - 7m , NULL)')
-        tdSql.execute('insert into tb values (now - 8m , 254)')
 
         tdSql.error('insert into tb values (now - 9m, -1)')
-        tdSql.error('insert into tb values (now - 9m, 255)')
+        tdSql.execute('insert into tb values (now - 9m, 255)')
 
         tdSql.query("select * from tb")
         tdSql.checkRows(insertRows + 4)

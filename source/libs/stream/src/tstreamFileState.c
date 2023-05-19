@@ -32,6 +32,7 @@ struct SStreamFileState {
   SSHashObj* rowBuffMap;
   void*      pFileStore;
   int32_t    rowSize;
+  int32_t    selectivityRowSize;
   int32_t    keyLen;
   uint64_t   preCheckPointVersion;
   uint64_t   checkPointVersion;
@@ -45,8 +46,8 @@ struct SStreamFileState {
 
 typedef SRowBuffPos SRowBuffInfo;
 
-SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, GetTsFun fp, void* pFile,
-                                      TSKEY delMark) {
+SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
+                                      GetTsFun fp, void* pFile, TSKEY delMark) {
   if (memSize <= 0) {
     memSize = DEFAULT_MAX_STREAM_BUFFER_SIZE;
   }
@@ -58,6 +59,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   if (!pFileState) {
     goto _error;
   }
+  rowSize += selectRowSize;
   pFileState->maxRowCount = TMAX((uint64_t)memSize / rowSize, FLUSH_NUM * 2);
   pFileState->usedBuffs = tdListNew(POINTER_BYTES);
   pFileState->freeBuffs = tdListNew(POINTER_BYTES);
@@ -69,11 +71,11 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   }
   pFileState->keyLen = keySize;
   pFileState->rowSize = rowSize;
+  pFileState->selectivityRowSize = selectRowSize;
   pFileState->preCheckPointVersion = 0;
   pFileState->checkPointVersion = 1;
   pFileState->pFileStore = pFile;
   pFileState->getTs = fp;
-  pFileState->maxRowCount = TMAX((uint64_t)memSize / rowSize, FLUSH_NUM * 2);
   pFileState->curRowCount = 0;
   pFileState->deleteMark = delMark;
   pFileState->flushMark = INT64_MIN;
@@ -441,9 +443,12 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
 
 int32_t recoverSnapshot(SStreamFileState* pFileState) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs) ? INT64_MIN
-                                                                           : pFileState->maxTs - pFileState->deleteMark;
-  deleteExpiredCheckPoint(pFileState, mark);
+  if (pFileState->maxTs != INT64_MIN) {
+    int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs)
+                       ? INT64_MIN
+                       : pFileState->maxTs - pFileState->deleteMark;
+    deleteExpiredCheckPoint(pFileState, mark);
+  }
   void*   pStVal = NULL;
   int32_t len = 0;
 
@@ -479,3 +484,5 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t streamFileStateGeSelectRowSize(SStreamFileState* pFileState) { return pFileState->selectivityRowSize; }
