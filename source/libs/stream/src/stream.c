@@ -314,13 +314,13 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       return -1;
     }
 
-    qDebug("s-task:%s data block enqueue, total in queue:%d", pTask->id.idStr, total);
+    qDebug("s-task:%s data block enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (type == STREAM_INPUT__GET_RES) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
-    qDebug("s-task:%s data block enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
+    qDebug("s-task:%s data res enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
   }
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
