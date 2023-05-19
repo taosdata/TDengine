@@ -18,7 +18,6 @@
 #include "function.h"
 #include "query.h"
 #include "querynodes.h"
-#include "streamState.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdigest.h"
@@ -3155,7 +3154,7 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
     releaseBufPage(pHandle->pBuf, pPage);
   } else {
     // other tuple save policy
-    if (streamStateFuncPut(pHandle->pState, key, pBuf, length) >= 0) {
+    if ((pHandle->statePutFunc)(pHandle->pState, key, pBuf, length) >= 0) {
       p.streamTupleKey = *key;
     }
   }
@@ -3192,7 +3191,10 @@ static int32_t doUpdateTupleData(SSerializeDataHandle* pHandle, const void* pBuf
     setBufPageDirty(pPage, true);
     releaseBufPage(pHandle->pBuf, pPage);
   } else {
-    streamStateFuncPut(pHandle->pState, &pPos->streamTupleKey, pBuf, length);
+    if (pHandle->statePutFunc) {
+      pHandle->statePutFunc(pHandle->pState, &pPos->streamTupleKey, pBuf, length);
+    }
+    // streamStateFuncPut(pHandle->pState, &pPos->streamTupleKey, pBuf, length);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3217,7 +3219,10 @@ static char* doLoadTupleData(SSerializeDataHandle* pHandle, const STuplePos* pPo
   } else {
     void*   value = NULL;
     int32_t vLen;
-    streamStateFuncGet(pHandle->pState, &pPos->streamTupleKey, &value, &vLen);
+    if (pHandle->stateGetFunc) {
+      pHandle->stateGetFunc(pHandle->pState, &pPos->streamTupleKey, &value, &vLen);
+    }
+    // streamStateFuncGet(pHandle->pState, &pPos->streamTupleKey, &value, &vLen);
     return (char*)value;
   }
 }
@@ -4979,12 +4984,12 @@ bool modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   return true;
 }
 
-static void modeFunctionCleanup(SModeInfo * pInfo) {
+static void modeFunctionCleanup(SModeInfo* pInfo) {
   taosHashCleanup(pInfo->pHash);
   taosMemoryFreeClear(pInfo->buf);
 }
 
-static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo *pInfo, STuplePos* pPos) {
+static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo* pInfo, STuplePos* pPos) {
   if (IS_VAR_DATA_TYPE(pInfo->colType)) {
     memcpy(pInfo->buf, data, varDataTLen(data));
   } else {
@@ -4998,10 +5003,10 @@ static int32_t doModeAdd(SModeInfo* pInfo, int32_t rowIndex, SqlFunctionCtx* pCt
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t hashKeyBytes = IS_STR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
 
-  SModeItem* pHashItem = (SModeItem *)taosHashGet(pInfo->pHash, data, hashKeyBytes);
+  SModeItem* pHashItem = (SModeItem*)taosHashGet(pInfo->pHash, data, hashKeyBytes);
   if (pHashItem == NULL) {
-    int32_t    size = sizeof(SModeItem);
-    SModeItem  item = {0};
+    int32_t   size = sizeof(SModeItem);
+    SModeItem item = {0};
 
     item.count += 1;
     code = saveModeTupleData(pCtx, data, pInfo, &item.dataPos);
@@ -5078,11 +5083,11 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t              currentRow = pBlock->info.rows;
 
   STuplePos resDataPos, resTuplePos;
-  int32_t maxCount = 0;
+  int32_t   maxCount = 0;
 
-  void *pIter = taosHashIterate(pInfo->pHash, NULL);
+  void* pIter = taosHashIterate(pInfo->pHash, NULL);
   while (pIter != NULL) {
-    SModeItem *pItem = (SModeItem *)pIter;
+    SModeItem* pItem = (SModeItem*)pIter;
     if (pItem->count >= maxCount) {
       maxCount = pItem->count;
       resDataPos = pItem->dataPos;
@@ -5956,7 +5961,8 @@ int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 
   if (IS_VAR_DATA_TYPE(pSourceCtx->resDataInfo.type)) {
     memcpy(pDBuf->data, pSBuf->data,
-           (pSourceCtx->resDataInfo.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(pSBuf->data) : varDataTLen(pSBuf->data));
+           (pSourceCtx->resDataInfo.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(pSBuf->data)
+                                                                 : varDataTLen(pSBuf->data));
   } else {
     memcpy(pDBuf->data, pSBuf->data, pSourceCtx->resDataInfo.bytes);
   }

@@ -435,7 +435,6 @@ static void genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
   taosMemoryFree(payload);
 }
 
-
 static void genTbGroupDigest(const SNode* pGroup, uint8_t* filterDigest, T_MD5_CTX* pContext) {
   char*   payload = NULL;
   int32_t len = 0;
@@ -453,8 +452,8 @@ static void genTbGroupDigest(const SNode* pGroup, uint8_t* filterDigest, T_MD5_C
   taosMemoryFree(payload);
 }
 
-
-int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableListInfo* pTableListInfo, uint8_t *digest) {
+int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableListInfo* pTableListInfo,
+                                   uint8_t* digest) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
@@ -492,18 +491,19 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   if (tsTagFilterCache) {
     SNodeListNode* listNode = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
     listNode->pNodeList = group;
-    genTbGroupDigest((SNode *)listNode, digest, &context);
+    genTbGroupDigest((SNode*)listNode, digest, &context);
     nodesFree(listNode);
-    
+
     metaGetCachedTbGroup(metaHandle, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), &tableList);
     if (tableList) {
       taosArrayDestroy(pTableListInfo->pTableList);
       pTableListInfo->pTableList = tableList;
-      qDebug("retrieve tb group list from cache, numOfTables:%d", (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
+      qDebug("retrieve tb group list from cache, numOfTables:%d",
+             (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
       goto end;
     }
   }
-  
+
   pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
   for (int32_t i = 0; i < rows; ++i) {
     STableKeyInfo* pkeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
@@ -632,9 +632,10 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
 
   if (tsTagFilterCache) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
-    metaPutTbGroupToCache(metaHandle, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), tableList, taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
+    metaPutTbGroupToCache(metaHandle, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), tableList,
+                          taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
   }
-  
+
   //  int64_t st2 = taosGetTimestampUs();
   //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
 
@@ -838,7 +839,6 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, SArray* pExistedUidLis
 
   return -1;
 }
-
 
 static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList,
                                                void* metaHandle) {
@@ -1514,7 +1514,7 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  SHashObj *pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
     if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0)) {
@@ -1605,6 +1605,9 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->numOfParams = pExpr->base.numOfParams;
     pCtx->param = pFunct->pParam;
     pCtx->saveHandle.currentPage = -1;
+
+    pCtx->saveHandle.stateGetFunc = streamStateFuncGetVoid;
+    pCtx->saveHandle.statePutFunc = streamStateFuncPutVoid;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
@@ -1841,9 +1844,7 @@ uint64_t tableListGetSize(const STableListInfo* pTableList) {
   return taosArrayGetSize(pTableList->pTableList);
 }
 
-uint64_t tableListGetSuid(const STableListInfo* pTableList) {
-  return pTableList->idInfo.suid;
-}
+uint64_t tableListGetSuid(const STableListInfo* pTableList) { return pTableList->idInfo.suid; }
 
 STableKeyInfo* tableListGetInfo(const STableListInfo* pTableList, int32_t index) {
   if (taosArrayGetSize(pTableList->pTableList) == 0) {
@@ -2033,8 +2034,8 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   return TDB_CODE_SUCCESS;
 }
 
-int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode, SNodeList* group,
-                                    bool groupSort, uint8_t *digest) {
+int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
+                                    SNodeList* group, bool groupSort, uint8_t* digest) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   bool   groupByTbname = groupbyTbname(group);
@@ -2086,7 +2087,8 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   }
 
   uint8_t digest[17] = {0};
-  int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo, digest, idStr);
+  int32_t code =
+      getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo, digest, idStr);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to getTableList, code: %s", tstrerror(code));
     return code;

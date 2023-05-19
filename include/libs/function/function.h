@@ -76,7 +76,7 @@ enum {
 enum {
   MAIN_SCAN = 0x0u,
   REVERSE_SCAN = 0x1u,  // todo remove it
-  PRE_SCAN = 0x2u,   // pre-scan belongs to the main scan and occurs before main scan
+  PRE_SCAN = 0x2u,      // pre-scan belongs to the main scan and occurs before main scan
 };
 
 typedef struct SPoint1 {
@@ -125,18 +125,20 @@ typedef struct SSerializeDataHandle {
   struct SDiskbasedBuf *pBuf;
   int32_t               currentPage;
   void                 *pState;
+  int32_t (*statePutFunc)(void *pState, const void *key, const void *value, int32_t vLen);
+  int32_t (*stateGetFunc)(void *pState, const void *key, void **value, int32_t *vLen);
 } SSerializeDataHandle;
 
 // sql function runtime context
 typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
   SResultDataInfo      resDataInfo;
-  uint32_t             order;       // data block scanner order: asc|desc
-  uint8_t              isPseudoFunc;// denote current function is pseudo function or not [added for perf reason]
-  uint8_t              isNotNullFunc;// not return null value.
-  uint8_t              scanFlag;    // record current running step, default: 0
-  int16_t              functionId;  // function id
-  char                *pOutput;     // final result output buffer, point to sdata->data
+  uint32_t             order;          // data block scanner order: asc|desc
+  uint8_t              isPseudoFunc;   // denote current function is pseudo function or not [added for perf reason]
+  uint8_t              isNotNullFunc;  // not return null value.
+  uint8_t              scanFlag;       // record current running step, default: 0
+  int16_t              functionId;     // function id
+  char                *pOutput;        // final result output buffer, point to sdata->data
   // input parameter, e.g., top(k, 20), the number of results of top query is kept in param
   SFunctParam *param;
   // corresponding output buffer for timestamp of each result, e.g., diff/csum

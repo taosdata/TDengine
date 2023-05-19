@@ -86,6 +86,9 @@ typedef struct {
   int64_t number;
 } SStreamStateCur;
 
+int32_t streamStateFuncPutVoid(void* pState, const void* key, const void* value, int32_t vLen);
+int32_t streamStateFuncGetVoid(void* pState, const void* key, void** ppVal, int32_t* pVLen);
+
 int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
 int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen);
 

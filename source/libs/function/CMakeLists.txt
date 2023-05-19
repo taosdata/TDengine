@@ -28,12 +28,12 @@ target_link_libraries(
     function
     PRIVATE os 
     PRIVATE util 
-    PRIVATE common 
     PRIVATE nodes 
     PRIVATE qcom 
-    PRIVATE scalar 
     PRIVATE transport 
-    PRIVATE stream ${LINK_JEMALLOC}
+    PRIVATE scalar 
+    PRIVATE parser
+    PRIVATE common 
     PUBLIC uv_a
 )
 
@@ -57,7 +57,7 @@ ENDIF ()
 target_link_libraries(
         runUdf
         PUBLIC uv_a
-        PRIVATE os util common nodes function ${LINK_JEMALLOC}
+        PUBLIC os util nodes function scalar parser common ${LINK_JEMALLOC}
 )
 
 add_library(udf1 STATIC MODULE test/udf1.c)
@@ -160,6 +160,6 @@ ENDIF ()
 target_link_libraries(
     udfd
     PUBLIC uv_a
-    PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    PRIVATE os util nodes function common ${LINK_JEMALLOC}
     )
 

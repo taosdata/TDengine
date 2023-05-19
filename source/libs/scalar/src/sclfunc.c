@@ -1055,9 +1055,9 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
         timeVal = timeVal / 1000;
       } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-         timeVal = timeVal / ((int64_t)(1000 * 1000));
+        timeVal = timeVal / ((int64_t)(1000 * 1000));
       } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-         timeVal = timeVal / ((int64_t)(1000 * 1000 * 1000));
+        timeVal = timeVal / ((int64_t)(1000 * 1000 * 1000));
       } else {
         colDataSetNULL(pOutput->columnData, i);
         continue;
@@ -1067,7 +1067,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     }
 
     struct tm tmInfo;
-    int32_t len = 0;
+    int32_t   len = 0;
 
     if (taosLocalTime((const time_t *)&timeVal, &tmInfo, buf) == NULL) {
       len = (int32_t)strlen(buf);
@@ -1109,7 +1109,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       len += fracLen;
     }
 
-_end:
+  _end:
     memmove(buf + VARSTR_HEADER_SIZE, buf, len);
     varDataSetLen(buf, len);
 
@@ -1182,14 +1182,13 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
 /** Time functions **/
 static int64_t offsetFromTz(char *timezone, int64_t factor) {
-  char *minStr = &timezone[3];
+  char   *minStr = &timezone[3];
   int64_t minutes = taosStr2Int64(minStr, NULL, 10);
   memset(minStr, 0, strlen(minStr));
   int64_t hours = taosStr2Int64(timezone, NULL, 10);
   int64_t seconds = hours * 3600 + minutes * 60;
 
   return seconds * factor;
-
 }
 
 int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -1209,7 +1208,8 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   }
 
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData);
-  memcpy(timezone, varDataVal(pInput[timeZoneIdx].columnData->pData), varDataLen(pInput[timeZoneIdx].columnData->pData));
+  memcpy(timezone, varDataVal(pInput[timeZoneIdx].columnData->pData),
+         varDataLen(pInput[timeZoneIdx].columnData->pData));
 
   int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
   int64_t unit = timeUnit * 1000 / factor;
@@ -1694,13 +1694,13 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 }
 
 int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  char* p = colDataGetVarData(pInput->columnData, 0);
+  char *p = colDataGetVarData(pInput->columnData, 0);
 
   int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
   if (code) {
     return code;
   }
-  
+
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
@@ -2772,7 +2772,7 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int32_t        numOfBins = 0;
   int32_t        totalCount = 0;
 
-  char *binTypeStr = strndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
+  char  *binTypeStr = strndup(varDataVal(pInput[1].columnData->pData), varDataLen(pInput[1].columnData->pData));
   int8_t binType = getHistogramBinType(binTypeStr);
   taosMemoryFree(binTypeStr);
 

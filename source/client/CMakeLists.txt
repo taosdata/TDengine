@@ -56,7 +56,6 @@ target_include_directories(
 )
 target_link_libraries(
     taos_static
-    INTERFACE api
     PRIVATE os util common transport nodes parser command planner catalog scheduler function qcom
 )
 

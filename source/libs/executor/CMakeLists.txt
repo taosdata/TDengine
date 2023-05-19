@@ -4,12 +4,14 @@ aux_source_directory(src EXECUTOR_SRC)
 add_library(executor STATIC ${EXECUTOR_SRC})
 
 target_link_libraries(executor
-        PRIVATE os util common function parser planner qcom vnode scalar nodes index stream
+        PRIVATE os util function parser planner qcom vnode scalar nodes index stream common 
         )
 
 target_include_directories(
         executor
         PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/stream"
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

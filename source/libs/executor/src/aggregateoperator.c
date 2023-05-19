@@ -51,14 +51,14 @@ static void destroyAggOperatorInfo(void* param);
 static void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId);
 
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock);
-static void destroyDataBlockForEmptyInput(bool blockAllocated, SSDataBlock** ppBlock);
+static void    destroyDataBlockForEmptyInput(bool blockAllocated, SSDataBlock** ppBlock);
 
-static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator);
-static int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx);
+static int32_t      doOpenAggregateOptr(SOperatorInfo* pOperator);
+static int32_t      doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx);
 static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator);
 
 static int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
-                         const char* pKey);
+                                const char* pKey);
 
 static int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
@@ -127,7 +127,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
@@ -171,7 +171,7 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   bool hasValidBlock = false;
 
   while (1) {
-    bool blockAllocated = false;
+    bool         blockAllocated = false;
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
       if (!hasValidBlock) {
@@ -378,8 +378,9 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
   int32_t*        rowEntryInfoOffset = pOperator->exprSupp.rowEntryInfoOffset;
 
-  SResultRow* pResultRow = doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId,
-                                                  sizeof(groupId), true, groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
+  SResultRow* pResultRow =
+      doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId, sizeof(groupId), true,
+                             groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
   /*
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one
@@ -500,10 +501,14 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
     if (pState) {
       pSup->pCtx[i].saveHandle.pBuf = NULL;
       pSup->pCtx[i].saveHandle.pState = pState;
+
       pSup->pCtx[i].exprIdx = i;
+
     } else {
       pSup->pCtx[i].saveHandle.pBuf = pAggSup->pResultBuf;
     }
+    pSup->pCtx[i].saveHandle.stateGetFunc = streamStateFuncGetVoid;
+    pSup->pCtx[i].saveHandle.statePutFunc = streamStateFuncPutVoid;
   }
 
   return TSDB_CODE_SUCCESS;
