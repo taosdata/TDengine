@@ -82,9 +82,7 @@ static bool columnNodeEqual(const SColumnNode* a, const SColumnNode* b) {
   COMPARE_STRING_FIELD(dbName);
   COMPARE_STRING_FIELD(tableName);
   COMPARE_STRING_FIELD(colName);
-  if (0 == a->tableId) {
-    COMPARE_STRING_FIELD(tableAlias);
-  }
+  COMPARE_STRING_FIELD(tableAlias);
   return true;
 }
 
@@ -136,6 +134,7 @@ static bool logicConditionNodeEqual(const SLogicConditionNode* a, const SLogicCo
 
 static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
+  COMPARE_STRING_FIELD(functionName);
   COMPARE_NODE_LIST_FIELD(pParameterList);
   return true;
 }

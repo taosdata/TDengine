@@ -45,42 +45,9 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
 void            syncEntryDestroy(SSyncRaftEntry* pEntry);
 void            syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg);  // step 7
 
-static FORCE_INLINE bool syncLogIsReplicationBarrier(SSyncRaftEntry* pEntry) {
+static FORCE_INLINE bool syncLogReplBarrier(SSyncRaftEntry* pEntry) {
   return pEntry->originalRpcType == TDMT_SYNC_NOOP;
 }
-
-typedef struct SRaftEntryHashCache {
-  SHashObj*     pEntryHash;
-  int32_t       maxCount;
-  int32_t       currentCount;
-  TdThreadMutex mutex;
-  SSyncNode*    pSyncNode;
-} SRaftEntryHashCache;
-
-SRaftEntryHashCache* raftCacheCreate(SSyncNode* pSyncNode, int32_t maxCount);
-void                 raftCacheDestroy(SRaftEntryHashCache* pCache);
-int32_t              raftCachePutEntry(struct SRaftEntryHashCache* pCache, SSyncRaftEntry* pEntry);
-int32_t              raftCacheGetEntry(struct SRaftEntryHashCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
-int32_t              raftCacheGetEntryP(struct SRaftEntryHashCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
-int32_t              raftCacheDelEntry(struct SRaftEntryHashCache* pCache, SyncIndex index);
-int32_t              raftCacheGetAndDel(struct SRaftEntryHashCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
-int32_t              raftCacheClear(struct SRaftEntryHashCache* pCache);
-
-typedef struct SRaftEntryCache {
-  SSkipList*    pSkipList;
-  int32_t       maxCount;
-  int32_t       currentCount;
-  int32_t       refMgr;
-  TdThreadMutex mutex;
-  SSyncNode*    pSyncNode;
-} SRaftEntryCache;
-
-SRaftEntryCache* raftEntryCacheCreate(SSyncNode* pSyncNode, int32_t maxCount);
-void             raftEntryCacheDestroy(SRaftEntryCache* pCache);
-int32_t          raftEntryCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* pEntry);
-int32_t          raftEntryCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
-int32_t          raftEntryCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry);
-int32_t          raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,7 @@
 ---
-sidebar_label: Statistics
 title: Performance_Schema Database
+sidebar_label: Statistics
+description: This document describes how to use the PERFORMANCE_SCHEMA database in TDengine.
 ---
 
 TDengine includes a built-in database named `PERFORMANCE_SCHEMA` to provide access to database performance statistics. This document introduces the tables of PERFORMANCE_SCHEMA and their structure.

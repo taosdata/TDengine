@@ -39,8 +39,6 @@
 
 #define GET_RES_WINDOW_KEY_LEN(_l)     ((_l) + sizeof(uint64_t))
 
-#define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
-
 typedef struct SGroupResInfo {
   int32_t index;
   SArray* pRows;  // SArray<SResKeyPos>
@@ -89,7 +87,25 @@ typedef struct SColMatchInfo {
 } SColMatchInfo;
 
 typedef struct SExecTaskInfo SExecTaskInfo;
-typedef struct STableListInfo STableListInfo;
+
+
+typedef struct STableListIdInfo {
+  uint64_t suid;
+  uint64_t uid;
+  int32_t  tableType;
+} STableListIdInfo;
+
+// If the numOfOutputGroups is 1, the data blocks that belongs to different groups will be provided randomly
+// The numOfOutputGroups is specified by physical plan. and will not be affect by numOfGroups
+typedef struct STableListInfo {
+  bool             oneTableForEachGroup;
+  int32_t          numOfOuputGroups;  // the data block will be generated one by one
+  int32_t*         groupOffset;       // keep the offset value for each group in the tableList
+  SArray*          pTableList;
+  SHashObj*        map;     // speedup acquire the tableQueryInfo by table uid
+  STableListIdInfo idInfo;  // this maybe the super table or ordinary table
+} STableListInfo;
+
 struct SqlFunctionCtx;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
@@ -107,6 +123,8 @@ int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t 
 uint64_t        tableListGetSize(const STableListInfo* pTableList);
 uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
+int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
+void            tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);

@@ -74,7 +74,7 @@ do
 done
 
 
-# Check_verison()
+# Check_version()
 # {
 # }
 
@@ -102,14 +102,14 @@ scriptDir=$(dirname $(readlink -f $0))
 communityDir=${scriptDir}/../../../community
 DockerfilePath=${communityDir}/packaging/docker/
 if [ "$cloudBuild" == "y" ]; then
-  comunityArchiveDir=/nas/TDengine/v$version/cloud
+  communityArchiveDir=/nas/TDengine/v$version/cloud
   Dockerfile=${communityDir}/packaging/docker/DockerfileCloud
 else
-  comunityArchiveDir=/nas/TDengine/v$version/community
+  communityArchiveDir=/nas/TDengine/v$version/community
   Dockerfile=${communityDir}/packaging/docker/Dockerfile
 fi
 cd ${scriptDir}
-cp -f ${comunityArchiveDir}/${pkgFile}  .
+cp -f ${communityArchiveDir}/${pkgFile}  .
 
 echo "dirName=${dirName}"
 

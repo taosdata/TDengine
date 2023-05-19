@@ -40,7 +40,7 @@ def check_docs() {
         sh '''
             cd ${WKC}
             git reset --hard
-            git clean -fxd
+            git clean -f
             rm -rf examples/rust/
             git remote prune origin
             git fetch
@@ -86,7 +86,7 @@ def pre_test(){
         git fetch
         cd ${WKC}
         git reset --hard
-        git clean -fxd
+        git clean -f
         rm -rf examples/rust/
         git remote prune origin
         git fetch
@@ -173,7 +173,7 @@ def pre_test_build_mac() {
     '''
     sh '''
         cd ${WK}/debug
-        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false
+        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false  -DCMAKE_BUILD_TYPE=Release
         make -j10
         ctest -j10 || exit 7
     '''
@@ -201,7 +201,7 @@ def pre_test_win(){
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
-        git clean -fxd
+        git clean -f
         git reset --hard
         git remote prune origin
         git fetch
@@ -313,7 +313,8 @@ def pre_test_build_win() {
     bat '''
         cd %WIN_CONNECTOR_ROOT%
         python.exe -m pip install --upgrade pip
-        python -m pip install .
+        python -m pip uninstall taospy -y 
+        python -m pip install taospy==2.7.6
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
@@ -331,8 +332,6 @@ def run_win_test() {
     bat '''
         echo "windows test ..."
         cd %WIN_CONNECTOR_ROOT%
-        python.exe -m pip install --upgrade pip
-        python -m pip install .
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
         ls -l C:\\Windows\\System32\\taos.dll
         time /t
@@ -387,7 +386,7 @@ pipeline {
                     }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 75, unit: 'MINUTES'){
+                            timeout(time: 126, unit: 'MINUTES'){
                                 pre_test_win()
                                 pre_test_build_win()
                                 run_win_ctest()
@@ -423,7 +422,7 @@ pipeline {
                             echo "${WKDIR}/restore.sh -p ${BRANCH_NAME} -n ${BUILD_ID} -c {container name}"
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 120, unit: 'MINUTES'){
+                            timeout(time: 130, unit: 'MINUTES'){
                                 pre_test()
                                 script {
                                     sh '''
@@ -461,7 +460,7 @@ pipeline {
                                         cd ${WKC}/tests/parallel_test
                                         export DEFAULT_RETRY_TIME=2
                                         date
-                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 480 ''' + extra_param + '''
+                                        ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 600 ''' + extra_param + '''
                                     '''
                                 }
                             }

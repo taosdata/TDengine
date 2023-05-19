@@ -52,7 +52,7 @@ python3 conn_rest_pandas.py
 taos -s "drop database if exists power"
 
 # 11
-taos -s "create database if not exists test"
+taos -s "create database if not exists test wal_retention_period 3600"
 python3 connect_native_reference.py
 
 # 12
@@ -83,4 +83,11 @@ python3 fast_write_example.py
 
 # 20
 pip3 install kafka-python
-python3 kafka_example.py
+python3 kafka_example_consumer.py
+
+# 21
+pip3 install taos-ws-py
+python3 conn_websocket_pandas.py
+
+# 22
+python3 connect_websocket_examples.py

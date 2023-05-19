@@ -1,5 +1,6 @@
 ---
 title: Developer Guide
+description: This document describes how to use the various components of TDengine from a developer's perspective.
 ---
 
 Before creating an application to process time-series data with TDengine, consider the following:

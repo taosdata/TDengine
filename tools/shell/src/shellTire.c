@@ -75,7 +75,7 @@ void freeTire(STire* tire) {
 // insert a new word to list
 bool insertToList(STire* tire, char* word) {
   StrName* p = (StrName*)taosMemoryMalloc(sizeof(StrName));
-  p->name = strdup(word);
+  p->name = taosStrdup(word);
   p->next = NULL;
 
   if (tire->head == NULL) {
@@ -218,7 +218,7 @@ void addWordToMatch(SMatch* match, char* word) {
   // malloc new
   SMatchNode* node = (SMatchNode*)taosMemoryMalloc(sizeof(SMatchNode));
   memset(node, 0, sizeof(SMatchNode));
-  node->word = strdup(word);
+  node->word = taosStrdup(word);
 
   // append to match
   if (match->head == NULL) {

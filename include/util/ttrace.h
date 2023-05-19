@@ -59,11 +59,13 @@ typedef struct STraceId {
     char*   _t = _buf;                                            \
     _t[0] = '0';                                                  \
     _t[1] = 'x';                                                  \
-    _t += titoa(rootId, 16, &_t[2]);                              \
+    _t += 2;                                                      \
+    _t += titoa(rootId, 16, &_t[0]);                              \
     _t[0] = ':';                                                  \
     _t[1] = '0';                                                  \
     _t[2] = 'x';                                                  \
-    _t += titoa(msgId, 16, &_t[3]);                               \
+    _t += 3;                                                      \
+    _t += titoa(msgId, 16, &_t[0]);                               \
   } while (0)
 
 #ifdef __cplusplus

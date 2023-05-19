@@ -83,6 +83,10 @@ int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
     oriStatus = SCH_GET_JOB_STATUS(pJob);
 
     if (oriStatus == newStatus) {
+      if (JOB_TASK_STATUS_FETCH == newStatus) {
+        return code;
+      }
+      
       SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
     }
 
@@ -108,10 +112,19 @@ int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
         break;
       case JOB_TASK_STATUS_PART_SUCC:
         if (newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_SUCC &&
-            newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC) {
+            newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC &&
+            newStatus != JOB_TASK_STATUS_FETCH) {
           SCH_ERR_JRET(TSDB_CODE_APP_ERROR);
         }
 
+        break;
+      case JOB_TASK_STATUS_FETCH:
+        if (newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_SUCC &&
+            newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC &&
+            newStatus != JOB_TASK_STATUS_FETCH) {
+          SCH_ERR_JRET(TSDB_CODE_APP_ERROR);
+        }
+      
         break;
       case JOB_TASK_STATUS_SUCC:
       case JOB_TASK_STATUS_FAIL:
@@ -234,7 +247,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
     }
 
     SSchTask *pTask = taosArrayGet(pLevel->subTasks, 0);
-    if (SUBPLAN_TYPE_MODIFY != pTask->plan->subplanType) {
+    if (SUBPLAN_TYPE_MODIFY != pTask->plan->subplanType || EXPLAIN_MODE_DISABLE != pJob->attr.explainMode) {
       pJob->attr.needFetch = true;
     }
   }
@@ -288,7 +301,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   }
 
   pJob->levelNum = levelNum;
-  pJob->levelIdx = levelNum - 1;
+  SCH_RESET_JOB_LEVEL_IDX(pJob);
 
   SSchLevel      level = {0};
   SNodeListNode *plans = NULL;
@@ -484,7 +497,7 @@ int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
   if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
     return TSDB_CODE_SCH_IGNORE_ERROR;
   }
-  
+
   schUpdateJobErrCode(pJob, errCode);
 
   int32_t code = atomic_load_32(&pJob->errCode);
@@ -537,7 +550,9 @@ int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRs
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);
 
-  schProcessOnDataFetched(pJob);
+  if (!SCH_IS_INSERT_JOB(pJob)) {
+    schProcessOnDataFetched(pJob);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -548,15 +563,19 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SSchLevel *pLevel = pTask->level;
-  int32_t    doneNum = atomic_add_fetch_32(&pLevel->taskDoneNum, 1);
+  int32_t    doneNum = atomic_add_fetch_32(&pLevel->taskExecDoneNum, 1);
   if (doneNum == pLevel->taskNum) {
-    pJob->levelIdx--;
+    atomic_sub_fetch_32(&pJob->levelIdx, 1);
 
     pLevel = taosArrayGet(pJob->levels, pJob->levelIdx);
     for (int32_t i = 0; i < pLevel->taskNum; ++i) {
       SSchTask *pTask = taosArrayGet(pLevel->subTasks, i);
 
       if (pTask->children && taosArrayGetSize(pTask->children) > 0) {
+        continue;
+      }
+
+      if (SCH_TASK_ALREADY_LAUNCHED(pTask)) {
         continue;
       }
 
@@ -682,7 +701,7 @@ void schFreeJobImpl(void *job) {
 int32_t schJobFetchRows(SSchJob *pJob) {
   int32_t code = 0;
 
-  if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC)) {
+  if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC) && !(SCH_IS_EXPLAIN_JOB(pJob) && SCH_IS_INSERT_JOB(pJob))) {
     SCH_ERR_RET(schLaunchFetchTask(pJob));
 
     if (schChkCurrentOp(pJob, SCH_OP_FETCH, true)) {
@@ -714,7 +733,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->attr.localExec = pReq->localReq;
   pJob->conn = *pReq->pConn;
   if (pReq->sql) {
-    pJob->sql = strdup(pReq->sql);
+    pJob->sql = taosStrdup(pReq->sql);
   }
   pJob->pDag = pReq->pDag;
   pJob->allocatorRefId = nodesMakeAllocatorWeakRef(pReq->allocatorRefId);
@@ -807,6 +826,75 @@ void schDirectPostJobRes(SSchedulerReq *pReq, int32_t errCode) {
   } else if (pReq->fetchFp) {
     (*pReq->fetchFp)(NULL, pReq->cbParam, errCode);
   }
+}
+
+int32_t schChkResetJobRetry(SSchJob *pJob, int32_t rspCode) {
+  if (pJob->status >= JOB_TASK_STATUS_PART_SUCC) {
+    SCH_LOCK(SCH_WRITE, &pJob->resLock);
+    if (pJob->fetched) {
+      SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+      pJob->noMoreRetry = true;
+      SCH_JOB_ELOG("already fetched while got error %s", tstrerror(rspCode));
+      SCH_ERR_RET(rspCode);
+    }
+    SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+
+    schUpdateJobStatus(pJob, JOB_TASK_STATUS_EXEC);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t schResetJobForRetry(SSchJob *pJob, int32_t rspCode) {
+  SCH_ERR_RET(schChkResetJobRetry(pJob, rspCode));
+
+  int32_t numOfLevels = taosArrayGetSize(pJob->levels);
+  for (int32_t i = 0; i < numOfLevels; ++i) {
+    SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
+
+    pLevel->taskExecDoneNum = 0;
+    pLevel->taskLaunchedNum = 0;
+
+    int32_t numOfTasks = taosArrayGetSize(pLevel->subTasks);
+    for (int32_t j = 0; j < numOfTasks; ++j) {
+      SSchTask *pTask = taosArrayGet(pLevel->subTasks, j);
+      SCH_LOCK_TASK(pTask);
+      SCH_ERR_RET(schChkUpdateRedirectCtx(pJob, pTask, NULL, rspCode));
+      qClearSubplanExecutionNode(pTask->plan);
+      schResetTaskForRetry(pJob, pTask);
+      SCH_UNLOCK_TASK(pTask);
+    }
+  }
+
+  SCH_RESET_JOB_LEVEL_IDX(pJob);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode) {
+  int32_t code = 0;
+
+  taosMemoryFreeClear(pMsg->pData);
+  taosMemoryFreeClear(pMsg->pEpSet);
+
+  SCH_UNLOCK_TASK(pTask);
+
+  SCH_TASK_DLOG("start to redirect all job tasks cause of error: %s", tstrerror(rspCode));
+
+  SCH_ERR_JRET(schResetJobForRetry(pJob, rspCode));
+
+  SCH_ERR_JRET(schLaunchJob(pJob));
+
+  SCH_LOCK_TASK(pTask);
+
+  SCH_RET(code);
+
+_return:
+
+  SCH_LOCK_TASK(pTask);
+
+  SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
 
 bool schChkCurrentOp(SSchJob *pJob, int32_t op, int8_t sync) {
@@ -905,7 +993,7 @@ int32_t schProcessOnOpBegin(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq
         SCH_ERR_RET(TSDB_CODE_APP_ERROR);
       }
 
-      if (status != JOB_TASK_STATUS_PART_SUCC) {
+      if (status != JOB_TASK_STATUS_PART_SUCC && status != JOB_TASK_STATUS_FETCH) {
         SCH_JOB_ELOG("job status error for fetch, status:%s", jobTaskStatusStr(status));
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }

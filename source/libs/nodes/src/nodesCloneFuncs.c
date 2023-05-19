@@ -35,15 +35,15 @@
     memcpy(&((pDst)->fldname), &((pSrc)->fldname), size); \
   } while (0)
 
-#define COPY_CHAR_POINT_FIELD(fldname)         \
-  do {                                         \
-    if (NULL == (pSrc)->fldname) {             \
-      break;                                   \
-    }                                          \
-    (pDst)->fldname = strdup((pSrc)->fldname); \
-    if (NULL == (pDst)->fldname) {             \
-      return TSDB_CODE_OUT_OF_MEMORY;          \
-    }                                          \
+#define COPY_CHAR_POINT_FIELD(fldname)             \
+  do {                                             \
+    if (NULL == (pSrc)->fldname) {                 \
+      break;                                       \
+    }                                              \
+    (pDst)->fldname = taosStrdup((pSrc)->fldname); \
+    if (NULL == (pDst)->fldname) {                 \
+      return TSDB_CODE_OUT_OF_MEMORY;              \
+    }                                              \
   } while (0)
 
 #define CLONE_NODE_FIELD(fldname)                      \
@@ -158,7 +158,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
-      int32_t len = varDataTLen(pSrc->datum.p) + 1;
+      int32_t len = pSrc->node.resType.bytes + 1;
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -295,6 +295,13 @@ static int32_t stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNod
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t eventWindowNodeCopy(const SEventWindowNode* pSrc, SEventWindowNode* pDst) {
+  CLONE_NODE_FIELD(pCol);
+  CLONE_NODE_FIELD(pStartCond);
+  CLONE_NODE_FIELD(pEndCond);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t sessionWindowNodeCopy(const SSessionWindowNode* pSrc, SSessionWindowNode* pDst) {
   CLONE_NODE_FIELD_EX(pCol, SColumnNode*);
   CLONE_NODE_FIELD_EX(pGap, SValueNode*);
@@ -394,6 +401,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(joinType);
   CLONE_NODE_FIELD(pMergeCondition);
   CLONE_NODE_FIELD(pOnConditions);
+  CLONE_NODE_FIELD(pTagEqualConditions);
   COPY_SCALAR_FIELD(isSingleTableJoin);
   COPY_SCALAR_FIELD(inputTsOrder);
   return TSDB_CODE_SUCCESS;
@@ -464,6 +472,8 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
   CLONE_NODE_FIELD(pStateExpr);
+  CLONE_NODE_FIELD(pStartCond);
+  CLONE_NODE_FIELD(pEndCond);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(deleteMark);
@@ -711,6 +721,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
       break;
     case QUERY_NODE_STATE_WINDOW:
       code = stateWindowNodeCopy((const SStateWindowNode*)pNode, (SStateWindowNode*)pDst);
+      break;
+    case QUERY_NODE_EVENT_WINDOW:
+      code = eventWindowNodeCopy((const SEventWindowNode*)pNode, (SEventWindowNode*)pDst);
       break;
     case QUERY_NODE_SESSION_WINDOW:
       code = sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);

@@ -15,456 +15,9 @@
 
 #include "tsdb.h"
 
-extern int32_t tsdbReadDataBlockEx(SDataFReader* pReader, SDataBlk* pDataBlk, SBlockData* pBlockData);
 extern int32_t tsdbUpdateTableSchema(SMeta* pMeta, int64_t suid, int64_t uid, SSkmInfo* pSkmInfo);
 extern int32_t tsdbWriteDataBlock(SDataFWriter* pWriter, SBlockData* pBlockData, SMapData* mDataBlk, int8_t cmprAlg);
 extern int32_t tsdbWriteSttBlock(SDataFWriter* pWriter, SBlockData* pBlockData, SArray* aSttBlk, int8_t cmprAlg);
-
-// STsdbDataIter2 ========================================
-#define TSDB_MEM_TABLE_DATA_ITER 0
-#define TSDB_DATA_FILE_DATA_ITER 1
-#define TSDB_STT_FILE_DATA_ITER  2
-#define TSDB_TOMB_FILE_DATA_ITER 3
-
-typedef struct STsdbDataIter2  STsdbDataIter2;
-typedef struct STsdbFilterInfo STsdbFilterInfo;
-
-typedef struct {
-  int64_t  suid;
-  int64_t  uid;
-  SDelData delData;
-} SDelInfo;
-
-struct STsdbDataIter2 {
-  STsdbDataIter2* next;
-  SRBTreeNode     rbtn;
-
-  int32_t  type;
-  SRowInfo rowInfo;
-  SDelInfo delInfo;
-  union {
-    // TSDB_MEM_TABLE_DATA_ITER
-    struct {
-      SMemTable* pMemTable;
-    } mIter;
-
-    // TSDB_DATA_FILE_DATA_ITER
-    struct {
-      SDataFReader* pReader;
-      SArray*       aBlockIdx;  // SArray<SBlockIdx>
-      SMapData      mDataBlk;
-      SBlockData    bData;
-      int32_t       iBlockIdx;
-      int32_t       iDataBlk;
-      int32_t       iRow;
-    } dIter;
-
-    // TSDB_STT_FILE_DATA_ITER
-    struct {
-      SDataFReader* pReader;
-      int32_t       iStt;
-      SArray*       aSttBlk;
-      SBlockData    bData;
-      int32_t       iSttBlk;
-      int32_t       iRow;
-    } sIter;
-    // TSDB_TOMB_FILE_DATA_ITER
-    struct {
-      SDelFReader* pReader;
-      SArray*      aDelIdx;
-      SArray*      aDelData;
-      int32_t      iDelIdx;
-      int32_t      iDelData;
-    } tIter;
-  };
-};
-
-#define TSDB_FILTER_FLAG_BY_VERSION 0x1
-struct STsdbFilterInfo {
-  int32_t flag;
-  int64_t sver;
-  int64_t ever;
-};
-
-#define TSDB_RBTN_TO_DATA_ITER(pNode) ((STsdbDataIter2*)(((char*)pNode) - offsetof(STsdbDataIter2, rbtn)))
-
-/* open */
-static int32_t tsdbOpenDataFileDataIter(SDataFReader* pReader, STsdbDataIter2** ppIter) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  // create handle
-  STsdbDataIter2* pIter = (STsdbDataIter2*)taosMemoryCalloc(1, sizeof(*pIter));
-  if (pIter == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  pIter->type = TSDB_DATA_FILE_DATA_ITER;
-  pIter->dIter.pReader = pReader;
-  if ((pIter->dIter.aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx))) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  code = tBlockDataCreate(&pIter->dIter.bData);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  pIter->dIter.iBlockIdx = 0;
-  pIter->dIter.iDataBlk = 0;
-  pIter->dIter.iRow = 0;
-
-  // read data
-  code = tsdbReadBlockIdx(pReader, pIter->dIter.aBlockIdx);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  if (taosArrayGetSize(pIter->dIter.aBlockIdx) == 0) goto _clear;
-
-_exit:
-  if (code) {
-    if (pIter) {
-    _clear:
-      tBlockDataDestroy(&pIter->dIter.bData, 1);
-      taosArrayDestroy(pIter->dIter.aBlockIdx);
-      taosMemoryFree(pIter);
-      pIter = NULL;
-    }
-  }
-  *ppIter = pIter;
-  return code;
-}
-
-static int32_t tsdbOpenSttFileDataIter(SDataFReader* pReader, int32_t iStt, STsdbDataIter2** ppIter) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  // create handle
-  STsdbDataIter2* pIter = (STsdbDataIter2*)taosMemoryCalloc(1, sizeof(*pIter));
-  if (pIter == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  pIter->type = TSDB_STT_FILE_DATA_ITER;
-  pIter->sIter.pReader = pReader;
-  pIter->sIter.iStt = iStt;
-  pIter->sIter.aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
-  if (pIter->sIter.aSttBlk == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  code = tBlockDataCreate(&pIter->sIter.bData);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  pIter->sIter.iSttBlk = 0;
-  pIter->sIter.iRow = 0;
-
-  // read data
-  code = tsdbReadSttBlk(pReader, iStt, pIter->sIter.aSttBlk);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  if (taosArrayGetSize(pIter->sIter.aSttBlk) == 0) goto _clear;
-
-_exit:
-  if (code) {
-    if (pIter) {
-    _clear:
-      taosArrayDestroy(pIter->sIter.aSttBlk);
-      tBlockDataDestroy(&pIter->sIter.bData, 1);
-      taosMemoryFree(pIter);
-      pIter = NULL;
-    }
-  }
-  *ppIter = pIter;
-  return code;
-}
-
-static int32_t tsdbOpenTombFileDataIter(SDelFReader* pReader, STsdbDataIter2** ppIter) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  STsdbDataIter2* pIter = (STsdbDataIter2*)taosMemoryCalloc(1, sizeof(*pIter));
-  if (pIter == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  pIter->type = TSDB_TOMB_FILE_DATA_ITER;
-
-  pIter->tIter.pReader = pReader;
-  if ((pIter->tIter.aDelIdx = taosArrayInit(0, sizeof(SDelIdx))) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  if ((pIter->tIter.aDelData = taosArrayInit(0, sizeof(SDelData))) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  code = tsdbReadDelIdx(pReader, pIter->tIter.aDelIdx);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  if (taosArrayGetSize(pIter->tIter.aDelIdx) == 0) goto _clear;
-
-  pIter->tIter.iDelIdx = 0;
-  pIter->tIter.iDelData = 0;
-
-_exit:
-  if (code) {
-    if (pIter) {
-    _clear:
-      taosArrayDestroy(pIter->tIter.aDelIdx);
-      taosArrayDestroy(pIter->tIter.aDelData);
-      taosMemoryFree(pIter);
-      pIter = NULL;
-    }
-  }
-  *ppIter = pIter;
-  return code;
-}
-
-/* close */
-static void tsdbCloseDataFileDataIter(STsdbDataIter2* pIter) {
-  tBlockDataDestroy(&pIter->dIter.bData, 1);
-  tMapDataClear(&pIter->dIter.mDataBlk);
-  taosArrayDestroy(pIter->dIter.aBlockIdx);
-  taosMemoryFree(pIter);
-}
-
-static void tsdbCloseSttFileDataIter(STsdbDataIter2* pIter) {
-  tBlockDataDestroy(&pIter->sIter.bData, 1);
-  taosArrayDestroy(pIter->sIter.aSttBlk);
-  taosMemoryFree(pIter);
-}
-
-static void tsdbCloseTombFileDataIter(STsdbDataIter2* pIter) {
-  taosArrayDestroy(pIter->tIter.aDelData);
-  taosArrayDestroy(pIter->tIter.aDelIdx);
-  taosMemoryFree(pIter);
-}
-
-static void tsdbCloseDataIter2(STsdbDataIter2* pIter) {
-  if (pIter->type == TSDB_MEM_TABLE_DATA_ITER) {
-    ASSERT(0);
-  } else if (pIter->type == TSDB_DATA_FILE_DATA_ITER) {
-    tsdbCloseDataFileDataIter(pIter);
-  } else if (pIter->type == TSDB_STT_FILE_DATA_ITER) {
-    tsdbCloseSttFileDataIter(pIter);
-  } else if (pIter->type == TSDB_TOMB_FILE_DATA_ITER) {
-    tsdbCloseTombFileDataIter(pIter);
-  } else {
-    ASSERT(0);
-  }
-}
-
-/* cmpr */
-static int32_t tsdbDataIterCmprFn(const SRBTreeNode* pNode1, const SRBTreeNode* pNode2) {
-  STsdbDataIter2* pIter1 = TSDB_RBTN_TO_DATA_ITER(pNode1);
-  STsdbDataIter2* pIter2 = TSDB_RBTN_TO_DATA_ITER(pNode2);
-  return tRowInfoCmprFn(&pIter1->rowInfo, &pIter2->rowInfo);
-}
-
-/* seek */
-
-/* iter next */
-static int32_t tsdbDataFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* pFilterInfo) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  for (;;) {
-    while (pIter->dIter.iRow < pIter->dIter.bData.nRow) {
-      if (pFilterInfo) {
-        if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
-          if (pIter->dIter.bData.aVersion[pIter->dIter.iRow] < pFilterInfo->sver ||
-              pIter->dIter.bData.aVersion[pIter->dIter.iRow] > pFilterInfo->ever) {
-            pIter->dIter.iRow++;
-            continue;
-          }
-        }
-      }
-
-      pIter->rowInfo.suid = pIter->dIter.bData.suid;
-      pIter->rowInfo.uid = pIter->dIter.bData.uid;
-      pIter->rowInfo.row = tsdbRowFromBlockData(&pIter->dIter.bData, pIter->dIter.iRow);
-      pIter->dIter.iRow++;
-      goto _exit;
-    }
-
-    for (;;) {
-      while (pIter->dIter.iDataBlk < pIter->dIter.mDataBlk.nItem) {
-        SDataBlk dataBlk;
-        tMapDataGetItemByIdx(&pIter->dIter.mDataBlk, pIter->dIter.iDataBlk, &dataBlk, tGetDataBlk);
-
-        // filter
-        if (pFilterInfo) {
-          if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
-            if (pFilterInfo->sver > dataBlk.maxVer || pFilterInfo->ever < dataBlk.minVer) {
-              pIter->dIter.iDataBlk++;
-              continue;
-            }
-          }
-        }
-
-        code = tsdbReadDataBlockEx(pIter->dIter.pReader, &dataBlk, &pIter->dIter.bData);
-        TSDB_CHECK_CODE(code, lino, _exit);
-
-        pIter->dIter.iDataBlk++;
-        pIter->dIter.iRow = 0;
-
-        break;
-      }
-
-      if (pIter->dIter.iRow < pIter->dIter.bData.nRow) break;
-
-      for (;;) {
-        if (pIter->dIter.iBlockIdx < taosArrayGetSize(pIter->dIter.aBlockIdx)) {
-          SBlockIdx* pBlockIdx = taosArrayGet(pIter->dIter.aBlockIdx, pIter->dIter.iBlockIdx);
-
-          code = tsdbReadDataBlk(pIter->dIter.pReader, pBlockIdx, &pIter->dIter.mDataBlk);
-          TSDB_CHECK_CODE(code, lino, _exit);
-
-          pIter->dIter.iBlockIdx++;
-          pIter->dIter.iDataBlk = 0;
-
-          break;
-        } else {
-          pIter->rowInfo = (SRowInfo){0};
-          goto _exit;
-        }
-      }
-    }
-  }
-
-_exit:
-  if (code) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static int32_t tsdbSttFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* pFilterInfo) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  for (;;) {
-    while (pIter->sIter.iRow < pIter->sIter.bData.nRow) {
-      if (pFilterInfo) {
-        if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
-          if (pFilterInfo->sver > pIter->sIter.bData.aVersion[pIter->sIter.iRow] ||
-              pFilterInfo->ever < pIter->sIter.bData.aVersion[pIter->sIter.iRow]) {
-            pIter->sIter.iRow++;
-            continue;
-          }
-        }
-      }
-
-      pIter->rowInfo.suid = pIter->sIter.bData.suid;
-      pIter->rowInfo.uid = pIter->sIter.bData.uid ? pIter->sIter.bData.uid : pIter->sIter.bData.aUid[pIter->sIter.iRow];
-      pIter->rowInfo.row = tsdbRowFromBlockData(&pIter->sIter.bData, pIter->sIter.iRow);
-      pIter->sIter.iRow++;
-      goto _exit;
-    }
-
-    for (;;) {
-      if (pIter->sIter.iSttBlk < taosArrayGetSize(pIter->sIter.aSttBlk)) {
-        SSttBlk* pSttBlk = taosArrayGet(pIter->sIter.aSttBlk, pIter->sIter.iSttBlk);
-
-        if (pFilterInfo) {
-          if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
-            if (pFilterInfo->sver > pSttBlk->maxVer || pFilterInfo->ever < pSttBlk->minVer) {
-              pIter->sIter.iSttBlk++;
-              continue;
-            }
-          }
-        }
-
-        code = tsdbReadSttBlockEx(pIter->sIter.pReader, pIter->sIter.iStt, pSttBlk, &pIter->sIter.bData);
-        TSDB_CHECK_CODE(code, lino, _exit);
-
-        pIter->sIter.iRow = 0;
-        pIter->sIter.iSttBlk++;
-        break;
-      } else {
-        pIter->rowInfo = (SRowInfo){0};
-        goto _exit;
-      }
-    }
-  }
-
-_exit:
-  if (code) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static int32_t tsdbTombFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* pFilterInfo) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  for (;;) {
-    while (pIter->tIter.iDelData < taosArrayGetSize(pIter->tIter.aDelData)) {
-      SDelData* pDelData = taosArrayGet(pIter->tIter.aDelData, pIter->tIter.iDelData);
-
-      if (pFilterInfo) {
-        if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
-          if (pFilterInfo->sver > pDelData->version || pFilterInfo->ever < pDelData->version) {
-            pIter->tIter.iDelData++;
-            continue;
-          }
-        }
-      }
-
-      pIter->delInfo.delData = *pDelData;
-      pIter->tIter.iDelData++;
-      goto _exit;
-    }
-
-    for (;;) {
-      if (pIter->tIter.iDelIdx < taosArrayGetSize(pIter->tIter.aDelIdx)) {
-        SDelIdx* pDelIdx = taosArrayGet(pIter->tIter.aDelIdx, pIter->tIter.iDelIdx);
-
-        code = tsdbReadDelData(pIter->tIter.pReader, pDelIdx, pIter->tIter.aDelData);
-        TSDB_CHECK_CODE(code, lino, _exit);
-
-        pIter->delInfo.suid = pDelIdx->suid;
-        pIter->delInfo.uid = pDelIdx->uid;
-        pIter->tIter.iDelData = 0;
-        pIter->tIter.iDelIdx++;
-        break;
-      } else {
-        pIter->delInfo = (SDelInfo){0};
-        goto _exit;
-      }
-    }
-  }
-
-_exit:
-  if (code) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static int32_t tsdbDataIterNext2(STsdbDataIter2* pIter, STsdbFilterInfo* pFilterInfo) {
-  int32_t code = 0;
-
-  if (pIter->type == TSDB_MEM_TABLE_DATA_ITER) {
-    ASSERT(0);
-    return code;
-  } else if (pIter->type == TSDB_DATA_FILE_DATA_ITER) {
-    return tsdbDataFileDataIterNext(pIter, pFilterInfo);
-  } else if (pIter->type == TSDB_STT_FILE_DATA_ITER) {
-    return tsdbSttFileDataIterNext(pIter, pFilterInfo);
-  } else if (pIter->type == TSDB_TOMB_FILE_DATA_ITER) {
-    return tsdbTombFileDataIterNext(pIter, pFilterInfo);
-  } else {
-    ASSERT(0);
-    return code;
-  }
-}
-
-/* get */
 
 // STsdbSnapReader ========================================
 struct STsdbSnapReader {
@@ -517,10 +70,11 @@ static int32_t tsdbSnapReadFileDataStart(STsdbSnapReader* pReader) {
 
   if (pReader->pIter) {
     // iter to next with filter info (sver, ever)
-    code = tsdbDataIterNext2(pReader->pIter,
-                             &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION,  // flag
-                                                .sver = pReader->sver,
-                                                .ever = pReader->ever});
+    code = tsdbDataIterNext2(
+        pReader->pIter,
+        &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION | TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE,  // flag
+                           .sver = pReader->sver,
+                           .ever = pReader->ever});
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (pReader->pIter->rowInfo.suid || pReader->pIter->rowInfo.uid) {
@@ -541,10 +95,11 @@ static int32_t tsdbSnapReadFileDataStart(STsdbSnapReader* pReader) {
 
     if (pReader->pIter) {
       // iter to valid row
-      code = tsdbDataIterNext2(pReader->pIter,
-                               &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION,  // flag
-                                                  .sver = pReader->sver,
-                                                  .ever = pReader->ever});
+      code = tsdbDataIterNext2(
+          pReader->pIter,
+          &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION | TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE,  // flag
+                             .sver = pReader->sver,
+                             .ever = pReader->ever});
       TSDB_CHECK_CODE(code, lino, _exit);
 
       if (pReader->pIter->rowInfo.suid || pReader->pIter->rowInfo.uid) {
@@ -586,7 +141,8 @@ static int32_t tsdbSnapReadNextRow(STsdbSnapReader* pReader, SRowInfo** ppRowInf
   int32_t lino = 0;
 
   if (pReader->pIter) {
-    code = tsdbDataIterNext2(pReader->pIter, &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION,  // flag
+    code = tsdbDataIterNext2(pReader->pIter, &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION |
+                                                                        TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE,  // flag
                                                                 .sver = pReader->sver,
                                                                 .ever = pReader->ever});
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -645,7 +201,7 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* pReader, uint8_t** ppData) {
   ASSERT(pReader->bData.nRow);
 
   int32_t aBufN[5] = {0};
-  code = tCmprBlockData(&pReader->bData, TWO_STAGE_COMP, NULL, NULL, pReader->aBuf, aBufN);
+  code = tCmprBlockData(&pReader->bData, NO_COMPRESSION, NULL, NULL, pReader->aBuf, aBufN);
   if (code) goto _exit;
 
   int32_t size = aBufN[0] + aBufN[1] + aBufN[2] + aBufN[3];
@@ -656,7 +212,7 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* pReader, uint8_t** ppData) {
   }
 
   SSnapDataHdr* pHdr = (SSnapDataHdr*)*ppData;
-  pHdr->type = SNAP_DATA_TSDB;
+  pHdr->type = pReader->type;
   pHdr->size = size;
 
   memcpy(pHdr->data, pReader->aBuf[3], aBufN[3]);
@@ -723,7 +279,7 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* pReader, uint8_t** pp
       code = tsdbSnapReadNextRow(pReader, &pRowInfo);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      if (pReader->bData.nRow >= 4096) break;
+      if (pReader->bData.nRow >= 81920) break;
     } while (pRowInfo);
 
     ASSERT(pReader->bData.nRow > 0);
@@ -732,6 +288,8 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* pReader, uint8_t** pp
   }
 
   if (pReader->bData.nRow > 0) {
+    ASSERT(pReader->bData.suid || pReader->bData.uid);
+
     code = tsdbSnapCmprData(pReader, ppData);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -773,10 +331,6 @@ static int32_t tsdbSnapCmprTombData(STsdbSnapReader* pReader, uint8_t** ppData) 
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
-    if (pData) {
-      taosMemoryFree(pData);
-      pData = NULL;
-    }
   }
   *ppData = pData;
   return code;
@@ -795,8 +349,9 @@ static int32_t tsdbSnapReadNextTombData(STsdbSnapReader* pReader, SDelInfo** ppD
   int32_t lino = 0;
 
   code = tsdbDataIterNext2(
-      pReader->pTIter,
-      &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION, .sver = pReader->sver, .ever = pReader->ever});
+      pReader->pTIter, &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_VERSION | TSDB_FILTER_FLAG_IGNORE_DROPPED_TABLE,
+                                          .sver = pReader->sver,
+                                          .ever = pReader->ever});
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (ppDelInfo) {
@@ -849,7 +404,7 @@ static int32_t tsdbSnapReadTombData(STsdbSnapReader* pReader, uint8_t** ppData) 
   }
 
   while (pDelInfo && pDelInfo->suid == pReader->tbid.suid && pDelInfo->uid == pReader->tbid.uid) {
-    if (taosArrayPush(pReader->aDelData, &pDelInfo->delData) < 0) {
+    if (taosArrayPush(pReader->aDelData, &pDelInfo->delData) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -907,7 +462,7 @@ _exit:
     tsdbError("vgId:%d %s failed at line %d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(pTsdb->pVnode),
               __func__, lino, tstrerror(code), sver, ever, type);
     if (pReader) {
-      tBlockDataDestroy(&pReader->bData, 1);
+      tBlockDataDestroy(&pReader->bData);
       tsdbFSUnref(pTsdb, &pReader->fs);
       taosMemoryFree(pReader);
       pReader = NULL;
@@ -946,7 +501,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   if (pReader->pDataFReader) {
     tsdbDataFReaderClose(&pReader->pDataFReader);
   }
-  tBlockDataDestroy(&pReader->bData, 1);
+  tBlockDataDestroy(&pReader->bData);
 
   // other
   tDestroyTSchema(pReader->skmTable.pTSchema);
@@ -1316,7 +871,7 @@ static int32_t tsdbSnapWriteFileDataStart(STsdbSnapWriter* pWriter, int32_t fid)
       TSDB_CHECK_CODE(code, lino, _exit);
 
       if (pWriter->pSIter) {
-        code = tsdbSttFileDataIterNext(pWriter->pSIter, NULL);
+        code = tsdbDataIterNext2(pWriter->pSIter, NULL);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         // add to tree
@@ -1697,7 +1252,7 @@ static int32_t tsdbSnapWriteDelTableData(STsdbSnapWriter* pWriter, TABLEID* pId,
     SDelData delData;
     n += tGetDelData(pData + n, &delData);
 
-    if (taosArrayPush(pWriter->aDelData, &delData) < 0) {
+    if (taosArrayPush(pWriter->aDelData, &delData) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -1861,10 +1416,11 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
     if (pWriter) {
-      tBlockDataDestroy(&pWriter->sData, 1);
-      tBlockDataDestroy(&pWriter->bData, 1);
-      tBlockDataDestroy(&pWriter->inData, 1);
+      tBlockDataDestroy(&pWriter->sData);
+      tBlockDataDestroy(&pWriter->bData);
+      tBlockDataDestroy(&pWriter->inData);
       tsdbFSDestroy(&pWriter->fs);
+      taosMemoryFree(pWriter);
       pWriter = NULL;
     }
   } else {
@@ -1928,13 +1484,13 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   taosArrayDestroy(pWriter->aDelIdx);
 
   // SNAP_DATA_TSDB
-  tBlockDataDestroy(&pWriter->sData, 1);
-  tBlockDataDestroy(&pWriter->bData, 1);
+  tBlockDataDestroy(&pWriter->sData);
+  tBlockDataDestroy(&pWriter->bData);
   taosArrayDestroy(pWriter->aSttBlk);
   tMapDataClear(&pWriter->mDataBlk);
   taosArrayDestroy(pWriter->aBlockIdx);
   tDestroyTSchema(pWriter->skmTable.pTSchema);
-  tBlockDataDestroy(&pWriter->inData, 1);
+  tBlockDataDestroy(&pWriter->inData);
 
   for (int32_t iBuf = 0; iBuf < sizeof(pWriter->aBuf) / sizeof(uint8_t*); iBuf++) {
     tFree(pWriter->aBuf[iBuf]);

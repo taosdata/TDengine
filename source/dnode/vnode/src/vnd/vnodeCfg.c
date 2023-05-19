@@ -262,9 +262,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(info, "nodePort", pNode->nodePort, code);
     if (code < 0) return -1;
     tjsonGetStringValue(info, "nodeFqdn", pNode->nodeFqdn);
-    if (code < 0) return -1;
     tjsonGetNumberValue(info, "nodeId", pNode->nodeId, code);
+    if (code < 0) return -1;
     tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);
+    if (code < 0) return -1;
     vDebug("vgId:%d, decode config, replica:%d ep:%s:%u dnode:%d", pCfg->vgId, i, pNode->nodeFqdn, pNode->nodePort,
            pNode->nodeId);
   }

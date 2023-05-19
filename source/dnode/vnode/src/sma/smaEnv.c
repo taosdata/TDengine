@@ -131,7 +131,7 @@ static int32_t tdNewSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv) {
   (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), *ppEnv)
                                         : atomic_store_ptr(&SMA_RSMA_ENV(pSma), *ppEnv);
 
-  if (tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma) != TSDB_CODE_SUCCESS) {
+  if ((terrno = tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType, pSma)) != TSDB_CODE_SUCCESS) {
     tdFreeSmaEnv(pEnv);
     *ppEnv = NULL;
     (smaType == TSDB_SMA_TYPE_TIME_RANGE) ? atomic_store_ptr(&SMA_TSMA_ENV(pSma), NULL)
@@ -193,10 +193,16 @@ static void tRSmaInfoHashFreeNode(void *data) {
 }
 
 static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma) {
-  ASSERT(pSmaStat != NULL);
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (ASSERTS(pSmaStat != NULL, "pSmaStat is NULL")) {
+    terrno = TSDB_CODE_RSMA_INVALID_ENV;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   if (*pSmaStat) {  // no lock
-    return TSDB_CODE_SUCCESS;
+    return code;    // success, return directly
   }
 
   /**
@@ -207,8 +213,8 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
   if (!(*pSmaStat)) {
     *pSmaStat = (SSmaStat *)taosMemoryCalloc(1, sizeof(SSmaStat) + sizeof(TdThread) * tsNumOfVnodeRsmaThreads);
     if (!(*pSmaStat)) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return TSDB_CODE_FAILED;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (smaType == TSDB_SMA_TYPE_ROLLUP) {
@@ -224,7 +230,8 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       if (refId < 0) {
         smaError("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId rsetId:%d max:%d failed since:%s", SMA_VID(pSma),
                  refId, smaMgmt.rsetId, SMA_MGMT_REF_NUM, tstrerror(terrno));
-        return TSDB_CODE_FAILED;
+        code = terrno;
+        TSDB_CHECK_CODE(code, lino, _exit);
       } else {
         smaDebug("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId rsetId:%d max:%d succeed", SMA_VID(pSma), refId,
                  smaMgmt.rsetId, SMA_MGMT_REF_NUM);
@@ -235,25 +242,30 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       RSMA_INFO_HASH(pRSmaStat) = taosHashInit(
           RSMA_TASK_INFO_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
       if (!RSMA_INFO_HASH(pRSmaStat)) {
-        return TSDB_CODE_FAILED;
+        code = terrno;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
       taosHashSetFreeFp(RSMA_INFO_HASH(pRSmaStat), tRSmaInfoHashFreeNode);
 
       if (tdRsmaStartExecutor(pSma) < 0) {
-        return TSDB_CODE_FAILED;
+        code = terrno;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
 
-      if (!(RSMA_FS(pRSmaStat)->aQTaskInf = taosArrayInit(1, sizeof(SQTaskFile)))) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return TSDB_CODE_FAILED;
-      }
+      taosInitRWLatch(RSMA_FS_LOCK(pRSmaStat));
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
       // TODO
     } else {
-      ASSERT(0);
+      ASSERTS(0, "unknown smaType:%" PRIi8, smaType);
+      code = TSDB_CODE_APP_ERROR;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
-  return TSDB_CODE_SUCCESS;
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pSma), __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static void tdDestroyTSmaStat(STSmaStat *pStat) {
@@ -279,10 +291,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     // step 1: set rsma trigger stat cancelled
     atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
 
-    // step 2: destroy the rsma info and associated fetch tasks
-    taosHashCleanup(RSMA_INFO_HASH(pStat));
-
-    // step 3: wait for all triggered fetch tasks to finish
+    // step 2: wait for all triggered fetch tasks to finish
     int32_t nLoops = 0;
     while (1) {
       if (T_REF_VAL_GET((SSmaStat *)pStat) == 0) {
@@ -298,8 +307,11 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
       }
     }
 
-    // step 4:
+    // step 3:
     tdRsmaStopExecutor(pSma);
+
+    // step 4: destroy the rsma info and associated fetch tasks
+    taosHashCleanup(RSMA_INFO_HASH(pStat));
 
     // step 5:
     tdRSmaFSClose(RSMA_FS(pStat));
@@ -342,7 +354,10 @@ static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
         smaDebug("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " succeed", vid, refId, smaMgmt.rsetId);
       }
     } else {
-      ASSERT(0);
+      ASSERTS(0, "unknown smaType:%" PRIi8, smaType);
+      terrno = TSDB_CODE_APP_ERROR;
+      smaError("%s failed at line %d since %s", __func__, __LINE__, terrstr());
+      return -1;
     }
   }
   return 0;
@@ -351,7 +366,7 @@ static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
 int32_t tdLockSma(SSma *pSma) {
   int code = taosThreadMutexLock(&pSma->mutex);
   if (code != 0) {
-    smaError("vgId:%d, failed to lock td since %s", SMA_VID(pSma), strerror(errno));
+    smaError("vgId:%d, failed to lock since %s", SMA_VID(pSma), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
   }
@@ -360,12 +375,17 @@ int32_t tdLockSma(SSma *pSma) {
 }
 
 int32_t tdUnLockSma(SSma *pSma) {
-  ASSERT(SMA_LOCKED(pSma));
+  if (ASSERTS(SMA_LOCKED(pSma), "pSma %p is not locked:%d", pSma, pSma->locked)) {
+    terrno = TSDB_CODE_APP_ERROR;
+    smaError("vgId:%d, failed to unlock since %s", SMA_VID(pSma), tstrerror(terrno));
+    return -1;
+  }
+
   pSma->locked = false;
   int code = taosThreadMutexUnlock(&pSma->mutex);
   if (code != 0) {
-    smaError("vgId:%d, failed to unlock td since %s", SMA_VID(pSma), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
+    smaError("vgId:%d, failed to unlock since %s", SMA_VID(pSma), strerror(errno));
     return -1;
   }
   return 0;

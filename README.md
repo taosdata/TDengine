@@ -60,7 +60,7 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 ### Ubuntu 18.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev
+sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev
 ```
 
 #### Install build dependencies for taosTools
@@ -109,6 +109,16 @@ If the PowerTools installation fails, you can try to use:
 
 ```
 sudo yum config-manager --set-enabled powertools
+```
+
+#### For CentOS + devtoolset
+
+Besides above dependencies, please run following commands:
+
+```
+sudo yum install centos-release-scl
+sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
+scl enable devtoolset-9 -- bash
 ```
 
 ### macOS
@@ -355,6 +365,6 @@ Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to th
 For more information about TDengine, you can follow us on social media and join our Discord server:
 
 - [Discord](https://discord.com/invite/VZdSuUg4pS)
-- [Twitter](https://twitter.com/TaosData)
+- [Twitter](https://twitter.com/TDengineDB)
 - [LinkedIn](https://www.linkedin.com/company/tdengine/)
-- [YouTube](https://www.youtube.com/channel/UCmp-1U6GS_3V3hjir6Uq5DQ)
+- [YouTube](https://www.youtube.com/@tdengine)

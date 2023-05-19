@@ -29,6 +29,7 @@ extern "C" {
 #include "tmsg.h"
 #include "tname.h"
 #include "transport.h"
+#include "nodes.h"
 
 typedef struct SCatalog SCatalog;
 
@@ -49,9 +50,14 @@ typedef enum {
 
 typedef struct SUserAuthInfo {
   char      user[TSDB_USER_LEN];
-  char      dbFName[TSDB_DB_FNAME_LEN];
+  SName     tbName;
   AUTH_TYPE type;
 } SUserAuthInfo;
+
+typedef struct SUserAuthRes {
+  bool   pass;
+  SNode* pCond;
+} SUserAuthRes;
 
 typedef struct SDbInfo {
   int32_t vgVer;
@@ -76,6 +82,7 @@ typedef struct SCatalogReq {
   SArray* pUser;          // element is SUserAuthInfo
   SArray* pTableIndex;    // element is SNAME
   SArray* pTableCfg;      // element is SNAME
+  SArray* pTableTag;      // element is SNAME
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
@@ -96,9 +103,10 @@ typedef struct SMetaData {
   SArray*   pTableIndex;  // pRes = SArray<STableIndexInfo>*
   SArray*   pUdfList;     // pRes = SFuncInfo*
   SArray*   pIndex;       // pRes = SIndexInfo*
-  SArray*   pUser;        // pRes = bool*
+  SArray*   pUser;        // pRes = SUserAuthRes*
   SArray*   pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
   SArray*   pTableCfg;    // pRes = STableCfg*
+  SArray*   pTableTag;    // pRes = SArray<STagVal>*
   SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
@@ -116,18 +124,19 @@ typedef struct SSTableVersion {
   char     stbName[TSDB_TABLE_NAME_LEN];
   uint64_t dbId;
   uint64_t suid;
-  int16_t  sversion;
-  int16_t  tversion;
+  int32_t  sversion;
+  int32_t  tversion;
   int32_t  smaVer;
 } SSTableVersion;
 
-typedef struct SDbVgVersion {
+typedef struct SDbCacheInfo {
   char    dbFName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
+  int32_t cfgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
   int64_t stateTs;
-} SDbVgVersion;
+} SDbCacheInfo;
 
 typedef struct STbSVersion {
   char*   tbFName;
@@ -140,7 +149,6 @@ typedef struct SUserAuthVersion {
   int32_t version;
 } SUserAuthVersion;
 
-typedef SDbCfgRsp     SDbCfgInfo;
 typedef SUserIndexRsp SIndexInfo;
 
 typedef void (*catalogCallback)(SMetaData* pResult, void* param, int32_t code);
@@ -171,6 +179,8 @@ int32_t catalogGetDBVgList(SCatalog* pCatalog, SRequestConnInfo* pConn, const ch
 int32_t catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, TAOS_DB_ROUTE_INFO* pInfo);
 
 int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgInfo* dbInfo);
+
+int32_t catalogUpdateDbCfg(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SDbCfgInfo* cfgInfo);
 
 int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);
 
@@ -296,7 +306,7 @@ int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray*
 
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion** stables, uint32_t* num);
 
-int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion** dbs, uint32_t* num);
+int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* num);
 
 int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_t* num);
 
@@ -306,17 +316,17 @@ int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char*
 
 int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
 
+int32_t catalogGetTableTag(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
+
 int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableCfg** pCfg);
 
 int32_t catalogUpdateTableIndex(SCatalog* pCtg, STableIndexRsp* pRsp);
 
 int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* funcName, SFuncInfo* pInfo);
 
-int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
-                       bool* pass);
+int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool* pass,
-                                bool* exists);
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth,        SUserAuthRes* pRes, bool* exists);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 

@@ -1,6 +1,7 @@
 ---
 title: TDinsight - Grafana-based Zero-Dependency Monitoring Solution for TDengine
 sidebar_label: TDinsight
+description: This document describes TDinsight, a monitoring solution for TDengine.
 ---
 
 TDinsight is a solution for monitoring TDengine using the builtin native monitoring database and [Grafana].
@@ -325,11 +326,12 @@ Currently, only the number of logins per minute is reported.
 
 Support monitoring taosAdapter request statistics and status details. Includes.
 
-1. **http_request_inflight**: number of real-time requests.
-2. **http_request_total**: number of total requests.
-3. **http_request_fail**: number of failed requets.
-4. **CPU Used**: CPU usage of taosAdapter.
-5. **Memory Used**: Memory usage of taosAdapter.
+1. **Http Request Total**: number of total requests.
+2. **Http Request Fail**: number of failed requests.
+3. **CPU Used**: CPU usage of taosAdapter.
+4. **Memory Used**: Memory usage of taosAdapter.
+5. **Http Request Inflight**: number of real-time requests.
+6. **Http Status Code**: taosAdapter http status code.
 
 ## Upgrade
 

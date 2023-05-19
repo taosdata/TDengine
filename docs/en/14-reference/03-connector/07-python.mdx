@@ -1,7 +1,7 @@
 ---
-sidebar_label: Python
 title: TDengine Python Connector
-description: "taospy is the official Python connector for TDengine. taospy provides a rich API that makes it easy for Python applications to use TDengine. tasopy wraps both the native and REST interfaces of TDengine, corresponding to the two submodules of tasopy: taos and taosrest. In addition to wrapping the native and REST interfaces, taospy also provides a programming interface that conforms to the Python Data Access Specification (PEP 249), making it easy to integrate taospy with many third-party tools, such as SQLAlchemy and pandas."
+sidebar_label: Python
+description: This document describes taospy, the TDengine Python connector.
 ---
 
 import Tabs from "@theme/Tabs";
@@ -10,10 +10,11 @@ import TabItem from "@theme/TabItem";
 `taospy` is the official Python connector for TDengine. taospy provides a rich API that makes it easy for Python applications to use TDengine. `taospy` wraps both the [native interface](/reference/connector/cpp) and [REST interface](/reference/rest-api) of TDengine, which correspond to the `taos` and `taosrest` modules of the `taospy` package, respectively.
 In addition to wrapping the native and REST interfaces, `taospy` also provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
-The direct connection to the server using the native interface provided by the client driver is referred to hereinafter as a "native connection"; the connection to the server using the REST interface provided by taosAdapter is referred to hereinafter as a "REST connection".
+`taos-ws-py` is an optional package to enable using WebSocket to connect TDengine.
+
+The direct connection to the server using the native interface provided by the client driver is referred to hereinafter as a "native connection"; the connection to the server using the REST or WebSocket interface provided by taosAdapter is referred to hereinafter as a "REST connection" or "WebSocket connection".
 
 The source code for the Python connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
-
 ## Supported platforms
 
 - The [supported platforms](/reference/connector/#supported-platforms) for the native connection are the same as the ones supported by the TDengine client.
@@ -32,7 +33,7 @@ We recommend using the latest version of `taospy`, regardless of the version of 
 
 ### Preparation
 
-1. Install Python. Python >= 3.7 is recommended. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
+1. Install Python. The recent taospy package requires Python 3.6.2+. The earlier versions of taospy require Python 3.7+.  The taos-ws-py package requires Python 3.7+. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
 2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip documentation](https://pip.pypa.io/en/stable/installation/) to install it.
 If you use a native connection, you will also need to [Install Client Driver](/reference/connector#Install-Client-Driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
 
@@ -78,6 +79,22 @@ pip3 install git+https://github.com/taosdata/taos-connector-python.git
 </TabItem>
 </Tabs>
 
+#### Install `taos-ws-py` (Optional)
+
+The taos-ws-py package provides the way to access TDengine via WebSocket.
+
+##### Install taos-ws-py with taospy
+
+```bash
+pip3 install taospy[ws]
+```
+
+##### Install taos-ws-py only
+
+```bash
+pip3 install taos-ws-py
+```
+
 ### Verify
 
 <Tabs defaultValue="rest">
@@ -96,6 +113,15 @@ For REST connections, verifying that the `taosrest` module can be imported succe
 
 ```python
 import taosrest
+```
+
+</TabItem>
+<TabItem  value="ws" label="WebSocket connection">
+
+For WebSocket connection, verifying that the `taosws` module can be imported successfully can be done in the Python Interactive Shell by typing.
+
+```python
+import taosws
 ```
 
 </TabItem>
@@ -167,6 +193,28 @@ If the test is successful, it will output the server version information, e.g.
 ```
 
 </TabItem>
+<TabItem value="ws" label="WebSocket connection" groupId="connect">
+
+For WebSocket connection, make sure the cluster and taosAdapter component, are running. This can be testetd using the following `curl` command.
+
+```
+curl -i -N -d "show databases" -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Host: <FQDN>:<PORT>" -H "Origin: http://<FQDN>:<PORT>" http://<FQDN>:<PORT>/rest/sql
+```
+
+The FQDN above is the FQDN of the machine running taosAdapter, PORT is the port taosAdapter listening, default is `6041`.
+
+If the test is successful, it will output the server version information, e.g.
+
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Tue, 21 Mar 2023 09:29:17 GMT
+Transfer-Encoding: chunked
+
+{"status":"succ","head":["server_version()"],"column_meta":[["server_version()",8,8]],"data":[["2.6.0.27"]],"rows":1}
+```
+
+</TabItem>
 </Tabs>
 
 ### Using connectors to establish connections
@@ -211,6 +259,16 @@ All arguments to the `connect()` function are optional keyword arguments. The fo
 - `user`: TDengine user name. The default is `root`.
 - `password`: TDengine user password. The default is `taosdata`.
 - `timeout`: HTTP request timeout. Enter a value in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Usually, no configuration is needed.
+
+</TabItem>
+
+<TabItem value="websocket" label="WebSocket connection">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+
+The parameter of `connect()` is the url of TDengine, and the protocol is `taosws` or `ws`.
 
 </TabItem>
 </Tabs>
@@ -282,7 +340,95 @@ The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-ap
 
 For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
 
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:basic}}
+```
+
+- `conn.execute`: can use to execute arbitrary SQL statements, and return the number of rows affected.
+- `conn.query`: can use to execute query SQL statements, and return the query results.
+
+</TabItem>
+</Tabs>
+
+### Usage with req_id
+
+By using the optional req_id parameter, you can specify a request ID that can be used for tracing.
+
+<Tabs defaultValue="rest">
+<TabItem value="native" label="native connection">
+
+##### TaosConnection class
+
+The `TaosConnection` class contains both an implementation of the PEP249 Connection interface (e.g., the `cursor()` method and the `close()` method) and many extensions (e.g., the `execute()`, `query()`, `schemaless_insert()`, and `subscribe()` methods).
+
+```python title="execute method"
+{{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:insert}}
+```
+
+```python title="query method"
+{{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:query}}
+```
+
+:::tip
+The queried results can only be fetched once. For example, only one of `fetch_all()` and `fetch_all_into_dict()` can be used in the example above. Repeated fetches will result in an empty list.
+:::
+
+##### Use of TaosResult class
+
+In the above example of using the `TaosConnection` class, we have shown two ways to get the result of a query: `fetch_all()` and `fetch_all_into_dict()`. In addition, `TaosResult` also provides methods to iterate through the result set by rows (`rows_iter`) or by data blocks (`blocks_iter`). Using these two methods will be more efficient in scenarios where the query has a large amount of data.
+
+```python title="blocks_iter method"
+{{#include docs/examples/python/result_set_with_req_id_examples.py}}
+```
+##### Use of the TaosCursor class
+
+The `TaosConnection` class and the `TaosResult` class already implement all the functionality of the native interface. If you are familiar with the interfaces in the PEP249 specification, you can also use the methods provided by the `TaosCursor` class.
+
+```python title="Use of TaosCursor"
+{{#include docs/examples/python/cursor_usage_native_reference_with_req_id.py}}
+```
+
+:::note
+The TaosCursor class uses native connections for write and query operations. In a client-side multi-threaded scenario, this cursor instance must remain thread exclusive and cannot be shared across threads for use, otherwise, it will result in errors in the returned results.
+
+:::
+
+</TabItem>
+<TabItem value="rest" label="REST connection">
+
+##### Use of TaosRestCursor class
+
+The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
+
+```python title="Use of TaosRestCursor"
+{{#include docs/examples/python/connect_rest_with_req_id_examples.py:basic}}
+```
+- `cursor.execute`: Used to execute arbitrary SQL statements.
+- `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
+- `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
+
+##### Use of the RestClient class
+
+The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+
+```python title="Use of RestClient"
+{{#include docs/examples/python/rest_client_with_req_id_example.py}}
+```
+
+For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
+
+```python
+{{#include docs/examples/python/connect_websocket_with_req_id_examples.py:basic}}
+```
+
+- `conn.execute`: can use to execute arbitrary SQL statements, and return the number of rows affected.
+- `conn.query`: can use to execute query SQL statements, and return the query results.
 
 </TabItem>
 </Tabs>
@@ -301,6 +447,13 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 
 ```python
 {{#include docs/examples/python/conn_rest_pandas.py}}
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
+
+```python
+{{#include docs/examples/python/conn_websocket_pandas.py}}
 ```
 
 </TabItem>

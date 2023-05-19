@@ -36,14 +36,6 @@ extern "C" {
 
 #include "tconfig.h"
 
-#define CHECK_CODE_GOTO(expr, label) \
-  do {                               \
-    code = expr;                     \
-    if (TSDB_CODE_SUCCESS != code) { \
-      goto label;                    \
-    }                                \
-  } while (0)
-
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
 
@@ -66,7 +58,8 @@ enum {
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
-  char* key;
+  char*   key;
+  int32_t idx;
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
@@ -87,6 +80,7 @@ typedef struct {
   int64_t appId;
   // ctl
   int8_t        threadStop;
+  int8_t        quitByKill;
   TdThread      thread;
   TdThreadMutex lock;  // used when app init and cleanup
   SHashObj*     appSummary;
@@ -97,16 +91,14 @@ typedef struct {
 
 typedef struct SQueryExecMetric {
   int64_t start;        // start timestamp, us
-  int64_t syntaxStart;  // start to parse, us
-  int64_t syntaxEnd;    // end to parse, us
   int64_t ctgStart;     // start to parse, us
-  int64_t ctgEnd;       // end to parse, us
-  int64_t semanticEnd;
-  int64_t planEnd;
-  int64_t resultReady;
-  int64_t execEnd;
-  int64_t send;  // start to send to server, us
-  int64_t rsp;   // receive response from server, us
+  int64_t execStart;     // start to parse, us
+
+  int64_t parseCostUs;   
+  int64_t ctgCostUs;
+  int64_t analyseCostUs;
+  int64_t planCostUs;
+  int64_t execCostUs;
 } SQueryExecMetric;
 
 struct SAppInstInfo {
@@ -149,8 +141,11 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
-  int8_t        schemalessType;  // todo remove it, this attribute should be move to request
 } STscObj;
+
+typedef struct STscDbg {
+  bool memEnable;
+} STscDbg;
 
 typedef struct SResultColumn {
   union {
@@ -284,25 +279,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   return (SReqResultInfo*)&msg->resInfo;
 }
 
-static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
-  SMqRspObj* msg = (SMqRspObj*)res;
-  msg->resIter++;
-  if (msg->resIter < msg->rsp.blockNum) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(msg->rsp.blockData, msg->resIter);
-    if (msg->rsp.withSchema) {
-      SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(msg->rsp.blockSchema, msg->resIter);
-      setResSchemaInfo(&msg->resInfo, pSW->pSchema, pSW->nCols);
-      taosMemoryFreeClear(msg->resInfo.row);
-      taosMemoryFreeClear(msg->resInfo.pCol);
-      taosMemoryFreeClear(msg->resInfo.length);
-      taosMemoryFreeClear(msg->resInfo.convertBuf);
-      taosMemoryFreeClear(msg->resInfo.convertJson);
-    }
-    setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4, false);
-    return &msg->resInfo;
-  }
-  return NULL;
-}
+SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4);
 
 static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
   if (TD_RES_QUERY(res)) return &(((SRequestObj*)res)->body.resInfo);
@@ -314,7 +291,6 @@ extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
 extern int32_t  timestampDeltaLimit;
 extern int64_t  lastClusterId;
-
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
@@ -368,7 +344,6 @@ void taos_close_internal(void* taos);
 // global, called by mgmt
 int  hbMgrInit();
 void hbMgrCleanUp();
-int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 
 // cluster level
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char* key);
@@ -380,9 +355,6 @@ void       stopAllRequests(SHashObj* pRequests);
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
-
-// --- mq
-void hbMgrInitMqHbRspHandle();
 
 typedef struct SSqlCallbackWrapper {
   SParseContext* pParseCtx;

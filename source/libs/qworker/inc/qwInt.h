@@ -76,6 +76,7 @@ typedef struct SQWDebug {
   bool lockEnable;
   bool statusEnable;
   bool dumpEnable;
+  bool forceStop;
   bool sleepSimulate;
   bool deadSimulate;
   bool redirectSimulate;
@@ -119,7 +120,8 @@ typedef struct SQWTaskCtx {
   int8_t   explain;
   int8_t   needFetch;
   int8_t   localExec;
-  int32_t  msgType;
+  int32_t  queryMsgType;
+  int32_t  fetchMsgType;
   int32_t  level;
   uint64_t sId;
 
@@ -206,6 +208,8 @@ typedef struct SQWorkerMgmt {
   int32_t    paramIdx;
 } SQWorkerMgmt;
 
+#define QW_CTX_NOT_EXISTS_ERR_CODE(mgmt) (atomic_load_8(&(mgmt)->nodeStopped) ? TSDB_CODE_VND_STOPPED : TSDB_CODE_QRY_TASK_CTX_NOT_EXIST)
+
 #define QW_FPARAMS_DEF SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId
 #define QW_IDS()       sId, qId, tId, rId, eId
 #define QW_FPARAMS()   mgmt, QW_IDS()
@@ -246,6 +250,7 @@ typedef struct SQWorkerMgmt {
 
 #define QW_QUERY_RUNNING(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 #define QW_FETCH_RUNNING(ctx) ((ctx)->inFetch)
+#define QW_QUERY_NOT_STARTED(ctx) (QW_GET_PHASE(ctx) == -1)
 
 #define QW_SET_QTID(id, qId, tId, eId)                              \
   do {                                                              \
@@ -332,34 +337,34 @@ typedef struct SQWorkerMgmt {
 #define QW_LOCK(type, _lock)                                                                       \
   do {                                                                                             \
     if (QW_READ == (type)) {                                                                       \
-      assert(atomic_load_32((_lock)) >= 0);                                                        \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before read lock");                \
       QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRLockLatch(_lock);                                                                       \
       QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) > 0);                                                         \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value after read lock");                  \
     } else {                                                                                       \
-      assert(atomic_load_32((_lock)) >= 0);                                                        \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before write lock");               \
       QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWLockLatch(_lock);                                                                       \
       QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                               \
+      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock");  \
     }                                                                                              \
   } while (0)
 
 #define QW_UNLOCK(type, _lock)                                                                      \
   do {                                                                                              \
     if (QW_READ == (type)) {                                                                        \
-      assert(atomic_load_32((_lock)) > 0);                                                          \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                \
       QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRUnLockLatch(_lock);                                                                      \
       QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                         \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                \
     } else {                                                                                        \
-      assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                                \
+      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock");   \
       QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWUnLockLatch(_lock);                                                                      \
       QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                         \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");               \
     }                                                                                               \
   } while (0)
 

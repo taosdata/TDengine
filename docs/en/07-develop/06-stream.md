@@ -1,7 +1,7 @@
 ---
-sidebar_label: Stream Processing
-description: "The TDengine stream processing engine combines data inserts, preprocessing, analytics, real-time computation, and alerting into a single component."
 title: Stream Processing
+sidebar_label: Stream Processing
+description: This document describes the stream processing component of TDengine.
 ---
 
 Raw time-series data is often cleaned and preprocessed before being permanently stored in a database. In a traditional time-series solution, this generally requires the deployment of stream processing systems such as Kafka or Flink. However, the complexity of such systems increases the cost of development and maintenance.

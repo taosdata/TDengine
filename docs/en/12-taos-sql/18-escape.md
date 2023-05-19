@@ -1,5 +1,6 @@
 ---
 title: Escape Characters
+description: This document describes the usage of escape characters in TDengine.
 ---
 
 ## Escape Characters

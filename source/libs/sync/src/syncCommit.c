@@ -44,22 +44,6 @@
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
 
-bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index) {
-  // I am leader, I agree
-  if (syncUtilSameId(pRaftId, &(pSyncNode->myRaftId)) && pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-    return true;
-  }
-
-  // follower agree
-  SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, pRaftId);
-  if (matchIndex >= index) {
-    return true;
-  }
-
-  // not agree
-  return false;
-}
-
 static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
   ASSERT(a >= 0);
   ASSERT(b >= 0);
@@ -85,19 +69,6 @@ bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
   return count >= pNode->quorum;
 }
 
-bool syncAgree(SSyncNode* pNode, SyncIndex index) {
-  int agreeCount = 0;
-  for (int i = 0; i < pNode->replicaNum; ++i) {
-    if (syncAgreeIndex(pNode, &(pNode->replicasId[i]), index)) {
-      ++agreeCount;
-    }
-    if (agreeCount >= pNode->quorum) {
-      return true;
-    }
-  }
-  return false;
-}
-
 int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
   SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
   commitIndex = TMAX(commitIndex, ths->commitIndex);
@@ -111,7 +82,7 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
     SyncIndex commitIndex = indexLikely;
     syncNodeUpdateCommitIndex(ths, commitIndex);
     sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index:%" PRId64 "", ths->vgId, ths->state,
-           ths->raftStore.currentTerm, commitIndex);
+           raftStoreGetTerm(ths), commitIndex);
   }
   return ths->commitIndex;
 }

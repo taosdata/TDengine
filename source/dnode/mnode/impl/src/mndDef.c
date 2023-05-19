@@ -70,7 +70,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
     if (tEncodeI32(pEncoder, innerSz) < 0) return -1;
     for (int32_t j = 0; j < innerSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pArray, j);
-      if (tEncodeSStreamTask(pEncoder, pTask) < 0) return -1;
+      if (tEncodeStreamTask(pEncoder, pTask) < 0) return -1;
     }
   }
 
@@ -130,7 +130,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
           taosArrayDestroy(pArray);
           return -1;
         }
-        if (tDecodeSStreamTask(pDecoder, pTask) < 0) {
+        if (tDecodeStreamTask(pDecoder, pTask) < 0) {
           taosMemoryFree(pTask);
           taosArrayDestroy(pArray);
           return -1;
@@ -146,7 +146,9 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   // 3.0.20
   if (sver >= 2) {
     if (tDecodeI64(pDecoder, &pObj->checkpointFreq) < 0) return -1;
-    if (tDecodeI8(pDecoder, &pObj->igCheckUpdate) < 0) return -1;
+    if (!tDecodeIsEnd(pDecoder)) {
+      if (tDecodeI8(pDecoder, &pObj->igCheckUpdate) < 0) return -1;
+    }
   }
   tEndDecode(pDecoder);
   return 0;
@@ -156,7 +158,10 @@ void tFreeStreamObj(SStreamObj *pStream) {
   taosMemoryFree(pStream->sql);
   taosMemoryFree(pStream->ast);
   taosMemoryFree(pStream->physicalPlan);
-  if (pStream->outputSchema.nCols) taosMemoryFree(pStream->outputSchema.pSchema);
+
+  if (pStream->outputSchema.nCols) {
+    taosMemoryFree(pStream->outputSchema.pSchema);
+  }
 
   int32_t sz = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < sz; i++) {
@@ -164,18 +169,25 @@ void tFreeStreamObj(SStreamObj *pStream) {
     int32_t taskSz = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < taskSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
-      tFreeSStreamTask(pTask);
+      tFreeStreamTask(pTask);
     }
+
     taosArrayDestroy(pLevel);
   }
+
   taosArrayDestroy(pStream->tasks);
+
+  // tagSchema.pSchema
+  if (pStream->tagSchema.nCols > 0) {
+    taosMemoryFree(pStream->tagSchema.pSchema);
+  }
 }
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));
   if (pVgEpNew == NULL) return NULL;
   pVgEpNew->vgId = pVgEp->vgId;
-  pVgEpNew->qmsg = strdup(pVgEp->qmsg);
+  pVgEpNew->qmsg = taosStrdup(pVgEp->qmsg);
   pVgEpNew->epSet = pVgEp->epSet;
   return pVgEpNew;
 }
@@ -213,7 +225,7 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_L
   memcpy(pConsumer->cgroup, cgroup, TSDB_CGROUP_LEN);
 
   pConsumer->epoch = 0;
-  pConsumer->status = MQ_CONSUMER_STATUS__MODIFY;
+  pConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
   pConsumer->hbStatus = 0;
 
   taosInitRWLatch(&pConsumer->lock);
@@ -411,19 +423,21 @@ void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp) {
   return (void *)buf;
 }
 
-SMqSubscribeObj *tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]) {
-  SMqSubscribeObj *pSubNew = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
-  if (pSubNew == NULL) return NULL;
-  memcpy(pSubNew->key, key, TSDB_SUBSCRIBE_KEY_LEN);
-  taosInitRWLatch(&pSubNew->lock);
-  pSubNew->vgNum = 0;
-  pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+SMqSubscribeObj *tNewSubscribeObj(const char* key) {
+  SMqSubscribeObj *pSubObj = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
+  if (pSubObj == NULL) {
+    return NULL;
+  }
+
+  memcpy(pSubObj->key, key, TSDB_SUBSCRIBE_KEY_LEN);
+  taosInitRWLatch(&pSubObj->lock);
+  pSubObj->vgNum = 0;
+  pSubObj->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+
   // TODO set hash free fp
-  /*taosHashSetFreeFp(pSubNew->consumerHash, tDeleteSMqConsumerEp);*/
-
-  pSubNew->unassignedVgs = taosArrayInit(0, sizeof(void *));
-
-  return pSubNew;
+  /*taosHashSetFreeFp(pSubObj->consumerHash, tDeleteSMqConsumerEp);*/
+  pSubObj->unassignedVgs = taosArrayInit(0, POINTER_BYTES);
+  return pSubObj;
 }
 
 SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {

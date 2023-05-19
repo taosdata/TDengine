@@ -4,6 +4,7 @@ import sys
 import time
 from datetime import datetime
 import socket
+import psutil
 import os
 import platform
 if platform.system().lower() == 'windows':
@@ -67,19 +68,25 @@ class TDTestCase:
         return buildPath
 
     def get_process_pid(self,processname):
-        #origin artical link：https://blog.csdn.net/weixin_45623536/article/details/122099062
-        process_info_list = []
-        process = os.popen('ps -A | grep %s'% processname)
-        process_info = process.read()
-        for i in process_info.split(' '):
-            if i != "":
-                process_info_list.append(i)
-        print(process_info_list)
-        if len(process_info_list) != 0 :
-            pid = int(process_info_list[0])
-        else :
-            pid = 0
-        return pid
+        if platform.system().lower() == 'windows':
+            pids = psutil.process_iter()
+            for pid in pids:
+                if(pid.name() == processname):
+                    return pid.pid
+            return 0
+        else:
+            process_info_list = []
+            process = os.popen('ps -A | grep %s'% processname)
+            process_info = process.read()
+            for i in process_info.split(' '):
+                if i != "":
+                    process_info_list.append(i)
+            print(process_info_list)
+            if len(process_info_list) != 0 :
+                pid = int(process_info_list[0])
+            else :
+                pid = 0
+            return pid
 
     def checkAndstopPro(self,processName,startAction):
         i = 1
@@ -88,23 +95,29 @@ class TDTestCase:
             taosdPid=self.get_process_pid(processName)
             if taosdPid != 0  and   taosdPid != ""  :
                 tdLog.info("stop taosd %s ,kill pid :%s "%(startAction,taosdPid))
-                os.system("kill -9 %d"%taosdPid) 
+                os.system("kill -9 %d"%taosdPid)
                 break
             else:
                 tdLog.info( "wait start taosd ,times: %d "%i)
             time.sleep(1)
             i+= 1
         else :
-            tdLog.exit("taosd %s is not running "%startAction)    
+            tdLog.exit("taosd %s is not running "%startAction)
 
     def taosdCommandStop(self,startAction,taosdCmdRun):
         processName="taosd"
+        if platform.system().lower() == 'windows':
+            processName="taosd.exe"
         taosdCmd = taosdCmdRun + startAction
         tdLog.printNoPrefix("%s"%taosdCmd)
-        logTime=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-        os.system(f"nohup {taosdCmd}  >  {logTime}.log  2>&1 &  ")
-        self.checkAndstopPro(processName,startAction)
-        os.system(f"rm -rf  {logTime}.log")
+        if platform.system().lower() == 'windows':
+            cmd = f"mintty -h never {taosdCmd}"
+            os.system(cmd)
+        else:
+            logTime=datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+            os.system(f"nohup {taosdCmd}  >  {logTime}.log  2>&1 &  ")
+            self.checkAndstopPro(processName,startAction)
+            os.system(f"rm -rf  {logTime}.log")
 
 
     def taosdCommandExe(self,startAction,taosdCmdRun):
@@ -116,7 +129,7 @@ class TDTestCase:
         # database\stb\tb\chiild-tb\rows\topics
         tdSql.execute("create user testpy pass 'testpy'")
         tdSql.execute("drop database if exists db0;")
-        tdSql.execute("create database db0;")
+        tdSql.execute("create database db0 wal_retention_period 3600;")
         tdSql.execute("use db0;")
         tdSql.execute("create table if not exists db0.stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned);")
         tdSql.execute("create table db0.ct1 using db0.stb tags(1000);")
@@ -132,14 +145,14 @@ class TDTestCase:
 
         #stream
         tdSql.execute("drop database if exists source_db;")
-        tdSql.query("create database source_db vgroups 3;")
+        tdSql.query("create database source_db vgroups 3 wal_retention_period 3600;")
         tdSql.query("use source_db")
         tdSql.query("create table if not exists source_db.stb (ts timestamp, k int) tags (a int);")
         tdSql.query("create table source_db.ct1 using source_db.stb tags(1000);create table source_db.ct2 using source_db.stb tags(2000);create table source_db.ct3 using source_db.stb tags(3000);")
-        tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS start, min(k), max(k), sum(k) from source_db.stb interval(10m);")
+        tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS startts, min(k), max(k), sum(k) from source_db.stb interval(10m);")
 
 
-        #TD-19944 -Q=3 
+        #TD-19944 -Q=3
         tdsqlN=tdCom.newTdSql()
 
         tdsqlN.query("select * from source_db.stb")
@@ -186,7 +199,11 @@ class TDTestCase:
 
         startAction=" -a  jsonFile:./taosdCaseTmp.json"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        os.system("echo \'{\"queryPolicy\":\"3\"}\' > taosdCaseTmp.json")
+
+        if platform.system().lower() == 'windows':
+            os.system("echo {\"queryPolicy\":\"3\"} > taosdCaseTmp.json")
+        else:
+            os.system("echo \'{\"queryPolicy\":\"3\"}\' > taosdCaseTmp.json")
         self.taosdCommandStop(startAction,taosdCmdRun)
 
         startAction = " -a  jsonFile:./taosdCaseTmp.json -C "
@@ -206,12 +223,12 @@ class TDTestCase:
         self.taosdCommandStop(startAction,taosdCmdRun)
 
 
-        startAction=" -E taosdCaseTmp/.env"
+        startAction=f" -E taosdCaseTmp{os.sep}.env"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        os.system(" mkdir -p taosdCaseTmp ") 
-        os.system("echo \'TAOS_QUERY_POLICY=3\' > taosdCaseTmp/.env ")
+        os.system(" mkdir -p taosdCaseTmp ")
+        os.system("echo TAOS_QUERY_POLICY=3 > taosdCaseTmp/.env ")
         self.taosdCommandStop(startAction,taosdCmdRun)
-        os.system(" rm -rf taosdCaseTmp ") 
+        os.system(" rm -rf taosdCaseTmp ")
 
         startAction = " -V"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)

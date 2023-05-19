@@ -126,7 +126,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
   idx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   idx->version = 1;
-  idx->path = tstrdup(path);
+  idx->path = taosStrdup(path);
   taosThreadMutexInit(&idx->mtx, NULL);
   tsem_init(&idx->sem, 0, 0);
 

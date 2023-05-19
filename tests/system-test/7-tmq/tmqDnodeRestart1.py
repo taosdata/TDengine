@@ -54,6 +54,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1,wal_retention_size=-1, wal_retention_period=-1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -120,7 +121,7 @@ class TDTestCase:
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
         # time.sleep(3)
-        tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
+        tmqCom.getStartCommitNotifyFromTmqsim()
 
         tdLog.info("create some new child table and insert data for latest mode")
         paraDict["batchNum"] = 100
@@ -204,7 +205,7 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
+        tmqCom.getStartCommitNotifyFromTmqsim()
 
         tdLog.info("create some new child table and insert data for latest mode")
         paraDict["batchNum"] = 10

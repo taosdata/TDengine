@@ -109,4 +109,3 @@ if __name__ == '__main__':
     writer.execute_sql(
         "INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) "
         "VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32)")
-    

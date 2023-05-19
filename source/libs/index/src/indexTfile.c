@@ -804,7 +804,7 @@ TFileValue* tfileValueCreate(char* val) {
   if (tf == NULL) {
     return NULL;
   }
-  tf->colVal = tstrdup(val);
+  tf->colVal = taosStrdup(val);
   tf->tableId = taosArrayInit(32, sizeof(uint64_t));
   return tf;
 }

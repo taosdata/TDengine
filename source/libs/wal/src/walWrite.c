@@ -63,7 +63,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
     }
   }
-  walRemoveMeta(pWal);
+  (void)walRemoveMeta(pWal);
 
   pWal->writeCur = -1;
   pWal->totSize = 0;
@@ -90,7 +90,7 @@ int32_t walCommit(SWal *pWal, int64_t ver) {
   if (ver < pWal->vers.commitVer) {
     return 0;
   }
-  if (ver > pWal->vers.lastVer) {
+  if (ver > pWal->vers.lastVer || pWal->vers.commitVer < pWal->vers.snapshotVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
@@ -121,7 +121,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     // delete files in descending order
     int fileSetSize = taosArrayGetSize(pWal->fileInfoSet);
     for (int i = pWal->writeCur + 1; i < fileSetSize; i++) {
-      SWalFileInfo* pInfo = taosArrayPop(pWal->fileInfoSet);
+      SWalFileInfo *pInfo = taosArrayPop(pWal->fileInfoSet);
 
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
       wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
@@ -247,21 +247,23 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
   return 0;
 }
 
-int32_t walBeginSnapshot(SWal *pWal, int64_t ver) {
+int32_t walBeginSnapshot(SWal *pWal, int64_t ver, int64_t logRetention) {
   taosThreadMutexLock(&pWal->mutex);
-
+  ASSERT(logRetention >= 0);
   pWal->vers.verInSnapshotting = ver;
-  wDebug("vgId:%d, wal begin snapshot for version %" PRId64 ", first ver %" PRId64 ", last ver %" PRId64,
-         pWal->cfg.vgId, ver, pWal->vers.firstVer, pWal->vers.lastVer);
+  pWal->vers.logRetention = logRetention;
+
+  wDebug("vgId:%d, wal begin snapshot for version %" PRId64 ", log retention %" PRId64 " first ver %" PRId64
+         ", last ver %" PRId64,
+         pWal->cfg.vgId, ver, pWal->vers.logRetention, pWal->vers.firstVer, pWal->vers.lastVer);
   // check file rolling
-  if (pWal->cfg.retentionPeriod == 0) {
-    if (walGetLastFileSize(pWal) != 0) {
-      if (walRollImpl(pWal) < 0) {
-        wError("vgId:%d, failed to roll wal files since %s", pWal->cfg.vgId, terrstr());
-        goto _err;
-      }
+  if (walGetLastFileSize(pWal) != 0) {
+    if (walRollImpl(pWal) < 0) {
+      wError("vgId:%d, failed to roll wal files since %s", pWal->cfg.vgId, terrstr());
+      goto _err;
     }
   }
+
   taosThreadMutexUnlock(&pWal->mutex);
   return 0;
 
@@ -275,67 +277,63 @@ int32_t walEndSnapshot(SWal *pWal) {
   taosThreadMutexLock(&pWal->mutex);
   int64_t ver = pWal->vers.verInSnapshotting;
 
-  wDebug("vgId:%d, wal end snapshot for version %" PRId64 ", first ver %" PRId64 ", last ver %" PRId64, pWal->cfg.vgId,
-         ver, pWal->vers.firstVer, pWal->vers.lastVer);
+  wDebug("vgId:%d, wal end snapshot for version %" PRId64 ", log retention %" PRId64 " first ver %" PRId64
+         ", last ver %" PRId64,
+         pWal->cfg.vgId, ver, pWal->vers.logRetention, pWal->vers.firstVer, pWal->vers.lastVer);
 
   if (ver == -1) {
     code = -1;
     goto END;
-  };
+  }
 
   pWal->vers.snapshotVer = ver;
   int ts = taosGetTimestampSec();
+  ver = TMAX(ver - pWal->vers.logRetention, pWal->vers.firstVer - 1);
 
+  // compatible mode for refVer
+  bool hasTopic = false;
+  int64_t refVer = INT64_MAX;
   void *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);
     if (pIter == NULL) break;
     SWalRef *pRef = *(SWalRef **)pIter;
     if (pRef->refVer == -1) continue;
-    ver = TMIN(ver, pRef->refVer - 1);
-    wDebug("vgId:%d, wal found ref %" PRId64 ", refId %" PRId64, pWal->cfg.vgId, pRef->refVer, pRef->refId);
+    refVer = TMIN(refVer, pRef->refVer - 1);
+    hasTopic = true;
+  }
+  if (pWal->cfg.retentionPeriod == 0 && hasTopic) {
+    wInfo("vgId:%d, wal found refVer:%" PRId64 " in compatible mode, ver:%" PRId64, pWal->cfg.vgId, refVer, ver);
+    ver = TMIN(ver, refVer);
   }
 
+  // find files safe to delete
   int          deleteCnt = 0;
   int64_t      newTotSize = pWal->totSize;
-  SWalFileInfo tmp;
+  SWalFileInfo tmp = {0};
   tmp.firstVer = ver;
-  // find files safe to delete
   SWalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
+
   if (pInfo) {
-    SWalFileInfo *pLastFileInfo = taosArrayGetLast(pWal->fileInfoSet);
-    wDebug("vgId:%d, wal search found file info: first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
-           pInfo->lastVer);
-    if (ver >= pInfo->lastVer) {
+    wDebug("vgId:%d, wal search found file info. ver:%" PRId64 ", first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, ver,
+           pInfo->firstVer, pInfo->lastVer);
+    ASSERT(ver <= pInfo->lastVer);
+    if (ver == pInfo->lastVer) {
       pInfo++;
-      wDebug("vgId:%d, wal remove advance one file: first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
-             pInfo->lastVer);
-    }
-    if (pInfo <= pLastFileInfo) {
-      wDebug("vgId:%d, wal end remove for first:%" PRId64 " last:%" PRId64, pWal->cfg.vgId, pInfo->firstVer,
-             pInfo->lastVer);
-    } else {
-      wDebug("vgId:%d, wal no remove", pWal->cfg.vgId);
     }
 
     // iterate files, until the searched result
+    // delete according to file size or close time
     for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
-      wDebug("vgId:%d, wal check remove file %" PRId64 "(file size %" PRId64 " close ts %" PRId64
-             "), new tot size %" PRId64,
-             pWal->cfg.vgId, iter->firstVer, iter->fileSize, iter->closeTs, newTotSize);
-      if (((pWal->cfg.retentionSize == 0) || (pWal->cfg.retentionSize != -1 && newTotSize > pWal->cfg.retentionSize)) ||
-          ((pWal->cfg.retentionPeriod == 0) ||
-           (pWal->cfg.retentionPeriod != -1 && iter->closeTs + pWal->cfg.retentionPeriod > ts))) {
-        // delete according to file size or close time
-        wDebug("vgId:%d, check pass", pWal->cfg.vgId);
+      if ((pWal->cfg.retentionSize > 0 && newTotSize > pWal->cfg.retentionSize) ||
+          (pWal->cfg.retentionPeriod == 0 ||
+           pWal->cfg.retentionPeriod > 0 && iter->closeTs >= 0 && iter->closeTs + pWal->cfg.retentionPeriod < ts)) {
         deleteCnt++;
         newTotSize -= iter->fileSize;
         taosArrayPush(pWal->toDeleteFiles, iter);
       }
-      wDebug("vgId:%d, check not pass", pWal->cfg.vgId);
     }
 
-  UPDATE_META:
     // make new array, remove files
     taosArrayPopFrontBatch(pWal->fileInfoSet, deleteCnt);
     if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
@@ -345,11 +343,12 @@ int32_t walEndSnapshot(SWal *pWal) {
       pWal->vers.firstVer = ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
     }
   }
+
+  // update meta
   pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
   pWal->totSize = newTotSize;
   pWal->vers.verInSnapshotting = -1;
 
-  // save snapshot ver, commit ver
   code = walSaveMeta(pWal);
   if (code < 0) {
     goto END;
@@ -357,21 +356,26 @@ int32_t walEndSnapshot(SWal *pWal) {
 
   // delete files
   deleteCnt = taosArrayGetSize(pWal->toDeleteFiles);
-  wDebug("vgId:%d, wal should delete %d files", pWal->cfg.vgId, deleteCnt);
-  char fnameStr[WAL_FILE_LEN];
+  char fnameStr[WAL_FILE_LEN] = {0};
+  pInfo = NULL;
+
   for (int i = 0; i < deleteCnt; i++) {
     pInfo = taosArrayGet(pWal->toDeleteFiles, i);
+
     walBuildLogName(pWal, pInfo->firstVer, fnameStr);
-    wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
     if (taosRemoveFile(fnameStr) < 0 && errno != ENOENT) {
       wError("vgId:%d, failed to remove log file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(errno));
       goto END;
     }
     walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
-    wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
     if (taosRemoveFile(fnameStr) < 0 && errno != ENOENT) {
+      wError("vgId:%d, failed to remove idx file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(errno));
       goto END;
     }
+  }
+  if (pInfo != NULL) {
+    wInfo("vgId:%d, wal log files recycled. count:%d, until ver:%" PRId64 ", closeTs:%" PRId64, pWal->cfg.vgId,
+          deleteCnt, pInfo->lastVer, pInfo->closeTs);
   }
   taosArrayClear(pWal->toDeleteFiles);
 
@@ -382,20 +386,33 @@ END:
 
 int32_t walRollImpl(SWal *pWal) {
   int32_t code = 0;
+
   if (pWal->pIdxFile != NULL) {
+    code = taosFsyncFile(pWal->pIdxFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
     code = taosCloseFile(&pWal->pIdxFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto END;
     }
   }
+
   if (pWal->pLogFile != NULL) {
+    code = taosFsyncFile(pWal->pLogFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
     code = taosCloseFile(&pWal->pLogFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto END;
     }
   }
+
   TdFilePtr pIdxFile, pLogFile;
   // create new file
   int64_t newFileFirstVer = pWal->vers.lastVer + 1;
@@ -441,7 +458,8 @@ END:
 static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   SWalIdxEntry  entry = {.ver = ver, .offset = offset};
   SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
-  int64_t       idxOffset = (entry.ver - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
+
+  int64_t idxOffset = (entry.ver - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
   wDebug("vgId:%d, write index, index:%" PRId64 ", offset:%" PRId64 ", at %" PRId64, pWal->cfg.vgId, ver, offset,
          idxOffset);
 

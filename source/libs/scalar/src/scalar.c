@@ -53,12 +53,15 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    colDataDestroy(pColumnData);
     taosMemoryFree(pColumnData);
     return terrno;
   }
 
   pParam->columnData = pColumnData;
   pParam->colAlloced = true;
+  pParam->numOfRows = numOfRows;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -69,7 +72,7 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
     return code;
   }
 
-  colDataAppend(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
+  colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
 
   colInfoDataEnsureCapacity(out->columnData, 1, true);
   code = vectorConvertSingleColImpl(&in, out, overflow, -1, -1);
@@ -337,9 +340,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
-        colDataAppendNULL(param->columnData, 0);
+        colDataSetNULL(param->columnData, 0);
       } else {
-        colDataAppend(param->columnData, 0, nodesGetValueFromNode(valueNode), false);
+        colDataSetVal(param->columnData, 0, nodesGetValueFromNode(valueNode), false);
       }
       break;
     }
@@ -605,7 +608,7 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
     if (*equal) {
       bool  isNull = colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0));
       char *pData = isNull ? NULL : colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0));
-      colDataAppend(output->columnData, rowIdx, pData, isNull);
+      colDataSetVal(output->columnData, rowIdx, pData, isNull);
 
       if (0 == rowIdx && 1 == pCase->numOfRows && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && totalRows > 1) {
         SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -619,7 +622,7 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
   if (pElse) {
     bool  isNull = colDataIsNull_s(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0));
     char *pData = isNull ? NULL : colDataGetData(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0));
-    colDataAppend(output->columnData, rowIdx, pData, isNull);
+    colDataSetVal(output->columnData, rowIdx, pData, isNull);
 
     if (0 == rowIdx && 1 == pCase->numOfRows && 1 == pElse->numOfRows && totalRows > 1) {
       SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -629,7 +632,7 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
     goto _return;
   }
 
-  colDataAppend(output->columnData, rowIdx, NULL, true);
+  colDataSetVal(output->columnData, rowIdx, NULL, true);
 
   if (0 == rowIdx && 1 == pCase->numOfRows && totalRows > 1) {
     SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -668,7 +671,7 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCe
     if (*whenValue) {
       bool  isNull = colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0));
       char *pData = isNull ? NULL : colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0));
-      colDataAppend(output->columnData, rowIdx, pData, isNull);
+      colDataSetVal(output->columnData, rowIdx, pData, isNull);
 
       if (preSingle && 0 == rowIdx && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && totalRows > 1) {
         SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -687,7 +690,7 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCe
   if (pElse) {
     bool  isNull = colDataIsNull_s(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0));
     char *pData = isNull ? NULL : colDataGetData(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0));
-    colDataAppend(output->columnData, rowIdx, pData, isNull);
+    colDataSetVal(output->columnData, rowIdx, pData, isNull);
 
     if (preSingle && 0 == rowIdx && 1 == pElse->numOfRows && totalRows > 1) {
       SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -697,7 +700,7 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell *pCe
     goto _return;
   }
 
-  colDataAppend(output->columnData, rowIdx, NULL, true);
+  colDataSetVal(output->columnData, rowIdx, NULL, true);
 
   if (preSingle && 0 == rowIdx && totalRows > 1) {
     SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -738,6 +741,10 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
     code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
     if (code != TSDB_CODE_SUCCESS) {
       SCL_ERR_JRET(code);
+    }
+
+    if (rowNum == 0) {
+      goto _return;
     }
 
     code = (*ffpSet.process)(params, paramNum, output);
@@ -815,7 +822,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
     }
 
     if (complete) {
-      colDataAppend(output->columnData, i, (char *)&value, false);
+      colDataSetVal(output->columnData, i, (char *)&value, false);
       if (value) {
         numOfQualified++;
       }
@@ -920,7 +927,7 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
     for (int32_t i = 0; i < rowNum; ++i) {
       bool *equal = (bool *)colDataGetData(comp.columnData, (comp.numOfRows > 1 ? i : 0));
       if (*equal) {
-        colDataAppend(output->columnData, i, colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)),
+        colDataSetVal(output->columnData, i, colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)),
                       colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)));
         if (0 == i && 1 == pCase->numOfRows && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && rowNum > 1) {
           SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -938,7 +945,7 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
     for (int32_t i = 0; i < rowNum; ++i) {
       bool *whenValue = (bool *)colDataGetData(pWhen->columnData, (pWhen->numOfRows > 1 ? i : 0));
       if (*whenValue) {
-        colDataAppend(output->columnData, i, colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)),
+        colDataSetVal(output->columnData, i, colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)),
                       colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)));
         if (0 == i && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && rowNum > 1) {
           SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
@@ -1032,23 +1039,43 @@ bool sclContainsAggFuncNode(SNode *pNode) {
   return aggFunc;
 }
 
+static uint8_t sclGetOpValueNodeTsPrecision(SNode *pLeft, SNode *pRight) {
+  uint8_t lPrec = ((SExprNode *)pLeft)->resType.precision;
+  uint8_t rPrec = ((SExprNode *)pRight)->resType.precision;
+
+  uint8_t lType = ((SExprNode *)pLeft)->resType.type;
+  uint8_t rType = ((SExprNode *)pRight)->resType.type;
+
+  if (TSDB_DATA_TYPE_TIMESTAMP == lType && TSDB_DATA_TYPE_TIMESTAMP == rType) {
+    return TMAX(lPrec, rPrec);
+  } else if (TSDB_DATA_TYPE_TIMESTAMP == lType && TSDB_DATA_TYPE_TIMESTAMP != rType) {
+    return lPrec;
+  } else if (TSDB_DATA_TYPE_TIMESTAMP == rType && TSDB_DATA_TYPE_TIMESTAMP != lType) {
+    return rPrec;
+  }
+
+  return 0;
+}
 
 int32_t sclConvertOpValueNodeTs(SOperatorNode *node, SScalarCtx *ctx) {
   int32_t code = 0;
-  
+
   if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
     if (node->pRight && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pRight)->resType.type)) {
-      SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pRight)->resType.precision, (SValueNode*)node->pLeft));
+      SCL_ERR_JRET(
+          sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight), (SValueNode *)node->pLeft));
     }
   } else if (node->pRight && SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
     if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
       if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
-        SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)node->pRight));
+        SCL_ERR_JRET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight),
+                                             (SValueNode *)node->pRight));
       } else if (QUERY_NODE_NODE_LIST == node->pRight->type) {
-        SNode* pNode;
-        FOREACH(pNode, ((SNodeListNode*)node->pRight)->pNodeList) {
+        SNode *pNode;
+        FOREACH(pNode, ((SNodeListNode *)node->pRight)->pNodeList) {
           if (SCL_IS_VAR_VALUE_NODE(pNode)) {
-            SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)pNode));
+            SCL_ERR_JRET(
+                sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, pNode), (SValueNode *)pNode));
           }
         }
       }
@@ -1063,29 +1090,28 @@ _return:
   return DEAL_RES_ERROR;
 }
 
-
-
 int32_t sclConvertCaseWhenValueNodeTs(SCaseWhenNode *node, SScalarCtx *ctx) {
   int32_t code = 0;
 
   if (NULL == node->pCase) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   if (SCL_IS_VAR_VALUE_NODE(node->pCase)) {
-    SNode* pNode;
+    SNode *pNode;
     FOREACH(pNode, node->pWhenThenList) {
       SExprNode *pExpr = (SExprNode *)((SWhenThenNode *)pNode)->pWhen;
       if (TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
-        SCL_ERR_JRET(sclConvertToTsValueNode(pExpr->resType.precision, (SValueNode*)node->pCase));
+        SCL_ERR_JRET(sclConvertToTsValueNode(pExpr->resType.precision, (SValueNode *)node->pCase));
         break;
       }
     }
   } else if (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pCase)->resType.type) {
-    SNode* pNode;
+    SNode *pNode;
     FOREACH(pNode, node->pWhenThenList) {
       if (SCL_IS_VAR_VALUE_NODE(((SWhenThenNode *)pNode)->pWhen)) {
-        SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pCase)->resType.precision, (SValueNode*)((SWhenThenNode *)pNode)->pWhen));
+        SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pCase)->resType.precision,
+                                             (SValueNode *)((SWhenThenNode *)pNode)->pWhen));
       }
     }
   }
@@ -1247,7 +1273,6 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   sclFreeParam(&output);
   return DEAL_RES_CONTINUE;
 }
-
 
 EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;

@@ -51,7 +51,9 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   } else if (pME->type == TSDB_TSMA_TABLE) {
     if (tEncodeTSma(pCoder, pME->smaEntry.tsma) < 0) return -1;
   } else {
-    ASSERT(0);
+    metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
+
+    return -1;
   }
 
   tEndEncode(pCoder);

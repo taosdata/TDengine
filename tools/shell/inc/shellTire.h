@@ -19,7 +19,7 @@
 //
 // The prefix search tree is a efficient storage words and search words tree, it support 95 visible ascii code character
 //
-#define FIRST_ASCII 40   // first visiable char is '0'
+#define FIRST_ASCII 40   // first visible char is '0'
 #define LAST_ASCII  122  // last visilbe char is 'z'
 
 // capacity save char is 95

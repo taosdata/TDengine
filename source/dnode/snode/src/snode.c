@@ -32,6 +32,7 @@ void sndEnqueueStreamDispatch(SSnode *pSnode, SRpcMsg *pMsg) {
     tDecoderClear(&decoder);
     goto FAIL;
   }
+
   tDecoderClear(&decoder);
 
   int32_t taskId = req.taskId;
@@ -65,7 +66,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
 
   pTask->refCnt = 1;
-  pTask->schedStatus = TASK_SCHED_STATUS__INACTIVE;
+  pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->inputQueue = streamQueueOpen();
   pTask->outputQueue = streamQueueOpen();
 
@@ -75,26 +76,22 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
 
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
-
   pTask->pMsgCb = &pSnode->msgCb;
-
-  pTask->startVer = ver;
+  pTask->chkInfo.version = ver;
+  pTask->pMeta = pSnode->pMeta;
 
   pTask->pState = streamStateOpen(pSnode->path, pTask, false, -1, -1);
   if (pTask->pState == NULL) {
     return -1;
   }
 
-  SReadHandle mgHandle = {
-      .vnode = NULL,
-      .numOfVgroups = (int32_t)taosArrayGetSize(pTask->childEpInfo),
-      .pStateBackend = pTask->pState,
-  };
-  pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
-  ASSERT(pTask->exec.executor);
+  int32_t numOfChildEp = taosArrayGetSize(pTask->childEpInfo);
+  SReadHandle mgHandle = { .vnode = NULL, .numOfVgroups = numOfChildEp, .pStateBackend = pTask->pState };
+
+  pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle, 0);
+  ASSERT(pTask->exec.pExecutor);
 
   streamSetupTrigger(pTask);
-
   return 0;
 }
 
@@ -104,7 +101,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pSnode->path = strdup(path);
+  pSnode->path = taosStrdup(path);
   if (pSnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
@@ -142,9 +139,10 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   if (pTask == NULL) {
     return -1;
   }
+
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t *)msg, msgLen);
-  code = tDecodeSStreamTask(&decoder, pTask);
+  code = tDecodeStreamTask(&decoder, pTask);
   if (code < 0) {
     tDecoderClear(&decoder);
     taosMemoryFree(pTask);
@@ -155,10 +153,14 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
 
   // 2.save task
-  code = streamMetaAddTask(pSnode->pMeta, -1, pTask);
+  taosWLockLatch(&pSnode->pMeta->lock);
+  code = streamMetaAddDeployedTask(pSnode->pMeta, -1, pTask);
   if (code < 0) {
+    taosWUnLockLatch(&pSnode->pMeta->lock);
     return -1;
   }
+
+  taosWUnLockLatch(&pSnode->pMeta->lock);
 
   // 3.go through recover steps to fill history
   if (pTask->fillHistory) {

@@ -13,9 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "functionMgt.h"
+#include "operator.h"
+#include "querytask.h"
 
 typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
@@ -161,10 +163,9 @@ static int32_t discardGroupDataBlock(SSDataBlock* pBlock, SLimitInfo* pLimitInfo
       if (pLimitInfo->remainGroupOffset > 0) {
         return PROJECT_RETRIEVE_CONTINUE;
       }
-    }
 
-    // set current group id of the project operator
-    pLimitInfo->currentGroupId = pBlock->info.id.groupId;
+      pLimitInfo->currentGroupId = 0;
+    }
   }
 
   return PROJECT_RETRIEVE_DONE;
@@ -175,19 +176,29 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   // here check for a new group data, we need to handle the data of the previous group.
   ASSERT(pLimitInfo->remainGroupOffset == 0 || pLimitInfo->remainGroupOffset == -1);
 
-  if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
+  bool newGroup = false;
+  if (0 == pBlock->info.id.groupId) {
+    pLimitInfo->numOfOutputGroups = 1;
+  } else if (pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
+    pLimitInfo->currentGroupId = pBlock->info.id.groupId;
     pLimitInfo->numOfOutputGroups += 1;
-    if ((pLimitInfo->slimit.limit > 0) && (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
-      setOperatorCompleted(pOperator);
-      return PROJECT_RETRIEVE_DONE;
-    }
-
-    // reset the value for a new group data
-    // existing rows that belongs to previous group.
-    resetLimitInfoForNextGroup(pLimitInfo);
+    newGroup = true;
+  } else {
+    return PROJECT_RETRIEVE_CONTINUE;
   }
 
-  return PROJECT_RETRIEVE_DONE;
+  if ((pLimitInfo->slimit.limit >= 0) && (pLimitInfo->slimit.limit < pLimitInfo->numOfOutputGroups)) {
+    setOperatorCompleted(pOperator);
+    return PROJECT_RETRIEVE_DONE;
+  }
+
+  // reset the value for a new group data
+  // existing rows that belongs to previous group.
+  if (newGroup) {
+    resetLimitInfoForNextGroup(pLimitInfo);
+  }
+  
+  return PROJECT_RETRIEVE_CONTINUE;
 }
 
 // todo refactor
@@ -199,7 +210,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   if (pBlock->info.rows == 0) {
     return PROJECT_RETRIEVE_CONTINUE;
   } else {
-    if (limitReached && (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
+    if (limitReached && (pLimitInfo->slimit.limit >= 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       setOperatorCompleted(pOperator);
     }
   }
@@ -218,17 +229,8 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   blockDataCleanup(pFinalRes);
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  if (pTaskInfo->streamInfo.pReq) {
-    pOperator->status = OP_OPENED;
-  }
 
   if (pOperator->status == OP_EXEC_DONE) {
-    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
-      pOperator->status = OP_OPENED;
-      qDebug("projection in queue model, set status open and return null");
-      return NULL;
-    }
-
     return NULL;
   }
 
@@ -254,27 +256,18 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       // The downstream exec may change the value of the newgroup, so use a local variable instead.
       SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
       if (pBlock == NULL) {
-        if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE && pFinalRes->info.rows == 0) {
-          pOperator->status = OP_OPENED;
-          if (pOperator->status == OP_EXEC_RECV) {
-            continue;
-          } else {
-            return NULL;
-          }
-        }
-        qDebug("set op close, exec %d, status %d rows %d", pTaskInfo->execModel, pOperator->status,
-               pFinalRes->info.rows);
+        qDebug("set op close, exec %d, status %d rows %" PRId64 , pTaskInfo->execModel, pOperator->status, pFinalRes->info.rows);
         setOperatorCompleted(pOperator);
         break;
       }
-      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
-        qDebug("set status recv");
-        pOperator->status = OP_EXEC_RECV;
-      }
+//      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+//        qDebug("set status recv");
+//        pOperator->status = OP_EXEC_RECV;
+//      }
 
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
-          pBlock->info.type == STREAM_DELETE_DATA) {
+          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
         return pBlock;
       }
 
@@ -289,7 +282,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       }
 
       // the pDataBlock are always the same one, no need to call this again
-      int32_t code = getTableScanInfo(downstream, &order, &scanFlag);
+      int32_t code = getTableScanInfo(downstream, &order, &scanFlag, false);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
@@ -328,7 +321,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
       if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
-        qDebug("project return %d rows, status %d", pFinalRes->info.rows, pOperator->status);
+        qDebug("project return %" PRId64 " rows, status %d", pFinalRes->info.rows, pOperator->status);
         break;
       }
     } else {
@@ -441,7 +434,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   SExprSupp*          pSup = &pOperator->exprSupp;
 
   // the pDataBlock are always the same one, no need to call this again
-  int32_t code = getTableScanInfo(downstream, &order, &scanFlag);
+  int32_t code = getTableScanInfo(downstream, &order, &scanFlag, false);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -580,7 +573,7 @@ void setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SA
   int64_t     tid = 0;
   int64_t     groupId = 0;
   SResultRow* pRow = doSetResultOutBufByKey(pSup->pResultBuf, pResultRowInfo, (char*)&tid, sizeof(tid), true, groupId,
-                                            pTaskInfo, false, pSup);
+                                            pTaskInfo, false, pSup, true);
 
   for (int32_t i = 0; i < numOfExprs; ++i) {
     struct SResultRowEntryInfo* pEntry = getResultEntryInfo(pRow, i, rowEntryInfoOffset);
@@ -623,9 +616,9 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
 
     int32_t type = pExpr[k].base.pParam[0].param.nType;
     if (TSDB_DATA_TYPE_NULL == type) {
-      colDataAppendNNULL(pColInfoData, 0, 1);
+      colDataSetNNULL(pColInfoData, 0, 1);
     } else {
-      colDataAppend(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
+      colDataSetVal(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
     }
   }
 
@@ -665,9 +658,9 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
       int32_t type = pExpr[k].base.pParam[0].param.nType;
       if (TSDB_DATA_TYPE_NULL == type) {
-        colDataAppendNNULL(pColInfoData, 0, 1);
+        colDataSetNNULL(pColInfoData, 0, 1);
       } else {
-        colDataAppend(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
+        colDataSetVal(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
       }
     }
 
@@ -728,11 +721,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
       int32_t type = pExpr[k].base.pParam[0].param.nType;
       if (TSDB_DATA_TYPE_NULL == type) {
-        colDataAppendNNULL(pColInfoData, offset, pSrcBlock->info.rows);
+        colDataSetNNULL(pColInfoData, offset, pSrcBlock->info.rows);
       } else {
         char* p = taosVariantGet(&pExpr[k].base.pParam[0].param, type);
         for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
-          colDataAppend(pColInfoData, i + offset, p, false);
+          colDataSetVal(pColInfoData, i + offset, p, false);
         }
       }
 
@@ -800,10 +793,10 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         for (int32_t f = 0; f < pSrcBlock->info.rows; ++f) {
           bool isNull = colDataIsNull_s(pInput, f);
           if (isNull) {
-            colDataAppendNULL(pOutput, pResult->info.rows + f);
+            colDataSetNULL(pOutput, pResult->info.rows + f);
           } else {
             char* data = colDataGetData(pInput, f);
-            colDataAppend(pOutput, pResult->info.rows + f, data, isNull);
+            colDataSetVal(pOutput, pResult->info.rows + f, data, isNull);
           }
         }
 

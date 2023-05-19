@@ -17,7 +17,7 @@
 #include "cJSON.h"
 #include "querynodes.h"
 
-#define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_DB_FNAME_LEN + 2
+#define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_TABLE_FNAME_LEN + 2
 
 const void* nullPointer = NULL;
 
@@ -103,8 +103,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Incorrect TIMESTAMP value: %s";
     case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
       return "soffset/offset can not be less than 0";
-    case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY:
-      return "slimit/soffset only available for PARTITION BY query";
+    case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY:
+      return "slimit/soffset only available for PARTITION/GROUP BY query";
     case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:
       return "Invalid topic query";
     case TSDB_CODE_PAR_INVALID_DROP_STABLE:
@@ -174,6 +174,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
     case TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN:
       return "No valid function in window query";
+    case TSDB_CODE_PAR_INVALID_OPTR_USAGE:
+      return "Invalid usage of expr: %s";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -442,7 +444,7 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   } else if (QUERY_NODE_VALUE == nodeType(pOper->pRight)) {
     pVal = (SValueNode*)pOper->pRight;
   }
-  if (NULL == pCol || NULL == pVal) {
+  if (NULL == pCol || NULL == pVal || NULL == pVal->literal || 0 == strcmp(pVal->literal, "")) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -494,24 +496,44 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, AUTH_TYPE type, char* pStr) {
-  return sprintf(pStr, "%s*%d.%s*%d", pUser, acctId, pDb, type);
+static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
+                                char* pStr) {
+  return sprintf(pStr, "%s*%d*%s*%s*%d", pUser, acctId, pDb, (NULL != pTable && '\0' == pTable[0]) ? NULL : pTable,
+                 type);
 }
 
-static int32_t userAuthToStringExt(const char* pUser, const char* pDbFName, AUTH_TYPE type, char* pStr) {
-  return sprintf(pStr, "%s*%s*%d", pUser, pDbFName, type);
+static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
+  char* p = strchr(pStart, '*');
+  char  buf[10] = {0};
+  if (NULL == p) {
+    strcpy(buf, pStart);
+    *pNext = NULL;
+  } else {
+    strncpy(buf, pStart, p - pStart);
+    *pNext = ++p;
+  }
+  return taosStr2Int32(buf, NULL, 10);
+}
+
+static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
+  char* p = strchr(pStart, '*');
+  if (NULL == p) {
+    strcpy(pStr, pStart);
+    *pNext = NULL;
+  } else {
+    strncpy(pStr, pStart, p - pStart);
+    *pNext = ++p;
+  }
 }
 
 static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
-  char* p1 = strchr(pStr, '*');
-  strncpy(pUserAuth->user, pStr, p1 - pStr);
-  ++p1;
-  char* p2 = strchr(p1, '*');
-  strncpy(pUserAuth->dbFName, p1, p2 - p1);
-  ++p2;
-  char buf[10] = {0};
-  strncpy(buf, p2, len - (p2 - pStr));
-  pUserAuth->type = taosStr2Int32(buf, NULL, 10);
+  char* p = NULL;
+  getStringFromAuthStr(pStr, pUserAuth->user, &p);
+  pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
+  getStringFromAuthStr(p, pUserAuth->tbName.dbname, &p);
+  getStringFromAuthStr(p, pUserAuth->tbName.tname, &p);
+  pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
+  pUserAuth->type = getIntegerFromAuthStr(p, &p);
 }
 
 static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
@@ -582,10 +604,12 @@ static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
     }
     void* p = taosHashIterate(pUserAuthHash, NULL);
     while (NULL != p) {
-      size_t        len = 0;
-      char*         pKey = taosHashGetKey(p, &len);
+      size_t len = 0;
+      char*  pKey = taosHashGetKey(p, &len);
+      char   key[USER_AUTH_KEY_MAX_LEN] = {0};
+      strncpy(key, pKey, len);
       SUserAuthInfo userAuth = {0};
-      stringToUserAuth(pKey, len, &userAuth);
+      stringToUserAuth(key, len, &userAuth);
       taosArrayPush(*pUserAuth, &userAuth);
       p = taosHashIterate(pUserAuthHash, p);
     }
@@ -710,7 +734,8 @@ static int32_t putUserAuthToCache(const SArray* pUserAuthReq, const SArray* pUse
   for (int32_t i = 0; i < nvgs; ++i) {
     SUserAuthInfo* pUser = taosArrayGet(pUserAuthReq, i);
     char           key[USER_AUTH_KEY_MAX_LEN] = {0};
-    int32_t        len = userAuthToStringExt(pUser->user, pUser->dbFName, pUser->type, key);
+    int32_t        len = userAuthToString(pUser->tbName.acctId, pUser->user, pUser->tbName.dbname, pUser->tbName.tname,
+                                          pUser->type, key);
     if (TSDB_CODE_SUCCESS != putMetaDataToHash(key, len, pUserAuthData, i, pUserAuth)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -908,33 +933,24 @@ static int32_t reserveUserAuthInCacheImpl(const char* pKey, int32_t len, SParseM
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  bool pass = false;
-  return taosHashPut(pMetaCache->pUserAuth, pKey, len, &pass, sizeof(pass));
+  return taosHashPut(pMetaCache->pUserAuth, pKey, len, &nullPointer, POINTER_BYTES);
 }
 
-int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, AUTH_TYPE type,
+int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                SParseMetaCache* pMetaCache) {
   char    key[USER_AUTH_KEY_MAX_LEN] = {0};
-  int32_t len = userAuthToString(acctId, pUser, pDb, type, key);
+  int32_t len = userAuthToString(acctId, pUser, pDb, pTable, type, key);
   return reserveUserAuthInCacheImpl(key, len, pMetaCache);
 }
 
-int32_t reserveUserAuthInCacheExt(const char* pUser, const SName* pName, AUTH_TYPE type, SParseMetaCache* pMetaCache) {
-  char dbFName[TSDB_DB_FNAME_LEN] = {0};
-  tNameGetFullDbName(pName, dbFName);
-  char    key[USER_AUTH_KEY_MAX_LEN] = {0};
-  int32_t len = userAuthToStringExt(pUser, dbFName, type, key);
-  return reserveUserAuthInCacheImpl(key, len, pMetaCache);
-}
-
-int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, const char* pDbFName, AUTH_TYPE type,
-                             bool* pPass) {
-  char    key[USER_AUTH_KEY_MAX_LEN] = {0};
-  int32_t len = userAuthToStringExt(pUser, pDbFName, type, key);
-  bool*   pRes = NULL;
-  int32_t code = getMetaDataFromHash(key, len, pMetaCache->pUserAuth, (void**)&pRes);
+int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, SUserAuthInfo* pAuthReq, SUserAuthRes* pAuthRes) {
+  char          key[USER_AUTH_KEY_MAX_LEN] = {0};
+  int32_t       len = userAuthToString(pAuthReq->tbName.acctId, pAuthReq->user, pAuthReq->tbName.dbname,
+                                       pAuthReq->tbName.tname, pAuthReq->type, key);
+  SUserAuthRes* pAuth = NULL;
+  int32_t       code = getMetaDataFromHash(key, len, pMetaCache->pUserAuth, (void**)&pAuth);
   if (TSDB_CODE_SUCCESS == code) {
-    *pPass = *pRes;
+    memcpy(pAuthRes, pAuth, sizeof(SUserAuthRes));
   }
   return code;
 }
@@ -971,7 +987,7 @@ static SArray* smaIndexesDup(SArray* pSrc) {
   }
   for (int32_t i = 0; i < size; ++i) {
     STableIndexInfo* pIndex = taosArrayGet(pDst, i);
-    pIndex->expr = taosMemoryStrDup(((STableIndexInfo*)taosArrayGet(pSrc, i))->expr);
+    pIndex->expr = taosStrdup(((STableIndexInfo*)taosArrayGet(pSrc, i))->expr);
     if (NULL == pIndex->expr) {
       taosArrayDestroyEx(pDst, destroySmaIndex);
       return NULL;

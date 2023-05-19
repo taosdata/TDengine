@@ -1,6 +1,7 @@
 ---
-sidebar_label: Architecture
 title: Architecture
+sidebar_label: Architecture
+description: This document describes the architecture of TDengine.
 ---
 
 ## Cluster and Primary Logic Unit

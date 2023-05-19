@@ -928,7 +928,7 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
         code = TSDB_CODE_FAILED;
         break;
       }
-      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + 1);
       if (NULL == pNode->datum.p) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
@@ -2317,7 +2317,8 @@ enum {
   PHY_SORT_MERGE_JOIN_CODE_MERGE_CONDITION,
   PHY_SORT_MERGE_JOIN_CODE_ON_CONDITIONS,
   PHY_SORT_MERGE_JOIN_CODE_TARGETS,
-  PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER
+  PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER,
+  PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS
 };
 
 static int32_t physiJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2339,7 +2340,9 @@ static int32_t physiJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER, pNode->inputTsOrder);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS, nodeToMsg, pNode->pTagEqualCondtions);
+  }
   return code;
 }
 
@@ -2367,6 +2370,9 @@ static int32_t msgToPhysiJoinNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER:
         code = tlvDecodeEnum(pTlv, &pNode->inputTsOrder, sizeof(pNode->inputTsOrder));
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTagEqualCondtions);
         break;
       default:
         break;
@@ -2945,6 +2951,46 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum { PHY_EVENT_CODE_WINDOW = 1, PHY_EVENT_CODE_START_COND, PHY_EVENT_CODE_END_COND };
+
+static int32_t physiEventWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SEventWinodwPhysiNode* pNode = (const SEventWinodwPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_EVENT_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_EVENT_CODE_START_COND, nodeToMsg, pNode->pStartCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_EVENT_CODE_END_COND, nodeToMsg, pNode->pEndCond);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiEventWindowNode(STlvDecoder* pDecoder, void* pObj) {
+  SEventWinodwPhysiNode* pNode = (SEventWinodwPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_EVENT_CODE_WINDOW:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
+        break;
+      case PHY_EVENT_CODE_START_COND:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pStartCond);
+        break;
+      case PHY_EVENT_CODE_END_COND:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEndCond);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
 enum { PHY_PARTITION_CODE_BASE_NODE = 1, PHY_PARTITION_CODE_EXPR, PHY_PARTITION_CODE_KEYS, PHY_PARTITION_CODE_TARGETS };
 
 static int32_t physiPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3215,7 +3261,8 @@ enum {
   PHY_QUERY_INSERT_CODE_TABLE_TYPE,
   PHY_QUERY_INSERT_CODE_TABLE_NAME,
   PHY_QUERY_INSERT_CODE_VG_ID,
-  PHY_QUERY_INSERT_CODE_EP_SET
+  PHY_QUERY_INSERT_CODE_EP_SET,
+  PHY_QUERY_INSERT_CODE_EXPLAIN
 };
 
 static int32_t physiQueryInsertNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3242,6 +3289,9 @@ static int32_t physiQueryInsertNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_QUERY_INSERT_CODE_EP_SET, epSetToMsg, &pNode->epSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_QUERY_INSERT_CODE_EXPLAIN, pNode->explain);
   }
 
   return code;
@@ -3277,6 +3327,9 @@ static int32_t msgToPhysiQueryInsertNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_QUERY_INSERT_CODE_EP_SET:
         code = tlvDecodeObjFromTlv(pTlv, msgToEpSet, &pNode->epSet);
+        break;
+      case PHY_QUERY_INSERT_CODE_EXPLAIN:
+        code = tlvDecodeBool(pTlv, &pNode->explain);
         break;
       default:
         break;
@@ -3716,6 +3769,10 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
       code = physiStateWindowNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+      code = physiEventWindowNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = physiPartitionNodeToMsg(pObj, pEncoder);
       break;
@@ -3854,6 +3911,10 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
       code = msgToPhysiStateWindowNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+      code = msgToPhysiEventWindowNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = msgToPhysiPartitionNode(pDecoder, pObj);

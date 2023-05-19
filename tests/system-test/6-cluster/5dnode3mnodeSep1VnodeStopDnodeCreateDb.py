@@ -147,6 +147,9 @@ class TDTestCase:
             # print(f"==================={dbNameIndex},{a11111}")
             threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql, dbNameIndex,repeatNumber,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
 
+            redbNameIndex = '%s%d'%(paraDict["dbName"],i+100)
+            threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql, redbNameIndex,1,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+
         for tr in threads:
             tr.start()
 
@@ -199,7 +202,7 @@ class TDTestCase:
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=4,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

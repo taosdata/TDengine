@@ -26,12 +26,14 @@ extern "C" {
 #include "tlog.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
+#include "systable.h"
 
 typedef enum {
   JOB_TASK_STATUS_NULL = 0,
   JOB_TASK_STATUS_INIT,
   JOB_TASK_STATUS_EXEC,
   JOB_TASK_STATUS_PART_SUCC,
+  JOB_TASK_STATUS_FETCH,
   JOB_TASK_STATUS_SUCC,
   JOB_TASK_STATUS_FAIL,
   JOB_TASK_STATUS_DROP,
@@ -114,8 +116,8 @@ typedef struct STableMeta {
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
   // info
-  int16_t       sversion;
-  int16_t       tversion;
+  int32_t       sversion;
+  int32_t       tversion;
   STableComInfo tableInfo;
   SSchema       schema[];
 } STableMeta;
@@ -163,6 +165,23 @@ typedef struct STargetInfo {
   int32_t     vgId;
 } STargetInfo;
 
+typedef struct SBoundColInfo {
+  int16_t* pColIndex;  // bound index => schema index
+  int32_t  numOfCols;
+  int32_t  numOfBound;
+} SBoundColInfo;
+
+typedef struct STableDataCxt {
+  STableMeta*    pMeta;
+  STSchema*      pSchema;
+  SBoundColInfo  boundColsInfo;
+  SArray*        pValues;
+  SSubmitTbData* pData;
+  TSKEY          lastTs;
+  bool           ordered;
+  bool           duplicateTs;
+} STableDataCxt;
+
 typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
 
@@ -175,6 +194,7 @@ typedef struct SRequestConnInfo {
 
 typedef void (*__freeFunc)(void* param);
 
+// todo add creator/destroyer function
 typedef struct SMsgSendInfo {
   __async_send_cb_fn_t fp;      // async callback function
   STargetInfo          target;  // for update epset
@@ -238,7 +258,9 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
 char*   parseTagDatatoJson(void* p);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
+int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
 void    freeVgInfo(SDBVgInfo* vgInfo);
+void    freeDbCfgInfo(SDbCfgInfo *pInfo);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));
@@ -284,9 +306,10 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 
-#define IS_SYS_DBNAME(_dbname)                                                    \
-  (((*(_dbname) == 'i') && (0 == strcmp(_dbname, TSDB_INFORMATION_SCHEMA_DB))) || \
-   ((*(_dbname) == 'p') && (0 == strcmp(_dbname, TSDB_PERFORMANCE_SCHEMA_DB))))
+#define IS_INFORMATION_SCHEMA_DB(_name) ((*(_name) == 'i') && (0 == strcmp(_name, TSDB_INFORMATION_SCHEMA_DB)))
+#define IS_PERFORMANCE_SCHEMA_DB(_name) ((*(_name) == 'p') && (0 == strcmp(_name, TSDB_PERFORMANCE_SCHEMA_DB)))
+
+#define IS_SYS_DBNAME(_dbname) (IS_INFORMATION_SCHEMA_DB(_dbname) || IS_PERFORMANCE_SCHEMA_DB(_dbname))
 
 #define qFatal(...)                                                     \
   do {                                                                  \

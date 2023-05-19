@@ -1,6 +1,7 @@
 ---
-sidebar_label: TCollector
 title: TCollector writing
+sidebar_label: TCollector
+description: This document describes how to integrate TDengine with TCollector.
 ---
 
 import TCollector from "../14-reference/_tcollector.mdx"

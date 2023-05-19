@@ -27,8 +27,8 @@
 #ifdef WINDOWS
 #define TD_USE_WINSOCK
 #endif
-#include "catalogInt.h"
 #include "catalog.h"
+#include "catalogInt.h"
 #include "os.h"
 #include "stub.h"
 #include "taos.h"
@@ -48,7 +48,7 @@ void ctgTestSetRspCTableMeta();
 void ctgTestSetRspSTableMeta();
 void ctgTestSetRspMultiSTableMeta();
 
-extern int32_t  clientConnRefPool;
+extern int32_t clientConnRefPool;
 
 enum {
   CTGT_RSP_VGINFO = 1,
@@ -298,7 +298,7 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
 
 void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   SUseDbRsp usedbRsp = {0};
   strcpy(usedbRsp.db, ctgTestDbname);
   usedbRsp.vgVersion = ctgTestVgVersion;
@@ -343,7 +343,7 @@ void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
 
 void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   STableMetaRsp metaRsp = {0};
   strcpy(metaRsp.dbFName, ctgTestDbname);
   strcpy(metaRsp.tbName, ctgTestTablename);
@@ -384,13 +384,13 @@ void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
 
 void ctgTestRspTableMetaNotExist(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   pRsp->code = CTG_ERR_CODE_TABLE_NOT_EXIST;
 }
 
 void ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   STableMetaRsp metaRsp = {0};
   strcpy(metaRsp.dbFName, ctgTestDbname);
   strcpy(metaRsp.tbName, ctgTestCurrentCTableName ? ctgTestCurrentCTableName : ctgTestCTablename);
@@ -438,7 +438,7 @@ void ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
 
 void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   STableMetaRsp metaRsp = {0};
   strcpy(metaRsp.dbFName, ctgTestDbname);
   strcpy(metaRsp.tbName, ctgTestCurrentSTableName ? ctgTestCurrentSTableName : ctgTestSTablename);
@@ -450,7 +450,7 @@ void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   metaRsp.sversion = ctgTestSVersion;
   metaRsp.tversion = ctgTestTVersion;
   metaRsp.suid = ctgTestSuid;
-  metaRsp.tuid = ctgTestSuid+1;
+  metaRsp.tuid = ctgTestSuid + 1;
   metaRsp.vgId = 0;
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
 
@@ -486,7 +486,7 @@ void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
 
 void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   static int32_t idx = 1;
 
   STableMetaRsp metaRsp = {0};
@@ -536,15 +536,13 @@ void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRp
   tFreeSTableMetaRsp(&metaRsp);
 }
 
-
 void ctgTestRspErrIndexInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   pRsp->code = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
   pRsp->contLen = 0;
   pRsp->pCont = NULL;
 }
-
 
 void ctgTestRspUserAuth(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
@@ -553,6 +551,7 @@ void ctgTestRspUserAuth(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
   strcpy(userRsp.user, ctgTestUsername);
   userRsp.version = 1;
   userRsp.superAuth = 1;
+  userRsp.enable = 1;
 
   int32_t contLen = tSerializeSGetUserAuthRsp(NULL, 0, &userRsp);
   void   *pReq = rpcMallocCont(contLen);
@@ -565,7 +564,7 @@ void ctgTestRspUserAuth(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
 
 void ctgTestRspTableCfg(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   static int32_t idx = 1;
 
   STableCfgRsp tblRsp = {0};
@@ -600,7 +599,7 @@ void ctgTestRspTableCfg(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
 
 void ctgTestRspTableIndex(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   static int32_t idx = 1;
 
   STableIndexRsp tblRsp = {0};
@@ -611,10 +610,10 @@ void ctgTestRspTableIndex(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   STableIndexInfo info = {0};
   for (int32_t i = 0; i < ctgTestIndexNum; ++i) {
     info.interval = 1 + i;
-    info.expr = (char*)taosMemoryCalloc(1, 10);
+    info.expr = (char *)taosMemoryCalloc(1, 10);
     taosArrayPush(tblRsp.pIndex, &info);
   }
-  
+
   int32_t contLen = tSerializeSTableIndexRsp(NULL, 0, &tblRsp);
   void   *pReq = rpcMallocCont(contLen);
   tSerializeSTableIndexRsp(pReq, contLen, &tblRsp);
@@ -628,12 +627,12 @@ void ctgTestRspTableIndex(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
 
 void ctgTestRspDBCfg(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   rpcFreeCont(pMsg->pCont);
-  
+
   static int32_t idx = 1;
 
   SDbCfgRsp dbRsp = {0};
   dbRsp.numOfVgroups = ctgTestVgNum;
-  
+
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &dbRsp);
   void   *pReq = rpcMallocCont(contLen);
   tSerializeSDbCfgRsp(pReq, contLen, &dbRsp);
@@ -651,7 +650,7 @@ void ctgTestRspQnodeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
   for (int32_t i = 0; i < ctgTestQnodeNum; ++i) {
     SQueryNodeLoad nodeLoad = {0};
     nodeLoad.addr.nodeId = i;
-    
+
     (void)taosArrayPush(qlistRsp.qnodeList, &nodeLoad);
   }
 
@@ -672,12 +671,17 @@ void ctgTestRspUdfInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pR
   SRetrieveFuncRsp funcRsp = {0};
   funcRsp.numOfFuncs = 1;
   funcRsp.pFuncInfos = taosArrayInit(1, sizeof(SFuncInfo));
+  funcRsp.pFuncExtraInfos = taosArrayInit(1, sizeof(SFuncExtraInfo));
   SFuncInfo funcInfo = {0};
   strcpy(funcInfo.name, "func1");
   funcInfo.funcType = ctgTestFuncType;
-    
-  (void)taosArrayPush(funcRsp.pFuncInfos, &funcInfo);
 
+  (void)taosArrayPush(funcRsp.pFuncInfos, &funcInfo);
+  SFuncExtraInfo extraInfo = {0};
+  extraInfo.funcVersion = 0;
+  extraInfo.funcCreatedTime = taosGetTimestampMs();
+  (void)taosArrayPush(funcRsp.pFuncExtraInfos, &extraInfo);
+  
   int32_t rspLen = tSerializeSRetrieveFuncRsp(NULL, 0, &funcRsp);
   void   *pReq = rpcMallocCont(rspLen);
   tSerializeSRetrieveFuncRsp(pReq, rspLen, &funcRsp);
@@ -694,7 +698,7 @@ void ctgTestRspSvrVer(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRs
 
   SServerVerRsp verRsp = {0};
   strcpy(verRsp.ver, "1.0");
-  
+
   int32_t rspLen = tSerializeSServerVerRsp(NULL, 0, &verRsp);
   void   *pReq = rpcMallocCont(rspLen);
   tSerializeSServerVerRsp(pReq, rspLen, &verRsp);
@@ -713,9 +717,9 @@ void ctgTestRspDndeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
   epSet.numOfEps = 1;
   tstrncpy(epSet.eps[0].fqdn, "localhost", TSDB_FQDN_LEN);
   epSet.eps[0].port = 6030;
-  
+
   (void)taosArrayPush(dRsp.dnodeList, &epSet);
-  
+
   int32_t rspLen = tSerializeSDnodeListRsp(NULL, 0, &dRsp);
   void   *pReq = rpcMallocCont(rspLen);
   tSerializeSDnodeListRsp(pReq, rspLen, &dRsp);
@@ -726,8 +730,6 @@ void ctgTestRspDndeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
 
   tFreeSDnodeListRsp(&dRsp);
 }
-
-
 
 void ctgTestRspAuto(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (pMsg->msgType) {
@@ -745,7 +747,7 @@ void ctgTestRspAuto(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp)
       ctgTestRspDBCfg(shandle, pEpSet, pMsg, pRsp);
       break;
     case TDMT_MND_QNODE_LIST:
-      ctgTestRspQnodeList(shandle, pEpSet, pMsg, pRsp);  
+      ctgTestRspQnodeList(shandle, pEpSet, pMsg, pRsp);
       break;
     case TDMT_MND_RETRIEVE_FUNC:
       ctgTestRspUdfInfo(shandle, pEpSet, pMsg, pRsp);
@@ -762,7 +764,6 @@ void ctgTestRspAuto(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp)
 
   return;
 }
-
 
 void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (ctgTestRspFunc[ctgTestRspIdx]) {
@@ -1058,7 +1059,7 @@ void ctgTestSetRspDbVgroupsAndMultiSuperMeta() {
 void *ctgTestGetDbVgroupThread(void *param) {
   struct SCatalog  *pCtg = (struct SCatalog *)param;
   int32_t           code = 0;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SArray           *vgList = NULL;
   int32_t           n = 0;
@@ -1204,7 +1205,6 @@ void *ctgTestSetCtableMetaThread(void *param) {
   return NULL;
 }
 
-
 void ctgTestFetchRows(TAOS_RES *result, int32_t *rows) {
   TAOS_ROW    row;
   int         num_fields = taos_num_fields(result);
@@ -1220,23 +1220,22 @@ void ctgTestFetchRows(TAOS_RES *result, int32_t *rows) {
   }
 }
 
-void ctgTestExecQuery(TAOS    * taos, char* sql, bool fetch, int32_t *rows) {
+void ctgTestExecQuery(TAOS *taos, char *sql, bool fetch, int32_t *rows) {
   TAOS_RES *result = taos_query(taos, sql);
-  int code = taos_errno(result);
+  int       code = taos_errno(result);
   ASSERT_EQ(code, 0);
 
   if (fetch) {
     ctgTestFetchRows(result, rows);
   }
-  
+
   taos_free_result(result);
 }
-
 
 TEST(tableMeta, normalTable) {
   struct SCatalog  *pCtg = NULL;
   SVgroupInfo       vgInfo = {0};
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -1332,7 +1331,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  SDbVgVersion   *dbs = NULL;
+  SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stb = NULL;
   uint32_t        dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t         i = 0;
@@ -1372,7 +1371,7 @@ TEST(tableMeta, normalTable) {
 
 TEST(tableMeta, childTableCase) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
 
@@ -1444,7 +1443,7 @@ TEST(tableMeta, childTableCase) {
 
   taosMemoryFree(tableMeta);
 
-  SDbVgVersion   *dbs = NULL;
+  SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stb = NULL;
   uint32_t        dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t         i = 0;
@@ -1484,7 +1483,7 @@ TEST(tableMeta, childTableCase) {
 
 TEST(tableMeta, superTableCase) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
 
@@ -1585,7 +1584,7 @@ TEST(tableMeta, superTableCase) {
 
   taosMemoryFree(tableMeta);
 
-  SDbVgVersion   *dbs = NULL;
+  SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stb = NULL;
   uint32_t        dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t         i = 0;
@@ -1626,7 +1625,7 @@ TEST(tableMeta, superTableCase) {
 
 TEST(tableMeta, rmStbMeta) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
 
@@ -1696,7 +1695,7 @@ TEST(tableMeta, rmStbMeta) {
 
 TEST(tableMeta, updateStbMeta) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
 
@@ -1785,7 +1784,7 @@ TEST(tableMeta, updateStbMeta) {
 
 TEST(getIndexInfo, notExists) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SArray           *vgList = NULL;
@@ -1809,13 +1808,13 @@ TEST(getIndexInfo, notExists) {
   SIndexInfo info;
   code = catalogGetIndexMeta(pCtg, mockPointer, "index1", &info);
   ASSERT_TRUE(code != 0);
-  
+
   catalogDestroy();
 }
 
 TEST(refreshGetMeta, normal2normal) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SArray           *vgList = NULL;
@@ -1894,7 +1893,7 @@ TEST(refreshGetMeta, normal2normal) {
 
 TEST(refreshGetMeta, normal2notexist) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SArray           *vgList = NULL;
@@ -1964,7 +1963,7 @@ TEST(refreshGetMeta, normal2notexist) {
 
 TEST(refreshGetMeta, normal2child) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SArray           *vgList = NULL;
@@ -2045,10 +2044,9 @@ TEST(refreshGetMeta, normal2child) {
   ctgTestCurrentSTableName = NULL;
 }
 
-
 TEST(refreshGetMeta, stable2child) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SArray           *vgList = NULL;
@@ -2134,7 +2132,7 @@ TEST(refreshGetMeta, stable2child) {
 
 TEST(refreshGetMeta, stable2stable) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SArray           *vgList = NULL;
@@ -2220,7 +2218,7 @@ TEST(refreshGetMeta, stable2stable) {
 
 TEST(refreshGetMeta, child2stable) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SArray           *vgList = NULL;
@@ -2306,7 +2304,7 @@ TEST(refreshGetMeta, child2stable) {
 
 TEST(tableDistVgroup, normalTable) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo      *vgInfo = NULL;
   SArray           *vgList = NULL;
@@ -2343,7 +2341,7 @@ TEST(tableDistVgroup, normalTable) {
 
 TEST(tableDistVgroup, childTableCase) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo      *vgInfo = NULL;
   SArray           *vgList = NULL;
@@ -2381,7 +2379,7 @@ TEST(tableDistVgroup, childTableCase) {
 
 TEST(tableDistVgroup, superTableCase) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo      *vgInfo = NULL;
   SArray           *vgList = NULL;
@@ -2430,7 +2428,7 @@ TEST(tableDistVgroup, superTableCase) {
 
 TEST(dbVgroup, getSetDbVgroupCase) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SVgroupInfo      *pvgInfo = NULL;
@@ -2520,7 +2518,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
 
 TEST(multiThread, getSetRmSameDbVgroup) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SVgroupInfo      *pvgInfo = NULL;
@@ -2572,7 +2570,7 @@ TEST(multiThread, getSetRmSameDbVgroup) {
 
 TEST(multiThread, getSetRmDiffDbVgroup) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SVgroupInfo      *pvgInfo = NULL;
@@ -2624,7 +2622,7 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
 
 TEST(multiThread, ctableMeta) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SVgroupInfo      *pvgInfo = NULL;
@@ -2675,14 +2673,14 @@ TEST(multiThread, ctableMeta) {
 
 TEST(rentTest, allRent) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
   SVgroupInfo       vgInfo = {0};
   SVgroupInfo      *pvgInfo = NULL;
   SDBVgInfo         dbVgroup = {0};
   SArray           *vgList = NULL;
   ctgTestStop = false;
-  SDbVgVersion   *dbs = NULL;
+  SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stable = NULL;
   uint32_t        num = 0;
 
@@ -2754,7 +2752,7 @@ TEST(rentTest, allRent) {
 
 TEST(apiTest, catalogRefreshDBVgInfo_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -2781,7 +2779,7 @@ TEST(apiTest, catalogRefreshDBVgInfo_test) {
 
 TEST(apiTest, catalogChkAuth_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -2800,15 +2798,19 @@ TEST(apiTest, catalogChkAuth_test) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  bool pass = false;
+  SUserAuthInfo authInfo = {0};
+  SUserAuthRes  authRes = {0};
+  strcpy(authInfo.user, ctgTestUsername);
+  toName(1, ctgTestDbname, ctgTestSTablename, &authInfo.tbName);
+  authInfo.type = AUTH_TYPE_READ;
   bool exists = false;
-  code = catalogChkAuthFromCache(pCtg, ctgTestUsername, ctgTestDbname, AUTH_TYPE_READ, &pass, &exists);
+  code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &exists);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(exists, false);
-  
-  code = catalogChkAuth(pCtg, mockPointer, ctgTestUsername, ctgTestDbname, AUTH_TYPE_READ, &pass);
+
+  code = catalogChkAuth(pCtg, mockPointer, &authInfo, &authRes);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(pass, true);
+  ASSERT_EQ(authRes.pass, true);
 
   while (true) {
     uint64_t n = 0;
@@ -2820,9 +2822,9 @@ TEST(apiTest, catalogChkAuth_test) {
     }
   }
 
-  code = catalogChkAuthFromCache(pCtg, ctgTestUsername, ctgTestDbname, AUTH_TYPE_READ, &pass, &exists);
+  code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &exists);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(pass, true);
+  ASSERT_EQ(authRes.pass, true);
   ASSERT_EQ(exists, true);
 
   catalogDestroy();
@@ -2830,7 +2832,7 @@ TEST(apiTest, catalogChkAuth_test) {
 
 TEST(apiTest, catalogRefreshGetTableCfg_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -2868,7 +2870,7 @@ TEST(apiTest, catalogRefreshGetTableCfg_test) {
 
 TEST(apiTest, catalogGetTableIndex_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -2904,7 +2906,7 @@ TEST(apiTest, catalogGetTableIndex_test) {
 
 TEST(apiTest, catalogGetDBCfg_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -2937,7 +2939,7 @@ TEST(apiTest, catalogGetDBCfg_test) {
 
 TEST(apiTest, catalogGetQnodeList_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -2962,17 +2964,16 @@ TEST(apiTest, catalogGetQnodeList_test) {
   ASSERT_EQ(taosArrayGetSize(qnodeList), ctgTestQnodeNum);
 
   for (int32_t i = 0; i < ctgTestQnodeNum; ++i) {
-    SQueryNodeLoad * pLoad = (SQueryNodeLoad *)taosArrayGet(qnodeList, i);
+    SQueryNodeLoad *pLoad = (SQueryNodeLoad *)taosArrayGet(qnodeList, i);
     ASSERT_EQ(pLoad->addr.nodeId, i);
   }
 
   catalogDestroy();
 }
 
-
 TEST(apiTest, catalogGetUdfInfo_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -2999,10 +3000,9 @@ TEST(apiTest, catalogGetUdfInfo_test) {
   catalogDestroy();
 }
 
-
 TEST(apiTest, catalogGetServerVersion_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -3021,7 +3021,7 @@ TEST(apiTest, catalogGetServerVersion_test) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  char* ver = NULL;
+  char *ver = NULL;
   code = catalogGetServerVersion(pCtg, mockPointer, &ver);
   ASSERT_EQ(code, 0);
   ASSERT_TRUE(0 == strcmp(ver, "1.0"));
@@ -3031,7 +3031,7 @@ TEST(apiTest, catalogGetServerVersion_test) {
 
 TEST(apiTest, catalogUpdateTableIndex_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -3061,10 +3061,9 @@ TEST(apiTest, catalogUpdateTableIndex_test) {
   catalogDestroy();
 }
 
-
 TEST(apiTest, catalogGetDnodeList_test) {
   struct SCatalog  *pCtg = NULL;
-  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo  connInfo = {0};
   SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
 
   ctgTestInitLogFile();
@@ -3083,7 +3082,7 @@ TEST(apiTest, catalogGetDnodeList_test) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SArray* pList = NULL;
+  SArray *pList = NULL;
   code = catalogGetDnodeList(pCtg, mockPointer, &pList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize(pList), 1);
@@ -3095,23 +3094,23 @@ TEST(apiTest, catalogGetDnodeList_test) {
 
 #ifdef INTEGRATION_TEST
 TEST(intTest, autoCreateTableTest) {
-  struct SCatalog  *pCtg = NULL;
+  struct SCatalog *pCtg = NULL;
 
-  TAOS     *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_TRUE(NULL != taos);   
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_TRUE(NULL != taos);
 
   ctgdEnableDebug("api", true);
   ctgdEnableDebug("meta", true);
   ctgdEnableDebug("cache", true);
   ctgdEnableDebug("lock", true);
-  
+
   ctgTestExecQuery(taos, "drop database if exists db1", false, NULL);
   ctgTestExecQuery(taos, "create database db1", false, NULL);
   ctgTestExecQuery(taos, "create stable db1.st1 (ts timestamp, f1 int) tags(tg1 int)", false, NULL);
   ctgTestExecQuery(taos, "insert into db1.tb1 using db1.st1 tags(1) values(now, 1)", false, NULL);
 
   ctgdGetOneHandle(&pCtg);
-  
+
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (2 != n) {
@@ -3137,14 +3136,13 @@ TEST(intTest, autoCreateTableTest) {
   ctgTestExecQuery(taos, "alter table db1.st1 add column f2 double", false, NULL);
 
   ctgdEnableDebug("stopUpdate", false);
-  
+
   ctgTestExecQuery(taos, "insert into db1.tb1 (ts, f1) values(now, 4)", false, NULL);
-  
+
   taos_close(taos);
 }
 
 #endif
-
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);

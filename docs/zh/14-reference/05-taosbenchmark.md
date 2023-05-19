@@ -204,6 +204,13 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-a/--replica <replicaNum\>** :
   创建数据库时指定其副本数，默认值为 1 。
 
+- ** -k/--keep-trying <NUMBER\>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** -z/--trying-interval <NUMBER\>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
+
+- **-v/--vgroups <NUMBER\>** :
+  创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效。
+
 - **-V/--version** :
   显示版本信息并退出。不能与其它参数混用。
 
@@ -230,6 +237,17 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ### 插入场景配置参数
 
 插入场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+
+- ** keep_trying ** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** trying_interval ** : 失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
+- ** childtable_from 和 childtable_to ** : 指定写入子表范围，开闭区间为 [childtable_from, childtable_to).
+ 
+- ** continue_if_fail ** : 允许用户定义失败后行为
+
+  “continue_if_fail”:  “no”, 失败 taosBenchmark 自动退出，默认行为
+  “continue_if_fail”: “yes”, 失败 taosBenchmark 警告用户，并继续写入
+  “continue_if_fail”: “smart”, 如果子表不存在失败，taosBenchmark 会建立子表并继续写入
 
 #### 数据库相关配置参数
 
@@ -382,11 +400,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 #### 执行指定查询语句的配置参数
 
-查询子表或者普通表的配置参数在 `specified_table_query` 中设置。
+查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
 - **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 
-- **threads** : 执行查询 SQL 的线程数，默认值为 1。
+- **threads/concurrent** : 执行查询 SQL 的线程数，默认值为 1。
 
 - **sqls**：
   - **sql**: 执行的 SQL 命令，必填。
@@ -413,7 +431,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 #### 执行指定订阅语句的配置参数
 
-订阅子表或者普通表的配置参数在 `specified_table_query` 中设置。
+订阅指定表（可以指定超级表、子表或者普通表）的配置参数在 `specified_table_query` 中设置。
 
 - **threads/concurrent** : 执行 SQL 的线程数，默认为 1。
 

@@ -1,6 +1,7 @@
 ---
-sidebar_label: TDengine + collectd/StatsD + Grafana
 title: Quickly build an IT DevOps visualization system using TDengine + collectd/StatsD + Grafana
+sidebar_label: TDengine + collectd/StatsD + Grafana
+description: This document describes how to build an IT visualization system by integrating TDengine with Grafana and collectd or StatsD.
 ---
 
 ## Background

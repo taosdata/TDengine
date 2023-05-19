@@ -798,18 +798,22 @@ HISTOGRAM(expr，bin_type, bin_description, normalized)
 ### PERCENTILE
 
 ```sql
-PERCENTILE(expr, p)
+PERCENTILE(expr, p [, p1] ... )
 ```
 
 **功能说明**：统计表中某列的值百分比分位数。
 
-**返回数据类型**： DOUBLE。
+**返回数据类型**： 该函数最小参数个数为 2 个，最大参数个数为 11 个。可以最多同时返回 10 个百分比分位数。当参数个数为 2 时， 返回一个分位数， 类型为DOUBLE，当参数个数大于 2 时，返回类型为VARCHAR, 格式为包含多个返回值的JSON数组。
 
 **应用字段**：数值类型。
 
 **适用于**：表。
 
-**使用说明**：*P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
+**使用说明**：
+
+- *P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
+- 同时计算针对同一列的多个分位数时，建议使用一个PERCENTILE函数和多个参数的方式，能很大程度上降低查询的响应时间。
+  比如，使用查询SELECT percentile(col, 90, 95, 99) FROM table, 性能会优于SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table。
 
 
 ## 选择函数
@@ -879,7 +883,8 @@ INTERP(expr)
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)，1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值.
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
 - INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 partition by tbname 一起使用。
-- INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.1.4版本以后支持)。
+- INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.2.0版本以后支持)。
+- INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(3.0.3.0版本以后支持)。
 
 ### LAST
 

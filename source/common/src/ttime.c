@@ -68,12 +68,12 @@ static int64_t user_mktime64(const uint32_t year0, const uint32_t mon0, const ui
 
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;
-void           deltaToUtcInitOnce() {
-            struct tm tm = {0};
 
-            (void)taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
-            m_deltaUtc = (int64_t)taosMktime(&tm);
-            // printf("====delta:%lld\n\n", seconds);
+void deltaToUtcInitOnce() {
+  struct tm tm = {0};
+  (void)taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
+  m_deltaUtc = (int64_t)taosMktime(&tm);
+  // printf("====delta:%lld\n\n", seconds);
 }
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
@@ -724,7 +724,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
 
   struct tm tm;
   time_t    tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
-  taosLocalTime(&tt, &tm);
+  taosLocalTime(&tt, &tm, NULL);
   int32_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
@@ -747,11 +747,11 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
 
   struct tm tm;
   time_t    t = (time_t)skey;
-  taosLocalTime(&t, &tm);
+  taosLocalTime(&t, &tm, NULL);
   int32_t smon = tm.tm_year * 12 + tm.tm_mon;
 
   t = (time_t)ekey;
-  taosLocalTime(&t, &tm);
+  taosLocalTime(&t, &tm, NULL);
   int32_t emon = tm.tm_year * 12 + tm.tm_mon;
 
   if (unit == 'y') {
@@ -774,7 +774,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     start /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
     struct tm tm;
     time_t    tt = (time_t)start;
-    taosLocalTime(&tt, &tm);
+    taosLocalTime(&tt, &tm, NULL);
     tm.tm_sec = 0;
     tm.tm_min = 0;
     tm.tm_hour = 0;
@@ -895,13 +895,17 @@ const char* fmtts(int64_t ts) {
 
   if (ts > -62135625943 && ts < 32503651200) {
     time_t t = (time_t)ts;
-    taosLocalTime(&t, &tm);
+    if (taosLocalTime(&t, &tm, buf) == NULL) {
+      return buf;
+    }
     pos += strftime(buf + pos, sizeof(buf), "s=%Y-%m-%d %H:%M:%S", &tm);
   }
 
   if (ts > -62135625943000 && ts < 32503651200000) {
     time_t t = (time_t)(ts / 1000);
-    taosLocalTime(&t, &tm);
+    if (taosLocalTime(&t, &tm, buf) == NULL) {
+      return buf;
+    }
     if (pos > 0) {
       buf[pos++] = ' ';
       buf[pos++] = '|';
@@ -913,7 +917,9 @@ const char* fmtts(int64_t ts) {
 
   {
     time_t t = (time_t)(ts / 1000000);
-    taosLocalTime(&t, &tm);
+    if (taosLocalTime(&t, &tm, buf) == NULL) {
+      return buf;
+    }
     if (pos > 0) {
       buf[pos++] = ' ';
       buf[pos++] = '|';
@@ -965,7 +971,9 @@ void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) 
       ASSERT(false);
   }
 
-  taosLocalTime(&quot, &ptm);
+  if (taosLocalTime(&quot, &ptm, buf) == NULL) {
+    return;
+  }
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", &ptm);
   length += snprintf(ts + length, fractionLen, format, mod);
   length += (int32_t)strftime(ts + length, 40 - length, "%z", &ptm);

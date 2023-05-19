@@ -1,5 +1,6 @@
 ---
 title: Application Practice
+description: This document describes some examples of building systems around TDengine.
 ---
 
 ```mdx-code-block

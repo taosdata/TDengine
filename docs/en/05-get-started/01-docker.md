@@ -1,6 +1,7 @@
 ---
-sidebar_label: Docker
 title: Quick Install on Docker
+sidebar_label: Docker
+description: This document describes how to install TDengine in a Docker container and perform queries and inserts.
 ---
 
 This document describes how to install TDengine in a Docker container and perform queries and inserts.

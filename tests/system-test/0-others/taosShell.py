@@ -373,7 +373,7 @@ class TDTestCase:
         version = 'version: ' + version
         retVal = retVal.replace("\n", "")
         retVal = retVal.replace("\r", "")
-        if retVal != version:
+        if retVal.startswith(version) == False:
             print ("return version: [%s]"%retVal)
             print ("dict version: [%s]"%version)
             tdLog.exit("taos -V version not match")

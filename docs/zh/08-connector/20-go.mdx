@@ -15,7 +15,7 @@ import GoOpenTSDBTelnet from "../07-develop/03-insert-data/_go_opts_telnet.mdx"
 import GoOpenTSDBJson from "../07-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../07-develop/04-query-data/_go.mdx"
 
-`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
+`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言 [database/sql](https://golang.org/pkg/database/sql/)  包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
 
 `driver-go` 提供两种建立连接的方式。一种是**原生连接**，它通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。另外一种是 **REST 连接**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 运行实例。REST 连接实现的功能特性集合和原生连接有少量不同。
 
@@ -112,6 +112,7 @@ REST 连接支持所有能运行 Go 的平台。
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
+
 ### 使用连接器进行连接
 
 <Tabs defaultValue="rest">
@@ -121,7 +122,7 @@ _taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要�
 
 使用 `taosSql` 作为 `driverName` 并且使用一个正确的 [DSN](#DSN) 作为 `dataSourceName`，DSN 支持的参数：
 
-* configPath 指定 taos.cfg 目录
+* cfg 指定 taos.cfg 目录
 
 示例：
 
@@ -176,6 +177,7 @@ func main() {
     }
 }
 ```
+
 </TabItem>
 <TabItem value="WebSocket" label="WebSocket 连接">
 
@@ -207,6 +209,7 @@ func main() {
     }
 }
 ```
+
 </TabItem>
 </Tabs>
 
@@ -357,33 +360,32 @@ func main() {
 
 #### 订阅
 
-* `func NewConsumer(conf *Config) (*Consumer, error)`
+* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
 
-创建消费者。
+ 创建消费者。
 
-* `func (c *Consumer) Subscribe(topics []string) error`
+* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
-订阅主题。
+ 订阅单个主题。
 
-* `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
+* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
-轮询消息。
+ 订阅主题。
 
-* `func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error`
+* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
 
-提交消息。
+ 轮询消息。
 
-* `func (c *Consumer) FreeMessage(message unsafe.Pointer)`
+* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+注意：出于兼容目的保留 `tmq.TopicPartition` 参数，当前未使用
 
-释放消息。
-
-* `func (c *Consumer) Unsubscribe() error`
-
-取消订阅。
+ 提交消息。
 
 * `func (c *Consumer) Close() error`
 
-关闭消费者。
+ 关闭连接。
 
 #### schemaless
 
@@ -443,25 +445,32 @@ func main() {
 
 ### 通过 WebSocket 订阅
 
-* `func NewConsumer(config *Config) (*Consumer, error)`
+* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
 
-  创建消费者。
+ 创建消费者。
 
-* `func (c *Consumer) Subscribe(topic []string) error`
+* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
-  订阅主题。
+ 订阅单个主题。
 
-* `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
+* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
-  轮询消息。
+ 订阅主题。
 
-* `func (c *Consumer) Commit(messageID uint64) error`
+* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
 
-  提交消息。
+ 轮询消息。
+
+* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+注意：出于兼容目的保留 `tmq.TopicPartition` 参数，当前未使用
+
+ 提交消息。
 
 * `func (c *Consumer) Close() error`
 
-  关闭消费者。
+ 关闭连接。
 
 完整订阅示例参见 [GitHub 示例文件](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
 

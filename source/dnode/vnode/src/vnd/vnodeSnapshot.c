@@ -335,6 +335,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
   // commit json
   if (!rollback) {
+    pWriter->info.state.committed = pWriter->ever;
     pVnode->config = pWriter->info.config;
     pVnode->state = (SVState){.committed = pWriter->info.state.committed,
                               .applied = pWriter->info.state.committed,
@@ -349,7 +350,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
       snprintf(dir, TSDB_FILENAME_LEN, "%s", pWriter->pVnode->path);
     }
 
-    vnodeCommitInfo(dir, &pWriter->info);
+    vnodeCommitInfo(dir);
   } else {
     vnodeRollback(pWriter->pVnode);
   }

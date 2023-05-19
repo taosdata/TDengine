@@ -61,6 +61,16 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   rpcFreeCont(pRsp->pCont);
 }
 
+void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
+  int32_t n = 0;
+  n += snprintf(buf + n, len - n, "%s", "{");
+  for (int i = 0; i < epSet->numOfEps; i++) {
+    n += snprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
+                  (i + 1 < epSet->numOfEps ? ", " : ""));
+  }
+  n += snprintf(buf + n, len - n, "%s", "}");
+}
+
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SStatusReq req = {0};
 
@@ -119,11 +129,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
   rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
   if (rpcRsp.code != 0) {
-    dError("failed to send status req since %s, numOfEps:%d inUse:%d", tstrerror(rpcRsp.code), epSet.numOfEps,
-           epSet.inUse);
-    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-      dDebug("index:%d, mnode ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    }
+    dmRotateMnodeEpSet(pMgmt->pData);
+    char tbuf[256];
+    dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
+    dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
@@ -242,19 +251,19 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
     GRANT_CFG_SKIP;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, (const char *)&dnodeId, false);
+    colDataSetVal(pColInfo, i, (const char *)&dnodeId, false);
 
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, name, false);
+    colDataSetVal(pColInfo, i, name, false);
 
     char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
     cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
     varDataSetLen(value, valueLen);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, value, false);
+    colDataSetVal(pColInfo, i, value, false);
 
     numOfRows++;
   }

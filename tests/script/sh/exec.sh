@@ -10,6 +10,14 @@
 
 set +e
 #set -x
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    TD_OS="Darwin"
+else
+    OS=$(cat /etc/*-release | grep "^NAME=" | cut -d= -f2)
+    len=$(echo ${#OS})
+    len=$((len-2))
+    TD_OS=$(echo -ne ${OS:1:${len}} | cut -d" " -f1)
+fi
 
 unset LD_PRELOAD
 UNAME_BIN=`which uname`
@@ -44,7 +52,10 @@ do
       ;;
   esac
 done
-
+if [[ "$VALGRIND_OPTION" = "true" ]] && [[ "$TD_OS" == "Alpine" ]]; then
+  echo alpine skip valgrind
+  VALGRIND_OPTION="false"
+fi
 SCRIPT_DIR=`dirname $0`
 cd $SCRIPT_DIR/../
 SCRIPT_DIR=`pwd`
@@ -59,11 +70,7 @@ fi
 TAOS_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$OS_TYPE" != "Darwin" ]]; then
-  cut_opt="--field="
-else
-  cut_opt="-f "
-fi
+cut_opt="-f "
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
   BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`

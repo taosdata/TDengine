@@ -23,28 +23,29 @@ extern "C" {
 #ifndef _STREAM_STATE_H_
 #define _STREAM_STATE_H_
 
-typedef struct SStreamTask SStreamTask;
-
 typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
 
 typedef struct STdbState {
-  SStreamTask* pOwner;
-  TDB*         db;
-  TTB*         pStateDb;
-  TTB*         pFuncStateDb;
-  TTB*         pFillStateDb;  // todo refactor
-  TTB*         pSessionStateDb;
-  TTB*         pParNameDb;
-  TXN*         txn;
+  struct SStreamTask* pOwner;
+
+  TDB* db;
+  TTB* pStateDb;
+  TTB* pFuncStateDb;
+  TTB* pFillStateDb;  // todo refactor
+  TTB* pSessionStateDb;
+  TTB* pParNameDb;
+  TTB* pParTagDb;
+  TXN* txn;
 } STdbState;
 
 // incremental state storage
 typedef struct {
   STdbState* pTdbState;
   int32_t    number;
+  int64_t    checkPointId;
 } SStreamState;
 
-SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);
+SStreamState* streamStateOpen(char* path, struct SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);
 void          streamStateClose(SStreamState* pState);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);
@@ -107,6 +108,9 @@ int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char* tbname);
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal);
+
+int32_t streamStatePutParTag(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen);
+int32_t streamStateGetParTag(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen);
 
 #if 0
 char* streamStateSessionDump(SStreamState* pState);

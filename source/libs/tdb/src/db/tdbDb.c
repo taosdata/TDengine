@@ -247,7 +247,10 @@ void tdbEnvRemovePager(TDB *pDb, SPager *pPager) {
   // remove from the list
   for (ppPager = &pDb->pgrList; *ppPager && (*ppPager != pPager); ppPager = &((*ppPager)->pNext)) {
   }
-  ASSERT(*ppPager == pPager);
+  if (*ppPager != pPager) {
+    tdbError("tdb/db: invalid pPager: %p, *ppPager: %p", pPager, *ppPager);
+    return;
+  }
   *ppPager = pPager->pNext;
 
   // remove from hash
@@ -255,7 +258,10 @@ void tdbEnvRemovePager(TDB *pDb, SPager *pPager) {
   ppPager = &pDb->pgrHash[hash % pDb->nPgrHash];
   for (; *ppPager && *ppPager != pPager; ppPager = &((*ppPager)->pHashNext)) {
   }
-  ASSERT(*ppPager == pPager);
+  if (*ppPager != pPager) {
+    tdbError("tdb/db: invalid pPager: %p, *ppPager: %p", pPager, *ppPager);
+    return;
+  }
   *ppPager = pPager->pNext;
 
   // decrease the counter

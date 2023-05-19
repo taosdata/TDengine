@@ -1,6 +1,6 @@
 ---
 title: TDengine SQL
-description: 'The syntax supported by TDengine SQL '
+description: This document describes the syntax and functions supported by TDengine SQL.
 ---
 
 This section explains the syntax of SQL to perform operations on databases, tables and STables, insert data, select data and use functions. We also provide some tips that can be used in TDengine SQL. If you have previous experience with SQL this section will be fairly easy to understand. If you do not have previous experience with SQL, you'll come to appreciate the simplicity and power of SQL. TDengine SQL has been enhanced in version 3.0, and the query engine has been rearchitected. For information about how TDengine SQL has changed, see [Changes in TDengine 3.0](../taos-sql/changes).

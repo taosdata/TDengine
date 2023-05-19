@@ -67,4 +67,19 @@ sql insert into t1 values (1591060628000, 1);
 sql alter table st1 drop tag t2;
 sql create table t2 using st1 tags(2);
 
+print ======== drop tag in super table
+sql create database if not exists aaa;
+sql select table_name, db_name from information_schema.ins_tables t where t.db_name like 'aaa';
+if $rows != 0 then
+  return -1
+endi
+sql drop database if exists foo;
+sql create database if not exists foo;
+sql create table foo.t(ts timestamp,name varchar(20));
+sql create table foo.xt(ts timestamp,name varchar(20));
+sql select table_name, db_name from information_schema.ins_tables t where t.db_name like 'foo';
+if $rows != 2 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,6 +1,7 @@
 ---
-sidebar_label: JSON Type
 title: JSON Type
+sidebar_label: JSON Type
+description: This document describes the JSON data type in TDengine.
 ---
 
 
@@ -54,7 +55,7 @@ title: JSON Type
 
 4. Tag Operations
 
-   The value of a JSON tag can be altered. Please note that the full JSON will be overriden when doing this.
+   The value of a JSON tag can be altered. Please note that the full JSON will be overridden when doing this.
 
    The name of a JSON tag can be altered.
 

@@ -15,8 +15,8 @@
 
 #define __USE_XOPEN
 
-#include "shellInt.h"
 #include "shellAuto.h"
+#include "shellInt.h"
 #include "shellTire.h"
 #include "tthread.h"
 
@@ -26,14 +26,14 @@
 #define UNION_ALL " union all "
 
 // extern function
-void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
-void shellGetPrevCharSize(const char* str, int32_t pos, int32_t* size, int32_t* width);
-void shellShowOnScreen(SShellCmd* cmd);
-void shellInsertChar(SShellCmd* cmd, char* c, int size);
-void shellInsertStr(SShellCmd* cmd, char* str, int size);
-bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
+void  shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
+void  shellGetPrevCharSize(const char* str, int32_t pos, int32_t* size, int32_t* width);
+void  shellShowOnScreen(SShellCmd* cmd);
+void  shellInsertChar(SShellCmd* cmd, char* c, int size);
+void  shellInsertStr(SShellCmd* cmd, char* str, int size);
+bool  appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
 char* tireSearchWord(int type, char* pre);
-bool updateTireValue(int type, bool autoFill) ;
+bool  updateTireValue(int type, bool autoFill);
 
 typedef struct SAutoPtr {
   STire* p;
@@ -84,27 +84,28 @@ SWords shellCommands[] = {
     {"create table <anyword> using <stb_name> tags(", 0, 0, NULL},
     {"create database <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> "
      "<anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> "
-     "<db_options> <anyword> <db_options> <anyword> ;",
-     0, 0, NULL},
-    {"create dnode ", 0, 0, NULL},
-    {"create index ", 0, 0, NULL},
+     "<db_options> <anyword> <db_options> <anyword> ;", 0, 0, NULL},
+    {"create dnode <anyword>", 0, 0, NULL},
+    {"create index <anyword> on <stb_name> ()", 0, 0, NULL},
     {"create mnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"create qnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
-    {"create function ", 0, 0, NULL},
+    {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
+    {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
     {"describe <all_table>", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>", 0, 0, NULL},
+    {"drop index <anyword>", 0, 0, NULL},
     {"drop table <all_table>", 0, 0, NULL},
     {"drop dnode <dnode_id>", 0, 0, NULL},
     {"drop mnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"drop qnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"drop user <user_name> ;", 0, 0, NULL},
     // 40
-    {"drop function", 0, 0, NULL},
+    {"drop function <udf_name> ;", 0, 0, NULL},
     {"drop consumer group <anyword> on ", 0, 0, NULL},
     {"drop topic <topic_name> ;", 0, 0, NULL},
     {"drop stream <stream_name> ;", 0, 0, NULL},
@@ -139,6 +140,7 @@ SWords shellCommands[] = {
     {"show create table <tb_name> \\G;", 0, 0, NULL},
     {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
+    {"show cluster alive;", 0, 0, NULL},
     {"show databases;", 0, 0, NULL},
     {"show dnodes;", 0, 0, NULL},
     {"show dnode <dnode_id> variables;", 0, 0, NULL},
@@ -248,7 +250,7 @@ char* db_options[] = {"keep ",
                       "wal_retention_size ",
                       "wal_segment_size "};
 
-char* alter_db_options[] = {"cachemodel ", "replica ", "keep ",  "cachesize ", "wal_fsync_period ", "wal_level "};
+char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "cachesize ", "wal_fsync_period ", "wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
                       "int unsigned", "varchar(16)",
@@ -270,9 +272,10 @@ char* key_systable[] = {
     "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "perf_connections",
     "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
 
+char* udf_language[] = {"\'Python\'", "\'C\'"};
 
 //
-//  ------- gobal variant define ---------
+//  ------- global variant define ---------
 //
 int32_t firstMatchIndex = -1;  // first match shellCommands index
 int32_t lastMatchIndex = -1;   // last match shellCommands index
@@ -290,24 +293,28 @@ bool    waitAutoFill = false;
 #define WT_VAR_USERNAME       4
 #define WT_VAR_TOPIC          5
 #define WT_VAR_STREAM         6
-#define WT_VAR_ALLTABLE       7
-#define WT_VAR_FUNC           8
-#define WT_VAR_KEYWORD        9
-#define WT_VAR_TBACTION       10
-#define WT_VAR_DBOPTION       11
-#define WT_VAR_ALTER_DBOPTION 12
-#define WT_VAR_DATATYPE       13
-#define WT_VAR_KEYTAGS        14
-#define WT_VAR_ANYWORD        15
-#define WT_VAR_TBOPTION       16
-#define WT_VAR_USERACTION     17
-#define WT_VAR_KEYSELECT      18
-#define WT_VAR_SYSTABLE       19
+#define WT_VAR_UDFNAME        7
 
-#define WT_VAR_CNT 20
-
-#define WT_FROM_DB_MAX 6  // max get content from db
+#define WT_FROM_DB_MAX        7  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
+
+#define WT_VAR_ALLTABLE       8
+#define WT_VAR_FUNC           9
+#define WT_VAR_KEYWORD        10
+#define WT_VAR_TBACTION       11
+#define WT_VAR_DBOPTION       12
+#define WT_VAR_ALTER_DBOPTION 13
+#define WT_VAR_DATATYPE       14
+#define WT_VAR_KEYTAGS        15
+#define WT_VAR_ANYWORD        16
+#define WT_VAR_TBOPTION       17
+#define WT_VAR_USERACTION     18
+#define WT_VAR_KEYSELECT      19
+#define WT_VAR_SYSTABLE       20
+#define WT_VAR_LANGUAGE       21
+
+#define WT_VAR_CNT 22
+
 
 #define WT_TEXT 0xFF
 
@@ -318,13 +325,13 @@ TdThreadMutex tiresMutex;
 // save thread handle obtain var name from db server
 TdThread* threads[WT_FROM_DB_CNT];
 // obtain var name  with sql from server
-char varTypes[WT_VAR_CNT][64] = {"<db_name>",    "<stb_name>",    "<tb_name>",          "<dnode_id>",   "<user_name>",
-                                 "<topic_name>", "<stream_name>", "<all_table>",        "<function>",   "<keyword>",
-                                 "<tb_actions>", "<db_options>",  "<alter_db_options>", "<data_types>", "<key_tags>",
-                                 "<anyword>",    "<tb_options>",  "<user_actions>",     "<key_select>"};
+char varTypes[WT_VAR_CNT][64] = {
+    "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id >",  "<user_name>",    "<topic_name>", "<stream_name>",
+    "<udf_name>",   "<all_table>", "<function>", "<keyword>",    "<tb_actions>",   "<db_options>", "<alter_db_options>",
+    "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", "<udf_language>"};
 
 char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
-                                    "show users;",     "show topics;",  "show streams;"};
+                                    "show users;",     "show topics;",  "show streams;", "show functions;"};
 
 // var words current cursor, if user press any one key except tab, cursorVar can be reset to -1
 int  cursorVar = -1;
@@ -338,23 +345,30 @@ int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("  ******************************  Tab Completion  *************************************\n");
-  printf("  *   The TDengine CLI supports tab completion for a variety of items,                *\n");
-  printf("  *   including database names, table names, function names and keywords.             *\n");
-  printf("  *   The full list of shortcut keys is as follows:                                   *\n");
-  printf("  *    [ TAB ]        ......  complete the current word                               *\n");
-  printf("  *                   ......  if used on a blank line, display all supported commands *\n");
-  printf("  *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line                  *\n");
-  printf("  *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                    *\n");
-  printf("  *    [ Ctrl + W ]   ......  move cursor to the middle of the line                   *\n");
-  printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                 *\n");
-  printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                       *\n");
-  printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                      *\n");
-  printf("  *************************************************************************************\n\n");
+  printf("   ******************************  Tab Completion  **********************************\n");
+  char secondLine[160] = "\0";
+  sprintf(secondLine, "   *   The %s CLI supports tab completion for a variety of items, ", shell.info.cusName);
+  printf("%s", secondLine);
+  int secondLineLen = strlen(secondLine);
+  while (84 - (secondLineLen++) > 0) {
+    printf(" ");
+  }
+  printf("*\n");
+  printf("  *   including database names, table names, function names and keywords.              *\n");
+  printf("  *   The full list of shortcut keys is as follows:                                    *\n");
+  printf("  *    [ TAB ]        ......  complete the current word                                *\n");
+  printf("  *                   ......  if used on a blank line, display all supported commands  *\n");
+  printf("  *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line                   *\n");
+  printf("  *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                     *\n");
+  printf("  *    [ Ctrl + W ]   ......  move cursor to the middle of the line                    *\n");
+  printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                  *\n");
+  printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                        *\n");
+  printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                       *\n");
+  printf("  **************************************************************************************\n\n");
 }
 
 void showHelp() {
-  printf("\nThe TDengine CLI supports the following commands:");
+  printf("\nThe %s CLI supports the following commands:", shell.info.cusName);
   printf(
       "\n\
   ----- A ----- \n\
@@ -377,12 +391,13 @@ void showHelp() {
     create table <tb_name> using <stb_name> tags ...\n\
     create database <db_name> <db_options>  ...\n\
     create dnode \"fqdn:port\" ...\n\
-    create index ...\n\
+    create index <index_name> on <stb_name> (tag_column_name);\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
     create stream <stream_name> into <stb_name> as select ...\n\
     create topic <topic_name> as select ...\n\
-    create function ...\n\
+    create function <udf_name> as <file_name> outputtype <data_types> language \'C\' | \'Python\' ;\n\
+    create aggregate function  <udf_name> as <file_name> outputtype <data_types> bufsize <bufsize_bytes> language \'C\' | \'Python\';\n\
     create user <user_name> pass <password> ...\n\
   ----- D ----- \n\
     describe <all_table>\n\
@@ -393,10 +408,11 @@ void showHelp() {
     drop mnode on dnode <dnode_id> ;\n\
     drop qnode on dnode <dnode_id> ;\n\
     drop user <user_name> ;\n\
-    drop function <function_name>;\n\
+    drop function <udf_name>;\n\
     drop consumer group ... \n\
     drop topic <topic_name> ;\n\
     drop stream <stream_name> ;\n\
+    drop index <index_name>;\n\
   ----- E ----- \n\
     explain select clause ...\n\
   ----- F ----- \n\
@@ -438,6 +454,7 @@ void showHelp() {
     show create table <tb_name>;\n\
     show connections;\n\
     show cluster;\n\
+    show cluster alive;\n\
     show databases;\n\
     show dnodes;\n\
     show dnode <dnode_id> variables;\n\
@@ -526,7 +543,7 @@ SWord* addWord(const char* p, int32_t len, bool pattern) {
   word->len = len;
 
   // check format
-  if (pattern) {
+  if (pattern && len > 0) {
     word->type = wordType(p, len);
   } else {
     word->type = WT_TEXT;
@@ -606,7 +623,7 @@ void GenerateVarType(int type, char** p, int count) {
 //  -------------------- shell auto ----------------
 //
 
-// init shell auto funciton , shell start call once
+// init shell auto function , shell start call once
 bool shellAutoInit() {
   // command
   int32_t count = SHELL_COMMAND_COUNT();
@@ -633,6 +650,7 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_USERACTION, user_actions, sizeof(user_actions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYSELECT, key_select, sizeof(key_select) / sizeof(char*));
   GenerateVarType(WT_VAR_SYSTABLE, key_systable, sizeof(key_systable) / sizeof(char*));
+  GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
 
   return true;
 }
@@ -645,7 +663,7 @@ void shellSetConn(TAOS* conn, bool runOnce) {
   if (!runOnce) updateTireValue(WT_VAR_DBNAME, false);
 }
 
-// exit shell auto funciton, shell exit call once
+// exit shell auto function, shell exit call once
 void shellAutoExit() {
   // free command
   int32_t count = SHELL_COMMAND_COUNT();
@@ -662,7 +680,7 @@ void shellAutoExit() {
     }
   }
   taosThreadMutexUnlock(&tiresMutex);
-  // destory
+  // destroy
   taosThreadMutexDestroy(&tiresMutex);
 
   // free threads
@@ -683,7 +701,7 @@ void shellAutoExit() {
 //
 //  -------------------  auto ptr for tires --------------------------
 //
-bool setNewAuotPtr(int type, STire* pNew) {
+bool setNewAutoPtr(int type, STire* pNew) {
   if (pNew == NULL) return false;
 
   taosThreadMutexLock(&tiresMutex);
@@ -726,13 +744,13 @@ void putBackAutoPtr(int type, STire* tire) {
   if (tires[type] != tire) {
     // update by out,  can't put back , so free
     if (--tire->ref == 1) {
-      // support multi thread getAuotPtr
+      // support multi thread getAutoPtr
       freeTire(tire);
     }
 
   } else {
     tires[type]->ref--;
-    assert(tires[type]->ref > 0);
+    ASSERT(tires[type]->ref > 0);
   }
   taosThreadMutexUnlock(&tiresMutex);
 
@@ -781,13 +799,16 @@ int writeVarNames(int type, TAOS_RES* tres) {
   } while (row != NULL);
 
   // replace old tire
-  setNewAuotPtr(type, tire);
+  setNewAutoPtr(type, tire);
 
   return numOfRows;
 }
 
 void setThreadNull(int type) {
   taosThreadMutexLock(&tiresMutex);
+  if (threads[type]) {
+    taosMemoryFree(threads[type]);
+  }
   threads[type] = NULL;
   taosThreadMutexUnlock(&tiresMutex);
 }
@@ -862,7 +883,7 @@ bool updateTireValue(int type, bool autoFill) {
 // only match next one word from all match words, return valuue must free by caller
 char* matchNextPrefix(STire* tire, char* pre) {
   SMatch* match = NULL;
-  if(tire == NULL) return NULL;
+  if (tire == NULL) return NULL;
 
   // re-use last result
   if (lastMatch) {
@@ -900,7 +921,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
   if (cursorVar == -1) {
     // first
     cursorVar = 0;
-    return strdup(match->head->word);
+    return taosStrdup(match->head->word);
   }
 
   // according to cursorVar , calculate next one
@@ -916,7 +937,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
         cursorVar = i;
       }
 
-      return strdup(item->word);
+      return taosStrdup(item->word);
     }
 
     // check end item
@@ -924,7 +945,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
       // if cursorVar > var list count, return last and reset cursorVar
       cursorVar = -1;
 
-      return strdup(item->word);
+      return taosStrdup(item->word);
     }
 
     // move next
@@ -948,7 +969,7 @@ char* tireSearchWord(int type, char* pre) {
     return matchNextPrefix(tire, pre);
   }
 
-  if(updateTireValue(type, true)) {
+  if (updateTireValue(type, true)) {
     return NULL;
   }
 
@@ -1067,7 +1088,7 @@ SWords* matchCommand(SWords* input, bool continueSearch) {
   for (int32_t i = 0; i < count; i++) {
     SWords* shellCommand = shellCommands + i;
     if (continueSearch && lastMatchIndex != -1 && i <= lastMatchIndex) {
-      // new match must greate than lastMatchIndex
+      // new match must greater than lastMatchIndex
       if (varMode && i == lastMatchIndex) {
         // do nothing, var match on lastMatchIndex
       } else {
@@ -1153,7 +1174,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
 
 // main key press tab , matched return true else false
 bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
-  if(con == NULL || cmd == NULL) return false;
+  if (con == NULL || cmd == NULL) return false;
   // parse command
   SWords* input = (SWords*)taosMemoryMalloc(sizeof(SWords));
   memset(input, 0, sizeof(SWords));
@@ -1197,7 +1218,7 @@ void createInputFromFirst(SWords* input, SWords* firstMatch) {
   for (int i = 0; i < firstMatch->matchIndex && word; i++) {
     // combine source from each word
     strncpy(input->source + input->source_len, word->word, word->len);
-    strcat(input->source, " ");          // append blank splite
+    strcat(input->source, " ");          // append blank space
     input->source_len += word->len + 1;  // 1 is blank length
     // move next
     word = word->next;
@@ -1426,7 +1447,7 @@ bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
       return true;
     }
 
-    // fill funciton
+    // fill function
     if (fieldEnd) {
       // fields is end , need match keyword
       ret = fillWithType(con, cmd, last, WT_VAR_KEYWORD);
@@ -1524,9 +1545,9 @@ bool matchSelectQuery(TAOS* con, SShellCmd* cmd) {
 
 // if is input create fields or tags area, return true
 bool isCreateFieldsArea(char* p) {
-  // put to while, support like create table st(ts timestamp, bin1 binary(16), bin2 + blank + TAB 
-  char* p1 = strdup(p);
-  bool ret = false;
+  // put to while, support like create table st(ts timestamp, bin1 binary(16), bin2 + blank + TAB
+  char* p1 = taosStrdup(p);
+  bool  ret = false;
   while (1) {
     char* left = strrchr(p1, '(');
     if (left == NULL) {
@@ -1547,7 +1568,7 @@ bool isCreateFieldsArea(char* p) {
       ret = true;
       break;
     }
-    
+
     // set string end by small for next strrchr search
     *left = 0;
   }
@@ -1609,7 +1630,7 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
 
   // tb options
   if (!ret) {
-    // find like create talbe st (...) tags(..)  <here is fill tb option area>
+    // find like create table st (...) tags(..)  <here is fill tb option area>
     char* p1 = strchr(ps, ')');  // first ')' end
     if (p1) {
       if (strchr(p1 + 1, ')')) {  // second ')' end
@@ -1701,21 +1722,24 @@ bool matchOther(TAOS* con, SShellCmd* cmd) {
 // last match if nothing matched
 bool matchEnd(TAOS* con, SShellCmd* cmd) {
   // str dump
-  bool ret = false;
+  bool  ret = false;
   char* ps = strndup(cmd->command, cmd->commandSize);
   char* last = lastWord(ps);
-  char* elast = strrchr(last, '.'); // find end last
-  if(elast) {
+  char* elast = strrchr(last, '.');  // find end last
+  if (elast) {
     last = elast + 1;
   }
 
   // less one char can match
-  if(strlen(last) == 0 ) {
+  if (strlen(last) == 0) {
+    goto _return;
+  }
+  if (strcmp(last, " ") == 0) {
     goto _return;
   }
 
   // match database
-  if(elast == NULL) {
+  if (elast == NULL) {
     // dot need not completed with dbname
     if (fillWithType(con, cmd, last, WT_VAR_DBNAME)) {
       ret = true;
@@ -1735,10 +1759,12 @@ _return:
 
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
-  // check
+  // check empty tab key
   if (cmd->commandSize == 0) {
-    // empty
-    showHelp();
+    // have multi line tab key
+    if (cmd->bufferSize == 0) {
+      showHelp();
+    }
     shellShowOnScreen(cmd);
     return;
   }

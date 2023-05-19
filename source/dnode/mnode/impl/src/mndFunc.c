@@ -21,7 +21,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
-#define SDB_FUNC_VER          1
+#define SDB_FUNC_VER          2
 #define SDB_FUNC_RESERVE_SIZE 64
 
 static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc);
@@ -83,6 +83,7 @@ static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
     SDB_SET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, _OVER)
   }
   SDB_SET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pFunc->funcVersion, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
@@ -107,7 +108,7 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != SDB_FUNC_VER) {
+  if (sver != 1 && sver != 2) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -144,7 +145,14 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
   SDB_GET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, _OVER)
+
+  if (sver >= 2) {
+    SDB_GET_INT32(pRaw, dataPos, &pFunc->funcVersion, _OVER)
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, _OVER)
+
+  taosInitRWLatch(&pFunc->lock);
 
   terrno = 0;
 
@@ -173,6 +181,44 @@ static int32_t mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc) {
 
 static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
   mTrace("func:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
+
+  taosWLockLatch(&pOld->lock);
+
+  pOld->align = pNew->align;
+  pOld->bufSize = pNew->bufSize;
+  pOld->codeSize = pNew->codeSize;
+  pOld->commentSize = pNew->commentSize;
+  pOld->createdTime = pNew->createdTime;
+  pOld->funcType = pNew->funcType;
+  pOld->funcVersion = pNew->funcVersion;
+  pOld->outputLen = pNew->outputLen;
+  pOld->outputType = pNew->outputType;
+
+  if (pOld->pComment != NULL) {
+    taosMemoryFree(pOld->pComment);
+    pOld->pComment = NULL;
+  }
+  if (pNew->commentSize > 0 && pNew->pComment != NULL) {
+    pOld->commentSize = pNew->commentSize;
+    pOld->pComment = taosMemoryMalloc(pOld->commentSize);
+    memcpy(pOld->pComment, pNew->pComment, pOld->commentSize);
+  }
+
+  if (pOld->pCode != NULL) {
+    taosMemoryFree(pOld->pCode);
+    pOld->pCode = NULL;
+  }
+  if (pNew->codeSize > 0 && pNew->pCode != NULL) {
+    pOld->codeSize = pNew->codeSize;
+    pOld->pCode = taosMemoryMalloc(pOld->codeSize);
+    memcpy(pOld->pCode, pNew->pCode, pOld->codeSize);
+  }
+
+  pOld->scriptType = pNew->scriptType;
+  pOld->signature = pNew->signature;
+
+  taosWUnLockLatch(&pOld->lock);
+
   return 0;
 }
 
@@ -225,26 +271,47 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-func");
   if (pTrans == NULL) goto _OVER;
-
   mInfo("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
 
-  SSdbRaw *pRedoRaw = mndFuncActionEncode(&func);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
-  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING) != 0) goto _OVER;
+  SFuncObj *oldFunc = mndAcquireFunc(pMnode, pCreate->name);
+  if (pCreate->orReplace == 1 && oldFunc != NULL) {
+    func.funcVersion = oldFunc->funcVersion + 1;
+    func.createdTime = oldFunc->createdTime;
 
-  SSdbRaw *pUndoRaw = mndFuncActionEncode(&func);
-  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) goto _OVER;
-  if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED) != 0) goto _OVER;
+    SSdbRaw *pRedoRaw = mndFuncActionEncode(oldFunc);
+    if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
+    if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY) != 0) goto _OVER;
 
-  SSdbRaw *pCommitRaw = mndFuncActionEncode(&func);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
-  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) goto _OVER;
+    SSdbRaw *pUndoRaw = mndFuncActionEncode(oldFunc);
+    if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) goto _OVER;
+    if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY) != 0) goto _OVER;
+
+    SSdbRaw *pCommitRaw = mndFuncActionEncode(&func);
+    if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
+    if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) goto _OVER;
+  } else {
+    SSdbRaw *pRedoRaw = mndFuncActionEncode(&func);
+    if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
+    if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING) != 0) goto _OVER;
+
+    SSdbRaw *pUndoRaw = mndFuncActionEncode(&func);
+    if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) goto _OVER;
+    if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED) != 0) goto _OVER;
+
+    SSdbRaw *pCommitRaw = mndFuncActionEncode(&func);
+    if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
+    if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) goto _OVER;
+  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
 
 _OVER:
+  if (oldFunc != NULL) {
+    mndReleaseFunc(pMnode, oldFunc);
+  }
+
   taosMemoryFree(func.pCode);
   taosMemoryFree(func.pComment);
   mndTransDrop(pTrans);
@@ -304,6 +371,9 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
       mInfo("func:%s, already exist, ignore exist is set", createReq.name);
       code = 0;
       goto _OVER;
+    } else if (createReq.orReplace) {
+      mInfo("func:%s, replace function is set", createReq.name);
+      code = 0;
     } else {
       terrno = TSDB_CODE_MND_FUNC_ALREADY_EXIST;
       goto _OVER;
@@ -413,6 +483,12 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
     goto RETRIEVE_FUNC_OVER;
   }
 
+  retrieveRsp.pFuncExtraInfos = taosArrayInit(retrieveReq.numOfFuncs, sizeof(SFuncExtraInfo));
+  if (retrieveRsp.pFuncExtraInfos == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto RETRIEVE_FUNC_OVER;
+  }
+
   for (int32_t i = 0; i < retrieveReq.numOfFuncs; ++i) {
     char *funcName = taosArrayGet(retrieveReq.pFuncNames, i);
 
@@ -451,6 +527,11 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
       }
     }
     taosArrayPush(retrieveRsp.pFuncInfos, &funcInfo);
+    SFuncExtraInfo extraInfo = {0};
+    extraInfo.funcVersion = pFunc->funcVersion;
+    extraInfo.funcCreatedTime = pFunc->createdTime;
+    taosArrayPush(retrieveRsp.pFuncExtraInfos, &extraInfo);
+
     mndReleaseFunc(pMnode, pFunc);
   }
 
@@ -511,39 +592,65 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pFunc->name, pShow->pMeta->pSchemas[cols].bytes);
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)b1, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
 
     if (pFunc->pComment) {
       char *b2 = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
       STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->pMeta->pSchemas[cols].bytes);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+      taosMemoryFree(b2);
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, NULL, true);
+      colDataSetVal(pColInfo, numOfRows, NULL, true);
     }
 
     int32_t isAgg = (pFunc->funcType == TSDB_FUNC_TYPE_AGGREGATE) ? 1 : 0;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&isAgg, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&isAgg, false);
 
     char b3[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen),
                                pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)b3, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    char *language = "";
+    if (pFunc->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
+      language = "C";
+    } else if (pFunc->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
+      language = "Python";
+    }
+    char varLang[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
+    varDataSetLen(varLang, strlen(language));
+    strcpy(varDataVal(varLang), language);
+    colDataSetVal(pColInfo, numOfRows, (const char *)varLang, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    int32_t varCodeLen = (pFunc->codeSize + VARSTR_HEADER_SIZE) > TSDB_MAX_BINARY_LEN
+                             ? TSDB_MAX_BINARY_LEN
+                             : pFunc->codeSize + VARSTR_HEADER_SIZE;
+    char   *b4 = taosMemoryMalloc(varCodeLen);
+    memcpy(varDataVal(b4), pFunc->pCode, varCodeLen - VARSTR_HEADER_SIZE);
+    varDataSetLen(b4, varCodeLen - VARSTR_HEADER_SIZE);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b4, false);
+    taosMemoryFree(b4);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->funcVersion, false);
 
     numOfRows++;
     sdbRelease(pSdb, pFunc);

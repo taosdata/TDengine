@@ -118,7 +118,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
     if ((*num) >= size) {
       size = (size << 1);
       split = taosMemoryRealloc(split, POINTER_BYTES * size);
-      ASSERTS(NULL != split, "realloc memory failed. size=%d", POINTER_BYTES * size);
+      ASSERTS(NULL != split, "realloc memory failed. size=%d", (int32_t) POINTER_BYTES * size);
     }
   }
 
@@ -468,7 +468,7 @@ size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize)
     c3 = p[s[j + 3]];
 
     if ((c0 | c1 | c2 | c3) != 0) {
-      size_t count = ((i + 1) >> 2);
+      size_t count = i * 4;
       return (c0 | c1) != 0 ? count - c0 + 1 : count - c2 + 3;
     }
   }

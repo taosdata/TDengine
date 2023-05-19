@@ -37,8 +37,6 @@ extern "C" {
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
-#define SDB_WRITE_DELTA 20
-
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
   {                                                       \
     if (func(pRaw, dataPos, val) != 0) {                  \
@@ -147,7 +145,8 @@ typedef enum {
   SDB_STB = 18,
   SDB_DB = 19,
   SDB_FUNC = 20,
-  SDB_MAX = 21
+  SDB_IDX = 21,
+  SDB_MAX = 22
 } ESdbType;
 
 typedef struct SSdbRaw {

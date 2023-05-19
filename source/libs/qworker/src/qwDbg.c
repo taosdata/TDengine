@@ -9,11 +9,13 @@
 #include "tmsg.h"
 #include "tname.h"
 
-SQWDebug gQWDebug = {.statusEnable = true,
+SQWDebug gQWDebug = {.lockEnable = false,
+                     .statusEnable = true,
                      .dumpEnable = false,
                      .redirectSimulate = false,
                      .deadSimulate = false,
-                     .sleepSimulate = false};
+                     .sleepSimulate = false,
+                     .forceStop = false};
 
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
   if (!gQWDebug.statusEnable) {
@@ -124,10 +126,10 @@ void qwDbgDumpTasksInfo(SQWorker *mgmt) {
     void       *key = taosHashGetKey(pIter, NULL);
     QW_GET_QTID(key, qId, tId, eId);
     
-    QW_TASK_DLOG("%p lock:%x, phase:%d, type:%d, explain:%d, needFetch:%d, localExec:%d, msgType:%d, "
+    QW_TASK_DLOG("%p lock:%x, phase:%d, type:%d, explain:%d, needFetch:%d, localExec:%d, queryMsgType:%d, "
       "sId:%" PRId64 ", level:%d, queryGotData:%d, queryRsped:%d, queryEnd:%d, queryContinue:%d, queryInQueue:%d, "
       "rspCode:%x, affectedRows:%" PRId64 ", taskHandle:%p, sinkHandle:%p, tbFName:%s, sver:%d, tver:%d, events:%d,%d,%d,%d,%d",
-      ctx, ctx->lock, ctx->phase, ctx->taskType, ctx->explain, ctx->needFetch, ctx->localExec, ctx->msgType,
+      ctx, ctx->lock, ctx->phase, ctx->taskType, ctx->explain, ctx->needFetch, ctx->localExec, ctx->queryMsgType,
       ctx->sId, ctx->level, ctx->queryGotData, ctx->queryRsped, ctx->queryEnd, ctx->queryContinue, 
       ctx->queryInQueue, ctx->rspCode, ctx->affectedRows, ctx->taskHandle, ctx->sinkHandle, ctx->tbInfo.tbFName,
       ctx->tbInfo.sversion, ctx->tbInfo.tversion, ctx->events[QW_EVENT_CANCEL], ctx->events[QW_EVENT_READY], 
@@ -257,19 +259,30 @@ void qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped) {
   static int32_t ignoreTime = 0;
 
   if (++ignoreTime > 10 && 0 == taosRand() % 9) {
+    if (ctx->fetchMsgType == TDMT_SCH_FETCH) {
+      qwBuildAndSendErrorRsp(TDMT_SCH_LINK_BROKEN, &ctx->ctrlConnInfo, TSDB_CODE_RPC_BROKEN_LINK);
+      qwBuildAndSendErrorRsp(ctx->fetchMsgType + 1, &ctx->dataConnInfo, TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
+      *rsped = true;
+      
+      taosSsleep(3);
+      return;
+    }
+
+#if 0
     SRpcHandleInfo *pConn =
         ((ctx->msgType == TDMT_SCH_FETCH || ctx->msgType == TDMT_SCH_MERGE_FETCH) ? &ctx->dataConnInfo
-                                                                                  : &ctx->ctrlConnInfo);
+                                                                                  : &ctx->ctrlConnInfo);                                                                              
     qwBuildAndSendErrorRsp(ctx->msgType + 1, pConn, TSDB_CODE_RPC_BROKEN_LINK);
-
+    
     qwBuildAndSendDropMsg(QW_FPARAMS(), pConn);
     *rsped = true;
-
+    
     return;
+#endif    
   }
 }
 
-int32_t qwDbgEnableDebug(char *option) {
+int32_t qWorkerDbgEnableDebug(char *option) {
   if (0 == strcasecmp(option, "lock")) {
     gQWDebug.lockEnable = true;
     qError("qw lock debug enabled");
@@ -303,6 +316,12 @@ int32_t qwDbgEnableDebug(char *option) {
   if (0 == strcasecmp(option, "redirect")) {
     gQWDebug.redirectSimulate = true;
     qError("qw redirect debug enabled");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 == strcasecmp(option, "forceStop")) {
+    gQWDebug.forceStop = true;
+    qError("qw forceStop debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 

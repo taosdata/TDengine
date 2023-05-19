@@ -46,6 +46,7 @@ void streamQueueClose(SStreamQueue* queue) {
   taosMemoryFree(queue);
 }
 
+#if 0
 bool streamQueueResEmpty(const SStreamQueueRes* pRes) {
   //
   return true;
@@ -101,3 +102,4 @@ SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue) {
   if (pNode) return streamQueueBuildRes(pNode);
   return (SStreamQueueRes){0};
 }
+#endif

@@ -104,6 +104,7 @@ extern const int32_t TYPE_BYTES[16];
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
+#define TSDB_INDEX_TYPE_NORMAL   "NORMAL"
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
@@ -190,21 +191,23 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN   64
-#define TSDB_TABLE_NAME_LEN  193  // it is a null-terminated string
-#define TSDB_TOPIC_NAME_LEN  193  // it is a null-terminated string
-#define TSDB_CGROUP_LEN      193  // it is a null-terminated string
-#define TSDB_STREAM_NAME_LEN 193  // it is a null-terminated string
+#define TSDB_TABLE_NAME_LEN  193                                // it is a null-terminated string
+#define TSDB_TOPIC_NAME_LEN  193                                // it is a null-terminated string
+#define TSDB_CGROUP_LEN      193                                // it is a null-terminated string
+#define TSDB_USER_CGROUP_LEN (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
+#define TSDB_STREAM_NAME_LEN 193                                // it is a null-terminated string
 #define TSDB_DB_NAME_LEN     65
 #define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_PRIVILEDGE_CONDITION_LEN    200
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
 #define TSDB_FUNC_CODE_LEN       10 * 1024 * 1024
-#define TSDB_FUNC_BUF_SIZE       512
+#define TSDB_FUNC_BUF_SIZE       4096 * 64
 #define TSDB_FUNC_TYPE_SCALAR    1
 #define TSDB_FUNC_TYPE_AGGREGATE 2
 #define TSDB_FUNC_SCRIPT_BIN_LIB 0
-#define TSDB_FUNC_SCRIPT_LUA     1
+#define TSDB_FUNC_SCRIPT_PYTHON  1
 #define TSDB_FUNC_MAX_RETRIEVE   1024
 
 #define TSDB_INDEX_NAME_LEN      65  // 64 + 1 '\0'
@@ -246,7 +249,7 @@ typedef enum ELogicConditionType {
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
-#define TSDB_VERSION_LEN       12
+#define TSDB_VERSION_LEN       32
 #define TSDB_LABEL_LEN         8
 #define TSDB_JOB_STATUS_LEN    32
 
@@ -281,8 +284,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_ROLE_MGMT  1
 #define TSDB_DNODE_ROLE_VNODE 2
 
-#define TSDB_MAX_REPLICA          5
-#define TSDB_SYNC_LOG_BUFFER_SIZE 4096
+#define TSDB_MAX_REPLICA               5
+#define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION (TSDB_SYNC_LOG_BUFFER_SIZE >> 4)
 
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
@@ -314,10 +317,10 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_KEEP_NS                (365 * 292 * 1440)  // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               (3650 * 1440)       // ten years
 #define TSDB_MIN_MINROWS_FBLOCK         10
-#define TSDB_MAX_MINROWS_FBLOCK         1000
+#define TSDB_MAX_MINROWS_FBLOCK         1000000
 #define TSDB_DEFAULT_MINROWS_FBLOCK     100
 #define TSDB_MIN_MAXROWS_FBLOCK         200
-#define TSDB_MAX_MAXROWS_FBLOCK         10000
+#define TSDB_MAX_MAXROWS_FBLOCK         10000000
 #define TSDB_DEFAULT_MAXROWS_FBLOCK     4096
 #define TSDB_MIN_FSYNC_PERIOD           0
 #define TSDB_MAX_FSYNC_PERIOD           180000  // millisecond
@@ -365,11 +368,11 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_STT_TRIGGER            1
 #define TSDB_MAX_STT_TRIGGER            16
 #define TSDB_DEFAULT_SST_TRIGGER        1
-#define TSDB_MIN_HASH_PREFIX            0
-#define TSDB_MAX_HASH_PREFIX            128
+#define TSDB_MIN_HASH_PREFIX            (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_PREFIX            (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_PREFIX        0
-#define TSDB_MIN_HASH_SUFFIX            0
-#define TSDB_MAX_HASH_SUFFIX            128
+#define TSDB_MIN_HASH_SUFFIX            (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_SUFFIX            (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_SUFFIX        0
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
@@ -413,7 +416,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 20
+#define TSDB_MAX_RPC_THREADS 10
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type

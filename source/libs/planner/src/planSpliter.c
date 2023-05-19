@@ -742,6 +742,18 @@ static int32_t stbSplSplitState(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   }
 }
 
+static int32_t stbSplSplitEventForStream(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+}
+
+static int32_t stbSplSplitEvent(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  if (pCxt->pPlanCxt->streamQuery) {
+    return stbSplSplitEventForStream(pCxt, pInfo);
+  } else {
+    return stbSplSplitSessionOrStateForBatch(pCxt, pInfo);
+  }
+}
+
 static bool stbSplIsPartTableWinodw(SWindowLogicNode* pWindow) {
   return stbSplHasPartTbname(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
@@ -754,6 +766,8 @@ static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitI
       return stbSplSplitSession(pCxt, pInfo);
     case WINDOW_TYPE_STATE:
       return stbSplSplitState(pCxt, pInfo);
+    case WINDOW_TYPE_EVENT:
+      return stbSplSplitEvent(pCxt, pInfo);
     default:
       break;
   }
@@ -1351,7 +1365,8 @@ static int32_t unAllSplCreateExchangeNode(SSplitContext* pCxt, int32_t startGrou
   pExchange->srcEndGroupId = pCxt->groupId - 1;
   pExchange->node.precision = pProject->node.precision;
   pExchange->node.pTargets = nodesCloneList(pProject->node.pTargets);
-  if (NULL == pExchange->node.pTargets) {
+  pExchange->node.pConditions = nodesCloneNode(pProject->node.pConditions);
+  if (NULL == pExchange->node.pTargets || (NULL != pProject->node.pConditions && NULL == pExchange->node.pConditions)) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   TSWAP(pExchange->node.pLimit, pProject->node.pLimit);

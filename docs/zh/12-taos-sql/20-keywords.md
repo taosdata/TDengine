@@ -18,6 +18,7 @@ description: TDengine 保留关键字的详细列表
 - ADD
 - AFTER
 - AGGREGATE
+- ALIVE
 - ALL
 - ALTER
 - ANALYZE
@@ -268,7 +269,7 @@ description: TDengine 保留关键字的详细列表
 - SPLIT
 - STABLE
 - STABLES
-- STAR
+- START
 - STATE
 - STATE_WINDOW
 - STATEMENT

@@ -60,7 +60,7 @@ class TDTestCase:
     def initConsumerTable(self,cdbName='cdb'):
         tdLog.info("create consume database, and consume info table, and consume result table")
         tdSql.query("drop database if exists %s "%(cdbName))
-        tdSql.query("create database %s vgroups 1"%(cdbName))
+        tdSql.query("create database %s vgroups 1 wal_retention_period 3600"%(cdbName))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
 

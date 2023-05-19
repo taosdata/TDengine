@@ -1,7 +1,7 @@
 ---
-sidebar_label: Changes in TDengine 3.0
 title: Changes in TDengine 3.0
-description: "This document explains how TDengine SQL has changed in version 3.0."
+sidebar_label: Changes in TDengine 3.0
+description: This document describes how TDengine SQL has changed in version 3.0 compared with previous versions.
 ---
 
 ## Basic SQL Elements
@@ -27,7 +27,7 @@ The following data types can be used in the schema for standard tables.
 | - | :------- | :-------- | :------- |
 | 1 | ALTER ACCOUNT | Deprecated| This Enterprise Edition-only statement has been removed. It returns the error "This statement is no longer supported."
 | 2 | ALTER ALL DNODES | Added | Modifies the configuration of all dnodes.
-| 3 | ALTER DATABASE | Modified	| Deprecated<ul><li>QUORUM: Specified the required number of confirmations. STRICT is now used to specify strong or weak consistency. The STRICT parameter cannot be modified. </li><li>BLOCKS: Specified the memory blocks used by each vnode. BUFFER is now used to specify the size of the write cache pool for each vnode. </li><li>UPDATE: Specified whether update operations were supported. All databases now support updating data in certain columns. </li><li>CACHELAST: Specified how to cache the newest row of data. CACHEMODEL now replaces CACHELAST. </li><li>COMP: Cannot be modified. <br/>Added</li><li>CACHEMODEL: Specifies whether to cache the latest subtable data. </li><li>CACHESIZE: Specifies the size of the cache for the newest subtable data. </li><li>WAL_FSYNC_PERIOD: Replaces the FSYNC parameter. </li><li>WAL_LEVEL: Replaces the WAL parameter. <br/>Modified</li><li>REPLICA: Cannot be modified. </li><li>KEEP: Now supports units. </li></ul>
+| 3 | ALTER DATABASE | Modified	| Deprecated<ul><li>QUORUM: Specified the required number of confirmations. TDengine 3.0 provides strict consistency by default and doesn't allow to change to weak consitency. </li><li>BLOCKS: Specified the memory blocks used by each vnode. BUFFER is now used to specify the size of the write cache pool for each vnode. </li><li>UPDATE: Specified whether update operations were supported. All databases now support updating data in certain columns. </li><li>CACHELAST: Specified how to cache the newest row of data. CACHEMODEL now replaces CACHELAST. </li><li>COMP: Cannot be modified. <br/>Added</li><li>CACHEMODEL: Specifies whether to cache the latest subtable data. </li><li>CACHESIZE: Specifies the size of the cache for the newest subtable data. </li><li>WAL_FSYNC_PERIOD: Replaces the FSYNC parameter. </li><li>WAL_LEVEL: Replaces the WAL parameter. </li><li>WAL_RETENTION_PERIOD: specifies the time after which WAL files are deleted. This parameter is used for data subscription. </li><li>WAL_RETENTION_SIZE: specifies the size at which WAL files are deleted. This parameter is used for data subscription. <br/>Modified</li><li>REPLICA: Cannot be modified. </li><li>KEEP: Now supports units. </li></ul>
 | 4 | ALTER STABLE | Modified | Deprecated<ul><li>CHANGE TAG: Modified the name of a tag. Replaced by RENAME TAG. <br/>Added</li><li>RENAME TAG: Replaces CHANGE TAG. </li><li>COMMENT: Specifies comments for a supertable. </li></ul>
 | 5 | ALTER TABLE | Modified | Deprecated<ul><li>CHANGE TAG: Modified the name of a tag. Replaced by RENAME TAG. <br/>Added</li><li>RENAME TAG: Replaces CHANGE TAG. </li><li>COMMENT: Specifies comments for a standard table. </li><li>TTL: Specifies the time-to-live for a standard table. </li></ul>
 | 6 | ALTER USER | Modified | Deprecated<ul><li>PRIVILEGE: Specified user permissions. Replaced by GRANT and REVOKE. <br/>Added</li><li>ENABLE: Enables or disables a user. </li><li>SYSINFO: Specifies whether a user can query system information. </li></ul>
@@ -54,7 +54,6 @@ The following data types can be used in the schema for standard tables.
 | 27 | GRANT | Added | Grants permissions to a user.
 | 28 | KILL TRANSACTION | Added | Terminates an mnode transaction.
 | 29 | KILL STREAM | Deprecated | Terminated a continuous query. The continuous query feature has been replaced with the stream processing feature.
-| 30 | MERGE VGROUP | Added | Merges vgroups.
 | 31 | REVOKE | Added | Revokes permissions from a user.
 | 32 | SELECT	| Modified | <ul><li>SELECT does not use the implicit results column. Output columns must be specified in the SELECT clause. </li><li>DISTINCT support is enhanced. In previous versions, DISTINCT only worked on the tag column and could not be used with JOIN or GROUP BY. </li><li>JOIN support is enhanced. The following are now supported after JOIN: a WHERE clause with OR, operations on multiple tables, and GROUP BY on multiple tables. </li><li>Subqueries after FROM are enhanced. Levels of nesting are no longer restricted. Subqueries can be used with UNION ALL. Other syntax restrictions are eliminated. </li><li>All scalar functions can be used after WHERE. </li><li>GROUP BY is enhanced. You can group by any scalar expression or combination thereof. </li><li>SESSION can be used on supertables. When PARTITION BY is not used, data in supertables is merged into a single timeline. </li><li>STATE_WINDOW can be used on supertables. When PARTITION BY is not used, data in supertables is merged into a single timeline. </li><li>ORDER BY is enhanced. It is no longer required to use ORDER BY and GROUP BY together. There is no longer a restriction on the number of order expressions. NULLS FIRST and NULLS LAST syntax has been added. Any expression that conforms to the ORDER BY semantics can be used. </li><li>Added PARTITION BY syntax. PARTITION BY replaces GROUP BY tags. </li></ul>
 | 33 | SHOW ACCOUNTS | Deprecated | This Enterprise Edition-only statement has been removed. It returns the error "This statement is no longer supported."
@@ -76,8 +75,9 @@ The following data types can be used in the schema for standard tables.
 | 49 | SHOW TRANSACTIONS | Added | Shows all running transactions in the system.
 | 50 | SHOW DNODE VARIABLES | Added | Shows the configuration of the specified dnode.
 | 51 | SHOW VNODES | Not supported | Shows information about vnodes in the system. Not supported.
-| 52 | SPLIT VGROUP | Added | Splits a vgroup into two vgroups.
-| 53 | TRIM DATABASE | Added | Deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+| 52 | TRIM DATABASE | Added | Deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+| 53 | REDISTRIBUTE VGROUP | Added | Adjust the distribution of VNODES in VGROUP.
+| 54 | BALANCE VGROUP | Added | Auto adjust the distribution of VNODES in VGROUP.
 
 ## SQL Functions
 

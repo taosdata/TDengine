@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tmisce.h"
+#include "tjson.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "tname.h"
@@ -60,6 +61,19 @@ bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2) {
   return true;
 }
 
+void epsetAssign(SEpSet* pDst, const SEpSet* pSrc) {
+  if (pSrc == NULL || pDst == NULL) {
+      return;
+  }
+
+  pDst->inUse = pSrc->inUse;
+  pDst->numOfEps = pSrc->numOfEps;
+  for (int32_t i = 0; i < pSrc->numOfEps; ++i) {
+    pDst->eps[i].port = pSrc->eps[i].port;
+    tstrncpy(pDst->eps[i].fqdn, pSrc->eps[i].fqdn, tListLen(pSrc->eps[i].fqdn));
+  }
+}
+
 void updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet) {
   taosCorBeginWrite(&pEpSet->version);
   pEpSet->epSet = *pNewEpSet;
@@ -73,4 +87,64 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet) {
   taosCorEndRead(&pEpSet->version);
 
   return ep;
+}
+
+int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
+  SJson* pJson = tjsonCreateObject();
+  if (pJson == NULL) return -1;
+  char tmp[4096] = {0};
+
+  tjsonAddDoubleToObject(pJson, "reportVersion", 1);
+
+  tjsonAddIntegerToObject(pJson, "clusterId", clusterId);
+  tjsonAddIntegerToObject(pJson, "startTime", startTime);
+
+  // Do NOT invoke the taosGetFqdn here.
+  // this function may be invoked when memory exception occurs,so we should assume that it is running in a memory locked
+  // environment. The lock operation by taosGetFqdn may cause this program deadlock.
+  tjsonAddStringToObject(pJson, "fqdn", tsLocalFqdn);
+
+  tjsonAddIntegerToObject(pJson, "pid", taosGetPId());
+
+  taosGetAppName(tmp, NULL);
+  tjsonAddStringToObject(pJson, "appName", tmp);
+
+  if (taosGetOsReleaseName(tmp, sizeof(tmp)) == 0) {
+    tjsonAddStringToObject(pJson, "os", tmp);
+  }
+
+  float numOfCores = 0;
+  if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
+    tjsonAddStringToObject(pJson, "cpuModel", tmp);
+    tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
+  } else {
+    tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores);
+  }
+
+  snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
+  tjsonAddStringToObject(pJson, "memory", tmp);
+
+  tjsonAddStringToObject(pJson, "version", version);
+  tjsonAddStringToObject(pJson, "buildInfo", buildinfo);
+  tjsonAddStringToObject(pJson, "gitInfo", gitinfo);
+
+  tjsonAddIntegerToObject(pJson, "crashSig", signum);
+  tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs());
+
+#ifdef _TD_DARWIN_64
+  taosLogTraceToBuf(tmp, sizeof(tmp), 4);
+#elif !defined(WINDOWS)
+  taosLogTraceToBuf(tmp, sizeof(tmp), 3);
+#else
+  taosLogTraceToBuf(tmp, sizeof(tmp), 8);
+#endif
+
+  tjsonAddStringToObject(pJson, "stackInfo", tmp);
+
+  char* pCont = tjsonToString(pJson);
+  tjsonDelete(pJson);
+
+  *pMsg = pCont;
+
+  return TSDB_CODE_SUCCESS;
 }

@@ -1,5 +1,6 @@
 ---
 title: Reference
+description: This document describes TDengine connectors and utilities.
 ---
 
 This section describes the TDengine connectors and utilities.

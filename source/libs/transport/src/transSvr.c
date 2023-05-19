@@ -12,8 +12,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef USE_UV
-
 #include "transComm.h"
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
@@ -238,7 +236,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
     if (cost >= EXCEPTION_LIMIT_US) {
-      tGWarn("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception", transLabel(pTransInst),
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus, recv exception", transLabel(pTransInst),
              pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, (int)cost);
     } else {
       tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, cost:%dus", transLabel(pTransInst), pConn,
@@ -246,11 +244,11 @@ static bool uvHandleReq(SSvrConn* pConn) {
     }
   } else {
     if (cost >= EXCEPTION_LIMIT_US) {
-      tGWarn("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d, cost:%dus, recv exception",
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception",
              transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
              transMsg.code, (int)(cost));
     } else {
-      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d, cost:%dus",
+      tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus",
               transLabel(pTransInst), pConn, TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp,
               transMsg.code, (int)(cost));
     }
@@ -316,7 +314,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
 
-  tWarn("%s conn %p read error:%s", transLabel(pTransInst), conn, uv_err_name(nread));
+  tDebug("%s conn %p read error:%s", transLabel(pTransInst), conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
     if (conn->status == ConnAcquire) {
@@ -679,14 +677,21 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
   SServerObj* pObj = container_of(stream, SServerObj, server);
 
   uv_tcp_t* cli = (uv_tcp_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
-  uv_tcp_init(pObj->loop, cli);
+  if (cli == NULL) return;
 
-  if (uv_accept(stream, (uv_stream_t*)cli) == 0) {
+  int err = uv_tcp_init(pObj->loop, cli);
+  if (err != 0) {
+    tError("failed to create tcp: %s", uv_err_name(err));
+    taosMemoryFree(cli);
+    return;
+  }
+  err = uv_accept(stream, (uv_stream_t*)cli);
+  if (err == 0) {
 #if defined(WINDOWS) || defined(DARWIN)
     if (pObj->numOfWorkerReady < pObj->numOfThreads) {
       tError("worker-threads are not ready for all, need %d instead of %d.", pObj->numOfThreads,
              pObj->numOfWorkerReady);
-      uv_close((uv_handle_t*)cli, NULL);
+      uv_close((uv_handle_t*)cli, uvFreeCb);
       return;
     }
 #endif
@@ -702,8 +707,10 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
     uv_write2(wr, (uv_stream_t*)&(pObj->pipe[pObj->workerIdx][0]), &buf, 1, (uv_stream_t*)cli, uvOnPipeWriteCb);
   } else {
     if (!uv_is_closing((uv_handle_t*)cli)) {
-      uv_close((uv_handle_t*)cli, NULL);
+      tError("failed to accept tcp: %s", uv_err_name(err));
+      uv_close((uv_handle_t*)cli, uvFreeCb);
     } else {
+      tError("failed to accept tcp: %s", uv_err_name(err));
       taosMemoryFree(cli);
     }
   }
@@ -1347,5 +1354,3 @@ _return2:
 }
 
 int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
-
-#endif

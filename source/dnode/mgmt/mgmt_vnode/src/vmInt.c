@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
+#include "vnd.h"
 
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;
@@ -53,7 +54,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   pVnode->vgVersion = pCfg->vgVersion;
   pVnode->refCount = 0;
   pVnode->dropped = 0;
-  pVnode->path = tstrdup(pCfg->path);
+  pVnode->path = taosStrdup(pCfg->path);
   pVnode->pImpl = pImpl;
 
   if (pVnode->path == NULL) {
@@ -76,8 +77,13 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   return code;
 }
 
-void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
+void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal) {
   char path[TSDB_FILENAME_LEN] = {0};
+  bool atExit = true;
+
+  if (vnodeIsLeader(pVnode->pImpl)) {
+    vnodeProposeCommitOnNeed(pVnode->pImpl, atExit);
+  }
 
   taosThreadRwlockWrlock(&pMgmt->lock);
   taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
@@ -98,9 +104,9 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
         pVnode->pSyncW.queue->threadId);
   tMultiWorkerCleanup(&pVnode->pSyncW);
 
-  dInfo("vgId:%d, wait for vnode sync ctrl queue:%p is empty, thread:%08" PRId64, pVnode->vgId,
-        pVnode->pSyncCtrlW.queue, pVnode->pSyncCtrlW.queue->threadId);
-  tMultiWorkerCleanup(&pVnode->pSyncCtrlW);
+  dInfo("vgId:%d, wait for vnode sync rd queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncRdW.queue,
+        pVnode->pSyncRdW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pSyncRdW);
 
   dInfo("vgId:%d, wait for vnode apply queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
         pVnode->pApplyW.queue->threadId);
@@ -113,6 +119,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
         pVnode->pFetchQ->threadId);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
 
+  tqNotifyClose(pVnode->pImpl->pTq);
   dInfo("vgId:%d, wait for vnode stream queue:%p is empty", pVnode->vgId, pVnode->pStreamQ);
   while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
 
@@ -122,9 +129,24 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   vnodePostClose(pVnode->pImpl);
 
   vmFreeQueue(pMgmt, pVnode);
+
+  if (commitAndRemoveWal) {
+    dInfo("vgId:%d, commit data for vnode split", pVnode->vgId);
+    vnodeSyncCommit(pVnode->pImpl);
+    vnodeBegin(pVnode->pImpl);
+    dInfo("vgId:%d, commit data finished", pVnode->vgId);
+  }
+
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
   dInfo("vgId:%d, vnode is closed", pVnode->vgId);
+
+  if (commitAndRemoveWal) {
+    snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d%swal", TD_DIRSEP, pVnode->vgId, TD_DIRSEP);
+    dInfo("vgId:%d, remove all wals, path:%s", pVnode->vgId, path);
+    tfsRmdir(pMgmt->pTfs, path);
+    tfsMkdir(pMgmt->pTfs, path);
+  }
 
   if (pVnode->dropped) {
     dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
@@ -255,7 +277,7 @@ static void *vmCloseVnodeInThread(void *param) {
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
     tmsgReportStartup("vnode-close", stepDesc);
 
-    vmCloseVnode(pMgmt, pVnode);
+    vmCloseVnode(pMgmt, pVnode, false);
   }
 
   dInfo("thread:%d, numOfVnodes:%d is closed", pThread->threadIndex, pThread->vnodeNum);

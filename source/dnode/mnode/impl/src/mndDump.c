@@ -629,7 +629,7 @@ void mndDumpSdb() {
   }
   taosWriteFile(pFile, pCont, contLen);
   taosWriteFile(pFile, "\n", 1);
-  taosFsyncFile(pFile);
+  UNUSED(taosFsyncFile(pFile));
   taosCloseFile(&pFile);
   tjsonDelete(json);
   taosMemoryFree(pCont);

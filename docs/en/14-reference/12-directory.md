@@ -1,6 +1,6 @@
 ---
 title: File directory structure
-description: "TDengine installation directory description"
+description: This document describes the structure of the TDengine directory after installation.
 ---
 
 After TDengine is installed, the following directories or files will be created in the system by default.
@@ -24,7 +24,7 @@ All executable files of TDengine are in the _/usr/local/taos/bin_ directory by d
 - _taosdump_: data import and export tool
 - _taosBenchmark_: TDengine testing tool
 - _remove.sh_: script to uninstall TDengine, please execute it carefully, link to the **rmtaos** command in the /usr/bin directory. Will remove the TDengine installation directory `/usr/local/taos`, but will keep `/etc/taos`, `/var/lib/taos`, `/var/log/taos`
-- _taosadapter_: server-side executable that provides RESTful services and accepts writing requests from a variety of other softwares
+- _taosadapter_: server-side executable that provides RESTful services and accepts writing requests from a variety of other software
 - _TDinsight.sh_: script to download TDinsight and install it
 - _set_core.sh_: script for setting up the system to generate core dump files for easy debugging
 - _taosd-dump-cfg.gdb_: script to facilitate debugging of taosd's gdb execution.

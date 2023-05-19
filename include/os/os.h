@@ -27,7 +27,11 @@ extern "C" {
 
 #if !defined(WINDOWS)
 #include <dirent.h>
+
+#if !defined(_ALPINE)
 #include <execinfo.h>
+#endif
+
 #include <libgen.h>
 #include <sched.h>
 #include <unistd.h>
@@ -116,6 +120,7 @@ extern "C" {
 #include "osTimer.h"
 #include "osTimezone.h"
 #include "taoserror.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 }

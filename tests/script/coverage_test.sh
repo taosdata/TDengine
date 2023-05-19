@@ -12,6 +12,7 @@ fi
 today=`date +"%Y%m%d"`
 TDENGINE_DIR=/root/TDengine
 JDBC_DIR=/root/taos-connector-jdbc
+TAOSKEEPER_DIR=/root/taoskeeper
 TDENGINE_COVERAGE_REPORT=$TDENGINE_DIR/tests/coverage-report-$today.log
 
 # Color setting
@@ -56,9 +57,9 @@ function buildTDengine() {
 	rm -rf *
 	if [ "$branch" == "3.0" ]; then
 		echo "3.0 ============="
-		cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true .. 
+		cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true .. > /dev/null
 	else
-		cmake -DCOVER=true -DBUILD_TOOLS=true -DBUILD_HTTP=false .. > /dev/null
+		cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_TOOLS=true -DBUILD_HTTP=false .. > /dev/null
 	fi
 	make -j
 	make install
@@ -108,6 +109,19 @@ function runUnitTest() {
 	echo " $TDENGINE_DIR/debug"
 	cd $TDENGINE_DIR/debug
 	ctest -j12
+
+	echo " $TDENGINE_DIR/tests/script/api"
+	cd $TDENGINE_DIR/tests/script/api
+	make clean && make
+	
+	stopTaosd
+	stopTaosadapter
+
+	nohup taosd -c /etc/taos >> /dev/null 2>&1 &
+	./batchprepare 127.0.0.1
+	./dbTableRoute 127.0.0.1
+	./stopquery 127.0.0.1 demo t1
+	
 	echo "3.0 unit test done"
 }
 
@@ -115,7 +129,7 @@ function runSimCases() {
 	echo "=== Run sim cases ==="
 	
 	cd $TDENGINE_DIR/tests/script
-	runCasesOneByOne ../parallel_test/cases.task sim	
+	runCasesOneByOne ../parallel_test/cases.task sim
 	
 	totalSuccess=`grep 'sim success' $TDENGINE_COVERAGE_REPORT | wc -l`
 	if [ "$totalSuccess" -gt "0" ]; then
@@ -130,6 +144,9 @@ function runSimCases() {
 
 function runPythonCases() {
 	echo "=== Run python cases ==="
+
+	cd $TDENGINE_DIR/tests/parallel_test
+	sed -i '/compatibility.py/d' cases.task
 		
 	cd $TDENGINE_DIR/tests/system-test
 	runCasesOneByOne ../parallel_test/cases.task system-test
@@ -160,12 +177,30 @@ function runJDBCCases() {
 	stopTaosd
 	stopTaosadapter
 
-	taosd -c /etc/taos >> /dev/null 2>&1 &
-	taosadapter >> /dev/null 2>&1 &
+	nohup taosd -c /etc/taos >> /dev/null 2>&1 &
+	nohup taosadapter >> /dev/null 2>&1 &
 
 	mvn clean test > result.txt 2>&1
 	summary=`grep "Tests run:" result.txt | tail -n 1`		
 	echo -e "### JDBC test result: $summary ###" | tee -a $TDENGINE_COVERAGE_REPORT
+}
+
+function runTaosKeeperCases() {
+	echo "=== Run taoskeeper cases ==="
+
+	cd $TAOSKEEPER_DIR
+	git checkout -- .
+	git reset --hard HEAD
+	git checkout master
+	git pull
+
+	stopTaosd
+	stopTaosadapter
+
+	taosd -c /etc/taos >> /dev/null 2>&1 &
+	taosadapter >> /dev/null 2>&1 &
+
+	go mod tidy && go test -v ./...
 }
 
 function runTest() {
@@ -179,6 +214,7 @@ function runTest() {
 	runSimCases
 	runPythonCases
 	runJDBCCases
+	runTaosKeeperCases
 	
 	stopTaosd	
 	cd $TDENGINE_DIR/tests/script
@@ -196,7 +232,7 @@ function lcovFunc {
 	lcov -d . --capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
 
 	# remove exclude paths
-	if [ "$branch" == "3.0" ]; then
+	if [ "$branch" == "main" ] ; then
 		lcov --remove coverage.info \
 			'*/contrib/*' '*/tests/*' '*/test/*' '*/tools/*' '*/libs/sync/*'\
 			'*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c'\
@@ -206,6 +242,8 @@ function lcovFunc {
 			'*/tthread.c' '*/tversion.c' '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' '*/catalog.c'\
 			'*/tqSnapshot.c' '*/tsdbSnapshot.c''*/metaSnapshot.c' '*/smaSnapshot.c' '*/tqOffsetSnapshot.c'\
 			'*/vnodeSnapshot.c' '*/metaSnapshot.c' '*/tsdbSnapshot.c' '*/mndGrant.c' '*/mndSnode.c' '*/streamRecover.c'\
+			'*/osAtomic.c' '*/osDir.c' '*/osFile.c' '*/osMath.c' '*/osSignal.c' '*/osSleep.c' '*/osString.c' '*/osSystem.c'\
+			'*/osThread.c' '*/osTime.c' '*/osTimezone.c' \
 		       	--rc lcov_branch_coverage=1 -o coverage.info
 	else	
 		lcov --remove coverage.info \

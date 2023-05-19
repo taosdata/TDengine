@@ -43,7 +43,7 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   pSender->sendingMS = SYNC_SNAPSHOT_RETRY_MS;
   pSender->pSyncNode = pSyncNode;
   pSender->replicaIndex = replicaIndex;
-  pSender->term = pSyncNode->raftStore.currentTerm;
+  pSender->term = raftStoreGetTerm(pSyncNode);
   pSender->startTime = 0;
   pSender->endTime = 0;
   pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
@@ -90,7 +90,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
 
   memset(&pSender->lastConfig, 0, sizeof(pSender->lastConfig));
   pSender->sendingMS = 0;
-  pSender->term = pSender->pSyncNode->raftStore.currentTerm;
+  pSender->term = raftStoreGetTerm(pSender->pSyncNode);
   pSender->startTime = taosGetTimestampMs();
   pSender->lastSendTime = pSender->startTime;
   pSender->finish = false;
@@ -105,7 +105,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = pSender->pSyncNode->raftStore.currentTerm;
+  pMsg->term = raftStoreGetTerm(pSender->pSyncNode);
   pMsg->beginIndex = pSender->snapshotParam.start;
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
@@ -168,24 +168,26 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
 
   if (pSender->blockLen > 0) {
     // has read data
-    sSDebug(pSender, "snapshot sender continue to read, blockLen:%d seq:%d", pSender->blockLen, pSender->seq);
+    sSDebug(pSender, "vgId:%d, snapshot sender continue to read, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
+            pSender->blockLen, pSender->seq);
   } else {
     // read finish, update seq to end
     pSender->seq = SYNC_SNAPSHOT_SEQ_END;
-    sSInfo(pSender, "snapshot sender read to the end, blockLen:%d seq:%d", pSender->blockLen, pSender->seq);
+    sSInfo(pSender, "vgId:%d, snapshot sender read to the end, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
+           pSender->blockLen, pSender->seq);
   }
 
   // build msg
   SRpcMsg rpcMsg = {0};
   if (syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId) != 0) {
-    sSError(pSender, "snapshot sender build msg failed since %s", pSender->pSyncNode->vgId, terrstr());
+    sSError(pSender, "vgId:%d, snapshot sender build msg failed since %s", pSender->pSyncNode->vgId, terrstr());
     return -1;
   }
 
   SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = pSender->pSyncNode->raftStore.currentTerm;
+  pMsg->term = raftStoreGetTerm(pSender->pSyncNode);
   pMsg->beginIndex = pSender->snapshotParam.start;
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
@@ -226,7 +228,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   SyncSnapshotSend *pMsg = rpcMsg.pCont;
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = pSender->pSyncNode->raftStore.currentTerm;
+  pMsg->term = raftStoreGetTerm(pSender->pSyncNode);
   pMsg->beginIndex = pSender->snapshotParam.start;
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
@@ -314,7 +316,7 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId from
   pReceiver->pWriter = NULL;
   pReceiver->pSyncNode = pSyncNode;
   pReceiver->fromId = fromId;
-  pReceiver->term = pSyncNode->raftStore.currentTerm;
+  pReceiver->term = raftStoreGetTerm(pSyncNode);
   pReceiver->snapshot.data = NULL;
   pReceiver->snapshot.lastApplyIndex = SYNC_INDEX_INVALID;
   pReceiver->snapshot.lastApplyTerm = 0;
@@ -340,11 +342,13 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
   taosMemoryFree(pReceiver);
 }
 
-bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) { return pReceiver->start; }
+bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) {
+  return (pReceiver != NULL ? pReceiver->start : false);
+}
 
 static int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
   if (pReceiver->pWriter != NULL) {
-    sRError(pReceiver, "vgId:%d, snapshot receiver writer is not null");
+    sRError(pReceiver, "vgId:%d, snapshot receiver writer is not null", pReceiver->pSyncNode->vgId);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
@@ -380,7 +384,7 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
 
   pReceiver->start = true;
   pReceiver->ack = SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT;
-  pReceiver->term = pReceiver->pSyncNode->raftStore.currentTerm;
+  pReceiver->term = raftStoreGetTerm(pReceiver->pSyncNode);
   pReceiver->fromId = pPreMsg->srcId;
   pReceiver->startTime = pPreMsg->startTime;
 
@@ -437,9 +441,8 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     }
 
     // maybe update term
-    if (pReceiver->snapshot.lastApplyTerm > pReceiver->pSyncNode->raftStore.currentTerm) {
-      pReceiver->pSyncNode->raftStore.currentTerm = pReceiver->snapshot.lastApplyTerm;
-      (void)raftStoreWriteFile(pReceiver->pSyncNode);
+    if (pReceiver->snapshot.lastApplyTerm > raftStoreGetTerm(pReceiver->pSyncNode)) {
+      raftStoreSetTerm(pReceiver->pSyncNode, pReceiver->snapshot.lastApplyTerm);
     }
 
     // stop writer, apply data
@@ -584,7 +587,7 @@ _SEND_REPLY:
   SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
   pRspMsg->srcId = pSyncNode->myRaftId;
   pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = pSyncNode->raftStore.currentTerm;
+  pRspMsg->term = raftStoreGetTerm(pSyncNode);
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pReceiver->startTime;
@@ -640,7 +643,7 @@ _SEND_REPLY:
   SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
   pRspMsg->srcId = pSyncNode->myRaftId;
   pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = pSyncNode->raftStore.currentTerm;
+  pRspMsg->term = raftStoreGetTerm(pSyncNode);
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pReceiver->startTime;
@@ -690,7 +693,7 @@ static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend 
   SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
   pRspMsg->srcId = pSyncNode->myRaftId;
   pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = pSyncNode->raftStore.currentTerm;
+  pRspMsg->term = raftStoreGetTerm(pSyncNode);
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pReceiver->startTime;
@@ -737,7 +740,7 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
   SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
   pRspMsg->srcId = pSyncNode->myRaftId;
   pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = pSyncNode->raftStore.currentTerm;
+  pRspMsg->term = raftStoreGetTerm(pSyncNode);
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pReceiver->startTime;
@@ -786,21 +789,20 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     return -1;
   }
 
-  if (pMsg->term < pSyncNode->raftStore.currentTerm) {
+  if (pMsg->term < raftStoreGetTerm(pSyncNode)) {
     syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "reject since small term");
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
 
-  if (pMsg->term > pSyncNode->raftStore.currentTerm) {
+  if (pMsg->term > raftStoreGetTerm(pSyncNode)) {
     syncNodeStepDown(pSyncNode, pMsg->term);
   }
-  syncNodeResetElectTimer(pSyncNode);
 
   // state, term, seq/ack
   int32_t code = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
-    if (pMsg->term == pSyncNode->raftStore.currentTerm) {
+    if (pMsg->term == raftStoreGetTerm(pSyncNode)) {
       if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT) {
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq pre-snapshot");
         code = syncNodeOnSnapshotPrep(pSyncNode, pMsg);
@@ -837,6 +839,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     code = -1;
   }
 
+  syncNodeResetElectTimer(pSyncNode);
   return code;
 }
 
@@ -852,8 +855,8 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
          pMsg->snapBeginIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
 
   if (pMsg->snapBeginIndex > snapshot.lastApplyIndex) {
-    sSError(pSender, "prepare snapshot failed since beginIndex:%d larger than applyIndex:%d", pMsg->snapBeginIndex,
-            snapshot.lastApplyIndex);
+    sSError(pSender, "prepare snapshot failed since beginIndex:%" PRId64 " larger than applyIndex:%" PRId64,
+            pMsg->snapBeginIndex, snapshot.lastApplyIndex);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
@@ -884,7 +887,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   SyncSnapshotSend *pSendMsg = rpcMsg.pCont;
   pSendMsg->srcId = pSender->pSyncNode->myRaftId;
   pSendMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pSendMsg->term = pSender->pSyncNode->raftStore.currentTerm;
+  pSendMsg->term = raftStoreGetTerm(pSender->pSyncNode);
   pSendMsg->beginIndex = pSender->snapshotParam.start;
   pSendMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pSendMsg->lastTerm = pSender->snapshot.lastApplyTerm;
@@ -943,10 +946,11 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     goto _ERROR;
   }
 
-  if (pMsg->term != pSyncNode->raftStore.currentTerm) {
+  SyncTerm currentTerm = raftStoreGetTerm(pSyncNode);
+  if (pMsg->term != currentTerm) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender and receiver term not match");
     sSError(pSender, "snapshot sender term not equal, msg term:%" PRId64 " currentTerm:%" PRId64, pMsg->term,
-            pSyncNode->raftStore.currentTerm);
+            currentTerm);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _ERROR;
   }
@@ -966,7 +970,8 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
   if (pSender->pReader == NULL || pSender->finish) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender invalid");
-    sSError(pSender, "snapshot sender invalid, pReader:%p finish:%d", pMsg->code, pSender->pReader, pSender->finish);
+    sSError(pSender, "snapshot sender invalid error:%s 0x%x, pReader:%p finish:%d", tstrerror(pMsg->code), pMsg->code,
+            pSender->pReader, pSender->finish);
     terrno = pMsg->code;
     goto _ERROR;
   }
@@ -987,8 +992,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq end");
     snapshotSenderStop(pSender, true);
-    SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-    syncLogReplMgrReset(pMgr);
+    syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
     return 0;
   }
 
@@ -1013,8 +1017,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "receive error ack");
     sSError(pSender, "snapshot sender receive error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
     snapshotSenderStop(pSender, true);
-    SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-    syncLogReplMgrReset(pMgr);
+    syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
     return -1;
   }
 
@@ -1022,8 +1025,6 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
 _ERROR:
   snapshotSenderStop(pSender, true);
-  SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-  syncLogReplMgrReset(pMgr);
-
+  syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
   return -1;
 }

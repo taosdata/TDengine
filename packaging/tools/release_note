@@ -72,7 +72,7 @@ New Features:
  
 taos-1.4.13 (Released on 2018-12-14)
 Bugs Fixed:
-    - Clients failed to connect to server due to unexpected and invalid packets recieved by the server.
+    - Clients failed to connect to server due to unexpected and invalid packets received by the server.
 Features Added:
     - Add support to HikariCP in TSDB JDBC driver.
 

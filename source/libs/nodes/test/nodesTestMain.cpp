@@ -28,7 +28,7 @@ static EDealRes rewriterTest(SNode** pNode, void* pContext) {
     }
     SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
     string tmp = to_string(stoi(((SValueNode*)(pOp->pLeft))->literal) + stoi(((SValueNode*)(pOp->pRight))->literal));
-    pVal->literal = strdup(tmp.c_str());
+    pVal->literal = taosStrdup(tmp.c_str());
     nodesDestroyNode(*pNode);
     *pNode = (SNode*)pVal;
   }
@@ -40,12 +40,12 @@ TEST(NodesTest, traverseTest) {
   SOperatorNode* pOp = (SOperatorNode*)pRoot;
   SOperatorNode* pLeft = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
   pLeft->pLeft = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
-  ((SValueNode*)(pLeft->pLeft))->literal = strdup("10");
+  ((SValueNode*)(pLeft->pLeft))->literal = taosStrdup("10");
   pLeft->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
-  ((SValueNode*)(pLeft->pRight))->literal = strdup("5");
+  ((SValueNode*)(pLeft->pRight))->literal = taosStrdup("5");
   pOp->pLeft = (SNode*)pLeft;
   pOp->pRight = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
-  ((SValueNode*)(pOp->pRight))->literal = strdup("3");
+  ((SValueNode*)(pOp->pRight))->literal = taosStrdup("3");
 
   EXPECT_EQ(nodeType(pRoot), QUERY_NODE_OPERATOR);
   EDealRes res = DEAL_RES_CONTINUE;

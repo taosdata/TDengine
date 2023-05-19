@@ -100,7 +100,10 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
     break;
   }
 
-  ASSERT(pData && nData);
+  if (!pData || !nData) {
+    metaError("meta/snap: invalide nData: %" PRId32 " meta snap read failed.", nData);
+    goto _exit;
+  }
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nData);
   if (*ppData == NULL) {
@@ -184,23 +187,24 @@ _err:
 
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t    code = 0;
+  int32_t    line = 0;
   SMeta*     pMeta = pWriter->pMeta;
   SMetaEntry metaEntry = {0};
   SDecoder*  pDecoder = &(SDecoder){0};
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = metaDecodeEntry(pDecoder, &metaEntry);
-  if (code) goto _err;
+  VND_CHECK_CODE(code, line, _err);
 
   code = metaHandleEntry(pMeta, &metaEntry);
-  if (code) goto _err;
+  VND_CHECK_CODE(code, line, _err);
 
   tDecoderClear(pDecoder);
   return code;
 
 _err:
   tDecoderClear(pDecoder);
-  metaError("vgId:%d, vnode snapshot meta write failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d, vnode snapshot meta write failed since %s at line:%d", TD_VID(pMeta->pVnode), terrstr(), line);
   return code;
 }
 
@@ -213,8 +217,8 @@ typedef struct STableInfoForChildTable {
 static void destroySTableInfoForChildTable(void* data) {
   STableInfoForChildTable* pData = (STableInfoForChildTable*)data;
   taosMemoryFree(pData->tableName);
-  tDeleteSSchemaWrapper(pData->schemaRow);
-  tDeleteSSchemaWrapper(pData->tagRow);
+  tDeleteSchemaWrapper(pData->schemaRow);
+  tDeleteSchemaWrapper(pData->tagRow);
 }
 
 static void MoveToSnapShotVersion(SSnapContext* ctx) {
@@ -249,7 +253,7 @@ static void saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) 
     return;
   }
   STableInfoForChildTable dataTmp = {0};
-  dataTmp.tableName = strdup(me->name);
+  dataTmp.tableName = taosStrdup(me->name);
 
   dataTmp.schemaRow = tCloneSSchemaWrapper(&me->stbEntry.schemaRow);
   dataTmp.tagRow = tCloneSSchemaWrapper(&me->stbEntry.schemaTag);
@@ -265,7 +269,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
   ctx->snapVersion = snapVersion;
   ctx->suid = suid;
   ctx->subType = subType;
-  ctx->queryMetaOrData = withMeta;
+  ctx->queryMeta = withMeta;
   ctx->withMeta = withMeta;
   ctx->idVersion = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->idVersion == NULL) {
@@ -358,7 +362,11 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
   for (int i = 0; i < taosArrayGetSize(ctx->idList); i++) {
     int64_t* uid = taosArrayGet(ctx->idList, i);
     SIdInfo* idData = (SIdInfo*)taosHashGet(ctx->idVersion, uid, sizeof(int64_t));
-    ASSERT(idData);
+    if (!idData) {
+      metaError("meta/snap: null idData");
+      return TSDB_CODE_FAILED;
+    }
+
     idData->index = i;
     metaDebug("tmqsnap init idVersion uid:%" PRIi64 " version:%" PRIi64 " index:%d", *uid, idData->version,
               idData->index);
@@ -468,14 +476,17 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
     if (ctx->index >= taosArrayGetSize(ctx->idList)) {
       metaDebug("tmqsnap get meta end");
       ctx->index = 0;
-      ctx->queryMetaOrData = false;  // change to get data
+      ctx->queryMeta = false;  // change to get data
       return 0;
     }
 
     int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
     ctx->index++;
     SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
-    ASSERT(idInfo);
+    if (!idInfo) {
+      metaError("meta/snap: null idInfo");
+      return TSDB_CODE_FAILED;
+    }
 
     *uid = *uidTmp;
     ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
@@ -509,7 +520,11 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
              (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.type == TSDB_CHILD_TABLE && me.ctbEntry.suid == ctx->suid)) {
     STableInfoForChildTable* data =
         (STableInfoForChildTable*)taosHashGet(ctx->suidInfo, &me.ctbEntry.suid, sizeof(tb_uid_t));
-    ASSERT(data);
+    if (!data) {
+      metaError("meta/snap: null data");
+      return TSDB_CODE_FAILED;
+    }
+
     SVCreateTbReq req = {0};
 
     req.type = TSDB_CHILD_TABLE;
@@ -530,7 +545,8 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
     } else {
       SArray* pTagVals = NULL;
       if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
-        ASSERT(0);
+        metaError("meta/snap: tag to val array failed.");
+        return TSDB_CODE_FAILED;
       }
       int16_t nCols = taosArrayGetSize(pTagVals);
       for (int j = 0; j < nCols; ++j) {
@@ -574,7 +590,8 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
   } else {
-    ASSERT(0);
+    metaError("meta/snap: invalid topic sub type: %" PRId8 " get meta from snap failed.", ctx->subType);
+    ret = -1;
   }
   tDecoderClear(&dc);
 
@@ -595,7 +612,10 @@ SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx) {
     int64_t* uidTmp = taosArrayGet(ctx->idList, ctx->index);
     ctx->index++;
     SIdInfo* idInfo = (SIdInfo*)taosHashGet(ctx->idVersion, uidTmp, sizeof(tb_uid_t));
-    ASSERT(idInfo);
+    if (!idInfo) {
+      metaError("meta/snap: null idInfo");
+      return result;
+    }
 
     int32_t ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
     if (ret != 0) {

@@ -175,7 +175,7 @@ int32_t tsdbCommit(STsdb *pTsdb, SCommitInfo *pInfo) {
     pTsdb->imem = NULL;
     taosThreadRwlockUnlock(&pTsdb->rwLock);
 
-    tsdbUnrefMemTable(pMemTable);
+    tsdbUnrefMemTable(pMemTable, NULL, true);
     goto _exit;
   }
 
@@ -913,24 +913,24 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   // reader
   taosArrayDestroy(pCommitter->dReader.aBlockIdx);
   tMapDataClear(&pCommitter->dReader.mBlock);
-  tBlockDataDestroy(&pCommitter->dReader.bData, 1);
+  tBlockDataDestroy(&pCommitter->dReader.bData);
 
   // merger
   for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     taosArrayDestroy(pIter->aSttBlk);
-    tBlockDataDestroy(&pIter->bData, 1);
+    tBlockDataDestroy(&pIter->bData);
   }
 
   // writer
   taosArrayDestroy(pCommitter->dWriter.aBlockIdx);
   taosArrayDestroy(pCommitter->dWriter.aSttBlk);
   tMapDataClear(&pCommitter->dWriter.mBlock);
-  tBlockDataDestroy(&pCommitter->dWriter.bData, 1);
+  tBlockDataDestroy(&pCommitter->dWriter.bData);
 #if USE_STREAM_COMPRESSION
   tDiskDataBuilderDestroy(pCommitter->dWriter.pBuilder);
 #else
-  tBlockDataDestroy(&pCommitter->dWriter.bDatal, 1);
+  tBlockDataDestroy(&pCommitter->dWriter.bDatal);
 #endif
   tDestroyTSchema(pCommitter->skmTable.pTSchema);
   tDestroyTSchema(pCommitter->skmRow.pTSchema);
@@ -1183,7 +1183,6 @@ static int32_t tsdbCommitAheadBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
 
   tBlockDataClear(pBlockData);
   while (pRowInfo) {
-    ASSERT(pRowInfo->row.type == 0);
     code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1251,7 +1250,6 @@ static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
         pRow = NULL;
       }
     } else if (c > 0) {
-      ASSERT(pRowInfo->row.type == 0);
       code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
       TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1493,7 +1491,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
 
     while (pRowInfo) {
       STSchema *pTSchema = NULL;
-      if (pRowInfo->row.type == 0) {
+      if (pRowInfo->row.type == TSDBROW_ROW_FMT) {
         code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
         TSDB_CHECK_CODE(code, lino, _exit);
         pTSchema = pCommitter->skmRow.pTSchema;
@@ -1536,7 +1534,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
 
     while (pRowInfo) {
       STSchema *pTSchema = NULL;
-      if (pRowInfo->row.type == 0) {
+      if (pRowInfo->row.type == TSDBROW_ROW_FMT) {
         code = tsdbCommitterUpdateRowSchema(pCommitter, id.suid, id.uid, TSDBROW_SVERSION(&pRowInfo->row));
         TSDB_CHECK_CODE(code, lino, _exit);
         pTSchema = pCommitter->skmRow.pTSchema;
@@ -1666,7 +1664,7 @@ int32_t tsdbFinishCommit(STsdb *pTsdb) {
   // unlock
   taosThreadRwlockUnlock(&pTsdb->rwLock);
   if (pMemTable) {
-    tsdbUnrefMemTable(pMemTable);
+    tsdbUnrefMemTable(pMemTable, NULL, true);
   }
 
 _exit:

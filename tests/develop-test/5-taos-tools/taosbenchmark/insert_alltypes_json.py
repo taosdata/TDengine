@@ -30,6 +30,8 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def getPath(self, tool="taosBenchmark"):
+        if (platform.system().lower() == 'windows'):
+            tool = tool + ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -320,7 +322,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 160)
         tdSql.query("select count(*) from db.stb where t13 like 'b1%' or t13 like 'b2%'")
         tdSql.checkData(0, 0, 160)
-
+        
         tAdapter.stop()
 
     def stop(self):

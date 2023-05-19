@@ -847,7 +847,7 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
-  colDataAppend(pCol, pBlock->info.rows, res, false);
+  colDataSetVal(pCol, pBlock->info.rows, res, false);
 
   taosMemoryFree(res);
   return pResInfo->numOfRes;

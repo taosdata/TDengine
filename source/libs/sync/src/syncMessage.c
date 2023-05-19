@@ -22,7 +22,7 @@ int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t l
                          SSyncNode* pNode) {
   int32_t bytes = sizeof(SyncTimeout);
   pMsg->pCont = rpcMallocCont(bytes);
-  pMsg->msgType = TDMT_SYNC_TIMEOUT;
+  pMsg->msgType = (timeoutType == SYNC_TIMEOUT_ELECTION) ? TDMT_SYNC_TIMEOUT_ELECTION : TDMT_SYNC_TIMEOUT;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -31,7 +31,7 @@ int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t l
 
   SyncTimeout* pTimeout = pMsg->pCont;
   pTimeout->bytes = bytes;
-  pTimeout->msgType = TDMT_SYNC_TIMEOUT;
+  pTimeout->msgType = pMsg->msgType;
   pTimeout->vgId = pNode->vgId;
   pTimeout->timeoutType = timeoutType;
   pTimeout->logicClock = logicClock;
@@ -176,7 +176,7 @@ int32_t syncBuildAppendEntriesFromRaftEntry(SSyncNode* pNode, SSyncRaftEntry* pE
   pMsg->prevLogTerm = prevLogTerm;
   pMsg->vgId = pNode->vgId;
   pMsg->srcId = pNode->myRaftId;
-  pMsg->term = pNode->raftStore.currentTerm;
+  pMsg->term = raftStoreGetTerm(pNode);
   pMsg->commitIndex = pNode->commitIndex;
   pMsg->privateTerm = 0;
   return 0;

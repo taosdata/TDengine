@@ -116,8 +116,6 @@ int32_t cleanupTaskQueue() {
 }
 
 static void execHelper(struct SSchedMsg* pSchedMsg) {
-  assert(pSchedMsg != NULL && pSchedMsg->ahandle != NULL);
-
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
   int32_t           code = execFn(pSchedMsg->thandle);
   if (code != 0 && pSchedMsg->msg != NULL) {
@@ -126,8 +124,6 @@ static void execHelper(struct SSchedMsg* pSchedMsg) {
 }
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
-  assert(execFn != NULL);
-
   SSchedMsg schedMsg = {0};
   schedMsg.fp = execHelper;
   schedMsg.ahandle = execFn;
@@ -138,7 +134,10 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
-  assert(pMsgBody != NULL);
+  if (NULL == pMsgBody) {
+    return;
+  }
+  
   taosMemoryFreeClear(pMsgBody->target.dbFName);
   taosMemoryFreeClear(pMsgBody->msgInfo.pData);
   if (pMsgBody->paramFreeFp) {
@@ -195,6 +194,8 @@ char* jobTaskStatusStr(int32_t status) {
       return "EXECUTING";
     case JOB_TASK_STATUS_PART_SUCC:
       return "PARTIAL_SUCCEED";
+    case JOB_TASK_STATUS_FETCH:
+      return "FETCHING";
     case JOB_TASK_STATUS_SUCC:
       return "SUCCEED";
     case JOB_TASK_STATUS_FAIL:
@@ -243,7 +244,8 @@ void destroyQueryExecRes(SExecResult* pRes) {
       break;
     }
     case TDMT_VND_SUBMIT: {
-      tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
+      tDestroySSubmitRsp2((SSubmitRsp2*)pRes->res, TSDB_MSG_FLG_DECODE);
+      taosMemoryFreeClear(pRes->res);
       break;
     }
     case TDMT_SCH_QUERY: 
@@ -393,7 +395,7 @@ char* parseTagDatatoJson(void* p) {
       } else if (pTagVal->nData == 0) {
         value = cJSON_CreateString("");
       } else {
-        ASSERT(0);
+        goto end;
       }
 
       cJSON_AddItemToObject(json, tagJsonKey, value);
@@ -412,7 +414,7 @@ char* parseTagDatatoJson(void* p) {
       }
       cJSON_AddItemToObject(json, tagJsonKey, value);
     } else {
-      ASSERT(0);
+      goto end;
     }
   }
   string = cJSON_PrintUnformatted(json);
@@ -420,7 +422,7 @@ end:
   cJSON_Delete(json);
   taosArrayDestroy(pTagVals);
   if (string == NULL) {
-    string = strdup(TSDB_DATA_NULL_STR_L);
+    string = taosStrdup(TSDB_DATA_NULL_STR_L);
   }
   return string;
 }
@@ -447,7 +449,6 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 void freeVgInfo(SDBVgInfo* vgInfo) {
   if (NULL == vgInfo) {
     return;
@@ -458,7 +459,6 @@ void freeVgInfo(SDBVgInfo* vgInfo) {
 
   taosMemoryFreeClear(vgInfo);
 }
-
 
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
   if (NULL == pSrc) {
@@ -498,3 +498,61 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
+  if (NULL == pSrc) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pDst = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+  if (NULL == *pDst) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pDst)->flags = pSrc->flags;
+  if (pSrc->name) {
+    (*pDst)->name = taosStrdup(pSrc->name);
+  }
+  (*pDst)->uid = pSrc->uid;
+  (*pDst)->ctime = pSrc->ctime;
+  (*pDst)->ttl = pSrc->ttl;
+  (*pDst)->commentLen = pSrc->commentLen;
+  if (pSrc->comment) {
+    (*pDst)->comment = taosStrdup(pSrc->comment);
+  }
+  (*pDst)->type = pSrc->type;
+
+  if (pSrc->type == TSDB_CHILD_TABLE) {
+    if (pSrc->ctb.stbName) {
+      (*pDst)->ctb.stbName = taosStrdup(pSrc->ctb.stbName);
+    }
+    (*pDst)->ctb.tagNum = pSrc->ctb.tagNum;
+    (*pDst)->ctb.suid = pSrc->ctb.suid;
+    if (pSrc->ctb.tagName) {
+      (*pDst)->ctb.tagName = taosArrayDup(pSrc->ctb.tagName, NULL);
+    }
+    STag* pTag = (STag*)pSrc->ctb.pTag;
+    if (pTag) {
+      (*pDst)->ctb.pTag = taosMemoryMalloc(pTag->len);
+      memcpy((*pDst)->ctb.pTag, pTag, pTag->len);
+    }
+  } else {
+    (*pDst)->ntb.schemaRow.nCols = pSrc->ntb.schemaRow.nCols;
+    (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.nCols;
+    if (pSrc->ntb.schemaRow.nCols > 0 && pSrc->ntb.schemaRow.pSchema) {
+      (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+      memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void freeDbCfgInfo(SDbCfgInfo *pInfo) {
+  if (pInfo) {
+    taosArrayDestroy(pInfo->pRetensions);
+  }
+  taosMemoryFree(pInfo);
+}
+

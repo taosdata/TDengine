@@ -59,11 +59,11 @@ char *taosCharsetReplace(char *charsetstr) {
 
   for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
     if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
-      return strdup(charsetRep[i].newCharset);
+      return taosStrdup(charsetRep[i].newCharset);
     }
   }
 
-  return strdup(charsetstr);
+  return taosStrdup(charsetstr);
 }
 
 /**
@@ -71,7 +71,7 @@ char *taosCharsetReplace(char *charsetstr) {
  *  seems does not response as expected.
  *
  * In some Linux systems, setLocale(LC_CTYPE, "") may return NULL, in which case the launch of
- * both the TDengine Server and the Client may be interrupted.
+ * both the Server and the Client may be interrupted.
  *
  * In case that the setLocale failed to be executed, the right charset needs to be set.
  */
@@ -171,7 +171,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     strcpy(outLocale, "en_US.UTF-8");
   } else {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);
-    // printf("locale not configured, set to system default:%s", outLocale);
+    //printf("locale not configured, set to system default:%s\n", outLocale);
   }
 
   // if user does not specify the charset, extract it from locale

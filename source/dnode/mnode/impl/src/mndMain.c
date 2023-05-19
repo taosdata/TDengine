@@ -21,6 +21,7 @@
 #include "mndDnode.h"
 #include "mndFunc.h"
 #include "mndGrant.h"
+#include "mndIndex.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
@@ -123,15 +124,12 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_TMQ_TIMER,
-        .pCont = pReq,
-        .contLen = contLen,
-    };
+    SRpcMsg rpcMsg = { .msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen };
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
 
+#if 0
 static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   int32_t contLen = 0;
   void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
@@ -144,6 +142,7 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
+#endif
 
 static void mndPullupTelem(SMnode *pMnode) {
   mTrace("pullup telem msg");
@@ -319,7 +318,7 @@ static void mndCleanupTimer(SMnode *pMnode) {
 }
 
 static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
-  pMnode->path = strdup(path);
+  pMnode->path = taosStrdup(path);
   if (pMnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -341,8 +340,8 @@ static int32_t mndInitWal(SMnode *pMnode) {
       .fsyncPeriod = 0,
       .rollPeriod = -1,
       .segSize = -1,
-      .retentionPeriod = -1,
-      .retentionSize = -1,
+      .retentionPeriod = 0,
+      .retentionSize = 0,
       .level = TAOS_WAL_FSYNC,
   };
 
@@ -367,7 +366,6 @@ static int32_t mndInitSdb(SMnode *pMnode) {
   opt.path = pMnode->path;
   opt.pMnode = pMnode;
   opt.pWal = pMnode->pWal;
-  opt.sync = pMnode->syncMgmt.sync;
 
   pMnode->pSdb = sdbInit(&opt);
   if (pMnode->pSdb == NULL) {
@@ -378,11 +376,13 @@ static int32_t mndInitSdb(SMnode *pMnode) {
 }
 
 static int32_t mndOpenSdb(SMnode *pMnode) {
+  int32_t code = 0;
   if (!pMnode->deploy) {
-    return sdbReadFile(pMnode->pSdb);
-  } else {
-    return 0;
+    code = sdbReadFile(pMnode->pSdb);
   }
+
+  atomic_store_64(&pMnode->applied, pMnode->pSdb->commitIndex);
+  return code;
 }
 
 static void mndCleanupSdb(SMnode *pMnode) {
@@ -425,6 +425,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sma", mndInitSma, mndCleanupSma) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-idx", mndInitIdx, mndCleanupIdx) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-perfs", mndInitPerfs, mndCleanupPerfs) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
@@ -548,16 +549,7 @@ void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     syncLeaderTransfer(pMnode->syncMgmt.sync);
     syncPreStop(pMnode->syncMgmt.sync);
-#if 0
-    while (syncSnapshotRecving(pMnode->syncMgmt.sync)) {
-      mInfo("vgId:1, snapshot is recving");
-      taosMsleep(300);
-    }
-    while (syncSnapshotSending(pMnode->syncMgmt.sync)) {
-      mInfo("vgId:1, snapshot is sending");
-      taosMsleep(300);
-    }
-#endif
+    sdbWriteFile(pMnode->pSdb, 0);
   }
 }
 
@@ -657,7 +649,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
-           pMnode->stopped, state.restored, syncStr(state.restored));
+           pMnode->stopped, state.restored, syncStr(state.state));
     return -1;
   }
 
@@ -669,9 +661,9 @@ _OVER:
 
   mGDebug(
       "msg:%p, type:%s failed to process since %s, mnode restored:%d stopped:%d, sync restored:%d "
-      "role:%s, redirect numOfEps:%d inUse:%d",
+      "role:%s, redirect numOfEps:%d inUse:%d, type:%s",
       pMsg, TMSG_INFO(pMsg->msgType), terrstr(), pMnode->restored, pMnode->stopped, state.restored,
-      syncStr(state.restored), epSet.numOfEps, epSet.inUse);
+      syncStr(state.restored), epSet.numOfEps, epSet.inUse, TMSG_INFO(pMsg->msgType));
 
   if (epSet.numOfEps <= 0) return -1;
 
@@ -712,7 +704,10 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   } else if (code == 0) {
     mGTrace("msg:%p, successfully processed", pMsg);
   } else {
-    mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+    if (code == -1) {
+      code = terrno;
+    }
+    mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, tstrerror(code), pMsg->info.ahandle,
             TMSG_INFO(pMsg->msgType));
   }
 
@@ -762,6 +757,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   pClusterInfo->connections_total = mndGetNumOfConnections(pMnode);
   pClusterInfo->dbs_total = sdbGetSize(pSdb, SDB_DB);
   pClusterInfo->stbs_total = sdbGetSize(pSdb, SDB_STB);
+  pClusterInfo->topics_toal = sdbGetSize(pSdb, SDB_TOPIC);
+  pClusterInfo->streams_total = sdbGetSize(pSdb, SDB_STREAM);
 
   void *pIter = NULL;
   while (1) {
@@ -865,7 +862,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   }
 
   // grant info
-  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 86400000.0f;
+  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 1000;
   pGrantInfo->timeseries_total = pMnode->grant.timeseriesAllowed;
   if (pMnode->grant.expireTimeMS == 0) {
     pGrantInfo->expire_time = INT32_MAX;

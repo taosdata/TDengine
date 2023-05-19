@@ -109,9 +109,8 @@ static int32_t dmStartNodes(SDnode *pDnode) {
     }
   }
 
-  dInfo("TDengine initialized successfully");
-  dmReportStartup("TDengine", "initialized successfully");
-  
+  dInfo("The daemon initialized successfully");
+  dmReportStartup("The daemon", "initialized successfully");
   return 0;
 }
 
@@ -133,17 +132,21 @@ int32_t dmRunDnode(SDnode *pDnode) {
   int32_t count = 0;
   if (dmOpenNodes(pDnode) != 0) {
     dError("failed to open nodes since %s", terrstr());
+    dmCloseNodes(pDnode);
     return -1;
   }
 
   if (dmStartNodes(pDnode) != 0) {
     dError("failed to start nodes since %s", terrstr());
+    dmSetStatus(pDnode, DND_STAT_STOPPED);
+    dmStopNodes(pDnode);
+    dmCloseNodes(pDnode);
     return -1;
   }
 
   while (1) {
     if (pDnode->stop) {
-      dInfo("TDengine is about to stop");
+      dInfo("The daemon is about to stop");
       dmSetStatus(pDnode, DND_STAT_STOPPED);
       dmStopNodes(pDnode);
       dmCloseNodes(pDnode);

@@ -60,6 +60,8 @@ const char *sdbTableName(ESdbType type) {
       return "db";
     case SDB_FUNC:
       return "func";
+    case SDB_IDX:
+      return "idx";
     default:
       return "undefine";
   }
@@ -158,6 +160,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   if (insertFp != NULL) {
     code = (*insertFp)(pSdb, pRow->pObj);
     if (code != 0) {
+      if (terrno == 0) terrno = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       code = terrno;
       taosHashRemove(hash, pRow->pObj, keySize);
       sdbFreeRow(pSdb, pRow, false);
@@ -193,13 +196,13 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow *pOldRow = *ppOldRow;
   pOldRow->status = pRaw->status;
   sdbPrintOper(pSdb, pOldRow, "update");
-  sdbUnLock(pSdb, type);
 
   int32_t     code = 0;
   SdbUpdateFp updateFp = pSdb->updateFps[type];
   if (updateFp != NULL) {
     code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
+  sdbUnLock(pSdb, type);
 
   // sdbUnLock(pSdb, type);
   sdbFreeRow(pSdb, pNewRow, false);

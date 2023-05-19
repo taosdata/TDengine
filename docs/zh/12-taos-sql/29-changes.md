@@ -27,7 +27,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 | - | :------- | :-------- | :------- |
 | 1 | ALTER ACCOUNT | 废除 | 2.x中为企业版功能，3.0不再支持。语法暂时保留了，执行报“This statement is no longer supported”错误。
 | 2 | ALTER ALL DNODES | 新增 | 修改所有DNODE的参数。
-| 3 | ALTER DATABASE | 调整	| 废除<ul><li>QUORUM：写入需要的副本确认数。3.0版本使用STRICT来指定强一致还是弱一致。3.0.0版本STRICT暂不支持修改。</li><li>BLOCKS：VNODE使用的内存块数。3.0版本使用BUFFER来表示VNODE写入内存池的大小。</li><li>UPDATE：更新操作的支持模式。3.0版本所有数据库都支持部分列更新。</li><li>CACHELAST：缓存最新一行数据的模式。3.0版本用CACHEMODEL代替。</li><li>COMP：3.0版本暂不支持修改。<br/>新增</li><li>CACHEMODEL：表示是否在内存中缓存子表的最近数据。</li><li>CACHESIZE：表示缓存子表最近数据的内存大小。</li><li>WAL_FSYNC_PERIOD：代替原FSYNC参数。</li><li>WAL_LEVEL：代替原WAL参数。<br/>调整</li><li>REPLICA：3.0.0版本暂不支持修改。</li><li>KEEP：3.0版本新增支持带单位的设置方式。</li></ul>
+| 3 | ALTER DATABASE | 调整	| 废除<ul><li>QUORUM：写入需要的副本确认数。3.0 版本默认行为是强一致性，且不支持修改为弱一致性。</li><li>BLOCKS：VNODE使用的内存块数。3.0版本使用BUFFER来表示VNODE写入内存池的大小。</li><li>UPDATE：更新操作的支持模式。3.0版本所有数据库都支持部分列更新。</li><li>CACHELAST：缓存最新一行数据的模式。3.0版本用CACHEMODEL代替。</li><li>COMP：3.0版本暂不支持修改。</li><br/>新增<li>CACHEMODEL：表示是否在内存中缓存子表的最近数据。</li><li>CACHESIZE：表示缓存子表最近数据的内存大小。</li><li>WAL_FSYNC_PERIOD：代替原FSYNC参数。</li><li>WAL_LEVEL：代替原WAL参数。</li><li>WAL_RETENTION_PERIOD：3.0.4.0版本新增，wal文件的额外保留策略，用于数据订阅。</li><li>WAL_RETENTION_SIZE：3.0.4.0版本新增，wal文件的额外保留策略，用于数据订阅。<br/>调整</li><li>REPLICA：3.0.0版本暂不支持修改。</li><li>KEEP：3.0版本新增支持带单位的设置方式。</li></ul>
 | 4 | ALTER STABLE | 调整 | 废除<ul><li>CHANGE TAG：修改标签列的名称。3.0版本使用RENAME TAG代替。<br/>新增</li><li>RENAME TAG：代替原CHANGE TAG子句。</li><li>COMMENT：修改超级表的注释。</li></ul>
 | 5 | ALTER TABLE | 调整 | 废除<ul><li>CHANGE TAG：修改标签列的名称。3.0版本使用RENAME TAG代替。<br/>新增</li><li>RENAME TAG：代替原CHANGE TAG子句。</li><li>COMMENT：修改表的注释。</li><li>TTL：修改表的生命周期。</li></ul>
 | 6 | ALTER USER | 调整 | 废除<ul><li>PRIVILEGE：修改用户权限。3.0版本使用GRANT和REVOKE来授予和回收权限。<br/>新增</li><li>ENABLE：启用或停用此用户。</li><li>SYSINFO：修改用户是否可查看系统信息。</li></ul>
@@ -54,7 +54,6 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 27 | GRANT | 新增 | 授予用户权限。
 | 28 | KILL TRANSACTION | 新增 | 终止管理节点的事务。
 | 29 | KILL STREAM | 废除 | 终止连续查询。3.0版本不再支持连续查询，而是用更通用的流计算来代替。
-| 30 | MERGE VGROUP | 新增 | 合并VGROUP。
 | 31 | REVOKE | 新增 | 回收用户权限。
 | 32 | SELECT	| 调整 | <ul><li>SELECT关闭隐式结果列，输出列均需要由SELECT子句来指定。</li><li>DISTINCT功能全面支持。2.x版本只支持对标签列去重，并且不可以和JOIN、GROUP BY等子句混用。</li><li>JOIN功能增强。增加支持：JOIN后WHERE条件中有OR条件；JOIN后的多表运算；JOIN后的多表GROUP BY。</li><li>FROM后子查询功能大幅增强。不限制子查询嵌套层数；支持子查询和UNION ALL混合使用；移除其他一些之前版本的语法限制。</li><li>WHERE后可以使用任意的标量表达式。</li><li>GROUP BY功能增强。支持任意标量表达式及其组合的分组。</li><li>SESSION可以用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。</li><li>STATE_WINDOW可以用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。</li><li>ORDER BY功能大幅增强。不再必须和GROUP BY子句一起使用；不再有排序表达式个数的限制；增加支持NULLS FIRST/LAST语法功能；支持符合语法语义的任意表达式。</li><li>新增PARTITION BY语法。替代原来的GROUP BY tags。</li></ul>
 | 33 | SHOW ACCOUNTS | 废除 | 2.x中为企业版功能，3.0不再支持。语法暂时保留了，执行报“This statement is no longer supported”错误。
@@ -76,8 +75,9 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 49 | SHOW TRANSACTIONS | 新增 | 显示当前系统中正在执行的事务的信息。
 | 50 | SHOW DNODE VARIABLES | 新增 |显示指定DNODE的配置参数。
 | 51 | SHOW VNODES | 暂不支持 | 显示当前系统中VNODE的信息。3.0.0版本暂不支持。
-| 52 | SPLIT VGROUP | 新增 | 拆分VGROUP。
-| 53 | TRIM DATABASE | 新增 | 删除过期数据，并根据多级存储的配置归整数据。
+| 52 | TRIM DATABASE | 新增 | 删除过期数据，并根据多级存储的配置归整数据。
+| 53 | REDISTRIBUTE VGROUP | 新增 | 调整VGROUP中VNODE的分布。
+| 54 | BALANCE VGROUP | 新增 | 自动调整VGROUP中VNODE的分布。
 
 ## SQL 函数变更
 
@@ -94,6 +94,7 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 9 | SAMPLE | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 10 | STATECOUNT | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 11 | STATEDURATION | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
+| 12 | TIMETRUNCATE | 增强 | 增加ignore_timezone参数，可选是否使用，默认值为1.
 
 
 ## SCHEMALESS 变更

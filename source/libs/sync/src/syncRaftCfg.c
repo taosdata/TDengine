@@ -224,7 +224,7 @@ _OVER:
 
 int32_t syncAddCfgIndex(SSyncNode *pNode, SyncIndex cfgIndex) {
   SRaftCfg *pCfg = &pNode->raftCfg;
-  if (pCfg->configIndexCount <= MAX_CONFIG_INDEX_COUNT) {
+  if (pCfg->configIndexCount < MAX_CONFIG_INDEX_COUNT) {
     return -1;
   }
 

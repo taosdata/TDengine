@@ -147,6 +147,10 @@ static SRBTreeNode *tRBTreePredecessor(SRBTree *pTree, SRBTreeNode *pNode) {
 
 void tRBTreeCreate(SRBTree *pTree, tRBTreeCmprFn cmprFn) {
   pTree->cmprFn = cmprFn;
+  tRBTreeClear(pTree);
+}
+
+void tRBTreeClear(SRBTree *pTree) {
   pTree->n = 0;
   pTree->NIL = &pTree->NILNODE;
   pTree->NIL->color = BLACK;
@@ -420,6 +424,22 @@ SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey) {
     tRBTreeDrop(pTree, pNode);
   }
 
+  return pNode;
+}
+
+SRBTreeNode *tRBTreeDropMin(SRBTree *pTree) {
+  SRBTreeNode *pNode = tRBTreeMin(pTree);
+  if (pNode) {
+    tRBTreeDrop(pTree, pNode);
+  }
+  return pNode;
+}
+
+SRBTreeNode *tRBTreeDropMax(SRBTree *pTree) {
+  SRBTreeNode *pNode = tRBTreeMax(pTree);
+  if (pNode) {
+    tRBTreeDrop(pTree, pNode);
+  }
   return pNode;
 }
 

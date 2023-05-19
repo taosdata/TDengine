@@ -89,21 +89,13 @@
 //       /\ UNCHANGED <<candidateVars, leaderVars>>
 //
 
-SSyncRaftEntry* syncBuildRaftEntryFromAppendEntries(const SyncAppendEntries* pMsg) {
-  SSyncRaftEntry* pEntry = taosMemoryMalloc(pMsg->dataLen);
-  if (pEntry == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-  (void)memcpy(pEntry, pMsg->data, pMsg->dataLen);
-  ASSERT(pEntry->bytes == pMsg->dataLen);
-  return pEntry;
-}
-
 int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   SRpcMsg            rpcRsp = {0};
   bool               accepted = false;
+  SSyncRaftEntry*    pEntry = NULL;
+  bool               resetElect = false;
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvAppendEntries(ths, pMsg, "not in my config");
@@ -120,31 +112,30 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // prepare response msg
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
-  pReply->term = ths->raftStore.currentTerm;
+  pReply->term = raftStoreGetTerm(ths);
   pReply->success = false;
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->startTime = ths->startTime;
 
-  if (pMsg->term < ths->raftStore.currentTerm) {
+  if (pMsg->term < raftStoreGetTerm(ths)) {
     goto _SEND_RESPONSE;
   }
 
-  if (pMsg->term > ths->raftStore.currentTerm) {
+  if (pMsg->term > raftStoreGetTerm(ths)) {
     pReply->term = pMsg->term;
   }
 
   syncNodeStepDown(ths, pMsg->term);
-  syncNodeResetElectTimer(ths);
+  resetElect = true;
 
-  if (pMsg->dataLen < (int32_t)sizeof(SSyncRaftEntry)) {
+  if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
     sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
            ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
     goto _IGNORE;
   }
 
-  SSyncRaftEntry* pEntry = syncBuildRaftEntryFromAppendEntries(pMsg);
-
+  pEntry = syncEntryBuildFromAppendEntries(pMsg);
   if (pEntry == NULL) {
     sError("vgId:%d, failed to get raft entry from append entries since %s", ths->vgId, terrstr());
     goto _IGNORE;
@@ -183,13 +174,13 @@ _SEND_RESPONSE:
   // commit index, i.e. leader notice me
   if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
     sError("vgId:%d, failed to commit raft fsm log since %s.", ths->vgId, terrstr());
-    goto _out;
   }
 
-_out:
+  if (resetElect) syncNodeResetElectTimer(ths);
   return 0;
 
 _IGNORE:
   rpcFreeCont(rpcRsp.pCont);
+  syncEntryDestroy(pEntry);
   return 0;
 }

@@ -1,6 +1,7 @@
 ---
-sidebar_label: Telegraf
 title: Telegraf writing
+sidebar_label: Telegraf
+description: This document describes how to integrate TDengine with Telegraf.
 ---
 
 import Telegraf from "../14-reference/_telegraf.mdx"

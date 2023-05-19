@@ -66,6 +66,7 @@ typedef struct {
   int64_t commitVer;
   int64_t appliedVer;
   int64_t lastVer;
+  int64_t logRetention;
 } SWalVer;
 
 #pragma pack(push, 1)
@@ -126,18 +127,20 @@ typedef struct SWal {
 typedef struct {
   int64_t refId;
   int64_t refVer;
-  int64_t refFile;
+//  int64_t refFile;
   SWal   *pWal;
 } SWalRef;
 
 typedef struct {
-  int8_t scanUncommited;
+//  int8_t scanUncommited;
   int8_t scanNotApplied;
   int8_t scanMeta;
+  int8_t deleteMsg;
   int8_t enableRef;
 } SWalFilterCond;
 
-typedef struct {
+// todo hide this struct
+typedef struct SWalReader {
   SWal          *pWal;
   int64_t        readerId;
   TdFilePtr      pLogFile;
@@ -145,8 +148,6 @@ typedef struct {
   int64_t        curFileFirstVer;
   int64_t        curVersion;
   int64_t        capacity;
-  int8_t         curInvalid;
-  int8_t         curStopped;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
   // TODO remove it
@@ -180,7 +181,7 @@ void walFsync(SWal *, bool force);
 int32_t walCommit(SWal *, int64_t ver);
 int32_t walRollback(SWal *, int64_t ver);
 // notify that previous logs can be pruned safely
-int32_t walBeginSnapshot(SWal *, int64_t ver);
+int32_t walBeginSnapshot(SWal *, int64_t ver, int64_t logRetention);
 int32_t walEndSnapshot(SWal *);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 // for tq
@@ -193,8 +194,10 @@ SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond);
 void        walCloseReader(SWalReader *pRead);
 void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
-int32_t     walReadSeekVer(SWalReader *pRead, int64_t ver);
+int32_t     walReaderSeekVer(SWalReader *pRead, int64_t ver);
 int32_t     walNextValidMsg(SWalReader *pRead);
+int64_t     walReaderGetCurrentVer(const SWalReader* pReader);
+int64_t     walReaderGetValidFirstVer(const SWalReader* pReader);
 
 // only for tq usage
 void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);
@@ -207,8 +210,7 @@ SWalRef *walRefCommittedVer(SWal *);
 
 SWalRef *walOpenRef(SWal *);
 void     walCloseRef(SWal *pWal, int64_t refId);
-int32_t  walRefVer(SWalRef *, int64_t ver);
-void     walUnrefVer(SWalRef *);
+int32_t  walSetRefVer(SWalRef *, int64_t ver);
 
 // helper function for raft
 bool walLogExist(SWal *, int64_t ver);

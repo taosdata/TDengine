@@ -1,6 +1,7 @@
 ---
-sidebar_label: EMQX Broker
 title: EMQX Broker writing
+sidebar_label: EMQX Broker
+description: This document describes how to integrate TDengine with the EMQX broker.
 ---
 
 MQTT is a popular IoT data transfer protocol. [EMQX](https://github.com/emqx/emqx) is an open-source MQTT Broker software. You can write MQTT data directly to TDengine without any code. You only need to setup "rules" in EMQX Dashboard to create a simple configuration. EMQX supports saving data to TDengine by sending data to a web service and provides a native TDengine driver for direct saving in the Enterprise Edition. Please refer to the [EMQX official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use it.).

@@ -1,6 +1,7 @@
 ---
-sidebar_label: Metadata
 title: Information_Schema Database
+sidebar_label: Metadata
+description: This document describes how to use the INFORMATION_SCHEMA database in TDengine.
 ---
 
 TDengine includes a built-in database named `INFORMATION_SCHEMA` to provide access to database metadata, system information, and status information. This information includes database names, table names, and currently running SQL statements. All information related to TDengine maintenance is stored in this database. It contains several read-only tables. These tables are more accurately described as views, and they do not correspond to specific files. You can query these tables but cannot write data to them. The INFORMATION_SCHEMA database is intended to provide a unified method for SHOW commands to access data. However, using SELECT ... FROM INFORMATION_SCHEMA.tablename offers several advantages over SHOW commands:
@@ -178,6 +179,20 @@ Provides information about standard tables and subtables.
 | 5   |  tag_type   | BINARY(64)    | Tag type             |
 | 6   |  tag_value  | BINARY(16384) | Tag value               |
 
+## INS_COLUMNS
+
+| #   |  **列名**   | **数据类型**  | **说明**               |
+| --- | :---------: | ------------- | ---------------------- |
+| 1   | table_name  | BINARY(192)   | Table name                   |
+| 2   |   db_name   | BINARY(64)    | Database name |
+| 3   | table_type  | BINARY(21)    | Table type       |
+| 4   |  col_name   | BINARY(64)    | Column name             |
+| 5   |  col_type   | BINARY(32)    | Column type             |
+| 6   |  col_length | INT           | Column length               |
+| 7   |  col_precision | INT           | Column precision               |
+| 8   |  col_scale     | INT           | Column scale            |
+| 9   |  col_nullable  | INT           | Column nullable        |
+
 ## INS_USERS
 
 Provides information about TDengine users.
@@ -273,9 +288,9 @@ Provides dnode configuration information.
 | 1   | stream_name  | BINARY(64)   | Stream name                              |
 | 2   | create_time  | TIMESTAMP    | Creation time                                |
 | 3   |     sql      | BINARY(1024) | SQL statement used to create the stream             |
-| 4   |    status    | BIANRY(20)   | Current status                              |
+| 4   |    status    | BINARY(20)   | Current status                              |
 | 5   |  source_db   | BINARY(64)   | Source database                                |
-| 6   |  target_db   | BIANRY(64)   | Target database                              |
+| 6   |  target_db   | BINARY(64)   | Target database                              |
 | 7   | target_table | BINARY(192)  | Target table                      |
 | 8   |  watermark   | BIGINT       | Watermark (see stream processing documentation). It should be noted that `watermark` is a TDengine keyword and needs to be escaped with ` when used as a column name.        |
 | 9   |   trigger    | INT          | Method of triggering the result push (see stream processing documentation). It should be noted that `trigger` is a TDengine keyword and needs to be escaped with ` when used as a column name. |

@@ -64,6 +64,7 @@ class TDTestCase:
         tmqCom.initConsumerTable(self.cdbName)
 
         tdCom.create_database(tdSql,self.paraDict["dbName"],self.paraDict["dropFlag"])
+        tdSql.execute("alter database %s wal_retention_period 3600" % (self.paraDict['dbName']))
 
         self.paraDict["stbName"] = 'stb1'
         tdCom.create_stable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],column_elm_list=self.paraDict["colSchema"],tag_elm_list=self.paraDict["tagSchema"],count=1, default_stbname_prefix=self.paraDict["stbName"])
@@ -81,7 +82,7 @@ class TDTestCase:
 
         tdLog.info("create topics from db")
         topicName1 = 'UpperCasetopic_%s'%(self.paraDict['dbName'])
-        tdSql.execute("create topic %s as database %s" %(topicName1, self.paraDict['dbName']))
+        tdSql.execute("create topic `%s` as database %s" %(topicName1, self.paraDict['dbName']))
 
         topicList = topicName1 + ',' +topicName1
         keyList = '%s,%s,%s,%s'%(self.groupId,self.autoCommit,self.autoCommitInterval,self.autoOffset)
@@ -112,7 +113,7 @@ class TDTestCase:
             tdLog.exit("tmq consume rows error!")
 
         time.sleep(10)
-        tdSql.query("drop topic %s"%topicName1)
+        tdSql.query("drop topic `%s`"%topicName1)
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 

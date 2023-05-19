@@ -46,7 +46,14 @@
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 
-int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
+int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
+  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+  taosThreadMutexLock(&pBuf->mutex);
+  SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
+  syncLogReplReset(pMgr);
+  taosThreadMutexUnlock(&pBuf->mutex);
+  return 0;
+}
 
 int32_t syncNodeReplicate(SSyncNode* pNode) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
@@ -65,7 +72,7 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    (void)syncLogReplMgrReplicateOnce(pMgr, pNode);
+    (void)syncLogReplDoOnce(pMgr, pNode);
   }
   return 0;
 }
@@ -75,20 +82,6 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   pMsg->destId = *destRaftId;
   syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
   return 0;
-}
-
-int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
-  int32_t            ret = 0;
-  SyncAppendEntries* pMsg = pRpcMsg->pCont;
-
-  if (syncNodeNeedSendAppendEntries(pSyncNode, destRaftId, pMsg)) {
-    ret = syncNodeSendAppendEntries(pSyncNode, destRaftId, pRpcMsg);
-  } else {
-    sNTrace(pSyncNode, "do not repcate to dnode:%d for index:%" PRId64, DID(destRaftId), pMsg->prevLogIndex + 1);
-    rpcFreeCont(pRpcMsg->pCont);
-  }
-
-  return ret;
 }
 
 int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
@@ -107,7 +100,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
     pSyncMsg->srcId = pSyncNode->myRaftId;
     pSyncMsg->destId = pSyncNode->peersId[i];
-    pSyncMsg->term = pSyncNode->raftStore.currentTerm;
+    pSyncMsg->term = raftStoreGetTerm(pSyncNode);
     pSyncMsg->commitIndex = pSyncNode->commitIndex;
     pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
     pSyncMsg->privateTerm = 0;

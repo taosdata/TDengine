@@ -17,11 +17,11 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 #include "tcompare.h"
-#include "tutil.h"
 #include "regex.h"
 #include "tdef.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tutil.h"
 #include "types.h"
 #include "osString.h"
 
@@ -308,17 +308,19 @@ int32_t compareInt8Uint16(const void *pLeft, const void *pRight) {
 
 int32_t compareInt8Uint32(const void *pLeft, const void *pRight) {
   int8_t   left = GET_INT8_VAL(pLeft);
+  if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint32_t)left > right) return 1;
+  if ((uint32_t)left < right) return -1;
   return 0;
 }
 
 int32_t compareInt8Uint64(const void *pLeft, const void *pRight) {
   int8_t   left = GET_INT8_VAL(pLeft);
+  if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint64_t)left > right) return 1;
+  if ((uint64_t)left < right) return -1;
   return 0;
 }
 
@@ -380,17 +382,19 @@ int32_t compareInt16Uint16(const void *pLeft, const void *pRight) {
 
 int32_t compareInt16Uint32(const void *pLeft, const void *pRight) {
   int16_t  left = GET_INT16_VAL(pLeft);
+  if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint32_t)left > right) return 1;
+  if ((uint32_t)left < right) return -1;
   return 0;
 }
 
 int32_t compareInt16Uint64(const void *pLeft, const void *pRight) {
   int16_t  left = GET_INT16_VAL(pLeft);
+  if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint64_t)left > right) return 1;
+  if ((uint64_t)left < right) return -1;
   return 0;
 }
 
@@ -452,17 +456,19 @@ int32_t compareInt32Uint16(const void *pLeft, const void *pRight) {
 
 int32_t compareInt32Uint32(const void *pLeft, const void *pRight) {
   int32_t  left = GET_INT32_VAL(pLeft);
+  if (left < 0) return -1;
   uint32_t right = GET_UINT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint32_t)left > right) return 1;
+  if ((uint32_t)left < right) return -1;
   return 0;
 }
 
 int32_t compareInt32Uint64(const void *pLeft, const void *pRight) {
   int32_t  left = GET_INT32_VAL(pLeft);
+  if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint64_t)left > right) return 1;
+  if ((uint64_t)left < right) return -1;
   return 0;
 }
 
@@ -532,9 +538,10 @@ int32_t compareInt64Uint32(const void *pLeft, const void *pRight) {
 
 int32_t compareInt64Uint64(const void *pLeft, const void *pRight) {
   int64_t  left = GET_INT64_VAL(pLeft);
+  if (left < 0) return -1;
   uint64_t right = GET_UINT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if ((uint64_t)left > right) return 1;
+  if ((uint64_t)left < right) return -1;
   return 0;
 }
 
@@ -857,24 +864,27 @@ int32_t compareUint16Uint64(const void *pLeft, const void *pRight) {
 int32_t compareUint32Int8(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
   int8_t   right = GET_INT8_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint32_t)right) return 1;
+  if (left < (uint32_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint32Int16(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
   int16_t  right = GET_INT16_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint32_t)right) return 1;
+  if (left < (uint32_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint32Int32(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
   int32_t  right = GET_INT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint32_t)right) return 1;
+  if (left < (uint32_t)right) return -1;
   return 0;
 }
 
@@ -929,32 +939,36 @@ int32_t compareUint32Uint64(const void *pLeft, const void *pRight) {
 int32_t compareUint64Int8(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
   int8_t   right = GET_INT8_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint64_t)right) return 1;
+  if (left < (uint64_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint64Int16(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
   int16_t  right = GET_INT16_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint64_t)right) return 1;
+  if (left < (uint64_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint64Int32(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
   int32_t  right = GET_INT32_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint64_t)right) return 1;
+  if (left < (uint64_t)right) return -1;
   return 0;
 }
 
 int32_t compareUint64Int64(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
   int64_t  right = GET_INT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
+  if (right < 0) return 1;
+  if (left > (uint64_t)right) return 1;
+  if (left < (uint64_t)right) return -1;
   return 0;
 }
 
@@ -1010,7 +1024,8 @@ int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compa
  *      '_': Matches one character
  *
  */
-int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize, const SPatternCompareInfo *pInfo) {
+int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize,
+                     const SPatternCompareInfo *pInfo) {
   char c, c1;
 
   int32_t i = 0;
@@ -1020,9 +1035,9 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
   while ((i < psize) && ((c = pattern[i++]) != 0)) {
     if (c == pInfo->matchAll) { /* Match "*" */
 
-      while ((i <  psize) && ((c = pattern[i++]) == pInfo->matchAll || c == pInfo->matchOne)) {
+      while ((i < psize) && ((c = pattern[i++]) == pInfo->matchAll || c == pInfo->matchOne)) {
         if (c == pInfo->matchOne) {
-          if (j >= ssize || str[j++] == 0) { // empty string, return not match
+          if (j >= ssize || str[j++] == 0) {  // empty string, return not match
             return TSDB_PATTERN_NOWILDCARDMATCH;
           } else {
             ++nMatchChar;
@@ -1077,7 +1092,8 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
   return (j >= ssize || str[j] == 0) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize, const SPatternCompareInfo *pInfo) {
+int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize,
+                        const SPatternCompareInfo *pInfo) {
   TdUcs4 c, c1;
 
   int32_t i = 0;
@@ -1189,10 +1205,11 @@ int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
   taosMemoryFree(str);
   taosMemoryFree(pattern);
 
-  return (ret == 0) ? 0 : 1;;
+  return (ret == 0) ? 0 : 1;
+  ;
 }
 
-int32_t comparewcsRegexMatch(const void* pString, const void* pPattern) {
+int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
   size_t len = varDataLen(pPattern);
   char  *pattern = taosMemoryMalloc(len + 1);
 
@@ -1232,7 +1249,7 @@ int32_t taosArrayCompareString(const void *a, const void *b) {
   const char *x = *(const char **)a;
   const char *y = *(const char **)b;
 
-  return compareLenPrefixedStr(x, y);
+  return strcmp(x, y);
 }
 
 int32_t comparestrPatternMatch(const void *pLeft, const void *pRight) {

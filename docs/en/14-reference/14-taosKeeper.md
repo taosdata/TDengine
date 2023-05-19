@@ -1,8 +1,11 @@
 ---
 sidebar_label: taosKeeper
 title: taosKeeper
-description: exports TDengine monitoring metrics.
+description: This document describes how to use taosKeeper, a tool for exporting TDengine monitoring metrics.
 ---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
 
 ## Introduction
 
@@ -10,44 +13,102 @@ taosKeeper is a tool for TDengine that exports monitoring metrics. With taosKeep
 
 ## Installation
 
-<!-- There are two ways to install taosKeeper: -->
+There are two ways to install taosKeeper:
 Methods of installing taosKeeper:
 
-<!--- Installing the official TDengine installer will automatically install taosKeeper. Please refer to [TDengine installation](/operation/pkg-install) for details. -->
+- Installing the official TDengine installer will automatically install taosKeeper. Please refer to [TDengine installation](/operation/pkg-install) for details.
 
-- You can compile taosKeeper separately and install it. Please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository for details. -->
-You can compile taosKeeper separately and install it. Please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository for details.
+- You can compile taosKeeper separately and install it. Please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository for details.
+## Configuration and Launch
 
-## Run
-
-### Configuration and running methods
+### Configuration
 
 taosKeeper needs to be executed on the terminal of the operating system, it supports three configuration methods: [Command-line arguments](#command-line-arguments-in-detail), [environment variable](#environment-variable-in-detail) and [configuration file](#configuration-file-parameters-in-detail). The precedence of those is Command-line, environment variable and configuration file.
 
-**Make sure that the TDengine cluster is running correctly before running taosKeeper. ** Ensure that the monitoring service in TDengine has been started. For more information, see [TDengine Monitoring Configuration](../config/#monitoring).
-
-### Command-Line Parameters
-
-You can use command-line parameters to run taosKeeper and control its behavior:
+**Make sure that the TDengine cluster is running correctly before running taosKeeper.** Ensure that the monitoring service in TDengine has been started. At least the values of `monitor` and `monitorFqdn` need to be set in `taos.cfg`.
 
 ```shell
-$ taosKeeper
-```
-### Environment variable
-
-You can use Environment variable to run taosKeeper and control its behavior:
-
-```shell
-$ export TAOS_KEEPER_TDENGINE_HOST=192.168.64.3
- 
-$ taoskeeper
+monitor 1
+monitorFqdn localhost # taoskeeper's FQDN
 ```
 
-you can run `taoskeeper -h` for more detail.
+For more information, see [TDengine Monitoring Configuration](../config/#monitoring).
 
-### Configuration File
+### Quick Launch
 
-You can quickly launch taosKeeper with the following commands. If you do not specify a configuration file, `/etc/taos/keeper.toml` is used by default. If this file does not specify configurations, the default values are used. 
+<Tabs>
+<TabItem label="Linux" value="linux">
+
+After the installation is complete, run the following command to start the taoskeeper service:
+
+```bash
+systemctl start taoskeeper
+```
+
+Run the following command to confirm that taoskeeper is running normally:
+
+```bash
+systemctl status taoskeeper
+```
+
+Output similar to the following indicates that taoskeeper is running normally:
+
+```
+Active: active (running)
+```
+
+Output similar to the following indicates that taoskeeper has not started successfully:
+
+```
+Active: inactive (dead)
+```
+
+The following `systemctl` commands can help you manage taoskeeper service:
+
+- Start taoskeeper Server: `systemctl start taoskeeper`
+
+- Stop taoskeeper Server: `systemctl stop taoskeeper`
+
+- Restart taoskeeper Server: `systemctl restart taoskeeper`
+
+- Check taoskeeper Server status: `systemctl status taoskeeper`
+
+:::info
+
+- The `systemctl` command requires _root_ privileges. If you are not logged in as the _root_ user, use the `sudo` command.
+- The `systemctl stop taoskeeper` command will instantly stop taoskeeper Server.
+- If your system does not include `systemd`, you can run `/usr/local/taos/bin/taoskeeper` to start taoskeeper manually.
+
+:::
+</TabItem>
+
+<TabItem label="macOS" value="macos">
+
+After the installation is complete, run `launchctl start com.tdengine.taoskeeper` to start taoskeeper Server.
+
+The following `launchctl` commands can help you manage taoskeeper service:
+
+- Start taoskeeper Server: `sudo launchctl start com.tdengine.taoskeeper`
+
+- Stop taoskeeper Server: `sudo launchctl stop com.tdengine.taoskeeper`
+
+- Check taoskeeper Server status: `sudo launchctl list | grep taoskeeper`
+
+:::info
+- Please use `sudo` to run `launchctl` to manage _com.tdengine.taoskeeper_ with administrator privileges.
+- The administrator privilege is required for service management to enhance security.
+- Troubleshooting:
+- The first column returned by the command `launchctl list | grep taoskeeper` is the PID of the program. If it's `-`, that means the taoskeeper service is not running.
+- If the service is abnormal, please check the `launchd.log` file from the system log.
+
+:::
+
+</TabItem>
+</Tabs>
+
+#### Launch With Configuration File
+
+You can quickly launch taosKeeper with the following commands. If you do not specify a configuration file, `/etc/taos/keeper.toml` is used by default. If this file does not specify configurations, the default values are used.
 
 ```shell
 $ taoskeeper -c <keeper config file>
@@ -125,19 +186,36 @@ $ curl http://127.0.0.1:6043/metrics
 Sample result set (excerpt):
 
 ```shell
-# HELP taos_cluster_info_connections_total 
+# HELP taos_cluster_info_connections_total
 # TYPE taos_cluster_info_connections_total counter
 taos_cluster_info_connections_total{cluster_id="5981392874047724755"} 16
-# HELP taos_cluster_info_dbs_total 
+# HELP taos_cluster_info_dbs_total
 # TYPE taos_cluster_info_dbs_total counter
 taos_cluster_info_dbs_total{cluster_id="5981392874047724755"} 2
-# HELP taos_cluster_info_dnodes_alive 
+# HELP taos_cluster_info_dnodes_alive
 # TYPE taos_cluster_info_dnodes_alive counter
 taos_cluster_info_dnodes_alive{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_dnodes_total 
+# HELP taos_cluster_info_dnodes_total
 # TYPE taos_cluster_info_dnodes_total counter
 taos_cluster_info_dnodes_total{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_first_ep 
+# HELP taos_cluster_info_first_ep
 # TYPE taos_cluster_info_first_ep gauge
 taos_cluster_info_first_ep{cluster_id="5981392874047724755",value="hlb:6030"} 1
+```
+
+### check_health 
+
+```
+$ curl -i http://127.0.0.1:6043/check_health
+```
+
+Response:
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Mon, 03 Apr 2023 07:20:38 GMT
+Content-Length: 19
+
+{"version":"1.0.0"}
 ```

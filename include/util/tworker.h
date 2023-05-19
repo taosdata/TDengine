@@ -26,12 +26,12 @@ extern "C" {
 typedef struct SQWorkerPool SQWorkerPool;
 typedef struct SWWorkerPool SWWorkerPool;
 
-typedef struct SQWorker {
+typedef struct SQueueWorker {
   int32_t  id;      // worker id
   int64_t  pid;     // thread pid
   TdThread thread;  // thread id
   void    *pool;
-} SQWorker;
+} SQueueWorker;
 
 typedef struct SQWorkerPool {
   int32_t       max;  // max number of workers
@@ -39,7 +39,7 @@ typedef struct SQWorkerPool {
   int32_t       num;  // current number of workers
   STaosQset    *qset;
   const char   *name;
-  SQWorker     *workers;
+  SQueueWorker *workers;
   TdThreadMutex mutex;
 } SQWorkerPool;
 

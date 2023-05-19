@@ -18,7 +18,10 @@ class MyDnodes(TDDnodes):
     def __init__(self ,dnodes_lists):
         super(MyDnodes,self).__init__()
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
-        self.simDeployed = False
+        if platform.system().lower() == 'windows':
+            self.simDeployed = True
+        else:
+            self.simDeployed = False
 
 class TDTestCase:
     noConn = True
@@ -29,7 +32,7 @@ class TDTestCase:
         self.master_dnode = self.TDDnodes.dnodes[0]
         self.host=self.master_dnode.cfgDict["fqdn"]
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
-        tdSql.init(conn1.cursor())
+        tdSql.init(conn1.cursor(), True)
 
 
     def getBuildPath(self):
@@ -137,11 +140,34 @@ class TDTestCase:
         config_dir = dnode.cfgDir
         return taos.connect(host=host, port=int(port), config=config_dir)
 
+    def check_alive(self):
+        # check cluster alive
+        tdLog.printNoPrefix("======== test cluster alive: ")
+        tdSql.checkDataLoop(0, 0, 1, "show cluster alive;", 20, 0.5)
+
+        tdSql.query("show db.alive;")
+        tdSql.checkData(0, 0, 1)
+
+        # stop 3 dnode
+        self.TDDnodes.stoptaosd(3)
+        tdSql.checkDataLoop(0, 0, 2, "show cluster alive;", 20, 0.5)
+        
+        tdSql.query("show db.alive;")
+        tdSql.checkData(0, 0, 2)
+
+        # stop 2 dnode
+        self.TDDnodes.stoptaosd(2)
+        tdSql.checkDataLoop(0, 0, 0, "show cluster alive;", 20, 0.5)
+
+        tdSql.query("show db.alive;")
+        tdSql.checkData(0, 0, 0)
+        
 
     def run(self):
         # print(self.master_dnode.cfgDict)
         self.five_dnode_one_mnode()
-
+        # check cluster and db alive
+        self.check_alive()
 
     def stop(self):
         tdSql.close()

@@ -55,6 +55,70 @@ for p in ps:
 
 ### 完整示例
 
+<details>
+<summary>kafka_example_perform</summary>
+
+`kafka_example_perform` 是示例程序的入口
+
 ```py
-{{#include docs/examples/python/kafka_example.py}}
+{{#include docs/examples/python/kafka_example_perform.py}}
 ```
+</details>
+
+<details>
+<summary>kafka_example_common</summary>
+
+`kafka_example_common` 是示例程序的公共代码
+
+```py
+{{#include docs/examples/python/kafka_example_common.py}}
+```
+</details>
+
+<details>
+<summary>kafka_example_producer</summary>
+
+`kafka_example_producer` 是示例程序的 producer 代码，负责生成并发送测试数据到 kafka
+
+```py
+{{#include docs/examples/python/kafka_example_producer.py}}
+```
+</details>
+
+<details>
+<summary>kafka_example_consumer</summary>
+
+`kafka_example_consumer` 是示例程序的 consumer 代码，负责从 kafka 消费数据，并写入到 TDengine
+
+```py
+{{#include docs/examples/python/kafka_example_consumer.py}}
+```
+</details>
+
+### 执行步骤
+
+<details>
+    <summary>执行 Python 示例程序</summary>
+
+    1. 安装并启动 kafka
+
+    2. python 环境准备
+        - 安装 python3
+        - 安装 taospy
+        - 安装 kafka-python
+
+    3. 执行示例程序
+
+    程序的执行入口是 `kafka_example_perform.py`，获取程序完整的执行参数，请执行 help 命令。
+
+    ```
+    python3 kafka_example_perform.py --help
+    ```
+
+    以下为创建 100 个子表，每个子表 20000 条数据，kafka max poll 为 100，一个进程，每个进程一个处理线程的程序执行命令
+
+    ```
+    python3 kafka_example_perform.py -table-count=100 -table-items=20000 -max-poll=100 -threads=1 -processes=1
+    ```
+
+</details>

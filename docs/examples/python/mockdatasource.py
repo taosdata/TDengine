@@ -59,4 +59,3 @@ if __name__ == '__main__':
     datasource = MockDataSource('t', 10, False)
     for data in datasource:
         print(data)
-        

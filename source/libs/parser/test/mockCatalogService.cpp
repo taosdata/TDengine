@@ -33,7 +33,6 @@ std::unique_ptr<MockCatalogService> g_mockCatalogService;
 class TableBuilder : public ITableBuilder {
  public:
   virtual TableBuilder& addColumn(const string& name, int8_t type, int32_t bytes) {
-    assert(colId_ <= schema()->tableInfo.numOfTags + schema()->tableInfo.numOfColumns);
     SSchema* col = schema()->schema + (colId_ - 1);
     col->type = type;
     col->colId = colId_++;
@@ -332,7 +331,7 @@ class MockCatalogServiceImpl {
     info.dstTbUid = getNextId();
     info.dstVgId = pReq->dstVgId;
     genEpSet(&info.epSet);
-    info.expr = strdup(pReq->expr);
+    info.expr = taosStrdup(pReq->expr);
     auto it = index_.find(pReq->stb);
     if (index_.end() == it) {
       index_.insert(std::make_pair(string(pReq->stb), std::vector<STableIndexInfo>{info}));
@@ -347,12 +346,13 @@ class MockCatalogServiceImpl {
     dnode_.insert(std::make_pair(dnodeId, epSet));
   }
 
-  void createDatabase(const string& db, bool rollup, int8_t cacheLast) {
+  void createDatabase(const string& db, bool rollup, int8_t cacheLast, int8_t precision) {
     SDbCfgInfo cfg = {0};
     if (rollup) {
       cfg.pRetensions = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SRetention));
     }
     cfg.cacheLast = cacheLast;
+    cfg.precision = precision;
     dbCfg_.insert(std::make_pair(db, cfg));
   }
 
@@ -375,7 +375,7 @@ class MockCatalogServiceImpl {
 
   STableIndexInfo* copyTableIndexInfo(STableIndexInfo* pDst, const STableIndexInfo* pSrc) const {
     memcpy(pDst, pSrc, sizeof(STableIndexInfo));
-    pDst->expr = strdup(pSrc->expr);
+    pDst->expr = taosStrdup(pSrc->expr);
     return pDst;
   }
 
@@ -427,7 +427,7 @@ class MockCatalogServiceImpl {
   int32_t copyTableSchemaMeta(const string& db, const string& tbname, std::unique_ptr<STableMeta>* dst) const {
     STableMeta* src = getTableSchemaMeta(db, tbname);
     if (nullptr == src) {
-      return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
     int32_t len = sizeof(STableMeta) + sizeof(SSchema) * (src->tableInfo.numOfTags + src->tableInfo.numOfColumns);
     dst->reset((STableMeta*)taosMemoryCalloc(1, len));
@@ -589,8 +589,8 @@ class MockCatalogServiceImpl {
       *pUserAuthData = taosArrayInit(num, sizeof(SMetaRes));
       for (int32_t i = 0; i < num; ++i) {
         SMetaRes res = {0};
-        res.pRes = taosMemoryCalloc(1, sizeof(bool));
-        *(bool*)(res.pRes) = true;
+        res.pRes = taosMemoryCalloc(1, sizeof(SUserAuthRes));
+        ((SUserAuthRes*)res.pRes)->pass = true;
         taosArrayPush(*pUserAuthData, &res);
       }
     }
@@ -682,8 +682,8 @@ void MockCatalogService::createDnode(int32_t dnodeId, const string& host, int16_
   impl_->createDnode(dnodeId, host, port);
 }
 
-void MockCatalogService::createDatabase(const string& db, bool rollup, int8_t cacheLast) {
-  impl_->createDatabase(db, rollup, cacheLast);
+void MockCatalogService::createDatabase(const string& db, bool rollup, int8_t cacheLast, int8_t precision) {
+  impl_->createDatabase(db, rollup, cacheLast, precision);
 }
 
 int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta,

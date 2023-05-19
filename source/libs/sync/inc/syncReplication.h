@@ -51,11 +51,10 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode);
 int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* pDestId, SRpcMsg* pMsg);
 
 int32_t syncNodeReplicate(SSyncNode* pSyncNode);
-int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapshot);
+int32_t syncNodeReplicateReset(SSyncNode* pSyncNode, SRaftId* pDestId);
 int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode);
 
 int32_t syncNodeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
-int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
 #ifdef __cplusplus
 }

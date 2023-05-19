@@ -23,7 +23,7 @@ FstRegex *regexCreate(const char *str) {
     return NULL;
   }
 
-  regex->orig = tstrdup(str);
+  regex->orig = taosStrdup(str);
 
   // construct insts based on str
   SArray *insts = taosArrayInit(256, sizeof(uint8_t));

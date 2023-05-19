@@ -20,7 +20,7 @@
 #include "tmsg.h"
 #include "ttypes.h"
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "tcommon.h"
 #include "thash.h"
 #include "ttime.h"
@@ -44,7 +44,7 @@ static void setNotFillColumn(SFillInfo* pFillInfo, SColumnInfoData* pDstColInfo,
   } else {
     p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
   }
-  
+
   SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
   doSetVal(pDstColInfo, rowIndex, pKey);
 }
@@ -60,7 +60,7 @@ static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowInd
         setNotFillColumn(pFillInfo, pDstColInfo, rowIndex, i);
       }
     } else {
-      colDataAppendNULL(pDstColInfo, rowIndex);
+      colDataSetNULL(pDstColInfo, rowIndex);
     }
   }
 }
@@ -69,19 +69,19 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
   if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
     float v = 0;
     GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
-    colDataAppend(pDst, rowIndex, (char*)&v, false);
+    colDataSetVal(pDst, rowIndex, (char*)&v, false);
   } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
     double v = 0;
     GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
-    colDataAppend(pDst, rowIndex, (char*)&v, false);
+    colDataSetVal(pDst, rowIndex, (char*)&v, false);
   } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
     int64_t v = 0;
     GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
-    colDataAppend(pDst, rowIndex, (char*)&v, false);
+    colDataSetVal(pDst, rowIndex, (char*)&v, false);
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    colDataAppend(pDst, rowIndex, (const char*)&currentKey, false);
+    colDataSetVal(pDst, rowIndex, (const char*)&currentKey, false);
   } else {  // varchar/nchar data
-    colDataAppendNULL(pDst, rowIndex);
+    colDataSetNULL(pDst, rowIndex);
   }
 }
 
@@ -96,18 +96,18 @@ bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnI
       return false;
     }
     if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_START) {
-      colDataAppend(pDstColInfoData, rowIndex, (const char*)&pFillInfo->currentKey, false);
+      colDataSetVal(pDstColInfoData, rowIndex, (const char*)&pFillInfo->currentKey, false);
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_END) {
       // TODO: include endpoint
       SInterval* pInterval = &pFillInfo->interval;
       int64_t    windowEnd =
           taosTimeAdd(pFillInfo->currentKey, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-      colDataAppend(pDstColInfoData, rowIndex, (const char*)&windowEnd, false);
+      colDataSetVal(pDstColInfoData, rowIndex, (const char*)&windowEnd, false);
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_DURATION) {
       // TODO: include endpoint
-      colDataAppend(pDstColInfoData, rowIndex, (const char*)&pFillInfo->interval.sliding, false);
+      colDataSetVal(pDstColInfoData, rowIndex, (const char*)&pFillInfo->interval.sliding, false);
       return true;
     }
   }
@@ -163,7 +163,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
         } else {
           SGroupKeys* pKey = taosArrayGet(pFillInfo->prev.pRowVal, i);
           if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pKey->isNull) {
-            colDataAppendNULL(pDstCol, index);
+            colDataSetNULL(pDstCol, index);
             continue;
           }
 
@@ -182,7 +182,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
           point = (SPoint){.key = pFillInfo->currentKey, .val = &out};
           taosGetLinearInterpolationVal(&point, type, &point1, &point2, type);
 
-          colDataAppend(pDstCol, index, (const char*)&out, false);
+          colDataSetVal(pDstCol, index, (const char*)&out, false);
         }
       }
     }
@@ -217,9 +217,9 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
 
 void doSetVal(SColumnInfoData* pDstCol, int32_t rowIndex, const SGroupKeys* pKey) {
   if (pKey->isNull) {
-    colDataAppendNULL(pDstCol, rowIndex);
+    colDataSetNULL(pDstCol, rowIndex);
   } else {
-    colDataAppend(pDstCol, rowIndex, pKey->pData, false);
+    colDataSetVal(pDstCol, rowIndex, pKey->pData, false);
   }
 }
 
@@ -332,14 +332,14 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
 
         char* src = colDataGetData(pSrc, pFillInfo->index);
         if (!colDataIsNull_s(pSrc, pFillInfo->index)) {
-          colDataAppend(pDst, index, src, false);
+          colDataSetVal(pDst, index, src, false);
           saveColData(pFillInfo->prev.pRowVal, i, src, false);
           if (pFillInfo->srcTsSlotId == dstSlotId) {
             pFillInfo->prev.key = *(int64_t*)src;
           }
         } else {  // the value is null
           if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-            colDataAppend(pDst, index, (const char*)&pFillInfo->currentKey, false);
+            colDataSetVal(pDst, index, (const char*)&pFillInfo->currentKey, false);
           } else {  // i > 0 and data is null , do interpolation
             if (pFillInfo->type == TSDB_FILL_PREV) {
               SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
@@ -347,10 +347,10 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
               doSetVal(pDst, index, pKey);
             } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
               bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
-              colDataAppend(pDst, index, src, isNull);
+              colDataSetVal(pDst, index, src, isNull);
               saveColData(pFillInfo->prev.pRowVal, i, src, isNull);  // todo:
             } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
-              colDataAppendNULL(pDst, index);
+              colDataSetNULL(pDst, index);
             } else if (pFillInfo->type == TSDB_FILL_NEXT) {
               SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->next.pRowVal : pFillInfo->prev.pRowVal;
               SGroupKeys* pKey = taosArrayGet(p, i);
@@ -408,7 +408,7 @@ static int64_t appendFilledResult(SFillInfo* pFillInfo, SSDataBlock* pBlock, int
 
   pFillInfo->numOfTotal += pFillInfo->numOfCurrent;
 
-  assert(pFillInfo->numOfCurrent == resultCapacity);
+  ASSERT(pFillInfo->numOfCurrent == resultCapacity);
   return resultCapacity;
 }
 
@@ -558,7 +558,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     numOfRes = taosTimeCountInterval(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
     numOfRes += 1;
-    assert(numOfRes >= numOfRows);
+    ASSERT(numOfRes >= numOfRows);
   } else {  // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
         (ekey1 >= pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
@@ -578,7 +578,12 @@ int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint*
   GET_TYPED_DATA(v1, double, inputType, point1->val);
   GET_TYPED_DATA(v2, double, inputType, point2->val);
 
-  double r = DO_INTERPOLATION(v1, v2, point1->key, point2->key, point->key);
+  double r = 0;
+  if (!IS_BOOLEAN_TYPE(inputType)) {
+    r = DO_INTERPOLATION(v1, v2, point1->key, point2->key, point->key);
+  } else {
+    r = (v1 < 1 || v2 < 1) ? 0 : 1;
+  }
   SET_TYPED_DATA(point->val, outputType, r);
 
   return TSDB_CODE_SUCCESS;
@@ -588,14 +593,14 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t ca
   int32_t remain = taosNumOfRemainRows(pFillInfo);
 
   int64_t numOfRes = getNumOfResultsAfterFillGap(pFillInfo, pFillInfo->end, capacity);
-  assert(numOfRes <= capacity);
+  ASSERT(numOfRes <= capacity);
 
   // no data existed for fill operation now, append result according to the fill strategy
   if (remain == 0) {
     appendFilledResult(pFillInfo, p, numOfRes);
   } else {
     fillResultImpl(pFillInfo, p, (int32_t)numOfRes);
-    assert(numOfRes == pFillInfo->numOfCurrent);
+    ASSERT(numOfRes == pFillInfo->numOfCurrent);
   }
 
   qDebug("fill:%p, generated fill result, src block:%d, index:%d, brange:%" PRId64 "-%" PRId64 ", currentKey:%" PRId64
@@ -630,6 +635,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
       nodesValueNodeToVariant(pv, &pFillCol[i].fillVal);
     }
   }
+  pFillCol->numOfFillExpr = numOfFillExpr;
 
   for (int32_t i = 0; i < numOfNoFillExpr; ++i) {
     SExprInfo* pExprInfo = &pNotFillExpr[i];

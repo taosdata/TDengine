@@ -472,10 +472,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
 
   taosThreadMutexLock(&pSdb->filelock);
   if (pSdb->pWal != NULL) {
-    // code = walBeginSnapshot(pSdb->pWal, pSdb->applyIndex);
-    if (pSdb->sync == 0) {
-      code = 0;
-    } else {
+    if (pSdb->sync > 0) {
       code = syncBeginSnapshot(pSdb->sync, pSdb->applyIndex);
     }
   }
@@ -484,11 +481,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   }
   if (code == 0) {
     if (pSdb->pWal != NULL) {
-      // code = walEndSnapshot(pSdb->pWal);
-
-      if (pSdb->sync == 0) {
-        code = 0;
-      } else {
+      if (pSdb->sync > 0) {
         code = syncEndSnapshot(pSdb->sync);
       }
     }
@@ -521,7 +514,7 @@ static SSdbIter *sdbCreateIter(SSdb *pSdb) {
 
   char name[PATH_MAX + 100] = {0};
   snprintf(name, sizeof(name), "%s%ssdb.data.%" PRIu64, pSdb->tmpDir, TD_DIRSEP, (uint64_t)pIter);
-  pIter->name = strdup(name);
+  pIter->name = taosStrdup(name);
   if (pIter->name == NULL) {
     taosMemoryFree(pIter);
     terrno = TSDB_CODE_OUT_OF_MEMORY;

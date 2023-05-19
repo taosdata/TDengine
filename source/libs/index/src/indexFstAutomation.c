@@ -164,7 +164,7 @@ FAutoCtx* automCtxCreate(void* data, AutomationType atype) {
     // add more search type
   }
 
-  ctx->data = (data != NULL ? strdup((char*)data) : NULL);
+  ctx->data = (data != NULL ? taosStrdup((char*)data) : NULL);
   ctx->type = atype;
   ctx->stdata = (void*)sv;
   return ctx;

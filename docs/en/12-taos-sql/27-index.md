@@ -1,6 +1,7 @@
 ---
-sidebar_label: Index
-title: Using Indices
+title: Indexing
+sidebar_label: Indexing
+description: This document describes the SQL statements related to indexing in TDengine.
 ---
 
 TDengine supports SMA and FULLTEXT indexing.

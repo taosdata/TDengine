@@ -42,7 +42,7 @@ namespace TDengineExample
 
                 // 5. execute
                 res = TDengine.StmtExecute(stmt);
-                CheckStmtRes(res, "faild to execute");
+                CheckStmtRes(res, "failed to execute");
 
                 // 6. free 
                 TaosMultiBind.FreeTaosBind(tags);
@@ -76,7 +76,7 @@ namespace TDengineExample
 
         static void PrepareSTable()
         {
-            IntPtr res = TDengine.Query(conn, "CREATE DATABASE power");
+            IntPtr res = TDengine.Query(conn, "CREATE DATABASE power WAL_RETENTION_PERIOD 3600");
             CheckResPtr(res, "failed to create database");
             res = TDengine.Query(conn, "USE power");
             CheckResPtr(res, "failed to change database");
@@ -92,7 +92,7 @@ namespace TDengineExample
                 int code = TDengine.StmtClose(stmt);
                 if (code != 0)
                 {
-                    throw new Exception($"falied to close stmt, {code} reason: {TDengine.StmtErrorStr(stmt)} ");
+                    throw new Exception($"failed to close stmt, {code} reason: {TDengine.StmtErrorStr(stmt)} ");
                 }
             }
         }

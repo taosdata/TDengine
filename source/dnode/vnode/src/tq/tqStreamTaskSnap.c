@@ -100,8 +100,6 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
     }
   }
 
-  ASSERT(pVal && vLen);
-
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -146,7 +144,7 @@ int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** p
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  if (tdbBegin(pTq->pMetaStore, &pWriter->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
+  if (tdbBegin(pTq->pMetaDB, &pWriter->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
     code = -1;
     taosMemoryFree(pWriter);
     goto _err;
@@ -167,12 +165,11 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
   STQ*           pTq = pWriter->pTq;
 
   if (rollback) {
-    tdbAbort(pWriter->pTq->pMetaStore, pWriter->txn);
-    ASSERT(0);
+    tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
   } else {
-    code = tdbCommit(pWriter->pTq->pMetaStore, pWriter->txn);
+    code = tdbCommit(pWriter->pTq->pMetaDB, pWriter->txn);
     if (code) goto _err;
-    code = tdbPostCommit(pWriter->pTq->pMetaStore, pWriter->txn);
+    code = tdbPostCommit(pWriter->pTq->pMetaDB, pWriter->txn);
     if (code) goto _err;
   }
 

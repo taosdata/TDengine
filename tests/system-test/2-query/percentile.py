@@ -50,7 +50,7 @@ class TDTestCase:
             'col12': f'binary({self.binary_length})',
             'col13': f'nchar({self.nchar_length})'
         }
-        
+
         self.tag_dict = {
             'ts_tag'  : 'timestamp',
             't1': 'tinyint',
@@ -85,19 +85,19 @@ class TDTestCase:
         self.tag_values = [
             f'{self.tag_ts},{self.tag_tinyint},{self.tag_smallint},{self.tag_int},{self.tag_bigint},\
             {self.tag_utint},{self.tag_usint},{self.tag_uint},{self.tag_ubint},{self.tag_float},{self.tag_double},{self.tag_bool},"{self.binary_str}","{self.nchar_str}"'
-            
+
         ]
-        
+
         self.param = [1,50,100]
-        
+
     def insert_data(self,column_dict,tbname,row_num):
-        intData = []        
+        intData = []
         floatData = []
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
             insert_list = []
             self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
-            intData.append(i)            
+            intData.append(i)
             floatData.append(i + 0.1)
         return intData,floatData
     def check_tags(self,tags,param,num,value):
@@ -117,6 +117,20 @@ class TDTestCase:
                 else:
                     tdSql.query(f'select percentile({k}, {param}) from {self.ntbname}')
                     tdSql.checkData(0, 0, np.percentile(floatData, param))
+
+        tdSql.query(f'select percentile(col1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100) from {self.ntbname}')
+        tdSql.checkData(0, 0, '[0.900000, 1.800000, 2.700000, 3.600000, 4.500000, 5.400000, 6.300000, 7.200000, 8.100000, 9.000000]')
+
+        tdSql.query(f'select percentile(col1, 9.9, 19.9, 29.9, 39.9, 49.9, 59.9, 69.9, 79.9, 89.9, 99.9) from {self.ntbname}')
+        tdSql.checkData(0, 0, '[0.891000, 1.791000, 2.691000, 3.591000, 4.491000, 5.391000, 6.291000, 7.191000, 8.091000, 8.991000]')
+
+        tdSql.error(f'select percentile(col1) from {self.ntbname}')
+        tdSql.error(f'select percentile(col1, -1) from {self.ntbname}')
+        tdSql.error(f'select percentile(col1, 101) from {self.ntbname}')
+        tdSql.error(f'select percentile(col1, col2) from {self.ntbname}')
+        tdSql.error(f'select percentile(1, col1) from {self.ntbname}')
+        tdSql.error(f'select percentile(col1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 101) from {self.ntbname}')
+
         tdSql.execute(f'drop database {self.dbname}')
     def function_check_ctb(self):
         tdSql.execute(f'create database {self.dbname}')
@@ -135,7 +149,7 @@ class TDTestCase:
                     else:
                         tdSql.query(f'select percentile({k}, {param}) from {self.stbname}_{i}')
                         tdSql.checkData(0, 0, np.percentile(floatData, param))
-            
+
             for k,v in self.tag_dict.items():
                 for param in self.param:
                     if v.lower() in ['timestamp','bool'] or 'binary' in v.lower() or 'nchar' in v.lower():
@@ -145,11 +159,25 @@ class TDTestCase:
                         data_num = tdSql.queryResult[0][0]
                         tdSql.query(f'select percentile({k},{param}) from {self.stbname}_{i}')
                         tdSql.checkData(0,0,data_num)
-        tdSql.execute(f'drop database {self.dbname}')            
+
+        tdSql.query(f'select percentile(col1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100) from {self.stbname}_0')
+        tdSql.checkData(0, 0, '[0.900000, 1.800000, 2.700000, 3.600000, 4.500000, 5.400000, 6.300000, 7.200000, 8.100000, 9.000000]')
+
+        tdSql.query(f'select percentile(col1, 9.9, 19.9, 29.9, 39.9, 49.9, 59.9, 69.9, 79.9, 89.9, 99.9) from {self.stbname}_0')
+        tdSql.checkData(0, 0, '[0.891000, 1.791000, 2.691000, 3.591000, 4.491000, 5.391000, 6.291000, 7.191000, 8.091000, 8.991000]')
+
+        tdSql.error(f'select percentile(col1) from {self.stbname}_0')
+        tdSql.error(f'select percentile(col1, -1) from {self.stbname}_0')
+        tdSql.error(f'select percentile(col1, 101) from {self.stbname}_0')
+        tdSql.error(f'select percentile(col1, col2) from {self.stbname}_0')
+        tdSql.error(f'select percentile(1, col1) from {self.stbname}_0')
+        tdSql.error(f'select percentile(col1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 101) from {self.stbname}_0')
+
+        tdSql.execute(f'drop database {self.dbname}')
     def run(self):
         self.function_check_ntb()
         self.function_check_ctb()
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

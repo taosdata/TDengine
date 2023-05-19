@@ -1,6 +1,7 @@
 ---
-sidebar_label: Error Recovery
 title: Error Recovery
+sidebar_label: Error Recovery
+description: This document describes the SQL statements related to error recovery in TDengine.
 ---
 
 In a complex environment, connections and query tasks may encounter errors or fail to return in a reasonable time. If this occurs, you can terminate the connection or task.
