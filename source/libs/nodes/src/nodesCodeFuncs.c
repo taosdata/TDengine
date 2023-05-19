@@ -1416,6 +1416,7 @@ static int32_t jsonToLogicPlan(const SJson* pJson, void* pObj) {
 static const char* jkJoinLogicPlanJoinType = "JoinType";
 static const char* jkJoinLogicPlanOnConditions = "OnConditions";
 static const char* jkJoinLogicPlanMergeCondition = "MergeConditions";
+static const char* jkJoinLogicPlanTagEqualConditions = "TagEqualConditions";
 
 static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   const SJoinLogicNode* pNode = (const SJoinLogicNode*)pObj;
@@ -1430,7 +1431,9 @@ static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkJoinLogicPlanOnConditions, nodeToJson, pNode->pOnConditions);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkJoinLogicPlanTagEqualConditions, nodeToJson, pNode->pTagEqualConditions);
+  }
   return code;
 }
 
@@ -1447,7 +1450,9 @@ static int32_t jsonToLogicJoinNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkJoinLogicPlanOnConditions, &pNode->pOnConditions);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkJoinLogicPlanTagEqualConditions, &pNode->pTagEqualConditions);
+  }
   return code;
 }
 
@@ -1878,6 +1883,7 @@ static const char* jkJoinPhysiPlanInputTsOrder = "InputTsOrder";
 static const char* jkJoinPhysiPlanMergeCondition = "MergeCondition";
 static const char* jkJoinPhysiPlanOnConditions = "OnConditions";
 static const char* jkJoinPhysiPlanTargets = "Targets";
+static const char* jkJoinPhysiPlanTagEqualConditions = "TagEqualConditions";
 
 static int32_t physiJoinNodeToJson(const void* pObj, SJson* pJson) {
   const SSortMergeJoinPhysiNode* pNode = (const SSortMergeJoinPhysiNode*)pObj;
@@ -1898,7 +1904,9 @@ static int32_t physiJoinNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkJoinPhysiPlanTargets, pNode->pTargets);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkJoinPhysiPlanTagEqualConditions, nodeToJson, pNode->pTagEqualCondtions);
+  }
   return code;
 }
 
@@ -1921,7 +1929,9 @@ static int32_t jsonToPhysiJoinNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkJoinPhysiPlanTargets, &pNode->pTargets);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkJoinPhysiPlanTagEqualConditions, &pNode->pTagEqualCondtions);
+  }
   return code;
 }
 
