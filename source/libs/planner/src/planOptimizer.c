@@ -740,18 +740,15 @@ static int32_t pushDownCondOptJoinExtractMergeCond(SOptimizeContext* pCxt, SJoin
   return code;
 }
 
-static bool pushDownCondOptIsTag(SNode* pNode, SNodeList* pTableCols) {
+static bool pushDownCondOptIsTableColumn(SNode* pNode, SNodeList* pTableCols) {
   if (QUERY_NODE_COLUMN != nodeType(pNode)) {
     return false;
   }
   SColumnNode* pCol = (SColumnNode*)pNode;
-  if (COLUMN_TYPE_TAG != pCol->colType) {
-    return false;
-  }
   return pushDownCondOptBelongThisTable(pNode, pTableCols);
 }
 
-static bool pushDownCondOptIsTagEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
+static bool pushDownCondOptIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond) {
   if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
     return false;
   }
@@ -770,22 +767,22 @@ static bool pushDownCondOptIsTagEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
   }
   SNodeList* pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
   SNodeList* pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
-  if (pushDownCondOptIsTag(pOper->pLeft, pLeftCols)) {
-    return pushDownCondOptIsTag(pOper->pRight, pRightCols);
-  } else if (pushDownCondOptIsTag(pOper->pLeft, pRightCols)) {
-    return pushDownCondOptIsTag(pOper->pRight, pLeftCols);
+  if (pushDownCondOptIsTableColumn(pOper->pLeft, pLeftCols)) {
+    return pushDownCondOptIsTableColumn(pOper->pRight, pRightCols);
+  } else if (pushDownCondOptIsTableColumn(pOper->pLeft, pRightCols)) {
+    return pushDownCondOptIsTableColumn(pOper->pRight, pLeftCols);
   }
   return false;
 }
 
-static int32_t pushDownCondOptJoinExtractTagEqualLogicCond(SJoinLogicNode* pJoin) {
+static int32_t pushDownCondOptJoinExtractEqualOnLogicCond(SJoinLogicNode* pJoin) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pJoin->pOnConditions);
 
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pTagEqualConds = NULL;
   SNode*     pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
-    if (pushDownCondOptIsTagEqualCond(pJoin, pCond)) {
+    if (pushDownCondOptIsEqualOnCond(pJoin, pCond)) {
       code = nodesListMakeAppend(&pTagEqualConds, nodesCloneNode(pCond));
     }
   }
@@ -796,7 +793,7 @@ static int32_t pushDownCondOptJoinExtractTagEqualLogicCond(SJoinLogicNode* pJoin
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    pJoin->pTagEqualConditions = pTempTagEqCond;
+    pJoin->pEqualOnConditions = pTempTagEqCond;
     return TSDB_CODE_SUCCESS;
   } else {
     nodesDestroyList(pTagEqualConds);
@@ -805,18 +802,18 @@ static int32_t pushDownCondOptJoinExtractTagEqualLogicCond(SJoinLogicNode* pJoin
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t pushDownCondOptJoinExtractTagEqualCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+static int32_t pushDownCondOptJoinExtractEqualOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pOnConditions) {
-    pJoin->pTagEqualConditions = NULL;
+    pJoin->pEqualOnConditions = NULL;
     return TSDB_CODE_SUCCESS;
   }
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions) &&
       LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)(pJoin->pOnConditions))->condType) {
-    return pushDownCondOptJoinExtractTagEqualLogicCond(pJoin);
+    return pushDownCondOptJoinExtractEqualOnLogicCond(pJoin);
   }
 
-  if (pushDownCondOptIsTagEqualCond(pJoin, pJoin->pOnConditions)) {
-    pJoin->pTagEqualConditions = nodesCloneNode(pJoin->pOnConditions);
+  if (pushDownCondOptIsEqualOnCond(pJoin, pJoin->pOnConditions)) {
+    pJoin->pEqualOnConditions = nodesCloneNode(pJoin->pOnConditions);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -857,7 +854,7 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = pushDownCondOptJoinExtractTagEqualCond(pCxt, pJoin);
+    code = pushDownCondOptJoinExtractEqualOnCond(pCxt, pJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

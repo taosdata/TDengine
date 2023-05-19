@@ -52,15 +52,15 @@ typedef struct SJoinOperatorInfo {
   int32_t      rightPos;
   SColumnInfo  rightCol;
   SNode*       pCondAfterMerge;
-  SNode*       pTagEqualConditions;
+  SNode*       pEqualOnConditions;
 
-  SArray*      leftTagCols;
-  char*        leftTagKeyBuf;
-  int32_t      leftTagKeyLen;
+  SArray*      leftEqOnCondCols;
+  char*        leftEqOnCondKeyBuf;
+  int32_t      leftEqOnCondKeyLen;
 
-  SArray*      rightTagCols;
-  char*        rightTagKeyBuf;
-  int32_t      rightTagKeyLen;
+  SArray*      rightEqOnCondCols;
+  char*        rightEqOnCondKeyBuf;
+  int32_t      rightEqOnCondKeyLen;
 
   SSHashObj*   rightBuildTable;
   SJoinRowCtx  rowCtx;
@@ -104,7 +104,7 @@ static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDown
   setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
 }
 
-static void extractTagEqualColsFromOper(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstreams, SOperatorNode* pOperNode,
+static void extractEqualOnCondColsFromOper(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstreams, SOperatorNode* pOperNode,
                                        SColumn* pLeft, SColumn* pRight) {
   SColumnNode* pLeftNode = (SColumnNode*)pOperNode->pLeft;
   SColumnNode* pRightNode = (SColumnNode*)pOperNode->pRight;
@@ -125,7 +125,7 @@ static void extractTagEqualCondCols(SJoinOperatorInfo* pInfo, SOperatorInfo** pD
     SNode* pNode = NULL;
     FOREACH(pNode, ((SLogicConditionNode*)pTagEqualNode)->pParameterList) {
       SOperatorNode* pOperNode = (SOperatorNode*)pNode;
-      extractTagEqualColsFromOper(pInfo, pDownStream, pOperNode, &left, &right);
+      extractEqualOnCondColsFromOper(pInfo, pDownStream, pOperNode, &left, &right);
       taosArrayPush(leftTagEqCols, &left);
       taosArrayPush(rightTagEqCols, &right);
     }
@@ -134,7 +134,7 @@ static void extractTagEqualCondCols(SJoinOperatorInfo* pInfo, SOperatorInfo** pD
 
   if (nodeType(pTagEqualNode) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pOperNode = (SOperatorNode*)pTagEqualNode;
-    extractTagEqualColsFromOper(pInfo, pDownStream, pOperNode, &left, &right);
+    extractEqualOnCondColsFromOper(pInfo, pDownStream, pOperNode, &left, &right);
     taosArrayPush(leftTagEqCols, &left);
     taosArrayPush(rightTagEqCols, &right);
   }
@@ -259,13 +259,13 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     pInfo->inputOrder = TSDB_ORDER_DESC;
   }
 
-  pInfo->pTagEqualConditions = pJoinNode->pTagEqualCondtions;
-  if (pInfo->pTagEqualConditions != NULL) {
-    pInfo->leftTagCols = taosArrayInit(4, sizeof(SColumn));
-    pInfo->rightTagCols = taosArrayInit(4, sizeof(SColumn));
-    extractTagEqualCondCols(pInfo, pDownstream, pInfo->pTagEqualConditions, pInfo->leftTagCols, pInfo->rightTagCols);
-    initTagColskeyBuf(&pInfo->leftTagKeyLen, &pInfo->leftTagKeyBuf, pInfo->leftTagCols);
-    initTagColskeyBuf(&pInfo->rightTagKeyLen, &pInfo->rightTagKeyBuf, pInfo->rightTagCols);
+  pInfo->pEqualOnConditions = pJoinNode->pEqualOnCondtions;
+  if (pInfo->pEqualOnConditions != NULL) {
+    pInfo->leftEqOnCondCols = taosArrayInit(4, sizeof(SColumn));
+    pInfo->rightEqOnCondCols = taosArrayInit(4, sizeof(SColumn));
+    extractTagEqualCondCols(pInfo, pDownstream, pInfo->pEqualOnConditions, pInfo->leftEqOnCondCols, pInfo->rightEqOnCondCols);
+    initTagColskeyBuf(&pInfo->leftEqOnCondKeyLen, &pInfo->leftEqOnCondKeyBuf, pInfo->leftEqOnCondCols);
+    initTagColskeyBuf(&pInfo->rightEqOnCondKeyLen, &pInfo->rightEqOnCondKeyBuf, pInfo->rightEqOnCondCols);
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->rightBuildTable = tSimpleHashInit(256,  hashFn);
   }
@@ -309,13 +309,13 @@ static void mergeJoinDestoryBuildTable(SSHashObj* pBuildTable) {
 
 void destroyMergeJoinOperator(void* param) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
-  if (pJoinOperator->pTagEqualConditions != NULL) {
+  if (pJoinOperator->pEqualOnConditions != NULL) {
     mergeJoinDestoryBuildTable(pJoinOperator->rightBuildTable);
-    taosMemoryFreeClear(pJoinOperator->rightTagKeyBuf);
-    taosArrayDestroy(pJoinOperator->rightTagCols);
+    taosMemoryFreeClear(pJoinOperator->rightEqOnCondKeyBuf);
+    taosArrayDestroy(pJoinOperator->rightEqOnCondCols);
 
-    taosMemoryFreeClear(pJoinOperator->leftTagKeyBuf);
-    taosArrayDestroy(pJoinOperator->leftTagCols);
+    taosMemoryFreeClear(pJoinOperator->leftEqOnCondKeyBuf);
+    taosArrayDestroy(pJoinOperator->leftEqOnCondCols);
   }
   nodesDestroyNode(pJoinOperator->pCondAfterMerge);
 
@@ -439,12 +439,12 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
 static int32_t mergeJoinFillBuildTable(SJoinOperatorInfo* pInfo, SArray* rightRowLocations) {
   for (int32_t i = 0; i < taosArrayGetSize(rightRowLocations); ++i) {
     SRowLocation* rightRow = taosArrayGet(rightRowLocations, i);
-    int32_t keyLen = fillKeyBufFromTagCols(pInfo->rightTagCols, rightRow->pDataBlock, rightRow->pos, pInfo->rightTagKeyBuf);
-    SArray** ppRows = tSimpleHashGet(pInfo->rightBuildTable, pInfo->rightTagKeyBuf, keyLen);
+    int32_t keyLen = fillKeyBufFromTagCols(pInfo->rightEqOnCondCols, rightRow->pDataBlock, rightRow->pos, pInfo->rightEqOnCondKeyBuf);
+    SArray** ppRows = tSimpleHashGet(pInfo->rightBuildTable, pInfo->rightEqOnCondKeyBuf, keyLen);
     if (!ppRows) {
       SArray* rows = taosArrayInit(4, sizeof(SRowLocation));
       taosArrayPush(rows, rightRow);
-      tSimpleHashPut(pInfo->rightBuildTable, pInfo->rightTagKeyBuf, keyLen, &rows, POINTER_BYTES);
+      tSimpleHashPut(pInfo->rightBuildTable, pInfo->rightEqOnCondKeyBuf, keyLen, &rows, POINTER_BYTES);
     } else {
       taosArrayPush(*ppRows, rightRow);
     }
@@ -466,8 +466,8 @@ static int32_t mergeJoinLeftRowsRightRows(SOperatorInfo* pOperator, SSDataBlock*
     SRowLocation* leftRow = taosArrayGet(leftRowLocations, i);
     SArray* pRightRows = NULL;
     if (useBuildTableTSRange) {
-      int32_t  keyLen = fillKeyBufFromTagCols(pJoinInfo->leftTagCols, leftRow->pDataBlock, leftRow->pos, pJoinInfo->leftTagKeyBuf);
-      SArray** ppRightRows = tSimpleHashGet(pJoinInfo->rightBuildTable, pJoinInfo->leftTagKeyBuf, keyLen);
+      int32_t  keyLen = fillKeyBufFromTagCols(pJoinInfo->leftEqOnCondCols, leftRow->pDataBlock, leftRow->pos, pJoinInfo->leftEqOnCondKeyBuf);
+      SArray** ppRightRows = tSimpleHashGet(pJoinInfo->rightBuildTable, pJoinInfo->leftEqOnCondKeyBuf, keyLen);
       if (!ppRightRows) {
         continue;
       }
@@ -567,7 +567,7 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
                                              pJoinInfo->leftPos, timestamp, leftRowLocations, leftCreatedBlocks);
     mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 1, pJoinInfo->rightCol.slotId, pJoinInfo->pRight,
                                              pJoinInfo->rightPos, timestamp, rightRowLocations, rightCreatedBlocks);
-    if (pJoinInfo->pTagEqualConditions != NULL && taosArrayGetSize(rightRowLocations) > 16) {
+    if (pJoinInfo->pEqualOnConditions != NULL && taosArrayGetSize(rightRowLocations) > 16) {
       mergeJoinFillBuildTable(pJoinInfo, rightRowLocations);
       rightUseBuildTable = true;
       taosArrayDestroy(rightRowLocations);

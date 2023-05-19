@@ -1432,7 +1432,7 @@ static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddObject(pJson, jkJoinLogicPlanOnConditions, nodeToJson, pNode->pOnConditions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkJoinLogicPlanTagEqualConditions, nodeToJson, pNode->pTagEqualConditions);
+    code = tjsonAddObject(pJson, jkJoinLogicPlanTagEqualConditions, nodeToJson, pNode->pEqualOnConditions);
   }
   return code;
 }
@@ -1451,7 +1451,7 @@ static int32_t jsonToLogicJoinNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeObject(pJson, jkJoinLogicPlanOnConditions, &pNode->pOnConditions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkJoinLogicPlanTagEqualConditions, &pNode->pTagEqualConditions);
+    code = jsonToNodeObject(pJson, jkJoinLogicPlanTagEqualConditions, &pNode->pEqualOnConditions);
   }
   return code;
 }
@@ -1905,7 +1905,7 @@ static int32_t physiJoinNodeToJson(const void* pObj, SJson* pJson) {
     code = nodeListToJson(pJson, jkJoinPhysiPlanTargets, pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkJoinPhysiPlanTagEqualConditions, nodeToJson, pNode->pTagEqualCondtions);
+    code = tjsonAddObject(pJson, jkJoinPhysiPlanTagEqualConditions, nodeToJson, pNode->pEqualOnCondtions);
   }
   return code;
 }
@@ -1930,7 +1930,7 @@ static int32_t jsonToPhysiJoinNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkJoinPhysiPlanTargets, &pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkJoinPhysiPlanTagEqualConditions, &pNode->pTagEqualCondtions);
+    code = jsonToNodeObject(pJson, jkJoinPhysiPlanTagEqualConditions, &pNode->pEqualOnCondtions);
   }
   return code;
 }
@@ -2135,7 +2135,7 @@ static const char* jkWindowPhysiPlanOutputTsOrder = "outputTsOrder";
 static const char* jkWindowPhysiPlanMergeDataBlock = "MergeDataBlock";
 
 static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
-  const SWinodwPhysiNode* pNode = (const SWinodwPhysiNode*)pObj;
+  const SWindowPhysiNode* pNode = (const SWindowPhysiNode*)pObj;
 
   int32_t code = physicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2176,7 +2176,7 @@ static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
 }
 
 static int32_t jsonToPhysiWindowNode(const SJson* pJson, void* pObj) {
-  SWinodwPhysiNode* pNode = (SWinodwPhysiNode*)pObj;
+  SWindowPhysiNode* pNode = (SWindowPhysiNode*)pObj;
 
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
