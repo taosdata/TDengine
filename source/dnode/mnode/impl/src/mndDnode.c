@@ -660,7 +660,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
     if (cfgAll) {
       pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
       if (pIter == NULL) break;
-    } else if(!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId)) {
+    } else if(!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
       goto _OVER;
     }
 
