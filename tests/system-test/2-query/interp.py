@@ -3973,6 +3973,18 @@ class TDTestCase:
         tdSql.checkData(7,  1, '2020-02-01 00:00:09.000')
         tdSql.checkData(10, 1, '2020-02-01 00:00:15.000')
 
+        # multiple column with ignoring null value is not allowed
+
+        tdSql.query(f"select _irowts, _isfilled, interp(c0), interp(c1), interp(c2) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0, 0), interp(c1, 0), interp(c2, 0) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0), interp(c1, 0), interp(c2) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0), interp(c1, 1), interp(c2) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0, 1), interp(c1, 0), interp(c2, 0) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0), interp(c1, 0), interp(c2, 1) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0, 1), interp(c1, 1), interp(c2, 1) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
+
+
 
         tdLog.printNoPrefix("======step 15: test interp pseudo columns")
         tdSql.error(f"select _irowts, c6 from {dbname}.{tbname}")
