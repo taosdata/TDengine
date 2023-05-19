@@ -172,6 +172,9 @@ impl AgentTasks {
         self.sender.send(action)
     }
 }
+
+use taos::taos_query::tmq::Assignment;
+
 pub(super) struct TaskController {
     pub pool: SqlitePool,
     pub runtime: Option<Runtime>,
@@ -188,6 +191,8 @@ pub(super) struct TaskController {
     pub secret: RwLock<Option<Bytes>>,
     /// An Agent-to-Tasks-Vector hashmap.
     pub agent_tasks: RwLock<HashMap<i64, AgentTasks>>,
+    // An Task-to-Assignments-Vector hashmap.
+    pub offsets: RwLock<HashMap<i64, Arc<DashMap<String, Vec<Assignment>>>>>,
     // pub agent_workers: RwLock<HashMap<i64, AgentWorker>>
     // tasks: Mutex<Vec<Task>>,
 }
@@ -198,6 +203,7 @@ impl Debug for TaskController {
             .field("pool", &self.pool)
             .field("runtime", &self.runtime)
             .field("tasks", &self.tasks)
+            .field("offsets", &self.offsets)
             .field("scheduler", &"...")
             .finish()
     }
@@ -362,6 +368,7 @@ impl TaskController {
             scheduler: Arc::new(scheduler),
             secret: RwLock::new(None),
             agent_tasks: Default::default(),
+            offsets: Default::default(),
         })
     }
 
@@ -403,6 +410,11 @@ impl TaskController {
 
         let token = tokio_util::sync::CancellationToken::new();
         let cloned_token = token.clone();
+        let offsets = Arc::new(DashMap::new());
+        self.offsets
+        .write()
+        .await
+        .insert(id, offsets.clone());
         let opts = TaskOpts {
             transform: vec![],
             from,
@@ -417,8 +429,9 @@ impl TaskController {
             cancel: CancellationToken::new(),
             // port_pool: ONCE,
             with_agent: None,
+            offsets
         };
-        dbg!(&opts);
+        // dbg!(&opts);
 
         let agent_task_worker = if let Some(id) = task.via {
             // self.init_agent_worker(id)?;
@@ -962,6 +975,15 @@ impl TaskController {
             }
         }
         Ok(())
+    }
+
+    pub async fn offsets(&self, id: i64) -> anyhow::Result<Option<Arc<DashMap<String, Vec<Assignment>>>>> {
+        let offsets = self.offsets
+        .read()
+        .await
+        .get(&id)
+        .cloned();
+        Ok(offsets)
     }
 
     pub async fn create_agent(&self, agent: AgentProps) -> anyhow::Result<AgentWithToken> {
@@ -2060,6 +2082,90 @@ mod tests {
         dbg!(&detail);
 
         controller.delete_agent(agent.id).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_task_offset() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "taos=info");
+        pretty_env_logger::init();
+
+        let mut dsn = "taos://localhost:6030".to_string();
+        log::info!("dsn: {}", dsn);
+
+        let taos = taos::TaosBuilder::from_dsn(&dsn)?.build().await?;
+        taos.exec_many([
+            "drop topic if exists ws_abc1",
+            "drop database if exists ws_abc1",
+            "create database ws_abc1 wal_retention_period 3600",
+            "create topic ws_abc1 with meta as database ws_abc1",
+            "use ws_abc1",
+            // kind 1: create super table using all types
+            "create table stb1(ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint,\
+            c6 timestamp, c7 float, c8 double, c9 varchar(10), c10 nchar(16),\
+            c11 tinyint unsigned, c12 smallint unsigned, c13 int unsigned, c14 bigint unsigned)\
+            tags(t1 json)",
+            // kind 2: create child table with json tag
+            "create table tb0 using stb1 tags('{\"name\":\"value\"}')",
+            "create table tb1 using stb1 tags(NULL)",
+            "insert into tb0 values(now, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL)
+            tb1 values(now, true, -2, -3, -4, -5, \
+            '2022-02-02 02:02:02.222', -0.1, -0.12345678910, 'abc 和我', 'Unicode + 涛思',\
+            254, 65534, 1, 1)",
+            // kind 3: create super table with all types except json (especially for tags)
+            "create table stb2(ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint,\
+            c6 timestamp, c7 float, c8 double, c9 varchar(10), c10 nchar(10),\
+            c11 tinyint unsigned, c12 smallint unsigned, c13 int unsigned, c14 bigint unsigned)\
+            tags(t1 bool, t2 tinyint, t3 smallint, t4 int, t5 bigint,\
+            t6 timestamp, t7 float, t8 double, t9 varchar(10), t10 nchar(16),\
+            t11 tinyint unsigned, t12 smallint unsigned, t13 int unsigned, t14 bigint unsigned)",
+            // kind 4: create child table with all types except json
+            "create table tb2 using stb2 tags(true, -2, -3, -4, -5, \
+            '2022-02-02 02:02:02.222', -0.1, -0.12345678910, 'abc 和我', 'Unicode + 涛思',\
+            254, 65534, 1, 1)",
+            "create table tb3 using stb2 tags( NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL)",           
+        ])
+        .await?;
+
+        taos.exec_many([
+            "drop database if exists db2",
+        ])
+        .await?;
+
+        let controller = TaskController::from_sqlite("sqlite::memory:").await?;
+
+        let task_props: NewTask = serde_json::from_str(&format!(
+            r#"
+        {{
+            "from": "tmq:///ws_abc1", 
+            "to":"taos:///db2",
+            "force": true
+        }}
+        "#,
+        ))
+        .unwrap();
+
+        let task = controller.create(task_props).await?;
+        // dbg!(&task);
+
+        // let tasks = controller.tasks(TaskFilter::default()).await?;
+
+        controller.start_task(&task).await?;
+
+        // sleep to wait for task started.
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        
+        // let task_after_start = controller.get(task.id).await?;
+        // dbg!(&task_after_start);
+
+        controller.stop(task.id).await?;
+        let offset = controller.offsets(task.id).await?.unwrap();
+        dbg!(&offset);
 
         Ok(())
     }

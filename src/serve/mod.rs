@@ -85,6 +85,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(update_task)
             .service(delete_task)
             .service(get_task_by_id)
+            .service(get_task_offsets_by_id)
             .service(start_task)
             .service(stop_task)
             .service(metrics::metrics_exporter)
@@ -152,6 +153,7 @@ impl Cli {
                 task::start_task,
                 task::stop_task,
                 task::get_task_by_id,
+                task::get_task_offsets_by_id,
 
                 metrics::metrics_exporter,
 

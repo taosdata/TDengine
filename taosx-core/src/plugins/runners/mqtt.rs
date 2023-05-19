@@ -308,6 +308,7 @@ async fn test_mqtt_parser() {
         cancel: CancellationToken::new(),
         // port_pool: ONCE,
         with_agent: None,
+        offsets: Default::default(),
     };
     opts.run(&PortPool::default()).await.unwrap();
 }
