@@ -1080,7 +1080,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   const char*    id = GET_TASKID(pTaskInfo);
 
   // if pOffset equal to current offset, means continue consume
-  if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.currentOffset)) {
+  if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.currentOffset) && pOffset->type != TMQ_OFFSET__SNAPSHOT_DATA) {
     return 0;
   }
 
