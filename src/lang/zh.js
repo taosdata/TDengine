@@ -874,6 +874,8 @@ export default {
   },
 
   datasource: {
+    iptip:'请输入正确的ip地址',
+    porttip:'请输入正确的端口号',
     ok:'确定',
     cancel:'取消',
     deletetip:'确定删除 ',
