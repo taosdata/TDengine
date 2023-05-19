@@ -1036,47 +1036,29 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     strcpy(dcfgReq.config, "monitor");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #ifdef TD_ENTERPRISE
-  } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0) {
-    if (' ' != cfgReq.config[10] && 0 != cfgReq.config[10]) {
+  } else if (strncasecmp(cfgReq.config, "activeCode", 10) == 0 || strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
+    int8_t opt = strncasecmp(cfgReq.config, "a", 1) == 0 ? DND_ACTIVE_CODE : DND_CONN_ACTIVE_CODE;
+    int8_t index = opt == DND_ACTIVE_CODE ? 10 : 11;
+    if (' ' != cfgReq.config[index] && 0 != cfgReq.config[index]) {
       mError("dnode:%d, failed to config activeCode since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
       terrno = TSDB_CODE_INVALID_CFG;
       return -1;
     }
     int32_t vlen = strlen(cfgReq.value);
-    if (vlen > 0 && vlen != (TSDB_ACTIVE_KEY_LEN - 1)) {
+    if (vlen > 0 && ((opt == DND_ACTIVE_CODE && vlen != (TSDB_ACTIVE_KEY_LEN - 1)) ||
+                     (opt == DND_CONN_ACTIVE_CODE &&
+                      (vlen > (TSDB_CONN_ACTIVE_KEY_LEN - 1) || vlen < (TSDB_ACTIVE_KEY_LEN - 1))))) {
       mError("dnode:%d, failed to config activeCode since invalid vlen:%d. conf:%s, val:%s", cfgReq.dnodeId, vlen,
              cfgReq.config, cfgReq.value);
       terrno = TSDB_CODE_INVALID_OPTION;
       return -1;
     }
 
-    strcpy(dcfgReq.config, "activeCode");
+    strcpy(dcfgReq.config, opt == DND_ACTIVE_CODE ? "activeCode" : "cActiveCode");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
 
-    if (mndConfigDnode(pMnode, pReq, &cfgReq, DND_ACTIVE_CODE) != 0) {
+    if (mndConfigDnode(pMnode, pReq, &cfgReq, opt) != 0) {
       mError("dnode:%d, failed to config activeCode since %s", cfgReq.dnodeId, terrstr());
-      return -1;
-    }
-    return 0;
-  } else if (strncasecmp(cfgReq.config, "cActiveCode", 11) == 0) {
-    if (' ' != cfgReq.config[11] && 0 != cfgReq.config[11]) {
-      mError("dnode:%d, failed to config cActiveCode since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
-      terrno = TSDB_CODE_INVALID_CFG;
-      return -1;
-    }
-    int32_t vlen = strlen(cfgReq.value);
-    if (vlen > 0 && (vlen > (TSDB_CONN_ACTIVE_KEY_LEN - 1) || vlen < (TSDB_ACTIVE_KEY_LEN - 1))) {
-      mError("dnode:%d, failed to config cActiveCode since invalid vlen:%d. conf:%s, val:%s", cfgReq.dnodeId, vlen,
-             cfgReq.config, cfgReq.value);
-      terrno = TSDB_CODE_INVALID_OPTION;
-      return -1;
-    }
-
-    strcpy(dcfgReq.config, "cActiveCode");
-    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
-
-    if (mndConfigDnode(pMnode, pReq, &cfgReq, DND_CONN_ACTIVE_CODE) != 0) {
-      mError("dnode:%d, failed to config cActiveCode since %s", cfgReq.dnodeId, terrstr());
       return -1;
     }
     return 0;
