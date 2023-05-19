@@ -362,7 +362,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     if (pHandle->consumerId != consumerId) {
       tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
               consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
-      terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+      terrno = TSDB_CODE_TMQ_INVALID_MSG;
       taosWUnLockLatch(&pTq->lock);
       return -1;
     }
