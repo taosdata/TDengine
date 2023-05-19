@@ -649,18 +649,19 @@ _OVER:
 }
 
 static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfgReq, int8_t action) {
-  SSdbRaw *pRaw = NULL;
-  STrans  *pTrans = NULL;
+  SSdbRaw   *pRaw = NULL;
+  STrans    *pTrans = NULL;
+  SDnodeObj *pDnode = NULL;
+  bool       cfgAll = pCfgReq->dnodeId == -1;
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
   while (1) {
-    SDnodeObj *pDnode = NULL;
-    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
-    if (pIter == NULL) break;
-
-    if (pDnode->id != pCfgReq->dnodeId && pCfgReq->dnodeId != -1) {
-      continue;
+    if (cfgAll) {
+      pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+      if (pIter == NULL) break;
+    } else if(!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId)) {
+      goto _OVER;
     }
 
     if (!pTrans) {
@@ -687,7 +688,12 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
     mInfo("dnode:%d, config dnode, cfg:%d, app:%p config:%s value:%s", pDnode->id, pCfgReq->dnodeId, pReq->info.ahandle,
           pCfgReq->config, pCfgReq->value);
 
-    sdbRelease(pSdb, pDnode);
+    if (cfgAll) {
+      sdbRelease(pSdb, pDnode);
+      pDnode = NULL;
+    } else {
+      break;
+    }
   }
 
   if (pTrans && mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -695,6 +701,11 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   terrno = 0;
 
 _OVER:
+  if (cfgAll) {
+    sdbRelease(pSdb, pDnode);
+  } else {
+    mndReleaseDnode(pMnode, pDnode);
+  }
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
   return terrno;
