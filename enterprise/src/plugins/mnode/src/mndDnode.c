@@ -23,7 +23,6 @@
 
 int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t restoreType) {
   int32_t  code = -1;
-  SSdbRaw *pRaw = NULL;
   STrans  *pTrans = NULL;
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "restore-dnode");
@@ -35,40 +34,46 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
 
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
+  bool needRestore = false;
+
   if(restoreType == RESTORE_TYPE__ALL || restoreType == RESTORE_TYPE__MNODE)
   {
-    int32_t totalMnodes = sdbGetSize(pMnode->pSdb, SDB_MNODE);
-    if (totalMnodes == 2) {
-        mError("cant't restore mnode, since a mnode on it and replica is 2");
-        terrno = TSDB_CODE_MNODE_ONLY_TWO_MNODE;
-        return -1;
-    }
-    
     SMnodeObj *mnodeObj = mndAcquireMnode(pMnode, pDnode->id);
     if(mnodeObj == NULL){
       mError("trans:%d, no mnode exist on dnode:%s", pTrans->id, pDnode->ep);
+      terrno = TSDB_CODE_MNODE_NOT_FOUND;
     }
-    else
-    {
-      SMnodeObj newMnodeObj = {0};
-      newMnodeObj.id = pDnode->id;
-      newMnodeObj.createdTime = taosGetTimestampMs();
-      newMnodeObj.updateTime = newMnodeObj.createdTime;
-      newMnodeObj.role = TAOS_SYNC_ROLE_LEARNER;
-      newMnodeObj.lastIndex = pMnode->applied;
-      if (mndSetRestoreCreateMnodeRedoActions(pMnode, pTrans, pDnode, &newMnodeObj) != 0) goto _OVER;
+    else{
+      int32_t totalMnodes = sdbGetSize(pMnode->pSdb, SDB_MNODE);
+      if (totalMnodes == 2) {
+        mError("cant't restore mnode, since a mnode on it and replica is 2");
+        terrno = TSDB_CODE_MNODE_ONLY_TWO_MNODE;
 
-      SMnodeObj mnodeLeaderObj = {0};
-      mnodeLeaderObj.id = pDnode->id;
-      mnodeLeaderObj.createdTime = taosGetTimestampMs();
-      mnodeLeaderObj.updateTime = mnodeLeaderObj.createdTime;
-      mnodeLeaderObj.role = TAOS_SYNC_ROLE_VOTER;
-      mnodeLeaderObj.lastIndex = pMnode->applied + 1;
-      if (mndSetRestoreAlterMnodeTypeRedoActions(pMnode, pTrans, pDnode, &mnodeLeaderObj) != 0) goto _OVER;
+        mndReleaseMnode(pMnode, mnodeObj);
+      }
+      else{
+        SMnodeObj newMnodeObj = {0};
+        newMnodeObj.id = pDnode->id;
+        newMnodeObj.createdTime = taosGetTimestampMs();
+        newMnodeObj.updateTime = newMnodeObj.createdTime;
+        newMnodeObj.role = TAOS_SYNC_ROLE_LEARNER;
+        newMnodeObj.lastIndex = pMnode->applied;
+        if (mndSetRestoreCreateMnodeRedoActions(pMnode, pTrans, pDnode, &newMnodeObj) != 0) goto _OVER;
 
-      if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeLeaderObj) != 0) goto _OVER;
+        SMnodeObj mnodeLeaderObj = {0};
+        mnodeLeaderObj.id = pDnode->id;
+        mnodeLeaderObj.createdTime = taosGetTimestampMs();
+        mnodeLeaderObj.updateTime = mnodeLeaderObj.createdTime;
+        mnodeLeaderObj.role = TAOS_SYNC_ROLE_VOTER;
+        mnodeLeaderObj.lastIndex = pMnode->applied + 1;
+        if (mndSetRestoreAlterMnodeTypeRedoActions(pMnode, pTrans, pDnode, &mnodeLeaderObj) != 0) goto _OVER;
 
-      mndReleaseMnode(pMnode, mnodeObj);
+        if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeLeaderObj) != 0) goto _OVER;
+
+        mndReleaseMnode(pMnode, mnodeObj);
+
+        needRestore = true;
+      }
     }
   }
 
@@ -95,6 +100,7 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
           goto _OVER;
         }
         mndReleaseDb(pMnode, db);
+        needRestore = true;
       }
 
       sdbRelease(pSdb, pVgroup);
@@ -102,28 +108,33 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
   }
   
   if(restoreType == RESTORE_TYPE__ALL || restoreType == RESTORE_TYPE__QNODE){
-    pIter = NULL;
-    while (1) {
-      SQnodeObj *pQnode = NULL;
-      pIter = sdbFetch(pSdb, SDB_QNODE, pIter, (void **)&pQnode);
-      if (pIter == NULL) break;
+    SQnodeObj *pQnode = mndAcquireQnode(pMnode, pDnode->id);
+    if(pQnode == NULL){
+      terrno = TSDB_CODE_QNODE_NOT_FOUND;
+      mError("trans:%d, no qnode exist on dnode:%s", pTrans->id, pDnode->ep);
+    }
+    else{
+      if (mndSetCreateQnodeCommitLogs(pTrans, pQnode) != 0) goto _OVER;
+      if (mndSetCreateQnodeRedoActions(pTrans, pDnode, pQnode) != 0) goto _OVER;
 
-      if (mndQnodeInDnode(pQnode, pDnode->id)) {
-        if (mndSetCreateQnodeCommitLogs(pTrans, pQnode) != 0) goto _OVER;
-        if (mndSetCreateQnodeRedoActions(pTrans, pDnode, pQnode) != 0) goto _OVER;
-      }
+      mndReleaseQnode(pMnode, pQnode);
 
-      sdbRelease(pSdb, pQnode);
+      needRestore = true;
     }
   }
 
+  if(!needRestore) {
+    if(restoreType == RESTORE_TYPE__ALL || restoreType == RESTORE_TYPE__VNODE) terrno = TSDB_CODE_MNODE_NO_NEED_RESTORE;
+    goto _OVER;
+  }
+
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+
   code = 0;
 
 _OVER:
 
   mndTransDrop(pTrans);
-  sdbFreeRaw(pRaw);
   return code;
 }
 
