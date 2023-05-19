@@ -219,14 +219,21 @@ impl TaskControllerRef {
             .await
             .map(|v| Self(Arc::new(v)))
     }
+    #[async_backtrace::framed]
     pub async fn from_sqlite_with_runtime(
         sqlite: &str,
         rt: tokio::runtime::Runtime,
     ) -> anyhow::Result<Self> {
-        TaskController::from_sqlite(sqlite)
-            .await
-            .map(|c| c.with_runtime(rt))
-            .map(|v| Self(Arc::new(v)))
+        match Self::from_sqlite(sqlite).await {
+            Ok(c) => Ok(c),
+            Err(err) => {
+                let _ = std::thread::spawn(move || {
+                    std::mem::drop(rt);
+                })
+                .join();
+                Err(err)
+            }
+        }
     }
     pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
