@@ -1,11 +1,12 @@
-use std::{io::prelude::*, num::ParseIntError, time::Duration};
+use std::{io::prelude::*, num::ParseIntError, time::Duration, str::FromStr};
 
-use actix_web::web::Json;
 use anyhow::Context;
+use chrono::{NaiveDateTime, Local, };
 use itertools::Itertools;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
+use toml::value::Datetime;
 
 use crate::{
     plugins::{service::spawn_rest_service, sink},
@@ -62,12 +63,10 @@ struct PiConfig {
     #[serde(rename = "ToTDengineFirstTime")]
     #[serde(skip_serializing_if = "Option::is_none")]
     to_tdengine_first_time: Option<bool>,
-    #[serde(rename = "BackfillStartTime")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    backfill_start_time: Option<String>,
-    #[serde(rename = "BackfillEndTime")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    backfill_end_time: Option<String>,
+    #[serde(rename = "BackfillStartTime", skip_serializing_if = "Option::is_none")]
+    backfill_start_time: Option<Datetime>,
+    #[serde(rename = "BackfillEndTime", skip_serializing_if = "Option::is_none")]
+    backfill_end_time: Option<Datetime>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -88,7 +87,6 @@ pub enum PiError {
 
 impl PiConfig {
     pub fn new(mut dsn: Dsn, td_database: String, ipc: u16, sql: u16) -> Result<Self, PiError> {
-        debug_assert!(dsn.driver == "pi");
         let server_name = dsn
             .addresses
             .first()
@@ -180,9 +178,23 @@ impl PiConfig {
             None
         };
 
-        let backfill_start_time = dsn.remove("BackfillStartTime");
-        let backfill_end_time = dsn.remove("BackfillEndTime");
-
+        let backfill_start_time = if let Some(backfill_start) =  dsn.remove("BackfillStartTime") {
+            let parsed_time = NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                .map_err(|err| PiError::ParseError("BackfillStartTime", backfill_start.clone()))?.and_local_timezone(Local).unwrap();
+            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| PiError::ParseError("BackfillStartTime", backfill_start))?;
+            Some(parsed_time)
+        } else {
+            None
+        };
+        let backfill_end_time = if let Some(backfill_start) =  dsn.remove("BackfillEndTime") {
+            let parsed_time = NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                .map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start.clone()))?.and_local_timezone(Local).unwrap();
+            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start))?;
+            Some(parsed_time)
+        } else {
+            None
+        };
+        
         Ok(Self {
             server_name,
             system_name,
@@ -219,11 +231,11 @@ pub async fn pi_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
 ) -> anyhow::Result<()> {
-    println!("# loading plugin: PI");
-    #[cfg(not(target_os = "windows"))]
-    {
-        anyhow::bail!("PI connector support only windows platform");
-    }
+    println!("# loading plugin: PI or PIBACKFILL");
+    // #[cfg(not(target_os = "windows"))]
+    // {
+    //     anyhow::bail!("PI connector support only windows platform");
+    // }
     let td_database = to.subject.clone();
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
 
@@ -240,7 +252,9 @@ pub async fn pi_to_taos(
     let driver = from.driver.clone();
     let config = PiConfig::new(from, td_database.unwrap(), ipc, sql)?;
 
+    //toml::ser::ValueSerializer
     let toml = toml::to_string(&config)?;
+
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
