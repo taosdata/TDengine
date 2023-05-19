@@ -79,6 +79,10 @@ func newReader(config common.Config) (*reader, error) {
 		debug:       config.Debug,
 	}
 
+	if err := r.connect(context.Background()); err != nil {
+		return nil, fmt.Errorf("connect to opc da error %v", err)
+	}
+
 	allTags, err := r.getAllTags(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("get all da node error %v", err)
@@ -104,6 +108,10 @@ func newReader(config common.Config) (*reader, error) {
 func (r *reader) connect(_ context.Context) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+
+	if r.state == connected {
+		return nil
+	}
 
 	if r.debug {
 		opc.Debug()
@@ -206,6 +214,9 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 }
 
 func (r *reader) getAllTags(ctx context.Context) ([]common.Point, error) {
+	if err := r.ensureConnect(ctx); err != nil {
+		return nil, err
+	}
 	tree, err := opc.CreateBrowser(r.server, r.nodes)
 	if err != nil {
 		return nil, fmt.Errorf("get all tags error. create browser error %v", err)

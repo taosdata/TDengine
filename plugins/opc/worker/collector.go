@@ -63,11 +63,6 @@ func NewCollector(_ context.Context, config common.Config) (*OpcCollector, error
 var _ Collector = (*OpcCollector)(nil)
 
 func (c *OpcCollector) Collect(ctx context.Context) error {
-	// connect to opc
-	if err := c.collector.Connect(ctx); err != nil {
-		return err
-	}
-
 	ch, err := c.collector.Collect(ctx)
 	if err != nil {
 		log.Println("## collector data error", err)

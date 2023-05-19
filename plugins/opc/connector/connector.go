@@ -14,7 +14,6 @@ import (
 )
 
 type Connector interface {
-	Connect(ctx context.Context) error
 	Stop(ctx context.Context)
 	Collect(ctx context.Context) (<-chan *common.NodeValue, error)
 	GetAllPoints(ctx context.Context) ([]common.Point, error)
@@ -28,11 +27,6 @@ type FakeConnector struct {
 
 func NewFakeConnector(config common.CollectConfig) *FakeConnector {
 	return &FakeConnector{config: config, done: make(chan struct{}, 1)}
-}
-
-func (f *FakeConnector) Connect(_ context.Context) error {
-	log.Println("## FakeConnector connected!")
-	return nil
 }
 
 func (f *FakeConnector) Stop(_ context.Context) {
