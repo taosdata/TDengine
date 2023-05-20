@@ -38,6 +38,8 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:insert data")
 
+        tdSql.execute(f"use db")
+
         tdSql.execute(f"insert into {dbname}.{tbname} values ('2020-02-01 00:00:05', 5, 5, 5, 5, 5.0, 5.0, true, 'varchar', 'nchar')")
         tdSql.execute(f"insert into {dbname}.{tbname} values ('2020-02-01 00:00:10', 10, 10, 10, 10, 10.0, 10.0, true, 'varchar', 'nchar')")
         tdSql.execute(f"insert into {dbname}.{tbname} values ('2020-02-01 00:00:15', 15, 15, 15, 15, 15.0, 15.0, true, 'varchar', 'nchar')")
@@ -181,6 +183,35 @@ class TDTestCase:
         tdSql.checkData(1, 0, 1)
         tdSql.checkData(2, 0, 1)
         tdSql.checkData(3, 0, 1)
+
+        ## test fill value with string
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 'abc')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(1, 0, 0)
+        tdSql.checkData(2, 0, 0)
+        tdSql.checkData(3, 0, 0)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, '123')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 123)
+        tdSql.checkData(1, 0, 123)
+        tdSql.checkData(2, 0, 123)
+        tdSql.checkData(3, 0, 123)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, '123.123')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 123)
+        tdSql.checkData(1, 0, 123)
+        tdSql.checkData(2, 0, 123)
+        tdSql.checkData(3, 0, 123)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, '12abc')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 12)
+        tdSql.checkData(1, 0, 12)
+        tdSql.checkData(2, 0, 12)
+        tdSql.checkData(3, 0, 12)
 
         tdLog.printNoPrefix("==========step5:fill prev")
 
@@ -2915,6 +2946,24 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======step 14: test interp pseudo columns")
         tdSql.error(f"select _irowts, c6 from {dbname}.{tbname}")
+
+        tdLog.printNoPrefix("======step 15: test interp in nested query")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{stbname}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{stbname}) partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1}) partition by tbname range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union select * from {dbname}.{ctbname2}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union select * from {dbname}.{ctbname2} order by ts) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union all select * from {dbname}.{ctbname2}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union all select * from {dbname}.{ctbname2} order by ts) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union all select * from {dbname}.{ctbname2}) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+        tdSql.error(f"select _irowts, _isfilled, interp(c0) from (select * from {dbname}.{ctbname1} union all select * from {dbname}.{ctbname2} order by ts) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
+
+        tdSql.query(f"select _irowts, _isfilled, interp(c0) from (select {ctbname1}.ts,{ctbname1}.c0 from {dbname}.{ctbname1}, {dbname}.{ctbname2} where {ctbname1}.ts = {ctbname2}.ts) range('2020-02-01 00:00:00', '2020-02-01 00:00:14') every(1s) fill(null)")
 
     def stop(self):
         tdSql.close()
