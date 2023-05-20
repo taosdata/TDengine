@@ -77,9 +77,11 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 
   int32_t size = 0;
   int32_t numOfBlocks = 0;
-  SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
+  SArray* pRes = NULL;
 
   while (1) {
+    pRes = taosArrayInit(4, sizeof(SSDataBlock));
+
     if (streamTaskShouldStop(&pTask->status)) {
       taosArrayDestroy(pRes); // memory leak
       return 0;
