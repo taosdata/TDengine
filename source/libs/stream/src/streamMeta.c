@@ -375,7 +375,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     }
 
     if (pTask->fillHistory) {
-      pTask->status.taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
+      ASSERT(pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM);
       streamTaskCheckDownstream(pTask, ver);
     }
   }
