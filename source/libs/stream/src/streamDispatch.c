@@ -501,12 +501,8 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
   return code;
 }
 
-int32_t streamDispatch(SStreamTask* pTask, SStreamDataBlock** pBlock) {
+int32_t streamDispatch(SStreamTask* pTask) {
   ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
-  if (pBlock != NULL) {
-    *pBlock = NULL;
-  }
-
   int32_t numOfElems = taosQueueItemSize(pTask->outputQueue->queue);
   if (numOfElems > 0) {
     qDebug("s-task:%s try to dispatch intermediate result block to downstream, elem in outputQ:%d", pTask->id.idStr,
@@ -535,9 +531,7 @@ int32_t streamDispatch(SStreamTask* pTask, SStreamDataBlock** pBlock) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
   }
 
-  if (pBlock != NULL) {
-    *pBlock = pDispatchedBlock;
-  }
-
+  // this block can be freed only when it has been pushed to down stream.
+  destroyStreamDataBlock(pDispatchedBlock);
   return code;
 }

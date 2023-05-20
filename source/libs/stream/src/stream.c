@@ -200,8 +200,10 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
   int32_t code = 0;
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
+    destroyStreamDataBlock(pBlock);
   } else if (pTask->outputType == TASK_OUTPUT__SMA) {
     pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
+    destroyStreamDataBlock(pBlock);
   } else {
     ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
     code = taosWriteQitem(pTask->outputQueue->queue, pBlock);
@@ -209,7 +211,7 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
       return code;
     }
 
-    streamDispatch(pTask, NULL);
+    streamDispatch(pTask);
   }
 
   return 0;
@@ -254,10 +256,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     return 0;
   }
 
-  SStreamDataBlock* pBlock = NULL;
   // continue dispatch one block to down stream in pipeline
-  streamDispatch(pTask, &pBlock);
-  destroyStreamDataBlock(pBlock);
+  streamDispatch(pTask);
   return 0;
 }
 

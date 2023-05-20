@@ -60,7 +60,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
     *totalSize += size;
     *totalBlocks += numOfBlocks;
 
-    destroyStreamDataBlock(pStreamBlocks);
+//    destroyStreamDataBlock(pStreamBlocks);
   } else {
     taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
   }
@@ -245,10 +245,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       qDebug("s-task:%s scan exec dispatch blocks:%d", pTask->id.idStr, batchCnt);
-
-      SStreamDataBlock* pBlock = NULL;
-      streamDispatch(pTask, &pBlock);
-      destroyStreamDataBlock(pBlock);
+      streamDispatch(pTask);
     }
 
     if (finished) {
