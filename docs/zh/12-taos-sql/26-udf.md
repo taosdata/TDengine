@@ -13,9 +13,10 @@ description: 使用 UDF 的详细指南
 
 - 创建标量函数
 ```sql
-CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_type [LANGUAGE 'C|Python'];
+CREATE | REPLACE FUNCTION function_name AS library_path OUTPUTTYPE output_type [LANGUAGE 'C|Python'];
 ```
-  - OR REPLACE: 如果函数已经存在，会修改已有的函数属性。
+  - CREATE: 每一次创建函数时使用
+  - REPLACE: 需要更新函数内容及属性时使用
   - function_name：标量函数未来在 SQL 中被调用时的函数名；
   - LANGUAGE 'C|Python'：函数编程语言，目前支持C语言和Python语言。 如果这个从句忽略，编程语言是C语言 
   - library_path：如果编程语言是C，路径是包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件）。如果编程语言是Python，路径是包含 UDF 函数实现的Python文件路径。这个路径需要用英文单引号或英文双引号括起来；
@@ -30,13 +31,14 @@ CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_typ
 例如，使用以下语句可以修改已经定义的 bit_and 函数，输出类型是 BIGINT，使用Python语言实现。
 
   ```sql
-  CREATE OR REPLACE FUNCTION bit_and AS "/home/taos/udf_example/bit_and.py" OUTPUTTYPE BIGINT LANGUAGE 'Python';
+  CREATE FUNCTION bit_and AS "/home/taos/udf_example/bit_and.py" OUTPUTTYPE BIGINT LANGUAGE 'Python';
   ```
 - 创建聚合函数：
 ```sql
-CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [ BUFSIZE buffer_size ] [LANGUAGE 'C|Python'];
+CREATE | REPLACE AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [ BUFSIZE buffer_size ] [LANGUAGE 'C|Python'];
 ```
-  - OR REPLACE: 如果函数已经存在，会修改已有的函数属性。
+  - CREATE: 每一次创建函数时使用
+  - REPLACE: 需要更新函数内容及属性时使用
   - function_name：聚合函数未来在 SQL 中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
   - LANGUAGE 'C|Python'：函数编程语言，目前支持C语言和Python语言。  
   - library_path：如果编程语言是C，路径是包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件）。如果编程语言是Python，路径是包含 UDF 函数实现的Python文件路径。这个路径需要用英文单引号或英文双引号括起来；；
