@@ -104,34 +104,38 @@ class TDTestCase:
            tdLog.info(f" exe failed. i={i} {sql}")
            traceback.print_exc()
     
+    def genTags(self, i):
+        tags = f"t1={i},t2=abc,t3=work"
+        return tags
     
     # change table schema
     def schemaless_insert(self, change_cnt):
         # init
         ts = 1683194263000
         for i in range(change_cnt):
-            t1 = i % 1000
             index = int(i/10000) % 600
             cols = self.genCols("c", 5, index, False)
-            tags = f"t1={t1},t2=abc,t3=work"
-            sql = f'sta,{tags} {cols} {ts + i}'
+            tags = self.genTags(index)
+            sql = f'{self.stable},{tags} {cols} {ts + i}'
             self.insert(sql, i)
 
     # run
+
     def run(self):
         # seed
         #random.seed(int(time.time()))
-        self.dbname = "schema_change"
+        self.dbname = "eco_system"
+        self.stable = "sml_stb"
 
         # switch db
         tdSql.execute(f"use {self.dbname};")
-        tdSql.execute(f"drop table if exists sta;")
+        tdSql.execute(f"drop table if exists {self.stable};")
         
         
        
         # change meters
         try:
-          self.schemaless_insert(1000)
+          self.schemaless_insert(1000000)
         except:
           traceback.print_exc()
 
