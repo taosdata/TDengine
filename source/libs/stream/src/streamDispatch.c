@@ -526,7 +526,7 @@ int32_t streamDispatch(SStreamTask* pTask, SStreamDataBlock** pBlock) {
 
   ASSERT(pDispatchedBlock->type == STREAM_INPUT__DATA_BLOCK);
 
-  int32_t code = streamDispatchAllBlocks(pTask, *pBlock);
+  int32_t code = streamDispatchAllBlocks(pTask, pDispatchedBlock);
   if (code != TSDB_CODE_SUCCESS) {
     streamQueueProcessFail(pTask->outputQueue);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
