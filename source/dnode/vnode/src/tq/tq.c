@@ -367,15 +367,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       return -1;
     }
 
-    // 3. update the epoch value
-    if (pHandle->epoch > reqEpoch) {
-      tqError("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, savedEpoch:%d > reqEpoch:%d ",
-              consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->epoch, reqEpoch);
-      terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
-      taosWUnLockLatch(&pTq->lock);
-      return -1;
-    }
-
     bool exec = tqIsHandleExec(pHandle);
     if(!exec) {
       tqSetHandleExec(pHandle);
@@ -390,6 +381,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     taosMsleep(10);
   }
 
+  // 3. update the epoch value
   if (pHandle->epoch < reqEpoch) {
     tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, pHandle->epoch, reqEpoch);
     pHandle->epoch = reqEpoch;
