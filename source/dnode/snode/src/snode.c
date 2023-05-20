@@ -223,11 +223,9 @@ int32_t sndProcessTaskRetrieveReq(SSnode *pSnode, SRpcMsg *pMsg) {
   tDecoderClear(&decoder);
   int32_t      taskId = req.dstTaskId;
   SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, taskId);
+
   if (pTask) {
-    SRpcMsg rsp = {
-        .info = pMsg->info,
-        .code = 0,
-    };
+    SRpcMsg rsp = { .info = pMsg->info, .code = 0};
     streamProcessRetrieveReq(pTask, &req, &rsp);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     tDeleteStreamRetrieveReq(&req);

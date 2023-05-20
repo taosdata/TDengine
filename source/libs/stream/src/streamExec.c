@@ -108,7 +108,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
         block.info.type = STREAM_PULL_OVER;
         block.info.childId = pTask->selfChildId;
         taosArrayPush(pRes, &block);
-
+        numOfBlocks += 1;
         qDebug("s-task:%s(child %d) processed retrieve, reqId:0x%" PRIx64, pTask->id.idStr, pTask->selfChildId,
                pRetrieveBlock->reqId);
       }
@@ -152,14 +152,11 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
   if (numOfBlocks > 0) {
     ASSERT(numOfBlocks == taosArrayGetSize(pRes));
     code = doDumpResult(pTask, pItem, pRes, size, totalSize, totalBlocks);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
   } else {
     taosArrayDestroy(pRes);
   }
 
-  return 0;
+  return code;
 }
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {

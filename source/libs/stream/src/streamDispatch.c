@@ -138,7 +138,6 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
     SStreamChildEpInfo* pEpInfo = taosArrayGetP(pTask->childEpInfo, i);
     req.dstNodeId = pEpInfo->nodeId;
     req.dstTaskId = pEpInfo->taskId;
-    int32_t code;
     int32_t len;
     tEncodeSize(tEncodeStreamRetrieveReq, &req, len, code);
     if (code < 0) {
@@ -158,23 +157,18 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
     tEncodeStreamRetrieveReq(&encoder, &req);
     tEncoderClear(&encoder);
 
-    SRpcMsg rpcMsg = {
-        .code = 0,
-        .msgType = TDMT_STREAM_RETRIEVE,
-        .pCont = buf,
-        .contLen = sizeof(SMsgHead) + len,
-    };
-
+    SRpcMsg rpcMsg = { .code = 0, .msgType = TDMT_STREAM_RETRIEVE, .pCont = buf, .contLen = sizeof(SMsgHead) + len };
     if (tmsgSendReq(&pEpInfo->epSet, &rpcMsg) < 0) {
       ASSERT(0);
       goto CLEAR;
     }
-    buf = NULL;
 
-    qDebug("s-task:%s (child %d) send retrieve req to task %d at node %d, reqId %" PRId64, pTask->id.idStr,
+    buf = NULL;
+    qDebug("s-task:%s (child %d) send retrieve req to task %d at node %d, reqId:0x%" PRIx64, pTask->id.idStr,
            pTask->selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
   }
   code = 0;
+
 CLEAR:
   taosMemoryFree(pRetrieve);
   rpcFreeCont(buf);
@@ -400,12 +394,14 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     if (req.data == NULL || req.dataLen == NULL) {
       taosArrayDestroyP(req.data, taosMemoryFree);
       taosArrayDestroy(req.dataLen);
-      return code;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     for (int32_t i = 0; i < numOfBlocks; i++) {
       SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
-      if (streamAddBlockIntoDispatchMsg(pDataBlock, &req) < 0) {
+      code = streamAddBlockIntoDispatchMsg(pDataBlock, &req);
+
+      if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroyP(req.data, taosMemoryFree);
         taosArrayDestroy(req.dataLen);
         return code;
