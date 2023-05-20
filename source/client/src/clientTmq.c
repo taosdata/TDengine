@@ -1275,7 +1275,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
     // in case of consumer mismatch, wait for 500ms and retry
     if (code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
-      taosMsleep(500);
+//      taosMsleep(500);
       atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__RECOVER);
       tscDebug("consumer:0x%" PRIx64 " wait for the re-balance, wait for 500ms and set status to be RECOVER",
                tmq->consumerId);
@@ -1289,8 +1289,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
       pRspWrapper->tmqRspType = TMQ_MSG_TYPE__END_RSP;
       taosWriteQitem(tmq->mqueue, pRspWrapper);
-    } else if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) {  // poll data while insert
-      taosMsleep(500);
+//    } else if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) {  // poll data while insert
+//      taosMsleep(5);
     } else{
       tscError("consumer:0x%" PRIx64 " msg from vgId:%d discarded, epoch %d, since %s, reqId:0x%" PRIx64, tmq->consumerId,
                vgId, epoch, tstrerror(code), requestId);
@@ -1731,6 +1731,9 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
 
 // broadcast the poll request to all related vnodes
 static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
+  if(atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__RECOVER){
+    return 0;
+  }
   int32_t numOfTopics = taosArrayGetSize(tmq->clientTopics);
   tscDebug("consumer:0x%" PRIx64 " start to poll data, numOfTopics:%d", tmq->consumerId, numOfTopics);
 

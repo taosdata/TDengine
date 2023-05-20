@@ -360,22 +360,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
     // 2. check re-balance status
     if (pHandle->consumerId != consumerId) {
-      tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+      tqError("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
               consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
-      terrno = TSDB_CODE_TMQ_INVALID_MSG;
+      terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
       taosWUnLockLatch(&pTq->lock);
       return -1;
     }
 
     // 3. update the epoch value
-    int32_t savedEpoch = pHandle->epoch;
-    if (savedEpoch <= reqEpoch) {
-      tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, savedEpoch,
-              reqEpoch);
-      pHandle->epoch = reqEpoch;
-    }else {
-      tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, savedEpoch:%d > reqEpoch:%d ",
-              consumerId, TD_VID(pTq->pVnode), req.subKey, savedEpoch, reqEpoch);
+    if (pHandle->epoch > reqEpoch) {
+      tqError("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, savedEpoch:%d > reqEpoch:%d ",
+              consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->epoch, reqEpoch);
       terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
       taosWUnLockLatch(&pTq->lock);
       return -1;
@@ -393,6 +388,11 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
     tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
     taosMsleep(10);
+  }
+
+  if (pHandle->epoch < reqEpoch) {
+    tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, pHandle->epoch, reqEpoch);
+    pHandle->epoch = reqEpoch;
   }
 
   char buf[80];
@@ -577,7 +577,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
              req.newConsumerId);
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
     }
-    atomic_add_fetch_32(&pHandle->epoch, 1);
+//    atomic_add_fetch_32(&pHandle->epoch, 1);
 
     // kill executing task
     if(tqIsHandleExec(pHandle)) {
