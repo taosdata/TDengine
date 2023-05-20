@@ -503,6 +503,9 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
 
 int32_t streamDispatch(SStreamTask* pTask, SStreamDataBlock** pBlock) {
   ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
+  if (pBlock != NULL) {
+    *pBlock = NULL;
+  }
 
   int32_t numOfElems = taosQueueItemSize(pTask->outputQueue->queue);
   if (numOfElems > 0) {

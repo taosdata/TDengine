@@ -344,6 +344,10 @@ SStreamDataBlock* createStreamDataBlockFromResults(SStreamQueueItem* pItem, SStr
 }
 
 void destroyStreamDataBlock(SStreamDataBlock* pBlock) {
+  if (pBlock == NULL) {
+    return;
+  }
+
   taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
   taosFreeQitem(pBlock);
 }
