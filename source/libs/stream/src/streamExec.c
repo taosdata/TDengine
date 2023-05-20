@@ -146,6 +146,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
         return code;
       }
 
+      pRes = NULL;
       size = 0;
       numOfBlocks = 0;
     }
