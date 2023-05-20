@@ -24,6 +24,7 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   if (tEncodeI32(pEncoder, pReq->upstreamChildId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->totalLen) < 0) return -1;
   ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
   ASSERT(taosArrayGetSize(pReq->dataLen) == pReq->blockNum);
   for (int32_t i = 0; i < pReq->blockNum; i++) {
@@ -45,6 +46,8 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tDecodeI32(pDecoder, &pReq->upstreamChildId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->blockNum) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->totalLen) < 0) return -1;
+
   ASSERT(pReq->blockNum > 0);
   pReq->data = taosArrayInit(pReq->blockNum, sizeof(void*));
   pReq->dataLen = taosArrayInit(pReq->blockNum, sizeof(int32_t));
@@ -178,7 +181,7 @@ CLEAR:
   return code;
 }
 
-static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
+static int32_t streamAddBlockIntoDispatchMsg(const SSDataBlock* pBlock, SStreamDispatchReq* pReq) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) return -1;
@@ -205,6 +208,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   taosArrayPush(pReq->dataLen, &actualLen);
   taosArrayPush(pReq->data, &buf);
 
+  pReq->totalLen += dataStrLen;
   return 0;
 }
 
@@ -291,7 +295,7 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
   return 0;
 }
 
-int32_t streamDispatchOneDataReq(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet) {
+int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   SRpcMsg msg = {0};
@@ -325,6 +329,7 @@ int32_t streamDispatchOneDataReq(SStreamTask* pTask, const SStreamDispatchReq* p
 
   code = 0;
   return 0;
+
 FAIL:
   if (buf) rpcFreeCont(buf);
   return code;
@@ -360,7 +365,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, j);
     ASSERT(pVgInfo->vgId > 0);
     if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
-      if (streamAddBlockToDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
+      if (streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
         return -1;
       }
       if (pReqs[j].blockNum == 0) {
@@ -376,9 +381,9 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
 }
 
 int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pData) {
-  int32_t code = -1;
-  int32_t blockNum = taosArrayGetSize(pData->blocks);
-  ASSERT(blockNum != 0);
+  int32_t code = 0;
+  int32_t numOfBlocks = taosArrayGetSize(pData->blocks);
+  ASSERT(numOfBlocks != 0);
 
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
     SStreamDispatchReq req = {
@@ -387,19 +392,23 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
         .upstreamTaskId = pTask->id.taskId,
         .upstreamChildId = pTask->selfChildId,
         .upstreamNodeId = pTask->nodeId,
-        .blockNum = blockNum,
+        .blockNum = numOfBlocks,
     };
 
-    req.data = taosArrayInit(blockNum, sizeof(void*));
-    req.dataLen = taosArrayInit(blockNum, sizeof(int32_t));
+    req.data = taosArrayInit(numOfBlocks, sizeof(void*));
+    req.dataLen = taosArrayInit(numOfBlocks, sizeof(int32_t));
     if (req.data == NULL || req.dataLen == NULL) {
-      goto FAIL_FIXED_DISPATCH;
+      taosArrayDestroyP(req.data, taosMemoryFree);
+      taosArrayDestroy(req.dataLen);
+      return code;
     }
 
-    for (int32_t i = 0; i < blockNum; i++) {
+    for (int32_t i = 0; i < numOfBlocks; i++) {
       SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
-      if (streamAddBlockToDispatchMsg(pDataBlock, &req) < 0) {
-        goto FAIL_FIXED_DISPATCH;
+      if (streamAddBlockIntoDispatchMsg(pDataBlock, &req) < 0) {
+        taosArrayDestroyP(req.data, taosMemoryFree);
+        taosArrayDestroy(req.dataLen);
+        return code;
       }
     }
 
@@ -410,18 +419,13 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     req.taskId = downstreamTaskId;
 
     qDebug("s-task:%s (child taskId:%d) fix-dispatch blocks:%d to down stream s-task:%d in vgId:%d", pTask->id.idStr,
-           pTask->selfChildId, blockNum, downstreamTaskId, vgId);
+           pTask->selfChildId, numOfBlocks, downstreamTaskId, vgId);
 
-    if (streamDispatchOneDataReq(pTask, &req, vgId, pEpSet) < 0) {
-      goto FAIL_FIXED_DISPATCH;
+    if (doSendDispatchMsg(pTask, &req, vgId, pEpSet) < 0) {
+      taosArrayDestroyP(req.data, taosMemoryFree);
+      taosArrayDestroy(req.dataLen);
+      return code;
     }
-
-    code = 0;
-
-  FAIL_FIXED_DISPATCH:
-    taosArrayDestroyP(req.data, taosMemoryFree);
-    taosArrayDestroy(req.dataLen);
-    return code;
 
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     int32_t rspCnt = atomic_load_32(&pTask->shuffleDispatcher.waitingRspCnt);
@@ -452,13 +456,13 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
       pReqs[i].taskId = pVgInfo->taskId;
     }
 
-    for (int32_t i = 0; i < blockNum; i++) {
+    for (int32_t i = 0; i < numOfBlocks; i++) {
       SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
 
       // TODO: do not use broadcast
       if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
         for (int32_t j = 0; j < vgSz; j++) {
-          if (streamAddBlockToDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
+          if (streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
             goto FAIL_SHUFFLE_DISPATCH;
           }
           if (pReqs[j].blockNum == 0) {
@@ -475,7 +479,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     }
 
     qDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to %d vgroups", pTask->id.idStr, pTask->selfChildId,
-           blockNum, vgSz);
+           numOfBlocks, vgSz);
 
     for (int32_t i = 0; i < vgSz; i++) {
       if (pReqs[i].blockNum > 0) {
@@ -483,7 +487,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
         qDebug("s-task:%s (child taskId:%d) shuffle-dispatch blocks:%d to vgId:%d", pTask->id.idStr, pTask->selfChildId,
                pReqs[i].blockNum, pVgInfo->vgId);
 
-        if (streamDispatchOneDataReq(pTask, &pReqs[i], pVgInfo->vgId, &pVgInfo->epSet) < 0) {
+        if (doSendDispatchMsg(pTask, &pReqs[i], pVgInfo->vgId, &pVgInfo->epSet) < 0) {
           goto FAIL_SHUFFLE_DISPATCH;
         }
       }
@@ -501,7 +505,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
   return code;
 }
 
-int32_t streamDispatch(SStreamTask* pTask) {
+int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
   int32_t numOfElems = taosQueueItemSize(pTask->outputQueue->queue);
   if (numOfElems > 0) {

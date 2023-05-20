@@ -21,7 +21,6 @@
 #define MAX_STREAM_RESULT_DUMP_THRESHOLD  1000
 
 static int32_t updateCheckPointInfo (SStreamTask* pTask);
-static SStreamDataBlock* createStreamDataBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize, SArray* pRes);
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
@@ -43,7 +42,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
 
   int32_t numOfBlocks = taosArrayGetSize(pRes);
   if (numOfBlocks > 0) {
-    SStreamDataBlock* pStreamBlocks = createStreamDataBlockFromResults(pItem, pTask, size, pRes);
+    SStreamDataBlock* pStreamBlocks = createStreamBlockFromResults(pItem, pTask, size, pRes);
     if (pStreamBlocks == NULL) {
       taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       return -1;
@@ -243,7 +242,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       qDebug("s-task:%s scan exec dispatch blocks:%d", pTask->id.idStr, batchCnt);
-      streamDispatch(pTask);
+      streamDispatchStreamBlock(pTask);
     }
 
     if (finished) {
@@ -317,38 +316,6 @@ int32_t updateCheckPointInfo (SStreamTask* pTask) {
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-SStreamDataBlock* createStreamDataBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize, SArray* pRes) {
-  SStreamDataBlock* pStreamBlocks = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, resultSize);
-  if (pStreamBlocks == NULL) {
-    taosArrayClearEx(pRes, (FDelete)blockDataFreeRes);
-    return NULL;
-  }
-
-  pStreamBlocks->type = STREAM_INPUT__DATA_BLOCK;
-  pStreamBlocks->blocks = pRes;
-
-  if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
-    SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pItem;
-    pStreamBlocks->childId = pTask->selfChildId;
-    pStreamBlocks->sourceVer = pSubmit->ver;
-  } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
-    SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)pItem;
-    pStreamBlocks->childId = pTask->selfChildId;
-    pStreamBlocks->sourceVer = pMerged->ver;
-  }
-
-  return pStreamBlocks;
-}
-
-void destroyStreamDataBlock(SStreamDataBlock* pBlock) {
-  if (pBlock == NULL) {
-    return;
-  }
-
-  taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
-  taosFreeQitem(pBlock);
 }
 
 int32_t streamExecForAll(SStreamTask* pTask) {

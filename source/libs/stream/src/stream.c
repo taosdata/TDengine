@@ -120,19 +120,16 @@ int32_t streamSchedExec(SStreamTask* pTask) {
 }
 
 int32_t streamTaskEnqueueBlocks(SStreamTask* pTask, const SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
-  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
-
   int8_t status = 0;
-  if (pData == NULL) {
+
+  SStreamDataBlock* pBlock = createStreamDataFromDispatchMsg(pReq, STREAM_INPUT__DATA_BLOCK, pReq->dataSrcVgId);
+  if (pBlock == NULL) {
     streamTaskInputFail(pTask);
     status = TASK_INPUT_STATUS__FAILED;
-    qDebug("vgId:%d, s-task:%s failed to received dispatch msg, reason: out of memory", pTask->pMeta->vgId, pTask->id.idStr);
+    qDebug("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
+           pTask->id.idStr);
   } else {
-    pData->type = STREAM_INPUT__DATA_BLOCK;
-    pData->srcVgId = pReq->dataSrcVgId;
-
-    streamConvertDispatchMsgToData(pReq, pData);
-    if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pData) == 0) {
+    if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pBlock) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {  // input queue is full, upstream is blocked now
       status = TASK_INPUT_STATUS__BLOCKED;
@@ -142,15 +139,16 @@ int32_t streamTaskEnqueueBlocks(SStreamTask* pTask, const SStreamDispatchReq* pR
   // rsp by input status
   void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
   ((SMsgHead*)buf)->vgId = htonl(pReq->upstreamNodeId);
-  SStreamDispatchRsp* pCont = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  pCont->inputStatus = status;
-  pCont->streamId = htobe64(pReq->streamId);
-  pCont->upstreamNodeId = htonl(pReq->upstreamNodeId);
-  pCont->upstreamTaskId = htonl(pReq->upstreamTaskId);
-  pCont->downstreamNodeId = htonl(pTask->nodeId);
-  pCont->downstreamTaskId = htonl(pTask->id.taskId);
-  pRsp->pCont = buf;
+  SStreamDispatchRsp* pDispatchRsp = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
+  pDispatchRsp->inputStatus = status;
+  pDispatchRsp->streamId = htobe64(pReq->streamId);
+  pDispatchRsp->upstreamNodeId = htonl(pReq->upstreamNodeId);
+  pDispatchRsp->upstreamTaskId = htonl(pReq->upstreamTaskId);
+  pDispatchRsp->downstreamNodeId = htonl(pTask->nodeId);
+  pDispatchRsp->downstreamTaskId = htonl(pTask->id.taskId);
+
+  pRsp->pCont = buf;
   pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
   tmsgSendRsp(pRsp);
 
@@ -211,15 +209,15 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
       return code;
     }
 
-    streamDispatch(pTask);
+    streamDispatchStreamBlock(pTask);
   }
 
   return 0;
 }
 
-int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
-  qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d)", pTask->id.idStr, pReq->upstreamTaskId,
-         pReq->upstreamNodeId);
+int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
+  qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
+         pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
 
   // todo add the input queue buffer limitation
   streamTaskEnqueueBlocks(pTask, pReq, pRsp);
@@ -257,7 +255,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   }
 
   // continue dispatch one block to down stream in pipeline
-  streamDispatch(pTask);
+  streamDispatchStreamBlock(pTask);
   return 0;
 }
 
@@ -267,7 +265,7 @@ int32_t streamProcessRunReq(SStreamTask* pTask) {
   }
 
   /*if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {*/
-  /*streamDispatch(pTask);*/
+  /*streamDispatchStreamBlock(pTask);*/
   /*}*/
   return 0;
 }
