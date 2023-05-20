@@ -87,7 +87,25 @@ typedef struct SColMatchInfo {
 } SColMatchInfo;
 
 typedef struct SExecTaskInfo SExecTaskInfo;
-typedef struct STableListInfo STableListInfo;
+
+
+typedef struct STableListIdInfo {
+  uint64_t suid;
+  uint64_t uid;
+  int32_t  tableType;
+} STableListIdInfo;
+
+// If the numOfOutputGroups is 1, the data blocks that belongs to different groups will be provided randomly
+// The numOfOutputGroups is specified by physical plan. and will not be affect by numOfGroups
+typedef struct STableListInfo {
+  bool             oneTableForEachGroup;
+  int32_t          numOfOuputGroups;  // the data block will be generated one by one
+  int32_t*         groupOffset;       // keep the offset value for each group in the tableList
+  SArray*          pTableList;
+  SHashObj*        map;     // speedup acquire the tableQueryInfo by table uid
+  STableListIdInfo idInfo;  // this maybe the super table or ordinary table
+} STableListInfo;
+
 struct SqlFunctionCtx;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
@@ -163,5 +181,8 @@ int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag);
+
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
+void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 
 #endif  // TDENGINE_QUERYUTIL_H

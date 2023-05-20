@@ -142,6 +142,18 @@ static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* id
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tsdbReuseCacherowsReader(void* reader, void* pTableIdList, int32_t numOfTables) {
+  SCacheRowsReader* pReader = (SCacheRowsReader*)reader;
+
+  pReader->pTableList = pTableIdList;
+  pReader->numOfTables = numOfTables;
+  pReader->lastTs = INT64_MIN;
+
+  resetLastBlockLoadInfo(pReader->pLoadInfo);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 uint64_t suid, void** pReader, const char* idstr) {
   *pReader = NULL;
@@ -213,6 +225,9 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
 void* tsdbCacherowsReaderClose(void* pReader) {
   SCacheRowsReader* p = pReader;
+  if (p == NULL) {
+    return NULL;
+  }
 
   if (p->pSchema != NULL) {
     for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {

@@ -29,6 +29,7 @@ class TDTestCase:
         self.stbname = 'stb'
         self.binary_length = 20  # the length of binary for column_dict
         self.nchar_length = 20  # the length of nchar for column_dict
+        self.dbnames = ['db1', 'db2']
         self.column_dict = {
             'ts': 'timestamp',
             'col1': 'float',
@@ -57,21 +58,25 @@ class TDTestCase:
     def create_user(self):
         user_name = 'test'        
         tdSql.execute(f'create user {user_name} pass "test"')
-        tdSql.execute(f'grant read on db.stb with t2 = "Beijing" to {user_name}')
+        tdSql.execute(f'grant read on {self.dbnames[0]}.{self.stbname} with t2 = "Beijing" to {user_name}')
+        tdSql.execute(f'grant write on {self.dbnames[1]}.{self.stbname} with t1 = 2 to {user_name}')
                 
     def prepare_data(self):
-        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname, self.column_dict, self.tag_dict))
-        for i in range(self.tbnum):
-            tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_list[i]})')
-            for j in self.values_list:
-                tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
+        for db in self.dbnames:
+            tdSql.execute(f"create database {db}")
+            tdSql.execute(f"use {db}")
+            tdSql.execute(self.setsql.set_create_stable_sql(self.stbname, self.column_dict, self.tag_dict))
+            for i in range(self.tbnum):
+                tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_list[i]})')
+                for j in self.values_list:
+                    tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
     
-    def user_privilege_check(self):
+    def user_read_privilege_check(self, dbname):
         testconn = taos.connect(user='test', password='test')        
         expectErrNotOccured = False
         
         try:
-            sql = "select count(*) from db.stb where t2 = 'Beijing'"
+            sql = f"select count(*) from {dbname}.stb where t2 = 'Beijing'"
             res = testconn.query(sql)
             data = res.fetch_all()
             count = data[0][0]            
@@ -85,11 +90,30 @@ class TDTestCase:
             tdLog.exit(f"{sql}, expect result doesn't match")
         pass
     
+    def user_write_privilege_check(self, dbname):
+        testconn = taos.connect(user='test', password='test')        
+        expectErrNotOccured = False
+        
+        try:            
+            sql = f"insert into {dbname}.stb_1 values(now, 1.1, 200, 0.3)"
+            testconn.execute(sql)            
+        except BaseException:
+            expectErrNotOccured = True
+        
+        if expectErrNotOccured:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, expect error not occured")
+        else:
+            pass
+    
     def user_privilege_error_check(self):
         testconn = taos.connect(user='test', password='test')        
         expectErrNotOccured = False
         
-        sql_list = ["alter talbe db.stb_1 set t2 = 'Wuhan'", "drop table db.stb_1"]
+        sql_list = [f"alter talbe {self.dbnames[0]}.stb_1 set t2 = 'Wuhan'", 
+                    f"insert into {self.dbnames[0]}.stb_1 values(now, 1.1, 200, 0.3)", 
+                    f"drop table {self.dbnames[0]}.stb_1", 
+                    f"select count(*) from {self.dbnames[1]}.stb"]
         
         for sql in sql_list:
             try:
@@ -104,11 +128,11 @@ class TDTestCase:
                 tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, expect error not occured")
         pass
 
-    def run(self):
-        tdSql.prepare()        
+    def run(self):           
         self.prepare_data()
         self.create_user()
-        self.user_privilege_check()
+        self.user_read_privilege_check(self.dbnames[0])
+        self.user_write_privilege_check(self.dbnames[1])
         self.user_privilege_error_check()
                 
     def stop(self):
