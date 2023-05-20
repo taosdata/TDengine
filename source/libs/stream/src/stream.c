@@ -207,7 +207,7 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
   } else {
     ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
     code = taosWriteQitem(pTask->outputQueue->queue, pBlock);
-    if (code != 0) {
+    if (code != 0) {  // todo failed to add it into the output queue, free it.
       return code;
     }
 
