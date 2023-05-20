@@ -551,9 +551,9 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   // start to restore all stream tasks
   if (tsDisableStream) {
-    vInfo("vgId:%d, not restore stream tasks, since disabled", pVnode->config.vgId);
+    vInfo("vgId:%d, not launch stream tasks, since stream tasks are disabled", pVnode->config.vgId);
   } else {
-    vInfo("vgId:%d start to restore stream tasks", pVnode->config.vgId);
+    vInfo("vgId:%d start to launch stream tasks", pVnode->config.vgId);
     tqStartStreamTasks(pVnode->pTq);
   }
 }

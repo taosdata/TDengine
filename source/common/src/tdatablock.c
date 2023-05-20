@@ -2513,9 +2513,6 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   *actualLen = dataLen;
   *groupId = pBlock->info.id.groupId;
   ASSERT(dataLen > 0);
-
-  uDebug("build data block, actualLen:%d, rows:%d, cols:%d", dataLen, *rows, *cols);
-
   return dataLen;
 }
 
