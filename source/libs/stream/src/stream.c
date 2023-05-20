@@ -195,7 +195,8 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
 
-int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
+// todo add log
+int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   int32_t code = 0;
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
@@ -209,10 +210,14 @@ int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
     ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
     code = taosWriteQitem(pTask->outputQueue->queue, pBlock);
     if (code != 0) {
+      taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
+      taosFreeQitem(pBlock);
       return code;
     }
+
     streamDispatch(pTask);
   }
+
   return 0;
 }
 

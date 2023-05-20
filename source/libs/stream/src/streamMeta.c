@@ -296,6 +296,7 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
   return 0;
 }
 
+// todo add error log
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
   if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
     qError("failed to commit stream meta");
@@ -311,6 +312,7 @@ int32_t streamMetaCommit(SStreamMeta* pMeta) {
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
+
   return 0;
 }
 

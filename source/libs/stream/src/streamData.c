@@ -185,11 +185,13 @@ void streamFreeQitem(SStreamQueueItem* data) {
     taosFreeQitem(data);
   } else if (type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerge = (SStreamMergedSubmit*)data;
-    int32_t               sz = taosArrayGetSize(pMerge->submits);
+
+    int32_t sz = taosArrayGetSize(pMerge->submits);
     for (int32_t i = 0; i < sz; i++) {
       int32_t* pRef = taosArrayGetP(pMerge->dataRefs, i);
       int32_t  ref = atomic_sub_fetch_32(pRef, 1);
       ASSERT(ref >= 0);
+
       if (ref == 0) {
         SPackedData* pSubmit = (SPackedData*)taosArrayGet(pMerge->submits, i);
         taosMemoryFree(pSubmit->msgStr);
