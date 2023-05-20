@@ -23,7 +23,7 @@
 static int32_t updateCheckPointInfo (SStreamTask* pTask);
 static SStreamDataBlock* createStreamDataBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize, SArray* pRes);
 
-  bool streamTaskShouldStop(const SStreamStatus* pStatus) {
+bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
   return (status == TASK_STATUS__STOP) || (status == TASK_STATUS__DROPPING);
 }
@@ -33,10 +33,11 @@ bool streamTaskShouldPause(const SStreamStatus* pStatus) {
   return (status == TASK_STATUS__PAUSE);
 }
 
-static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray* pRes,
-                            int32_t size, int64_t* totalSize, int32_t* totalBlocks) {
+static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray* pRes, int32_t size, int64_t* totalSize,
+                            int32_t* totalBlocks) {
   int32_t code = updateCheckPointInfo(pTask);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
     return code;
   }
 
@@ -44,6 +45,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
   if (numOfBlocks > 0) {
     SStreamDataBlock* pStreamBlocks = createStreamDataBlockFromResults(pItem, pTask, size, pRes);
     if (pStreamBlocks == NULL) {
+      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       return -1;
     }
 
@@ -51,18 +53,19 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
 
     code = streamTaskOutputResultBlock(pTask, pStreamBlocks);
     if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) { // back pressure and record position
-      taosArrayClearEx(pRes, (FDelete)blockDataFreeRes);
-      taosFreeQitem(pStreamBlocks);
+      destroyStreamDataBlock(pStreamBlocks);
       return -1;
     }
+
+    *totalSize += size;
+    *totalBlocks += numOfBlocks;
+
+    ASSERT(taosArrayGetSize(pRes) == 0);
+    destroyStreamDataBlock(pStreamBlocks);
   } else {
-    taosArrayClearEx(pRes, (FDelete)blockDataFreeRes);
+    taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
   }
 
-  *totalSize += size;
-  *totalBlocks += numOfBlocks;
-
-  ASSERT(taosArrayGetSize(pRes) == 0);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -73,12 +76,13 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
   *totalBlocks = 0;
   *totalSize = 0;
 
-  SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
   int32_t size = 0;
   int32_t numOfBlocks = 0;
+  SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
 
   while (1) {
     if (streamTaskShouldStop(&pTask->status)) {
+      taosArrayDestroy(pRes); // memory leak
       return 0;
     }
 
@@ -141,7 +145,6 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 
       size = 0;
       numOfBlocks = 0;
-      ASSERT(taosArrayGetSize(pRes) == 0);
     }
   }
 
@@ -151,8 +154,8 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-
-    ASSERT(taosArrayGetSize(pRes) == 0);
+  } else {
+    taosArrayDestroy(pRes);
   }
 
   return 0;
@@ -238,7 +241,10 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       qDebug("s-task:%s scan exec dispatch blocks:%d", pTask->id.idStr, batchCnt);
-      streamDispatch(pTask);
+
+      SStreamDataBlock* pBlock = NULL;
+      streamDispatch(pTask, &pBlock);
+      destroyStreamDataBlock(pBlock);
     }
 
     if (finished) {
@@ -335,6 +341,11 @@ SStreamDataBlock* createStreamDataBlockFromResults(SStreamQueueItem* pItem, SStr
   }
 
   return pStreamBlocks;
+}
+
+void destroyStreamDataBlock(SStreamDataBlock* pBlock) {
+  taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
+  taosFreeQitem(pBlock);
 }
 
 int32_t streamExecForAll(SStreamTask* pTask) {

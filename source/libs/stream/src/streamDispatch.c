@@ -501,7 +501,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
   return code;
 }
 
-int32_t streamDispatch(SStreamTask* pTask) {
+int32_t streamDispatch(SStreamTask* pTask, SStreamDataBlock** pBlock) {
   ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
 
   int32_t numOfElems = taosQueueItemSize(pTask->outputQueue->queue);
@@ -517,23 +517,24 @@ int32_t streamDispatch(SStreamTask* pTask) {
     return 0;
   }
 
-  SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
-  if (pBlock == NULL) {
+  SStreamDataBlock* pDispatchedBlock = streamQueueNextItem(pTask->outputQueue);
+  if (pDispatchedBlock == NULL) {
     qDebug("s-task:%s stop dispatching since no output in output queue", pTask->id.idStr);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
   }
 
-  ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
+  ASSERT(pDispatchedBlock->type == STREAM_INPUT__DATA_BLOCK);
 
-  int32_t code = 0;
-  if (streamDispatchAllBlocks(pTask, pBlock) < 0) {
-    code = -1;
+  int32_t code = streamDispatchAllBlocks(pTask, *pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
     streamQueueProcessFail(pTask->outputQueue);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
   }
 
-  taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
-  taosFreeQitem(pBlock);
+  if (pBlock != NULL) {
+    *pBlock = pDispatchedBlock;
+  }
+
   return code;
 }
