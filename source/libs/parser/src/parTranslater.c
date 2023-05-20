@@ -1526,6 +1526,12 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc || pSelect->hasIndefiniteRowsFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
+
+  if (pSelect->hasInterpFunc && (FUNC_RETURN_ROWS_INDEFINITE == pSelect->returnRows || pSelect->returnRows != fmGetFuncReturnRows(pFunc))) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                "%s ignoring null value options cannot be used when applying to multiple columns", pFunc->functionName);
+  }
+
   if (NULL != pSelect->pWindow || NULL != pSelect->pGroupByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function is not supported in window query or group query", pFunc->functionName);
@@ -1726,7 +1732,10 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     if (fmIsIndefiniteRowsFunc(pFunc->funcId)) {
       pSelect->hasIndefiniteRowsFunc = true;
       pSelect->returnRows = fmGetFuncReturnRows(pFunc);
+    } else if (fmIsInterpFunc(pFunc->funcId)) {
+      pSelect->returnRows = fmGetFuncReturnRows(pFunc);
     }
+
     pSelect->hasMultiRowsFunc = pSelect->hasMultiRowsFunc ? true : fmIsMultiRowsFunc(pFunc->funcId);
     if (fmIsSelectFunc(pFunc->funcId)) {
       pSelect->hasSelectFunc = true;
