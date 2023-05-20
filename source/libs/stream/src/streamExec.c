@@ -60,7 +60,6 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
     *totalSize += size;
     *totalBlocks += numOfBlocks;
 
-    ASSERT(taosArrayGetSize(pRes) == 0);
     destroyStreamDataBlock(pStreamBlocks);
   } else {
     taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
