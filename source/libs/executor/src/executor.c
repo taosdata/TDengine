@@ -180,10 +180,10 @@ void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   doSetTaskId(pTaskInfo->pRoot);
 }
 
-void qSetTaskCode(qTaskInfo_t tinfo, int32_t code) {
-  SExecTaskInfo* pTaskInfo = tinfo;
-  pTaskInfo->code = code;
-}
+//void qSetTaskCode(qTaskInfo_t tinfo, int32_t code) {
+//  SExecTaskInfo* pTaskInfo = tinfo;
+//  pTaskInfo->code = code;
+//}
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   if (tinfo == NULL) {
@@ -1080,7 +1080,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   const char*    id = GET_TASKID(pTaskInfo);
 
   // if pOffset equal to current offset, means continue consume
-  if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.currentOffset) && pOffset->type != TMQ_OFFSET__SNAPSHOT_DATA) {
+  if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.currentOffset)) {
     return 0;
   }
 

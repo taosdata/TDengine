@@ -384,7 +384,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     bool exec = tqIsHandleExec(pHandle);
     if(!exec) {
       tqSetHandleExec(pHandle);
-      qSetTaskCode(pHandle->execHandle.task, TDB_CODE_SUCCESS);
+//      qSetTaskCode(pHandle->execHandle.task, TDB_CODE_SUCCESS);
       tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
       taosWUnLockLatch(&pTq->lock);
       break;
@@ -586,9 +586,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         qKillTask(pTaskInfo, TSDB_CODE_TSC_QUERY_KILLED);
       }
 
-      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-        qStreamCloseTsdbReader(pTaskInfo);
-      }
+//      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+//        qStreamCloseTsdbReader(pTaskInfo);
+//      }
     }
     // remove if it has been register in the push manager, and return one empty block to consumer
     tqUnregisterPushHandle(pTq, pHandle);
