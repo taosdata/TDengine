@@ -83,6 +83,10 @@ typedef enum {
   GRANT_OBJ_CONNECTORS,
 } EGrantObj;
 
+enum {
+  GRANT_EDITION_CLOUD = 1,
+};
+
 // connectors
 typedef enum {
   CONN_TYPE_OPC_DA = 0,
