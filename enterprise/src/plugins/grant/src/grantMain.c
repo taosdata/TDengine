@@ -1078,7 +1078,6 @@ static void grantConnStatusAssignLimits(GrantStatus *p1, GrantStatus *p2, bool i
 
 #ifdef GRANTS_CFG
 static void grantConnStatusCheck(SMnode *pMnode, uint32_t curTime) {
-  int32_t   nGrant = 0;
   int32_t   nGrantConn = 0;
   SHashObj *pGrants = grantHandle.pOfficials;
   if (taosHashGetSize(pGrants) > 0) {
