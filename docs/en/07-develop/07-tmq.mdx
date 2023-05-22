@@ -285,10 +285,11 @@ You configure the following parameters when creating a consumer:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
 | :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`         | string  | Used in establishing a connection; same as `taos_connect`                          |  Only valid for establishing native connection                                           |
-|        `td.connect.user`         | string  | Used in establishing a connection; same as `taos_connect`                          |   Only valid for establishing native connection                                          |
-|        `td.connect.pass`         | string  | Used in establishing a connection; same as `taos_connect`                          |     Only valid for establishing native connection                                        |
-|        `td.connect.port`         | string  | Used in establishing a connection; same as `taos_connect`                          |       Only valid for establishing native connection                                      |
+| `td.connect.type` | string | connection type | Only valid for Java connector: "jni" means native connection, "ws" means websocket connection, the default is "jni" |
+|        `td.connect.ip`         | string  | IP address of the server side                          |  |
+|        `td.connect.user`         | string  | User Name                          |  |
+|        `td.connect.pass`         | string  | Password                        |   |
+|        `td.connect.port`         | string  | Port of the server side            |   |
 |           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
 |          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
 |      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
