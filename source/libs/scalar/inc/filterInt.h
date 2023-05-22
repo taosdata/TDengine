@@ -227,8 +227,10 @@ typedef struct SFltTreeStat {
   SFilterInfo *info;
 } SFltTreeStat;
 
+
 typedef struct SFltScalarCtx {
   SNode *node;
+  SArray* fltSclRange;
 } SFltScalarCtx;
 
 typedef struct SFltBuildGroupCtx {
@@ -236,6 +238,11 @@ typedef struct SFltBuildGroupCtx {
   SArray      *group;
   int32_t      code;
 } SFltBuildGroupCtx;
+
+typedef struct {
+  SColumnNode *colNode;
+  SArray      *points;
+} SFltSclColumnRange;
 
 struct SFilterInfo {
   bool              scalarMode;
