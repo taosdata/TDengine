@@ -671,6 +671,13 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       pLastCol = &noneCol;
     }
 
+    taosArraySet(pLastArray, idxKey->idx, pLastCol);
+    // taosArrayRemove(remainCols, i);
+
+    if (!pTmpColArray) {
+      continue;
+    }
+
     SLastCol *pTmpLastCol = taosMemoryCalloc(1, sizeof(SLastCol));
     *pTmpLastCol = *pLastCol;
     pLastCol = pTmpLastCol;
@@ -696,9 +703,6 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     size_t    klen = ROCKS_KEY_LEN;
     rocksdb_writebatch_put(wb, (char *)key, klen, value, vlen);
     taosMemoryFree(value);
-
-    taosArraySet(pLastArray, idxKey->idx, pLastCol);
-    // taosArrayRemove(remainCols, i);
   }
 
   if (wb) {
