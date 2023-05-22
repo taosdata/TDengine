@@ -25,7 +25,7 @@ x_api = "http://localhost:6050"
 
 -   listen - taosExplorer 对外提供服务的地址
 -   log_level - 日志级别，可选值为 "debug", "info", "warn", "error", "fatal"
--   cluster - 用于连接集群的REST API 地址 
+-   cluster - TDengine集群的 taosadapter 地址 
 -   x_api - taosX 的服务地址
 
 然后启动 taosExplorer，可以直接在命令行执行 taos-explorer 或者使用下面的 systemctl 脚本用 systemctl 来启动 taosExplorer 服务
@@ -59,8 +59,8 @@ WantedBy=multi-user.target
 
 taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击左侧功能列表中的 "面板" 可以启用此功能。
 
-- 默认的仪表盘会返回对应grafana的安装配置向导
-- 配置过 grafana 的仪表盘在点击' 面板' 时会跳转到对应的配置地址（该地址来源于 /profile 接口的返回值）
+- 默认的仪表盘会返回对应 Grafana 的安装配置向导
+- 配置过 Grafana 的仪表盘在点击' 面板' 时会跳转到对应的配置地址（该地址来源于 /profile 接口的返回值）
 
 ![仪表盘](./dashboard.png)
 
@@ -84,13 +84,13 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 ![数据浏览和管理](./data.png)
 
-每个数据库下只有一个STables和Tables文件夹，分别用来添加超级表和普通表
+每个数据库下只有一个 STables 和 Tables 文件夹，分别用来添加超级表和普通表
 
 ![管理超级表和普通表](./stable.png)
 
 ### 系统管理
 
-点击功能列表中的 "系统管理" 入口，可以创建用户、对用户进行访问授权、以及删除用户。还能够对当前所管理的集群中的数据进行备份和恢复。也可以配置一个远程 TDengine 的地址进行数据同步。同时也提供了集群信息和许可证的信息以及代理信息以供查看。系统管理 菜单只有 root 用户才有权限看到
+点击功能列表中的“系统管理”入口，可以创建用户、对用户进行访问授权、以及删除用户。还能够对当前所管理的集群中的数据进行备份和恢复。也可以配置一个远程 TDengine 的地址进行数据同步。同时也提供了集群信息和许可证的信息以及代理信息以供查看。系统管理 菜单只有 root 用户才有权限看到
 
 ![用户管理](./admin1.png)
 
@@ -98,7 +98,7 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 ### 数据写入
 
-点击功能列表中的 "数据写入"，可以配置不同类型的数据源，包括 TDengine Subscription, PI, OPC-UA, OPC-DA，InfluxDB和MQTT，将它们的数据写入到当前正在被管理的 TDengine 集群中。
+点击功能列表中的 "数据写入"，可以配置不同类型的数据源，包括 TDengine Subscription, PI, OPC-UA, OPC-DA, InfluxDB和MQTT，将它们的数据写入到当前正在被管理的 TDengine 集群中。
 
 1.可以对已有的数据源进行删除和编辑操作，以及状态修改的操作
 
@@ -109,11 +109,11 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 ![添加数据源](./add-source.png)
 ![添加数据源](./add-source1.png)
 
-3.添加PI数据类型如图：有红色星号的为必输项，其他的根据需求填写，点击Submit即可创建一条新的通过PI数据写入
+3.添加PI数据类型如图：有红色星号的为必输项，其他的根据需求填写，点击 Submit 即可创建一条新的通过PI数据写入
 
 ![添加Pi数据源](./pi.png)
 
-4.新增opcua如下。红色星号为必输项，填写对应数据点击Submit即可创建一条线的opcua
+4.新增 opcua 如下。红色星号为必输项，填写对应数据点击 Submit 即可创建一条线的 opcua
 
 ![添加 OPCA UA 数据源](./opcua.png)
 
@@ -147,9 +147,9 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 ### 流计算
 
-点击功能列表中的 "流计算" 入口，可以创建和管理流计算。
+点击功能列表中的“流计算”入口，可以创建和管理流计算。
 
-可通过wizard向导和sql语句两种方式进行流计算的创建。wizard向导目前不支持分组
+可通过向导和sql语句两种方式进行流计算的创建。向导目前不支持分组
 
 ![流计算](./stream.png)
 
