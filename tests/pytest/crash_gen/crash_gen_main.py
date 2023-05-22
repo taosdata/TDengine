@@ -1722,12 +1722,14 @@ class TaskCreateDb(StateTransitionTask):
         vg_nums = random.randint(1, 8)
         cache_model = Dice.choice(['none', 'last_row', 'last_value', 'both'])
         buffer = random.randint(3, 128)
+        walRetentionPeriod = random.randint(1, 10000)
         dbName = self._db.getName()
-        self.execWtSql(wt, "create database {} {} {} vgroups {} cachemodel '{}' buffer {}  ".format(dbName, repStr,
+        self.execWtSql(wt, "create database {} {} {} vgroups {} cachemodel '{}' buffer {} wal_retention_period {}  ".format(dbName, repStr,
                                                                                                     updatePostfix,
                                                                                                     vg_nums,
                                                                                                     cache_model,
-                                                                                                    buffer))
+                                                                                                    buffer,
+                                                                                                    walRetentionPeriod))
         if dbName == "db_0" and Config.getConfig().use_shadow_db:
             self.execWtSql(wt, "create database {} {} {} ".format("db_s", repStr, updatePostfix))
 
