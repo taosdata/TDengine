@@ -34,7 +34,7 @@ target_link_libraries(
     PRIVATE scalar 
     PRIVATE parser
     PRIVATE common 
-    PUBLIC uv_a
+    PRIVATE uv_a
 )
 
 add_executable(runUdf test/runUdf.c)

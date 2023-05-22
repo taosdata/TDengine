@@ -1096,8 +1096,11 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       // failed to find the result in the cache, let try to calculate the results
       if (pTagIndexCond) {
         void*         pIndex = tsdbGetIvtIdx(metaHandle);
-        SIndexMetaArg metaArg = {
-            .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = pIndex, .suid = pScanNode->uid};
+        SIndexMetaArg metaArg = {.metaEx = metaHandle,
+                                 .idx = tsdbGetIdx(metaHandle),
+                                 .ivtIdx = pIndex,
+                                 .suid = pScanNode->uid,
+                                 .metaFilterFunc = metaFilterTableIds};
 
         status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status);

@@ -12,10 +12,9 @@ target_link_libraries(
     PUBLIC os
     PUBLIC util
     PUBLIC common
-    PUBLIC vnode
     PUBLIC nodes
-    PUBLIC scalar 
-    PUBLIC function 
+    PRIVATE scalar 
+    PRIVATE function 
 )
 
 if (${BUILD_WITH_LUCENE})

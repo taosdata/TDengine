@@ -740,7 +740,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, SHashObj* ids) {
     qError("failed to open rocksdb cf, reason:%s", err);
     taosMemoryFree(err);
   } else {
-    qDebug("succ to open rocksdb cf, reason:%s", err);
+    qDebug("succ to open rocksdb cf");
   }
 
   pIter = taosHashIterate(ids, NULL);
@@ -1096,30 +1096,29 @@ int32_t streamStateDel_rocksdb(SStreamState* pState, const SWinKey* key) {
   return code;
 }
 int32_t streamStateClear_rocksdb(SStreamState* pState) {
-  qDebug("streamStateClear_rocksdb");
+  qDebug("streamStateSessionClear_rocksdb");
+  SSessionKey      key = {.win.skey = 0, .win.ekey = 0, .groupId = 0};
+  SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext_rocksdb(pState, &key);
 
-  SStateKey sKey = {.key = {.ts = 0, .groupId = 0}, .opNum = pState->number};
-  SStateKey eKey = {.key = {.ts = INT64_MAX, .groupId = UINT64_MAX}, .opNum = pState->number};
-  char      sKeyStr[128] = {0};
-  char      eKeyStr[128] = {0};
+  while (1) {
+    SSessionKey delKey = {0};
+    void*       buf = NULL;
+    int32_t     size = 0;
+    int32_t     code = streamStateSessionGetKVByCur_rocksdb(pCur, &delKey, &buf, &size);
+    if (code == 0 && size > 0) {
+      memset(buf, 0, size);
+      // refactor later
+      streamStateSessionPut_rocksdb(pState, &delKey, buf, size);
+    } else {
+      taosMemoryFreeClear(buf);
+      break;
+    }
+    taosMemoryFreeClear(buf);
 
-  int sLen = stateKeyEncode(&sKey, sKeyStr);
-  int eLen = stateKeyEncode(&eKey, eKeyStr);
-
-  char* err = NULL;
-  rocksdb_delete_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, pState->pTdbState->pHandle[1],
-                          sKeyStr, sLen, eKeyStr, eLen, &err);
-  if (err != NULL) {
-    char sKeyBuf[128] = {0}, eKeyBuf[128] = {0};
-    stateKeyToString(&sKey, sKeyBuf);
-    stateKeyToString(&eKey, eKeyBuf);
-    qWarn("failed to delete range cf(state) start: %s, end:%s, reason:%s", sKeyBuf, eKeyBuf, err);
-    taosMemoryFree(err);
-  } else {
-    rocksdb_compact_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->pHandle[1], sKeyStr, sLen, eKeyStr, eLen);
+    streamStateCurNext_rocksdb(pState, pCur);
   }
-
-  return 0;
+  streamStateFreeCur(pCur);
+  return -1;
 }
 int32_t streamStateCurNext_rocksdb(SStreamState* pState, SStreamStateCur* pCur) {
   if (!pCur) {

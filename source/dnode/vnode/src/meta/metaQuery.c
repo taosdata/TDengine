@@ -1083,8 +1083,10 @@ typedef struct {
   int32_t  vLen;
 } SIdxCursor;
 
-int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
-  int32_t ret = 0;
+int32_t metaFilterCreateTime(void *meta, void *arg, SArray *pUids) {
+  SMeta         *pMeta = meta;
+  SMetaFltParam *param = arg;
+  int32_t        ret = 0;
 
   SIdxCursor *pCursor = NULL;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
@@ -1141,9 +1143,11 @@ END:
   return ret;
 }
 
-int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
-  int32_t ret = 0;
-  char   *buf = NULL;
+int32_t metaFilterTableName(void *meta, void *arg, SArray *pUids) {
+  SMeta         *pMeta = meta;
+  SMetaFltParam *param = arg;
+  int32_t        ret = 0;
+  char          *buf = NULL;
 
   STagIdxKey *pKey = NULL;
   int32_t     nKey = 0;
@@ -1206,7 +1210,10 @@ END:
 
   return ret;
 }
-int32_t metaFilterTtl(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
+int32_t metaFilterTtl(void *meta, void *arg, SArray *pUids) {
+  SMeta         *pMeta = meta;
+  SMetaFltParam *param = arg;
+
   int32_t ret = 0;
   char   *buf = NULL;
 
@@ -1235,12 +1242,14 @@ END:
   // impl later
   return 0;
 }
-int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
-  SMetaEntry oStbEntry = {0};
-  int32_t    ret = -1;
-  char      *buf = NULL;
-  void      *pData = NULL;
-  int        nData = 0;
+int32_t metaFilterTableIds(void *meta, void *arg, SArray *pUids) {
+  SMeta         *pMeta = meta;
+  SMetaFltParam *param = arg;
+  SMetaEntry     oStbEntry = {0};
+  int32_t        ret = -1;
+  char          *buf = NULL;
+  void          *pData = NULL;
+  int            nData = 0;
 
   SDecoder    dc = {0};
   STbDbKey    tbDbKey = {0};

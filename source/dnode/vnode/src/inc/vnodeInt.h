@@ -122,29 +122,29 @@ typedef struct STbUidStore STbUidStore;
 #define META_BEGIN_HEAP_OS         1
 #define META_BEGIN_HEAP_NIL        2
 
-int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
-int             metaClose(SMeta** pMeta);
-int             metaBegin(SMeta* pMeta, int8_t fromSys);
-TXN*            metaGetTxn(SMeta* pMeta);
-int             metaCommit(SMeta* pMeta, TXN* txn);
-int             metaFinishCommit(SMeta* pMeta, TXN* txn);
-int             metaPrepareAsyncCommit(SMeta* pMeta);
-int             metaAbort(SMeta* pMeta);
-int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
-int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** pMetaRsp);
-int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids, int64_t* tbUid);
-int             metaTtlDropTable(SMeta* pMeta, int64_t ttl, SArray* tbUids);
-int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
+int     metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
+int     metaClose(SMeta** pMeta);
+int     metaBegin(SMeta* pMeta, int8_t fromSys);
+TXN*    metaGetTxn(SMeta* pMeta);
+int     metaCommit(SMeta* pMeta, TXN* txn);
+int     metaFinishCommit(SMeta* pMeta, TXN* txn);
+int     metaPrepareAsyncCommit(SMeta* pMeta);
+int     metaAbort(SMeta* pMeta);
+int     metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int     metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int     metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
+int     metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** pMetaRsp);
+int     metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids, int64_t* tbUid);
+int     metaTtlDropTable(SMeta* pMeta, int64_t ttl, SArray* tbUids);
+int     metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
+int32_t metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
+int     metaGetTableEntryByName(SMetaReader* pReader, const char* name);
+int     metaAlterCache(SMeta* pMeta, int32_t nPage);
+
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
-int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
-int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
-int             metaAlterCache(SMeta* pMeta, int32_t nPage);
-
-int metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
+int             metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int             metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
 int64_t       metaGetTimeSeriesNum(SMeta* pMeta);
 SMCtbCursor*  metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid, int lock);
@@ -197,7 +197,7 @@ void tqClose(STQ*);
 int  tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int  tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 int  tqUnregisterPushHandle(STQ* pTq, void* pHandle);
-int  tqStartStreamTasks(STQ* pTq);    // restore all stream tasks after vnode launching completed.
+int  tqStartStreamTasks(STQ* pTq);  // restore all stream tasks after vnode launching completed.
 
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
