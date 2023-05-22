@@ -4,7 +4,12 @@ server:
 # 日志配置
 logging:
   config: classpath:log4j2.yml
+  level:
+    org.springframework.*: off
+    org.apache.*: off
 spring:
+  main:
+    log-startup-info: false
   profiles:
     include: db-source, netty
 

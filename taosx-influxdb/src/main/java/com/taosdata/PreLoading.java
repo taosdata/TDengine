@@ -77,8 +77,16 @@ public class PreLoading implements CommandLineRunner {
             // 加载中状态
             StatusCache.setStatus(StatusEnums.LOADING.getCode());
             StatusCache.setDescription(StatusEnums.LOADING.getDesc());
-            // 加载toml配置文件，覆盖默认配置，第一个参数是外部配置文件路径，配置不正确则默认退出
-            loadToml(args[0]);
+            // 判断是否存在参数且参数是否为-v
+            if (args == null || args.length == 0) {
+                logger.info("启动参数错误，启动失败");
+                System.exit(1);
+            } else if ("-v".equals(args[0].trim().toLowerCase()) || "-version".equals(args[0].trim().toLowerCase())) {
+                System.exit(0);
+            } else {
+                // 加载toml配置文件，覆盖默认配置，第一个参数是外部配置文件路径，配置不正确则默认退出
+                loadToml(args[0].trim());
+            }
             // 创建influxdb连接池
             this.influxdbPool.createInluxdbClientPool();
             // 启动线程MonitorThread
