@@ -84,7 +84,7 @@ namespace TDPIConnector.Service
             }
             catch (Exception ex)
             {
-                logger.Fatal("Invalid JSON configuration for ", ex);
+                logger.Fatal("Init Failed! Please check toml config file.", ex);
                 return;
             }
 

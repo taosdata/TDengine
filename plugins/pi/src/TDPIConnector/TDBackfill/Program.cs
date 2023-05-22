@@ -55,7 +55,14 @@ namespace TDBackfill
             }
             else
             {
-                AppSettings.Init(options.tomlFile);
+                try {
+                    AppSettings.Init(options.tomlFile);
+                }
+                catch (Exception e) {
+                    log.Fatal("Init Failed! Please check toml config file.", e);
+                    return;
+                }
+
                 if (options.tomlFile == "") {
                     AppSettings.tomlConfig.SetBackfillOption(
                         options.BackfillToFirstRecorded,
