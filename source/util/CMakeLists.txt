@@ -5,9 +5,6 @@ if (DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
 
-if(NOT TD_WINDOWS)
-    INCLUDE_DIRECTORIES(/usr/local/include)
-endif(NOT TD_WINDOWS)
 target_include_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/include/util"
