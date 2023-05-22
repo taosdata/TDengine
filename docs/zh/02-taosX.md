@@ -23,26 +23,7 @@ taosX 没有独立的安装包，在安装了 TDengine 企业版之后，您的�
 
 2.  服务模式
 
-将下列内容保存在 /etc/systemd/system/taosx.service
-
-```TOML
-[Unit]
-Description=taosX - Data Replication and Streaming Data Integration Toolset.
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/taosx
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**以上脚本中 taosX 会监听在 "0.0.0.0:6050" ，如果想修改这个监听地址，请修改 "ExecStart=/usr/bin/taosx" 这一行，加上 " -l ip:port"**。
-
-随后就可以使用 systemctl 命令来启动、停止和检测 taosX 服务。
+使用 systemctl 命令来启动、停止和检测 taosX 服务。
 
 systemctl start taosx
 
@@ -106,10 +87,10 @@ taosx run \
 ```
 
 **以上示例的PI参数表示**
-- IServerName：PI 连接配置主机名 ，此示例中为 WIN-2OA23UM12TN
+- PIServerName：PI 连接配置主机名 ，此示例中为 WIN-2OA23UM12TN
 - AFDatabaseName：指定连接的 PI 数据库，此示例中为 Met1
-- TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 导出到 TDengine 服务器 tdengine的 pi 库中
-- TemplateForAFElement：使用 AF Point 模式将模板template3 ，template4 导出到 TDengine 服务器 tdengine的 pi 库中
+- TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 ，按照 element 的每个Arrtribution作为子表导入到 TDengine 服务器 tdengine 的 pi 库中
+- TemplateForAFElement：使用 AF Point 模式将模板template3 ，template4 ，按照 element 的 Attribution 集合作为一个子表导入到 TDengine 服务器 tdengine的 pi 库中
 
 **在 taosX CLI 运行时支持的参数如下**
 
@@ -307,7 +288,7 @@ curl --location 'localhost:6050/tasks' \
 **工具模式**
 
 ```shell
-taosx run -f 'taos://td2:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all' -t 'taos://td3:6030/db2?libraryPath=./libtaos.so.3.0.1.8' -vv
+taosx run -f 'taos://td2:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all' -t 'taos://td3:6030/db2?libraryPath=./libtaos.so.3.0.1.8' -v
 ```
 
 **服务模式**
