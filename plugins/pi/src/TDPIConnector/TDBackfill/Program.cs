@@ -14,21 +14,10 @@ namespace TDBackfill
 
         static void Main(string[] args)
         {
-            log.Info("test");
-
             //create a command line parser using args
             CommandLineParser parser = new CommandLineParser(args);
             //get the command line options
             CommandLineOptions options = parser.GetCommandLineOptions();
-
-            //output to console command line options
-            //Console.WriteLine("Help: " + options.Help.ToString());
-            //Console.WriteLine("Drop Table: " + options.DropTable.ToString());
-            //Console.WriteLine("Backfill All: " + options.BackfillAll.ToString());
-            //Console.WriteLine("Backfill To Last Recorded: " + options.BackfillToLastRecorded.ToString());
-            //Console.WriteLine("Backfill From Last Recorded: " + options.BackfillFromLastRecorded.ToString());
-            //Console.WriteLine("Start: " + options.Start.ToString());
-            //Console.WriteLine("End: " + options.End.ToString());
 
             if (options.Help)
             {
@@ -43,11 +32,11 @@ namespace TDBackfill
                 Console.WriteLine("    This will delete all data in the table. Ignored if -t or -f are specified.");
                 Console.WriteLine("-a, --all");
                 Console.WriteLine("    Backfill all data.");
-                Console.WriteLine("-t, --to-first-recorded");
+                Console.WriteLine("-to, --to-first-recorded");
                 Console.WriteLine("    Backfill up to the first recorded value in TDengine.");
-                Console.WriteLine("-f, --from-last-recorded");
+                Console.WriteLine("-from, --from-last-recorded");
                 Console.WriteLine("    Backfill from the last recorded value in TDengine.");
-                Console.WriteLine("-file, --file-toml");
+                Console.WriteLine("-f, --file-toml");
                 Console.WriteLine("    Backfill toml config path.");              
                 Console.WriteLine("-s, --start");
                 Console.WriteLine("    The start time for backfilling data. If not provided, the start time will be the earliest time available.");
@@ -64,6 +53,14 @@ namespace TDBackfill
             else
             {
                 AppSettings.Init(options.tomlFile);
+                if (options.tomlFile == "") {
+                    AppSettings.tomlConfig.SetBackfillOption(
+                        options.BackfillToFirstRecorded,
+                        options.BackfillFromLastRecorded,
+                        options.Start,
+                        options.End
+                        );
+                }
 
                 PISystemManager piSystemManager = null;
                 if (!string.IsNullOrEmpty(AppSettings.tomlConfig.PISystemName)) {
@@ -128,9 +125,13 @@ namespace TDBackfill
 
                 try
                 {
-                    backfillManager.BackfillPIPointsFromTool(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName, options.Start, options.End,
-                         options.BackfillToFirstRecorded, options.BackfillFromLastRecorded,
-                         options.DropTables).Wait();
+                    backfillManager.BackfillPIPointsFromTool(AppSettings.tomlConfig.TDDataBase,
+                        AppSettings.tomlConfig.AFDatabaseName,
+                        AppSettings.tomlConfig.BackfillStartTime,
+                        AppSettings.tomlConfig.BackfillEndTime,
+                        AppSettings.tomlConfig.ToTDengineFirstTime,
+                        AppSettings.tomlConfig.FromTDengineLastTime,
+                        options.DropTables).Wait();
                 }
                 catch (Exception e)
                 {
@@ -144,10 +145,10 @@ namespace TDBackfill
                         backfillManager.BackfillAFElementsFromTool(AppSettings.tomlConfig.TDDataBase,
                                 AppSettings.tomlConfig.AFDatabaseName,
                                 AppSettings.tomlConfig.TemplateForAFElement,
-                                options.Start,
-                                options.End,
-                                options.BackfillToFirstRecorded,
-                                options.BackfillFromLastRecorded,
+                                AppSettings.tomlConfig.BackfillStartTime,
+                                AppSettings.tomlConfig.BackfillEndTime,
+                                AppSettings.tomlConfig.ToTDengineFirstTime,
+                                AppSettings.tomlConfig.FromTDengineLastTime,
                                 options.DropTables).Wait();
                     }
 

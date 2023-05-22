@@ -64,17 +64,8 @@ func createReaders(config common.Config) (readers []*reader, err error) {
 }
 
 func createReader(config common.Config, nodes []common.NodeConfig) (*reader, error) {
-	return newReader(config.Debug, config.Connect.Ua, config.Collect.Ua.CollectMode, nodes, config.Collect.Interval)
-}
-
-func (c *UaConnector) Connect(ctx context.Context) error {
-	for _, r := range c.readers {
-		if err := r.connect(ctx); err != nil {
-			return fmt.Errorf("connect fail for reader %p. %w", r, err)
-		}
-	}
-
-	return nil
+	return newReader(config.Debug, config.Connect.Ua, config.Points, config.Collect.Ua.CollectMode, nodes,
+		config.Collect.Interval, config.Collect.ContainsBad)
 }
 
 func (c *UaConnector) Stop(ctx context.Context) {
@@ -102,6 +93,7 @@ func (c *UaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, er
 			defer c.wait.Done()
 			if err := c.collect(ctx, r); err != nil {
 				log.Println("## collect error", err)
+				panic(err)
 			}
 		}(r)
 	}

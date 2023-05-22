@@ -178,16 +178,20 @@ namespace TDPIConnector.PI
             foreach (AFValue val in values)
             {
                 valuesWrapper.Add(new AFValueWrapper(val));
+                // skip invalid timestamp
+                if (val.Timestamp != AFTime.MaxValue)
+                {
+                    startTime = startTime > val.Timestamp.LocalTime ? startTime : val.Timestamp.LocalTime;
+                }
             }
-
 
             if (values.Count == 0)
             {
                 startTime = DateTime.MaxValue;
             }
-            else
+            else if (startTime != DateTime.MaxValue)
             {
-            startTime = values.ToArray().ToList().Last().Timestamp.LocalTime.AddMilliseconds(1);
+                startTime = startTime.AddMilliseconds(1);
             }
             return valuesWrapper;
         }

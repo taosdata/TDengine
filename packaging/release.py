@@ -7,7 +7,7 @@ import subprocess
 import toml
 
 cus_name = "TDengine"
-taosx_name = "taosx"
+taosx_agent_name = "taosx-agent"
 connector_array = []
 version = ''
 install_path = ''
@@ -28,11 +28,11 @@ def getTaosxVersion():
         cargo_toml = toml.load(f)
         version = cargo_toml['package']['version']
 
-def getTaosxOutputName():
+def getTaosxAgentOutputName():
     if current_os == 'Windows':  # Windows操作系统
-        return taosx_name + ".exe"
+        return taosx_agent_name + ".exe"
     else:
-        return taosx_name
+        return taosx_agent_name
 
 def setDefaultParam():
     global install_path
@@ -67,11 +67,11 @@ def readArgs():
     result = "".join([f"-{elem}" for elem in connector_array])
 
     if current_os == 'Windows':
-        packagServerName = f'taosX-v{version}{result}-installer'
+        packagServerName = f'{taosx_agent_name}-v{version}{result}-installer'
     elif current_os == 'Darwin':
-        packagServerName = f'taosX-v{version}{result}-Mac-installer'
+        packagServerName = f'{taosx_agent_name}-v{version}{result}-Mac-installer'
     elif current_os == 'Linux':
-        packagServerName = f'taosX-v{version}{result}-Linux-installer'
+        packagServerName = f'{taosx_agent_name}-v{version}{result}-Linux-installer'
     else:
         print('Unknown operating system:', current_os)
         sys.exit()   
@@ -93,12 +93,12 @@ def buildAndInstallOPCOnWindows():
     # 32位编译
     os.environ["GOOS"] = "windows"
     os.environ["GOARCH"] = "386"
-    opc_app_name = "opc-collector_windows_386.exe"
-    os.system(f"go build -o dist/{opc_app_name}")
+    opc_app_name = "opc-collector.exe"
+    os.system(f"go build -o dist/windows_386/{opc_app_name}")
     
     opc_install_path = os.path.join(install_path, "xplugins", "opc")
     initDirectory(opc_install_path)
-    opc_path = os.path.join(opc_connector_path, "dist", opc_app_name)
+    opc_path = os.path.join(opc_connector_path, "dist", "windows_386", opc_app_name)
     try:
         shutil.copy2(opc_path, opc_install_path)
     except FileNotFoundError as e:
@@ -149,7 +149,7 @@ def buildAndInstallPI():
     print("solution clean...")
     os.system('devenv TDPIConnector.sln /clean')
     print("solution build...")
-    build_result = os.system('devenv TDPIConnector.sln /build')
+    build_result = os.system('devenv TDPIConnector.sln /build Release')
     if build_result == 0:
         print("PI Connector Solution built successfully.")
     else:
@@ -159,32 +159,59 @@ def buildAndInstallPI():
     pi_install_path = os.path.join(install_path, "xplugins", "pi")
     initDirectory(pi_install_path)
 
-    connector_path = os.path.join(pi_connector_path, "TDPIConnector.Service", "bin", "Debug")
+    backfill_path = os.path.join(pi_connector_path, "TDBackfill", "bin", "Release")
+    for filename in os.listdir(backfill_path):
+        if filename.startswith("TDBackfill"):
+            filepath = os.path.join(backfill_path, filename)
+            if os.path.isfile(filepath):
+                shutil.copy2(filepath, pi_install_path)
+
+    connector_path = os.path.join(pi_connector_path, "TDPIConnector.Service", "bin", "Release")
     for filename in os.listdir(connector_path):
         filepath = os.path.join(connector_path, filename)
         if os.path.isfile(filepath):
             shutil.copy2(filepath, pi_install_path)
 
+def copyTaosAgentServiceFile(taosx_install_path):
+    taosx_agent_path = os.path.join(taosx_dir, "taosx-agent", "bin")
+    for filename in os.listdir(taosx_agent_path):
+        if filename.startswith("taosx-agent-srv"):
+            filepath = os.path.join(taosx_agent_path, filename)
+            if os.path.isfile(filepath):
+                shutil.copy2(filepath, taosx_install_path)
+
+def copyTaosAgentCfg(taos_cfg_path):
+    taosx_agent_cfg = os.path.join(taosx_dir, "taosx-agent", "examples", "agent.example.toml")
+    try:
+        shutil.copy2(taosx_agent_cfg, taos_cfg_path)
+    except FileNotFoundError as e:
+        print("Copy TaosX Agent cfg from {} to {} failed: {}".format(taosx_agent_cfg, taos_cfg_path,  e.strerror))
+        sys.exit()
+
 def buildAndInstallTaosX():
-    print("buildAndInstallTaosX start...")
+    print("buildAndInstallTaosX Agent start...")
     os.chdir(taosx_dir)
-    os.system('cargo build --release --no-default-features --features optin --features rustls')
+    os.system('cargo build --release --package taosx-agent')
 
     taox_install_path = os.path.join(install_path, "bin")
     checkDirectory(taox_install_path)
-    taosx_path = os.path.join(taosx_dir, "target", "release", getTaosxOutputName())
+    taosx_agent_path = os.path.join(taosx_dir, "target", "release", getTaosxAgentOutputName())
     try:
-        shutil.copy2(taosx_path, taox_install_path)
+        shutil.copy2(taosx_agent_path, taox_install_path)
     except FileNotFoundError as e:
-        print("Copy TaosX to {} failed: {}".format(taosx_path,  e.strerror))
+        print("Copy TaosX to {} failed: {}".format(taosx_agent_path,  e.strerror))
         sys.exit()
+
+    copyTaosAgentServiceFile(taox_install_path)
+    taos_cfg_path = os.path.join(install_path, "cfg")
+    copyTaosAgentCfg(taos_cfg_path)
    
 def packageOnWindows():
     os.chdir(script_dir)
     result = subprocess.run(f'iscc /F"{packagServerName}" /DMyAppVersion="{version}" '
                             f'/DMyAppSourceDir="{install_path}" '
                             f'/DCusName="{cus_name}" '
-                            f'/DTaosXName="{taosx_name}" '
+                            f'/DTaosXAgentName="{taosx_agent_name}" '
                             f'{script_dir}/taosx.iss /O{taosx_dir}/release', shell=True)
     if result.returncode != 0:
         print(f'package {packagServerName} failed')
@@ -224,6 +251,7 @@ def checkDirectory(path):
 def initInstallDirectory():
     print("initInstallDirectory {}...".format(install_path))
     checkDirectory(install_path)
+    checkDirectory(os.path.join(install_path, "cfg"))
 
     opc_install_path = os.path.join(install_path, "xplugins", "opc")
     initDirectory(opc_install_path)

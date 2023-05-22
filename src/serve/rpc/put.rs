@@ -4,7 +4,7 @@ use anyhow::Context;
 use arrow::ipc::RecordBatch;
 use arrow_flight::{FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
-use taos::{AsyncTBuilder, TaosBuilder, TaosPool, Stmt, Bindable};
+use taos::{AsyncTBuilder, Bindable, Stmt, TaosBuilder, TaosPool};
 use taosx_core::IpcStreamWorker;
 use tonic::{Status, Streaming};
 

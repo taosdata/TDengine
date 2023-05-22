@@ -28,15 +28,15 @@ namespace TDBackfill
                 {
                     options.BackfillAll = true;
                 }
-                else if (args[i] == "-t" || args[i] == "--to-last-recorded")
+                else if (args[i] == "-to" || args[i] == "--to-first-recorded")
                 {
                     options.BackfillToFirstRecorded = true;
                 }
-                else if (args[i] == "-f" || args[i] == "--from-last-recorded")
+                else if (args[i] == "-from" || args[i] == "--from-last-recorded")
                 {
                     options.BackfillFromLastRecorded = true;
                 }
-                else if (args[i] == "-file" || args[i] == "--file-toml")
+                else if (args[i] == "-f" || args[i] == "--file-toml")
                 {
                     options.tomlFile = args[i + 1];
                     i++;

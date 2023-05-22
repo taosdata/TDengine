@@ -4,8 +4,8 @@ use anyhow::{bail, Context, Result};
 use taos::*;
 
 use taosx_core::{
-    legacy_to_taos, local_to_taos, mqtt_to_taos, opc_to_taos, pi_to_taos, influxdb_to_taos, query_to_csv,
-    query_to_parquet, tmq_to_local, tmq_to_td, utils::port_pool::PortPool, Action,
+    influxdb_to_taos, legacy_to_taos, local_to_taos, mqtt_to_taos, opc_to_taos, pi_to_taos,
+    query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td, utils::port_pool::PortPool, Action,
 };
 
 use clap::Parser;
@@ -37,6 +37,10 @@ pub(super) struct Cli {
     /// Output DSN.
     #[clap(short, long, value_parser)]
     to: Dsn,
+
+    /// Parser.
+    #[clap(short, long, value_parser)]
+    parser: Option<taosx_core::Parser>,
 
     /// Transformer actions.
     ///
@@ -175,7 +179,8 @@ impl Cli {
                     &port_pool,
                     Default::default(),
                     None,
-                ).await?;
+                )
+                .await?;
                 log::debug!("main scheduler done");
             }
             ("opc" | "opcua" | "opcda", "taos") => {
@@ -196,7 +201,7 @@ impl Cli {
                 let port_pool = PortPool::default();
                 mqtt_to_taos(
                     args.from,
-                    args.transform,
+                    args.parser,
                     args.to,
                     args.jobs,
                     &port_pool,

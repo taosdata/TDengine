@@ -9,11 +9,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::field::debug;
 
 use crate::{
-    Action,
-    DataSet,
-    DataSetsReq,
     plugins::{service::spawn_rest_service, sink},
     utils::{port_pool::PortPool, stop_thread},
+    Action, DataSet, DataSetsReq,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -188,6 +186,7 @@ pub async fn influxdb_to_taos(
         None,
         cancel.clone(),
         with_agent,
+        None,
     )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
     // startup the connector
@@ -241,7 +240,8 @@ pub async fn influxdb_to_taos(
         // delete the temporary file
         temp_path.close().unwrap();
         Ok(())
-    }).await??;
+    })
+    .await??;
     Ok(())
 }
 

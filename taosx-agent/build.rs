@@ -36,6 +36,13 @@ fn labeling(mut file: &File) -> SdResult<()> {
     writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;
     writeln!(
         file,
+        r#"pub const VERBOSE_VERSION: &str = if GIT_CLEAN {{
+     ::const_format::concatcp!(PKG_VERSION,"-",SHORT_COMMIT," (built ",BUILD_OS," ",BUILD_TIME,")")
+}} else {{
+    ::const_format::concatcp!(PKG_VERSION,"-",SHORT_COMMIT,"-dirty"," (built ",BUILD_OS," ",BUILD_TIME,")")
+}};"#)?;
+    writeln!(
+        file,
         r#"pub const CUS_CLI_NAME: &str = "{}x-agent";"#,
         cus_prompt
     )?;

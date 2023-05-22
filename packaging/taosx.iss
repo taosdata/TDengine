@@ -2,7 +2,7 @@
 #define MyAppBeforeInstallTxt "info_before_install.txt"
 
 [Setup]
-AppName={#TaosXName}
+AppName={#TaosXAgentName}
 AppVersion={#MyAppVersion}
 DefaultDirName={#MyAppSourceDir}
 InfoBeforeFile={#MyAppBeforeInstallTxt}
@@ -17,17 +17,18 @@ Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "{#MyAppSourceDir}\xplugins\*"; DestDir: "{app}\xplugins"; Flags: recursesubdirs
-Source: "{#MyAppSourceDir}\bin\taosx.exe"; DestDir: "{app}\bin"
+Source: "{#MyAppSourceDir}\bin\{#TaosXAgentName}.exe"; DestDir: "{app}\bin"
+Source: "{#MyAppSourceDir}\bin\taosx-agent-srv.*"; DestDir: "{app}\bin"
+Source: "{#MyAppSourceDir}\cfg\agent.example.toml"; DestDir: "{app}\cfg"
 
 [CODE]
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-uninspath, uninsname, NewUninsName, MyAppName: string;
+uninspath, uninsname, NewUninsName : string;
 begin
 if CurStep = ssDone then
 begin
-NewUninsName := 'uninstall_taox';
-MyAppName := '{#TaosXName}';
+NewUninsName := 'uninstall_{#TaosXAgentName}';
 uninspath := ExtractFilePath(ExpandConstant('{uninstallexe}'));
 uninsname := Copy(ExtractFileName(ExpandConstant('{uninstallexe}')), 1, 8);
 RenameFile(uninspath + uninsname + '.exe', uninspath + NewUninsName + '.exe');
@@ -36,7 +37,8 @@ end;
 end;
 
 [UninstallDelete]
-Type: files; Name: "{app}\bin\taosx.exe"
+Type: files; Name: "{app}\bin\{#TaosXAgentName}.exe"
+Type: files; Name: "{app}\bin\taosx-agent-srv.*"
 Type: files; Name: "{app}\xplugins\pi\*.*"
 Type: files; Name: "{app}\xplugins\opc\*.*"
 Type: files; Name: "{app}\xplugins\mqtt\*.*"

@@ -2,7 +2,8 @@ use std::{
     collections::HashMap,
     io::{BufRead, Write},
     num::ParseIntError,
-    str::ParseBoolError, time::Duration,
+    str::ParseBoolError,
+    time::Duration,
 };
 
 use anyhow::Context;
@@ -10,7 +11,7 @@ use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 
-use crate::{utils::port_pool::PortPool, Action, plugins::sink};
+use crate::{plugins::sink, utils::port_pool::PortPool, Action, Parser, TaskOpts};
 
 #[derive(Debug, serde::Serialize)]
 struct MqttConfig {
@@ -82,9 +83,9 @@ impl MqttConfig {
             let qos = pair[1]
                 .parse::<u8>()
                 .map_err(|err| MqttConfigError::ParseIntError("qos", pair[1].to_string(), err))?;
-            let table = String::from(pair[2]);
-            let field = String::from(pair[3]);
-            let value_type = String::from(pair[4]);
+            // let table = String::from(pair[2]);
+            // let field = String::from(pair[3]);
+            // let value_type = String::from(pair[4]);
             topics.insert(topic, qos);
         }
         Ok(MqttConfig {
@@ -122,7 +123,7 @@ impl MqttConfig {
 
 pub async fn mqtt_to_taos(
     from: Dsn,
-    actions: Vec<Action>,
+    parser: Option<Parser>,
     to: Dsn,
     jobs: usize,
     port_pool: &PortPool,
@@ -148,7 +149,11 @@ pub async fn mqtt_to_taos(
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-    log::info!("Using mqtt config file {} \n{}", config_path.display(), toml);
+    log::info!(
+        "Using mqtt config file {} \n{}",
+        config_path.display(),
+        toml
+    );
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         sink::listen_tcp_socket(
@@ -158,6 +163,7 @@ pub async fn mqtt_to_taos(
             None,
             cancel.clone(),
             with_agent,
+            parser.clone(),
         )?
     } else {
         sink::listen_tcp_socket_with_agent(
@@ -168,16 +174,20 @@ pub async fn mqtt_to_taos(
             with_agent.unwrap(),
         )?
     };
-    let mqtt= if cfg!(target_os = "windows") {
+    let mqtt = if cfg!(target_os = "windows") {
         "C:\\TDengine\\xplugins\\mqtt\\taosmqtt.exe"
     } else {
         "/usr/local/taos/xplugins/mqtt/taosmqtt"
+        // "mqtt-fake"
     };
     let mut command = tokio::process::Command::new(mqtt);
-    let mut child = command.arg("-c").arg(&config_path)
+    let mut child = command
+        .arg("-c")
+        .arg(&config_path)
         .stdout(async_process::Stdio::inherit())
         .stderr(async_process::Stdio::inherit())
-        .spawn()?;
+        .spawn()
+        .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
     tokio::spawn(async move {
         tokio::select! {
             status = child.wait() => {
@@ -197,15 +207,16 @@ pub async fn mqtt_to_taos(
             },
             _ = cancel.cancelled() => {
                 log::info!("mqtt task cancelled");
-            }, 
+            },
         };
         ipc.send(())?;
-        child.kill().await;
+        let _ = child.kill().await;
         log::info!("mqtt to taos task done");
         temp_path.close().unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
-    }).await??;
+    })
+    .await??;
     Ok(())
 }
 
@@ -261,6 +272,44 @@ pub(super) fn get_string_from_param_or_file(
     } else {
         Ok(None)
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_mqtt_parser() {
+    std::env::set_var("RUST_LOG", "debug,tokio=warn");
+    pretty_env_logger::init();
+    let opts = TaskOpts {
+        transform: vec![],
+        from: "mqtt://192.168.0.201:11883?topics=topic-1::1"
+            .parse()
+            .unwrap(),
+        to: "taos:///mqtt".parse().unwrap(),
+        parser: Some(
+            serde_json::from_str(
+                r#"
+                {
+                    "parse": { "payload": { "json": [
+                        { "name": "pre", "alias": "value" }
+                    ], "flatten": false, "keep": true } },
+                    "model": {
+                        "name": "{topic}-{qos}",
+                        "using": "mqtt",
+                        "tags": ["topic", "qos"],
+                        "columns": ["ts", "value"]
+                    }
+                }
+                "#,
+            )
+            .unwrap(),
+        ),
+        jobs: 0,
+        compression_level: None,
+        force: false,
+        cancel: CancellationToken::new(),
+        // port_pool: ONCE,
+        with_agent: None,
+    };
+    opts.run(&PortPool::default()).await.unwrap();
 }
 
 #[test]

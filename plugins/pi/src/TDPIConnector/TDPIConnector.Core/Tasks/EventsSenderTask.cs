@@ -39,7 +39,7 @@ namespace TDPIConnector.Core.Tasks
                     }
                     finally
                     {
-                        await Task.Delay(5000);
+                        await Task.Delay(AppSettings.tomlConfig.UpdateInterval);
                     }
                 }
             });

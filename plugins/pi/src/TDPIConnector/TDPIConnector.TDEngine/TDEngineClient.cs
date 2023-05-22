@@ -367,12 +367,13 @@ namespace TDPIConnector.TDEngine
                 Task task = MakeHttpRequest(sqlCommands[i], database);
                 currentListOfTasks.Add(task);
 
-                if (currentListOfTasks.Count == 30)
+                if (currentListOfTasks.Count >= 30)
                 {
                     Task.WaitAll(currentListOfTasks.ToArray());
                     currentListOfTasks.Clear();
                 }
             }
+            Task.WaitAll(currentListOfTasks.ToArray());
         }
         private string GenerateSqlCommandForInsertInPI(string pointName, List<TDValue> values)
         {
@@ -428,6 +429,7 @@ namespace TDPIConnector.TDEngine
 
                     if (insertCount >= 5000)
                     {
+                        tableList.Add(sb);
                         sqlCommand = CreateSqlCommandForInsertingAFValues(tableList);
                         Task t = MakeHttpRequest(sqlCommand, database);
                         tasks.Add(t);

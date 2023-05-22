@@ -2,6 +2,7 @@ package opcua
 
 import (
 	"collector/common"
+	"container/list"
 	"context"
 	"crypto/rsa"
 	"crypto/tls"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"os/signal"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -19,24 +21,33 @@ import (
 	"github.com/gopcua/opcua/ua"
 )
 
+type uaNode struct {
+	nodeID    *ua.NodeID
+	name      string
+	valueType common.ValueType
+}
+
 type reader struct {
 	connectConfig  common.UaConnectConfig
 	collectMode    string
 	collectNodes   []common.NodeConfig
 	client         *opcua.Client
 	state          opcua.ConnState
-	nodes          []*ua.NodeID
-	nodeTypes      []common.ValueType
+	nodes          []*uaNode
 	nodesToRead    []*ua.ReadValueID
 	connectTimeout time.Duration
 	requestTimeout time.Duration
 	interval       time.Duration
+	pointsLimit    int
+	pointRegex     *regexp.Regexp
 	done           chan struct{}
 	debug          bool
+	containsBad    bool
 	mutex          sync.Mutex
+	once           sync.Once
 }
 
-func newReader(debug bool, connectConfig common.UaConnectConfig, collectMode string, nodes []common.NodeConfig, interval int64) (*reader, error) {
+func newReader(debug bool, connectConfig common.UaConnectConfig, pointConfig common.PointsConfig, collectMode string, nodes []common.NodeConfig, interval int64, containsBad bool) (*reader, error) {
 	r := &reader{
 		connectConfig:  connectConfig,
 		collectMode:    collectMode,
@@ -45,12 +56,26 @@ func newReader(debug bool, connectConfig common.UaConnectConfig, collectMode str
 		interval:       time.Duration(interval) * time.Second,
 		connectTimeout: time.Duration(connectConfig.ConnectTimeout) * time.Second,
 		requestTimeout: time.Duration(connectConfig.RequestTimeout) * time.Second,
+		pointsLimit:    pointConfig.Limit,
 		done:           make(chan struct{}, 1),
 		debug:          debug,
+		containsBad:    containsBad,
 	}
+	if len(pointConfig.Regex) > 0 {
+		reg, err := regexp.Compile(pointConfig.Regex)
+		if err != nil {
+			return nil, fmt.Errorf("invalid points regex: %w", err)
+		}
+		r.pointRegex = reg
+	}
+	if err := r.connect(context.Background()); err != nil {
+		return nil, fmt.Errorf("connect error %v", err)
+	}
+
 	if err := r.initNodeMetricMapping(); err != nil {
 		return nil, err
 	}
+
 	return r, nil
 }
 
@@ -61,6 +86,9 @@ func (r *reader) connect(ctx context.Context) error {
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	if r.state == opcua.Connected {
+		return nil
+	}
 
 	r.state = opcua.Connecting
 	opts, err := r.setupOptions(ctx)
@@ -87,18 +115,6 @@ func (r *reader) connect(ctx context.Context) error {
 
 	r.state = opcua.Connected
 	log.Printf("## create reader %p and connected to opc ua server", r)
-
-	if len(r.nodes) > 0 {
-		regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: r.nodes})
-		if err != nil {
-			return fmt.Errorf("register node failed: %w", err)
-		}
-		nodesToRead := make([]*ua.ReadValueID, len(regResp.RegisteredNodeIDs))
-		for i, v := range regResp.RegisteredNodeIDs {
-			nodesToRead[i] = &ua.ReadValueID{NodeID: v}
-		}
-		r.nodesToRead = nodesToRead
-	}
 	return nil
 }
 
@@ -116,21 +132,29 @@ func (r *reader) ensureConnected(ctx context.Context) error {
 }
 
 func (r *reader) stop(ctx context.Context) {
-	defer close(r.done)
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-	if r.state == opcua.Disconnected {
-		return
-	}
-	if err := r.client.CloseWithContext(ctx); err != nil {
-		log.Println("## close opc ua connection error", err)
-	}
-	r.client = nil
-	r.state = opcua.Disconnected
+	r.once.Do(func() {
+		defer close(r.done)
+		if r.state == opcua.Disconnected {
+			return
+		}
+		if r.client == nil {
+			return
+		}
+		if err := r.client.CloseWithContext(ctx); err != nil {
+			log.Println("## close opc ua connection error", err)
+		}
+		r.client = nil
+		r.state = opcua.Disconnected
+	})
 }
 
 // initNodeMetricMapping builds nodes from the configuration
 func (r *reader) initNodeMetricMapping() error {
+	ctx := context.Background()
+	if err := r.ensureConnected(ctx); err != nil {
+		return fmt.Errorf("init node metric mapping error %v", err)
+	}
+
 	existing := make(map[string]struct{}, len(r.collectNodes))
 	for _, node := range r.collectNodes {
 		if _, ok := existing[node.ID]; ok {
@@ -148,10 +172,32 @@ func (r *reader) initNodeMetricMapping() error {
 			return err
 		}
 
-		r.nodes = append(r.nodes, nid)
-		r.nodeTypes = append(r.nodeTypes, vt)
+		r.nodes = append(r.nodes, &uaNode{nodeID: nid, name: r.nodeToPoint(ctx, r.client.Node(nid)).Name, valueType: vt})
 	}
 
+	if err := r.registerNodes(); err != nil {
+		return fmt.Errorf("register nodes error %v", err)
+	}
+
+	return nil
+}
+
+func (r *reader) registerNodes() error {
+	if len(r.nodes) > 0 {
+		nodeToRegister := make([]*ua.NodeID, len(r.nodes))
+		for i, v := range r.nodes {
+			nodeToRegister[i] = v.nodeID
+		}
+		regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: nodeToRegister})
+		if err != nil {
+			return fmt.Errorf("register node failed: %w", err)
+		}
+		nodesToRead := make([]*ua.ReadValueID, len(regResp.RegisteredNodeIDs))
+		for i, v := range regResp.RegisteredNodeIDs {
+			nodesToRead[i] = &ua.ReadValueID{NodeID: v}
+		}
+		r.nodesToRead = nodesToRead
+	}
 	return nil
 }
 
@@ -164,6 +210,7 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 	}
 
 	go func() {
+		defer r.stop(ctx)
 		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 		ticker := time.NewTicker(r.interval)
@@ -177,7 +224,7 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 			case <-checkConnTicker.C:
 				if r.state == opcua.Connected && !r.OpcConnected() {
 					log.Println("## opc ua connection is not alive")
-					return
+					panic("opc ua connection is not alive")
 				}
 			case <-r.done:
 				return
@@ -216,18 +263,19 @@ func (r *reader) observeValue(ctx context.Context) ([]*common.NodeValue, error) 
 
 	values := make([]*common.NodeValue, 0, len(res.Results))
 	for i, item := range res.Results {
-		identifier := r.nodes[i].String()
+		node := r.nodes[i]
+		identifier := node.nodeID.String()
 		if r.debug {
 			log.Printf("## observe opc ua identifier [%s] value [%v] type [%v]", identifier,
 				item.Value.Value(), item.Value.Type())
 		}
 
-		if item.Status != ua.StatusOK {
+		if item.Status != ua.StatusOK && !r.containsBad {
 			log.Printf("## observe data for identifier [%q] status [%v] is not ok(0x0) ", identifier, item.Status)
 			continue
 		}
 
-		if err = r.checkValueType(identifier, item, r.nodeTypes[i]); err != nil {
+		if err = r.checkValueType(identifier, item, node.valueType); err != nil {
 			log.Printf("## check value type for identifier [%q] error [%v]", identifier, err)
 			continue
 		}
@@ -243,10 +291,12 @@ func (r *reader) observeValue(ctx context.Context) ([]*common.NodeValue, error) 
 
 		values = append(values, &common.NodeValue{
 			Identifier: identifier,
+			Name:       node.name,
 			Timestamp:  ts,
 			Now:        time.Now(),
 			Value:      item.Value.Value(),
-			ValueType:  r.nodeTypes[i],
+			ValueType:  node.valueType,
+			Status:     int64(item.Status),
 		})
 	}
 
@@ -267,6 +317,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 	}
 
 	go func() {
+		defer r.stop(ctx)
 		notifyCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 		defer func() {
@@ -288,7 +339,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 			case <-checkConnTicker.C:
 				if !r.OpcConnected() {
 					log.Println("## opc ua connection is not alive")
-					return
+					panic("opc ua connection is not alive")
 				}
 			case <-r.done:
 				return
@@ -326,13 +377,23 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 					if uint64(item.ClientHandle) > uint64(len(r.nodes)) {
 						continue
 					}
+					node := r.nodes[item.ClientHandle]
+					id := node.nodeID.String()
+
+					status := item.Value.Status
+					if status != ua.StatusOK && !r.containsBad {
+						log.Printf("## observe data for identifier [%q] status [%v] is not ok(0x0) ", id, status)
+						continue
+					}
 
 					ch <- &common.NodeValue{
-						Identifier: r.nodes[item.ClientHandle].String(),
+						Identifier: id,
+						Name:       node.name,
 						Timestamp:  ts,
 						Now:        time.Now(),
 						Value:      item.Value.Value.Value(),
-						ValueType:  r.nodeTypes[item.ClientHandle],
+						ValueType:  node.valueType,
+						Status:     int64(status),
 					}
 				}
 			}
@@ -352,18 +413,10 @@ func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, c
 	}
 
 	for i, node := range r.nodes {
-		res, err := sub.Monitor(ua.TimestampsToReturnBoth, opcua.NewMonitoredItemCreateRequestWithDefaults(node,
-			ua.AttributeIDValue, uint32(i)))
-		if err != nil {
+		if _, err = sub.Monitor(ua.TimestampsToReturnBoth, opcua.NewMonitoredItemCreateRequestWithDefaults(
+			node.nodeID, ua.AttributeIDValue, uint32(i))); err != nil {
 			log.Println("## subscribe monitor failed ", err)
 			return nil, nil, fmt.Errorf("subscribe monitor failed: %w", err)
-		}
-
-		for _, r := range res.Results {
-			if r.StatusCode != ua.StatusOK {
-				log.Println("## subscribe monitor status error", r.StatusCode)
-				return nil, nil, fmt.Errorf("subscribe monitor status error")
-			}
 		}
 	}
 	return
@@ -524,49 +577,79 @@ func (r *reader) getAllNodes(ctx context.Context) (nodes []common.Point, err err
 		return nil, err
 	}
 	rootNode := r.client.Node(rootId)
-	return r.browseRecursive(ctx, rootNode, 0)
+	nodes, err = r.browse(ctx, rootNode)
+	return
 }
 
-func (r *reader) browseRecursive(ctx context.Context, root *opcua.Node, level int) ([]common.Point, error) {
-	if level > 5 {
-		return nil, nil
+func (r *reader) browse(ctx context.Context, root *opcua.Node) (points []common.Point, err error) {
+	l := list.New()
+	l.PushBack(root)
+
+	pointMap := make(map[string]common.Point)
+
+BK:
+	for {
+		front := l.Front()
+		if front == nil { // no more nodes
+			break
+		}
+
+		node := l.Remove(front).(*opcua.Node)
+		leaves, nodes, err := r.browseChildrenNode(ctx, node)
+		if err != nil {
+			return nil, fmt.Errorf("get child for node %s error %v", root.String(), err)
+		}
+
+		for _, n := range leaves {
+			point := r.nodeToPoint(ctx, n)
+			if r.pointRegex != nil && !r.pointRegex.MatchString(point.Name) {
+				continue
+			}
+
+			pointMap[point.ID] = point
+			if r.pointsLimit > 0 && len(pointMap) >= r.pointsLimit {
+				break BK
+			}
+		}
+
+		for _, n := range nodes {
+			l.PushBack(n)
+		}
 	}
-	childrenNodes, err := root.ChildrenWithContext(ctx, 0, ua.NodeClassAll)
+
+	points = make([]common.Point, 0, len(pointMap))
+	for _, point := range pointMap {
+		points = append(points, point)
+	}
+
+	return
+}
+
+func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leaves []*opcua.Node, nodes []*opcua.Node, err error) {
+	childrenNodes, err := node.ChildrenWithContext(ctx, 0, ua.NodeClassAll)
 	if err != nil {
-		return nil, fmt.Errorf("get child for node %s error %v", root.String(), err)
+		return nil, nil, fmt.Errorf("get child for node %s error %v", node.String(), err)
 	}
 
-	var nodeMap = make(map[string]common.Point, len(childrenNodes))
-	for _, node := range childrenNodes {
-		nodeClass, err := node.NodeClassWithContext(ctx)
+	for _, child := range childrenNodes {
+		nodeClass, err := child.NodeClassWithContext(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("get node class for node %s error %v", node.String(), err)
+			return nil, nil, fmt.Errorf("get node class for node %s error %v", child.String(), err)
 		}
-
 		if nodeClass == ua.NodeClassVariable {
-			var name string
-			if browseName, err := node.BrowseNameWithContext(ctx); err == nil {
-				name = browseName.Name
-			}
-
-			nodeMap[node.String()] = common.Point{
-				ID:   node.String(),
-				Name: name,
-			}
+			leaves = append(leaves, child)
 		}
-		recursiveNodes, err := r.browseRecursive(ctx, node, level+1)
-		if err != nil {
-			return nil, err
-		}
-		for _, recursiveNode := range recursiveNodes {
-			nodeMap[recursiveNode.ID] = recursiveNode
-		}
+		nodes = append(nodes, child)
 	}
 
-	nodes := make([]common.Point, 0, len(nodeMap))
-	for _, node := range nodeMap {
-		nodes = append(nodes, node)
+	return
+}
+
+func (r *reader) nodeToPoint(ctx context.Context, node *opcua.Node) common.Point {
+	var name string
+	if browseName, err := node.BrowseNameWithContext(ctx); err == nil {
+		name = browseName.Name
 	}
 
-	return nodes, nil
+	return common.Point{ID: node.String(), Name: name}
 }

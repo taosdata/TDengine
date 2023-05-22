@@ -14,6 +14,7 @@ use chrono::{DateTime, Utc};
 use dashmap::{DashMap, DashSet};
 use flume::Sender;
 use itertools::Itertools;
+use serde::de::IntoDeserializer;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
@@ -329,10 +330,14 @@ static ONCE: OnceCell<PortPool> = OnceCell::const_new();
 
 impl TaskController {
     pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
-        let path = std::path::Path::new(sqlite);
-        if let Some(dir) = path.parent() {
-            if !dir.exists() {
-                std::fs::create_dir_all(&dir).context("Cannot create directory for database")?;
+        if !sqlite.contains(":memory:") {
+            let file = sqlite.replacen("sqlite:", "", 1);
+            let path = std::path::Path::new(&file);
+            if let Some(dir) = path.parent() {
+                if !dir.exists() {
+                    std::fs::create_dir_all(&dir)
+                        .context("Cannot create directory for database")?;
+                }
             }
         }
         let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
@@ -395,6 +400,10 @@ impl TaskController {
             transform: vec![],
             from,
             to: task.to.parse()?,
+            parser: task
+                .parser
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()).unwrap()),
             jobs: task.jobs as _,
             compression_level: task.compression_level.map(Into::into),
             force: task.force,
@@ -693,7 +702,8 @@ impl TaskController {
         task.patch_labels();
         let res = sqlx::query(
             "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
-                 `created_at`, `status`, `after_delete`, `trigger`, `via`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 `created_at`, `status`, `after_delete`, `trigger`, `via`, `parser`) \
+                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&task.name)
         .bind(&task.from)
@@ -706,6 +716,7 @@ impl TaskController {
         .bind(&task.after_delete)
         .bind(&task.trigger)
         .bind(&task.via)
+        .bind(&task.parser)
         .execute(&self.pool)
         .await?;
         let id = res.last_insert_rowid();
@@ -747,7 +758,7 @@ impl TaskController {
                 })*
             };
         }
-        add_bind_sql!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via);
+        add_bind_sql!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
 
         if sql.len() == 0 {
             let task = self.get(id).await?.unwrap();
@@ -765,7 +776,7 @@ impl TaskController {
                 })*
             };
         }
-        bind_fields!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via);
+        bind_fields!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
 
         let res = query.execute(&self.pool).await?;
 
@@ -1239,6 +1250,11 @@ pub struct Task {
     #[schema(example = "local:/path/to/backup/test")]
     pub to: String,
 
+    /// The parser of the task stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub parser: Option<serde_json::Value>,
+
     /// Cluster identifier for stream to. **Deprecated**, use labels instead.
     #[schema(example = "null")]
     #[serde(default)]
@@ -1335,6 +1351,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/mqtt.yaml")).unwrap());
         def
     };
     /// This is an example for using doc comment attributes
@@ -1346,6 +1363,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/mqtt.yaml")).unwrap());
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
 }
@@ -1601,8 +1619,23 @@ const fn is_false(b: &bool) -> bool {
     !*b
 }
 
+/// Create new task with json object.
+///
+/// Required properties:
+///
+/// - *name*: The task name.
+/// - *from*: The data source DSN.
+/// - *to*: The data sink DSN.
+///
 #[derive(
     Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
+)]
+#[schema(
+    example = json!({
+        "name": "demo",
+        "from": "tmq:///test?group.id=test-test2&client.id=taosx",
+        "to": "taos:///test2"
+    })
 )]
 pub(super) struct NewTask {
     stream_type: Option<String>,
@@ -1614,8 +1647,8 @@ pub(super) struct NewTask {
     /// For schedule trigger:
     ///
     /// - Run hourly/daily/weekly/monthly: "schedule:@daily"
-    /// - Run with crontab schedule: "schedule:0 0 * * *", checkout https://crontab.guru/ for human-readable crontab.
-    #[schema(example = "schedule:0 0 * * *")]
+    /// - Run with crontab schedule: "schedule:@daily", checkout https://crontab.guru/ for human-readable crontab.
+    #[schema(example = "schedule:@daily")]
     pub trigger: Option<String>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
@@ -1630,6 +1663,12 @@ pub(super) struct NewTask {
     /// The target of the stream.
     #[schema(example = "local:/tmp/taosx/test")]
     to: String,
+
+    /// The parser of the task stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub parser: Option<serde_json::Value>,
+
     /// The stream data target cluster id.
     to_cluster: Option<String>,
 
@@ -1775,13 +1814,15 @@ impl From<NewTask> for NewTaskV1 {
     sqlx::FromRow,
 )]
 #[serde(default)]
+#[schema(example = json!({"from": "tmq:///test", "to": "taos:///test2"}))]
 pub(super) struct UpdateTask {
     /// Update trigger,
     trigger: Option<String>,
+    /// *Deprecated*.
     stream_type: Option<String>,
     /// The stream data source.
     from: Option<String>,
-    /// The stream data source cluster id.
+    /// *Deprecated*. The stream data source cluster id.
     from_cluster: Option<String>,
     /// Use oneshot topic for a task, delete the topic after task deleted.
     oneshot_topic: Option<String>,
@@ -1789,10 +1830,17 @@ pub(super) struct UpdateTask {
     to: Option<String>,
     /// Agent id
     via: Option<i64>,
-    /// The stream data target cluster id.
+
+    /// The parser of the task stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub parser: Option<serde_json::Value>,
+
+    /// *Deprecated*. The stream data target cluster id.
     to_cluster: Option<String>,
     /// Jobs number
     jobs: Option<u16>,
+    /// *Deprecated*.
     compression_level: Option<u8>,
     force: Option<bool>,
     /// Labels for a task.

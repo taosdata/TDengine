@@ -24,10 +24,6 @@ func NewConnector(config common.Config) (connector.Connector, error) {
 
 var _ connector.Connector = (*DaConnector)(nil)
 
-func (d *DaConnector) Connect(ctx context.Context) error {
-	return d.r.connect(ctx)
-}
-
 func (d *DaConnector) Stop(ctx context.Context) {
 	if d.r != nil {
 		d.r.stop(ctx)

@@ -93,5 +93,9 @@ namespace TDPIConnector.PI
         {
             return this.AFSDKObject.ValueAsDouble();
         }
+        public bool OnMaxTime()
+        {
+            return Timestamp.AFSDKObject == AFTime.MaxValue;
+        }
     }
 }
