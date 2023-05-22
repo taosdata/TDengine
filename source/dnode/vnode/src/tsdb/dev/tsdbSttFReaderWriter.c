@@ -472,6 +472,7 @@ static int32_t open_stt_fwriter(SSttFileWriter *pWriter) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(pWriter->config.pTsdb->pVnode);
+  char    fname[TSDB_FILENAME_LEN];
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};
 
   int32_t flag = TD_FILE_READ | TD_FILE_WRITE;
@@ -479,7 +480,8 @@ static int32_t open_stt_fwriter(SSttFileWriter *pWriter) {
     flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
   }
 
-  code = tsdbOpenFile(NULL /*pWriter->config.file.fname*/, pWriter->config.szPage, flag, &pWriter->pFd);
+  tsdbTFileName(pWriter->config.pTsdb, &pWriter->config.file, fname);
+  code = tsdbOpenFile(fname, pWriter->config.szPage, flag, &pWriter->pFd);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pWriter->tFile.size == 0) {

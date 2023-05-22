@@ -72,7 +72,6 @@ static int32_t open_writer_with_new_stt(SCommitter *pCommitter) {
   config.file.size = 0;
   config.file.stt.level = 0;
   config.file.stt.nseg = 0;
-  // tsdbTFileInit(pTsdb, &config.file);
 
   code = tsdbSttFWriterOpen(&config, &pCommitter->pWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -275,15 +274,12 @@ static int32_t commit_fset_end(SCommitter *pCommitter) {
 
   if (pCommitter->pWriter == NULL) return 0;
 
-  // TODO
-  // struct STFileOp *pFileOp = taosArrayReserve(pCommitter->aFileOp, 1);
-  // if (pFileOp == NULL) {
-  //   code = TSDB_CODE_OUT_OF_MEMORY;
-  //   TSDB_CHECK_CODE(code, lino, _exit);
-  // }
+  STFileOp op;
+  code = tsdbSttFWriterClose(&pCommitter->pWriter, 0, &op);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  // code = tsdbSttFWriterClose(&pCommitter->pWriter, 0, pFileOp);
-  // TSDB_CHECK_CODE(code, lino, _exit);
+  code = TARRAY2_APPEND(&pCommitter->opArray, op);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -363,7 +359,7 @@ static int32_t close_committer(SCommitter *pCommiter, int32_t eno) {
   int32_t vid = TD_VID(pCommiter->pTsdb->pVnode);
 
   if (eno == 0) {
-    code = tsdbFSEditBegin(pCommiter->pTsdb->pFS, NULL /* TODO */, TSDB_FEDIT_COMMIT);
+    code = tsdbFSEditBegin(pCommiter->pTsdb->pFS, &pCommiter->opArray, TSDB_FEDIT_COMMIT);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     // TODO

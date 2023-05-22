@@ -51,6 +51,7 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj);
 int32_t tsdbTFileObjRef(STFileObj *fobj);
 int32_t tsdbTFileObjUnref(STFileObj *fobj);
 int32_t tsdbTFileRemove(STFileObj *fobj);
+int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2);
 
 struct STFile {
   tsdb_ftype_t type;

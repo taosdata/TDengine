@@ -275,3 +275,13 @@ int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   }
   return 0;
 }
+
+int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2) {
+  if (fobj1[0]->f.cid < fobj2[0]->f.cid) {
+    return -1;
+  } else if (fobj1[0]->f.cid > fobj2[0]->f.cid) {
+    return 1;
+  } else {
+    return 0;
+  }
+}

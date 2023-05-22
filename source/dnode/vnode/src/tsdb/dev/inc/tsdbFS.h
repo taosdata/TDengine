@@ -37,7 +37,7 @@ int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback);
 int32_t tsdbCloseFS(STFileSystem **fs);
 // txn
 int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid);
-int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype);
+int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *pFS);
 int32_t tsdbFSEditAbort(STFileSystem *pFS);
 // other

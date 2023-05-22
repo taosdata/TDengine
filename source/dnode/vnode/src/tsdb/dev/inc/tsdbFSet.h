@@ -47,12 +47,12 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset);
 // cmpr
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2);
 // edit
-int32_t tsdbTFileSetEdit(STFileSet *fset, const STFileOp *op);
+int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op);
 int32_t tsdbTFileSetEditEx(const STFileSet *fset1, STFileSet *fset);
 // max commit id
 int64_t tsdbTFileSetMaxCid(const STFileSet *fset);
 
-const SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level);
+SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level);
 
 struct STFileOp {
   tsdb_fop_t op;

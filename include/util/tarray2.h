@@ -46,9 +46,10 @@ typedef void (*TArray2Cb)(void *);
 #define TARRAY2_ELEM(a, i)     ((a)->data[i])
 #define TARRAY2_ELEM_PTR(a, i) (&((a)->data[i]))
 
-static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
-                                              int32_t es,   // expected size
-                                              int32_t sz    // size of element
+static FORCE_INLINE int32_t tarray2_make_room(  //
+    void   *arg,                                // array
+    int32_t es,                                 // expected size
+    int32_t sz                                  // size of element
 ) {
   TARRAY2(void) *a = arg;
   int32_t capacity = (a->capacity > 0) ? (a->capacity << 1) : TARRAY2_MIN_SIZE;

@@ -241,29 +241,26 @@ static bool is_same_file(const STFile *f1, const STFile f2) {
 }
 
 static int32_t apply_commit(STFileSystem *fs) {
-  int32_t code = 0;
-  int32_t i1 = 0, i2 = 0;
-  int32_t n1 = TARRAY2_SIZE(&fs->cstate);
-  int32_t n2 = TARRAY2_SIZE(&fs->nstate);
+  int32_t        code = 0;
+  TFileSetArray *fsetArray1 = &fs->cstate;
+  TFileSetArray *fsetArray2 = &fs->nstate;
+  int32_t        i1 = 0, i2 = 0;
 
-  while (i1 < n1 || i2 < n2) {
-    STFileSet *fset1 = i1 < n1 ? TARRAY2_ELEM(&fs->cstate, i1) : NULL;
-    STFileSet *fset2 = i2 < n2 ? TARRAY2_ELEM(&fs->nstate, i2) : NULL;
+  while (i1 < TARRAY2_SIZE(fsetArray1) || i2 < TARRAY2_SIZE(fsetArray2)) {
+    STFileSet *fset1 = i1 < TARRAY2_SIZE(fsetArray1) ? TARRAY2_ELEM(fsetArray1, i1) : NULL;
+    STFileSet *fset2 = i2 < TARRAY2_SIZE(fsetArray2) ? TARRAY2_ELEM(fsetArray2, i2) : NULL;
 
     if (fset1 && fset2) {
       if (fset1->fid < fset2->fid) {
-        // delete fset1
-        TARRAY2_REMOVE(&fs->cstate, i1, tsdbTFileSetClear);
-        n1 = TARRAY2_SIZE(&fs->cstate);
+        // delete fset1 (TODO: should set file remove)
+        TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetClear);
       } else if (fset1->fid > fset2->fid) {
         // create new file set with fid of fset2->fid
         code = tsdbTFileSetInitEx(fs->pTsdb, fset2, &fset1);
         if (code) return code;
-        code = TARRAY2_SORT_INSERT(&fs->cstate, fset1, tsdbTFileSetCmprFn);
+        code = TARRAY2_SORT_INSERT(fsetArray1, fset1, tsdbTFileSetCmprFn);
         if (code) return code;
         i1++;
-        i2++;
-        n1 = TARRAY2_SIZE(&fs->cstate);
       } else {
         // edit
         code = tsdbTFileSetEditEx(fset2, fset1);
@@ -272,18 +269,15 @@ static int32_t apply_commit(STFileSystem *fs) {
         i2++;
       }
     } else if (fset1) {
-      // delete fset1
-      TARRAY2_REMOVE(&fs->cstate, i1, tsdbTFileSetClear);
-      n1 = TARRAY2_SIZE(&fs->cstate);
+      // delete fset1 (TODO: should set file remove)
+      TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetClear);
     } else {
       // create new file set with fid of fset2->fid
       code = tsdbTFileSetInitEx(fs->pTsdb, fset2, &fset1);
       if (code) return code;
-      code = TARRAY2_SORT_INSERT(&fs->cstate, fset1, tsdbTFileSetCmprFn);
+      code = TARRAY2_SORT_INSERT(fsetArray1, fset1, tsdbTFileSetCmprFn);
       if (code) return code;
       i1++;
-      i2++;
-      n1 = TARRAY2_SIZE(&fs->cstate);
     }
   }
 
@@ -474,33 +468,34 @@ static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSe
   return 0;
 }
 
-static int32_t edit_fs(TFileSetArray *fset_arr, const TFileOpArray *op_arr) {
-  int32_t code = 0;
-  int32_t lino = 0;
+static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  TFileSetArray *fsetArray = &fs->nstate;
 
   STFileSet      *fset = NULL;
   const STFileOp *op;
-  TARRAY2_FOREACH_PTR(op_arr, op) {
+  TARRAY2_FOREACH_PTR(opArray, op) {
     if (!fset || fset->fid != op->fid) {
       STFileSet tfset = {.fid = op->fid};
       fset = &tfset;
-      fset = TARRAY2_SEARCH(fset_arr, &fset, tsdbTFileSetCmprFn, TD_EQ);
+      fset = TARRAY2_SEARCH(fsetArray, &fset, tsdbTFileSetCmprFn, TD_EQ);
 
       if (!fset) {
         code = tsdbTFileSetInit(op->fid, &fset);
         TSDB_CHECK_CODE(code, lino, _exit);
 
-        code = TARRAY2_SORT_INSERT(fset_arr, fset, tsdbTFileSetCmprFn);
+        code = TARRAY2_SORT_INSERT(fsetArray, fset, tsdbTFileSetCmprFn);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 
-    code = tsdbTFileSetEdit(fset, op);
+    code = tsdbTFileSetEdit(fs->pTsdb, fset, op);
     TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
-    if (0) {
-      // TODO check if the file set should be deleted
-    }
+  {
+    // TODO: check if a file set should be deleted
   }
 
 _exit:
@@ -539,7 +534,7 @@ int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid) {
   return 0;
 }
 
-int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype) {
+int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype) {
   int32_t code = 0;
   int32_t lino;
   char    current_t[TSDB_FILENAME_LEN];
@@ -560,7 +555,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype) 
   fs->etype = etype;
 
   // edit
-  code = edit_fs(&fs->nstate, NULL /* TODO */);
+  code = edit_fs(fs, opArray);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // save fs

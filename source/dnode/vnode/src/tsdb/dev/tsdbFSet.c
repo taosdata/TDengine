@@ -46,9 +46,9 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
   return 0;
 }
 
-static int32_t tsdbSttLvlCmprFn(const SSttLvl *lvl1, const SSttLvl *lvl2) {
-  if (lvl1->level < lvl2->level) return -1;
-  if (lvl1->level > lvl2->level) return 1;
+static int32_t tsdbSttLvlCmprFn(const SSttLvl **lvl1, const SSttLvl **lvl2) {
+  if (lvl1[0]->level < lvl2[0]->level) return -1;
+  if (lvl1[0]->level > lvl2[0]->level) return 1;
   return 0;
 }
 
@@ -194,30 +194,45 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
   return 0;
 }
 
-int32_t tsdbTFileSetEdit(STFileSet *fset, const STFileOp *op) {
+int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
   int32_t code = 0;
 
-  // if (op->oState.size == 0  //
-  //     || 0                  /* TODO*/
-  // ) {
-  //   STFileObj *fobj;
-  //   // code = tsdbTFileObjCreate(&fobj);
-  //   if (code) return code;
-  //   fobj->f = op->nState;
-  //   add_file_to_fset(fset, fobj);
-  // } else if (op->nState.size == 0) {
-  //   // delete
-  //   ASSERT(0);
-  // } else {
-  //   // modify
-  //   ASSERT(0);
-  // }
+  if (op->oState.size == 0  //
+      || 0                  /* TODO*/
+  ) {
+    STFileObj *fobj;
+    code = tsdbTFileObjInit(pTsdb, &op->nState, &fobj);
+    if (code) return code;
+
+    if (fobj->f.type == TSDB_FTYPE_STT) {
+      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, fobj->f.stt.level);
+      if (!lvl) {
+        code = tsdbSttLvlInit(fobj->f.stt.level, &lvl);
+        if (code) return code;
+
+        code = TARRAY2_SORT_INSERT(&fset->lvlArr, lvl, tsdbSttLvlCmprFn);
+        if (code) return code;
+      }
+
+      code = TARRAY2_SORT_INSERT(&lvl->farr, fobj, tsdbTFileObjCmpr);
+      if (code) return code;
+    } else {
+      fset->farr[fobj->f.type] = fobj;
+    }
+  } else if (op->nState.size == 0) {
+    // delete
+    ASSERT(0);
+  } else {
+    // modify
+    ASSERT(0);
+  }
+
   return 0;
 }
 
 int32_t tsdbTFileSetEditEx(const STFileSet *fset1, STFileSet *fset) {
   ASSERT(fset1->fid == fset->fid);
-  // TODO
+  ASSERT(0);
   return 0;
 }
 
@@ -253,7 +268,8 @@ int32_t tsdbTFileSetInitEx(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fse
       return code;
     }
 
-    TARRAY2_APPEND(&fset[0]->lvlArr, lvl);
+    code = TARRAY2_APPEND(&fset[0]->lvlArr, lvl);
+    if (code) return code;
   }
 
   return 0;
@@ -275,9 +291,9 @@ int32_t tsdbTFileSetClear(STFileSet **fset) {
   return 0;
 }
 
-const SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level) {
-  SSttLvl        tlvl = {.level = level};
-  const SSttLvl *lvl = &tlvl;
+SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level) {
+  SSttLvl  tlvl = {.level = level};
+  SSttLvl *lvl = &tlvl;
   return TARRAY2_SEARCH(&fset->lvlArr, &lvl, tsdbSttLvlCmprFn, TD_EQ);
 }
 
