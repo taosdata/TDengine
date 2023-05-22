@@ -1299,6 +1299,7 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    index = 0;
   int32_t    smaFuncIndex = -1;
+  bool       hasWStart = false;
   FOREACH(pFunc, pFuncs) {
     smaFuncIndex = smaIndexOptFindSmaFunc(pFunc, pSmaFuncs);
     if (smaFuncIndex < 0) {
@@ -1308,11 +1309,28 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
+      if (!hasWStart) {
+        SColumnNode* pTail = (SColumnNode*)pCols->pTail->pNode;
+        if (pTail->colId == PRIMARYKEY_TIMESTAMP_COL_ID && pTail->colType == TSDB_DATA_TYPE_TIMESTAMP) {
+          hasWStart = true;
+        }
+      }
     }
     ++index;
   }
 
   if (TSDB_CODE_SUCCESS == code && smaFuncIndex >= 0) {
+    if (!hasWStart) {
+      SExprNode exprNode;
+      exprNode.resType = ((SExprNode*)pSmaFuncs->pHead->pNode)->resType;
+      sprintf(exprNode.aliasName, "#expr_%d", index + 1);
+      code = nodesListMakeStrictAppend(
+          &pCols, smaIndexOptCreateSmaCol((SNode*)&exprNode, tableId, PRIMARYKEY_TIMESTAMP_COL_ID));
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyList(pCols);
+        return code;
+      }
+    }
     *pOutput = pCols;
   } else {
     nodesDestroyList(pCols);
