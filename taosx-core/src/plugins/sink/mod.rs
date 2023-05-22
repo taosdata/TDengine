@@ -293,10 +293,10 @@ async fn consume_lush_record(
                                         temp_column_value_pair.1.push_str(",");
                                     } else {
                                         // ignore null columnview
-                                        println!("column view {} is null", columns[index]);
+                                        log::debug!("column view {} is null", columns[index]);
                                     }
                                 } else {
-                                    println!("column view {} is null", columns[index]);
+                                    log::debug!("column view {} is null", columns[index]);
                                 }
                                 i = i + 1;
                             }   
