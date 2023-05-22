@@ -575,7 +575,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     if(tqIsHandleExec(pHandle)) {
       qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
       if (pTaskInfo != NULL) {
-        qKillTask(pTaskInfo, TSDB_CODE_TSC_QUERY_KILLED);
+        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
       }
 
 //      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
