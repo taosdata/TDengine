@@ -51,7 +51,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data(db)[4] != 3 then
+if $data(db)[5] != 3 then
   return -1
 endi
 

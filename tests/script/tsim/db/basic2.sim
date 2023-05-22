@@ -41,11 +41,11 @@ if $data20 != d1 then
   return -1
 endi
 
-if $data22 != 2 then  # vgroups
+if $data23 != 2 then  # vgroups
   return -1
 endi
 
-#if $data03 != 4 then  # ntables
+#if $data04 != 4 then  # ntables
 #  return -1
 #endi
 

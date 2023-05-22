@@ -75,7 +75,7 @@ class TDTestCase:
                 tdSql.query("select * from information_schema.ins_databases")
                 for db_info in tdSql.queryResult:
                     if db_info[0]==dbname :
-                        if db_info[15]=="ready":
+                        if db_info[16]=="ready":
                             status = True
                             tdLog.notice(" ==== database {} status is ready  ==== ".format(dbname))
                             break
