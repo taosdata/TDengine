@@ -26,15 +26,15 @@ ENDIF ()
 
 target_link_libraries(
     function
-    PRIVATE os 
-    PRIVATE util 
-    PRIVATE nodes 
-    PRIVATE qcom 
-    PRIVATE transport 
-    PRIVATE scalar 
-    PRIVATE parser
-    PRIVATE common 
-    PRIVATE uv_a
+    PUBLIC  os 
+    PUBLIC  util 
+    PUBLIC  nodes 
+    PUBLIC  qcom 
+    PUBLIC  transport 
+    PUBLIC  scalar 
+    PUBLIC  parser
+    PUBLIC  common 
+    PUBLIC uv_a
 )
 
 add_executable(runUdf test/runUdf.c)
