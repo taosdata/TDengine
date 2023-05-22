@@ -26,6 +26,10 @@
 #define GRANT_DEFAULT        60*86400
 #endif
 
+#define GRANT_CONN_NUM_DEFAULT     1
+#define GRANT_CONN_SPEED_DEFAULT   -1
+#define GRANT_CONN_EXPIRE_DEFAULT  14
+
 #if 1
 #define GRANT_TOLERENCE      86400  //86400
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
@@ -79,6 +83,10 @@ typedef enum {
   GRANT_OBJ_CONNECTORS,
 } EGrantObj;
 
+enum {
+  GRANT_EDITION_CLOUD = 1,
+};
+
 // connectors
 typedef enum {
   CONN_TYPE_OPC_DA = 0,
@@ -110,7 +118,7 @@ typedef struct {
 } SGrantConnStatus;
 
 typedef struct {
-  bool           officialVersion;
+  uint8_t        officialVersion;
   int8_t         majorVer;
   int8_t         minorVer;
   SGrantConnItem items[GRANT_CONN_NUM];
@@ -167,8 +175,8 @@ typedef struct {
   uint32_t       curDnodes;
   uint32_t       limitDnodes;
   uint32_t       limitCpuCores;
-  uint32_t       curCpuCores;            // version 2 since 3.0.5.0
-  SGrantConnItem items[GRANT_CONN_NUM];  // version 2 since 3.0.5.0
+  uint32_t       curCpuCores;  // version 2 since 3.0.5.0
+  SGrantConnMsg  connectors;   // version 2 since 3.0.5.0
 } SGrantStatus;
 
 typedef struct {
