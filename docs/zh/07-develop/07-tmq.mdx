@@ -405,10 +405,11 @@ consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 
 | 参数名称 | 类型 | 参数说明 | 备注 |
 |:------:|:----:|:-------:|:---:|
-| `td.connect.ip` | string | 用于创建连接||
-| `td.connect.user` | string | 用于创建连接||
-| `td.connect.pass` | string | 用于创建连接||
-| `td.connect.port` | string | 用于创建连接||
+| `td.connect.type` | string | 指定连接类型 |仅在Java连接器中有效，"jni" 表示原生连接，"ws"表示 websocket 连接，默认为 "jni" |
+| `td.connect.ip` | string | 服务端 IP 地址||
+| `td.connect.user` | string | 用户名||
+| `td.connect.pass` | string | 密码||
+| `td.connect.port` | string | 服务端  端口号||
 | `group.id` | string | 消费组 ID，同一消费组共享消费进度 | **必填项**。最大长度：192 |
 | `client.id` | string | 客户端 ID | 最大长度：192 |
 | `msg.with.table.name` | string | 是否允许从消息中解析表名,不适用于列订阅 | 合法值：`true`, `false` |
