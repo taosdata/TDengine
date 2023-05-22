@@ -2374,7 +2374,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
     lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols);
-    NODES_DESTORY_LIST(pScan->pScanPseudoCols);
+    nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols);
     nodesClearList(cxt.pLastCols);
   }
