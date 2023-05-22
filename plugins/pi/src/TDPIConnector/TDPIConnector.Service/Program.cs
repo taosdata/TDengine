@@ -4,6 +4,8 @@ using System;
 using System.ServiceProcess;
 using TDPIConnector.Core;
 using System.Threading;
+using System.Reflection;
+using System.Linq;
 
 namespace TDPIConnector.Service
 {
@@ -14,20 +16,33 @@ namespace TDPIConnector.Service
             Backfill,
             PrintPIInfo
         };
+
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
         /// 
-        const string version = "1.2.0.0";
         private static readonly ILog logger = LogManager.GetLogger(typeof(Program));
+        static void PrintVersion() {
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            var cus_ttributes = assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>();
+            var build_time = cus_ttributes.FirstOrDefault(a => a.Key == "BuildTime").Value;
+            var commit = cus_ttributes.FirstOrDefault(a => a.Key == "Commit").Value;
+
+            AssemblyName assemblyName = assembly.GetName();
+            Version version = assemblyName.Version;
+
+            logger.Info("PI Connector version is: " + version);
+            logger.Info("PI Connector commit is: " + commit);
+            logger.Info("PI Connector build at: " + build_time);
+        }
         static void Main(string[] args)
         {
             GlobalContext.Properties["applicationName"] = "pi-connector";
             XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             //Installer installer = new Installer();
             //installer.OnBeforeInstall(null, null);
-            logger.Info($"TD PI start, version:{version}");
-
+            PrintVersion();
             if (args != null && args.Length == 1 && (args[0][0] == '-' || args[0][0] == '/'))
             {
                 switch (args[0].Substring(1).ToLower())

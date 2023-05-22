@@ -4,6 +4,8 @@ using System;
 using TDPIConnector.Core;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
+using System.Reflection;
+using System.Linq;
 
 namespace TDBackfill
 {
@@ -12,11 +14,24 @@ namespace TDBackfill
         //private static readonly ILog logger = LogManager.GetLogger(typeof(Program));
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
+        static void PrintVersion()
+        {
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            var cus_ttributes = assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>();
+            var build_time = cus_ttributes.FirstOrDefault(a => a.Key == "BuildTime").Value;
+            var commit = cus_ttributes.FirstOrDefault(a => a.Key == "Commit").Value;
 
+            AssemblyName assemblyName = assembly.GetName();
+            Version version = assemblyName.Version;
+
+            log.Info("PI Connector version is: " + version);
+            log.Info("PI Connector commit is: " + commit);
+            log.Info("PI Connector build at: " + build_time);
+        }
         static void Main(string[] args)
         {
-            GlobalContext.Properties["applicationName"] = "backfill";
-            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
+            PrintVersion();
             //create a command line parser using args
             CommandLineParser parser = new CommandLineParser(args);
             //get the command line options
