@@ -180,10 +180,10 @@ void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   doSetTaskId(pTaskInfo->pRoot);
 }
 
-//void qSetTaskCode(qTaskInfo_t tinfo, int32_t code) {
-//  SExecTaskInfo* pTaskInfo = tinfo;
-//  pTaskInfo->code = code;
-//}
+void qSetTaskCode(qTaskInfo_t tinfo, int32_t code) {
+  SExecTaskInfo* pTaskInfo = tinfo;
+  pTaskInfo->code = code;
+}
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   if (tinfo == NULL) {
