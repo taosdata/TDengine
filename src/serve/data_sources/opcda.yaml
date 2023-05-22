@@ -2,15 +2,15 @@
 id: opcda
 name: OPC-DA
 description: |
-  OPC is one of interoperability standard for the secure and reliable exchange of data
-  in the industrial automation space and in other industries.
+  OPC is one of interoperability standard for the secure and reliable exchange of data in the  
+  industrial automation space and in other industries.
 
   OPC DA (Data Access) is a classic COM-based specification that works only on Windows.
   OPC DA is widely used even though it isn’t the newest and most efficient data communication
   specification out there. This is mainly because of older devices that only support the OPC DA.
 
-  For more about OPC DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/),
-  and some useful blogs, such as
+  For more about OPC DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful  
+  blogs, such as
 
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
   2. [What is OPC DA](https://plcynergy.com/opc-da/),
