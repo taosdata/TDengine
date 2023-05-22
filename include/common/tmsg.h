@@ -1642,6 +1642,7 @@ typedef struct {
   char    fqdn[TSDB_FQDN_LEN];
   int32_t port;
   int8_t  force;
+  int8_t  unsafe;
 } SDropDnodeReq;
 
 int32_t tSerializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
@@ -3190,7 +3191,8 @@ typedef struct {
   char     dbFName[TSDB_DB_FNAME_LEN];
   uint64_t suid;
   int32_t  version;
-  SArray*  pIndex;
+  int32_t  indexSize;
+  SArray*  pIndex;  // STableIndexInfo
 } STableIndexRsp;
 
 int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
