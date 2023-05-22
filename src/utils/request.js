@@ -88,8 +88,6 @@ request.interceptors.response.use(
     let taosx500 = 'TaosX API 无法访问，请检查 taosx 服务状态'
     Message.closeAll()
     if (error.config.baseURL.includes('/api/x')) {
-
-
       if (error.response && error.response.status === 404) {
         Message.error(navigator.language.includes('zh') ? taosx404 : taosx404en)
       } else

@@ -4,6 +4,7 @@
       <el-button
         class="big-button"
         plain
+        :disabled='localUser!=="root"'
         @click="addShareTopicUser"
         size="small"
         icon="el-icon-plus"
@@ -112,6 +113,7 @@ export default {
           return time.getTime() < Date.now();
         },
       },
+      localUser:localStorage.getItem('username'),
       subscriptionList: [],
       dialog: false,
       userList: [],

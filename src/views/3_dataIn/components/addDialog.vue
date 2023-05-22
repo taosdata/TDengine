@@ -82,6 +82,7 @@
 <script>
 import { getAgentsData } from "@/api/explorer/agent";
 import { deepClone } from "@/utils";
+
 export default {
   name: "AddDialog",
   props: {
@@ -100,8 +101,8 @@ export default {
       if (!this.ruleForm.name) {
         return true;
       }
-      if(!this.ruleForm.agent&&this.switchVal){
-        return true
+      if (!this.ruleForm.agent && this.switchVal) {
+        return true;
       }
       return false;
     },
@@ -147,8 +148,8 @@ export default {
   methods: {
     handleAdd() {
       localStorage.setItem("datainName", this.ruleForm.name);
-      this.$parent.$parent.agentID=this.ruleForm.agent
-      this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "","");
+      this.$parent.$parent.agentID = this.ruleForm.agent;
+      this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "", "");
     },
     selectAgenttype() {
       this.ruleForm.type = "";
@@ -187,6 +188,17 @@ export default {
       } catch (error) {
         console.log(error);
       }
+    },
+  },
+  watch: {
+    "ruleForm.type": {
+      deep: true,
+      handler(val) {
+        console.log(val, "舰艇类型");
+        if (val == "mqtt") {
+          this.$emit("showMqttDialog");
+        }
+      },
     },
   },
 };
