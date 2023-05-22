@@ -97,6 +97,25 @@ The parameters described in this document by the effect that they have on the sy
 | Value Range   | 10-50000000                                          |
 | Default Value | 5000                                                 |
 
+### numOfRpcSessions 
+
+| Attribute     | Description                                          |
+| ------------- | ---------------------------------------------------- |
+| Applicable    | Client/Server                                        |
+| Meaning       | The maximum number of connection to create           |
+| Value Range   | 100-100000                                           |
+| Default Value | 10000                                                |
+
+### timeToGetAvailableConn
+
+| Attribute     | Description                                          |
+| ------------- | ---------------------------------------------------- |
+| Applicable    | Client/Server                                        |
+| Meaning       | The maximum waiting time to get avaliable conn       |
+| Value Range   | 10-50000000(ms)                                      |
+| Default Value | 500000                                               |
+
+
 ## Monitoring Parameters
 
 :::note
