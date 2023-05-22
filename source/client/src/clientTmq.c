@@ -2584,6 +2584,14 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
   }
 }
 
+void tmq_free_assignment(tmq_topic_assignment* pAssignment) {
+    if (pAssignment == NULL) {
+        return;
+    }
+
+    taosMemoryFree(pAssignment);
+}
+
 int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_t offset) {
   if (tmq == NULL) {
     tscError("invalid tmq handle, null");

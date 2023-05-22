@@ -867,10 +867,16 @@ FIRST(expr)
 ### INTERP
 
 ```sql
-INTERP(expr)
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
 ```
 
-**Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned.
+**Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned. The value of `ignore_null_values` can be 0 or 1, 1 means null values are ignored. The default value of this parameter is 0.
+
 
 **Return value type**: Same as the column being operated upon
 
