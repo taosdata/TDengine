@@ -2413,6 +2413,11 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
         "vgId:%d, heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64,
         ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
 
+  if(pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER){
+    raftStoreSetTerm(ths, pMsg->term);
+    currentTerm = pMsg->term;
+  }
+
   if (pMsg->term == currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
     resetElect = true;

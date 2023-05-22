@@ -305,10 +305,6 @@ void    tsdbUntakeReadSnap(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proa
 // tsdbMerge.c ==============================================================================================
 int32_t tsdbMerge(STsdb *pTsdb);
 
-#define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
-#define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
-#define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
-
 // tsdbDiskData ==============================================================================================
 int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
 void   *tDiskDataBuilderDestroy(SDiskDataBuilder *pBuilder);
@@ -346,13 +342,17 @@ struct STsdbFS {
 };
 
 typedef struct {
-  rocksdb_t              *db;
-  rocksdb_options_t      *options;
-  rocksdb_flushoptions_t *flushoptions;
-  rocksdb_writeoptions_t *writeoptions;
-  rocksdb_readoptions_t  *readoptions;
-  rocksdb_writebatch_t   *writebatch;
-  TdThreadMutex           rMutex;
+  rocksdb_t                           *db;
+  rocksdb_comparator_t                *my_comparator;
+  rocksdb_cache_t                     *blockcache;
+  rocksdb_block_based_table_options_t *tableoptions;
+  rocksdb_options_t                   *options;
+  rocksdb_flushoptions_t              *flushoptions;
+  rocksdb_writeoptions_t              *writeoptions;
+  rocksdb_readoptions_t               *readoptions;
+  rocksdb_writebatch_t                *writebatch;
+  TdThreadMutex                        rMutex;
+  STSchema                            *pTSchema;
 } SRocksCache;
 
 struct STsdb {
@@ -782,7 +782,7 @@ typedef struct SLDataIter {
 #define tMergeTreeGetRow(_t) (&((_t)->pIter->rInfo.row))
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
-                       bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter* pLDataIter);
+                       bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
@@ -822,13 +822,15 @@ typedef struct SCacheRowsReader {
 
 typedef struct {
   TSKEY   ts;
+  int8_t  dirty;
   SColVal colVal;
 } SLastCol;
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
 int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *row);
-int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int32_t ltype);
+int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype);
+int32_t tsdbCacheGet(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype);
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb);

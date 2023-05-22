@@ -299,7 +299,6 @@ typedef struct SPartitionBySupporter {
 typedef struct SPartitionDataInfo {
   uint64_t groupId;
   char*    tbname;
-  SArray*  tags;
   SArray*  rowIds;
 } SPartitionDataInfo;
 

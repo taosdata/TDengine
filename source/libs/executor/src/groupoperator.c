@@ -885,7 +885,8 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
     goto _error;
   }
 
-  pInfo->rowCapacity = blockDataGetCapacityInRow(pInfo->binfo.pRes, getBufPageSize(pInfo->pBuf));
+  pInfo->rowCapacity = blockDataGetCapacityInRow(pInfo->binfo.pRes, getBufPageSize(pInfo->pBuf),
+                                                 blockDataGetSerialMetaSize(taosArrayGetSize(pInfo->binfo.pRes->pDataBlock)));
   pInfo->columnOffset = setupColumnOffset(pInfo->binfo.pRes, pInfo->rowCapacity);
   code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pInfo->pGroupCols);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1215,6 +1216,11 @@ SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag) {
   return pBlock;
 }
 
+void freePartItem(void* ptr) {
+  SPartitionDataInfo* pPart = (SPartitionDataInfo*)ptr;
+  taosArrayDestroy(pPart->rowIds);
+}
+
 SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPartitionPhysiNode* pPartNode,
                                                  SExecTaskInfo* pTaskInfo) {
   int32_t                       code = TSDB_CODE_SUCCESS;
@@ -1293,6 +1299,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pPartitions = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
+  taosHashSetFreeFp(pInfo->pPartitions, freePartItem);
   pInfo->tsColIndex = 0;
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
 

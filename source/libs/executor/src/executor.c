@@ -1058,17 +1058,6 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
   pOperator->status = OP_NOT_OPENED;
 }
 
-void verifyOffset(void *pWalReader, STqOffsetVal* pOffset){
-  // if offset version is small than first version , let's seek to first version
-  taosThreadMutexLock(&((SWalReader*)pWalReader)->pWal->mutex);
-  int64_t firstVer = walGetFirstVer(((SWalReader*)pWalReader)->pWal);
-  taosThreadMutexUnlock(&((SWalReader*)pWalReader)->pWal->mutex);
-
-  if (pOffset->version + 1 < firstVer){
-    pOffset->version = firstVer - 1;
-  }
-}
-
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
@@ -1095,7 +1084,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       tsdbReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
-      verifyOffset(pInfo->tqReader->pWalReader, pOffset);
+      walReaderVerifyOffset(pInfo->tqReader->pWalReader, pOffset);
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, id) < 0) {
         qError("tqSeekVer failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
         return -1;

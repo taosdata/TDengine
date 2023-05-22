@@ -533,7 +533,8 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
            pHandle->numOfPages);
   }
 
-  int32_t numOfRows = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize);
+  int32_t numOfRows = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize,
+                                                blockDataGetSerialMetaSize(taosArrayGetSize(pHandle->pDataBlock->pDataBlock)));
   blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows);
 
   // the initial pass + sortPass + final mergePass

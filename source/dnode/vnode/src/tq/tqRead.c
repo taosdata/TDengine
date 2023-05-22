@@ -325,7 +325,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id) {
     memcpy(data, pBody, len);
     SPackedData data1 = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
 
-    *pItem = (SStreamQueueItem*)streamDataSubmitNew(data1, STREAM_INPUT__DATA_SUBMIT);
+    *pItem = (SStreamQueueItem*)streamDataSubmitNew(&data1, STREAM_INPUT__DATA_SUBMIT);
     if (*pItem == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       tqError("%s failed to create data submit for stream since out of memory", id);
@@ -344,7 +344,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id) {
 }
 
 // todo ignore the error in wal?
-int32_t tqNextBlockInWal(STqReader* pReader) {
+bool tqNextBlockInWal(STqReader* pReader, const char* id) {
   SWalReader* pWalReader = pReader->pWalReader;
 
   while (1) {
@@ -353,7 +353,7 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
       // try next message in wal file
       // todo always retry to avoid read failure caused by wal file deletion
       if (walNextValidMsg(pWalReader) < 0) {
-        return FETCH_TYPE__NONE;
+        return false;
       }
 
       void*   pBody = POINTER_SHIFT(pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
@@ -379,24 +379,24 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
       if (tDecodeSubmitReq(&decoder, &pReader->submit) < 0) {
         tDecoderClear(&decoder);
         tqError("decode wal file error, msgLen:%d, ver:%" PRId64, bodyLen, ver);
-        return FETCH_TYPE__NONE;
+        return false;
       }
 
       tDecoderClear(&decoder);
       pReader->nextBlk = 0;
     }
 
-    size_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
+    int32_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
     while (pReader->nextBlk < numOfBlocks) {
-      tqDebug("tq reader next data block %p, %d %" PRId64 " %d", pReader->msg.msgStr, pReader->msg.msgLen,
-              pReader->msg.ver, pReader->nextBlk);
+      tqDebug("tq reader next data block %d/%d, len:%d %" PRId64 " %d", pReader->nextBlk,
+          numOfBlocks, pReader->msg.msgLen, pReader->msg.ver, pReader->nextBlk);
 
       SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
 
       if (pReader->tbIdHash == NULL) {
         int32_t code = tqRetrieveDataBlock(pReader, NULL);
         if (code == TSDB_CODE_SUCCESS && pReader->pResBlock->info.rows > 0) {
-          return FETCH_TYPE__DATA;
+          return true;
         }
       }
 
@@ -406,7 +406,7 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
 
         int32_t code = tqRetrieveDataBlock(pReader, NULL);
         if (code == TSDB_CODE_SUCCESS && pReader->pResBlock->info.rows > 0) {
-          return FETCH_TYPE__DATA;
+          return true;
         }
       } else {
         pReader->nextBlk += 1;
@@ -414,7 +414,9 @@ int32_t tqNextBlockInWal(STqReader* pReader) {
       }
     }
 
+    qDebug("stream scan return empty, all %d submit blocks consumed, %s", numOfBlocks, id);
     tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
+
     pReader->msg.msgStr = NULL;
   }
 }
@@ -445,8 +447,8 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
 
   int32_t numOfBlocks = taosArrayGetSize(pReader->submit.aSubmitTbData);
   while (pReader->nextBlk < numOfBlocks) {
-    tqDebug("tq reader next data block, len:%d ver:%" PRId64 " index:%d/%d, %s", pReader->msg.msgLen,
-            pReader->msg.ver, pReader->nextBlk, numOfBlocks, idstr);
+    tqDebug("tq reader next data block, len:%d ver:%" PRId64 " index:%d/%d, %s", pReader->msg.msgLen, pReader->msg.ver,
+            pReader->nextBlk, numOfBlocks, idstr);
 
     SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
     if (pReader->tbIdHash == NULL) {
@@ -703,8 +705,9 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, const char* id) {
           SColVal colVal;
           tRowGet(pRow, pTSchema, sourceIdx, &colVal);
           if (colVal.cid < pColData->info.colId) {
-//            tqDebug("colIndex:%d column id:%d in row, ignore, the required colId:%d, total cols in schema:%d",
-//                    sourceIdx, colVal.cid, pColData->info.colId, pTSchema->numOfCols);
+            //            tqDebug("colIndex:%d column id:%d in row, ignore, the required colId:%d, total cols in
+            //            schema:%d",
+            //                    sourceIdx, colVal.cid, pColData->info.colId, pTSchema->numOfCols);
             sourceIdx++;
             continue;
           } else if (colVal.cid == pColData->info.colId) {
@@ -729,13 +732,17 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, const char* id) {
   return 0;
 }
 
+// todo refactor:
 int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet) {
   tqDebug("tq reader retrieve data block %p, %d", pReader->msg.msgStr, pReader->nextBlk);
 
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
   pReader->nextBlk++;
 
-  if (pSubmitTbDataRet) *pSubmitTbDataRet = pSubmitTbData;
+  if (pSubmitTbDataRet) {
+    *pSubmitTbDataRet = pSubmitTbData;
+  }
+
   int32_t sversion = pSubmitTbData->sver;
   int64_t suid = pSubmitTbData->suid;
   int64_t uid = pSubmitTbData->uid;

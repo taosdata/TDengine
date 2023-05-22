@@ -46,28 +46,28 @@ typedef struct STqOffsetStore STqOffsetStore;
 
 // tqPush
 
-//typedef struct {
-//  // msg info
-//  int64_t consumerId;
-//  int64_t reqOffset;
-//  int64_t processedVer;
-//  int32_t epoch;
-//  // rpc info
-//  int64_t        reqId;
-//  SRpcHandleInfo rpcInfo;
-//  tmr_h          timerId;
-//  int8_t         tmrStopped;
-//  // exec
-//  int8_t       inputStatus;
-//  int8_t       execStatus;
-//  SStreamQueue inputQ;
-//  SRWLatch     lock;
-//} STqPushHandle;
+// typedef struct {
+//   // msg info
+//   int64_t consumerId;
+//   int64_t reqOffset;
+//   int64_t processedVer;
+//   int32_t epoch;
+//   // rpc info
+//   int64_t        reqId;
+//   SRpcHandleInfo rpcInfo;
+//   tmr_h          timerId;
+//   int8_t         tmrStopped;
+//   // exec
+//   int8_t       inputStatus;
+//   int8_t       execStatus;
+//   SStreamQueue inputQ;
+//   SRWLatch     lock;
+// } STqPushHandle;
 
 // tqExec
 
 typedef struct {
-  char* qmsg;   // SubPlanToString
+  char* qmsg;  // SubPlanToString
 } STqExecCol;
 
 typedef struct {
@@ -79,35 +79,35 @@ typedef struct {
 } STqExecDb;
 
 typedef struct {
-  int8_t       subType;
-  STqReader*   pTqReader;
-  qTaskInfo_t  task;
+  int8_t      subType;
+  STqReader*  pTqReader;
+  qTaskInfo_t task;
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-  int32_t      numOfCols;  // number of out pout column, temporarily used
+  int32_t numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
-typedef enum tq_handle_status{
+typedef enum tq_handle_status {
   TMQ_HANDLE_STATUS_IDLE = 0,
   TMQ_HANDLE_STATUS_EXEC = 1,
-}tq_handle_status;
+} tq_handle_status;
 
 typedef struct {
-  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t       consumerId;
-  int32_t       epoch;
-  int8_t        fetchMeta;
-  int64_t       snapshotVer;
-  SWalReader*   pWalReader;
-  SWalRef*      pRef;
-//  STqPushHandle pushHandle;    // push
-  STqExecHandle execHandle;    // exec
-  SRpcMsg*      msg;
-  int32_t       noDataPollCnt;
-  tq_handle_status        status;
+  char        subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t     consumerId;
+  int32_t     epoch;
+  int8_t      fetchMeta;
+  int64_t     snapshotVer;
+  SWalReader* pWalReader;
+  SWalRef*    pRef;
+  //  STqPushHandle pushHandle;    // push
+  STqExecHandle    execHandle;  // exec
+  SRpcMsg*         msg;
+  int32_t          noDataPollCnt;
+  tq_handle_status status;
 } STqHandle;
 
 struct STQ {
@@ -147,8 +147,8 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
 // tqExec
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows);
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type,
-                      int32_t vgId);
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
+                      int32_t type, int32_t vgId);
 int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId);
 
 // tqMeta

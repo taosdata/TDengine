@@ -116,6 +116,17 @@ void walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *eve
   *ever = pReader->cond.scanUncommited ? lastVer : committedVer;
 }
 
+void walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal* pOffset){
+  // if offset version is small than first version , let's seek to first version
+  taosThreadMutexLock(&pWalReader->pWal->mutex);
+  int64_t firstVer = walGetFirstVer((pWalReader)->pWal);
+  taosThreadMutexUnlock(&pWalReader->pWal->mutex);
+
+  if (pOffset->version + 1 < firstVer){
+    pOffset->version = firstVer - 1;
+  }
+}
+
 static int64_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int64_t ver) {
   int64_t ret = 0;
 

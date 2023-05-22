@@ -90,28 +90,23 @@ typedef struct STbVerInfo {
   int32_t tversion;
 } STbVerInfo;
 
-/*
- * ASSERT(sizeof(SCTableMeta) == 24)
- * ASSERT(tableType == TSDB_CHILD_TABLE)
- * The cached child table meta info. For each child table, 24 bytes are required to keep the essential table info.
- */
+#pragma pack(push, 1) 
 typedef struct SCTableMeta {
-  int32_t  vgId : 24;
-  int8_t   tableType;
   uint64_t uid;
   uint64_t suid;
+  int32_t  vgId;
+  int8_t   tableType;
 } SCTableMeta;
+#pragma pack(pop)
 
-/*
- * Note that the first 24 bytes of STableMeta are identical to SCTableMeta, it is safe to cast a STableMeta to be a
- * SCTableMeta.
- */
+
+#pragma pack(push, 1) 
 typedef struct STableMeta {
   // BEGIN: KEEP THIS PART SAME WITH SCTableMeta
-  int32_t  vgId : 24;
-  int8_t   tableType;
   uint64_t uid;
   uint64_t suid;
+  int32_t  vgId;
+  int8_t   tableType;
   // END: KEEP THIS PART SAME WITH SCTableMeta
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
@@ -121,6 +116,7 @@ typedef struct STableMeta {
   STableComInfo tableInfo;
   SSchema       schema[];
 } STableMeta;
+#pragma pack(pop)
 
 typedef struct SDBVgInfo {
   int32_t   vgVersion;
@@ -130,7 +126,7 @@ typedef struct SDBVgInfo {
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   int64_t   stateTs;
   SHashObj* vgHash;  // key:vgId, value:SVgroupInfo
-  SArray*   vgArray;
+  SArray*   vgArray; // SVgroupInfo
 } SDBVgInfo;
 
 typedef struct SUseDbOutput {
