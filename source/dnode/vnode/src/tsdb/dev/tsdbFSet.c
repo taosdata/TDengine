@@ -16,9 +16,7 @@
 #include "inc/tsdbFSet.h"
 
 static int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
-  lvl[0] = taosMemoryMalloc(sizeof(SSttLvl));
-  if (lvl[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
+  if (!(lvl[0] = taosMemoryMalloc(sizeof(SSttLvl)))) return TSDB_CODE_OUT_OF_MEMORY;
   lvl[0]->level = level;
   TARRAY2_INIT(&lvl[0]->farr);
   return 0;
@@ -30,14 +28,14 @@ static int32_t tsdbSttLvlClear(SSttLvl **lvl) {
   lvl[0] = NULL;
   return 0;
 }
-static int32_t tsdbSttLvlInitEx(const SSttLvl *lvl1, SSttLvl **lvl) {
+static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl) {
   int32_t code = tsdbSttLvlInit(lvl1->level, lvl);
   if (code) return code;
 
   const STFileObj *fobj1;
   TARRAY2_FOREACH(&lvl1->farr, fobj1) {
     STFileObj *fobj;
-    code = tsdbTFileObjInit(&fobj1->f, &fobj);
+    code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fobj);
     if (code) {
       tsdbSttLvlClear(lvl);
       return code;
@@ -45,6 +43,12 @@ static int32_t tsdbSttLvlInitEx(const SSttLvl *lvl1, SSttLvl **lvl) {
 
     TARRAY2_APPEND(&lvl[0]->farr, fobj);
   }
+  return 0;
+}
+
+static int32_t tsdbSttLvlCmprFn(const SSttLvl *lvl1, const SSttLvl *lvl2) {
+  if (lvl1->level < lvl2->level) return -1;
+  if (lvl1->level > lvl2->level) return 1;
   return 0;
 }
 
@@ -68,7 +72,7 @@ static int32_t tsdbSttLvlToJson(const SSttLvl *lvl, cJSON *json) {
   return 0;
 }
 
-static int32_t tsdbJsonToSttLvl(const cJSON *json, SSttLvl **lvl) {
+static int32_t tsdbJsonToSttLvl(STsdb *pTsdb, const cJSON *json, SSttLvl **lvl) {
   const cJSON *item1, *item2;
   int32_t      level;
 
@@ -97,7 +101,7 @@ static int32_t tsdbJsonToSttLvl(const cJSON *json, SSttLvl **lvl) {
     }
 
     STFileObj *fobj;
-    code = tsdbTFileObjInit(&tf, &fobj);
+    code = tsdbTFileObjInit(pTsdb, &tf, &fobj);
     if (code) {
       tsdbSttLvlClear(lvl);
       return code;
@@ -140,7 +144,7 @@ int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json) {
   return 0;
 }
 
-int32_t tsdbJsonToTFileSet(const cJSON *json, STFileSet **fset) {
+int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
   int32_t      code;
   const cJSON *item1, *item2;
   int32_t      fid;
@@ -164,6 +168,9 @@ int32_t tsdbJsonToTFileSet(const cJSON *json, STFileSet **fset) {
     } else if (code) {
       tsdbTFileSetClear(fset);
       return code;
+    } else {
+      code = tsdbTFileObjInit(pTsdb, &tf, &(*fset)->farr[ftype]);
+      if (code) return code;
     }
   }
 
@@ -172,7 +179,7 @@ int32_t tsdbJsonToTFileSet(const cJSON *json, STFileSet **fset) {
   if (cJSON_IsArray(item1)) {
     cJSON_ArrayForEach(item2, item1) {
       SSttLvl *lvl;
-      code = tsdbJsonToSttLvl(item2, &lvl);
+      code = tsdbJsonToSttLvl(pTsdb, item2, &lvl);
       if (code) {
         tsdbTFileSetClear(fset);
         return code;
@@ -223,14 +230,14 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   return 0;
 }
 
-int32_t tsdbTFileSetInitEx(const STFileSet *fset1, STFileSet **fset) {
+int32_t tsdbTFileSetInitEx(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset) {
   int32_t code = tsdbTFileSetInit(fset1->fid, fset);
   if (code) return code;
 
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset1->farr[ftype] == NULL) continue;
 
-    code = tsdbTFileObjInit(&fset1->farr[ftype]->f, &fset[0]->farr[ftype]);
+    code = tsdbTFileObjInit(pTsdb, &fset1->farr[ftype]->f, &fset[0]->farr[ftype]);
     if (code) {
       tsdbTFileSetClear(fset);
       return code;
@@ -240,7 +247,7 @@ int32_t tsdbTFileSetInitEx(const STFileSet *fset1, STFileSet **fset) {
   const SSttLvl *lvl1;
   TARRAY2_FOREACH(&fset1->lvlArr, lvl1) {
     SSttLvl *lvl;
-    code = tsdbSttLvlInitEx(lvl1, &lvl);
+    code = tsdbSttLvlInitEx(pTsdb, lvl1, &lvl);
     if (code) {
       tsdbTFileSetClear(fset);
       return code;
@@ -269,15 +276,27 @@ int32_t tsdbTFileSetClear(STFileSet **fset) {
 }
 
 const SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level) {
-  // SSttLvl      tlvl = {.level = level};
-  // SRBTreeNode *node = tRBTreeGet(&fset->lvlTree, &tlvl.rbtn);
-  // return node ? TCONTAINER_OF(node, SSttLvl, rbtn) : NULL;
-  // TODO
-  return NULL;
+  SSttLvl        tlvl = {.level = level};
+  const SSttLvl *lvl = &tlvl;
+  return TARRAY2_SEARCH(&fset->lvlArr, &lvl, tsdbSttLvlCmprFn, TD_EQ);
 }
 
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2) {
   if (fset1[0]->fid < fset2[0]->fid) return -1;
   if (fset1[0]->fid > fset2[0]->fid) return 1;
   return 0;
+}
+
+int64_t tsdbTFileSetMaxCid(const STFileSet *fset) {
+  int64_t maxCid = 0;
+  for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset->farr[ftype] == NULL) continue;
+    maxCid = TMAX(maxCid, fset->farr[ftype]->f.cid);
+  }
+  const SSttLvl   *lvl;
+  const STFileObj *fobj;
+  TARRAY2_FOREACH(&fset->lvlArr, lvl) {
+    TARRAY2_FOREACH(&lvl->farr, fobj) { maxCid = TMAX(maxCid, fobj->f.cid); }
+  }
+  return maxCid;
 }

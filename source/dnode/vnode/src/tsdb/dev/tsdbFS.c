@@ -186,7 +186,7 @@ _exit:
   return code;
 }
 
-static int32_t load_fs(const char *fname, TFileSetArray *arr) {
+static int32_t load_fs(STsdb *pTsdb, const char *fname, TFileSetArray *arr) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -198,23 +198,23 @@ static int32_t load_fs(const char *fname, TFileSetArray *arr) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // parse json
-  const cJSON *item;
+  const cJSON *item1;
 
   /* fmtv */
-  item = cJSON_GetObjectItem(json, "fmtv");
-  if (cJSON_IsNumber(item)) {
-    ASSERT(item->valuedouble == 1);
+  item1 = cJSON_GetObjectItem(json, "fmtv");
+  if (cJSON_IsNumber(item1)) {
+    ASSERT(item1->valuedouble == 1);
   } else {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
   }
 
   /* fset */
-  item = cJSON_GetObjectItem(json, "fset");
-  if (cJSON_IsArray(item)) {
-    const cJSON *titem;
-    cJSON_ArrayForEach(titem, item) {
+  item1 = cJSON_GetObjectItem(json, "fset");
+  if (cJSON_IsArray(item1)) {
+    const cJSON *item2;
+    cJSON_ArrayForEach(item2, item1) {
       STFileSet *fset;
-      code = tsdbJsonToTFileSet(titem, &fset);
+      code = tsdbJsonToTFileSet(pTsdb, item2, &fset);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = TARRAY2_APPEND(arr, fset);
@@ -257,7 +257,7 @@ static int32_t apply_commit(STFileSystem *fs) {
         n1 = TARRAY2_SIZE(&fs->cstate);
       } else if (fset1->fid > fset2->fid) {
         // create new file set with fid of fset2->fid
-        code = tsdbTFileSetInitEx(fset2, &fset1);
+        code = tsdbTFileSetInitEx(fs->pTsdb, fset2, &fset1);
         if (code) return code;
         code = TARRAY2_SORT_INSERT(&fs->cstate, fset1, tsdbTFileSetCmprFn);
         if (code) return code;
@@ -277,7 +277,7 @@ static int32_t apply_commit(STFileSystem *fs) {
       n1 = TARRAY2_SIZE(&fs->cstate);
     } else {
       // create new file set with fid of fset2->fid
-      code = tsdbTFileSetInitEx(fset2, &fset1);
+      code = tsdbTFileSetInitEx(fs->pTsdb, fset2, &fset1);
       if (code) return code;
       code = TARRAY2_SORT_INSERT(&fs->cstate, fset1, tsdbTFileSetCmprFn);
       if (code) return code;
@@ -356,7 +356,13 @@ _exit:
   return code;
 }
 
-static int32_t scan_and_fix_fs(STFileSystem *pFS) {
+static int32_t tsdbFSScanAndFix(STFileSystem *fs) {
+  fs->neid = 0;
+
+  // get max commit id
+  const STFileSet *fset;
+  TARRAY2_FOREACH(&fs->cstate, fset) { fs->neid = TMAX(fs->neid, tsdbTFileSetMaxCid(fset)); }
+
   // TODO
   return 0;
 }
@@ -366,17 +372,20 @@ static int32_t update_fs_if_needed(STFileSystem *pFS) {
   return 0;
 }
 
-static int32_t tsdbFSDupState(const TFileSetArray *src, TFileSetArray *dst) {
+static int32_t tsdbFSDupState(STFileSystem *fs) {
+  int32_t code;
+
+  const TFileSetArray *src = &fs->cstate;
+  TFileSetArray       *dst = &fs->nstate;
+
   TARRAY2_CLEAR(dst, tsdbTFileSetClear);
 
   const STFileSet *fset1;
   TARRAY2_FOREACH(src, fset1) {
-    STFileSet *fset;
-
-    int32_t code = tsdbTFileSetInitEx(fset1, &fset);
+    STFileSet *fset2;
+    code = tsdbTFileSetInitEx(fs->pTsdb, fset1, &fset2);
     if (code) return code;
-
-    code = TARRAY2_APPEND(dst, fset);
+    code = TARRAY2_APPEND(dst, fset2);
     if (code) return code;
   }
 
@@ -400,7 +409,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   current_fname(pTsdb, mCurrent, TSDB_FCURRENT_M);
 
   if (taosCheckExistFile(fCurrent)) {  // current.json exists
-    code = load_fs(fCurrent, &fs->cstate);
+    code = load_fs(pTsdb, fCurrent, &fs->cstate);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (taosCheckExistFile(cCurrent)) {
@@ -411,7 +420,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
         code = abort_edit(fs);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        code = load_fs(cCurrent, &fs->nstate);
+        code = load_fs(pTsdb, cCurrent, &fs->nstate);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         code = commit_edit(fs);
@@ -424,10 +433,10 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tsdbFSDupState(&fs->cstate, &fs->nstate);
+    code = tsdbFSDupState(fs);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = scan_and_fix_fs(fs);
+    code = tsdbFSScanAndFix(fs);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     code = save_fs(&fs->cstate, fCurrent);
@@ -443,8 +452,10 @@ _exit:
   return 0;
 }
 
-static int32_t close_file_system(STFileSystem *pFS) {
-  ASSERTS(0, "TODO: Not implemented yet");
+static int32_t close_file_system(STFileSystem *fs) {
+  TARRAY2_CLEAR(&fs->cstate, tsdbTFileSetClear);
+  TARRAY2_CLEAR(&fs->nstate, tsdbTFileSetClear);
+  // TODO
   return 0;
 }
 
@@ -528,7 +539,6 @@ int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid) {
   return 0;
 }
 
-// TODO: remove eid
 int32_t tsdbFSEditBegin(STFileSystem *fs, const SArray *aFileOp, EFEditT etype) {
   int32_t code = 0;
   int32_t lino;
@@ -579,8 +589,9 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
   return code;
 }
 
-int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **ppFSet) {
-  // STFileSet fset = {.fid = fid};
-  // ppFSet[0] = taosArraySearch(fs->cstate, &fset, (__compar_fn_t)tsdbFSetCmprFn, TD_EQ);
+int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **fset) {
+  STFileSet tfset = {.fid = fid};
+  fset[0] = &tfset;
+  fset[0] = TARRAY2_SEARCH(&fs->cstate, fset, tsdbTFileSetCmprFn, TD_EQ);
   return 0;
 }

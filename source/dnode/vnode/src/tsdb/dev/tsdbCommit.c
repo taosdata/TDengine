@@ -27,9 +27,9 @@ typedef struct {
   int8_t  cmprAlg;
   int8_t  sttTrigger;
 
-  SArray *aTbDataP;  // SArray<STbData *>
-  SArray *aFileOp;   // SArray<STFileOp>
-  int64_t eid;       // edit id
+  SArray      *aTbDataP;  // SArray<STbData *>
+  TFileOpArray opArray;
+  int64_t      eid;  // edit id
 
   // context
   TSKEY            nextKey;
@@ -275,14 +275,15 @@ static int32_t commit_fset_end(SCommitter *pCommitter) {
 
   if (pCommitter->pWriter == NULL) return 0;
 
-  struct STFileOp *pFileOp = taosArrayReserve(pCommitter->aFileOp, 1);
-  if (pFileOp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  // TODO
+  // struct STFileOp *pFileOp = taosArrayReserve(pCommitter->aFileOp, 1);
+  // if (pFileOp == NULL) {
+  //   code = TSDB_CODE_OUT_OF_MEMORY;
+  //   TSDB_CHECK_CODE(code, lino, _exit);
+  // }
 
-  code = tsdbSttFWriterClose(&pCommitter->pWriter, 0, pFileOp);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // code = tsdbSttFWriterClose(&pCommitter->pWriter, 0, pFileOp);
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -337,12 +338,11 @@ static int32_t open_committer(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *pCom
   pCommitter->sttTrigger = 1;  // TODO
 
   pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
-  pCommitter->aFileOp = taosArrayInit(16, sizeof(STFileOp));
-  if (pCommitter->aTbDataP == NULL || pCommitter->aFileOp == NULL) {
+  if (pCommitter->aTbDataP == NULL) {
     taosArrayDestroy(pCommitter->aTbDataP);
-    taosArrayDestroy(pCommitter->aFileOp);
     TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
   }
+  TARRAY2_INIT(&pCommitter->opArray);
   tsdbFSAllocEid(pTsdb->pFS, &pCommitter->eid);
 
   // start loop
@@ -363,7 +363,7 @@ static int32_t close_committer(SCommitter *pCommiter, int32_t eno) {
   int32_t vid = TD_VID(pCommiter->pTsdb->pVnode);
 
   if (eno == 0) {
-    code = tsdbFSEditBegin(pCommiter->pTsdb->pFS, pCommiter->aFileOp, TSDB_FEDIT_COMMIT);
+    code = tsdbFSEditBegin(pCommiter->pTsdb->pFS, NULL /* TODO */, TSDB_FEDIT_COMMIT);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     // TODO
@@ -372,7 +372,7 @@ static int32_t close_committer(SCommitter *pCommiter, int32_t eno) {
 
   ASSERT(pCommiter->pWriter == NULL);
   taosArrayDestroy(pCommiter->aTbDataP);
-  taosArrayDestroy(pCommiter->aFileOp);
+  TARRAY2_CLEAR_FREE(&pCommiter->opArray, NULL);
 
 _exit:
   if (code) {

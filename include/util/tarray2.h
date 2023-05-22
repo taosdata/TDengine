@@ -51,7 +51,7 @@ static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
                                               int32_t sz    // size of element
 ) {
   TARRAY2(void) *a = arg;
-  int32_t capacity = a->capacity ? (a->capacity << 1) : TARRAY2_MIN_SIZE;
+  int32_t capacity = (a->capacity > 0) ? (a->capacity << 1) : TARRAY2_MIN_SIZE;
   while (capacity < es) {
     capacity <<= 1;
   }
@@ -78,7 +78,7 @@ static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
 
 #define TARRAY2_CLEAR(a, cb)                    \
   do {                                          \
-    if (cb) {                                   \
+    if ((cb) && (a)->size > 0) {                \
       TArray2Cb cb_ = (TArray2Cb)(cb);          \
       for (int32_t i = 0; i < (a)->size; ++i) { \
         cb_((a)->data + i);                     \
@@ -103,7 +103,7 @@ static FORCE_INLINE int32_t tarray2_make_room(void   *arg,  // array
       if ((a)->size > (idx)) {                                                                                 \
         memmove((a)->data + (idx) + 1, (a)->data + (idx), sizeof(typeof((a)->data[0])) * ((a)->size - (idx))); \
       }                                                                                                        \
-      (a)->data[(idx)] = e;                                                                                    \
+      (a)->data[(idx)] = (e);                                                                                  \
       (a)->size++;                                                                                             \
     }                                                                                                          \
     __ret;                                                                                                     \

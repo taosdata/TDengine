@@ -166,36 +166,6 @@ static int32_t stt_from_json(const cJSON *json, STFile *file) {
   return 0;
 }
 
-// int32_t tsdbTFileInit(STsdb *pTsdb, STFile *pFile) {
-//   SVnode *pVnode = pTsdb->pVnode;
-//   STfs   *pTfs = pVnode->pTfs;
-
-//   if (pTfs) {
-//     // snprintf(pFile->fname,                       //
-//     //          TSDB_FILENAME_LEN,                  //
-//     //          "%s%s%s%sv%df%dver%" PRId64 ".%s",  //
-//     //          tfsGetDiskPath(pTfs, pFile->did),   //
-//     //          TD_DIRSEP,                          //
-//     //          pTsdb->path,                        //
-//     //          TD_DIRSEP,                          //
-//     //          TD_VID(pVnode),                     //
-//     //          pFile->fid,                         //
-//     //          pFile->cid,                         //
-//     //          g_tfile_info[pFile->type].suffix);
-//   } else {
-//     // snprintf(pFile->fname,                   //
-//     //          TSDB_FILENAME_LEN,              //
-//     //          "%s%sv%df%dver%" PRId64 ".%s",  //
-//     //          pTsdb->path,                    //
-//     //          TD_DIRSEP,                      //
-//     //          TD_VID(pVnode),                 //
-//     //          pFile->fid,                     //
-//     //          pFile->cid,                     //
-//     //          g_tfile_info[pFile->type].suffix);
-//   }
-//   return 0;
-// }
-
 int32_t tsdbTFileToJson(const STFile *file, cJSON *json) {
   if (file->type == TSDB_FTYPE_STT) {
     return g_tfile_info[file->type].to_json(file, json);
@@ -225,7 +195,7 @@ int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f) {
   return 0;
 }
 
-int32_t tsdbTFileObjInit(const STFile *f, STFileObj **fobj) {
+int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0] = taosMemoryMalloc(sizeof(*fobj[0]));
   if (!fobj[0]) return TSDB_CODE_OUT_OF_MEMORY;
 
@@ -233,7 +203,7 @@ int32_t tsdbTFileObjInit(const STFile *f, STFileObj **fobj) {
   fobj[0]->f = *f;
   fobj[0]->state = TSDB_FSTATE_EXIST;
   fobj[0]->ref = 1;
-  // TODO: generate the file name
+  tsdbTFileName(pTsdb, f, fobj[0]->fname);
   return 0;
 }
 
@@ -248,12 +218,11 @@ int32_t tsdbTFileObjRef(STFileObj *fobj) {
 
 int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   int32_t nRef;
+
   taosThreadMutexLock(&fobj->mutex);
   nRef = --fobj->ref;
   taosThreadMutexUnlock(&fobj->mutex);
-
   ASSERT(nRef >= 0);
-
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_REMOVED) {
       // TODO: add the file name
@@ -261,6 +230,7 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
     }
     taosMemoryFree(fobj);
   }
+
   return 0;
 }
 
@@ -272,6 +242,36 @@ int32_t tsdbTFileRemove(STFileObj *fobj) {
   if (nRef == 0) {
     taosRemoveFile(fobj->fname);
     taosMemoryFree(fobj);
+  }
+  return 0;
+}
+
+int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
+  SVnode *pVnode = pTsdb->pVnode;
+  STfs   *pTfs = pVnode->pTfs;
+
+  if (pTfs) {
+    snprintf(fname,                              //
+             TSDB_FILENAME_LEN,                  //
+             "%s%s%s%sv%df%dver%" PRId64 ".%s",  //
+             tfsGetDiskPath(pTfs, f->did),       //
+             TD_DIRSEP,                          //
+             pTsdb->path,                        //
+             TD_DIRSEP,                          //
+             TD_VID(pVnode),                     //
+             f->fid,                             //
+             f->cid,                             //
+             g_tfile_info[f->type].suffix);
+  } else {
+    snprintf(fname,                          //
+             TSDB_FILENAME_LEN,              //
+             "%s%sv%df%dver%" PRId64 ".%s",  //
+             pTsdb->path,                    //
+             TD_DIRSEP,                      //
+             TD_VID(pVnode),                 //
+             f->fid,                         //
+             f->cid,                         //
+             g_tfile_info[f->type].suffix);
   }
   return 0;
 }

@@ -24,7 +24,6 @@ extern "C" {
 
 typedef struct STFile    STFile;
 typedef struct STFileObj STFileObj;
-typedef TARRAY2(STFileObj *) TFileObjArray;
 
 typedef enum {
   TSDB_FTYPE_HEAD = 0,                   // .head
@@ -34,15 +33,21 @@ typedef enum {
   TSDB_FTYPE_STT = TSDB_FTYPE_TOMB + 2,  // .stt
 } tsdb_ftype_t;
 
+enum {
+  TSDB_FSTATE_EXIST = 1,
+  TSDB_FSTATE_REMOVED,
+};
+
 #define TSDB_FTYPE_MIN TSDB_FTYPE_HEAD
 #define TSDB_FTYPE_MAX (TSDB_FTYPE_TOMB + 1)
 
 // STFile
 int32_t tsdbTFileToJson(const STFile *f, cJSON *json);
 int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f);
+int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]);
 
 // STFileObj
-int32_t tsdbTFileObjInit(const STFile *f, STFileObj **fobj);
+int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj);
 int32_t tsdbTFileObjRef(STFileObj *fobj);
 int32_t tsdbTFileObjUnref(STFileObj *fobj);
 int32_t tsdbTFileRemove(STFileObj *fobj);
@@ -59,11 +64,6 @@ struct STFile {
       int32_t nseg;
     } stt;
   };
-};
-
-enum {
-  TSDB_FSTATE_EXIST = 1,
-  TSDB_FSTATE_REMOVED,
 };
 
 struct STFileObj {

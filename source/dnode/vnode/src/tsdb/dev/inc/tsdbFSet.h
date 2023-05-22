@@ -25,7 +25,7 @@ extern "C" {
 typedef struct STFileSet STFileSet;
 typedef struct STFileOp  STFileOp;
 typedef struct SSttLvl   SSttLvl;
-typedef TARRAY2(STFileSet *) TFileSetArray;
+typedef TARRAY2(STFileObj *) TFileObjArray;
 typedef TARRAY2(SSttLvl *) TSttLvlArray;
 typedef TARRAY2(STFileOp) TFileOpArray;
 
@@ -37,17 +37,20 @@ typedef enum {
   TSDB_FOP_TRUNCATE,
 } tsdb_fop_t;
 
+// init/clear
 int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset);
-int32_t tsdbTFileSetInitEx(const STFileSet *fset1, STFileSet **fset2);
+int32_t tsdbTFileSetInitEx(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 int32_t tsdbTFileSetClear(STFileSet **fset);
-
+// to/from json
 int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json);
-int32_t tsdbJsonToTFileSet(const cJSON *json, STFileSet **fset);
-
+int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset);
+// cmpr
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2);
-
+// edit
 int32_t tsdbTFileSetEdit(STFileSet *fset, const STFileOp *op);
 int32_t tsdbTFileSetEditEx(const STFileSet *fset1, STFileSet *fset);
+// max commit id
+int64_t tsdbTFileSetMaxCid(const STFileSet *fset);
 
 const SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level);
 
