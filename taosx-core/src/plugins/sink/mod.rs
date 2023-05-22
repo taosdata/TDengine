@@ -284,18 +284,19 @@ async fn consume_lush_record(
                                 let temp_column_value_pair = temp_column_value_pair.unwrap();
                                 if let Some(v) = v.get(i) {
                                     if !v.is_null() {
+                                        temp_column_value_pair.0.push('`');
                                         temp_column_value_pair.0.push_str(columns[index].as_str());
-                                        temp_column_value_pair.0.push_str(",");
+                                        temp_column_value_pair.0.push_str("`,");
                                         temp_column_value_pair.1.push('\'');
                                         temp_column_value_pair.1.push_str(v.into_value().to_string().unwrap().as_str());
                                         temp_column_value_pair.1.push('\'');
                                         temp_column_value_pair.1.push_str(",");
                                     } else {
                                         // ignore null columnview
-                                        println!("column view {} is null", columns[index]);
+                                        log::debug!("column view {} is null", columns[index]);
                                     }
                                 } else {
-                                    println!("column view {} is null", columns[index]);
+                                    log::debug!("column view {} is null", columns[index]);
                                 }
                                 i = i + 1;
                             }   
@@ -309,7 +310,7 @@ async fn consume_lush_record(
                             v.pop();
                             values.push_str(v.as_str());
                             values.push(')');
-                            let sql = format!("insert into {table_name} {column_names} VALUES {values}");
+                            let sql = format!("insert into `{table_name}` {column_names} VALUES {values}");
                             log::debug!("sql: {sql}");
                             let res = taos.exec_sync(sql);
                             match res {
