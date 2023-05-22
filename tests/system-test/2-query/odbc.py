@@ -23,7 +23,7 @@ class TDTestCase:
 
         tdSql.query("select count(*) from information_schema.ins_columns")
         # enterprise version: 285, community version: 277
-        tdSql.checkData(0, 0, 285)
+        tdSql.checkData(0, 0, 288)
 
         tdSql.query("select * from information_schema.ins_columns where table_name = 'ntb'")
         tdSql.checkRows(14)
