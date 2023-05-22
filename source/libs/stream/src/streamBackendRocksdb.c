@@ -723,9 +723,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, SHashObj* ids) {
 
   rocksdb_comparator_t** pCompare = taosMemoryCalloc(nSize * cfLen + 1, sizeof(rocksdb_comparator_t**));
   for (int i = 0; i < nSize * cfLen + 1; i++) {
-    if (i == 0) {
-      continue;
-    }
+    if (i == 0) continue;
     SCfInit* cf = &ginitDict[(i - 1) % cfLen];
 
     rocksdb_comparator_t* compare = rocksdb_comparator_create(NULL, cf->detroyFunc, cf->cmpFunc, cf->cmpName);
