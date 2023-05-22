@@ -74,6 +74,7 @@ pub fn spawn_runner(
                                     endpoint.to_string(),
                                     token.to_string(),
                                 )),
+                                offsets: Default::default(),
                             };
                             let pool = port_pool.clone();
                             let handle = tokio::spawn(async move { opts.run(&pool).await });

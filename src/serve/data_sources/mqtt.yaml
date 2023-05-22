@@ -2,17 +2,20 @@
 id: mqtt
 name: MQTT
 description: |
-  MQTT stands for Message Queuing Telemetry Transport. It is a lightweight messaging protocol that is easy to  
-  implement and use. It is ideal for connecting devices with limited resources, such as battery-powered  
-  devices or devices with low bandwidth. MQTT is also a good choice for applications where latency is  
+  MQTT stands for Message Queuing Telemetry Transport. It is a lightweight
+  messaging protocol that is easy to implement and use. It is ideal for connecting 
+  devices with limited resources, such as battery-powered devices or devices with
+  low bandwidth. MQTT is also a good choice for applications where latency is 
   important, such as real-time control systems.   
 
-  MQTT works by using a publish/subscribe model. This means that devices can publish messages to topics, and  
-  other devices can subscribe to those topics to receive the messages. This makes it easy to decouple devices  
-  from each other, and to scale up applications as needed.  
+  MQTT works by using a publish/subscribe model. This means that devices can
+  publish messages to topics, and other devices can subscribe to those topics to  
+  receive the messages. This makes it easy to decouple devices from each other, 
+  and to scale up applications as needed.  
 
-  MQTT is a popular choice for IoT applications. It is supported by a wide range of devices and platforms,  
-  and there are many open source and commercial implementations available.  
+  MQTT is a popular choice for IoT applications. It is supported by a wide range of 
+  devices and platforms, and there are many open source and commercial 
+  implementations available.  
 
   taosX could subscribe data from MQTT server by a MQTT connector plugin.  
 
@@ -87,25 +90,14 @@ groups:
           type: integer
           min: 1
         description: |
-          MQTT keep alive is a feature of the MQTT protocol that allows clients and brokers to detect if a connection has been lost.  
-          When a client connects to a broker, it specifies a keep alive interval. This interval is the maximum amount of time that  
-          can elapse between the client sending a message and the broker receiving a message.  
           If the broker does not receive any messages from the client within the keep alive interval,  
           it will assume that the client has disconnected and will close the connection.  
         placeholder: 10
       - name: clean_session
         display: Clean Session
         description: |
-          In MQTT, a clean session is a session that is not preserved when the client disconnects.  
-          This means that the server will forget all information about the session, including the client's subscriptions,  
-          any messages that were in-flight, and any messages that were queued for delivery.  
-
-          The clean session flag is a boolean value that is set when the client connects to the server.  
-          If the flag is set to true, then the client is requesting a clean session.  
-          If the flag is set to false, then the client is requesting a persistent session.  
-
-          The default value for the clean session flag is true.  
-          This means that by default, MQTT clients will use clean sessions.  
+          True means that the server will forget all information about the session, including the  
+          client's subscriptions. The default value for the clean session flag is true.  
         hint:
           type: bool
       - name: topics
