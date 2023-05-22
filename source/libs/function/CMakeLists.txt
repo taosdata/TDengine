@@ -160,6 +160,6 @@ ENDIF ()
 target_link_libraries(
     udfd
     PUBLIC uv_a
-    PRIVATE os util nodes function common ${LINK_JEMALLOC}
+    PUBLIC os util nodes function common ${LINK_JEMALLOC}
     )
 
