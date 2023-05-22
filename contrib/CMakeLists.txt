@@ -248,7 +248,7 @@ if(${BUILD_WITH_ROCKSDB})
     endif(${TD_WINDOWS})
     
     
-    option(WITH_RUNTIME_DEBUG "build with debug version of runtime library" OFF)
+    #option(WITH_RUNTIME_DEBUG "build with debug version of runtime library" OFF)
     option(WITH_TESTS "build with tests" OFF)
     option(WITH_BENCHMARK_TOOLS "build with benchmarks" OFF)
     option(WITH_CORE_TOOLS "build with ldb and sst_dump" OFF)
