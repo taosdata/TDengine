@@ -285,7 +285,6 @@ You configure the following parameters when creating a consumer:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
 | :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-| `td.connect.type` | string | connection type | Only valid for Java connector: "jni" means native connection, "ws" means websocket connection, the default is "jni" |
 |        `td.connect.ip`         | string  | IP address of the server side                          |  |
 |        `td.connect.user`         | string  | User Name                          |  |
 |        `td.connect.pass`         | string  | Password                        |   |
@@ -326,6 +325,7 @@ Java programs use the following parameters:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
 | ----------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `td.connect.type` | string | connection type: "jni" means native connection, "ws" means websocket connection, the default is "jni" |
 | `bootstrap.servers`           | string |Connection address, such as `localhost:6030`                                                                                                 |
 | `value.deserializer`          | string | Value deserializer; to use this method, implement the `com.taosdata.jdbc.tmq.Deserializer` interface or inherit the `com.taosdata.jdbc.tmq.ReferenceDeserializer` type |
 | `value.deserializer.encoding` | string | Specify the encoding for string deserialization                                                                                                        |  |
@@ -399,22 +399,6 @@ from taos.tmq import Consumer
 # Example:
 consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 ```
-
-Python programs use the following parameters:
-
-| Parameter | Type | Description | Remarks |
-|:---------:|:----:|:-----------:|:-------:|
-| `td.connect.ip` | string | Used in establishing a connection||
-| `td.connect.user` | string | Used in establishing a connection||
-| `td.connect.pass` | string | Used in establishing a connection||
-| `td.connect.port` | string | Used in establishing a connection||
-| `group.id` | string | Consumer group ID; consumers with the same ID are in the same group | **Required**. Maximum length: 192 |
-| `client.id` | string | Client ID | Maximum length: 192 |
-| `msg.with.table.name` | string | Specify whether to deserialize table names from messages | pecify `true` or `false` |
-| `enable.auto.commit` | string | Commit automatically | pecify `true` or `false` |
-| `auto.commit.interval.ms` | string | Interval for automatic commits, in milliseconds | |
-| `auto.offset.reset` | string | Initial offset for the consumer group | Specify `earliest`, `latest`, or `none`(default) |
-| `enable.heartbeat.background` | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time | Specify `true` or `false` |
 
 </TabItem>
 
