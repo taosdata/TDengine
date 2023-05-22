@@ -21,9 +21,9 @@ task:
   buckets:
     - influxdb
     - test
-  beginTime: 2023-04-01
+  beginTime: 2023-04-01 00:00:00
   # empty is now
-  endTime: 2023-04-05
+  endTime: 2023-04-05 23:59:59
   # specify the way of task assignment: 1-queue 2-average
   assignmentType: 1
 

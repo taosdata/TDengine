@@ -171,14 +171,14 @@ public class BucketThread implements Runnable {
         if (StringUtils.isEmpty(beginTime) || !beginTime.matches(DateUtils.PATTERN_YMD)) {
             throw new Exception("parameter beginTime configuration error.");
         } else {
-            beginTime += " 00:00:00";
+            // beginTime += " 00:00:00";
         }
         if (StringUtils.isEmpty(endTime)) {
             endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_15);
         } else if (!endTime.matches(DateUtils.PATTERN_YMD)) {
             throw new Exception("parameter endTime configuration error.");
         } else {
-            endTime += " 23:59:59";
+            // endTime += " 23:59:59";
         }
         // 转换格式
         Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_15);
