@@ -90,6 +90,8 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
  */
 void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 
+//void qSetTaskCode(qTaskInfo_t tinfo, int32_t code);
+
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
 
 // todo refactor

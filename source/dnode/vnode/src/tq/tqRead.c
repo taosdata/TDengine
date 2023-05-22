@@ -1035,7 +1035,6 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   // update the table list for each consumer handle
-  taosWLockLatch(&pTq->lock);
   while (1) {
     pIter = taosHashIterate(pTq->pHandle, pIter);
     if (pIter == NULL) {
@@ -1092,7 +1091,6 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
       }
     }
   }
-  taosWUnLockLatch(&pTq->lock);
 
   // update the table list handle for each stream scanner/wal reader
   taosWLockLatch(&pTq->pStreamMeta->lock);
