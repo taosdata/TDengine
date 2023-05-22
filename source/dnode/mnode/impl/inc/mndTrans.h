@@ -70,6 +70,7 @@ int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendNullLog(STrans *pTrans);
+int32_t mndTransAppendPrepareAction(STrans *pTrans, STransAction *pRaw);
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
@@ -86,7 +87,8 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
 int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);
-void    mndTransExecute(SMnode *pMnode, STrans *pTrans, bool isLeader);
+void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
+void    mndTransRefresh(SMnode *pMnode, STrans *pTrans);
 int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, const char *dbname);
 
 #ifdef __cplusplus

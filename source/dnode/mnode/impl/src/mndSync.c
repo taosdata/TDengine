@@ -116,7 +116,7 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
     if (pTrans != NULL) {
       mInfo("trans:%d, execute in mnode which not leader or sync timeout, createTime:%" PRId64 " saved trans:%d",
             transId, pTrans->createdTime, pMgmt->transId);
-      mndTransExecute(pMnode, pTrans, false);
+      mndTransRefresh(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
     } else {
       mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());

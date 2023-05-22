@@ -2255,10 +2255,12 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   SDbObj   dbObj = {0};
   SArray  *pArray = mndBuildDnodesArray(pMnode, 0);
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "split-vgroup");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "split-vgroup");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to split vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
+
+  mndTransSetDbName(pTrans, pDb->name, NULL);
 
   SVgObj newVg1 = {0};
   memcpy(&newVg1, pVgroup, sizeof(SVgObj));

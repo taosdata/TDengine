@@ -157,6 +157,7 @@ typedef struct {
   void*       rpcRsp;
   int32_t     rpcRspLen;
   int32_t     redoActionPos;
+  SArray*     prepareActions;
   SArray*     redoActions;
   SArray*     undoActions;
   SArray*     commitActions;
