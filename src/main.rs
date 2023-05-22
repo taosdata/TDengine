@@ -113,6 +113,7 @@ struct Args {
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let args = Args::parse();
+    println!("taosx version: {CLAP_SHORT_VERSION}");
 
     let mut builder = pretty_env_logger::formatted_timed_builder();
     builder.filter_level(args.globals.verbose.log_level_filter());
