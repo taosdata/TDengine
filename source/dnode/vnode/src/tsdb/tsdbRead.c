@@ -765,7 +765,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   }
 
   if (VND_IS_TSMA(pVnode)) {
-    tsdbInfo("vgId:%d, tsma is selected to query, %s", TD_VID(pVnode), idstr);
+    tsdbDebug("vgId:%d, tsma is selected to query, %s", TD_VID(pVnode), idstr);
   }
 
   initReaderStatus(&pReader->status);
