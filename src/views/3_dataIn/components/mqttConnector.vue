@@ -186,7 +186,7 @@ export default {
         model: {
           name: this.ruleForm.subtableName,
           using: this.ruleForm.supertableName,
-          tags: [].concat(this.ruleForm.tagsName),
+          tags: [].concat(this.ruleForm.tagsName.split(',')),
         },
       };
 

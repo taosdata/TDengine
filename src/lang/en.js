@@ -7,6 +7,7 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  database:'Database',
   enableagent:'Enable Agent',
   warning:'Warning',
   ok:'OK',

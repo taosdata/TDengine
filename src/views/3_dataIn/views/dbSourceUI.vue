@@ -169,7 +169,7 @@
                         dbsource[0].authentication.alternatives[0].username
                           .display
                       }}</span>
-                      <div style="flex:1;">
+                      <div style="flex: 1">
                         <el-input
                           style="margin-bottom: 8px"
                           v-model="
@@ -194,7 +194,7 @@
                         dbsource[0].authentication.alternatives[0].password
                           .display
                       }}</span>
-                      <div style="flex:1;">
+                      <div style="flex: 1">
                         <el-input
                           type="password"
                           style="margin-bottom: 8px"
@@ -233,19 +233,19 @@
                   }}</span>
 
                   <div style="flex: 1">
-                    <template v-if="p.hint && p.hint.choices"> 
+                    <template v-if="p.hint && p.hint.choices">
                       <el-select
-                      v-model="p.value"
-                      placeholder=""
-                      style="margin-left: 0px;width:100%"
-                    >
-                      <el-option
-                        v-for="c in p.hint.choices"
-                        :key="c"
-                        :label="c"
-                        :value="c"
-                      ></el-option>
-                    </el-select>
+                        v-model="p.value"
+                        placeholder=""
+                        style="margin-left: 0px; width: 100%"
+                      >
+                        <el-option
+                          v-for="c in p.hint.choices"
+                          :key="c"
+                          :label="c"
+                          :value="c"
+                        ></el-option>
+                      </el-select>
                     </template>
                     <el-input
                       v-else
@@ -542,26 +542,43 @@
                     :max="p.hint.max"
                   ></el-input-number>
                 </template>
-                <template v-if="p.hint == 'time'">
+                <template v-if="p.hint == 'time' || p.hint?.type == 'time'">
                   <el-date-picker
                     v-model="p.value"
-                    value-format="yyyy-MM-dd"
-                    type="date"
+                    value-format="yyyy-MM-dd HH:mm:ss"
+                    type="datetime"
+                    v-if="p.name == 'beginTime' || p.name == 'endTime'"
                     :picker-options="
                       p.name == 'beginTime' ? startOption : endOption
                     "
                     :placeholder="p.placeholder"
                   >
                   </el-date-picker>
+                  <el-date-picker
+                    v-model="p.value"
+                    value-format="yyyy-MM-dd HH:mm:ss"
+                    type="datetime"
+                    v-if="
+                      p.name == 'BackfillStartTime' ||
+                      p.name == 'BackfillEndTime'
+                    "
+                    :picker-options="
+                      p.name == 'BackfillStartTime'
+                        ? backfillStartOption
+                        : backfillEndOption
+                    "
+                    :placeholder="p.placeholder"
+                  >
+                  </el-date-picker>
                 </template>
-                <template v-if="p.hint?.type == 'datetime'">
+                <!-- <template v-if="p.hint?.type == 'datetime'">
                   <el-date-picker
                     v-model="p.value"
                     type="datetime"
                     placeholder="Please select the date"
                   >
                   </el-date-picker>
-                </template>
+                </template> -->
                 <div
                   v-html="transforHtml(p.description)"
                   class="description"
@@ -576,7 +593,7 @@
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
         <span class="label required">Target Database</span>
-        <el-select v-model="dbname" placeholder="" >
+        <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
             :key="db['node-key']"
@@ -606,7 +623,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
-import moment from 'moment'
+import moment from "moment";
 import { debounce } from "@/utils/index";
 export default {
   name: "DbSourceUI",
@@ -656,6 +673,26 @@ export default {
         return false;
       }
     };
+    const backfillStart = (time) => {
+      let end = this.dbsource[0].groups
+        .filter((val) => val.name == "Backfill")[0]
+        .params.filter((item) => item.name == "BackfillEndTime");
+      if (end[0].value) {
+        return time.getTime() > new Date(end[0].value).getTime();
+      } else {
+        return false
+      }
+    };
+    const backfillEnd = (time) => {
+      let start = this.dbsource[0].groups
+        .filter((val) => val.name == "Backfill")[0]
+        .params.filter((item) => item.name == "BackfillStartTime");
+      if (start[0].value) {
+        return time.getTime() < new Date(start[0].value).getTime();
+      } else {
+        return false
+      }
+    };
     return {
       startOption: {
         disabledDate: (time) => startTimeOption(time),
@@ -663,6 +700,12 @@ export default {
 
       endOption: {
         disabledDate: (time) => endTimeOption(time),
+      },
+      backfillStartOption: {
+        disabledDate: (time) => backfillStart(time),
+      },
+      backfillEndOption: {
+        disabledDate: (time) => backfillEnd(time),
       },
       ipRegex:
         /^(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$/,
@@ -845,10 +888,15 @@ export default {
               return;
             } else {
               if (data.groups[index].params[g].value) {
-                if(data.groups[index].params[g].name === 'BackfillStartTime'
-                  || data.groups[index].params[g].name === 'BackfillEndTime'
+                if (
+                  data.groups[index].params[g].name === "BackfillStartTime" ||
+                  data.groups[index].params[g].name === "BackfillEndTime"
                 ) {
-                  data.groups[index].params[g].value = moment(data.groups[index].params[g].value).utc().format()
+                  data.groups[index].params[g].value = moment(
+                    data.groups[index].params[g].value
+                  )
+                    .utc()
+                    .format();
                 }
                 querystr +=
                   `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
@@ -870,8 +918,9 @@ export default {
             if (
               Object.hasOwnProperty.call(target, "required") &&
               target.required &&
-              (target.value == null || target.value == undefined || 
-              target.value?.length == 0)
+              (target.value == null ||
+                target.value == undefined ||
+                target.value?.length == 0)
             ) {
               Message({
                 type: "warning",
@@ -887,7 +936,7 @@ export default {
                   }
                   querystr += `${target.name}=${str.replace(/,$/g, "")}` + "&";
                 }
-              } else if(target.value != null || target.value != undefined) {
+              } else if (target.value != null || target.value != undefined) {
                 querystr += `${target.name}=${target.value}` + "&";
               }
             }
@@ -932,12 +981,12 @@ export default {
           }
         }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        if(!this.dbname){
+        if (!this.dbname) {
           Message({
-              type: "warning",
-              message: `${enterTip} target database `,
-            });
-            return;
+            type: "warning",
+            message: `${enterTip} target database `,
+          });
+          return;
         }
         let apiParams = {
           from:
@@ -984,7 +1033,10 @@ export default {
           }
         } else {
           let piParams = {
-            from: this.tagName == "influxdb" ? "influxdb" + dns : this.tagName + dns,
+            from:
+              this.tagName == "influxdb"
+                ? "influxdb" + dns
+                : this.tagName + dns,
             name: localStorage.getItem("datainName"),
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
             // name: localStorage.getItem("datainName"),
