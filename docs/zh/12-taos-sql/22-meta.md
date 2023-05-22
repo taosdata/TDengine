@@ -78,8 +78,9 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | --- | :------------------: | ---------------- | ------------------------------------------------ |
 | 1   |         name         | BINARY(32)       | 数据库名                                         |
 | 2   |     create_time      | TIMESTAMP        | 创建时间                                         |
-| 3   |       ntables        | INT              | 数据库中表的数量，包含子表和普通表但不包含超级表 |
-| 4   |       vgroups        | INT              | 数据库中有多少个 vgroup。需要注意，`vgroups` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                          |
+| 3   |     create_user      | BINARY(23)       | 创建用户                                         |
+| 4   |       ntables        | INT              | 数据库中表的数量，包含子表和普通表但不包含超级表 |
+| 5   |       vgroups        | INT              | 数据库中有多少个 vgroup。需要注意，`vgroups` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                          |
 | 6   |       replica        | INT              | 副本数。需要注意，`replica` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                           |
 | 7   |        strict        | BINARY(3)        | 强一致性。需要注意，`strict` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                         |
 | 8   |       duration       | INT              | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                         |

@@ -91,7 +91,7 @@ class TDTestCase:
         for db_info in databases_infos:
             dbname = db_info[0]
             # print(dbname)
-            cache_last_value = db_info[18]
+            cache_last_value = db_info[19]
             # print(cache_last_value)
             if dbname in ["information_schema" , "performance_schema"]:
                 continue
