@@ -239,7 +239,7 @@ static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam,
     STableScanInfo* pInfo = pOperator->info;
 
     if (pInfo->base.dataReader != NULL) {
-      pAPI->storeReader.storeReaderNotifyClosing(pInfo->base.dataReader);
+      pAPI->tsdReader.storeReaderNotifyClosing(pInfo->base.dataReader);
     }
     return OPTR_FN_RET_ABORT;
   } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -248,7 +248,7 @@ static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam,
     if (pInfo->pTableScanOp != NULL) {
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
       if (pTableScanInfo != NULL && pTableScanInfo->base.dataReader != NULL) {
-        pAPI->storeReader.storeReaderNotifyClosing(pTableScanInfo->base.dataReader);
+        pAPI->tsdReader.storeReaderNotifyClosing(pTableScanInfo->base.dataReader);
       }
     }
 

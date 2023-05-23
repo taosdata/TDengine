@@ -2198,7 +2198,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  pAPI->storeReader.storeReaderGetDataBlockDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
+  pAPI->tsdReader.storeReaderGetDataBlockDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
   blockDistInfo.numOfInmemRows = (int32_t) pAPI->metaFn.getNumOfRowsInMem(pBlockScanInfo->pHandle);
 
   SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
@@ -2229,7 +2229,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 static void destroyBlockDistScanOperatorInfo(void* param) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
-  pDistInfo->readHandle.api.storeReader.storeReaderClose(pDistInfo->pHandle);
+  pDistInfo->readHandle.api.tsdReader.storeReaderClose(pDistInfo->pHandle);
   tableListDestroy(pDistInfo->pTableListInfo);
   taosMemoryFreeClear(param);
 }
@@ -2284,7 +2284,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
     size_t num = tableListGetSize(pTableListInfo);
     void*  pList = tableListGetInfo(pTableListInfo, 0);
 
-    code = readHandle->api.storeReader.storeReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock, (void**)&pInfo->pHandle, pTaskInfo->id.str, false, NULL);
+    code = readHandle->api.tsdReader.storeReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock, (void**)&pInfo->pHandle, pTaskInfo->id.str, false, NULL);
     cleanupQueryTableDataCond(&cond);
     if (code != 0) {
       goto _error;

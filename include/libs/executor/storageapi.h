@@ -34,6 +34,11 @@ extern "C" {
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
 
+#define META_READER_NOLOCK 0x1
+
+typedef struct SMeta SMeta;
+typedef TSKEY (*GetTsFun)(void*);
+
 typedef struct SMetaEntry {
   int64_t  version;
   int8_t   type;
@@ -69,6 +74,32 @@ typedef struct SMetaEntry {
 
   uint8_t *pBuf;
 } SMetaEntry;
+
+typedef struct SMetaReader {
+  int32_t             flags;
+  void *              pMeta;
+  SDecoder            coder;
+  SMetaEntry          me;
+  void *              pBuf;
+  int32_t             szBuf;
+  struct SStorageAPI *storageAPI;
+} SMetaReader;
+
+typedef struct SMTbCursor {
+  struct TBC *pDbc;
+  void *      pKey;
+  void *      pVal;
+  int32_t     kLen;
+  int32_t     vLen;
+  SMetaReader mr;
+} SMTbCursor;
+
+typedef struct SRowBuffPos {
+  void* pRowBuff;
+  void* pKey;
+  bool  beFlushed;
+  bool  beUsed;
+} SRowBuffPos;
 
 // int32_t tsdbReuseCacherowsReader(void* pReader, void* pTableIdList, int32_t numOfTables);
 // int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
@@ -135,8 +166,6 @@ typedef struct SMetaTableInfo {
   char            tbName[TSDB_TABLE_NAME_LEN];
 } SMetaTableInfo;
 
-typedef struct SMeta SMeta;
-
 typedef struct SSnapContext {
   SMeta *     pMeta;     // todo remove it
   int64_t     snapVersion;
@@ -162,22 +191,17 @@ typedef struct {
 // int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 // bool    tqReaderIsQueriedTable(STqReader* pReader, uint64_t uid);
 // bool    tqCurrentBlockConsumed(const STqReader* pReader);
-//
 // int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
 // bool    tqNextBlockInWal(STqReader* pReader, const char* idstr);
 // bool    tqNextBlockImpl(STqReader *pReader, const char* idstr);
-
 // int32_t        getMetafromSnapShot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
 // SMetaTableInfo getUidfromSnapShot(SSnapContext *ctx);
 // int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
 // int32_t        destroySnapContext(SSnapContext *ctx);
-
 // SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 // void        metaCloseTbCursor(SMTbCursor *pTbCur);
 // int32_t     metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType);
 // int32_t     metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType);
-
-#define META_READER_NOLOCK 0x1
 
 /*-------------------------------------------------new api format---------------------------------------------------*/
 
@@ -201,7 +225,7 @@ typedef int32_t (*__store_reader_open_fn_t)(void *pVnode, SQueryTableDataCond *p
                                             int32_t numOfTables, SSDataBlock *pResBlock, void **ppReader,
                                             const char *idstr, bool countOnly, SHashObj **pIgnoreTables);
 
-typedef struct SStoreDataReaderFn {
+typedef struct SStoreTSDReader {
   __store_reader_open_fn_t storeReaderOpen;
   void (*storeReaderClose)();
   void (*setReaderId)(void *pReader, const char *pId);
@@ -216,7 +240,7 @@ typedef struct SStoreDataReaderFn {
   void (*storeReaderGetDataBlockDistInfo)();
   void (*storeReaderGetNumOfInMemRows)();
   void (*storeReaderNotifyClosing)();
-} SStoreDataReaderFn;
+} SStoreTSDReader;
 
 /**
  * int32_t tsdbReuseCacherowsReader(void* pReader, void* pTableIdList, int32_t numOfTables);
@@ -226,14 +250,14 @@ int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32
                               SArray *pTableUids);
 void   *tsdbCacherowsReaderClose(void *pReader);
  */
-typedef struct SStoreCachedDataReaderFn {
+typedef struct SStoreCacheReader {
   int32_t (*openReader)(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                         SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
   void *(*closeReader)(void *pReader);
   int32_t (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                           SArray *pTableUidList);
   void (*reuseReader)(void *pReader, void *pTableIdList, int32_t numOfTables);
-} SStoreCachedDataReaderFn;
+} SStoreCacheReader;
 
 /*------------------------------------------------------------------------------------------------------------------*/
 /*
@@ -259,7 +283,7 @@ SWalReader* tqGetWalReader(STqReader* pReader);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
 */
 // todo rename
-typedef struct SStoreTqReaderFn {
+typedef struct SStoreTqReader {
   void *(*tqReaderOpen)();
   void (*tqReaderClose)();
 
@@ -282,7 +306,7 @@ typedef struct SStoreTqReaderFn {
 
   int32_t (*tqReaderSetSubmitMsg)();  // todo remove it
   void (*tqReaderNextBlockFilterOut)();
-} SStoreTqReaderFn;
+} SStoreTqReader;
 
 typedef struct SStoreSnapshotFn {
   /*
@@ -291,10 +315,10 @@ typedef struct SStoreSnapshotFn {
   int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
   int32_t        destroySnapContext(SSnapContext *ctx);
    */
-  int32_t (*storeCreateSnapshot)();
-  void (*storeDestroySnapshot)();
-  SMetaTableInfo (*storeSSGetTableInfo)();
-  int32_t (*storeSSGetMetaInfo)();
+  int32_t (*createSnapshot)();
+  void (*destroySnapshot)();
+  SMetaTableInfo (*getTableInfoFromSnapshot)();
+  int32_t (*getMetaInfoFromSnapshot)();
 } SStoreSnapshotFn;
 
 /**
@@ -322,17 +346,9 @@ int32_t  metaGetCachedTbGroup(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, 
 int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
                                int32_t payloadLen);
  */
-typedef struct SMetaReader {
-  int32_t             flags;
-  void *              pMeta;
-  SDecoder            coder;
-  SMetaEntry          me;
-  void *              pBuf;
-  int32_t             szBuf;
-  struct SStorageAPI *storageAPI;
-} SMetaReader;
 
-typedef struct SStoreMetaReaderFn {
+
+typedef struct SStoreMetaReader {
   void (*initReader)(void *pReader, void *pMeta, int32_t flags);
   void *(*clearReader)();
 
@@ -341,9 +357,9 @@ typedef struct SStoreMetaReaderFn {
   int32_t (*getTableEntryByUid)();
   int32_t (*getTableEntryByName)();
   int32_t (*readerGetEntryGetUidCache)(SMetaReader *pReader, tb_uid_t uid);
-} SStoreMetaReaderFn;
+} SStoreMetaReader;
 
-typedef struct SStoreMetaFn {
+typedef struct SStoreMeta {
   /*
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
@@ -398,7 +414,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list);
 int32_t vnodeGetCtbIdListByFilter(void *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);
 int32_t vnodeGetStbIdList(void *pVnode, int64_t suid, SArray *list);
  */
-} SStoreMetaFn;
+} SStoreMeta;
 
 typedef struct STdbState {
   void*               rocksdb;
@@ -450,20 +466,13 @@ typedef struct SUpdateInfo {
 } SUpdateInfo;
 
 typedef struct {
-  void*    iter;
-  void*    snapshot;
-  void* readOpt;
-  void*             db;
-//  rocksdb_iterator_t*    iter;
-//  rocksdb_snapshot_t*    snapshot;
-//  rocksdb_readoptions_t* readOpt;
-//  rocksdb_t*             db;
-
-  void*    pCur;
+  void*   iter;      //  rocksdb_iterator_t*    iter;
+  void*   snapshot;  //  rocksdb_snapshot_t*    snapshot;
+  void*   readOpt;   //  rocksdb_readoptions_t* readOpt;
+  void*   db;        //  rocksdb_t*             db;
+  void*   pCur;
   int64_t number;
 } SStreamStateCur;
-
-typedef TSKEY (*GetTsFun)(void*);
 
 typedef struct SStateStore {
   int32_t (*streamStatePutParName)(SStreamState* pState, int64_t groupId, const char* tbname);
@@ -541,32 +550,14 @@ typedef struct SStateStore {
 } SStateStore;
 
 typedef struct SStorageAPI {
-  SStoreMetaFn             metaFn;  // todo: refactor
-  SStoreDataReaderFn       storeReader;
-  SStoreMetaReaderFn       metaReaderFn;
-  SStoreCachedDataReaderFn cacheFn;
-  SStoreSnapshotFn         snapshotFn;
-  SStoreTqReaderFn         tqReaderFn;
-  SStateStore              stateStore;
+  SStoreMeta        metaFn;  // todo: refactor
+  SStoreTSDReader   tsdReader;
+  SStoreMetaReader  metaReaderFn;
+  SStoreCacheReader cacheFn;
+  SStoreSnapshotFn  snapshotFn;
+  SStoreTqReader    tqReaderFn;
+  SStateStore       stateStore;
 } SStorageAPI;
-
-typedef struct SMTbCursor {
-  struct TBC *pDbc;
-  void *      pKey;
-  void *      pVal;
-  int32_t     kLen;
-  int32_t     vLen;
-  SMetaReader mr;
-} SMTbCursor;
-
-typedef struct SRowBuffPos {
-  void* pRowBuff;
-  void* pKey;
-  bool  beFlushed;
-  bool  beUsed;
-} SRowBuffPos;
-
-
 
 #ifdef __cplusplus
 }
