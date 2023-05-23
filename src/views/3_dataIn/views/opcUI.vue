@@ -598,11 +598,11 @@ export default {
     "p-three-checkbox": PThreeCheckbox,
   },
   props: {
-    mqttParser:{
-      type:Object,
-      default:()=>{
-        return null
-      }
+    mqttParser: {
+      type: Object,
+      default: () => {
+        return null;
+      },
     },
     tagName: {
       type: String,
@@ -666,7 +666,7 @@ export default {
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
-    console.log("dd", this.dbsource[0],this.mqttParser,'mqtt初始化');
+    console.log("dd", this.dbsource[0], this.mqttParser, "mqtt初始化");
   },
   watch: {
     dbName: {
@@ -855,7 +855,7 @@ export default {
             //     : "+"
             //   : "") +
             dns,
-          parse:this.mqttParser,
+          parse: this.mqttParser,
           name: localStorage.getItem("datainName"),
           to:
             "taos+" +
@@ -1030,6 +1030,12 @@ export default {
   justify-content: space-around;
   //   padding-right: 300px;
   display: flex;
+  :deep {
+    .el-input__inner {
+      border: none !important;
+      box-shadow: inset 0 0 0 1px rgb(190, 188, 188);
+    }
+  }
   .label-value {
     display: flex;
     flex-direction: column;
