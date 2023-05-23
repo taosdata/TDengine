@@ -8,13 +8,7 @@ import toml
 import re
 from datetime import datetime
 
-def get_current_commit():
-    cmd = "git rev-parse HEAD".split()
-    return subprocess.check_output(cmd).decode().strip()
-
-mqtt_version = "1.0.0"
-commit_id = get_current_commit()
-current_day = datetime.now().strftime("%Y-%m-%d")
+mqtt_default_version = "1.0.0"
 cus_name = "TDengine"
 taosx_agent_name = "taosx-agent"
 connector_array = []
@@ -217,6 +211,7 @@ def build_and_install_opc_on_windows():
 
 
 def build_and_install_mqtt_on_windows():
+    mqtt_version = get_connector_version(mqtt_connector)
     print("buildAndInstallMQTT on windows start...")
     mqtt_connector_path = os.path.join(taosx_dir, "plugins", "mqtt")
     os.chdir(mqtt_connector_path)
@@ -225,9 +220,9 @@ def build_and_install_mqtt_on_windows():
     os.environ["GOARCH"] = "amd64"
     mqtt_app_name = "taosmqtt.exe"
     base_build = f"go build -o dist/{mqtt_app_name}"
-    extend = f" -ldflags \"-X github.com/taosdata/taosx/plugins/mqtt/version.Version={mqtt_version} " \
-             f"-X github.com/taosdata/taosx/plugins/mqtt/version.Commit={commit_id} " \
-             f"-X github.com/taosdata/taosx/plugins/mqtt/version.BuildTime={current_day}\""
+    extend = f" -ldflags \"-X github.com/taosdata/taosx/plugins/mqtt/version.Version={mqtt_version.Version} " \
+             f"-X github.com/taosdata/taosx/plugins/mqtt/version.Commit={mqtt_version.Commit} " \
+             f"-X \'github.com/taosdata/taosx/plugins/mqtt/version.BuildTime={mqtt_version.BuildTime}\'\""
     build = base_build + extend
     print(build)
     os.system(build)
@@ -255,6 +250,10 @@ def get_connector_version(connector_name):
     branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('ascii')
     commit = subprocess.check_output(['git', 'rev-list', '-1', branch]).strip().decode('ascii')
 
+    if connector_name == mqtt_connector:
+        if version == "":
+            version = mqtt_default_version
+
     print("Current connector_name:", connector_name)
     print("Current branch:", branch)
     print("Current commit:", commit)
@@ -271,7 +270,6 @@ def build_and_install_opc():
         sys.exit()
 
 def build_and_install_mqtt():
-    mqtt_version = get_connector_version(mqtt_connector)
     if current_os == 'Windows':
         build_and_install_mqtt_on_windows()
     else:

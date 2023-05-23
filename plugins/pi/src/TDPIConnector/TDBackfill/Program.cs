@@ -31,9 +31,13 @@ namespace TDBackfill
             AssemblyName assemblyName = assembly.GetName();
             Version version = assemblyName.Version;
 
-            log.Info("PI Connector version is: " + version);
-            log.Info("PI Connector commit is: " + commit);
-            log.Info("PI Connector build at: " + build_time);
+            log.Info("PI Backfill version is: " + version);
+            log.Info("PI Backfill commit is: " + commit);
+            log.Info("PI Backfill build at: " + build_time);
+            Console.WriteLine("PI Backfill{}");
+            Console.WriteLine($"    Version : {version}");
+            Console.WriteLine($"    Commit : {commit}");
+            Console.WriteLine($"    Build Time : {build_time}");
         }
         static void Main(string[] args)
         {

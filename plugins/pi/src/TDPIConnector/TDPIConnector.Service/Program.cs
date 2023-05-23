@@ -37,14 +37,22 @@ namespace TDPIConnector.Service
             logger.Info("PI Connector version is: " + version);
             logger.Info("PI Connector commit is: " + commit);
             logger.Info("PI Connector build at: " + build_time);
+            Console.WriteLine("PI Connector{}");
+            Console.WriteLine($"    Version : {version}");
+            Console.WriteLine($"    Commit : {commit}");
+            Console.WriteLine($"    Build Time : {build_time}");
         }
         static void Main(string[] args)
         {
-            PrintVersion();
             if (args != null && args.Length == 1 && (args[0][0] == '-' || args[0][0] == '/'))
             {
                 switch (args[0].Substring(1).ToLower())
                 {
+                    case "version":
+                    case "v":
+                        if (!ServiceInstallerUtility.InstallService())
+                            logger.Fatal("Failed to install service");
+                        return;
                     case "install":
                     case "i":
                         if (!ServiceInstallerUtility.InstallService())
@@ -61,7 +69,6 @@ namespace TDPIConnector.Service
                 }
                 Environment.Exit(0);
             }
-
             WorkMode workMode = WorkMode.Observer;
 
             string tomlConfigFile = "";
@@ -110,6 +117,7 @@ namespace TDPIConnector.Service
             // console mode
             else if (Environment.UserInteractive)
             {
+                PrintVersion();
                 logger.Info("Running in console mode");
 
                 service.Start();
@@ -130,6 +138,7 @@ namespace TDPIConnector.Service
             }
             else
             {
+                PrintVersion();
                 logger.Info("Running in service mode");
                 ServiceBase.Run(servicesToRun);
             }
