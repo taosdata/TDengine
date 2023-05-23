@@ -3722,7 +3722,15 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum* datum, uint8_t type, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange* colRange, SColumnDataAgg* pAgg, SArray* points) {
+int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange* colRange, SColumnDataAgg* pAgg, int32_t numOfRows, SArray* points) {
+  if (pAgg->numOfNull == numOfRows) {
+    SFltSclDatum datum = {.kind = FLT_SCL_DATUM_KIND_NULL};
+    SFltSclPoint startPt = {.start = true, .excl = false, .val = datum};
+    SFltSclPoint endPt = {.start = false, .excl = false, .val = datum};
+    taosArrayPush(points, &startPt);
+    taosArrayPush(points, &endPt);
+    return TSDB_CODE_SUCCESS;
+  }
   SFltSclDatum min;
   fltSclBuildDatumFromBlockSmaValue(&min, colRange->colNode->node.resType.type, pAgg->min);
   SFltSclPoint minPt = {.excl = false, .start = true, .val = min};
@@ -3749,7 +3757,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
       if (foundCol) {
         SColumnDataAgg* pAgg = pDataStatis[j];
         SArray* points = taosArrayInit(2, sizeof(SFltSclPoint));
-        fltSclBuildRangeFromBlockSma(colRange, pAgg, points);
+        fltSclBuildRangeFromBlockSma(colRange, pAgg, numOfRows, points);
         SArray* merged = taosArrayInit(8, sizeof(SFltSclPoint));
         fltSclIntersect(points, colRange->points, merged);
         bool isIntersect = taosArrayGetSize(merged) != 0;
