@@ -1841,9 +1841,9 @@ void filterFreeInfo(SFilterInfo *info) {
     return;
   }
 
-  for (int32_t i = 0 ; i < taosArrayGetSize(info->sclCtx.fltSclRange); ++i) {
-    SFltSclColumnRange* colRange = taosArrayGet(info->sclCtx.fltSclRange, i);
-    nodesDestroyNode((SNode*)colRange->colNode);
+  for (int32_t i = 0; i < taosArrayGetSize(info->sclCtx.fltSclRange); ++i) {
+    SFltSclColumnRange *colRange = taosArrayGet(info->sclCtx.fltSclRange, i);
+    nodesDestroyNode((SNode *)colRange->colNode);
     taosArrayDestroy(colRange->points);
   }
   taosArrayDestroy(info->sclCtx.fltSclRange);
@@ -3431,7 +3431,6 @@ _return:
   return code;
 }
 
-
 // compare ranges, null < min < val < max. null=null, min=min, max=max
 typedef enum {
   FLT_SCL_DATUM_KIND_NULL,
@@ -3447,7 +3446,7 @@ typedef enum {
 typedef struct {
   SFltSclDatumKind kind;
   union {
-    int64_t  i;    // for int64, uint64 and double and bool (1 true, 0 false)
+    int64_t  i;  // for int64, uint64 and double and bool (1 true, 0 false)
     uint64_t u;
     double   d;
     uint8_t *pData;  // for varchar, nchar
@@ -3627,7 +3626,6 @@ typedef struct {
   EOperatorType type;
 } SFltSclOperator;
 
-
 SFltSclColumnRange *fltSclGetOrCreateColumnRange(SColumnNode *colNode, SArray *colRangeList) {
   for (int32_t i = 0; i < taosArrayGetSize(colRangeList); ++i) {
     SFltSclColumnRange *colRange = taosArrayGet(colRangeList, i);
@@ -3635,7 +3633,7 @@ SFltSclColumnRange *fltSclGetOrCreateColumnRange(SColumnNode *colNode, SArray *c
       return colRange;
     }
   }
-  SColumnNode* pColumnNode = (SColumnNode*)nodesCloneNode((SNode*)colNode);
+  SColumnNode       *pColumnNode = (SColumnNode *)nodesCloneNode((SNode *)colNode);
   SFltSclColumnRange newColRange = {.colNode = pColumnNode, .points = taosArrayInit(4, sizeof(SFltSclPoint))};
   taosArrayPush(colRangeList, &newColRange);
   return taosArrayGetLast(colRangeList);
@@ -3690,7 +3688,7 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum* datum, uint8_t type, int64_t val) {
+int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int64_t val) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL: {
       datum->kind = FLT_SCL_DATUM_KIND_INT64;
@@ -3702,13 +3700,13 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum* datum, uint8_t type, int
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT: {
       datum->kind = FLT_SCL_DATUM_KIND_UINT64;
-      datum->u = *(uint64_t*)&val;
+      datum->u = *(uint64_t *)&val;
       break;
     }
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE: {
       datum->kind = FLT_SCL_DATUM_KIND_FLOAT64;
-      datum->d = *(double*)&val;
+      datum->d = *(double *)&val;
       break;
     }
       // TODO:varchar/nchar/json
@@ -3718,11 +3716,11 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum* datum, uint8_t type, int
     }
   }
 
-
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange* colRange, SColumnDataAgg* pAgg, int32_t numOfRows, SArray* points) {
+int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAgg *pAgg, int32_t numOfRows,
+                                     SArray *points) {
   if (pAgg->numOfNull == numOfRows) {
     SFltSclDatum datum = {.kind = FLT_SCL_DATUM_KIND_NULL};
     SFltSclPoint startPt = {.start = true, .excl = false, .val = datum};
@@ -3744,21 +3742,21 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange* colRange, SColumnDataAg
 
 bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t numOfCols, int32_t numOfRows) {
   if (info->scalarMode) {
-    SArray* colRanges = info->sclCtx.fltSclRange;
+    SArray *colRanges = info->sclCtx.fltSclRange;
     for (int32_t i = 0; i < taosArrayGetSize(colRanges); ++i) {
-      SFltSclColumnRange* colRange = taosArrayGet(colRanges, i);
-      bool foundCol = false;
-      int32_t j = 0;
+      SFltSclColumnRange *colRange = taosArrayGet(colRanges, i);
+      bool                foundCol = false;
+      int32_t             j = 0;
       for (; j < numOfCols; ++j) {
         if (pDataStatis[j] != NULL && pDataStatis[j]->colId == colRange->colNode->colId) {
           foundCol = true;
         }
       }
       if (foundCol) {
-        SColumnDataAgg* pAgg = pDataStatis[j];
-        SArray* points = taosArrayInit(2, sizeof(SFltSclPoint));
+        SColumnDataAgg *pAgg = pDataStatis[j];
+        SArray         *points = taosArrayInit(2, sizeof(SFltSclPoint));
         fltSclBuildRangeFromBlockSma(colRange, pAgg, numOfRows, points);
-        SArray* merged = taosArrayInit(8, sizeof(SFltSclPoint));
+        SArray *merged = taosArrayInit(8, sizeof(SFltSclPoint));
         fltSclIntersect(points, colRange->points, merged);
         bool isIntersect = taosArrayGetSize(merged) != 0;
         taosArrayDestroy(merged);
@@ -4381,19 +4379,18 @@ int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
       taosArrayDestroy(colRange->points);
       colRange->points = points;
     }
-
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t fltSclCollectOperatorFromNode(SNode* pNode, SArray* sclOpList) {
+static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
   if (nodeType(pNode) != QUERY_NODE_OPERATOR) {
     return TSDB_CODE_SUCCESS;
   }
-  SOperatorNode* pOper = (SOperatorNode*)pNode;
-  //TODO: left value node, right column node
-  //TODO: datatype
-  //TODO: operator
+  SOperatorNode *pOper = (SOperatorNode *)pNode;
+  // TODO: left value node, right column node
+  // TODO: datatype
+  // TODO: operator
   if (pOper->pLeft == NULL || pOper->pRight == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -4401,31 +4398,31 @@ static int32_t fltSclCollectOperatorFromNode(SNode* pNode, SArray* sclOpList) {
       (pOper->opType == OP_TYPE_GREATER_THAN || pOper->opType == OP_TYPE_GREATER_EQUAL ||
        pOper->opType == OP_TYPE_LOWER_THAN || pOper->opType == OP_TYPE_LOWER_EQUAL ||
        pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL)) {
-    SValueNode* valNode = (SValueNode*)pOper->pRight;
+    SValueNode *valNode = (SValueNode *)pOper->pRight;
     if (IS_NUMERIC_TYPE(valNode->node.resType.type) || valNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      SNode *p = nodesCloneNode(pNode);
-      taosArrayPush(sclOpList, &p);
+      SFltSclOperator sclOp = {
+          .colNode = nodesCloneNode(pOper->pLeft), .valNode = nodesCloneNode(pOper->pRight), .type = pOper->opType};
+      taosArrayPush(sclOpList, &sclOp);
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t fltSclCollectOperatorsFromLogicCond(SNode* pNode, SArray* sclOpList) {
+static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpList) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
     return TSDB_CODE_SUCCESS;
   }
-  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pNode;
-  //TODO: support LOGIC_COND_TYPE_OR
+  SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pNode;
+  // TODO: support LOGIC_COND_TYPE_OR
   if (pLogicCond->condType != LOGIC_COND_TYPE_AND) {
     return TSDB_CODE_SUCCESS;
   }
-  SNode* pExpr = NULL;
-  FOREACH(pExpr, pLogicCond->pParameterList) { fltSclCollectOperatorFromNode(pExpr, sclOpList);
-  }
+  SNode *pExpr = NULL;
+  FOREACH(pExpr, pLogicCond->pParameterList) { fltSclCollectOperatorFromNode(pExpr, sclOpList); }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t fltSclCollectOperators(SNode *pNode, SArray* sclOpList) {
+static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList) {
   if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
     fltSclCollectOperatorFromNode(pNode, sclOpList);
   } else if (nodeType(pNode) == QUERY_NODE_LOGIC_CONDITION) {
@@ -4435,15 +4432,16 @@ static int32_t fltSclCollectOperators(SNode *pNode, SArray* sclOpList) {
 }
 
 int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
-  SArray* sclOpList = taosArrayInit(16, POINTER_BYTES);
+  SArray *sclOpList = taosArrayInit(16, POINTER_BYTES);
   fltSclCollectOperators(*pNode, sclOpList);
-  SArray* colRangeList = taosArrayInit(16, sizeof(SFltSclColumnRange));
+  SArray *colRangeList = taosArrayInit(16, sizeof(SFltSclColumnRange));
   fltSclProcessCNF(sclOpList, colRangeList);
   pInfo->sclCtx.fltSclRange = colRangeList;
 
   for (int32_t i = 0; i < taosArrayGetSize(sclOpList); ++i) {
-    SNode* p = taosArrayGetP(sclOpList, i);
-    nodesDestroyNode(p);
+    SFltSclOperator *sclOp = taosArrayGet(sclOpList, i);
+    nodesDestroyNode(sclOp->colNode);
+    nodesDestroyNode(sclOp->valNode);
   }
   taosArrayDestroy(sclOpList);
   return TSDB_CODE_SUCCESS;
