@@ -2195,6 +2195,13 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
     SFunctionNode* pAggFunc = (SFunctionNode*)pFunc;
     if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
+      SNode* pPar = nodesListGetNode(pAggFunc->pParameterList, 0);
+      if (QUERY_NODE_COLUMN == nodeType(pPar)) {
+        SColumnNode* pCol = (SColumnNode*)pPar;
+        if (pCol->colType == COLUMN_TYPE_TAG) {
+          return false;      
+        }
+      }
       if (hasSelectFunc || QUERY_NODE_VALUE == nodeType(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         return false;
       }
@@ -2295,6 +2302,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
     lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, true);
+    nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, false);
     nodesClearList(cxt.pLastCols);
   }
