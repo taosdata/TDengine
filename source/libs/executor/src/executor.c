@@ -166,7 +166,7 @@ void doSetTaskId(SOperatorInfo* pOperator, SStorageAPI *pAPI) {
     if (pStreamScanInfo->pTableScanOp != NULL) {
       STableScanInfo* pScanInfo = pStreamScanInfo->pTableScanOp->info;
       if (pScanInfo->base.dataReader != NULL) {
-        pAPI->tsdReader.setReaderId(pScanInfo->base.dataReader, pTaskInfo->id.str);
+        pAPI->tsdReader.tsdSetReaderTaskId(pScanInfo->base.dataReader, pTaskInfo->id.str);
       }
     }
   } else {
@@ -1087,7 +1087,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
     if (pOffset->type == TMQ_OFFSET__LOG) {
       // todo refactor: move away
-      pTaskInfo->storageAPI.tsdReader.storeReaderClose(pScanBaseInfo->dataReader);
+      pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
       ASSERT(0);
@@ -1148,7 +1148,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pScanInfo->scanTimes = 0;
 
       if (pScanBaseInfo->dataReader == NULL) {
-        int32_t code = pTaskInfo->storageAPI.tsdReader.storeReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1,
+        int32_t code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1,
                                       pScanInfo->pResBlock, (void**) &pScanBaseInfo->dataReader, id, false, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           qError("prepare read tsdb snapshot failed, uid:%" PRId64 ", code:%s %s", pOffset->uid, tstrerror(code), id);
@@ -1159,8 +1159,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         qDebug("tsdb reader created with offset(snapshot) uid:%" PRId64 " ts:%" PRId64 " table index:%d, total:%d, %s",
                uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       } else {
-        pTaskInfo->storageAPI.tsdReader.storeReaderSetTableList(pScanBaseInfo->dataReader, &keyInfo, 1);
-        pTaskInfo->storageAPI.tsdReader.storeReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
+        pTaskInfo->storageAPI.tsdReader.tsdSetQueryTableList(pScanBaseInfo->dataReader, &keyInfo, 1);
+        pTaskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
         qDebug("tsdb reader offset seek snapshot to uid:%" PRId64 " ts %" PRId64 "  table index:%d numOfTable:%d, %s",
                uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       }
@@ -1189,7 +1189,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       }
 
       SMetaTableInfo mtInfo = pTaskInfo->storageAPI.snapshotFn.getTableInfoFromSnapshot(sContext);
-      pTaskInfo->storageAPI.tsdReader.storeReaderClose(pInfo->dataReader);
+      pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pInfo->dataReader);
       pInfo->dataReader = NULL;
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
@@ -1207,7 +1207,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
       int32_t        size = tableListGetSize(pTableListInfo);
 
-      pTaskInfo->storageAPI.tsdReader.storeReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, (void**) &pInfo->dataReader, NULL,
+      pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, (void**) &pInfo->dataReader, NULL,
                      false, NULL);
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
@@ -1228,7 +1228,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
              id);
     } else if (pOffset->type == TMQ_OFFSET__LOG) {
       SStreamRawScanInfo* pInfo = pOperator->info;
-      pTaskInfo->storageAPI.tsdReader.storeReaderClose(pInfo->dataReader);
+      pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pInfo->dataReader);
       pInfo->dataReader = NULL;
       qDebug("tmqsnap qStreamPrepareScan snapshot log, %s", id);
     }

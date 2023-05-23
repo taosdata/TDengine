@@ -208,7 +208,7 @@ typedef struct STableScanBase {
   SLimitInfo             limitInfo;
   // there are more than one table list exists in one task, if only one vnode exists.
   STableListInfo* pTableListInfo;
-  SStoreTSDReader     readerAPI;
+  TsdReader     readerAPI;
 } STableScanBase;
 
 typedef struct STableScanInfo {
@@ -224,7 +224,7 @@ typedef struct STableScanInfo {
   int8_t          assignBlockUid;
   bool            hasGroupByTag;
   bool            countOnly;
-  SStoreTSDReader    readerAPI;
+  TsdReader    readerAPI;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {

@@ -225,22 +225,23 @@ typedef int32_t (*__store_reader_open_fn_t)(void *pVnode, SQueryTableDataCond *p
                                             int32_t numOfTables, SSDataBlock *pResBlock, void **ppReader,
                                             const char *idstr, bool countOnly, SHashObj **pIgnoreTables);
 
-typedef struct SStoreTSDReader {
-  __store_reader_open_fn_t storeReaderOpen;
-  void (*storeReaderClose)();
-  void (*setReaderId)(void *pReader, const char *pId);
-  void (*storeReaderSetTableList)();
-  int32_t (*storeReaderNextDataBlock)();
-  int32_t (*storeReaderRetrieveBlockSMA)();
+typedef struct TsdReader {
+  __store_reader_open_fn_t tsdReaderOpen;
+  void (*tsdReaderClose)();
+  void (*tsdSetReaderTaskId)(void *pReader, const char *pId);
+  void (*tsdSetQueryTableList)();
+  int32_t (*tsdReaderNextDataBlock)();
 
-  SSDataBlock *(*storeReaderRetrieveDataBlock)();
-  void (*storeReaderReleaseDataBlock)();
+  int32_t (*tsdReaderRetrieveBlockSMAInfo)();
+  SSDataBlock *(*tsdReaderRetrieveDataBlock)();
 
-  void (*storeReaderResetStatus)();
-  void (*storeReaderGetDataBlockDistInfo)();
-  void (*storeReaderGetNumOfInMemRows)();
-  void (*storeReaderNotifyClosing)();
-} SStoreTSDReader;
+  void (*tsdReaderReleaseDataBlock)();
+
+  void (*tsdReaderResetStatus)();
+  void (*tsdReaderGetDataBlockDistInfo)();
+  void (*tsdReaderGetNumOfInMemRows)();
+  void (*tsdReaderNotifyClosing)();
+} TsdReader;
 
 /**
  * int32_t tsdbReuseCacherowsReader(void* pReader, void* pTableIdList, int32_t numOfTables);
@@ -551,7 +552,7 @@ typedef struct SStateStore {
 
 typedef struct SStorageAPI {
   SStoreMeta        metaFn;  // todo: refactor
-  SStoreTSDReader   tsdReader;
+  TsdReader   tsdReader;
   SStoreMetaReader  metaReaderFn;
   SStoreCacheReader cacheFn;
   SStoreSnapshotFn  snapshotFn;

@@ -1195,7 +1195,7 @@ void qStreamCloseTsdbReader(void* task) {
           qDebug("wait for the reader stopping");
         }
 
-        pTaskInfo->storageAPI.tsdReader.storeReaderClose(pTSInfo->base.dataReader);
+        pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
         pTSInfo->base.dataReader = NULL;
 
         // restore the status, todo refactor.
