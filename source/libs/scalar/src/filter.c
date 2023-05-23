@@ -3514,10 +3514,7 @@ int32_t fltSclCompareWithUInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
 int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
   if (val2->kind == FLT_SCL_DATUM_KIND_NULL || val2->kind == FLT_SCL_DATUM_KIND_MIN ||
       val2->kind == FLT_SCL_DATUM_KIND_MAX) {
-    if (val1->kind == FLT_SCL_DATUM_KIND_NULL || val1->kind == FLT_SCL_DATUM_KIND_MIN ||
-        val1->kind == FLT_SCL_DATUM_KIND_MAX) {
       return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
-    }
   }
 
   switch (val2->kind) {
@@ -3690,7 +3687,12 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) 
 
 int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int64_t val) {
   switch (type) {
-    case TSDB_DATA_TYPE_BOOL: {
+    case TSDB_DATA_TYPE_BOOL: 
+    case TSDB_DATA_TYPE_TINYINT: 
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT: 
+    case TSDB_DATA_TYPE_TIMESTAMP: {
       datum->kind = FLT_SCL_DATUM_KIND_INT64;
       datum->i = val;
       break;
@@ -3711,7 +3713,8 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int
     }
       // TODO:varchar/nchar/json
     default: {
-      qError("not supported");
+      datum->kind = FLT_SCL_DATUM_KIND_NULL;
+      qError("not supported type when build datum from block sma value");
       break;
     }
   }
