@@ -570,14 +570,16 @@ int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct STFi
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (op) {
-      op->fid = ppWriter[0]->config.file.fid;
-      op->oState = ppWriter[0]->config.file;
-      op->nState = ppWriter[0]->tFile;
-      if (op->oState.size == 0) {
-        op->op = TSDB_FOP_CREATE;
+      STFile *f = &ppWriter[0]->config.file;
+      op->fid = f->fid;
+      if (f->size == 0) {
+        op->of = NULL;
       } else {
-        op->op = TSDB_FOP_EXTEND;
+        op->of = &op->fArr[0];
+        op->of[0] = f[0];
       }
+      op->nf = &op->fArr[1];
+      op->nf[0] = ppWriter[0]->tFile;
     }
   }
 

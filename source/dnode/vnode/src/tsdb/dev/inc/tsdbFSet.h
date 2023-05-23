@@ -29,14 +29,6 @@ typedef TARRAY2(STFileObj *) TFileObjArray;
 typedef TARRAY2(SSttLvl *) TSttLvlArray;
 typedef TARRAY2(STFileOp) TFileOpArray;
 
-typedef enum {
-  TSDB_FOP_NONE = 0,
-  TSDB_FOP_EXTEND,
-  TSDB_FOP_CREATE,
-  TSDB_FOP_DELETE,
-  TSDB_FOP_TRUNCATE,
-} tsdb_fop_t;
-
 // init/clear
 int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset);
 int32_t tsdbTFileSetInitEx(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
@@ -52,14 +44,16 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op);
 int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *fset);
 // max commit id
 int64_t tsdbTFileSetMaxCid(const STFileSet *fset);
-
+// get
 SSttLvl *tsdbTFileSetGetLvl(STFileSet *fset, int32_t level);
+// is empty
+bool tsdbTFileSetIsEmpty(const STFileSet *fset);
 
 struct STFileOp {
-  tsdb_fop_t op;
-  int32_t    fid;
-  STFile     oState;  // old file state
-  STFile     nState;  // new file state
+  int32_t fid;
+  STFile *of;  // old file
+  STFile *nf;  // new file
+  STFile  fArr[2];
 };
 
 struct SSttLvl {

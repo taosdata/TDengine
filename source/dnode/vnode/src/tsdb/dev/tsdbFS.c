@@ -496,8 +496,15 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  {
-    // TODO: check if a file set should be deleted
+  // remove empty file set
+  int32_t i = 0;
+  while (i < TARRAY2_SIZE(fsetArray)) {
+    fset = TARRAY2_GET(fsetArray, i);
+    if (tsdbTFileSetIsEmpty(fset)) {
+      TARRAY2_REMOVE(fsetArray, i, tsdbTFileSetClear);
+    } else {
+      i++;
+    }
   }
 
 _exit:

@@ -259,35 +259,35 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
 int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
   int32_t code = 0;
 
-  if (op->oState.size == 0  //
-      || 0                  /* TODO*/
-  ) {
-    STFileObj *fobj;
-    code = tsdbTFileObjInit(pTsdb, &op->nState, &fobj);
-    if (code) return code;
+  // if (op->of.size == 0  //
+  //     || 0              /* TODO*/
+  // ) {
+  //   STFileObj *fobj;
+  //   code = tsdbTFileObjInit(pTsdb, &op->nf, &fobj);
+  //   if (code) return code;
 
-    if (fobj->f.type == TSDB_FTYPE_STT) {
-      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, fobj->f.stt.level);
-      if (!lvl) {
-        code = tsdbSttLvlInit(fobj->f.stt.level, &lvl);
-        if (code) return code;
+  //   if (fobj->f.type == TSDB_FTYPE_STT) {
+  //     SSttLvl *lvl = tsdbTFileSetGetLvl(fset, fobj->f.stt.level);
+  //     if (!lvl) {
+  //       code = tsdbSttLvlInit(fobj->f.stt.level, &lvl);
+  //       if (code) return code;
 
-        code = TARRAY2_SORT_INSERT(&fset->lvlArr, lvl, tsdbSttLvlCmprFn);
-        if (code) return code;
-      }
+  //       code = TARRAY2_SORT_INSERT(&fset->lvlArr, lvl, tsdbSttLvlCmprFn);
+  //       if (code) return code;
+  //     }
 
-      code = TARRAY2_SORT_INSERT(&lvl->farr, fobj, tsdbTFileObjCmpr);
-      if (code) return code;
-    } else {
-      fset->farr[fobj->f.type] = fobj;
-    }
-  } else if (op->nState.size == 0) {
-    // delete
-    ASSERT(0);
-  } else {
-    // modify
-    ASSERT(0);
-  }
+  //     code = TARRAY2_SORT_INSERT(&lvl->farr, fobj, tsdbTFileObjCmpr);
+  //     if (code) return code;
+  //   } else {
+  //     fset->farr[fobj->f.type] = fobj;
+  //   }
+  // } else if (op->nf.size == 0) {
+  //   // delete
+  //   ASSERT(0);
+  // } else {
+  //   // modify
+  //   ASSERT(0);
+  // }
 
   return 0;
 }
@@ -457,4 +457,11 @@ int64_t tsdbTFileSetMaxCid(const STFileSet *fset) {
     TARRAY2_FOREACH(&lvl->farr, fobj) { maxCid = TMAX(maxCid, fobj->f.cid); }
   }
   return maxCid;
+}
+
+bool tsdbTFileSetIsEmpty(const STFileSet *fset) {
+  for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset->farr[ftype] != NULL) return false;
+  }
+  return TARRAY2_SIZE(&fset->lvlArr) == 0;
 }
