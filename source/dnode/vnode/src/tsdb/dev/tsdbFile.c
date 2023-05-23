@@ -41,6 +41,11 @@ static const struct {
     [TSDB_FTYPE_STT] = {"stt", stt_to_json, stt_from_json},
 };
 
+static void remove_file(const char *fname) {
+  taosRemoveFile(fname);
+  tsdbInfo("file:%s is removed", fname);
+}
+
 static int32_t tfile_to_json(const STFile *file, cJSON *json) {
   /* did.level */
   if (cJSON_AddNumberToObject(json, "did.level", file->did.level) == NULL) {
@@ -201,7 +206,7 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
 
   taosThreadMutexInit(&fobj[0]->mutex, NULL);
   fobj[0]->f = *f;
-  fobj[0]->state = TSDB_FSTATE_EXIST;
+  fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
   tsdbTFileName(pTsdb, f, fobj[0]->fname);
   return 0;
@@ -210,23 +215,20 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
 int32_t tsdbTFileObjRef(STFileObj *fobj) {
   int32_t nRef;
   taosThreadMutexLock(&fobj->mutex);
+  ASSERT(fobj->ref > 0 && fobj->state == TSDB_FSTATE_LIVE);
   nRef = fobj->ref++;
   taosThreadMutexUnlock(&fobj->mutex);
-  ASSERT(nRef > 0);
   return 0;
 }
 
 int32_t tsdbTFileObjUnref(STFileObj *fobj) {
-  int32_t nRef;
-
   taosThreadMutexLock(&fobj->mutex);
-  nRef = --fobj->ref;
+  int32_t nRef = --fobj->ref;
   taosThreadMutexUnlock(&fobj->mutex);
   ASSERT(nRef >= 0);
   if (nRef == 0) {
-    if (fobj->state == TSDB_FSTATE_REMOVED) {
-      // TODO: add the file name
-      taosRemoveFile(fobj->fname);
+    if (fobj->state == TSDB_FSTATE_DEAD) {
+      remove_file(fobj->fname);
     }
     taosMemoryFree(fobj);
   }
@@ -234,13 +236,14 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   return 0;
 }
 
-int32_t tsdbTFileRemove(STFileObj *fobj) {
+int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   taosThreadMutexLock(&fobj->mutex);
-  fobj->state = TSDB_FSTATE_REMOVED;
+  ASSERT(fobj->state == TSDB_FSTATE_LIVE && fobj->ref > 0);
+  fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   taosThreadMutexUnlock(&fobj->mutex);
   if (nRef == 0) {
-    taosRemoveFile(fobj->fname);
+    remove_file(fobj->fname);
     taosMemoryFree(fobj);
   }
   return 0;

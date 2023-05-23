@@ -114,9 +114,18 @@ static FORCE_INLINE int32_t tarray2_make_room(  //
 #define TARRAY2_APPEND(a, e)         TARRAY2_INSERT(a, (a)->size, e)
 #define TARRAY2_APPEND_P(a, ep)      TARRAY2_APPEND(a, *(ep))
 
-#define TARRAY2_SEARCH(a, ep, cmp, flag) \
-  (((a)->size == 0) ? NULL               \
-                    : taosbsearch(ep, (a)->data, (a)->size, sizeof(typeof((a)->data[0])), (__compar_fn_t)cmp, flag))
+// return (TYPE *)
+#define TARRAY2_SEARCH(a, ep, cmp, flag)                                                                      \
+  ((typeof((a)->data))(((a)->size == 0) ? NULL                                                                \
+                                        : taosbsearch(ep, (a)->data, (a)->size, sizeof(typeof((a)->data[0])), \
+                                                      (__compar_fn_t)cmp, flag)))
+
+// return (TYPE)
+#define TARRAY2_SEARCH_EX(a, ep, cmp, flag)                   \
+  ({                                                          \
+    typeof((a)->data) __p = TARRAY2_SEARCH(a, ep, cmp, flag); \
+    __p ? __p[0] : NULL;                                      \
+  })
 
 #define TARRAY2_SEARCH_IDX(a, ep, cmp, flag)                  \
   ({                                                          \

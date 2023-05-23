@@ -21,6 +21,7 @@ static int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
   TARRAY2_INIT(&lvl[0]->farr);
   return 0;
 }
+
 static void    tsdbSttLvlClearFObj(void *data) { tsdbTFileObjUnref(*(STFileObj **)data); }
 static int32_t tsdbSttLvlClear(SSttLvl **lvl) {
   TARRAY2_CLEAR_FREE(&lvl[0]->farr, tsdbSttLvlClearFObj);
@@ -28,6 +29,7 @@ static int32_t tsdbSttLvlClear(SSttLvl **lvl) {
   lvl[0] = NULL;
   return 0;
 }
+
 static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl) {
   int32_t code = tsdbSttLvlInit(lvl1->level, lvl);
   if (code) return code;
@@ -44,6 +46,13 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
     TARRAY2_APPEND(&lvl[0]->farr, fobj);
   }
   return 0;
+}
+
+static void tsdbSttLvlRemoveFObj(void *data) { tsdbTFileObjRemove(*(STFileObj **)data); }
+static void tsdbSttLvlRemove(SSttLvl **lvl) {
+  TARRAY2_CLEAR_FREE(&lvl[0]->farr, tsdbSttLvlRemoveFObj);
+  taosMemoryFree(lvl[0]);
+  lvl[0] = NULL;
 }
 
 static int32_t tsdbSttLvlCmprFn(const SSttLvl **lvl1, const SSttLvl **lvl2) {
@@ -291,10 +300,22 @@ int32_t tsdbTFileSetClear(STFileSet **fset) {
   return 0;
 }
 
+int32_t tsdbTFileSetRemove(STFileSet **fset) {
+  for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset[0]->farr[ftype] == NULL) continue;
+    tsdbTFileObjRemove(fset[0]->farr[ftype]);
+  }
+
+  TARRAY2_CLEAR_FREE(&fset[0]->lvlArr, tsdbSttLvlRemove);
+  taosMemoryFree(fset[0]);
+  fset[0] = NULL;
+  return 0;
+}
+
 SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level) {
   SSttLvl  tlvl = {.level = level};
   SSttLvl *lvl = &tlvl;
-  return TARRAY2_SEARCH(&fset->lvlArr, &lvl, tsdbSttLvlCmprFn, TD_EQ);
+  return TARRAY2_SEARCH_EX(&fset->lvlArr, lvl, tsdbSttLvlCmprFn, TD_EQ);
 }
 
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2) {

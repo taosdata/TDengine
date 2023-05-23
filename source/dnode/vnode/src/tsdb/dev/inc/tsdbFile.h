@@ -34,8 +34,8 @@ typedef enum {
 } tsdb_ftype_t;
 
 enum {
-  TSDB_FSTATE_EXIST = 1,
-  TSDB_FSTATE_REMOVED,
+  TSDB_FSTATE_LIVE = 1,
+  TSDB_FSTATE_DEAD,
 };
 
 #define TSDB_FTYPE_MIN TSDB_FTYPE_HEAD
@@ -50,7 +50,7 @@ int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]);
 int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj);
 int32_t tsdbTFileObjRef(STFileObj *fobj);
 int32_t tsdbTFileObjUnref(STFileObj *fobj);
-int32_t tsdbTFileRemove(STFileObj *fobj);
+int32_t tsdbTFileObjRemove(STFileObj *fobj);
 int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2);
 
 struct STFile {

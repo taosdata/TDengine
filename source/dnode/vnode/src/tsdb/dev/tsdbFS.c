@@ -252,8 +252,8 @@ static int32_t apply_commit(STFileSystem *fs) {
 
     if (fset1 && fset2) {
       if (fset1->fid < fset2->fid) {
-        // delete fset1 (TODO: should set file remove)
-        TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetClear);
+        // delete fset1
+        TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetRemove);
       } else if (fset1->fid > fset2->fid) {
         // create new file set with fid of fset2->fid
         code = tsdbTFileSetInitEx(fs->pTsdb, fset2, &fset1);
@@ -270,8 +270,8 @@ static int32_t apply_commit(STFileSystem *fs) {
         i2++;
       }
     } else if (fset1) {
-      // delete fset1 (TODO: should set file remove)
-      TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetClear);
+      // delete fset1
+      TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetRemove);
     } else {
       // create new file set with fid of fset2->fid
       code = tsdbTFileSetInitEx(fs->pTsdb, fset2, &fset1);
@@ -481,7 +481,7 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
     if (!fset || fset->fid != op->fid) {
       STFileSet tfset = {.fid = op->fid};
       fset = &tfset;
-      fset = TARRAY2_SEARCH(fsetArray, &fset, tsdbTFileSetCmprFn, TD_EQ);
+      fset = TARRAY2_SEARCH_EX(fsetArray, &fset, tsdbTFileSetCmprFn, TD_EQ);
 
       if (!fset) {
         code = tsdbTFileSetInit(op->fid, &fset);
@@ -589,6 +589,6 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **fset) {
   STFileSet tfset = {.fid = fid};
   fset[0] = &tfset;
-  fset[0] = TARRAY2_SEARCH(&fs->cstate, fset, tsdbTFileSetCmprFn, TD_EQ);
+  fset[0] = TARRAY2_SEARCH_EX(&fs->cstate, fset, tsdbTFileSetCmprFn, TD_EQ);
   return 0;
 }
