@@ -122,7 +122,7 @@ extern bool    tsUseAdapter;
 // client
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
-extern int32_t tsMaxMemUsedByInsert;
+extern int32_t tsMaxInsertBatchRows;
 
 // build info
 extern char version[];
