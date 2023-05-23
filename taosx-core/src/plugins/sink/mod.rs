@@ -120,7 +120,9 @@ async fn ipc_tcp_forward(
         let mut batches = futures::stream::iter(ipc_reader.reader);
         while let Some(res) = batches.next().await {
             // dbg!(&res);
-            sender.send(res.map_err(FlightError::from)).unwrap();
+            if let Err(err) = sender.send(res.map_err(FlightError::from)) {
+                log::warn!("sender send error: {}", err.to_string());
+            }
         }
         log::error!("[task:{task_id}] stopped");
     });
