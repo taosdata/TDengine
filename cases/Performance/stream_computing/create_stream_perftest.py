@@ -11,7 +11,6 @@
 
 # -*- coding: utf-8 -*-
 
-import os
 from taostest.util.file import read_yaml
 from taostest.util.common import TDCom
 from typing import List
@@ -19,30 +18,21 @@ from taostest import TDCase
 from taostest.components.taosd import TaosD
 from taostest.util.remote import Remote
 from datetime import datetime,timedelta
-from taostest.performance.perfor_basic import InsertFile
 from taostest.performance.result_reduction import Perf_Base_func
-import json
-import psutil
 import threadpool
-
 
 class CreateStreamPerftest(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
         self.taosd = TaosD(self._remote)
-        self.taosd_setting = self.tdCom.get_components_setting(
-            self.env_setting["settings"], "taosd"
-        )
         self.result_file_name = self.run_log_dir + '/perf_report.txt'
-        self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = 1
         self.vgroups = 40
         self.create_table_thread_count = 40
         self.thread_count = 40
-        self.childtable_count = 1000
-        self.childtable_count_list = [1000, 10000]
-        self.vgroups_list = [10, 40]
+        self.childtable_count_list = [10000]
+        self.vgroups_list = [40]
         self.stream_count = 60
         self.insert_rows = 0
         self.stbname = "stb"
@@ -71,7 +61,6 @@ class CreateStreamPerftest(TDCase):
         taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
         file_name1 = "insert0.json"
         json_filename_list.append(file_name1)
-        childtable_count = self.childtable_count
         insert_rows = self.insert_rows
         
         column_info_list = [
@@ -132,9 +121,7 @@ class CreateStreamPerftest(TDCase):
                         self.tdCom.put_file(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, self.run_log_dir)
                         self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
                         result_dict_list = list()
-                        sql_list = list()
                         self.tdCom.drop_all_streams()
-                        pool = threadpool.ThreadPool(10)
                         timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
                         
                         
@@ -144,12 +131,14 @@ class CreateStreamPerftest(TDCase):
                             create_start = datetime.now().timestamp()
                             self.tdCom.create_stream(stream_name=f'stream_max_test{i}', des_table=f'{self.stream_dbname}.output_stream_tb{i}', trigger_mode="at_once", fill_history_value=fill_history_value, source_sql=stream_sql)
                             create_end = datetime.now().timestamp()
-                            create_use = int(create_end-create_start)
+                            create_use = round(create_end-create_start, 1)
                             result_dict["stream_no"] = str(i)
                             result_dict["create_use_time"] = f'{create_use}s'
                             result_dict_list.append(result_dict)
                             
                         # # n thread
+                        # sql_list = list()
+                        # pool = threadpool.ThreadPool(10)
                         # for i in range(self.stream_count):
                         #     stream_name=f'stream_max_test{i}'
                         #     des_table = f'{self.stream_dbname}.output_stream_tb{i}'
@@ -168,39 +157,3 @@ class CreateStreamPerftest(TDCase):
                         env_setting = self.get_component_by_name("prometheus")
                         Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
                         Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-        # self._remote.cmd(host, [f'cp -r {self.run_log_dir}/perf_report.txt {self.run_log_dir}/perf_report0_1.txt'])
-
-
-
-            # stb_into = [self.tdCom.setStbinfo(columns=column_info_list, tags=tag_info_list, childtable_count=childtable_count, insert_rows=insert_rows, start_timestamp=start_timestamp, child_table_exists=child_table_exists)]
-            # self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
-
-        # taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
-        # json_data: List = []
-        # file_name = []
-        # test_root = os.environ['TEST_ROOT']
-        # cfg = read_yaml(test_root + "/cases/stability/insert/long_insert/insert.yaml")
-
-        # jfile = InsertFile()
-        # Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
-        # self.tdSql.execute(f'drop database if exists perf_test')
-        # timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-        # # # run taosBenchmark
-        # taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
-        # result_filename = Insert_file.threads_run_taosBenchmark(
-        #     taosBenchmark_iplist, json_data, file_name, taosBenchmark_env_setting
-        # )
-
-        # timestamp_end = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-        # # get insert result
-        # # Insert_file.full_create_tb_result(result_filename)
-        # Insert_file.taosBenchmark_insert_summary_result(
-        #     result_filename, version="3.0"
-        # )
-        # Insert_file.taosBenchmark_id_insert_result(result_filename)
-
-        # # get node_info and process_info
-        # env_setting = self.get_component_by_name("prometheus")
-        # Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-        # Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-        # print(self.result_file_name)
