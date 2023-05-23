@@ -1292,6 +1292,16 @@ static int32_t smaIndexOptFindSmaFunc(SNode* pQueryFunc, SNodeList* pSmaFuncs) {
   return -1;
 }
 
+static SNode* smaIndexOptFindWStartFunc(SNodeList* pSmaFuncs) {
+  SNode* pSmaFunc = NULL;
+  FOREACH(pSmaFunc, pSmaFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pSmaFunc) && FUNCTION_TYPE_WSTART == ((SFunctionNode*)pSmaFunc)->funcType) {
+      return pSmaFunc;
+    }
+  }
+  return NULL;
+}
+
 static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNodeList* pSmaFuncs,
                                         SNodeList** pOutput) {
   SNodeList* pCols = NULL;
@@ -1310,14 +1320,8 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
         break;
       }
       if (!hasWStart) {
-        SColumnNode* pTail = (SColumnNode*)pCols->pTail->pNode;
-        if (pTail->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-          if (pTail->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-            hasWStart = true;
-          } else {
-            nodesDestroyList(pCols);
-            return TSDB_CODE_APP_ERROR;
-          }
+        if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pCols->pTail->pNode)->colId) {
+          hasWStart = true;
         }
       }
     }
@@ -1326,8 +1330,13 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
 
   if (TSDB_CODE_SUCCESS == code && smaFuncIndex >= 0) {
     if (!hasWStart) {
+      SNode* pWsNode = smaIndexOptFindWStartFunc(pSmaFuncs);
+      if (!pWsNode) {
+        nodesDestroyList(pCols);
+        return TSDB_CODE_APP_ERROR;
+      }
       SExprNode exprNode;
-      exprNode.resType = ((SExprNode*)pSmaFuncs->pHead->pNode)->resType;
+      exprNode.resType = ((SExprNode*)pWsNode)->resType;
       sprintf(exprNode.aliasName, "#expr_%d", index + 1);
       SNode* pkNode = smaIndexOptCreateSmaCol((SNode*)&exprNode, tableId, PRIMARYKEY_TIMESTAMP_COL_ID);
       code = nodesListPushFront(pCols, pkNode);
