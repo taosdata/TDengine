@@ -289,9 +289,9 @@ async fn consume_lush_record(
                                         temp_column_value_pair.0.push('`');
                                         temp_column_value_pair.0.push_str(columns[index].as_str());
                                         temp_column_value_pair.0.push_str("`,");
-                                        temp_column_value_pair.1.push('\'');
+                                        // temp_column_value_pair.1.push('\'');
                                         temp_column_value_pair.1.push_str(v.into_value().to_sql_value().as_str());
-                                        temp_column_value_pair.1.push('\'');
+                                        // temp_column_value_pair.1.push('\'');
                                         temp_column_value_pair.1.push_str(",");
                                     } else {
                                         // ignore null columnview
