@@ -9,6 +9,7 @@
       :dbName="dbName"
       :tagName="tagName"
       :protocol="protocol"
+      :mqttParser='mqttParser'
       :isEditable="isEditable"
       ref="table"
     ></component>
@@ -25,7 +26,8 @@ export default {
   components: {
     dbsource: DataSource,
     ui: DbSourceUI,
-    opcui: OpcUI,
+    opcui: OpcUI
+    
   },
   data() {
     return {
@@ -38,6 +40,7 @@ export default {
       dbName: "",
       isEditable: false,
       agentID: "",
+      mqttParser:null
     };
   },
   created() {

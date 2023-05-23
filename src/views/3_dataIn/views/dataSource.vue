@@ -116,7 +116,7 @@
         </el-table-column>
       </el-table>
       <div v-if="dialog">
-        <AddDialog :typeList="typeList" @closeDialog="closeDialog" @addAgent="addAgent"></AddDialog>
+        <AddDialog :typeList="typeList" @closeDialog="closeDialog" @addAgent="addAgent" @showMqttDialog="showMqttDialog"></AddDialog>
       </div>
       <el-pagination
         class="pagination"
@@ -131,6 +131,9 @@
     <div class="agent" style="margin-top: 20px;">
       <Agents ref="agents"/>
     </div>
+    <div v-if="mqttdialog">
+      <MqttParserDialog @closeMqttDialog='closeMqttDialog'></MqttParserDialog>
+    </div>
   </div>
 </template>
 <script>
@@ -138,10 +141,11 @@ import { Message } from "element-ui";
 import { getDatain } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
+import MqttParserDialog from "../components/mqttConnector.vue";
 import Agents from '../components/agents.vue'
 export default {
   name: "DataSource",
-  components: { AddDialog, Agents },
+  components: { AddDialog, Agents, MqttParserDialog},
   props: {
     sourceList: {
       type: Array,
@@ -157,25 +161,25 @@ export default {
 
   data() {
     return {
+      disable:true,
       typeList: [],
-
+      mqttdialog: false,
       dbsource: null,
       pageSize: 10,
       currentPage: 1,
       total: 10,
       dialog: false,
-
-      // rules:{
-      //   agent:[
-      //     {
-      //       required:true,
-      //     }
-      //   ]
-      // },
       topicList: [],
     };
   },
   methods: {
+    
+    closeMqttDialog(){
+      this.mqttdialog=false
+    },
+    showMqttDialog(){
+      this.mqttdialog=true
+    },
     handlePageChange() {},
     //非root用户不能修改root下创建的数据源
     getEditStatus(data) {
@@ -189,8 +193,8 @@ export default {
         } else {
           return false;
         }
-      }else{
-        return false
+      } else {
+        return false;
       }
     },
     del(data) {
@@ -251,8 +255,7 @@ export default {
         return Promise.reject(err);
       }
     },
-    
-   
+
     start(data, index) {
       try {
         this.$confirm(

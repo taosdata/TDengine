@@ -8,6 +8,7 @@ process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos
 export default {
   //通用部分
   disbleagent:'Disable Agent',
+  database:'Database',
   warning:'Warning',
   ok:'OK',
   changepwdtip:'Password is successfully changed, please log in again',
@@ -1098,6 +1099,17 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
+    mqtttitle:'MQTT Payload Parser',
+    colname:'Column Name',
+    rename:'Rename',
+    coltype:'Type',
+    addmqtttip:'Column name, rename, type cannot be empty before adding',
+    subname:'Sub Table',
+    supertable:'Super Table',
+    delcol:'Are you sure to delete?',
+    subtip:'Please enter the sub table',
+    supertip:'Please enter the super table',
+    tagtip:'Please enter the tag name',
     iptip:'Please enter the correct IP address',
     porttip:'Please enter the correct Port',
     ok:'OK',

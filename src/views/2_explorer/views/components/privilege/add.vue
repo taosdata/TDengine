@@ -17,10 +17,10 @@
           ></el-option>
         </el-select>
       </el-form-item>
-      <el-form-item :label="$t('role')" prop="roles">
+      <el-form-item :label="$t('database')" prop="roles">
         <el-checkbox-group v-model="checkList" class="check-role" :min="1">
-          <el-checkbox label="Data Reader"></el-checkbox>
-          <el-checkbox label="Data Writer"></el-checkbox>
+          <el-checkbox label="Read"></el-checkbox>
+          <el-checkbox label="Write"></el-checkbox>
           <!-- <el-checkbox label="Database Admin"></el-checkbox> -->
         </el-checkbox-group>
       </el-form-item>
