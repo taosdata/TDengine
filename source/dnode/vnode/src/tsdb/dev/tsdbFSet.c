@@ -298,10 +298,10 @@ int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *f
   ASSERT(fset1->fid == fset2->fid);
 
   for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (!fset1->farr[ftype] && !fset2->farr[ftype]) continue;
+
     STFileObj *fobj1 = fset1->farr[ftype];
     STFileObj *fobj2 = fset2->farr[ftype];
-
-    if (!fobj1 && !fobj2) continue;
 
     if (fobj1 && fobj2) {
       if (tsdbIsSameTFile(&fobj1->f, &fobj2->f)) {
