@@ -4401,7 +4401,7 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
     SValueNode *valNode = (SValueNode *)pOper->pRight;
     if (IS_NUMERIC_TYPE(valNode->node.resType.type) || valNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
       SFltSclOperator sclOp = {
-          .colNode = nodesCloneNode(pOper->pLeft), .valNode = nodesCloneNode(pOper->pRight), .type = pOper->opType};
+          .colNode = (SColumnNode*)nodesCloneNode(pOper->pLeft), .valNode = (SValueNode*)nodesCloneNode(pOper->pRight), .type = pOper->opType};
       taosArrayPush(sclOpList, &sclOp);
     }
   }
@@ -4440,8 +4440,8 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat)
 
   for (int32_t i = 0; i < taosArrayGetSize(sclOpList); ++i) {
     SFltSclOperator *sclOp = taosArrayGet(sclOpList, i);
-    nodesDestroyNode(sclOp->colNode);
-    nodesDestroyNode(sclOp->valNode);
+    nodesDestroyNode((SNode*)sclOp->colNode);
+    nodesDestroyNode((SNode*)sclOp->valNode);
   }
   taosArrayDestroy(sclOpList);
   return TSDB_CODE_SUCCESS;
