@@ -168,17 +168,19 @@ public class BucketThread implements Runnable {
         String endTime = this.taskConfig.getEndTime();
         String readWindow = this.performanceConfig.getReadWindow();
         // 判断开始时间与结束时间
-        if (StringUtils.isEmpty(beginTime) || !beginTime.matches(DateUtils.PATTERN_YMD)) {
+        if (StringUtils.isEmpty(beginTime)) {
             throw new Exception("parameter beginTime configuration error.");
-        } else {
-            // beginTime += " 00:00:00";
+        } else if (beginTime.matches(DateUtils.PATTERN_YMD)) {
+            beginTime += " 00:00:00";
+        } else if (!beginTime.matches(DateUtils.PATTERN_YMDHMS)) {
+            throw new Exception("parameter beginTime configuration error.");
         }
         if (StringUtils.isEmpty(endTime)) {
             endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_15);
-        } else if (!endTime.matches(DateUtils.PATTERN_YMD)) {
+        } else if (endTime.matches(DateUtils.PATTERN_YMD)) {
+            endTime += " 23:59:59";
+        } else if (!endTime.matches(DateUtils.PATTERN_YMDHMS)) {
             throw new Exception("parameter endTime configuration error.");
-        } else {
-            // endTime += " 23:59:59";
         }
         // 转换格式
         Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_15);
