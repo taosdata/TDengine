@@ -7,8 +7,8 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  disbleagent:'不启用代理',
   database:'数据库',
-  enableagent:'启用代理',
   warning:'提醒',
   ok:'确定',
   changepwdtip:'密码修改成功，请重新登录',
@@ -335,7 +335,7 @@ export default {
     nameTip: "数据库名称必填!",
     daysTip: "数据文件存储数据的时间跨度，</br> 默认为：10",
     precisionTip: "数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒",
-    keepTip: "数据文件的保存天数，缺省值是 3650 天，超出 KEEP 所指定的保存天数的数据文件会被自动删除。支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位。",
+    keepTip: "数据文件的保存天数，缺省值是 3650 天，超出 KEEP 所指定的保存天数的数据文件会被自动删除。支持 m（分钟）、h（小时）和 d（天）三个单位。也可以都不写单位。",
     cacheLastTip: `子表last_row是否缓存在内存中<br />
     范围：0-3<br />
     0：关闭；<br />
@@ -456,6 +456,8 @@ export default {
     info: "信息",
     databaseInfo: "数据库信息",
     stableInfo: "超级表信息",
+    CHILD_TABLEInfo: "子表信息",
+    NORMAL_TABLEInfo: '表信息',
     tableInfo: "子表信息",
     persionalFavorites: "个人收藏",
     sharedFavorites: "共享收藏",
@@ -759,6 +761,8 @@ export default {
     version: '版本',
     users:'用户',
     license:'许可证',
+    stables: "超级表",
+    tables: "表",
     select_topic_tip:'请选择订阅主题',
     add_new_user:'添加新用户',
     expire_time:'过期时间',

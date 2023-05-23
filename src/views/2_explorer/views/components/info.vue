@@ -28,7 +28,7 @@
               <el-table-column
                 :show-overflow-tooltip="true"
                 :label="infoType=='stable'?'type':(infoData.stable_name?'value':'type')"
-                prop="value"
+                :prop="infoType=='stable'?'value':(infoData.stable_name?'value':'type')"
                 :width="infoType == 'stable' ? 100 : 150"
               >
               </el-table-column>

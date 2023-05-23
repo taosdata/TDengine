@@ -892,11 +892,7 @@ export default {
                   data.groups[index].params[g].name === "BackfillStartTime" ||
                   data.groups[index].params[g].name === "BackfillEndTime"
                 ) {
-                  data.groups[index].params[g].value = moment(
-                    data.groups[index].params[g].value
-                  )
-                    .utc()
-                    .format();
+                  data.groups[index].params[g].value = moment(data.groups[index].params[g].value).format()
                 }
                 querystr +=
                   `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +

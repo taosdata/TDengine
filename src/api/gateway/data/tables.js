@@ -114,6 +114,7 @@ export function handleColumnData(data) {
       result.typeName = "column";
     }
     result.type = handleBinaryType(item.type, item.length);
+    result.dataType = handleBinaryType(item.type, item.length);
     result["node-key"] = result.name + result.dataType;
     result.leaf = true;
     res.push(result);
