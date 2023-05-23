@@ -304,7 +304,8 @@ async fn consume_lush_record(
                                 i = i + 1;
                             }   
                         }
-                        column_value_pairs.into_iter().for_each(|(mut c, mut v)| {
+                        let mut count = 0;
+                        for (mut c, mut v) in column_value_pairs {
                             let mut column_names = String::from("(");
                             let mut values = String::from("(");
                             c.pop();
@@ -315,16 +316,17 @@ async fn consume_lush_record(
                             values.push(')');
                             let sql = format!("insert into `{table_name}` {column_names} VALUES {values}");
                             log::debug!("sql: {sql}");
-                            let res = taos.exec_sync(sql);
+                            let res = taos.exec(sql).await;
                             match res {
                                 Ok(num) => {
-                                    info!("written [{num}] records for table {table_name}");
+                                    count = count + num;
                                 }
                                 Err(err) => {
                                     log::error!("written err for {table_name} cause: {}", err);
                                 }
                             }
-                        });
+                        }
+                        info!("written [{count}] records for table {table_name}");
                     } else {
                         stmt.bind(data_vec.as_slice())?;
                         stmt.add_batch().unwrap();
