@@ -70,7 +70,7 @@ if [ "$pagMode" == "lite" ]; then
   taostools_bin_files=""
 else
   if [ "$verMode" == "cloud" ]; then
-    taostools_bin_files="${build_dir}/bin/taosBenchmark"
+    taostools_bin_files=" ${build_dir}/bin/taosBenchmark"
   else
     wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
       && echo "TDinsight.sh downloaded!" \
