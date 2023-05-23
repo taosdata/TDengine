@@ -557,8 +557,9 @@ pub(super) fn get_string_vec_from_param_or_file(
         for file in files {
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
-                // log::warn!("file: {} read error", file);
-                return Err("file read error".to_string());
+                log::warn!("file: {} read error", file);
+                continue;
+                // return Err("file read error".to_string());
             }
             let buf = std::io::BufReader::new(f.unwrap());
             let mut file_data = buf.lines().collect_vec();
@@ -575,8 +576,8 @@ pub(super) fn get_string_vec_from_param_or_file(
             );
         }
         if node_config.len() == 0 {
-            // log::warn!("node config is empty");
-            return Err(format!("node config set but is empty: {nodes}"));
+            log::warn!("node config is empty");
+            // return Err(format!("node config set but is empty: {nodes}"));
         }
         return Result::Ok(node_config);
     }
