@@ -4,6 +4,8 @@ using System;
 using System.ServiceProcess;
 using TDPIConnector.Core;
 using System.Threading;
+using System.Reflection;
+using System.Linq;
 
 namespace TDPIConnector.Service
 {
@@ -14,24 +16,42 @@ namespace TDPIConnector.Service
             Backfill,
             PrintPIInfo
         };
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
-        /// 
-        const string version = "1.2.0.0";
+        private static bool logInit = LogInit();
         private static readonly ILog logger = LogManager.GetLogger(typeof(Program));
-        static void Main(string[] args)
+        private static bool LogInit()
         {
             GlobalContext.Properties["applicationName"] = "pi-connector";
             XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
-            //Installer installer = new Installer();
-            //installer.OnBeforeInstall(null, null);
-            logger.Info($"TD PI start, version:{version}");
+            return true;
+        }
+        static void PrintVersion() {
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            var cus_ttributes = assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>();
+            var build_time = cus_ttributes.FirstOrDefault(a => a.Key == "BuildTime").Value;
+            var commit = cus_ttributes.FirstOrDefault(a => a.Key == "Commit").Value;
 
+            AssemblyName assemblyName = assembly.GetName();
+            Version version = assemblyName.Version;
+
+            logger.Info("PI Connector version is: " + version);
+            logger.Info("PI Connector commit is: " + commit);
+            logger.Info("PI Connector build at: " + build_time);
+            Console.WriteLine("PI Connector");
+            Console.WriteLine($"    Version : {version}");
+            Console.WriteLine($"    Commit : {commit}");
+            Console.WriteLine($"    Build Time : {build_time}");
+        }
+        static void Main(string[] args)
+        {
             if (args != null && args.Length == 1 && (args[0][0] == '-' || args[0][0] == '/'))
             {
                 switch (args[0].Substring(1).ToLower())
                 {
+                    case "version":
+                    case "v":
+                        PrintVersion();
+                        return;
                     case "install":
                     case "i":
                         if (!ServiceInstallerUtility.InstallService())
@@ -48,7 +68,6 @@ namespace TDPIConnector.Service
                 }
                 Environment.Exit(0);
             }
-
             WorkMode workMode = WorkMode.Observer;
 
             string tomlConfigFile = "";
@@ -84,7 +103,7 @@ namespace TDPIConnector.Service
             }
             catch (Exception ex)
             {
-                logger.Fatal("Invalid JSON configuration for ", ex);
+                logger.Fatal("Init Failed! Please check toml config file.", ex);
                 return;
             }
 
@@ -97,6 +116,7 @@ namespace TDPIConnector.Service
             // console mode
             else if (Environment.UserInteractive)
             {
+                PrintVersion();
                 logger.Info("Running in console mode");
 
                 service.Start();
@@ -117,6 +137,7 @@ namespace TDPIConnector.Service
             }
             else
             {
+                PrintVersion();
                 logger.Info("Running in service mode");
                 ServiceBase.Run(servicesToRun);
             }

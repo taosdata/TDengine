@@ -10,6 +10,7 @@ namespace TDBackfill
             End = DateTime.MaxValue;
         }
         public bool Help { get; internal set; }
+        public bool ShowVersion { get; internal set; }
         public bool DropTables { get; internal set; }
         public bool BackfillAll { get; internal set; }
         public bool BackfillToFirstRecorded { get; internal set; }
