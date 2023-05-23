@@ -572,16 +572,16 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 //    atomic_add_fetch_32(&pHandle->epoch, 1);
 
     // kill executing task
-    if(tqIsHandleExec(pHandle)) {
-      qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
-      if (pTaskInfo != NULL) {
-        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
-      }
+//    if(tqIsHandleExec(pHandle)) {
+//      qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
+//      if (pTaskInfo != NULL) {
+//        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
+//      }
 
 //      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
 //        qStreamCloseTsdbReader(pTaskInfo);
 //      }
-    }
+//    }
     // remove if it has been register in the push manager, and return one empty block to consumer
     tqUnregisterPushHandle(pTq, pHandle);
     taosWUnLockLatch(&pTq->lock);
