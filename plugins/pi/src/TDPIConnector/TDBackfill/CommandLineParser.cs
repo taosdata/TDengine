@@ -20,6 +20,10 @@ namespace TDBackfill
                 {
                     options.Help = true;
                 }
+                else if (args[i] == "-v" || args[i] == "--version")
+                {
+                    options.ShowVersion = true;
+                }
                 else if (args[i] == "-drop" || args[i] == "--drop-table")
                 {
                     options.DropTables = true;
