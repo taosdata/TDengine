@@ -7,6 +7,7 @@ add_subdirectory(mgmt_vnode)
 add_subdirectory(mgmt_dnode)
 add_subdirectory(test)
 
+LINK_DIRECTORIES("${TD_SOURCE_DIR}/contrib/rocksdb_linux")
 aux_source_directory(exe EXEC_SRC)
 add_executable(taosd ${EXEC_SRC})
 target_include_directories(

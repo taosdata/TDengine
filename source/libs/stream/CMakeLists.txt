@@ -20,7 +20,7 @@ if(${BUILD_WITH_ROCKSDB_SOURCE})
 
   add_definitions(-DUSE_ROCKSDB)
 else() 
-  LINK_DIRECTORIES("${TD_SOURCE_DIR/contrib/rocksdb_linux}")
+  LINK_DIRECTORIES("${TD_SOURCE_DIR}/contrib/rocksdb_linux")
   target_link_libraries(
     stream
     PUBLIC rocksdb tdb
