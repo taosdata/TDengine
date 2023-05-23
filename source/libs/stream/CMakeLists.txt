@@ -6,7 +6,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-if(${BUILD_WITH_ROCKSDB})
+if(${BUILD_WITH_ROCKSDB_SOURCE})
   target_link_libraries(
     stream
     PUBLIC rocksdb tdb
@@ -19,7 +19,22 @@ if(${BUILD_WITH_ROCKSDB})
   )
 
   add_definitions(-DUSE_ROCKSDB)
-endif(${BUILD_WITH_ROCKSDB})
+else() 
+  LINK_DIRECTORIES("${TD_SOURCE_DIR/contrib/rocksdb_linux}")
+  target_link_libraries(
+    stream
+    PUBLIC rocksdb tdb
+    PRIVATE  os util transport qcom executor wal
+  )
+
+  target_include_directories(
+    stream
+    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb_linux"
+  )
+  add_definitions(-DUSE_ROCKSDB)
+endif(${BUILD_WITH_ROCKSDB_SOURCE})
+
+
 
 
 #target_link_libraries(

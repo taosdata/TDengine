@@ -176,3 +176,18 @@ option(
    "If build release version"
    OFF
 )
+
+IF(${TD_LINUX})
+    option(
+        BUILD_WITH_ROCKSDB_SOURCE
+        "If not build with rocksdb source"
+        OFF
+) 
+ELSE() 
+    option(
+        BUILD_WITH_ROCKSDB_SOURCE
+        "If build with rocksdb source"
+        ON
+)
+ENDIF(${TD_LINUX})
+

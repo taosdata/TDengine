@@ -1,7 +1,7 @@
 # rocksdb
-if(${BUILD_WITH_ROCKSDB})
+if(${BUILD_WITH_ROCKSDB_SOURCE})
     add_subdirectory(rocksdb)
-endif(${BUILD_WITH_ROCKSDB})
+endif(${BUILD_WITH_ROCKSDB_SOURCE})
 
 if(${BUILD_WITH_LUCENE})
     add_subdirectory(lucene)

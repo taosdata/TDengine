@@ -1624,11 +1624,12 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamInt
 }
 
 void initStreamFunciton(SqlFunctionCtx* pCtx, int32_t numOfExpr) {
+  if (pCtx == NULL) return;
   pCtx->saveHandle.stateGetFunc = streamStateFuncGetVoid;
   pCtx->saveHandle.statePutFunc = streamStateFuncPutVoid;
-  for (int32_t i = 0; i < numOfExpr; i++) {
-    //    pCtx[i].isStream = true;
-  }
+  // for (int32_t i = 0; i < numOfExpr; i++) {
+  //   //    pCtx[i].isStream = true;
+  // }
 }
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode,

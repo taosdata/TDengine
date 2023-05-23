@@ -79,6 +79,7 @@ IF (TD_VNODE_PLUGINS)
   )
 ENDIF ()
 
+if (${BUILD_WITH_ROCKSDB_SOUCE})
 target_include_directories(
     vnode
     PUBLIC "inc"
@@ -106,6 +107,37 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
 )
+else() 
+  LINK_DIRECTORIES("${TD_SOURCE_DIR}/contrib/rocksdb_linux")
+target_include_directories(
+    vnode
+    PUBLIC "inc"
+    PUBLIC "src/inc"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb_linux"
+)
+target_link_libraries(
+    vnode
+    PUBLIC os
+    PUBLIC util
+    PUBLIC common
+    PUBLIC tfs
+    PUBLIC wal
+    PUBLIC qworker
+    PUBLIC sync
+    PUBLIC executor
+    PUBLIC scheduler
+    PUBLIC tdb
+
+    # PUBLIC bdb
+    # PUBLIC scalar
+    PUBLIC rocksdb
+    PUBLIC transport
+    PUBLIC stream
+    PUBLIC index
+)
+
+endif(${BUILD_WITH_ROCKSDB_SOUCE})
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
@@ -120,6 +152,10 @@ endif(${BUILD_WITH_INVERTEDINDEX})
 if(${BUILD_WITH_ROCKSDB})
     add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
+
+if(${BUILD_WITH_ROCKSDB_SOURCE})
+    add_definitions(-DUSE_ROCKSDB)
+endif(${BUILD_WITH_ROCKSDB_SOURCE})
 
 
 
