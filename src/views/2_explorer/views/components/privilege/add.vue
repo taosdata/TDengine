@@ -50,7 +50,7 @@ export default {
   },
   data() {
     return {
-      checkList: ["Data Reader"],
+      checkList: ["Read"],
       info: {
         user_name: "",
         roles: [],
@@ -60,9 +60,9 @@ export default {
       userList: [],
 
       grantMap: new Map([
-        ["Data Writer", "WRITE"],
+        ["Write", "WRITE"],
         // ["Database Admin", "ALL"],
-        ["Data Reader", "READ"],
+        ["Read", "READ"],
       ]),
     };
   },

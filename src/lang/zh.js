@@ -718,6 +718,7 @@ export default {
     delay: "Watermark",
     slidingPeriod: "滑动时间",
     intervalPeriod: "间隔周期",
+    intervaloffset:"间隔偏移量",
     windowClause: "窗口设置",
     stableUpper: "超级表",
     tableUpper: "表",
