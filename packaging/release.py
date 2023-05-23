@@ -15,6 +15,7 @@ def get_current_commit():
 
 
 mqtt_version = "1.0.0"
+opc_version = "1.0.0"
 commit_id = get_current_commit()
 current_day = datetime.now().strftime("%Y-%m-%d")
 cus_name = "TDengine"
@@ -110,7 +111,11 @@ def build_and_install_opc_on_windows():
     os.environ["GOOS"] = "windows"
     os.environ["GOARCH"] = "386"
     opc_app_name = "opc-collector.exe"
-    os.system(f"go build -o dist/windows_386/{opc_app_name}")
+    os.system(f"go build -ldflags "
+              f"\"-s -w -X 'collector/version.Version={opc_version}' "
+              f"-X 'collector/version.BuildAt={current_day}' "
+              f"-X 'collector/version.CommitID={commit_id}'\" "
+              f"-o dist/windows_386/{opc_app_name}")
 
     opc_install_path = os.path.join(install_path, "xplugins", "opc")
     init_directory(opc_install_path)
