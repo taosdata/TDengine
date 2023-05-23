@@ -140,8 +140,8 @@ namespace TDBackfill
                 }
                 catch (Exception e)
                 {
-                    log.Fatal("Error starting the application.", e);
-                    throw e;
+                    log.Fatal("TDengine verify failed!", e);
+                    return;
                 }
 
                 try
@@ -159,8 +159,8 @@ namespace TDBackfill
                 }
                 catch (Exception e)
                 {
-                    log.Fatal("Error starting the application.", e);
-                    throw e;
+                    log.Fatal("PI System connect failed!.", e);
+                    return;
                 }
 
                 BackfillManager backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy);
@@ -178,6 +178,7 @@ namespace TDBackfill
                 catch (Exception e)
                 {
                     log.Error("Error backfilling PI Points", e.InnerException);
+                    return;
                 }
 
                 try
@@ -198,10 +199,10 @@ namespace TDBackfill
                 catch (Exception e)
                 {
                     log.Error("Error backfilling AF Elements", e.InnerException);
+                    return;
                 }
 
-                Console.WriteLine("Press any key to exit...");
-                Console.ReadKey();
+                Console.WriteLine("Backfill finished, exit.");
             }
         }
     }
