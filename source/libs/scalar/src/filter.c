@@ -4378,6 +4378,7 @@ int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
       taosArrayDestroy(points);
       colRange->points = merged;
     } else {
+      taosArrayDestroy(colRange->points);
       colRange->points = points;
     }
 
