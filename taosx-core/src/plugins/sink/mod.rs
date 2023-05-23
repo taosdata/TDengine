@@ -122,6 +122,7 @@ async fn ipc_tcp_forward(
             // dbg!(&res);
             if let Err(err) = sender.send(res.map_err(FlightError::from)) {
                 log::warn!("sender send error: {}", err.to_string());
+                break;
             }
         }
         log::error!("[task:{task_id}] stopped");
