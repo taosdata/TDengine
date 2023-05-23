@@ -261,6 +261,7 @@ static int32_t apply_commit(STFileSystem *fs) {
         code = TARRAY2_SORT_INSERT(fsetArray1, fset1, tsdbTFileSetCmprFn);
         if (code) return code;
         i1++;
+        i2++;
       } else {
         // edit
         code = tsdbTFileSetEditEx(fset2, fset1);
@@ -278,6 +279,7 @@ static int32_t apply_commit(STFileSystem *fs) {
       code = TARRAY2_SORT_INSERT(fsetArray1, fset1, tsdbTFileSetCmprFn);
       if (code) return code;
       i1++;
+      i2++;
     }
   }
 
