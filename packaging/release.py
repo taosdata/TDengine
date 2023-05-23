@@ -178,6 +178,9 @@ def build_and_install_pi():
 
     pi_install_path = os.path.join(install_path, "xplugins", "pi")
     init_directory(pi_install_path)
+    if not os.path.isdir(pi_install_path):
+        print(f"Error: {pi_install_path} is not a directory, delete it and retry")
+        sys.exit()
 
     backfill_path = os.path.join(pi_connector_path, "TDBackfill", "bin", "Release")
     for filename in os.listdir(backfill_path):

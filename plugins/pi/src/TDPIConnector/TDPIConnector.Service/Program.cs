@@ -16,12 +16,14 @@ namespace TDPIConnector.Service
             Backfill,
             PrintPIInfo
         };
-
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
-        /// 
+        private static bool logInit = LogInit();
         private static readonly ILog logger = LogManager.GetLogger(typeof(Program));
+        private static bool LogInit()
+        {
+            GlobalContext.Properties["applicationName"] = "pi-connector";
+            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
+            return true;
+        }
         static void PrintVersion() {
             Assembly assembly = Assembly.GetExecutingAssembly();
             var cus_ttributes = assembly
@@ -38,8 +40,6 @@ namespace TDPIConnector.Service
         }
         static void Main(string[] args)
         {
-            GlobalContext.Properties["applicationName"] = "pi-connector";
-            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             PrintVersion();
             if (args != null && args.Length == 1 && (args[0][0] == '-' || args[0][0] == '/'))
             {

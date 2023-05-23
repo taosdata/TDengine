@@ -11,9 +11,15 @@ namespace TDBackfill
 {
     internal class Program
     {
-        //private static readonly ILog logger = LogManager.GetLogger(typeof(Program));
+        private static bool logInit = LogInit();
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
+        private static bool LogInit()
+        {
+            GlobalContext.Properties["applicationName"] = "backfill";
+            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
+            return true;
+        }
         static void PrintVersion()
         {
             Assembly assembly = Assembly.GetExecutingAssembly();
@@ -31,8 +37,6 @@ namespace TDBackfill
         }
         static void Main(string[] args)
         {
-            GlobalContext.Properties["applicationName"] = "backfill";
-            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             PrintVersion();
             //create a command line parser using args
             CommandLineParser parser = new CommandLineParser(args);
