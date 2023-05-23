@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "index.h"
 #include "indexComm.h"
 #include "indexInt.h"
@@ -20,7 +21,6 @@
 #include "querynodes.h"
 #include "scalar.h"
 #include "tdatablock.h"
-#include "vnode.h"
 
 // clang-format off
 #define SIF_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
@@ -659,7 +659,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     } else {
       if (sifSetFltParam(left, right, &typedata, &param) != 0) return -1;
     }
-    ret = metaFilterTableIds(arg->metaEx, &param, output->result);
+    ret = arg->metaFilterFunc(arg->metaEx, &param, output->result);
   }
   return ret;
 }
