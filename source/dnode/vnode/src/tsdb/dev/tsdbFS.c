@@ -247,8 +247,8 @@ static int32_t apply_commit(STFileSystem *fs) {
   int32_t        i1 = 0, i2 = 0;
 
   while (i1 < TARRAY2_SIZE(fsetArray1) || i2 < TARRAY2_SIZE(fsetArray2)) {
-    STFileSet *fset1 = i1 < TARRAY2_SIZE(fsetArray1) ? TARRAY2_ELEM(fsetArray1, i1) : NULL;
-    STFileSet *fset2 = i2 < TARRAY2_SIZE(fsetArray2) ? TARRAY2_ELEM(fsetArray2, i2) : NULL;
+    STFileSet *fset1 = i1 < TARRAY2_SIZE(fsetArray1) ? TARRAY2_GET(fsetArray1, i1) : NULL;
+    STFileSet *fset2 = i2 < TARRAY2_SIZE(fsetArray2) ? TARRAY2_GET(fsetArray2, i2) : NULL;
 
     if (fset1 && fset2) {
       if (fset1->fid < fset2->fid) {
@@ -264,7 +264,7 @@ static int32_t apply_commit(STFileSystem *fs) {
         i2++;
       } else {
         // edit
-        code = tsdbTFileSetEditEx(fset2, fset1);
+        code = tsdbTFileSetApplyEdit(fs->pTsdb, fset2, fset1);
         if (code) return code;
         i1++;
         i2++;

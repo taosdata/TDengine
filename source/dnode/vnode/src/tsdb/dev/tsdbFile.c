@@ -279,6 +279,21 @@ int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   return 0;
 }
 
+bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
+  if (f1->type != f2->type) return false;
+  if (f1->did.level != f2->did.level) return false;
+  if (f1->did.id != f2->did.id) return false;
+  if (f1->fid != f2->fid) return false;
+  if (f1->cid != f2->cid) return false;
+  return true;
+}
+
+bool tsdbIsTFileChanged(const STFile *f1, const STFile *f2) {
+  if (f1->size != f2->size) return true;
+  if (f1->type == TSDB_FTYPE_STT && f1->stt.nseg != f2->stt.nseg) return true;
+  return false;
+}
+
 int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2) {
   if (fobj1[0]->f.cid < fobj2[0]->f.cid) {
     return -1;

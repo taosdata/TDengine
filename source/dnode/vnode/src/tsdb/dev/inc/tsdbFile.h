@@ -45,6 +45,8 @@ enum {
 int32_t tsdbTFileToJson(const STFile *f, cJSON *json);
 int32_t tsdbJsonToTFile(const cJSON *json, tsdb_ftype_t ftype, STFile *f);
 int32_t tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]);
+bool    tsdbIsSameTFile(const STFile *f1, const STFile *f2);
+bool    tsdbIsTFileChanged(const STFile *f1, const STFile *f2);
 
 // STFileObj
 int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj);

@@ -55,6 +55,59 @@ static void tsdbSttLvlRemove(SSttLvl **lvl) {
   lvl[0] = NULL;
 }
 
+static int32_t tsdbSttLvlApplyEdit(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl *lvl2) {
+  int32_t code = 0;
+
+  ASSERT(lvl1->level == lvl2->level);
+
+  int32_t i1 = 0, i2 = 0;
+  while (i1 < TARRAY2_SIZE(&lvl1->farr) || i2 < TARRAY2_SIZE(&lvl2->farr)) {
+    STFileObj *fobj1 = i1 < TARRAY2_SIZE(&lvl1->farr) ? TARRAY2_GET(&lvl1->farr, i1) : NULL;
+    STFileObj *fobj2 = i2 < TARRAY2_SIZE(&lvl2->farr) ? TARRAY2_GET(&lvl2->farr, i2) : NULL;
+
+    if (fobj1 && fobj2) {
+      if (fobj1->f.cid < fobj2->f.cid) {
+        // create a file obj
+        code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fobj2);
+        if (code) return code;
+        code = TARRAY2_APPEND(&lvl2->farr, fobj2);
+        if (code) return code;
+        i1++;
+        i2++;
+      } else if (fobj1->f.cid > fobj2->f.cid) {
+        // remove a file obj
+        TARRAY2_REMOVE(&lvl2->farr, i2, tsdbSttLvlRemoveFObj);
+      } else {
+        if (tsdbIsSameTFile(&fobj1->f, &fobj2->f)) {
+          if (tsdbIsTFileChanged(&fobj1->f, &fobj2->f)) {
+            fobj2->f = fobj1->f;
+          }
+        } else {
+          TARRAY2_REMOVE(&lvl2->farr, i2, tsdbSttLvlRemoveFObj);
+          code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fobj2);
+          if (code) return code;
+          code = TARRAY2_SORT_INSERT(&lvl2->farr, fobj2, tsdbTFileObjCmpr);
+          if (code) return code;
+        }
+        i1++;
+        i2++;
+      }
+    } else if (fobj1) {
+      // create a file obj
+      code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fobj2);
+      if (code) return code;
+      code = TARRAY2_APPEND(&lvl2->farr, fobj2);
+      if (code) return code;
+      i1++;
+      i2++;
+    } else {
+      // remove a file obj
+      TARRAY2_REMOVE(&lvl2->farr, i2, tsdbSttLvlRemoveFObj);
+    }
+  }
+  return 0;
+}
+
 static int32_t tsdbSttLvlCmprFn(const SSttLvl **lvl1, const SSttLvl **lvl2) {
   if (lvl1[0]->level < lvl2[0]->level) return -1;
   if (lvl1[0]->level > lvl2[0]->level) return 1;
@@ -239,9 +292,77 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
   return 0;
 }
 
-int32_t tsdbTFileSetEditEx(const STFileSet *fset1, STFileSet *fset) {
-  ASSERT(fset1->fid == fset->fid);
-  ASSERT(0);
+int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *fset2) {
+  int32_t code = 0;
+
+  ASSERT(fset1->fid == fset2->fid);
+
+  for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    STFileObj *fobj1 = fset1->farr[ftype];
+    STFileObj *fobj2 = fset2->farr[ftype];
+
+    if (!fobj1 && !fobj2) continue;
+
+    if (fobj1 && fobj2) {
+      if (tsdbIsSameTFile(&fobj1->f, &fobj2->f)) {
+        if (tsdbIsTFileChanged(&fobj1->f, &fobj2->f)) {
+          fobj2->f = fobj1->f;
+        }
+      } else {
+        tsdbTFileObjRemove(fobj2);
+        code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fset2->farr[ftype]);
+        if (code) return code;
+      }
+    } else if (fobj1) {
+      // create a new file
+      code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fset2->farr[ftype]);
+      if (code) return code;
+    } else {
+      // remove the file
+      tsdbTFileObjRemove(fobj2);
+      fset2->farr[ftype] = NULL;
+    }
+  }
+
+  // stt part
+  int32_t i1 = 0, i2 = 0;
+  while (i1 < TARRAY2_SIZE(&fset1->lvlArr) || i2 < TARRAY2_SIZE(&fset2->lvlArr)) {
+    SSttLvl *lvl1 = i1 < TARRAY2_SIZE(&fset1->lvlArr) ? TARRAY2_GET(&fset1->lvlArr, i1) : NULL;
+    SSttLvl *lvl2 = i2 < TARRAY2_SIZE(&fset2->lvlArr) ? TARRAY2_GET(&fset2->lvlArr, i2) : NULL;
+
+    if (lvl1 && lvl2) {
+      if (lvl1->level < lvl2->level) {
+        // add a new stt level
+        code = tsdbSttLvlInitEx(pTsdb, lvl1, &lvl2);
+        if (code) return code;
+        code = TARRAY2_SORT_INSERT(&fset2->lvlArr, lvl2, tsdbSttLvlCmprFn);
+        if (code) return code;
+        i1++;
+        i2++;
+      } else if (lvl1->level > lvl2->level) {
+        // remove the stt level
+        TARRAY2_REMOVE(&fset2->lvlArr, i2, tsdbSttLvlRemove);
+      } else {
+        // apply edit on stt level
+        code = tsdbSttLvlApplyEdit(pTsdb, lvl1, lvl2);
+        if (code) return code;
+        i1++;
+        i2++;
+      }
+    } else if (lvl1) {
+      // add a new stt level
+      code = tsdbSttLvlInitEx(pTsdb, lvl1, &lvl2);
+      if (code) return code;
+      code = TARRAY2_SORT_INSERT(&fset2->lvlArr, lvl2, tsdbSttLvlCmprFn);
+      if (code) return code;
+      i1++;
+      i2++;
+    } else {
+      // remove the stt level
+      TARRAY2_REMOVE(&fset2->lvlArr, i2, tsdbSttLvlRemove);
+    }
+  }
+
   return 0;
 }
 
