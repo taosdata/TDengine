@@ -1333,7 +1333,9 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
       SNode* pWsNode = smaIndexOptFindWStartFunc(pSmaFuncs);
       if (!pWsNode) {
         nodesDestroyList(pCols);
-        return TSDB_CODE_APP_ERROR;
+        code = TSDB_CODE_APP_ERROR;
+        qError("create sma cols failed since %s(_wstart not exist)", tstrerror(code));
+        return code;
       }
       SExprNode exprNode;
       exprNode.resType = ((SExprNode*)pWsNode)->resType;
