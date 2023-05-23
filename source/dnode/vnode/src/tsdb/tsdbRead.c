@@ -1767,8 +1767,8 @@ static bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SDa
       if (p->ts > pBlock->minKey.ts && index > 0) {
         index -= 1;
       } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
-        if (p->version == 0 && p->ts == pBlock->minKey.ts && index > 0) {
-          --index;
+        if (p->version == 0 && p->ts == pBlock->minKey.ts) {  
+          index -= 1; // index always larger than 0 if p->version equals 0
         }
         break;
       }
