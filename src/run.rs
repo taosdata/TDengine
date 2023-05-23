@@ -102,6 +102,7 @@ impl Cli {
                         args.to.clone(),
                         args.jobs,
                         Default::default(),
+                        Default::default(),
                     )
                     .await
                     {
@@ -126,6 +127,7 @@ impl Cli {
                         args.to.clone(),
                         args.jobs,
                         opts.yes_i_really_mean_it,
+                        Default::default(),
                         Default::default(),
                     )
                     .await
@@ -155,7 +157,7 @@ impl Cli {
             ("taos", "parquet") => {
                 query_to_parquet(args.from, args.to, opts.yes_i_really_mean_it).await?;
             }
-            ("pi", "taos") => {
+            ("pi" | "pibackfill", "taos") => {
                 let port_pool = PortPool::default();
                 pi_to_taos(
                     args.from,

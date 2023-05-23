@@ -1,6 +1,6 @@
 ---
-id: pi
-name: PI
+id: pibackfill
+name: PIBACKFILL
 description: |
   The PI System is a suite of software products that are used for data 
   collection, historicizing, finding, analyzing, delivering, and visualizing. 
@@ -11,7 +11,7 @@ description: |
   can be automatically collected from many sources (control systems, lab  
   equipment, calculations, manual entry or custom software).
 
-  taosX could pull real-time data from PI System by a PI connector plugin.
+  taosX could pull history data from PI System by a PIBACKFILL connector plugin.
 type: uri
 options:
   host:
@@ -51,8 +51,39 @@ groups:
       Default 1.
     placeholder: 1
 
-- name: Data Queue
+- name: Backfill
   display_order: 3
+  description: TDBackfill param set.
+  params:
+  - name: FromTDengineLastTime
+    display: From TDengine Last Time
+    description: |-
+      Backfill from the last recorded value in TDengine.
+    hint:
+      type: bool
+  - name: ToTDengineFirstTime
+    display: To TDengine First Time
+    hint:
+      type: bool
+    description: |
+      Backfill up to the first recorded value in TDengine.
+  - name: BackfillStartTime
+    display: Backfill Start Time
+    hint:
+      type: time
+    description: |
+      The start time for backfilling data. If not provided, the start time will be the earliest time available.
+    placeholder: "YYYY-MM-DD HH:mm:ss"
+  - name: BackfillEndTime
+    display: Backfill End Time
+    hint:
+      type: time
+    description: |
+      The start time for backfilling data. If not provided, the start time will be the earliest time available.
+    placeholder: "YYYY-MM-DD HH:mm:ss"
+
+- name: Data Queue
+  display_order: 4
   description: Other configurations.
   params:
   - name: MaxWaitLen

@@ -40,7 +40,7 @@ fn ipc_test<R: Read, W: Write>(
     ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
     let dsn =
-        std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://192.168.0.201:26041/test4".to_string());
+        std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://192.168.0.201:56041/pi".to_string());
     let mut dsn: Dsn = dsn.parse()?;
     let builder = TaosBuilder::from_dsn(&dsn)?;
 
@@ -157,7 +157,7 @@ fn handle_lush_message<R: Read, W: Write>(
         taos.exec(&sql)?;
         // taos.exec_sync(&sql).unwrap();
     }
-    let columns = ipc_reader.columns();
+    let columns = ipc_reader.columns().into_iter().map(|s| format!("{s}")).collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
 
@@ -179,7 +179,7 @@ fn handle_lush_message<R: Read, W: Write>(
                         records += record.num_rows();
                         // let data = record.to_column_views();
                         let map_data = record.to_column_views_group_by_tablename();
-                        // dbg!(&map_data);
+                        dbg!(&map_data);
                         for (k, data_vec) in &map_data {
                             let table_name = k.as_deref().or(record.table());
                             let mut stmt = Stmt::init(&taos)?;
@@ -197,14 +197,55 @@ fn handle_lush_message<R: Read, W: Write>(
                                         info!("sql: {tb}");
                                         // taos.exec_sync(&tb).unwrap();
                                         taos.exec(&tb)?;
-                                        stmt.set_tbname(table_name).unwrap();
+                                        // stmt.set_tbname(table_name).unwrap();
                                     }
                                 }
-                                stmt.bind(data_vec.as_slice()).unwrap();
-                                stmt.add_batch().unwrap();
-                                let n = stmt.execute().unwrap();
-
-                                info!("written [{n}] records for table {table_name}");
+                                // stmt.bind(data_vec.as_slice()).unwrap();
+                                // stmt.add_batch().unwrap();
+                                // let n = stmt.execute().unwrap();
+                                let mut column_value_pairs:Vec<(String, String)> = Vec::new();
+                                debug_assert!(columns.len() == data_vec.len());
+                                for (index, v) in data_vec.iter().enumerate() {
+                                    let mut i = 0;
+                                    while i < v.len() {
+                                        let mut temp_column_value_pair= column_value_pairs.get_mut(i);
+                                        if temp_column_value_pair.is_none() {
+                                            let pair = (String::new(), String::new());
+                                            column_value_pairs.insert(i, pair);
+                                            temp_column_value_pair= column_value_pairs.get_mut(i);
+                                        }
+                                        let temp_column_value_pair = temp_column_value_pair.unwrap();
+                                        if let Some(v) = v.get(i) {
+                                            if !v.is_null() {
+                                                temp_column_value_pair.0.push_str(columns[index].as_str());
+                                                temp_column_value_pair.0.push_str(",");
+                                                temp_column_value_pair.1.push('\'');
+                                                temp_column_value_pair.1.push_str(v.into_value().to_string().unwrap().as_str());
+                                                temp_column_value_pair.1.push('\'');
+                                                temp_column_value_pair.1.push_str(",");
+                                            } else {
+                                                println!("column view {} is null", columns[index]);
+                                            }
+                                        } else {
+                                            println!("column view {} is null", columns[index]);
+                                        }
+                                        i = i + 1;
+                                    }
+                                }
+                                column_value_pairs.into_iter().for_each(|(mut c, mut v)| {
+                                    let mut column_names = String::from("(");
+                                    let mut values = String::from("(");
+                                    c.pop();
+                                    column_names.push_str(c.as_str());
+                                    column_names.push(')');
+                                    v.pop();
+                                    values.push_str(v.as_str());
+                                    values.push(')');
+                                    let sql = format!("insert into {table_name} {column_names} VALUES {values}");
+                                    println!("sql: {sql}");
+                                    let res = taos.exec(sql).unwrap();
+                                    info!("written [{res}] records for table {table_name}");
+                                });
                             } else {
                                 stmt.bind(data_vec.as_slice()).unwrap();
                                 stmt.add_batch().unwrap();

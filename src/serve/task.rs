@@ -389,3 +389,34 @@ pub(super) async fn stop_task(
         }),
     }
 }
+
+
+/// Get Task Offsets by given task id.
+/// 
+/// Return found `Task Offsets` with status 200 or 404 not found if `Task Offsets` is not found from shared in-memory storage.
+
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task offsets found from storage", body = String),
+        (status = 404, description = "Task not found by id", body = Failed)
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
+)]
+#[get("/tasks/{id}/offsets")]
+pub(super) async fn get_task_offsets_by_id(
+    id: Path<i64>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    let id = id.into_inner();
+    match task_store.offsets(id).await {
+        Ok(Some(offsets)) => HttpResponse::Ok().body(format!("{:?}", offsets)),
+        Ok(None) => HttpResponse::NotFound().finish(),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: err.to_string(),
+        }),
+    }
+}

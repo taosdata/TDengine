@@ -25,6 +25,9 @@ pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
 use utils::port_pool::{self, PortPool};
+use dashmap::DashMap;
+use std::sync::Arc;
+use taos::taos_query::tmq::Assignment;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
@@ -51,6 +54,7 @@ pub struct TaskOpts {
     pub cancel: CancellationToken,
     pub with_agent: Option<(i64, String, String)>,
     // pub port_pool: OnceCell<PortPool>
+    pub offsets: Arc<DashMap<String, Vec<Assignment>>>,
 }
 
 impl Drop for TaskOpts {
@@ -78,6 +82,7 @@ impl TaskOpts {
             cancel,
             with_agent,
             // port_pool,
+            offsets,
         } = self;
 
         {
@@ -89,11 +94,12 @@ impl TaskOpts {
                         to.clone(),
                         *jobs,
                         cancel.clone(),
+                        offsets.clone(),
                     )
                     .await?;
                 }
                 ("tmq", "local") => {
-                    tmq_to_local(from.clone(), to.clone(), *jobs, *force, cancel.clone()).await?;
+                    tmq_to_local(from.clone(), to.clone(), *jobs, *force, cancel.clone(),offsets.clone()).await?;
                 }
                 ("local", "taos") => {
                     local_to_taos(from.clone(), to.clone(), *jobs, *force).await?;
@@ -107,7 +113,7 @@ impl TaskOpts {
                 ("taos", "parquet") => {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
                 }
-                ("pi", "taos") => {
+                ("pi" | "pibackfill", "taos") => {
                     plugins::pi_to_taos(
                         from.clone(),
                         transform.clone(),

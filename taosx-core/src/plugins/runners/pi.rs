@@ -1,11 +1,12 @@
-use std::{io::prelude::*, num::ParseIntError, time::Duration};
+use std::{io::prelude::*, num::ParseIntError, time::Duration, str::FromStr};
 
-use actix_web::web::Json;
 use anyhow::Context;
+use chrono::{NaiveDateTime, Local, };
 use itertools::Itertools;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
+use toml::value::Datetime;
 
 use crate::{
     plugins::{service::spawn_rest_service, sink},
@@ -55,6 +56,17 @@ struct PiConfig {
     #[serde(rename = "PointList")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     point_list: Vec<String>,
+    // backfill param
+    #[serde(rename = "FromTDengineLastTime")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    from_tdengine_last_time: Option<bool>,
+    #[serde(rename = "ToTDengineFirstTime")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    to_tdengine_first_time: Option<bool>,
+    #[serde(rename = "BackfillStartTime", skip_serializing_if = "Option::is_none")]
+    backfill_start_time: Option<Datetime>,
+    #[serde(rename = "BackfillEndTime", skip_serializing_if = "Option::is_none")]
+    backfill_end_time: Option<Datetime>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -69,11 +81,12 @@ pub enum PiError {
     ValueConfigError(&'static str, &'static str, &'static str),
     #[error("parse key {0} value error cause {1}")]
     ParseKeyValueError(&'static str, String),
+    #[error("Parse param error from {1} while parsing parameter {0}")]
+    ParseError(&'static str, String),
 }
 
 impl PiConfig {
     pub fn new(mut dsn: Dsn, td_database: String, ipc: u16, sql: u16) -> Result<Self, PiError> {
-        debug_assert!(dsn.driver == "pi");
         let server_name = dsn
             .addresses
             .first()
@@ -140,7 +153,48 @@ impl PiConfig {
 
         let ipc_stream = format!("127.0.0.1:{ipc}");
         let sql_api = format!("http://127.0.0.1:{sql}");
+        let from_tdengine_last_time = if let Some(v) = dsn
+            .remove("FromTDengineLastTime")
+            .map(|v| {
+                v.parse::<bool>()
+                    .map_err(|err| PiError::ParseError("FromTDengineLastTime", v))
+            })
+            .transpose()?
+        {
+            Some(v)
+        } else {
+            None
+        };
+        let to_tdengine_first_time = if let Some(v) = dsn
+            .remove("ToTDengineFirstTime")
+            .map(|v| {
+                v.parse::<bool>()
+                    .map_err(|err| PiError::ParseError("ToTDengineFirstTime", v))
+            })
+            .transpose()?
+        {
+            Some(v)
+        } else {
+            None
+        };
 
+        let backfill_start_time = if let Some(backfill_start) =  dsn.remove("BackfillStartTime") {
+            let parsed_time = NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                .map_err(|err| PiError::ParseError("BackfillStartTime", backfill_start.clone()))?.and_local_timezone(Local).unwrap();
+            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| PiError::ParseError("BackfillStartTime", backfill_start))?;
+            Some(parsed_time)
+        } else {
+            None
+        };
+        let backfill_end_time = if let Some(backfill_start) =  dsn.remove("BackfillEndTime") {
+            let parsed_time = NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                .map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start.clone()))?.and_local_timezone(Local).unwrap();
+            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start))?;
+            Some(parsed_time)
+        } else {
+            None
+        };
+        
         Ok(Self {
             server_name,
             system_name,
@@ -156,11 +210,16 @@ impl PiConfig {
             template_for_pi_point,
             template_for_af_element,
             point_list,
+            from_tdengine_last_time,
+            to_tdengine_first_time,
+            backfill_start_time,
+            backfill_end_time,
         })
     }
 }
 
 const PI_CONNECTOR_PATH: &'static str = "C:\\TDengine\\xplugins\\pi\\TDPIConnector.Service.exe";
+const PI_BACKFILL_PATH: &'static str = "C:\\TDengine\\xplugins\\pi\\TDBackfill.exe";
 
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 pub async fn pi_to_taos(
@@ -172,7 +231,7 @@ pub async fn pi_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
 ) -> anyhow::Result<()> {
-    println!("# loading plugin: PI");
+    println!("# loading plugin: PI or PIBACKFILL");
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("PI connector support only windows platform");
@@ -190,10 +249,12 @@ pub async fn pi_to_taos(
     let sql = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
-
+    let driver = from.driver.clone();
     let config = PiConfig::new(from, td_database.unwrap(), ipc, sql)?;
 
+    //toml::ser::ValueSerializer
     let toml = toml::to_string(&config)?;
+
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
@@ -228,21 +289,40 @@ pub async fn pi_to_taos(
         retries += 1;
     }
 
-    let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
-    let child_command = command
-        .arg("-f")
-        .arg(&config_path)
-        .stdout(async_process::Stdio::inherit())
-        .stderr(async_process::Stdio::inherit())
-        .spawn()
-        .context("Start PI collector error")?;
+    let child_command;
+    match driver.as_str() {
+        "pi" => {
+            let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
+            child_command = command
+            .arg("-f")
+            .arg(&config_path)
+            .stdout(async_process::Stdio::inherit())
+            .stderr(async_process::Stdio::inherit())
+            .spawn()
+            .context("Start PI collector error")?;
+        },
+        "pibackfill" => {
+            let mut command = async_process::Command::new(PI_BACKFILL_PATH);
+            child_command = command
+                .arg("-f")
+                .arg(&config_path)
+                .stdout(async_process::Stdio::inherit())
+                .stderr(async_process::Stdio::inherit())
+                .spawn()
+                .context("Start PI Backfill error")?;
+        },
+        _ => {
+            anyhow::bail!("wrong driver configed");
+        }
+    }
+    
     let pid = child_command.id();
     log::info!("waiting for PI connector");
     tokio::spawn(async move {
         tokio::select! {
             output = child_command.output() => {
-                let output = output.context("PI connector run error")?;
-                log::info!("PI exit with status {}", output.status);
+                let output = output.context("PI connector or PI backfill run error")?;
+                log::info!("PI connector or PI backfill exit with status {}", output.status);
                 if !output.status.success() {
                     let len = output.stdout.len();
                     let err = if len > 200 {
@@ -332,8 +412,8 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .stdout(async_process::Stdio::piped())
         .stderr(async_process::Stdio::piped())
         .output()
-        .await
-        .context("Start PI collector error")?;
+        .await?;
+        // .context("Start PI collector error")?;
     log::info!("PI Connector exit with status {}", output.status);
 
     let json: Value = serde_json::from_slice(&output.stdout)?;
@@ -378,7 +458,7 @@ fn extend_data_set(
     offset: usize,
     limit: usize,
 ) {
-    let page_index = (offset - 1) * limit;
+    let page_index = offset * limit;
     let len = extended_vec.len();
     if len >= page_index + limit {
         dataset.extend_from_slice(&extended_vec[page_index..page_index + limit]);

@@ -1,4 +1,5 @@
 ﻿using log4net;
+using log4net.Config;
 using System;
 using TDPIConnector.Core;
 using TDPIConnector.PI;
@@ -14,6 +15,8 @@ namespace TDBackfill
 
         static void Main(string[] args)
         {
+            GlobalContext.Properties["applicationName"] = "backfill";
+            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             //create a command line parser using args
             CommandLineParser parser = new CommandLineParser(args);
             //get the command line options
