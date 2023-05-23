@@ -965,7 +965,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
         tSerializeSDCfgDnodeReq(pBuf, bufLen, &dcfgReq);
         mInfo("dnode:%d, send config req to dnode, app:%p config:%s value:%s", cfgReq.dnodeId, pReq->info.ahandle,
               dcfgReq.config, dcfgReq.value);
-        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .info = pReq->info};
+        SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
         tmsgSendReq(&epSet, &rpcMsg);
         code = 0;
       }
