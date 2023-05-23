@@ -33,6 +33,7 @@
 #include "trow.h"
 
 #include "tdb.h"
+#include "storageapi.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -132,28 +133,28 @@ int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, in
 
 int64_t  metaGetTbNum(SMeta *pMeta);
 int64_t  metaGetNtbNum(SMeta *pMeta);
-typedef struct {
-  int64_t uid;
-  int64_t ctbNum;
-} SMetaStbStats;
+//typedef struct {
+//  int64_t uid;
+//  int64_t ctbNum;
+//} SMetaStbStats;
 int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo);
 
-typedef struct SMetaFltParam {
-  tb_uid_t suid;
-  int16_t  cid;
-  int16_t  type;
-  void    *val;
-  bool     reverse;
-  bool     equal;
-  int (*filterFunc)(void *a, void *b, int16_t type);
-
-} SMetaFltParam;
+//typedef struct SMetaFltParam {
+//  tb_uid_t suid;
+//  int16_t  cid;
+//  int16_t  type;
+//  void    *val;
+//  bool     reverse;
+//  bool     equal;
+//  int (*filterFunc)(void *a, void *b, int16_t type);
+//
+//} SMetaFltParam;
 
 // TODO, refactor later
-int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
-int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *parm, SArray *pUids);
-int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids);
-int32_t metaFilterTtl(SMeta *pMeta, SMetaFltParam *param, SArray *pUids);
+//int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
+//int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *parm, SArray *pUids);
+//int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids);
+//int32_t metaFilterTtl(SMeta *pMeta, SMetaFltParam *param, SArray *pUids);
 
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;
@@ -213,32 +214,32 @@ size_t  tsdbCacheGetCapacity(SVnode *pVnode);
 size_t  tsdbCacheGetUsage(SVnode *pVnode);
 int32_t tsdbCacheGetElems(SVnode *pVnode);
 
-// tq
-typedef struct SMetaTableInfo {
-  int64_t         suid;
-  int64_t         uid;
-  SSchemaWrapper *schema;
-  char            tbName[TSDB_TABLE_NAME_LEN];
-} SMetaTableInfo;
+//// tq
+//typedef struct SMetaTableInfo {
+//  int64_t         suid;
+//  int64_t         uid;
+//  SSchemaWrapper *schema;
+//  char            tbName[TSDB_TABLE_NAME_LEN];
+//} SMetaTableInfo;
 
 typedef struct SIdInfo {
   int64_t version;
   int32_t index;
 } SIdInfo;
 
-typedef struct SSnapContext {
-  SMeta    *pMeta;
-  int64_t   snapVersion;
-  TBC      *pCur;
-  int64_t   suid;
-  int8_t    subType;
-  SHashObj *idVersion;
-  SHashObj *suidInfo;
-  SArray   *idList;
-  int32_t   index;
-  bool      withMeta;
-  bool      queryMeta;  // true-get meta, false-get data
-} SSnapContext;
+//typedef struct SSnapContext {
+//  SMeta    *pMeta;
+//  int64_t   snapVersion;
+//  TBC      *pCur;
+//  int64_t   suid;
+//  int8_t    subType;
+//  SHashObj *idVersion;
+//  SHashObj *suidInfo;
+//  SArray   *idList;
+//  int32_t   index;
+//  bool      withMeta;
+//  bool      queryMeta;  // true-get meta, false-get data
+//} SSnapContext;
 
 typedef struct STqReader {
   SPackedData     msg;
@@ -271,7 +272,7 @@ bool    tqNextBlockImpl(STqReader *pReader, const char* idstr);
 int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, const char* id);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(STqReader *pReader, const char* idstr);
+int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock** pRes, const char* idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
 
 int32_t vnodeEnqueueStreamMsg(SVnode *pVnode, SRpcMsg *pMsg);
@@ -350,67 +351,62 @@ struct SVnodeCfg {
   int32_t     tsdbPageSize;
 };
 
-typedef struct {
-  uint64_t uid;
-  uint64_t groupId;
-} STableKeyInfo;
-
 #define TABLE_ROLLUP_ON       ((int8_t)0x1)
 #define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
 #define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
-struct SMetaEntry {
-  int64_t  version;
-  int8_t   type;
-  int8_t   flags;  // TODO: need refactor?
-  tb_uid_t uid;
-  char    *name;
-  union {
-    struct {
-      SSchemaWrapper schemaRow;
-      SSchemaWrapper schemaTag;
-      SRSmaParam     rsmaParam;
-    } stbEntry;
-    struct {
-      int64_t  ctime;
-      int32_t  ttlDays;
-      int32_t  commentLen;
-      char    *comment;
-      tb_uid_t suid;
-      uint8_t *pTags;
-    } ctbEntry;
-    struct {
-      int64_t        ctime;
-      int32_t        ttlDays;
-      int32_t        commentLen;
-      char          *comment;
-      int32_t        ncid;  // next column id
-      SSchemaWrapper schemaRow;
-    } ntbEntry;
-    struct {
-      STSma *tsma;
-    } smaEntry;
-  };
+//struct SMetaEntry {
+//  int64_t  version;
+//  int8_t   type;
+//  int8_t   flags;  // TODO: need refactor?
+//  tb_uid_t uid;
+//  char    *name;
+//  union {
+//    struct {
+//      SSchemaWrapper schemaRow;
+//      SSchemaWrapper schemaTag;
+//      SRSmaParam     rsmaParam;
+//    } stbEntry;
+//    struct {
+//      int64_t  ctime;
+//      int32_t  ttlDays;
+//      int32_t  commentLen;
+//      char    *comment;
+//      tb_uid_t suid;
+//      uint8_t *pTags;
+//    } ctbEntry;
+//    struct {
+//      int64_t        ctime;
+//      int32_t        ttlDays;
+//      int32_t        commentLen;
+//      char          *comment;
+//      int32_t        ncid;  // next column id
+//      SSchemaWrapper schemaRow;
+//    } ntbEntry;
+//    struct {
+//      STSma *tsma;
+//    } smaEntry;
+//  };
+//
+//  uint8_t *pBuf;
+//};
 
-  uint8_t *pBuf;
-};
+//struct SMetaReader {
+//  int32_t    flags;
+//  SMeta     *pMeta;
+//  SDecoder   coder;
+//  SMetaEntry me;
+//  void      *pBuf;
+//  int32_t    szBuf;
+//};
 
-struct SMetaReader {
-  int32_t    flags;
-  SMeta     *pMeta;
-  SDecoder   coder;
-  SMetaEntry me;
-  void      *pBuf;
-  int32_t    szBuf;
-};
-
-struct SMTbCursor {
-  TBC        *pDbc;
-  void       *pKey;
-  void       *pVal;
-  int32_t     kLen;
-  int32_t     vLen;
-  SMetaReader mr;
-};
+//struct SMTbCursor {
+//  TBC        *pDbc;
+//  void       *pKey;
+//  void       *pVal;
+//  int32_t     kLen;
+//  int32_t     vLen;
+//  SMetaReader mr;
+//};
 
 #ifdef __cplusplus
 }

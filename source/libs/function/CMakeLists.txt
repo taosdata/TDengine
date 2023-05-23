@@ -33,7 +33,6 @@ target_link_libraries(
     PRIVATE qcom 
     PRIVATE scalar 
     PRIVATE transport 
-    PRIVATE stream ${LINK_JEMALLOC}
     PUBLIC uv_a
 )
 

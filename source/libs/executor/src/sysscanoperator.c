@@ -21,19 +21,19 @@
 #include "querynodes.h"
 #include "systable.h"
 #include "tname.h"
-#include "ttime.h"
 
 #include "tdatablock.h"
 #include "tmsg.h"
 
+#include "operator.h"
 #include "query.h"
+#include "querytask.h"
+#include "storageapi.h"
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "vnode.h"
-#include "operator.h"
-#include "querytask.h"
-
+#include "tsdstorage.h"
+#include "index.h"
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
 typedef int32_t (*__sys_filte)(void* pMeta, SNode* cond, SArray* result);
@@ -72,6 +72,7 @@ typedef struct SSysTableScanInfo {
   SLoadRemoteDataInfo    loadInfo;
   SLimitInfo             limitInfo;
   int32_t                tbnameSlotId;
+  SStorageAPI*           pAPI;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -156,7 +157,8 @@ int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   void* pVnode = ((SSTabFltArg*)arg)->pVnode;
 
   const char* db = NULL;
-  vnodeGetInfo(pVnode, &db, NULL);
+  ASSERT(0);
+//  pAPI->metaFn.storeGetBasicInfo(pVnode, &db, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -183,7 +185,8 @@ int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
   void* pVnode = ((SSTabFltArg*)arg)->pVnode;
 
   int64_t vgId = 0;
-  vnodeGetInfo(pVnode, NULL, (int32_t*)&vgId);
+  ASSERT(0);
+//  pAPI->metaFn.storeGetBasicInfo(pVnode, NULL, (int32_t*)&vgId);
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -237,8 +240,10 @@ int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
                          .equal = equal,
                          .filterFunc = func};
 
-  int32_t ret = metaFilterCreateTime(pMeta, &param, result);
-  return ret;
+  ASSERT(0);
+  return 0;
+//  int32_t ret = metaFilterCreateTime(pMeta, &param, result);
+//  return ret;
 }
 
 int32_t sysFilte__Ncolumn(void* arg, SNode* pNode, SArray* result) {
@@ -431,8 +436,9 @@ static bool sysTableIsCondOnOneTable(SNode* pCond, char* condTable) {
 }
 
 static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
-  qDebug("sysTableScanUserCols get cols start");
-  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -446,7 +452,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  vnodeGetInfo(pInfo->readHandle.vnode, &db, &vgId);
+  pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &db, &vgId);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -461,18 +467,18 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     STR_TO_VARSTR(tableName, pInfo->req.filterTb);
 
     SMetaReader smrTable = {0};
-    metaReaderInit(&smrTable, pInfo->readHandle.meta, 0);
-    int32_t code = metaGetTableEntryByName(&smrTable, pInfo->req.filterTb);
+    pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.meta, 0);
+    int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrTable, pInfo->req.filterTb);
     if (code != TSDB_CODE_SUCCESS) {
-      // terrno has been set by metaGetTableEntryByName, therefore, return directly
-      metaReaderClear(&smrTable);
+      // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
+      pAPI->metaReaderFn.clearReader(&smrTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
 
     if (smrTable.me.type == TSDB_SUPER_TABLE) {
-      metaReaderClear(&smrTable);
+      pAPI->metaReaderFn.clearReader(&smrTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
@@ -480,12 +486,12 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
     if (smrTable.me.type == TSDB_CHILD_TABLE) {
       int64_t suid = smrTable.me.ctbEntry.suid;
-      metaReaderClear(&smrTable);
-      metaReaderInit(&smrTable, pInfo->readHandle.meta, 0);
-      code = metaGetTableEntryByUid(&smrTable, suid);
+      pAPI->metaReaderFn.clearReader(&smrTable);
+      pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.meta, 0);
+      code = pAPI->metaReaderFn.getTableEntryByUid(&smrTable, suid);
       if (code != TSDB_CODE_SUCCESS) {
-        // terrno has been set by metaGetTableEntryByName, therefore, return directly
-        metaReaderClear(&smrTable);
+        // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
+        pAPI->metaReaderFn.clearReader(&smrTable);
         blockDataDestroy(dataBlock);
         pInfo->loadInfo.totalRows = 0;
         return NULL;
@@ -503,7 +509,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     }
 
     sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
-    metaReaderClear(&smrTable);
+    pAPI->metaReaderFn.clearReader(&smrTable);
 
     if (numOfRows > 0) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
@@ -517,7 +523,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   int32_t ret = 0;
   if (pInfo->pCur == NULL) {
-    pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);
+    pInfo->pCur = pAPI->metaFn.openMetaCursor(pInfo->readHandle.meta);
   }
 
   if (pInfo->pSchema == NULL) {
@@ -535,8 +541,12 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   int32_t restore = pInfo->restore;
   pInfo->restore = false;
-  while (restore || ((ret = metaTbCursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
-    if (restore) restore = false;
+  
+  while (restore || ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
+    if (restore) {
+      restore = false;
+    }
+    
     char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
@@ -560,12 +570,12 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         schemaRow = *(SSchemaWrapper**)schema;
       } else {
         SMetaReader smrSuperTable = {0};
-        metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, 0);
-        int code = metaGetTableEntryByUid(&smrSuperTable, suid);
+        pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.meta, 0);
+        int code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
-          // terrno has been set by metaGetTableEntryByName, therefore, return directly
+          // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
           qError("sysTableScanUserCols get meta by suid:%" PRId64 " error, code:%d", suid, code);
-          metaReaderClear(&smrSuperTable);
+          pAPI->metaReaderFn.clearReader(&smrSuperTable);
           blockDataDestroy(dataBlock);
           pInfo->loadInfo.totalRows = 0;
           return NULL;
@@ -573,7 +583,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
         taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
         schemaRow = schemaWrapper;
-        metaReaderClear(&smrSuperTable);
+        pAPI->metaReaderFn.clearReader(&smrSuperTable);
       }
     } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
       qDebug("sysTableScanUserCols cursor get normal table");
@@ -605,7 +615,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   blockDataDestroy(dataBlock);
   if (ret != 0) {
-    metaCloseTbCursor(pInfo->pCur);
+    pAPI->metaFn.closeMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
     setOperatorCompleted(pOperator);
   }
@@ -618,6 +628,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
 static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -631,7 +643,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  vnodeGetInfo(pInfo->readHandle.vnode, &db, &vgId);
+  pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &db, &vgId);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -647,37 +659,37 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     STR_TO_VARSTR(tableName, condTableName);
 
     SMetaReader smrChildTable = {0};
-    metaReaderInit(&smrChildTable, pInfo->readHandle.meta, 0);
-    int32_t code = metaGetTableEntryByName(&smrChildTable, condTableName);
+    pAPI->metaReaderFn.initReader(&smrChildTable, pInfo->readHandle.meta, 0);
+    int32_t code = pAPI->metaReaderFn.getTableEntryByName(&smrChildTable, condTableName);
     if (code != TSDB_CODE_SUCCESS) {
-      // terrno has been set by metaGetTableEntryByName, therefore, return directly
-      metaReaderClear(&smrChildTable);
+      // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
+      pAPI->metaReaderFn.clearReader(&smrChildTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
 
     if (smrChildTable.me.type != TSDB_CHILD_TABLE) {
-      metaReaderClear(&smrChildTable);
+      pAPI->metaReaderFn.clearReader(&smrChildTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
 
     SMetaReader smrSuperTable = {0};
-    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, META_READER_NOLOCK);
-    code = metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.meta, META_READER_NOLOCK);
+    code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
     if (code != TSDB_CODE_SUCCESS) {
-      // terrno has been set by metaGetTableEntryByUid
-      metaReaderClear(&smrSuperTable);
-      metaReaderClear(&smrChildTable);
+      // terrno has been set by pAPI->metaReaderFn.getTableEntryByUid
+      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      pAPI->metaReaderFn.clearReader(&smrChildTable);
       blockDataDestroy(dataBlock);
       return NULL;
     }
 
     sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
-    metaReaderClear(&smrSuperTable);
-    metaReaderClear(&smrChildTable);
+    pAPI->metaReaderFn.clearReader(&smrSuperTable);
+    pAPI->metaReaderFn.clearReader(&smrChildTable);
 
     if (numOfRows > 0) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
@@ -691,11 +703,11 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
   int32_t ret = 0;
   if (pInfo->pCur == NULL) {
-    pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);
+    pInfo->pCur = pAPI->metaFn.openMetaCursor(pInfo->readHandle.meta);
   }
 
   bool blockFull = false;
-  while ((ret = metaTbCursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
+  while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
     if (pInfo->pCur->mr.me.type != TSDB_CHILD_TABLE) {
       continue;
     }
@@ -704,27 +716,27 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
 
     SMetaReader smrSuperTable = {0};
-    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, 0);
+    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.meta, 0);
     uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-    int32_t  code = metaGetTableEntryByUid(&smrSuperTable, suid);
+    int32_t  code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
              GET_TASKID(pTaskInfo));
-      metaReaderClear(&smrSuperTable);
-      metaCloseTbCursor(pInfo->pCur);
+      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      pAPI->metaFn.closeMetaCursor(pInfo->pCur);
       pInfo->pCur = NULL;
       T_LONG_JMP(pTaskInfo->env, terrno);
     }
 
     if ((smrSuperTable.me.stbEntry.schemaTag.nCols + numOfRows) > pOperator->resultInfo.capacity) {
-      metaTbCursorPrev(pInfo->pCur, TSDB_TABLE_MAX);
+      pAPI->metaFn.cursorPrev(pInfo->pCur, TSDB_TABLE_MAX);
       blockFull = true;
     } else {
       sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
                                        dataBlock);
     }
 
-    metaReaderClear(&smrSuperTable);
+    pAPI->metaReaderFn.clearReader(&smrSuperTable);
 
     if (blockFull || numOfRows >= pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
@@ -745,7 +757,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
   blockDataDestroy(dataBlock);
   if (ret != 0) {
-    metaCloseTbCursor(pInfo->pCur);
+    pAPI->metaFn.closeMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
     setOperatorCompleted(pOperator);
   }
@@ -1090,6 +1102,8 @@ int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
 
 static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+
   SSysTableScanInfo* pInfo = pOperator->info;
 
   SSysTableIndex* pIdx = pInfo->pIdx;
@@ -1100,7 +1114,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  vnodeGetInfo(pInfo->readHandle.vnode, &db, &vgId);
+  pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &db, &vgId);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1118,10 +1132,10 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     tb_uid_t* uid = taosArrayGet(pIdx->uids, i);
 
     SMetaReader mr = {0};
-    metaReaderInit(&mr, pInfo->readHandle.meta, 0);
-    ret = metaGetTableEntryByUid(&mr, *uid);
+    pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.meta, 0);
+    ret = pAPI->metaReaderFn.getTableEntryByUid(&mr, *uid);
     if (ret < 0) {
-      metaReaderClear(&mr);
+      pAPI->metaReaderFn.clearReader(&mr);
       continue;
     }
     STR_TO_VARSTR(n, mr.me.name);
@@ -1146,15 +1160,15 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
       colDataSetVal(pColInfoData, numOfRows, (char*)&ts, false);
 
       SMetaReader mr1 = {0};
-      metaReaderInit(&mr1, pInfo->readHandle.meta, META_READER_NOLOCK);
+      pAPI->metaReaderFn.initReader(&mr1, pInfo->readHandle.meta, META_READER_NOLOCK);
 
       int64_t suid = mr.me.ctbEntry.suid;
-      int32_t code = metaGetTableEntryByUid(&mr1, suid);
+      int32_t code = pAPI->metaReaderFn.getTableEntryByUid(&mr1, suid);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pInfo->pCur->mr.me.name,
                suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
-        metaReaderClear(&mr1);
-        metaReaderClear(&mr);
+        pAPI->metaReaderFn.clearReader(&mr1);
+        pAPI->metaReaderFn.clearReader(&mr);
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
@@ -1164,7 +1178,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
       STR_TO_VARSTR(n, mr1.me.name);
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
       colDataSetVal(pColInfoData, numOfRows, n, false);
-      metaReaderClear(&mr1);
+      pAPI->metaReaderFn.clearReader(&mr1);
 
       // table comment
       pColInfoData = taosArrayGet(p->pDataBlock, 8);
@@ -1229,7 +1243,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
       // impl later
     }
 
-    metaReaderClear(&mr);
+    pAPI->metaReaderFn.clearReader(&mr);
 
     pColInfoData = taosArrayGet(p->pDataBlock, 9);
     colDataSetVal(pColInfoData, numOfRows, n, false);
@@ -1275,10 +1289,11 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
 static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pInfo->pCur == NULL) {
-    pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);
+    pInfo->pCur = pAPI->metaFn.openMetaCursor(pInfo->readHandle.meta);
   }
 
   blockDataCleanup(pInfo->pRes);
@@ -1286,7 +1301,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  vnodeGetInfo(pInfo->readHandle.vnode, &db, &vgId);
+  pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &db, &vgId);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1301,7 +1316,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
   int32_t ret = 0;
-  while ((ret = metaTbCursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
+  while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
     STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
 
     // table name
@@ -1324,15 +1339,15 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       colDataSetVal(pColInfoData, numOfRows, (char*)&ts, false);
 
       SMetaReader mr = {0};
-      metaReaderInit(&mr, pInfo->readHandle.meta, META_READER_NOLOCK);
+      pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.meta, META_READER_NOLOCK);
 
       uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-      int32_t  code = metaGetTableEntryByUid(&mr, suid);
+      int32_t  code = pAPI->metaReaderFn.getTableEntryByUid(&mr, suid);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pInfo->pCur->mr.me.name,
                suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
-        metaReaderClear(&mr);
-        metaCloseTbCursor(pInfo->pCur);
+        pAPI->metaReaderFn.clearReader(&mr);
+        pAPI->metaFn.closeMetaCursor(pInfo->pCur);
         pInfo->pCur = NULL;
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
@@ -1345,7 +1360,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       STR_TO_VARSTR(n, mr.me.name);
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
       colDataSetVal(pColInfoData, numOfRows, n, false);
-      metaReaderClear(&mr);
+      pAPI->metaReaderFn.clearReader(&mr);
 
       // table comment
       pColInfoData = taosArrayGet(p->pDataBlock, 8);
@@ -1442,7 +1457,8 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   // todo temporarily free the cursor here, the true reason why the free is not valid needs to be found
   if (ret != 0) {
-    metaCloseTbCursor(pInfo->pCur);
+    pAPI->metaFn.closeMetaCursor(pInfo->pCur);
+    pAPI->metaFn.closeMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
     setOperatorCompleted(pOperator);
   }
@@ -1708,7 +1724,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
 SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode,
                                               const char* pUser, SExecTaskInfo* pTaskInfo) {
-  int32_t            code = TDB_CODE_SUCCESS;
+  int32_t            code = TSDB_CODE_SUCCESS;
   SSysTableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SSysTableScanInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -1798,7 +1814,7 @@ void destroySysScanOperator(void* param) {
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
-    metaCloseTbCursor(pInfo->pCur);
+    pInfo->pAPI->metaFn.closeMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
   }
   if (pInfo->pIdx) {
@@ -2124,15 +2140,15 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
   return -1;
 }
 
-static int32_t doGetTableRowSize(void* pMeta, uint64_t uid, int32_t* rowLen, const char* idstr) {
+static int32_t doGetTableRowSize(SReadHandle *pHandle, uint64_t uid, int32_t* rowLen, const char* idstr) {
   *rowLen = 0;
 
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pMeta, 0);
-  int32_t code = metaGetTableEntryByUid(&mr, uid);
+  pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, 0);
+  int32_t code = pHandle->api.metaReaderFn.getTableEntryByUid(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", uid, tstrerror(terrno), idstr);
-    metaReaderClear(&mr);
+    pHandle->api.metaReaderFn.clearReader(&mr);
     return terrno;
   }
 
@@ -2144,10 +2160,10 @@ static int32_t doGetTableRowSize(void* pMeta, uint64_t uid, int32_t* rowLen, con
   } else if (mr.me.type == TSDB_CHILD_TABLE) {
     uint64_t suid = mr.me.ctbEntry.suid;
     tDecoderClear(&mr.coder);
-    code = metaGetTableEntryByUid(&mr, suid);
+    code = pHandle->api.metaReaderFn.getTableEntryByUid(&mr, suid);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno), idstr);
-      metaReaderClear(&mr);
+      pHandle->api.metaReaderFn.clearReader(&mr);
       return terrno;
     }
 
@@ -2163,7 +2179,7 @@ static int32_t doGetTableRowSize(void* pMeta, uint64_t uid, int32_t* rowLen, con
     }
   }
 
-  metaReaderClear(&mr);
+  pHandle->api.metaReaderFn.clearReader(&mr);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2174,16 +2190,17 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 
   SBlockDistInfo* pBlockScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
   STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
-  int32_t             code = doGetTableRowSize(pBlockScanInfo->readHandle.meta, pBlockScanInfo->uid,
+  int32_t             code = doGetTableRowSize(&pBlockScanInfo->readHandle, pBlockScanInfo->uid,
                                                (int32_t*)&blockDistInfo.rowSize, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  tsdbGetFileBlocksDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
-  blockDistInfo.numOfInmemRows = (int32_t)tsdbGetNumOfRowsInMemTable(pBlockScanInfo->pHandle);
+  pAPI->storeReader.storeReaderGetDataBlockDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
+  blockDistInfo.numOfInmemRows = (int32_t) pAPI->metaFn.getNumOfRowsInMem(pBlockScanInfo->pHandle);
 
   SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
 
@@ -2213,7 +2230,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 static void destroyBlockDistScanOperatorInfo(void* param) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
-  tsdbReaderClose(pDistInfo->pHandle);
+  pDistInfo->readHandle.api.storeReader.storeReaderClose(pDistInfo->pHandle);
   tableListDestroy(pDistInfo->pTableListInfo);
   taosMemoryFreeClear(param);
 }
@@ -2268,7 +2285,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
     size_t num = tableListGetSize(pTableListInfo);
     void*  pList = tableListGetInfo(pTableListInfo, 0);
 
-    code = tsdbReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock, &pInfo->pHandle, pTaskInfo->id.str, false, NULL);
+    code = readHandle->api.storeReader.storeReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock, (void**)&pInfo->pHandle, pTaskInfo->id.str, false, NULL);
     cleanupQueryTableDataCond(&cond);
     if (code != 0) {
       goto _error;

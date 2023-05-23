@@ -29,9 +29,9 @@
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
+#include "storageapi.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "vnode.h"
 
 #define CLEAR_QUERY_STATUS(q, st) ((q)->status &= (~(st)))
 
@@ -63,7 +63,7 @@ bool isTaskKilled(SExecTaskInfo* pTaskInfo) { return (0 != pTaskInfo->code); }
 
 void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) {
   pTaskInfo->code = rspCode;
-  stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str);
+  stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str, &pTaskInfo->storageAPI);
 }
 
 void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
@@ -120,13 +120,15 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
     return terrno;
   }
 
-  metaReaderInit(&mr, pHandle->meta, 0);
-  int32_t code = metaGetTableEntryByUidCache(&mr, pScanNode->uid);
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+
+  pAPI->metaReaderFn.initReader(&mr, pHandle->meta, 0);
+  int32_t code = pAPI->metaReaderFn.readerGetEntryGetUidCache(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get the table meta, uid:0x%" PRIx64 ", suid:0x%" PRIx64 ", %s", pScanNode->uid, pScanNode->suid,
            GET_TASKID(pTaskInfo));
 
-    metaReaderClear(&mr);
+    pAPI->metaReaderFn.clearReader(&mr);
     return terrno;
   }
 
@@ -142,9 +144,9 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
     tDecoderClear(&mr.coder);
 
     tb_uid_t suid = mr.me.ctbEntry.suid;
-    code = metaGetTableEntryByUidCache(&mr, suid);
+    code = pAPI->metaReaderFn.readerGetEntryGetUidCache(&mr, suid);
     if (code != TSDB_CODE_SUCCESS) {
-      metaReaderClear(&mr);
+      pAPI->metaReaderFn.clearReader(&mr);
       return terrno;
     }
 
@@ -154,7 +156,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
     pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.ntbEntry.schemaRow);
   }
 
-  metaReaderClear(&mr);
+  pAPI->metaReaderFn.clearReader(&mr);
 
   pSchemaInfo->qsw = extractQueriedColumnSchema(pScanNode);
   return TSDB_CODE_SUCCESS;

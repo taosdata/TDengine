@@ -21,6 +21,7 @@
 #include "tcommon.h"
 #include "thash.h"
 #include "tsimplehash.h"
+#include "storageapi.h"
 
 #define FLUSH_RATIO                    0.5
 #define FLUSH_NUM                      4

@@ -20,7 +20,7 @@
 #include "querynodes.h"
 #include "scalar.h"
 #include "tdatablock.h"
-#include "vnode.h"
+#include "tsdstorage.h"
 
 // clang-format off
 #define SIF_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
@@ -79,6 +79,7 @@ typedef struct SIFParam {
   char          colName[TSDB_COL_NAME_LEN * 2 + 4];
 
   SIndexMetaArg arg;
+  SStoreAPI     api;
 } SIFParam;
 
 typedef struct SIFCtx {
@@ -659,7 +660,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     } else {
       if (sifSetFltParam(left, right, &typedata, &param) != 0) return -1;
     }
-    ret = metaFilterTableIds(arg->metaEx, &param, output->result);
+    ret = left->api.metaFilterTableIds(arg->metaEx, &param, output->result);
   }
   return ret;
 }

@@ -950,6 +950,8 @@ static bool hasRemainPartion(SStreamPartitionOperatorInfo* pInfo) { return pInfo
 static bool hasRemainTbName(SStreamPartitionOperatorInfo* pInfo) { return pInfo->pTbNameIte != NULL; }
 
 static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
+  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
+
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*                  pDest = pInfo->binfo.pRes;
   ASSERT(hasRemainPartion(pInfo));
@@ -972,9 +974,9 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   pDest->info.parTbName[0] = 0;
   if (pInfo->tbnameCalSup.numOfExprs > 0) {
     void* tbname = NULL;
-    if (streamStateGetParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, &tbname) == 0) {
+    if (pAPI->stateStore.streamStateGetParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, &tbname) == 0) {
       memcpy(pDest->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-      streamFreeVal(tbname);
+      pAPI->stateStore.streamStateFreeVal(tbname);
     }
   }
   taosArrayDestroy(pParInfo->rowIds);
@@ -990,10 +992,10 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   return pDest;
 }
 
-void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, uint64_t groupId,
-                          SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock) {
+void appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, uint64_t groupId,
+                          SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock, SStateStore* pAPI) {
   void* pValue = NULL;
-  if (streamStateGetParName(pState, groupId, &pValue) != 0) {
+  if (pAPI->streamStateGetParName(pState, groupId, &pValue) != 0) {
     SSDataBlock* pTmpBlock = blockCopyOneRow(pSrcBlock, rowId);
     memset(pTmpBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
     pTmpBlock->info.id.groupId = groupId;
@@ -1010,7 +1012,7 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
         void* pData = colDataGetData(pTbCol, pDestBlock->info.rows - 1);
         len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
         memcpy(tbName, varDataVal(pData), len);
-        streamStatePutParName(pState, groupId, tbName);
+        pAPI->streamStatePutParName(pState, groupId, tbName);
       }
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
@@ -1034,10 +1036,12 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
   } else {
     memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
   }
-  streamStateReleaseBuf(pState, NULL, pValue);
+  pAPI->streamStateReleaseBuf(pState, NULL, pValue);
 }
 
 static SSDataBlock* buildStreamCreateTableResult(SOperatorInfo* pOperator) {
+  SExecTaskInfo* pTask = pOperator->pTaskInfo;
+
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
   if ((pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) ||
       taosHashGetSize(pInfo->pPartitions) == 0) {
@@ -1050,8 +1054,8 @@ static SSDataBlock* buildStreamCreateTableResult(SOperatorInfo* pOperator) {
   if (pInfo->pTbNameIte != NULL) {
     SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->pTbNameIte;
     int32_t             rowId = *(int32_t*)taosArrayGet(pParInfo->rowIds, 0);
-    appendCreateTableRow(pOperator->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup, &pInfo->tagCalSup,
-                         pParInfo->groupId, pSrc, rowId, pInfo->pCreateTbRes);
+    appendCreateTableRow(pTask->streamInfo.pState, &pInfo->tbnameCalSup, &pInfo->tagCalSup,
+                         pParInfo->groupId, pSrc, rowId, pInfo->pCreateTbRes, &pTask->storageAPI.stateStore);
     pInfo->pTbNameIte = taosHashIterate(pInfo->pPartitions, pInfo->pTbNameIte);
   }
   return pInfo->pCreateTbRes->info.rows > 0 ? pInfo->pCreateTbRes : NULL;
@@ -1164,14 +1168,17 @@ static void destroyStreamPartitionOperatorInfo(void* param) {
 }
 
 void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup, SExprSupp* pExpr) {
+  SStorageAPI* pAPI = &downstream->pTaskInfo->storageAPI;
+
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     return;
   }
+
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->partitionSup = *pParSup;
   pScanInfo->pPartScalarSup = pExpr;
   if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
-    pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0);
+    pScanInfo->pUpdateInfo = pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0);
   }
 }
 

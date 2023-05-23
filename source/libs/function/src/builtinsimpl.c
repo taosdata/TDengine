@@ -18,7 +18,7 @@
 #include "function.h"
 #include "query.h"
 #include "querynodes.h"
-#include "streamState.h"
+//#include "streamState.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdigest.h"
@@ -3155,9 +3155,9 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
     releaseBufPage(pHandle->pBuf, pPage);
   } else {
     // other tuple save policy
-    if (streamStateFuncPut(pHandle->pState, key, pBuf, length) >= 0) {
-      p.streamTupleKey = *key;
-    }
+//    if (streamStateFuncPut(pHandle->pState, key, pBuf, length) >= 0) {
+//      p.streamTupleKey = *key;
+//    }
   }
 
   *pPos = p;
@@ -3192,7 +3192,7 @@ static int32_t doUpdateTupleData(SSerializeDataHandle* pHandle, const void* pBuf
     setBufPageDirty(pPage, true);
     releaseBufPage(pHandle->pBuf, pPage);
   } else {
-    streamStateFuncPut(pHandle->pState, &pPos->streamTupleKey, pBuf, length);
+//    streamStateFuncPut(pHandle->pState, &pPos->streamTupleKey, pBuf, length);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3217,7 +3217,7 @@ static char* doLoadTupleData(SSerializeDataHandle* pHandle, const STuplePos* pPo
   } else {
     void*   value = NULL;
     int32_t vLen;
-    streamStateFuncGet(pHandle->pState, &pPos->streamTupleKey, &value, &vLen);
+//    streamStateFuncGet(pHandle->pState, &pPos->streamTupleKey, &value, &vLen);
     return (char*)value;
   }
 }

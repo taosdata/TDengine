@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "storageapi.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"

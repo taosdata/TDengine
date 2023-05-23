@@ -12,17 +12,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_QUERYUTIL_H
-#define TDENGINE_QUERYUTIL_H
+#ifndef TDENGINE_EXECUTIL_H
+#define TDENGINE_EXECUTIL_H
 
 #include "executor.h"
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
+#include "storageapi.h"
 #include "tcommon.h"
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
-#include "vnode.h"
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
@@ -154,7 +154,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
-int32_t  getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
+int32_t  getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId, SStorageAPI* pAPI);
 size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
 SArray* createSortInfo(SNodeList* pNodeList);
@@ -178,8 +178,8 @@ void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
-int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
+int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI *pAPI);
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag);
 
-#endif  // TDENGINE_QUERYUTIL_H
+#endif  // TDENGINE_EXECUTIL_H

@@ -394,8 +394,9 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id) {
       SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
 
       if (pReader->tbIdHash == NULL) {
-        int32_t code = tqRetrieveDataBlock(pReader, NULL);
-        if (code == TSDB_CODE_SUCCESS && pReader->pResBlock->info.rows > 0) {
+          SSDataBlock* pRes = NULL;
+        int32_t code = tqRetrieveDataBlock(pReader, &pRes, NULL);
+        if (code == TSDB_CODE_SUCCESS && pRes->info.rows > 0) {
           return true;
         }
       }
@@ -404,8 +405,9 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id) {
       if (ret != NULL) {
         tqDebug("tq reader return submit block, uid:%" PRId64 ", ver:%" PRId64, pSubmitTbData->uid, pReader->msg.ver);
 
-        int32_t code = tqRetrieveDataBlock(pReader, NULL);
-        if (code == TSDB_CODE_SUCCESS && pReader->pResBlock->info.rows > 0) {
+        SSDataBlock* pRes = NULL;
+        int32_t code = tqRetrieveDataBlock(pReader, &pRes, NULL);
+        if (code == TSDB_CODE_SUCCESS && pRes->info.rows > 0) {
           return true;
         }
       } else {
@@ -439,6 +441,11 @@ int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, i
   tDecoderClear(&decoder);
   return 0;
 }
+
+SWalReader* tqGetWalReader(STqReader* pReader) {
+  return pReader->pWalReader;
+}
+
 
 bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
   if (pReader->msg.msgStr == NULL) {
@@ -592,7 +599,7 @@ static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SCol
   return code;
 }
 
-int32_t tqRetrieveDataBlock(STqReader* pReader, const char* id) {
+int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* id) {
   tqDebug("tq reader retrieve data block %p, index:%d", pReader->msg.msgStr, pReader->nextBlk);
 
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk++);
@@ -1022,6 +1029,14 @@ int tqReaderAddTbUidList(STqReader* pReader, const SArray* pTableUidList) {
   }
 
   return 0;
+}
+
+bool tqReaderIsQueriedTable(STqReader* pReader, uint64_t uid) {
+  return taosHashGet(pReader->tbIdHash, &uid, sizeof(uint64_t));
+}
+
+bool tqCurrentBlockConsumed(const STqReader* pReader) {
+    return pReader->msg.msgStr == NULL;
 }
 
 int tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {

@@ -56,20 +56,19 @@ typedef struct STaskStopInfo {
 } STaskStopInfo;
 
 typedef struct {
-  STqOffsetVal        currentOffset;  // for tmq
-  SMqMetaRsp          metaRsp;        // for tmq fetching meta
-  int64_t             snapshotVer;
-//  SPackedData         submit;  // todo remove it
-  SSchemaWrapper*     schema;
-  char                tbName[TSDB_TABLE_NAME_LEN];   // this is the current scan table: todo refactor
-  int8_t              recoverStep;
-  int8_t              recoverScanFinished;
-  SQueryTableDataCond tableCond;
-  int64_t             fillHistoryVer1;
-  int64_t             fillHistoryVer2;
-  SStreamState*       pState;
-  int64_t             dataVersion;
-  int64_t             checkPointId;
+  STqOffsetVal         currentOffset;  // for tmq
+  SMqMetaRsp           metaRsp;        // for tmq fetching meta
+  int64_t              snapshotVer;
+  SSchemaWrapper*      schema;
+  char                 tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
+  int8_t               recoverStep;
+  int8_t               recoverScanFinished;
+  SQueryTableDataCond  tableCond;
+  int64_t              fillHistoryVer1;
+  int64_t              fillHistoryVer2;
+  SStreamState*        pState;
+  int64_t              dataVersion;
+  int64_t              checkPointId;
 } SStreamTaskInfo;
 
 struct SExecTaskInfo {
@@ -92,6 +91,7 @@ struct SExecTaskInfo {
   SArray*               pResultBlockList;  // result block list
   STaskStopInfo         stopInfo;
   SRWLatch              lock;  // secure the access of STableListInfo
+  SStorageAPI           storageAPI;
 };
 
 void           buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);

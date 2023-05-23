@@ -249,7 +249,7 @@ int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
   SMetaReader *pReader = &mr;
 
   // query name.idx
-  if (tdbTbGet(pReader->pMeta->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+  if (tdbTbGet(((SMeta*)pReader->pMeta)->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     metaReaderClear(&mr);
     return -1;
@@ -293,9 +293,9 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
 
   metaReaderInit(&pTbCur->mr, pMeta, 0);
 
-  tdbTbcOpen(pMeta->pUidIdx, &pTbCur->pDbc, NULL);
+  tdbTbcOpen(pMeta->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
 
-  tdbTbcMoveToFirst(pTbCur->pDbc);
+  tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
 
   return pTbCur;
 }
@@ -306,7 +306,7 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
     tdbFree(pTbCur->pVal);
     metaReaderClear(&pTbCur->mr);
     if (pTbCur->pDbc) {
-      tdbTbcClose(pTbCur->pDbc);
+      tdbTbcClose((TBC *)pTbCur->pDbc);
     }
     taosMemoryFree(pTbCur);
   }
@@ -318,7 +318,7 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
   STbCfg tbCfg;
 
   for (;;) {
-    ret = tdbTbcNext(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
+    ret = tdbTbcNext((TBC *)pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
     if (ret < 0) {
       return -1;
     }
@@ -342,7 +342,7 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
   STbCfg tbCfg;
 
   for (;;) {
-    ret = tdbTbcPrev(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
+    ret = tdbTbcPrev((TBC *)pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
     if (ret < 0) {
       return -1;
     }

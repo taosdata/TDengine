@@ -21,6 +21,7 @@
 #include "taoserror.h"
 #include "tarray.h"
 #include "tglobal.h"
+#include "tsdstorage.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -230,6 +231,36 @@ void indexInit(int32_t threads);
  *
  */
 void indexCleanup();
+
+/**
+ * the underlying storage module must implement this API to employ the index functions.
+ * @param pMeta
+ * @param param
+ * @param results
+ * @return
+ */
+
+typedef struct SMetaFltParam {
+  uint64_t suid;
+  int16_t  cid;
+  int16_t  type;
+  void    *val;
+  bool     reverse;
+  bool     equal;
+  int (*filterFunc)(void *a, void *b, int16_t type);
+} SMetaFltParam;
+
+typedef struct SStoreAPI {
+  int32_t (*metaFilterTableIds)();
+  int32_t (*metaFilterCreateTime)();
+  int32_t (*metaFilterTableName)();
+  int32_t (*metaFilterTtl)();
+} SStoreAPI;
+
+//int32_t metaFilterTableIds(void *pMeta, SMetaFltParam *param, SArray *results);
+//int32_t metaFilterCreateTime(void *pMeta, SMetaFltParam *parm, SArray *pUids);
+//int32_t metaFilterTableName(void *pMeta, SMetaFltParam *param, SArray *pUids);
+//int32_t metaFilterTtl(void *pMeta, SMetaFltParam *param, SArray *pUids);
 
 #ifdef __cplusplus
 }

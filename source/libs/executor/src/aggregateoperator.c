@@ -21,7 +21,7 @@
 #include "tname.h"
 
 #include "executorInt.h"
-#include "index.h"
+#include "tsdstorage.h"
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
@@ -30,6 +30,7 @@
 #include "tglobal.h"
 #include "thash.h"
 #include "ttypes.h"
+#include "index.h"
 
 typedef struct {
   bool    hasAgg;

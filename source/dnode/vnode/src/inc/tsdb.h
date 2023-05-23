@@ -844,9 +844,6 @@ int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 
-void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
-size_t tsdbCacheGetCapacity(SVnode *pVnode);
-
 // int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
 // ========== inline functions ==========

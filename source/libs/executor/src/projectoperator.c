@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "tdatablock.h"
 
 typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
