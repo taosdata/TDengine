@@ -116,6 +116,7 @@ tramp
 TAGS
 
 contrib/*
+!contrib/rocksdb_linux
 !contrib/CMakeLists.txt
 !contrib/test
 sql
