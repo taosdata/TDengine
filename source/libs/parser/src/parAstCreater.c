@@ -1713,6 +1713,33 @@ SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists,
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   pStmt->ignoreExists = ignoreExists;
   pStmt->withMeta = withMeta;
+
+//  SSelectStmt* pSelect = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
+//  if (NULL == pSelect) {
+//    return TSDB_CODE_OUT_OF_MEMORY;
+//  }
+//  sprintf(pSelect->stmtName, "%p", pSelect);
+//
+//  SRealTableNode* pRealTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
+//  if (NULL == pRealTable) {
+//    nodesDestroyNode((SNode*)pSelect);
+//    return TSDB_CODE_OUT_OF_MEMORY;
+//  }
+//  snprintf(pRealTable->table.dbName, sizeof(pRealTable->table.dbName), "%s", pDb);
+//  snprintf(pRealTable->table.tableName, sizeof(pRealTable->table.tableName), "%s", pTable);
+//  snprintf(pRealTable->table.tableAlias, sizeof(pRealTable->table.tableAlias), "%s", pTable);
+//  pSelect->pFromTable = (SNode*)pRealTable;
+//
+//  if (numOfProjs >= 0) {
+//    pSelect->pProjectionList = createProjectCols(numOfProjs, pProjCol);
+//    if (NULL == pSelect->pProjectionList) {
+//      nodesDestroyNode((SNode*)pSelect);
+//      return TSDB_CODE_OUT_OF_MEMORY;
+//    }
+//  }
+//
+//  pStmt->pQuery = pSelect;
+
   strcpy(pStmt->subDbName, ((SRealTableNode*)pRealTable)->table.dbName);
   strcpy(pStmt->subSTbName, ((SRealTableNode*)pRealTable)->table.tableName);
   nodesDestroyNode(pRealTable);
