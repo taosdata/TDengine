@@ -815,7 +815,7 @@ int32_t handleAlterTbExecRes(void* res, SCatalog* pCatalog) {
 }
 
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog) {
-  return catalogUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
+  return catalogAsyncUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
 }
 
 int32_t handleQueryExecRsp(SRequestObj* pRequest) {

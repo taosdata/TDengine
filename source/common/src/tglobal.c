@@ -53,7 +53,7 @@ int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
-float   tsRatioOfVnodeStreamThreads = 1.0;
+float   tsRatioOfVnodeStreamThreads = 2.0;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
@@ -84,7 +84,7 @@ bool     tsMonitorComp = false;
 // telem
 bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
-char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
+char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
@@ -117,11 +117,9 @@ int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
+int32_t tsMetaCacheMaxSize = -1; // MB
 int32_t tsSlowLogThreshold = 3; // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
-
-
-
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -202,12 +200,14 @@ int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointTickInterval = 1;
 int32_t tsTtlUnit = 86400;
-int32_t tsTtlPushInterval = 86400;
+int32_t tsTtlPushInterval = 3600;
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
+int64_t tsStreamBufferSize = 128 * 1024 * 1024;
+int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -349,6 +349,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
   if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "metaCacheMaxSize", tsMetaCacheMaxSize, -1, INT32_MAX, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 0, INT32_MAX, true) != 0) return -1;
   if (cfgAddString(pCfg, "slowLogScope", "", true) != 0) return -1;
 
@@ -516,6 +517,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, 0) != 0) return -1;
+  if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, 0) != 0) return -1;
+  if (cfgAddInt64(pCfg, "checkpointInterval", tsCheckpointInterval, 0, INT64_MAX, 0) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, 0) != 0) return -1;
 
@@ -784,6 +787,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsUseAdapter = cfgGetItem(pCfg, "useAdapter")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
   tsQueryMaxConcurrentTables = cfgGetItem(pCfg, "queryMaxConcurrentTables")->i64;
+  tsMetaCacheMaxSize = cfgGetItem(pCfg, "metaCacheMaxSize")->i32;
   tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
   if (taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)) {
     return -1;
@@ -891,6 +895,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsCacheLazyLoadThreshold = cfgGetItem(pCfg, "cacheLazyLoadThreshold")->i32;
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
+  tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
+  tsCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i64;
 
   GRANT_CFG_GET;
   return 0;
@@ -910,7 +916,7 @@ void taosLocalCfgForbiddenToChange(char *name, bool *forbidden) {
   *forbidden = false;
 }
 
-int32_t taosSetCfg(SConfig *pCfg, char *name) {
+int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
@@ -1042,6 +1048,12 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         case 'd': {
           if (strcasecmp("mDebugFlag", name) == 0) {
             mDebugFlag = cfgGetItem(pCfg, "mDebugFlag")->i32;
+          }
+          break;
+        }
+        case 'e': {
+          if (strcasecmp("metaCacheMaxSize", name) == 0) {
+            atomic_store_32(&tsMetaCacheMaxSize, cfgGetItem(pCfg, "metaCacheMaxSize")->i32);
           }
           break;
         }

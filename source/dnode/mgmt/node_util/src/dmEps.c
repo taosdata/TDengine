@@ -173,7 +173,7 @@ _OVER:
   dmResetEps(pData, pData->dnodeEps);
 
   if (pData->oldDnodeEps == NULL && dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
-    dError("localEp %s different with %s and need reconfigured", tsLocalEp, file);
+    dError("localEp %s different with %s and need to be reconfigured", tsLocalEp, file);
     terrno = TSDB_CODE_INVALID_CFG;
     return -1;
   }

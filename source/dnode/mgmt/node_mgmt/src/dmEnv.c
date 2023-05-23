@@ -218,6 +218,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     ESyncRole role = (*pWrapper->func.nodeRoleFp)(pWrapper->pMgmt);
     dInfo("node:%s, checking node role:%d", pWrapper->name, role);
     if(role == TAOS_SYNC_ROLE_VOTER){
+      dError("node:%s, failed to alter node type since node already is role:%d", pWrapper->name, role);
       terrno = TSDB_CODE_MNODE_ALREADY_IS_VOTER;
       return -1;
     }

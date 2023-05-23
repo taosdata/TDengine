@@ -267,6 +267,9 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_CONFIG_LEN 128
 #define TSDB_DNODE_VALUE_LEN  256
 
+#define TSDB_ACTIVE_KEY_LEN      109
+#define TSDB_CONN_ACTIVE_KEY_LEN 255
+
 #define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
@@ -365,11 +368,11 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_STT_TRIGGER            1
 #define TSDB_MAX_STT_TRIGGER            16
 #define TSDB_DEFAULT_SST_TRIGGER        1
-#define TSDB_MIN_HASH_PREFIX            0
-#define TSDB_MAX_HASH_PREFIX            128
+#define TSDB_MIN_HASH_PREFIX            (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_PREFIX            (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_PREFIX        0
-#define TSDB_MIN_HASH_SUFFIX            0
-#define TSDB_MAX_HASH_SUFFIX            128
+#define TSDB_MIN_HASH_SUFFIX            (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_SUFFIX            (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_SUFFIX        0
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1

@@ -550,7 +550,12 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   vInfo("vgId:%d, sync restore finished, start to restore stream tasks by replay wal", pVnode->config.vgId);
 
   // start to restore all stream tasks
-  tqStartStreamTasks(pVnode->pTq);
+  if (tsDisableStream) {
+    vInfo("vgId:%d, not launch stream tasks, since stream tasks are disabled", pVnode->config.vgId);
+  } else {
+    vInfo("vgId:%d start to launch stream tasks", pVnode->config.vgId);
+    tqStartStreamTasks(pVnode->pTq);
+  }
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {

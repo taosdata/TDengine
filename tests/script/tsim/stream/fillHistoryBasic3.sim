@@ -4,7 +4,7 @@ looptest:
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-sleep 50
+sleep 1000
 sql connect
 
 sql create database test  vgroups 1;
@@ -17,14 +17,14 @@ sql create table t2 using st tags(2,2,2);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
 
-sql create stream streams2 trigger at_once fill_history 1 IGNORE EXPIRED 0 into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a interval(10s);
+sql create stream streams2 trigger at_once fill_history 1 IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a interval(10s);
 
 sleep 3000
 
 $loop_count = 0
 
 loop7:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -48,7 +48,7 @@ sql insert into t2 values(1648791213000,1,2,3,1.0);
 $loop_count = 0
 
 loop8:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -72,7 +72,7 @@ sql insert into t2 values(1648791213000,2,2,3,1.0);
 $loop_count = 0
 
 loop9:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -102,7 +102,7 @@ sql insert into t2 values(1648791213002,1,2,3,1.0);
 $loop_count = 0
 
 loop10:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -144,7 +144,7 @@ sql insert into t2 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (16
 $loop_count = 0
 
 loop11:
-sleep 50
+sleep 1000
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1

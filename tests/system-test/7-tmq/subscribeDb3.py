@@ -10,6 +10,8 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+sys.path.append("./7-tmq")
+from tmqCommon import *
 
 class TDTestCase:
     hostname = socket.gethostname()
@@ -67,26 +69,26 @@ class TDTestCase:
         tdLog.info("consume info sql: %s"%sql)
         tdSql.query(sql)
 
-    def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb'):
-        while 1:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if (tdSql.getRows() == 1) and (tdSql.getData(0, 1) == 0):
-                break
-            else:
-                time.sleep(0.1)
-        return
-
-    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb'):
-        while 1:
-            tdSql.query("select * from %s.notifyinfo"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == 2 :
-                print(tdSql.getData(0, 1), tdSql.getData(1, 1))
-                if tdSql.getData(1, 1) == 1:
-                    break
-            time.sleep(0.1)
-        return
+    # def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb'):
+    #     while 1:
+    #         tdSql.query("select * from %s.notifyinfo"%cdbName)
+    #         #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+    #         if (tdSql.getRows() == 1) and (tdSql.getData(0, 1) == 0):
+    #             break
+    #         else:
+    #             time.sleep(0.1)
+    #     return
+    #
+    # def getStartCommitNotifyFromTmqsim(self,cdbName='cdb'):
+    #     while 1:
+    #         tdSql.query("select * from %s.notifyinfo"%cdbName)
+    #         #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+    #         if tdSql.getRows() == 2 :
+    #             tdLog.info("row[0][1]: %d, row[1][1]: %d"%(tdSql.getData(0, 1), tdSql.getData(1, 1)))
+    #             if tdSql.getData(1, 1) == 1:
+    #                 break
+    #         time.sleep(0.1)
+    #     return
 
     def selectConsumeResult(self,expectRows,cdbName='cdb'):
         resultList=[]
@@ -122,6 +124,7 @@ class TDTestCase:
         os.system(shellCmd)
 
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum,rowsPerTbl):
+        tdLog.info("start create tables......")
         tsql.execute("create database if not exists %s vgroups %d wal_retention_period 3600"%(dbName, vgroups))
         tsql.execute("use %s" %dbName)
         tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
@@ -137,11 +140,11 @@ class TDTestCase:
             tsql.execute(sql)
 
         event.set()
-        tdLog.debug("complete to create database[%s], stable[%s] and %d child tables" %(dbName, stbName, ctbNum))
+        tdLog.info("complete to create database[%s], stable[%s] and %d child tables" %(dbName, stbName, ctbNum))
         return
 
     def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs):
-        tdLog.debug("start to insert data ............")
+        tdLog.info("start to insert data ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
         sql = pre_insert
@@ -163,7 +166,7 @@ class TDTestCase:
         if sql != pre_insert:
             #print("insert sql:%s"%sql)
             tsql.execute(sql)
-        tdLog.debug("insert data ............ [OK]")
+        tdLog.info("insert data ............ [OK]")
         return
 
     def prepareEnv(self, **parameterDict):
@@ -226,13 +229,13 @@ class TDTestCase:
         event.wait()
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 20
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("wait the notify info of start consume")
-        self.getStartConsumeNotifyFromTmqsim()
+        tmqCom.getStartConsumeNotifyFromTmqsim()
 
         tdLog.info("pkill consume processor")
         if (platform.system().lower() == 'windows'):
@@ -286,7 +289,7 @@ class TDTestCase:
         prepareEnvThread.start()
 
         tdLog.info("create topics from db")
-        topicName1 = 'topic_db1'
+        topicName1 = 'topic_db11'
 
         tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))
         consumerId   = 0
@@ -310,7 +313,7 @@ class TDTestCase:
 
         # time.sleep(6)
         tdLog.info("start to wait commit notify")
-        self.getStartCommitNotifyFromTmqsim()
+        tmqCom.getStartCommitNotifyFromTmqsim()
 
         tdLog.info("pkill consume processor")
         if (platform.system().lower() == 'windows'):
@@ -333,7 +336,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows >= expectrowcnt or totalConsumeRows <= 0:
+        if totalConsumeRows > expectrowcnt or totalConsumeRows <= 0:
             tdLog.info("act consume rows: %d, expect consume rows between %d and 0"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 

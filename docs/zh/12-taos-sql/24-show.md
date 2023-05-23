@@ -129,6 +129,14 @@ SHOW QNODES;
 
 显示当前系统中 QNODE （查询节点）的信息。
 
+## SHOW QUERIES
+
+```sql
+SHOW QUERIES;
+```
+
+显示当前系统中正在进行的查询。
+
 ## SHOW SCORES
 
 ```sql
@@ -189,7 +197,7 @@ SHOW TABLE DISTRIBUTED table_name;
 
 *************************** 1.row ***************************
 
-_block_dist: Total_Blocks=[5] Total_Size=[93.65 Kb] Average_size=[18.73 Kb] Compression_Ratio=[23.98 %]
+_block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Compression_Ratio=[23.98 %]
 
 Total_Blocks:  表 d0 占用的 block 个数为 5 个
 

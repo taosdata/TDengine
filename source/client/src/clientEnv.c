@@ -110,7 +110,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   if (duration >= (tsSlowLogThreshold * 1000000UL)) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (tsSlowLogScope & reqType) {
-      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s", 
+      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
         taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration, pRequest->sqlstr);
     }
   }
@@ -449,6 +449,7 @@ static void *tscCrashReportThreadFp(void *param) {
         tscError("failed to send crash report");
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
+          pFile = NULL;
           continue;
         }
       } else {
@@ -468,6 +469,7 @@ static void *tscCrashReportThreadFp(void *param) {
 
     if (pFile) {
       taosReleaseCrashLogFile(pFile, truncateFile);
+      pFile = NULL;
       truncateFile = false;
     }
 
@@ -654,7 +656,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
   } else {
     tscInfo("set cfg:%s to %s", pItem->name, str);
     if (TSDB_OPTION_SHELL_ACTIVITY_TIMER == option || TSDB_OPTION_USE_ADAPTER == option) {
-      code = taosSetCfg(pCfg, pItem->name);
+      code = taosApplyLocalCfg(pCfg, pItem->name);
     }
   }
 

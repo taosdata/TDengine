@@ -283,6 +283,14 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
   return 0;
 }
 
+bool tfsDirExistAt(STfs *pTfs, const char *rname, SDiskID diskId) {
+  STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
+  char      aname[TMPNAME_LEN];
+
+  snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
+  return taosDirExist(aname);
+}
+
 int32_t tfsRmdir(STfs *pTfs, const char *rname) {
   if (rname[0] == 0) {
     return 0;

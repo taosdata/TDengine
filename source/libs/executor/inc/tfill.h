@@ -112,6 +112,7 @@ typedef struct SStreamFillInfo {
   int32_t                pos;
   SArray*                delRanges;
   int32_t                delIndex;
+  uint64_t               curGroupId;
 } SStreamFillInfo;
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);

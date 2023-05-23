@@ -1568,15 +1568,30 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   uint8_t dbPrec = pFunc->node.resType.precision;
 
-  // if (1 != numOfParams && 3 != numOfParams && 4 != numOfParams) {
-  if (1 != numOfParams) {
+  if (2 < numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 0));
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if ((!IS_NUMERIC_TYPE(paraType) && !IS_BOOLEAN_TYPE(paraType))|| QUERY_NODE_VALUE == nodeType) {
+  if ((!IS_NUMERIC_TYPE(paraType) && !IS_BOOLEAN_TYPE(paraType)) || QUERY_NODE_VALUE == nodeType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (2 == numOfParams) {
+    nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 1));
+    paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    if (!IS_INTEGER_TYPE(paraType) || QUERY_NODE_VALUE != nodeType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    if (pValue->datum.i != 0 && pValue->datum.i != 1) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "INTERP function second parameter should be 0/1");
+    }
+
+    pValue->notReserved = true;
   }
 
 #if 0
@@ -1622,6 +1637,15 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
+}
+
+static EFuncReturnRows interpEstReturnRows(SFunctionNode* pFunc) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (1 < numOfParams && 1 == ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i) {
+    return FUNC_RETURN_ROWS_INDEFINITE;
+  } else {
+    return FUNC_RETURN_ROWS_N;
+  }
 }
 
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -2484,7 +2508,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc    = getSelectivityFuncEnv,
     .initFunc      = functionSetup,
     .processFunc   = NULL,
-    .finalizeFunc  = NULL
+    .finalizeFunc  = NULL,
+    .estimateReturnRowsFunc = interpEstReturnRows
   },
   {
     .name = "derivative",
