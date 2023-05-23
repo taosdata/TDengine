@@ -3598,7 +3598,7 @@ int32_t fltSclMerge(SArray *pts1, SArray *pts2, bool isUnion, SArray *merged) {
   int32_t countRequired = (isUnion) ? 1 : 2;
   int32_t count = 0;
   for (int32_t i = 0; i < taosArrayGetSize(all); ++i) {
-    SFltSclPoint *pt = taosArrayGet(pts1, i);
+    SFltSclPoint *pt = taosArrayGet(all, i);
     if (pt->start) {
       ++count;
       if (count == countRequired) {
@@ -4402,7 +4402,9 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
     SValueNode *valNode = (SValueNode *)pOper->pRight;
     if (IS_NUMERIC_TYPE(valNode->node.resType.type) || valNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
       SFltSclOperator sclOp = {
-          .colNode = (SColumnNode*)nodesCloneNode(pOper->pLeft), .valNode = (SValueNode*)nodesCloneNode(pOper->pRight), .type = pOper->opType};
+          .colNode = (SColumnNode*)nodesCloneNode(pOper->pLeft), 
+          .valNode = (SValueNode*)nodesCloneNode(pOper->pRight), 
+          .type = pOper->opType};
       taosArrayPush(sclOpList, &sclOp);
     }
   }
@@ -4433,7 +4435,7 @@ static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList) {
 }
 
 int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
-  SArray *sclOpList = taosArrayInit(16, POINTER_BYTES);
+  SArray *sclOpList = taosArrayInit(16, sizeof(SFltSclOperator));
   fltSclCollectOperators(*pNode, sclOpList);
   SArray *colRangeList = taosArrayInit(16, sizeof(SFltSclColumnRange));
   fltSclProcessCNF(sclOpList, colRangeList);
