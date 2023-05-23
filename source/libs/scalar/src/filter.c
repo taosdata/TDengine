@@ -3750,6 +3750,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
       for (; j < numOfCols; ++j) {
         if (pDataStatis[j] != NULL && pDataStatis[j]->colId == colRange->colNode->colId) {
           foundCol = true;
+          break;
         }
       }
       if (foundCol) {
