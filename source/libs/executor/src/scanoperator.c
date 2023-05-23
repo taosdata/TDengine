@@ -531,7 +531,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
   // 1. check if it is existed in meta cache
   if (pCache == NULL) {
-    pHandle->api.metaReaderFn.initReader(&mr, pHandle->meta, 0);
+    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, 0);
     code = pHandle->api.metaReaderFn.readerGetEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
       // when encounter the TSDB_CODE_PAR_TABLE_NOT_EXIST error, we proceed.
@@ -560,7 +560,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
     h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid));
     if (h == NULL) {
-      pHandle->api.metaReaderFn.initReader(&mr, pHandle->meta, 0);
+      pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, 0);
       code = pHandle->api.metaReaderFn.readerGetEntryGetUidCache(&mr, pBlock->info.id.uid);
       if (code != TSDB_CODE_SUCCESS) {
         if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -2556,7 +2556,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   char        str[512] = {0};
   int32_t     count = 0;
   SMetaReader mr = {0};
-  pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.meta, 0);
+  pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, 0);
 
   while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
     doTagScanOneTable(pOperator, pRes, count, &mr, &pTaskInfo->storageAPI);
@@ -3396,7 +3396,7 @@ static void buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountSca
     pRes->info.id.groupId = groupId;
 
     int64_t dbTableCount = 0;
-    pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.meta, &dbTableCount);
+    pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &dbTableCount);
     fillTableCountScanDataBlock(pSupp, dbName, "", dbTableCount, pRes);
     setOperatorCompleted(pOperator);
   }
@@ -3410,18 +3410,18 @@ static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanO
   if (strlen(pSupp->dbNameFilter) != 0) {
     if (strlen(pSupp->stbNameFilter) != 0) {
       tb_uid_t uid = 0;
-      pAPI->metaFn.getTableUidByName(pInfo->readHandle.meta, pSupp->stbNameFilter, &uid);
+      pAPI->metaFn.getTableUidByName(pInfo->readHandle.vnode, pSupp->stbNameFilter, &uid);
       SMetaStbStats stats = {0};
       ASSERT(0);
-//      metaGetStbStats(pInfo->readHandle.meta, uid, &stats);
+//      metaGetStbStats(pInfo->readHandle.vnode, uid, &stats);
       int64_t ctbNum = stats.ctbNum;
       fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbNameFilter, ctbNum, pRes);
     } else {
-      int64_t tbNumVnode = 0;//metaGetTbNum(pInfo->readHandle.meta);
+      int64_t tbNumVnode = 0;//metaGetTbNum(pInfo->readHandle.vnode);
       fillTableCountScanDataBlock(pSupp, dbName, "", tbNumVnode, pRes);
     }
   } else {
-    int64_t tbNumVnode = 0;//metaGetTbNum(pInfo->readHandle.meta);
+    int64_t tbNumVnode = 0;//metaGetTbNum(pInfo->readHandle.vnode);
     pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode);
     fillTableCountScanDataBlock(pSupp, dbName, "", tbNumVnode, pRes);
   }
@@ -3437,7 +3437,7 @@ static void buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, S
 
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
-  int64_t ntbNum = 0;//metaGetNtbNum(pInfo->readHandle.meta);
+  int64_t ntbNum = 0;//metaGetNtbNum(pInfo->readHandle.vnode);
   ASSERT(0);
   if (ntbNum != 0) {
     fillTableCountScanDataBlock(pSupp, dbName, "", ntbNum, pRes);
@@ -3448,7 +3448,7 @@ static void buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, S
                                            SSDataBlock* pRes, char* dbName, tb_uid_t stbUid) {
   char stbName[TSDB_TABLE_NAME_LEN] = {0};
   ASSERT(0);
-//  metaGetTableSzNameByUid(pInfo->readHandle.meta, stbUid, stbName);
+//  metaGetTableSzNameByUid(pInfo->readHandle.vnode, stbUid, stbName);
 
   char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
   if (pSupp->groupByDbName) {
@@ -3461,7 +3461,7 @@ static void buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, S
   pRes->info.id.groupId = groupId;
 
   SMetaStbStats stats = {0};
-//  metaGetStbStats(pInfo->readHandle.meta, stbUid, &stats);
+//  metaGetStbStats(pInfo->readHandle.vnode, stbUid, &stats);
   int64_t ctbNum = stats.ctbNum;
 
   fillTableCountScanDataBlock(pSupp, dbName, stbName, ctbNum, pRes);

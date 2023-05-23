@@ -243,6 +243,7 @@ typedef struct TsdReader {
   void (*tsdReaderNotifyClosing)();
 } TsdReader;
 
+
 /**
  * int32_t tsdbReuseCacherowsReader(void* pReader, void* pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
@@ -262,7 +263,6 @@ typedef struct SStoreCacheReader {
 
 /*------------------------------------------------------------------------------------------------------------------*/
 /*
- *
 void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
 int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
@@ -552,7 +552,7 @@ typedef struct SStateStore {
 
 typedef struct SStorageAPI {
   SStoreMeta        metaFn;  // todo: refactor
-  TsdReader   tsdReader;
+  TsdReader         tsdReader;
   SStoreMetaReader  metaReaderFn;
   SStoreCacheReader cacheFn;
   SStoreSnapshotFn  snapshotFn;

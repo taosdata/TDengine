@@ -42,7 +42,7 @@ typedef struct {
 
 typedef struct {
   void*   tqReader;
-  void*   meta;
+//  void*   meta;
   void*   config;
   void*   vnode;
   void*   mnd;
@@ -54,7 +54,7 @@ typedef struct {
   int32_t numOfVgroups;
   void*   sContext;  // SSnapContext*
 
-  void*       pStateBackend;
+  void*   pStateBackend;
   struct SStorageAPI api;
 } SReadHandle;
 

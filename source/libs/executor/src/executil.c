@@ -2055,7 +2055,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       pTableListInfo->numOfOuputGroups = 1;
     }
   } else {
-    code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo, digest, pAPI);
+    code = getColInfoResultForGroupby(pHandle->vnode, group, pTableListInfo, digest, pAPI);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

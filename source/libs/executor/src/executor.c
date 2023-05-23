@@ -340,7 +340,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
-  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.meta, 0);
+  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, 0);
   for (int32_t i = 0; i < numOfUids; ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
 
@@ -372,7 +372,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     if (pScanInfo->pTagCond != NULL) {
       bool          qualified = false;
       STableKeyInfo info = {.groupId = 0, .uid = mr.me.uid};
-      code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.meta, &qualified, pAPI);
+      code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
         continue;
@@ -437,7 +437,7 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
         if (assignUid) {
           keyInfo.groupId = keyInfo.uid;
         } else {
-          code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
+          code = getGroupIdFromTagsVal(pScanInfo->readHandle.vnode, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
                                        &keyInfo.groupId, &pTaskInfo->storageAPI);
           if (code != TSDB_CODE_SUCCESS) {
             taosMemoryFree(keyBuf);
