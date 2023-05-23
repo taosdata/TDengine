@@ -4394,6 +4394,9 @@ static int32_t fltSclCollectOperatorFromNode(SNode* pNode, SArray* sclOpList) {
   //TODO: left value node, right column node
   //TODO: datatype
   //TODO: operator
+  if (pOper->pLeft == NULL || pOper->pRight == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE &&
       (pOper->opType == OP_TYPE_GREATER_THAN || pOper->opType == OP_TYPE_GREATER_EQUAL ||
        pOper->opType == OP_TYPE_LOWER_THAN || pOper->opType == OP_TYPE_LOWER_EQUAL ||
