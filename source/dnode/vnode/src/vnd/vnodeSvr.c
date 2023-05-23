@@ -250,7 +250,7 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   uint8_t    *pCont;
   SEncoder   *pCoder = &(SEncoder){0};
   SDeleteRes  res = {0};
-  SReadHandle handle = {.meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
+  SReadHandle handle = {.config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
 
   code = qWorkerProcessDeleteMsg(&handle, pVnode->pQuery, pMsg, &res);
   if (code) goto _exit;
@@ -1203,7 +1203,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
-  if (0 == pMsg->ver) {
+  if (0 == pMsg->version) {
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
       code = vnodeRebuildSubmitReqMsg(pSubmitReq, &pReq);

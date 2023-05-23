@@ -298,11 +298,10 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     walSetRefVer(handle.pRef, handle.snapshotVer);
 
     SReadHandle reader = {
-        .meta = pTq->pVnode->pMeta,
         .vnode = pTq->pVnode,
         .initTableReader = true,
         .initTqReader = true,
-        .version = handle.snapshotVer,
+        .version = handle.snapshotVer
     };
 
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
@@ -330,7 +329,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
       handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
 
-      buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta,
+      buildSnapContext(reader.vnode, reader.version, 0, handle.execHandle.subType, handle.fetchMeta,
                        (SSnapContext**)(&reader.sContext));
       handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, 0);
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
@@ -347,7 +346,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
 
-      buildSnapContext(reader.meta, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,
+      buildSnapContext(reader.vnode, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,
                        handle.fetchMeta, (SSnapContext**)(&reader.sContext));
       handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, 0);
     }

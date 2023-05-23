@@ -260,12 +260,12 @@ static void saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) 
   taosHashPut(suidInfo, &me->uid, sizeof(tb_uid_t), &dataTmp, sizeof(STableInfoForChildTable));
 }
 
-int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta,
+int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta,
                          SSnapContext** ctxRet) {
   SSnapContext* ctx = taosMemoryCalloc(1, sizeof(SSnapContext));
   if (ctx == NULL) return -1;
   *ctxRet = ctx;
-  ctx->pMeta = pMeta;
+  ctx->pMeta = pVnode->pMeta;
   ctx->snapVersion = snapVersion;
   ctx->suid = suid;
   ctx->subType = subType;
@@ -301,7 +301,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
       continue;
     }
 
-    if (tdbTbGet(pMeta->pUidIdx, &tmp->uid, sizeof(tb_uid_t), NULL, NULL) <
+    if (tdbTbGet(ctx->pMeta->pUidIdx, &tmp->uid, sizeof(tb_uid_t), NULL, NULL) <
         0) {  // check if table exist for now, need optimize later
       continue;
     }
