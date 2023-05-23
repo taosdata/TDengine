@@ -7,8 +7,8 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  disbleagent:'Disable Agent',
   database:'Database',
-  enableagent:'Enable Agent',
   warning:'Warning',
   ok:'OK',
   changepwdtip:'Password is successfully changed, please log in again',
@@ -252,7 +252,7 @@ export default {
     programming: "Programming",
     healthreport: 'Health Report',
     backup: "Backup",
-    admin: "System Management",
+    admin: "System management",
     cluster: 'Cluster'
   },
   login: {
@@ -554,6 +554,8 @@ export default {
     log: "Log",
     export: "Export",
     info: "Info",
+    CHILD_TABLEInfo: "Subtable Info",
+    NORMAL_TABLEInfo: 'Table Info',
     tableInfo: "Subtable Info",
     stableInfo: "STable Info",
     databaseInfo: "DB Info",
@@ -912,6 +914,8 @@ export default {
     timeseries: 'Time Series',
     version: 'Version',
     license: 'License',
+    stables: "STables",
+    tables: "Table",
     select_topic_tip: 'Please select the topic',
     add_new_user: 'Add New User',
     expire_time: 'Expire Time',

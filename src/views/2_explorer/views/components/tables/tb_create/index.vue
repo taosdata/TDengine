@@ -56,7 +56,7 @@
                 slot="prepend"
                 :placeholder="$t('Data') + $t('type')"
                 class="columnPrependBtn"
-                :disabled="typeHasSpe(column.type)"
+                :disabled="typeHasSpe(column.type) || index == 0"
               >
                 <el-option
                   v-for="item in handleTypeList(column.type, 'dataType')"

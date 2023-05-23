@@ -18,9 +18,6 @@
         <el-tab-pane name="license" :label="$t('topic.license')" lazy>
           <License></License>
         </el-tab-pane>
-        <el-tab-pane name="agent" :label="$t('topic.agent')" lazy>
-          <Agent></Agent>
-        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -29,14 +26,13 @@
 import MgUser from './views/user.vue'
 import AdBackup from './views/backup.vue'
 import AdReplication from './views/replication.vue'
-import Agent from './views/agents.vue'
 import License from './views/license.vue'
 import Activities from './views/activities.vue'
 import Cluster from '@/views/14_cluster/index.vue'
 export default {
   name: "Admin",
   components:{
-    MgUser,AdBackup,AdReplication,License,Activities,Cluster,Agent
+    MgUser,AdBackup,AdReplication,License,Activities,Cluster
   },
   data() {
     return {

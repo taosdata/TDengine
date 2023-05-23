@@ -72,7 +72,7 @@
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'add')"
-                    v-if="['sfile', 'nfile','stable'].includes(data.typeName)"
+                    v-if="['sfile', 'nfile', 'stable'].includes(data.typeName)"
                   >
                     <i
                       v-permission
@@ -508,7 +508,9 @@ export default {
       this.$store.state.console.currentComponent = "Info";
       this.$store.commit(
         "console/SET_TAB_NAME",
-        this.$t(`console.${data.typeName}Info`)
+        this.$t(`console.${data.typeName === 'table' 
+        ? data.type 
+        : data.typeName}Info`)
       );
       this.$store.state.console.partActive = "detail";
     },
