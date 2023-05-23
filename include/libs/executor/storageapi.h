@@ -18,7 +18,6 @@
 
 #include "tsimplehash.h"
 #include "tscalablebf.h"
-//#include "tdb.h"
 #include "taosdef.h"
 #include "tmsg.h"
 #include "tcommon.h"
@@ -34,8 +33,6 @@ extern "C" {
 #define CACHESCAN_RETRIEVE_TYPE_SINGLE 0x2
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
-
-typedef struct SMeta SMeta;
 
 typedef struct SMetaEntry {
   int64_t  version;
@@ -138,8 +135,10 @@ typedef struct SMetaTableInfo {
   char            tbName[TSDB_TABLE_NAME_LEN];
 } SMetaTableInfo;
 
+typedef struct SMeta SMeta;
+
 typedef struct SSnapContext {
-  SMeta *     pMeta;
+  SMeta *     pMeta;     // todo remove it
   int64_t     snapVersion;
   struct TBC *pCur;
   int64_t     suid;

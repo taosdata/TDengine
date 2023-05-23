@@ -21,7 +21,6 @@
 #include "tname.h"
 
 #include "executorInt.h"
-#include "tsdstorage.h"
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"

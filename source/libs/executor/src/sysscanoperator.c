@@ -32,7 +32,6 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "tsdstorage.h"
 #include "index.h"
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);

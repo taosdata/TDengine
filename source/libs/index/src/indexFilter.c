@@ -21,7 +21,6 @@
 #include "querynodes.h"
 #include "scalar.h"
 #include "tdatablock.h"
-#include "tsdstorage.h"
 
 // clang-format off
 #define SIF_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)

@@ -55,16 +55,6 @@ extern bool    filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pColsAgg, 
 int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode **pTagIndexCond, SNode **pTagCond,
                             SNode **pOtherCond);
 
-typedef struct SMetaFltParam {
-  tb_uid_t suid;
-  int16_t  cid;
-  int16_t  type;
-  void    *val;
-  bool     reverse;
-  bool     equal;
-  int (*filterFunc)(void *a, void *b, int16_t type);
-} SMetaFltParam;
-
 #ifdef __cplusplus
 }
 #endif
