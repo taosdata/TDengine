@@ -45,6 +45,8 @@ typedef void (*TArray2Cb)(void *);
 #define TARRAY2_SIZE(a)        ((a)->size)
 #define TARRAY2_ELEM(a, i)     ((a)->data[i])
 #define TARRAY2_ELEM_PTR(a, i) (&((a)->data[i]))
+#define TARRAY2_FIRST(a)       ((a)->data[0])
+#define TARRAY2_LAST(a)        ((a)->data[(a)->size - 1])
 
 static FORCE_INLINE int32_t tarray2_make_room(  //
     void   *arg,                                // array

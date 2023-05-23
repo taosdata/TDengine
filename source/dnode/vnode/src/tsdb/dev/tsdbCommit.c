@@ -124,17 +124,12 @@ static int32_t open_committer_writer(SCommitter *pCommitter) {
     return open_writer_with_new_stt(pCommitter);
   }
 
-  SRBTreeNode *node = NULL;  // tRBTreeMax(&lvl0->sttTree);
-  if (node == NULL) {
+  ASSERT(TARRAY2_SIZE(&lvl0->farr) > 0);
+  STFileObj *fobj = TARRAY2_LAST(&lvl0->farr);
+  if (fobj->f.stt.nseg >= pCommitter->sttTrigger) {
     return open_writer_with_new_stt(pCommitter);
   } else {
-    // STFileObj *fobj = TCONTAINER_OF(node, STFileObj, rbtn);
-    // if (fobj->f.stt.nseg >= pCommitter->sttTrigger) {
-    //   return open_writer_with_new_stt(pCommitter);
-    // } else {
-    //   return open_writer_with_exist_stt(pCommitter, &fobj->f);
-    // }
-    return 0;
+    return open_writer_with_exist_stt(pCommitter, &fobj->f);
   }
 }
 
