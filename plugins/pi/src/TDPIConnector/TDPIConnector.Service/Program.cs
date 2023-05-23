@@ -40,8 +40,6 @@ namespace TDPIConnector.Service
         {
             GlobalContext.Properties["applicationName"] = "pi-connector";
             XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
-            //Installer installer = new Installer();
-            //installer.OnBeforeInstall(null, null);
             PrintVersion();
             if (args != null && args.Length == 1 && (args[0][0] == '-' || args[0][0] == '/'))
             {

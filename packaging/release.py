@@ -123,9 +123,7 @@ def change_assemble_file_key(file, key, value):
     replace_file_content(file, pattern, new_attribute)
 
 def change_assemble_version(file, version):
-    # 构造新的属性字符串
     new_attribute = f'[assembly: AssemblyVersion("{version}")]'
-    # 使用正则表达式替换旧的属性值
     pattern = f'\[assembly: AssemblyVersion\("[^"]*"\)\]'
     replace_file_content(file, pattern, new_attribute)
 
@@ -133,7 +131,6 @@ def replace_file_content(file, pattern, new_attribute):
     with open(file, "r") as f:
         content = f.read()
     new_content = re.sub(pattern, new_attribute, content)
-    # 将修改后的内容写入文件
     with open(file, "w") as f:
         f.write(new_content)
    
@@ -249,8 +246,8 @@ def get_connector_version(connector_name):
     print("Current connector_name:", connector_name)
     print("Current branch:", branch)
     print("Current commit:", commit)
-    print("Current version:", version)
-    print("Current time:", current_time)
+    print("Build version:", version)
+    print("Build time:", current_time)
     return connector_version(connector_name, version, commit, current_time)
 
 def build_and_install_opc():

@@ -31,6 +31,8 @@ namespace TDBackfill
         }
         static void Main(string[] args)
         {
+            GlobalContext.Properties["applicationName"] = "backfill";
+            XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             PrintVersion();
             //create a command line parser using args
             CommandLineParser parser = new CommandLineParser(args);
