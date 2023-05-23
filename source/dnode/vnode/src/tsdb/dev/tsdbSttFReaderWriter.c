@@ -573,13 +573,12 @@ int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct STFi
       STFile *f = &ppWriter[0]->config.file;
       op->fid = f->fid;
       if (f->size == 0) {
-        op->of = NULL;
+        op->optype = TSDB_FOP_CREATE;
       } else {
-        op->of = &op->fArr[0];
-        op->of[0] = f[0];
+        op->optype = TSDB_FOP_MODIFY;
       }
-      op->nf = &op->fArr[1];
-      op->nf[0] = ppWriter[0]->tFile;
+      op->of = f[0];
+      op->nf = ppWriter[0]->tFile;
     }
   }
 

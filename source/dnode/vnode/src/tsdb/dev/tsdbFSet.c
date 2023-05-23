@@ -256,38 +256,68 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
   return 0;
 }
 
+// NOTE: the api does not remove file, only do memory operation
 int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
   int32_t code = 0;
 
-  // if (op->of.size == 0  //
-  //     || 0              /* TODO*/
-  // ) {
-  //   STFileObj *fobj;
-  //   code = tsdbTFileObjInit(pTsdb, &op->nf, &fobj);
-  //   if (code) return code;
+  if (op->optype == TSDB_FOP_CREATE) {
+    // create a new file
+    STFileObj *fobj;
+    code = tsdbTFileObjInit(pTsdb, &op->nf, &fobj);
+    if (code) return code;
 
-  //   if (fobj->f.type == TSDB_FTYPE_STT) {
-  //     SSttLvl *lvl = tsdbTFileSetGetLvl(fset, fobj->f.stt.level);
-  //     if (!lvl) {
-  //       code = tsdbSttLvlInit(fobj->f.stt.level, &lvl);
-  //       if (code) return code;
+    if (fobj->f.type == TSDB_FTYPE_STT) {
+      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, fobj->f.stt.level);
+      if (!lvl) {
+        code = tsdbSttLvlInit(fobj->f.stt.level, &lvl);
+        if (code) return code;
 
-  //       code = TARRAY2_SORT_INSERT(&fset->lvlArr, lvl, tsdbSttLvlCmprFn);
-  //       if (code) return code;
-  //     }
+        code = TARRAY2_SORT_INSERT(&fset->lvlArr, lvl, tsdbSttLvlCmprFn);
+        if (code) return code;
+      }
 
-  //     code = TARRAY2_SORT_INSERT(&lvl->farr, fobj, tsdbTFileObjCmpr);
-  //     if (code) return code;
-  //   } else {
-  //     fset->farr[fobj->f.type] = fobj;
-  //   }
-  // } else if (op->nf.size == 0) {
-  //   // delete
-  //   ASSERT(0);
-  // } else {
-  //   // modify
-  //   ASSERT(0);
-  // }
+      code = TARRAY2_SORT_INSERT(&lvl->farr, fobj, tsdbTFileObjCmpr);
+      if (code) return code;
+    } else {
+      ASSERT(fset->farr[fobj->f.type] == NULL);
+      fset->farr[fobj->f.type] = fobj;
+    }
+  } else if (op->optype == TSDB_FOP_REMOVE) {
+    // delete a file
+    if (op->of.type == TSDB_FTYPE_STT) {
+      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, op->of.stt.level);
+      ASSERT(lvl);
+
+      STFileObj  tfobj = {.f = {.cid = op->of.cid}};
+      STFileObj *tfobjp = &tfobj;
+      int32_t    idx = TARRAY2_SEARCH_IDX(&lvl->farr, &tfobjp, tsdbTFileObjCmpr, TD_EQ);
+      ASSERT(idx >= 0);
+      TARRAY2_REMOVE(&lvl->farr, idx, tsdbSttLvlRemoveFObj);
+
+      if (TARRAY2_SIZE(&lvl->farr) == 0) {
+        // TODO: remove the stt level if no file exists anymore
+        // TARRAY2_REMOVE(&fset->lvlArr, lvl - fset->lvlArr.data, tsdbSttLvlClear);
+      }
+    } else {
+      ASSERT(tsdbIsSameTFile(&op->of, &fset->farr[op->of.type]->f));
+      tsdbTFileObjUnref(fset->farr[op->of.type]);
+      fset->farr[op->of.type] = NULL;
+    }
+  } else {
+    if (op->nf.type == TSDB_FTYPE_STT) {
+      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, op->of.stt.level);
+      ASSERT(lvl);
+
+      STFileObj tfobj = {.f = {.cid = op->of.cid}}, *tfobjp = &tfobj;
+      tfobjp = TARRAY2_SEARCH_EX(&lvl->farr, &tfobjp, tsdbTFileObjCmpr, TD_EQ);
+
+      ASSERT(tfobjp);
+
+      tfobjp->f = op->nf;
+    } else {
+      fset->farr[op->nf.type]->f = op->nf;
+    }
+  }
 
   return 0;
 }

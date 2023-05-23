@@ -29,6 +29,12 @@ typedef TARRAY2(STFileObj *) TFileObjArray;
 typedef TARRAY2(SSttLvl *) TSttLvlArray;
 typedef TARRAY2(STFileOp) TFileOpArray;
 
+typedef enum {
+  TSDB_FOP_CREATE = 1,
+  TSDB_FOP_REMOVE,
+  TSDB_FOP_MODIFY,
+} tsdb_fop_t;
+
 // init/clear
 int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset);
 int32_t tsdbTFileSetInitEx(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
@@ -50,10 +56,10 @@ SSttLvl *tsdbTFileSetGetLvl(STFileSet *fset, int32_t level);
 bool tsdbTFileSetIsEmpty(const STFileSet *fset);
 
 struct STFileOp {
-  int32_t fid;
-  STFile *of;  // old file
-  STFile *nf;  // new file
-  STFile  fArr[2];
+  int32_t    fid;
+  tsdb_fop_t optype;
+  STFile     of;  // old file state
+  STFile     nf;  // new file state
 };
 
 struct SSttLvl {
