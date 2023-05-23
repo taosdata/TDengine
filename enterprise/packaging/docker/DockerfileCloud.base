@@ -1,0 +1,13 @@
+FROM ubuntu:22.04
+
+WORKDIR /root
+
+ARG cpuType
+
+RUN apt update
+RUN apt install -y curl vim gdb tmux valgrind jq net-tools
+
+ENV TINI_VERSION v0.19.0
+ENV TAOS_DISABLE_ADAPTER 1
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${cpuType} /tini
+ENV DEBIAN_FRONTEND=noninteractive

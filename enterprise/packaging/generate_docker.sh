@@ -35,6 +35,7 @@ if [ "$verMode" == "cluster" ];then
 elif [ "$verMode" == "cloud" ];then
   cp docker/2.x-files/run.sh ${communityDir}/packaging/docker/
   chmod u+x ${communityDir}/packaging/docker/run.sh
+  cp docker/DockerfileCloud.base ${communityDir}/packaging/docker/
   cp docker/DockerfileCloud ${communityDir}/packaging/docker/
   tdengineNameType="-cloud"
   dockerParam="-d y"
