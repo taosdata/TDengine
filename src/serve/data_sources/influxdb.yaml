@@ -39,7 +39,7 @@ authentication:
           required: true
         - name: token
           display: Token
-          description: This token will be able to create, update, delete, read, and write to anything in this organization.
+          description: This token can at least have permission to read anything in this organization.
           placeholder: Please input your access token in the InfluxDB
           hint: str
           required: true
@@ -62,16 +62,16 @@ groups:
       - name: beginTime
         display: Data Begin Time
         description: Set a data start time
-        placeholder: YYYY-MM-DD
+        placeholder: YYYY-MM-DD HH:MM:SS
         hint: time
         required: true
       - name: endTime
         display: Data End Time
         description: Set a data end time
-        placeholder: YYYY-MM-DD
+        placeholder: YYYY-MM-DD HH:MM:SS
         hint: time
       - name: buckets
-        display: Bucket&Measurement
+        display: Buckets
         description: Input the buckets to migrate, multiple separated by commas.
         placeholder: bucket1,bucket2,...
         hint: str
