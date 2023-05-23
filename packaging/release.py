@@ -139,16 +139,25 @@ def change_piconnector_assemble_file(pi_version):
         "TDPIConnector", "TDPIConnector.Service", "Properties", "AssemblyInfo.cs")
     change_assemble_file_key(pi_connector_assembly_file_path,"BuildTime", pi_version.BuildTime)
     change_assemble_file_key(pi_connector_assembly_file_path,"Commit", pi_version.Commit)
-    change_assemble_version(pi_connector_assembly_file_path, pi_version.Version + ".*")
 
     pi_backfill_assembly_file_path = os.path.join(taosx_dir, "plugins", "pi", "src", \
         "TDPIConnector", "TDBackfill", "Properties", "AssemblyInfo.cs")
     change_assemble_file_key(pi_backfill_assembly_file_path,"BuildTime", pi_version.BuildTime)
     change_assemble_file_key(pi_backfill_assembly_file_path,"Commit", pi_version.Commit)
-    change_assemble_version(pi_backfill_assembly_file_path, pi_version.Version + ".*")
+
+    if pi_version.Version != "":
+        change_assemble_version(pi_connector_assembly_file_path, pi_version.Version + ".*")
+        change_assemble_version(pi_backfill_assembly_file_path, pi_version.Version + ".*")
+
+def check_piconnector_version(version):
+    pattern = r'^\d+\.\d+\.\d+$'
+    if version != "" and not re.match(pattern, version):
+        print("pi connector version input error! Please use fomat as *.*.*")
+        sys.exit()
 
 def build_and_install_pi():
     pi_version = get_connector_version(pi_connector)
+    check_piconnector_version(pi_version.Version)
     if current_os != 'Windows':
         print(" PI Connector is only compatible with the Windows operating system.")
         sys.exit()
