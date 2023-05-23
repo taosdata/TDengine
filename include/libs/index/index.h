@@ -213,6 +213,7 @@ typedef struct SIndexMetaArg {
   void*    idx;
   void*    ivtIdx;
   uint64_t suid;
+  int (*metaFilterFunc)(void* metaEx, void* param, SArray* result);
 } SIndexMetaArg;
 
 typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "index.h"
 #include "indexComm.h"
 #include "indexInt.h"
