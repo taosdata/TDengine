@@ -37,7 +37,7 @@ namespace TDPIConnector.Service
             logger.Info("PI Connector version is: " + version);
             logger.Info("PI Connector commit is: " + commit);
             logger.Info("PI Connector build at: " + build_time);
-            Console.WriteLine("PI Connector{}");
+            Console.WriteLine("PI Connector");
             Console.WriteLine($"    Version : {version}");
             Console.WriteLine($"    Commit : {commit}");
             Console.WriteLine($"    Build Time : {build_time}");
@@ -50,8 +50,7 @@ namespace TDPIConnector.Service
                 {
                     case "version":
                     case "v":
-                        if (!ServiceInstallerUtility.InstallService())
-                            logger.Fatal("Failed to install service");
+                        PrintVersion();
                         return;
                     case "install":
                     case "i":
