@@ -312,10 +312,10 @@ int32_t tsdbTFileSetRemove(STFileSet **fset) {
   return 0;
 }
 
-SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level) {
+SSttLvl *tsdbTFileSetGetLvl(STFileSet *fset, int32_t level) {
   SSttLvl  tlvl = {.level = level};
   SSttLvl *lvl = &tlvl;
-  return TARRAY2_SEARCH_EX(&fset->lvlArr, lvl, tsdbSttLvlCmprFn, TD_EQ);
+  return TARRAY2_SEARCH_EX(&fset->lvlArr, &lvl, tsdbSttLvlCmprFn, TD_EQ);
 }
 
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2) {

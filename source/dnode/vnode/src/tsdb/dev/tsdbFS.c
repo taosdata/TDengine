@@ -586,9 +586,9 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
   return code;
 }
 
-int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **fset) {
-  STFileSet tfset = {.fid = fid};
-  fset[0] = &tfset;
-  fset[0] = TARRAY2_SEARCH_EX(&fs->cstate, fset, tsdbTFileSetCmprFn, TD_EQ);
+int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset) {
+  STFileSet  tfset = {.fid = fid};
+  STFileSet *pset = &tfset;
+  fset[0] = TARRAY2_SEARCH_EX(&fs->cstate, &pset, tsdbTFileSetCmprFn, TD_EQ);
   return 0;
 }

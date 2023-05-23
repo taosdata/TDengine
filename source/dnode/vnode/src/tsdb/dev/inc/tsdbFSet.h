@@ -53,7 +53,7 @@ int32_t tsdbTFileSetEditEx(const STFileSet *fset1, STFileSet *fset);
 // max commit id
 int64_t tsdbTFileSetMaxCid(const STFileSet *fset);
 
-SSttLvl *tsdbTFileSetGetLvl(const STFileSet *fset, int32_t level);
+SSttLvl *tsdbTFileSetGetLvl(STFileSet *fset, int32_t level);
 
 struct STFileOp {
   tsdb_fop_t op;

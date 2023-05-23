@@ -41,7 +41,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
 int32_t tsdbFSEditCommit(STFileSystem *pFS);
 int32_t tsdbFSEditAbort(STFileSystem *pFS);
 // other
-int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, const STFileSet **ppFSet);
+int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 
 /* Exposed Structs */
 struct STFileSystem {

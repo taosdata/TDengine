@@ -32,12 +32,12 @@ typedef struct {
   int64_t      eid;  // edit id
 
   // context
-  TSKEY            nextKey;
-  int32_t          fid;
-  int32_t          expLevel;
-  TSKEY            minKey;
-  TSKEY            maxKey;
-  const STFileSet *fset;
+  TSKEY      nextKey;
+  int32_t    fid;
+  int32_t    expLevel;
+  TSKEY      minKey;
+  TSKEY      maxKey;
+  STFileSet *fset;
 
   // writer
   SSttFileWriter *pWriter;
