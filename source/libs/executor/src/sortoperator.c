@@ -13,8 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executorInt.h"
 #include "filter.h"
-#include "executorimpl.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tdatablock.h"
 
 typedef struct SSortOperatorInfo {
@@ -545,6 +547,7 @@ typedef struct SMultiwayMergeOperatorInfo {
   SSDataBlock*   pIntermediateBlock;   // to hold the intermediate result
   int64_t        startTs;  // sort start time
   bool           groupSort;
+  bool           ignoreGroupId;
   uint64_t       groupId;
   STupleHandle*  prefetchedTuple;
 } SMultiwayMergeOperatorInfo;
@@ -694,7 +697,11 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     }
 
     pDataBlock->info.rows = p->info.rows;
-    pDataBlock->info.id.groupId = pInfo->groupId;
+    if (pInfo->ignoreGroupId) {
+      pDataBlock->info.id.groupId = 0;
+    } else {
+      pDataBlock->info.id.groupId = pInfo->groupId;
+    }
     pDataBlock->info.dataLoad = 1;
   }
 
@@ -785,6 +792,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
   pInfo->groupSort = pMergePhyNode->groupSort;
+  pInfo->ignoreGroupId = pMergePhyNode->ignoreGroupId;
   pInfo->pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
   pInfo->pInputBlock = pInputBlock;
   size_t numOfCols = taosArrayGetSize(pInfo->binfo.pRes->pDataBlock);

@@ -211,6 +211,12 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_DB_ALIVE_STMT,
   QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT,
   QUERY_NODE_BALANCE_VGROUP_LEADER_STMT,
+  QUERY_NODE_RESTORE_DNODE_STMT,
+  QUERY_NODE_RESTORE_QNODE_STMT,
+  QUERY_NODE_RESTORE_MNODE_STMT,
+  QUERY_NODE_RESTORE_VNODE_STMT,
+  QUERY_NODE_PAUSE_STREAM_STMT,
+  QUERY_NODE_RESUME_STREAM_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -307,6 +313,7 @@ void    nodesDestroyAllocator(int64_t allocatorId);
 
 SNode* nodesMakeNode(ENodeType type);
 void   nodesDestroyNode(SNode* pNode);
+void   nodesFree(void* p);
 
 SNodeList* nodesMakeList();
 int32_t    nodesListAppend(SNodeList* pList, SNode* pNode);

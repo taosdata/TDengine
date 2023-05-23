@@ -144,8 +144,8 @@ _exit:
 }
 
 int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
-  bool           diskAvail = osDataSpaceAvailable();
-  bool           needCommit = false;
+  bool diskAvail = osDataSpaceAvailable();
+  bool needCommit = false;
 
   taosThreadMutexLock(&pVnode->mutex);
   if (pVnode->inUse && diskAvail) {
@@ -438,6 +438,11 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   // commit each sub-system
   code = tsdbCommit(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (!TSDB_CACHE_NO(pVnode->config)) {
+    code = tsdbCacheCommit(pVnode->pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   if (VND_IS_RSMA(pVnode)) {
     code = smaCommit(pVnode->pSma, pInfo);

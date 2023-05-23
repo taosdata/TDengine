@@ -53,18 +53,8 @@
           "sample_format": "csv",
           "sample_file": "./sample.csv",
           "tags_file": "",
-          "columns": [
-            {
-              "type": "INT",
-              "count": 4094
-            }
-          ],
-          "tags": [
-            {
-              "type": "TINYINT",
-              "count": 1
-            }
-                     ]
+          "columns": [{ "type": "INT","count": 4093}],
+          "tags": [{"type": "TINYINT", "count": 1},{"type": "NCHAR","count": 1}]
         }
       ]
     }

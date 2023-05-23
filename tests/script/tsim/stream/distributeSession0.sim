@@ -39,7 +39,7 @@ sql use test;
 sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
-sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0  into streamtST as select  _wstart, count(*) c1, sum(a) c2 ,  max(b)  c3 from st session(ts, 10s) ;
+sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamtST as select  _wstart, count(*) c1, sum(a) c2 ,  max(b)  c3 from st session(ts, 10s) ;
 
 sleep 1000
 
@@ -57,7 +57,7 @@ $loop_count = 0
 loop1:
 sql select * from streamtST;
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1

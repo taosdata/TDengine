@@ -19,6 +19,7 @@
 #include "executor.h"
 #include "filter.h"
 #include "qworker.h"
+#include "rocksdb/c.h"
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"
@@ -177,6 +178,7 @@ int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 int32_t tsdbPrepareCommit(STsdb* pTsdb);
 int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
+int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
@@ -190,12 +192,12 @@ int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 int  tqInit();
 void tqCleanUp();
 STQ* tqOpen(const char* path, SVnode* pVnode);
+void tqNotifyClose(STQ*);
 void tqClose(STQ*);
 int  tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
-int  tqRegisterPushHandle(STQ* pTq, void* pHandle, const SMqPollReq* pRequest, SRpcMsg* pRpcMsg, SMqDataRsp* pDataRsp,
-                         int32_t type);
-int  tqUnregisterPushHandle(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t consumerId, bool rspConsumer);
-int  tqStartStreamTasks(STQ* pTq);    // restore all stream tasks after vnode launching completed.
+int  tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
+int  tqUnregisterPushHandle(STQ* pTq, void* pHandle);
+int  tqStartStreamTasks(STQ* pTq);  // restore all stream tasks after vnode launching completed.
 
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
@@ -213,10 +215,10 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
 // tq-stream
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit);
-int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
@@ -400,6 +402,10 @@ struct SVnode {
 #define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
 #define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
 #define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
+
+#define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
+#define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
+#define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
 
 struct STbUidStore {
   tb_uid_t  suid;

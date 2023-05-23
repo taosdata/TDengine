@@ -134,6 +134,16 @@ int32_t tfsMkdirAt(STfs *pTfs, const char *rname, SDiskID diskId);
 int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId);
 
 /**
+ * @brief check directories exist in tfs.
+ *
+ * @param pTfs The fs object.
+ * @param rname The rel name of directory.
+ * @param diskId The disk ID.
+ * @return true for exist, false for not exist.
+ */
+bool tfsDirExistAt(STfs *pTfs, const char *rname, SDiskID diskId);
+
+/**
  * @brief Remove directory at all levels in tfs.
  *
  * @param pTfs The fs object.

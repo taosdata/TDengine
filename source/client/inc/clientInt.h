@@ -81,6 +81,7 @@ typedef struct {
   int64_t appId;
   // ctl
   int8_t        threadStop;
+  int8_t        quitByKill;
   TdThread      thread;
   TdThreadMutex lock;  // used when app init and cleanup
   SHashObj*     appSummary;
@@ -361,7 +362,7 @@ void       stopAllRequests(SHashObj* pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
-void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* param);
+void hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
 
 typedef struct SSqlCallbackWrapper {
   SParseContext* pParseCtx;

@@ -112,7 +112,7 @@ SHOW STREAMS;
 
 When you create a stream, you can use the TRIGGER parameter to specify triggering conditions for it.
 
-For non-windowed processing, triggering occurs in real time. For windowed processing, there are three methods of triggering，the default value is AT_ONCE:
+For non-windowed processing, triggering occurs in real time. For windowed processing, there are three methods of triggering, the default value is AT_ONCE:
 
 1. AT_ONCE: triggers on write
 
@@ -147,7 +147,7 @@ In both of these methods, configuring the watermark is essential for obtaining a
 
 ## Supported functions
 
-All [scalar functions](../function/#scalar-functions) are available in stream processing. All [System information functions](../function/#system-information-functions) are <b>not</b> allowed in stream processing. All [Aggregate functions](../function/#aggregate-functions)  and  [Selection functions](../function/#selection-functions) are available in stream processing, except the followings:
+All [scalar functions](../function/#scalar-functions) are available in stream processing. All [Aggregate functions](../function/#aggregate-functions)  and  [Selection functions](../function/#selection-functions) are available in stream processing, except the followings:
   - [leastsquares](../function/#leastsquares)
   - [percentile](../function/#percentile)
   - [top](../function/#top)

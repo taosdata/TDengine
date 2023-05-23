@@ -46,15 +46,14 @@ Execute in any directory:
 
 ````
 curl -O http://packages.confluent.io/archive/7.1/confluent-7.1.1.tar.gz
-tar xzf confluent-7.1.1.tar.gz -C /opt/test
+tar xzf confluent-7.1.1.tar.gz -C /opt/
 ````
 
 Then you need to add the `$CONFLUENT_HOME/bin` directory to the PATH.
 
 ```title=".profile"
 export CONFLUENT_HOME=/opt/confluent-7.1.1
-PATH=$CONFLUENT_HOME/bin
-export PATH
+export PATH=$CONFLUENT_HOME/bin:$PATH
 ```
 
 Users can append the above script to the current user's profile file (~/.profile or ~/.bash_profile)
@@ -315,7 +314,6 @@ connection.backoff.ms=5000
 topic.prefix=tdengine-source-
 poll.interval.ms=1000
 fetch.max.rows=100
-out.format=line
 key.converter=org.apache.kafka.connect.storage.StringConverter
 value.converter=org.apache.kafka.connect.storage.StringConverter
 ```
@@ -329,7 +327,15 @@ DROP DATABASE IF EXISTS test;
 CREATE DATABASE test;
 USE test;
 CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
-INSERT INTO d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-03 14:38:05.000',10.30000,219,0.31000) d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-03 14:38:15.000',12.60000,218,0.33000) d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-03 14:38:16.800',12.30000,221,0.31000) d1002 USING meters TAGS(California.SanFrancisco, 3) VALUES('2018-10-03 14:38:16.650',10.30000,218,0.25000) d1003 USING meters TAGS(California.LoSangeles, 2) VALUES('2018-10-03 14:38:05.500',11.80000,221,0.28000) d1003 USING meters TAGS(California.LoSangeles, 2) VALUES('2018-10-03 14:38:16.600',13.40000,223,0.29000) d1004 USING meters TAGS(California.LoSangeles, 3) VALUES('2018-10-03 14:38:05.000',10.80000,223,0.29000) d1004 USING meters TAGS(California.LoSangeles, 3) VALUES('2018-10-03 14:38:06.500',11.50000,221,0.35000);
+
+INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:05.000',10.30000,219,0.31000) \
+            d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:15.000',12.60000,218,0.33000) \
+            d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:16.800',12.30000,221,0.31000) \
+            d1002 USING meters TAGS('California.SanFrancisco', 3) VALUES('2018-10-03 14:38:16.650',10.30000,218,0.25000) \
+            d1003 USING meters TAGS('California.LosAngeles', 2)   VALUES('2018-10-03 14:38:05.500',11.80000,221,0.28000) \
+            d1003 USING meters TAGS('California.LosAngeles', 2)   VALUES('2018-10-03 14:38:16.600',13.40000,223,0.29000) \
+            d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:05.000',10.80000,223,0.29000) \
+            d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:06.500',11.50000,221,0.35000);
 ```
 
 Use TDengine CLI to execute SQL script
@@ -346,7 +352,7 @@ confluent local services connect connector load TDengineSourceConnector --config
 
 ### View topic data
 
-Use the kafka-console-consumer command-line tool to monitor data in the topic tdengine-source-test. In the beginning, all historical data will be output. After inserting two new data into TDengine, kafka-console-consumer immediately outputs the two new data.
+Use the kafka-console-consumer command-line tool to monitor data in the topic tdengine-source-test. In the beginning, all historical data will be output. After inserting two new data into TDengine, kafka-console-consumer immediately outputs the two new data. The output is in InfluxDB line protocol format.
 
 ````
 kafka-console-consumer --bootstrap-server localhost:9092 --from-beginning --topic tdengine-source-test
@@ -384,7 +390,7 @@ confluent local services connect connector status
 You should now have two active connectors if you followed the previous steps. Use the following command to unload:
 
 ````
-confluent local services connect connector unload TDengineSourceConnector
+confluent local services connect connector unload TDengineSinkConnector
 confluent local services connect connector unload TDengineSourceConnector
 ````
 
@@ -417,11 +423,13 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 ### TDengine Source Connector specific configuration
 
 1. `connection.database`: source database name, no default value.
-2. `topic.prefix`: topic name prefix after data is imported into kafka. Use `topic.prefix` + `connection.database` name as the full topic name. Defaults to the empty string "".
-3. `timestamp.initial`: Data synchronization start time. The format is 'yyyy-MM-dd HH:mm:ss'. Default "1970-01-01 00:00:00".
-4. `poll.interval.ms`: Pull data interval, the unit is ms. Default is 1000.
-5. `fetch.max.rows`: The maximum number of rows retrieved when retrieving the database. Default is 100.
-6. `out.format`: The data format. The value could be line or json. The line represents the InfluxDB Line protocol format, and json represents the OpenTSDB JSON format. Default is `line`.
+2. `topic.prefix`: topic name prefix used when importing data into kafka. Its defaults value is empty string "".
+3. `timestamp.initial`: Data synchronization start time. The format is 'yyyy-MM-dd HH:mm:ss'. If it is not set, the data importing to Kafka will be started from the first/oldest row in the database.
+4. `poll.interval.ms`: The time interval for checking newly created tables or removed tables, default value is 1000.
+5. `fetch.max.rows`: The maximum number of rows retrieved when retrieving the database, default is 100.
+6. `query.interval.ms`: The time range of reading data from TDengine each time, its unit is millisecond. It should be adjusted according to the data flow in rate, the default value is 1000.
+7. `topic.per.stable`: If it's set to true, it means one super table in TDengine corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>-<stable.name>`; if it's set to false, it means the whole DB corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>`.
+
 
 
 ## Other notes

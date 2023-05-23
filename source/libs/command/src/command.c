@@ -278,7 +278,12 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
 
   char* retentions = buildRetension(pCfg->pRetensions);
   int32_t dbFNameLen = strlen(dbFName);
-  int32_t hashPrefix = (pCfg->hashPrefix > (dbFNameLen + 1)) ? (pCfg->hashPrefix - dbFNameLen - 1) : 0;
+  int32_t hashPrefix = 0;
+  if (pCfg->hashPrefix > 0) {
+    hashPrefix = pCfg->hashPrefix - dbFNameLen - 1;
+  } else if (pCfg->hashPrefix < 0) {
+    hashPrefix = pCfg->hashPrefix + dbFNameLen + 1;
+  }
 
   len += sprintf(
       buf2 + VARSTR_HEADER_SIZE,
@@ -743,7 +748,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     return terrno;
   }
 
-  if (taosSetCfg(tsCfg, pStmt->config)) {
+  if (taosApplyLocalCfg(tsCfg, pStmt->config)) {
     return terrno;
   }
 

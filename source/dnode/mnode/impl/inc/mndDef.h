@@ -118,7 +118,7 @@ typedef enum {
 } ETrnPolicy;
 
 typedef enum {
-  TRN_EXEC_PRARLLEL = 0,
+  TRN_EXEC_PARALLEL = 0,
   TRN_EXEC_SERIAL = 1,
 } ETrnExec;
 
@@ -137,12 +137,12 @@ typedef enum {
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE__TOUCH = 1,
+  CONSUMER_UPDATE__TOUCH = 1,   // rebalance req do not need change consume topic
   CONSUMER_UPDATE__ADD,
   CONSUMER_UPDATE__REMOVE,
   CONSUMER_UPDATE__LOST,
   CONSUMER_UPDATE__RECOVER,
-  CONSUMER_UPDATE__MODIFY,
+  CONSUMER_UPDATE__REBALANCE,      // subscribe req need change consume topic
 } ECsmUpdateType;
 
 typedef struct {
@@ -177,6 +177,7 @@ typedef struct {
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
   int64_t     mTraceId;
+  TdThreadMutex    mutex;
 } STrans;
 
 typedef struct {
@@ -205,6 +206,8 @@ typedef struct {
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
   char       ep[TSDB_EP_LEN];
+  char       active[TSDB_ACTIVE_KEY_LEN];
+  char       connActive[TSDB_CONN_ACTIVE_KEY_LEN];
 } SDnodeObj;
 
 typedef struct {
@@ -628,7 +631,7 @@ typedef struct {
   SArray*               rebVgs;            // SArray<SMqRebOutputVg>
   SArray*               newConsumers;      // SArray<int64_t>
   SArray*               removedConsumers;  // SArray<int64_t>
-  SArray*               touchedConsumers;  // SArray<int64_t>
+  SArray*               modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj*      pSub;
   SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;

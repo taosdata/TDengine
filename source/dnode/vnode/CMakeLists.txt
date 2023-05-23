@@ -84,6 +84,7 @@ target_include_directories(
     PUBLIC "inc"
     PUBLIC "src/inc"
     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
 )
 target_link_libraries(
     vnode
@@ -100,6 +101,7 @@ target_link_libraries(
 
     # PUBLIC bdb
     # PUBLIC scalar
+    PUBLIC rocksdb
     PUBLIC transport
     PUBLIC stream
     PUBLIC index
@@ -114,6 +116,12 @@ target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 if(${BUILD_WITH_INVERTEDINDEX})
     add_definitions(-DUSE_INVERTED_INDEX)
 endif(${BUILD_WITH_INVERTEDINDEX})
+
+if(${BUILD_WITH_ROCKSDB})
+    add_definitions(-DUSE_ROCKSDB)
+endif(${BUILD_WITH_ROCKSDB})
+
+
 
 if(${BUILD_TEST})
     add_subdirectory(test)

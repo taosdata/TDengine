@@ -73,7 +73,7 @@ static int32_t init_env() {
   taos_free_result(pRes);
 
   // create database
-  pRes = taos_query(pConn, "create database tmqdb precision 'ns'");
+  pRes = taos_query(pConn, "create database tmqdb precision 'ns' WAL_RETENTION_PERIOD 3600");
   if (taos_errno(pRes) != 0) {
     printf("error in create tmqdb, reason:%s\n", taos_errstr(pRes));
     goto END;
@@ -289,7 +289,7 @@ void consume_repeatly(tmq_t* tmq) {
     }
   }
 
-  free(pAssign);
+  tmq_free_assignment(pAssign);
 
   // let's do it again
   basic_consume_loop(tmq);

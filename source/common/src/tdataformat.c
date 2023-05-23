@@ -755,7 +755,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
   }
 
   if (pIter->pRow->flag == HAS_NULL) {
-    pIter->cv = COL_VAL_NULL(pTColumn->type, pTColumn->colId);
+    pIter->cv = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
     goto _exit;
   }
 
@@ -1509,7 +1509,9 @@ void tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid) {
 // STSchema ========================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   STSchema *pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);
-  if (pTSchema == NULL) return NULL;
+  if (pTSchema == NULL) {
+    return NULL;
+  }
 
   pTSchema->numOfCols = numOfCols;
   pTSchema->version = version;
@@ -2439,7 +2441,7 @@ _exit:
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data) {
   int32_t code = 0;
-  if(data == NULL){
+  if (data == NULL) {
     for (int32_t i = 0; i < nRows; ++i) {
       code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
     }
@@ -2453,8 +2455,9 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
       } else {
-        if(ASSERT(varDataTLen(data + offset) <= bytes)){
-          uError("var data length invalid, varDataTLen(data + offset):%d <= bytes:%d", (int)varDataTLen(data + offset), bytes);
+        if (ASSERT(varDataTLen(data + offset) <= bytes)) {
+          uError("var data length invalid, varDataTLen(data + offset):%d <= bytes:%d", (int)varDataTLen(data + offset),
+                 bytes);
           code = TSDB_CODE_INVALID_PARA;
           goto _exit;
         }

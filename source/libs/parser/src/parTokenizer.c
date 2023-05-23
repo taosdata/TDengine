@@ -175,12 +175,15 @@ static SKeyword keywordTable[] = {
     {"QUERY",                TK_QUERY},
     {"RANGE",                TK_RANGE},
     {"RATIO",                TK_RATIO},
+    {"PAUSE",                TK_PAUSE},
     {"READ",                 TK_READ},
     {"REDISTRIBUTE",         TK_REDISTRIBUTE},
     {"RENAME",               TK_RENAME},
     {"REPLACE",              TK_REPLACE},
     {"REPLICA",              TK_REPLICA},
     {"RESET",                TK_RESET},
+    {"RESUME",               TK_RESUME},
+    {"RESTORE",              TK_RESTORE},
     {"RETENTIONS",           TK_RETENTIONS},
     {"REVOKE",               TK_REVOKE},
     {"ROLLUP",               TK_ROLLUP},
@@ -238,7 +241,9 @@ static SKeyword keywordTable[] = {
     {"TSERIES",              TK_TSERIES},
     {"TTL",                  TK_TTL},
     {"UNION",                TK_UNION},
+    {"UNSAFE",               TK_UNSAFE},
     {"UNSIGNED",             TK_UNSIGNED},
+    {"UNTREATED",            TK_UNTREATED},
     {"UPDATE",               TK_UPDATE},
     {"USE",                  TK_USE},
     {"USER",                 TK_USER},
@@ -252,6 +257,7 @@ static SKeyword keywordTable[] = {
     {"VERBOSE",              TK_VERBOSE},
     {"VGROUP",               TK_VGROUP},
     {"VGROUPS",              TK_VGROUPS},
+    {"VNODE",                TK_VNODE},
     {"VNODES",               TK_VNODES},
     {"WAL_FSYNC_PERIOD",     TK_WAL_FSYNC_PERIOD},
     {"WAL_LEVEL",            TK_WAL_LEVEL},
@@ -692,7 +698,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
     len = tGetToken(&str[*i + t0.n + 1], &type);
 
     // only id and string are valid
-    if ((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) {
+    if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) || ((TK_NK_STRING != type) && (TK_NK_ID != type))) {
       t0.type = TK_NK_ILLEGAL;
       t0.n = 0;
 

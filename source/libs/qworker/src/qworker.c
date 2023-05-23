@@ -254,6 +254,7 @@ bool qwTaskNotInExec(SQWTaskCtx *ctx) {
   return false;
 }
 
+
 int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo) {
   int32_t taskNum = 0;
 
@@ -436,6 +437,40 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, int32_t code) {
+  if (QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy && ctx != NULL) {
+    if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
+      void       *rsp = NULL;
+      int32_t     dataLen = 0;
+      SOutputData sOutput = {0};
+      if (qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput)) {
+        return TSDB_CODE_SUCCESS;
+      }
+
+      if (rsp) {
+        bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
+
+        qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
+        if (qComplete) {
+          atomic_store_8((int8_t *)&ctx->queryEnd, true);
+        }
+
+        qwMsg->connInfo = ctx->dataConnInfo;
+        QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
+
+        qwBuildAndSendFetchRsp(ctx->fetchMsgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
+        rsp = NULL;
+
+        QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
+                     dataLen);
+      }
+    } 
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
   int32_t     code = 0;
   SQWTaskCtx *ctx = NULL;
@@ -584,7 +619,7 @@ _return:
 
   if (QW_PHASE_POST_QUERY == phase && ctx && !ctx->queryRsped) {
     bool   rsped = false;
-    SQWMsg qwMsg = {.msgType = ctx->msgType, .connInfo = ctx->ctrlConnInfo};
+    SQWMsg qwMsg = {.msgType = ctx->queryMsgType, .connInfo = ctx->ctrlConnInfo};
     qwDbgSimulateRedirect(&qwMsg, ctx, &rsped);
     qwDbgSimulateDead(QW_FPARAMS(), ctx, &rsped);
     if (!rsped) {
@@ -634,6 +669,8 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
 
+  qwSendQueryRsp(QW_FPARAMS(), qwMsg->msgType + 1, ctx, code, true);
+
 _return:
 
   if (ctx) {
@@ -660,7 +697,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   ctx->taskType = qwMsg->msgInfo.taskType;
   ctx->explain = qwMsg->msgInfo.explain;
   ctx->needFetch = qwMsg->msgInfo.needFetch;
-  ctx->msgType = qwMsg->msgType;
+  ctx->queryMsgType = qwMsg->msgType;
   ctx->localExec = false;
 
   // QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
@@ -684,7 +721,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(TSDB_CODE_APP_ERROR);
   }
 
-  qwSendQueryRsp(QW_FPARAMS(), qwMsg->msgType + 1, ctx, code, true);
+  //qwSendQueryRsp(QW_FPARAMS(), qwMsg->msgType + 1, ctx, code, true);
 
   ctx->level = plan->level;
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
@@ -701,32 +738,7 @@ _return:
   input.msgType = qwMsg->msgType;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);
 
-  if (QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy && ctx != NULL && QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
-    void       *rsp = NULL;
-    int32_t     dataLen = 0;
-    SOutputData sOutput = {0};
-    if (qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput)) {
-      return TSDB_CODE_SUCCESS;
-    }
-
-    if (rsp) {
-      bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
-
-      qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
-      if (qComplete) {
-        atomic_store_8((int8_t *)&ctx->queryEnd, true);
-      }
-
-      qwMsg->connInfo = ctx->dataConnInfo;
-      QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
-
-      qwBuildAndSendFetchRsp(ctx->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
-      rsp = NULL;
-
-      QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
-                   dataLen);
-    }
-  }
+  qwQuickRspFetchReq(QW_FPARAMS(), ctx, qwMsg, code);
 
   QW_RET(TSDB_CODE_SUCCESS);
 }
@@ -750,8 +762,10 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     atomic_store_8((int8_t *)&ctx->queryInQueue, 0);
     atomic_store_8((int8_t *)&ctx->queryContinue, 0);
 
-    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop));
-
+    if (!queryStop) {
+      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop));
+    }
+    
     if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       SOutputData sOutput = {0};
       QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
@@ -774,7 +788,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         qwMsg->connInfo = ctx->dataConnInfo;
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
 
-        qwBuildAndSendFetchRsp(ctx->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
+        qwBuildAndSendFetchRsp(ctx->fetchMsgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
         rsp = NULL;
 
         QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code,
@@ -796,7 +810,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       rsp = NULL;
 
       qwMsg->connInfo = ctx->dataConnInfo;
-      qwBuildAndSendFetchRsp(ctx->msgType + 1, &qwMsg->connInfo, NULL, 0, code);
+      qwBuildAndSendFetchRsp(ctx->fetchMsgType + 1, &qwMsg->connInfo, NULL, 0, code);
       QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
                    0);
     }
@@ -830,7 +844,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
-  ctx->msgType = qwMsg->msgType;
+  ctx->fetchMsgType = qwMsg->msgType;
   ctx->dataConnInfo = qwMsg->connInfo;
 
   SOutputData sOutput = {0};
@@ -896,6 +910,8 @@ _return:
       qwFreeFetchRsp(rsp);
       rsp = NULL;
     }
+  } else {    
+    //qwQuickRspFetchReq(QW_FPARAMS(), ctx, qwMsg, code);
   }
 
   QW_RET(TSDB_CODE_SUCCESS);
@@ -1307,7 +1323,7 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   ctx->taskType = qwMsg->msgInfo.taskType;
   ctx->explain = qwMsg->msgInfo.explain;
   ctx->needFetch = qwMsg->msgInfo.needFetch;
-  ctx->msgType = qwMsg->msgType;
+  ctx->queryMsgType = qwMsg->msgType;
   ctx->localExec = true;
   ctx->explainRes = explainRes;
 
@@ -1362,7 +1378,7 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
 
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
-  ctx->msgType = TDMT_SCH_MERGE_FETCH;
+  ctx->fetchMsgType = TDMT_SCH_MERGE_FETCH;
   ctx->explainRes = explainRes;
 
   SOutputData sOutput = {0};
