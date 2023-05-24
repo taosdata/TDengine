@@ -336,8 +336,10 @@ export default {
         tol_val: "",
         tol_unit: "m",
         interval_val: "1",
+        interval_offset:"0",
         state_column: "",
         interval_unit: "m",
+        offset_unit:'m',
         sliding_val: "",
         sliding_unit: "s",
         trigger: "WINDOW_CLOSE",
@@ -510,12 +512,13 @@ export default {
                 this.info.trigger +
                 " ";
 
-              previewSql += `  IGNORE EXPIRED ${this.info.ignore_expired} `;
+              
 
               if (this.info.trigger === "MAX_DELAY") {
                 previewSql +=
                   this.info.max_delay_time + this.info.max_delay_unit;
               }
+              previewSql += `  IGNORE EXPIRED ${this.info.ignore_expired} `;
               if (this.info.watermark) {
                 previewSql +=
                   " WATERMARK " +
@@ -563,7 +566,11 @@ export default {
                     previewSql += `STATE_WINDOW(\`${this.info.state_column}\`)`;
                     break;
                   case "INTERVAL":
-                    previewSql += `INTERVAL(${this.info.interval_val}${this.info.interval_unit})`;
+                    previewSql += `INTERVAL(${this.info.interval_val}${this.info.interval_unit}`;
+                    if(this.info.interval_offset!=0){
+                      previewSql += `,${this.info.interval_offset}${this.info.offset_unit}`
+                    }
+                    previewSql +=`)`
                     if (this.info.sliding_val) {
                       previewSql += ` SLIDING(${this.info.sliding_val}${this.info.sliding_unit})`;
                     }

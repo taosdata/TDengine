@@ -876,6 +876,7 @@ export default {
     slidingPeriod: "Sliding Period",
     execution: "Execution",
     intervalPeriod: "Interval Period",
+    intervaloffset:"Interval Offset",
     column: "Column",
     windowClause: "Window Clause",
     parttionSet: "Partition By",
