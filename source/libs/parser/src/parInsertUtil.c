@@ -282,7 +282,7 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
     pTmp->suid = pSrc->suid;
     pTmp->uid = pSrc->uid;
     pTmp->sver = pSrc->sver;
-    pTmp->pCreateTbReq = pSrc->pCreateTbReq;
+    pTmp->pCreateTbReq = NULL;
     if (pTmp->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       pTmp->aCol = taosArrayInit(128, sizeof(SColData));
       if (NULL == pTmp->aCol) {
