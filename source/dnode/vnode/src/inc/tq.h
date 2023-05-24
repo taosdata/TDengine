@@ -72,6 +72,8 @@ typedef struct {
 
 typedef struct {
   int64_t suid;
+  char*   qmsg;   // SubPlanToString
+  SNode*  node;
 } STqExecTb;
 
 typedef struct {

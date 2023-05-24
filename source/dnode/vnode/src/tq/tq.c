@@ -70,6 +70,8 @@ static void destroyTqHandle(void* data) {
   } else if (pData->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
     walCloseReader(pData->pWalReader);
     tqCloseReader(pData->execHandle.pTqReader);
+    taosMemoryFreeClear(pData->execHandle.execTb.qmsg);
+    nodesDestroyNode(pData->execHandle.execTb.node);
   }
   if(pData->msg != NULL) {
     rpcFreeCont(pData->msg->pCont);
@@ -470,7 +472,6 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     STqHandle tqHandle = {0};
     pHandle = &tqHandle;
 
-    uint64_t oldConsumerId = pHandle->consumerId;
     memcpy(pHandle->subKey, req.subKey, TSDB_SUBSCRIBE_KEY_LEN);
     pHandle->consumerId = req.newConsumerId;
     pHandle->epoch = -1;
@@ -514,14 +515,22 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       pHandle->pWalReader = walOpenReader(pVnode->pWal, NULL);
       pHandle->execHandle.execTb.suid = req.suid;
+      pHandle->execHandle.execTb.qmsg = req.qmsg;
+      req.qmsg = NULL;
 
-      SArray* tbUidList = taosArrayInit(0, sizeof(int64_t));
-      vnodeGetCtbIdList(pVnode, req.suid, tbUidList);
-      tqDebug("vgId:%d, tq try to get all ctb, suid:%" PRId64, pVnode->config.vgId, req.suid);
-      for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
-        int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
-        tqDebug("vgId:%d, idx %d, uid:%" PRId64, vgId, i, tbUid);
+      if (nodesStringToNode(pHandle->execHandle.execTb.qmsg, &pHandle->execHandle.execTb.node) != 0) {
+        tqError("nodesStringToNode error in sub stable, since %s", terrstr());
+        return -1;
       }
+
+      SArray* tbUidList = NULL;
+      ret = qGetTableList(req.suid, pVnode->pMeta, pVnode, pHandle->execHandle.execTb.node, NULL, &tbUidList);
+      if(ret != TDB_CODE_SUCCESS) {
+        tqError("qGetTableList error:%d handle %s consumer:0x%" PRIx64, ret, req.subKey, pHandle->consumerId);
+        taosArrayDestroy(tbUidList);
+        goto end;
+      }
+      tqDebug("vgId:%d, tq try to get ctb for stb subscribe, suid:%" PRId64, pVnode->config.vgId, req.suid);
       pHandle->execHandle.pTqReader = tqReaderOpen(pVnode);
       tqReaderSetTbUidList(pHandle->execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
@@ -532,8 +541,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     }
 
     taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
-    tqDebug("try to persist handle %s consumer:0x%" PRIx64 " , old consumer:0x%" PRIx64, req.subKey,
-            pHandle->consumerId, oldConsumerId);
+    tqDebug("try to persist handle %s consumer:0x%" PRIx64, req.subKey,
+            pHandle->consumerId);
     ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
     goto end;
   } else {

@@ -591,6 +591,8 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
         terrno = TSDB_CODE_QRY_INVALID_INPUT;
         return -1;
       }
+    } else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
+      pVgEp->qmsg = taosStrdup(pTopic->ast);
     } else {
       pVgEp->qmsg = taosStrdup("");
     }

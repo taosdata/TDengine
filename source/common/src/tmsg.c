@@ -3841,6 +3841,10 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
   if (tEncodeI32(&encoder, strlen(pReq->sql)) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
 
+  if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
+    if (tEncodeI32(&encoder, strlen(pReq->subStbFilterAst)) < 0) return -1;
+    if (tEncodeCStr(&encoder, pReq->subStbFilterAst) < 0) return -1;
+  }
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3879,6 +3883,15 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
     if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;
   }
 
+  if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
+    if (tDecodeI32(&decoder, &astLen) < 0) return -1;
+    if (astLen > 0) {
+      pReq->subStbFilterAst = taosMemoryCalloc(1, astLen + 1);
+      if (pReq->subStbFilterAst == NULL) return -1;
+      if (tDecodeCStrTo(&decoder, pReq->subStbFilterAst) < 0) return -1;
+    }
+  }
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -3889,6 +3902,8 @@ void tFreeSCMCreateTopicReq(SCMCreateTopicReq *pReq) {
   taosMemoryFreeClear(pReq->sql);
   if (TOPIC_SUB_TYPE__COLUMN == pReq->subType) {
     taosMemoryFreeClear(pReq->ast);
+  }else if(TOPIC_SUB_TYPE__TABLE == pReq->subType) {
+    taosMemoryFreeClear(pReq->subStbFilterAst);
   }
 }
 

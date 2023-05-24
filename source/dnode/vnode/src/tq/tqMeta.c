@@ -37,6 +37,7 @@ int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
     }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
     if (tEncodeI64(pEncoder, pHandle->execHandle.execTb.suid) < 0) return -1;
+    if (tEncodeCStr(pEncoder, pHandle->execHandle.execTb.qmsg) < 0) return -1;
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -64,6 +65,7 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
     }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
     if (tDecodeI64(pDecoder, &pHandle->execHandle.execTb.suid) < 0) return -1;
+    if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execTb.qmsg) < 0) return -1;
   }
   tEndDecode(pDecoder);
   return 0;
@@ -336,13 +338,19 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
 
-      SArray* tbUidList = taosArrayInit(0, sizeof(int64_t));
-      vnodeGetCtbIdList(pTq->pVnode, handle.execHandle.execTb.suid, tbUidList);
-      tqDebug("vgId:%d, tq try to get all ctb, suid:%" PRId64, pTq->pVnode->config.vgId, handle.execHandle.execTb.suid);
-      for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
-        int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
-        tqDebug("vgId:%d, idx %d, uid:%" PRId64, vgId, i, tbUid);
+      if (nodesStringToNode(handle.execHandle.execTb.qmsg, &handle.execHandle.execTb.node) != 0) {
+        tqError("nodesStringToNode error in sub stable, since %s", terrstr());
+        return -1;
       }
+
+      SArray* tbUidList = NULL;
+      int ret = qGetTableList(handle.execHandle.execTb.suid, pTq->pVnode->pMeta, pTq->pVnode, handle.execHandle.execTb.node, NULL, &tbUidList);
+      if(ret != TDB_CODE_SUCCESS) {
+        tqError("qGetTableList error:%d handle %s consumer:0x%" PRIx64, ret, handle.subKey, handle.consumerId);
+        taosArrayDestroy(tbUidList);
+        goto end;
+      }
+      tqDebug("vgId:%d, tq try to get ctb for stb subscribe, suid:%" PRId64, pTq->pVnode->config.vgId, handle.execHandle.execTb.suid);
       handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
       tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
