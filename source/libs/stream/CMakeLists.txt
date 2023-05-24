@@ -6,7 +6,6 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-if(${BUILD_WITH_ROCKSDB})
   target_link_libraries(
     stream
     PUBLIC rocksdb tdb
@@ -19,7 +18,6 @@ if(${BUILD_WITH_ROCKSDB})
   )
 
   add_definitions(-DUSE_ROCKSDB)
-endif(${BUILD_WITH_ROCKSDB})
 
 
 #target_link_libraries(

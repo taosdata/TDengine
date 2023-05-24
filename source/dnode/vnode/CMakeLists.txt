@@ -117,9 +117,7 @@ if(${BUILD_WITH_INVERTEDINDEX})
     add_definitions(-DUSE_INVERTED_INDEX)
 endif(${BUILD_WITH_INVERTEDINDEX})
 
-if(${BUILD_WITH_ROCKSDB})
     add_definitions(-DUSE_ROCKSDB)
-endif(${BUILD_WITH_ROCKSDB})
 
 
 
