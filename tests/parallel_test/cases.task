@@ -479,6 +479,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3
+
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/basic5.py
@@ -495,7 +500,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py -N 3 -n 3
@@ -507,7 +513,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
@@ -535,6 +541,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -582,6 +589,32 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py

@@ -126,8 +126,10 @@ with_opt(A) ::= WITH search_condition(B).                                       
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
 cmd ::= CREATE DNODE dnode_endpoint(A) PORT NK_INTEGER(B).                        { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, &B); }
-cmd ::= DROP DNODE NK_INTEGER(A) force_opt(B).                                    { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B); }
-cmd ::= DROP DNODE dnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B); }
+cmd ::= DROP DNODE NK_INTEGER(A) force_opt(B).                                    { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B, false); }
+cmd ::= DROP DNODE dnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B, false); }
+cmd ::= DROP DNODE NK_INTEGER(A) unsafe_opt(B).                                   { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, false, B); }
+cmd ::= DROP DNODE dnode_endpoint(A) unsafe_opt(B).                               { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, false, B); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B).                                   { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, NULL); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B) NK_STRING(C).                      { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, &C); }
 cmd ::= ALTER ALL DNODES NK_STRING(A).                                            { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, NULL); }
@@ -144,6 +146,10 @@ dnode_endpoint(A) ::= NK_IPTOKEN(B).                                            
 %destructor force_opt                                                             { }
 force_opt(A) ::= .                                                                { A = false; }
 force_opt(A) ::= FORCE.                                                           { A = true; }
+
+%type unsafe_opt                                                                  { bool }
+%destructor unsafe_opt                                                            { }
+unsafe_opt(A) ::= UNSAFE.                                                         { A = true; }
 
 /************************************************ alter local *********************************************************/
 cmd ::= ALTER LOCAL NK_STRING(A).                                                 { pCxt->pRootNode = createAlterLocalStmt(pCxt, &A, NULL); }
@@ -376,6 +382,7 @@ type_name(A) ::= VARCHAR NK_LP NK_INTEGER(B) NK_RP.                             
 type_name(A) ::= MEDIUMBLOB.                                                      { A = createDataType(TSDB_DATA_TYPE_MEDIUMBLOB); }
 type_name(A) ::= BLOB.                                                            { A = createDataType(TSDB_DATA_TYPE_BLOB); }
 type_name(A) ::= VARBINARY NK_LP NK_INTEGER(B) NK_RP.                             { A = createVarLenDataType(TSDB_DATA_TYPE_VARBINARY, &B); }
+type_name(A) ::= GEOMETRY NK_LP NK_INTEGER(B) NK_RP.                              { A = createVarLenDataType(TSDB_DATA_TYPE_GEOMETRY, &B); }
 type_name(A) ::= DECIMAL.                                                         { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
 type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_RP.                                  { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
 type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_COMMA NK_INTEGER NK_RP.              { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }

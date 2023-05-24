@@ -15,6 +15,7 @@
 
 #include "tstreamFileState.h"
 
+#include "query.h"
 #include "streamBackendRocksdb.h"
 #include "taos.h"
 #include "tcommon.h"
@@ -31,6 +32,7 @@ struct SStreamFileState {
   SSHashObj* rowBuffMap;
   void*      pFileStore;
   int32_t    rowSize;
+  int32_t    selectivityRowSize;
   int32_t    keyLen;
   uint64_t   preCheckPointVersion;
   uint64_t   checkPointVersion;
@@ -44,8 +46,8 @@ struct SStreamFileState {
 
 typedef SRowBuffPos SRowBuffInfo;
 
-SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, GetTsFun fp, void* pFile,
-                                      TSKEY delMark) {
+SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
+                                      GetTsFun fp, void* pFile, TSKEY delMark) {
   if (memSize <= 0) {
     memSize = DEFAULT_MAX_STREAM_BUFFER_SIZE;
   }
@@ -57,6 +59,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   if (!pFileState) {
     goto _error;
   }
+  rowSize += selectRowSize;
   pFileState->maxRowCount = TMAX((uint64_t)memSize / rowSize, FLUSH_NUM * 2);
   pFileState->usedBuffs = tdListNew(POINTER_BYTES);
   pFileState->freeBuffs = tdListNew(POINTER_BYTES);
@@ -68,11 +71,11 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   }
   pFileState->keyLen = keySize;
   pFileState->rowSize = rowSize;
+  pFileState->selectivityRowSize = selectRowSize;
   pFileState->preCheckPointVersion = 0;
   pFileState->checkPointVersion = 1;
   pFileState->pFileStore = pFile;
   pFileState->getTs = fp;
-  pFileState->maxRowCount = TMAX((uint64_t)memSize / rowSize, FLUSH_NUM * 2);
   pFileState->curRowCount = 0;
   pFileState->deleteMark = delMark;
   pFileState->flushMark = INT64_MIN;
@@ -154,9 +157,7 @@ void streamFileStateClear(SStreamFileState* pFileState) {
   clearExpiredRowBuff(pFileState, 0, true);
 }
 
-bool needClearDiskBuff(SStreamFileState* pFileState) {
-  return pFileState->flushMark > 0;
-}
+bool needClearDiskBuff(SStreamFileState* pFileState) { return pFileState->flushMark > 0; }
 
 void popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, uint64_t max, bool used) {
   uint64_t  i = 0;
@@ -325,7 +326,9 @@ bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen) {
 void releaseRowBuffPos(SRowBuffPos* pBuff) { pBuff->beUsed = false; }
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
-  clearExpiredRowBuff(pFileState, pFileState->maxTs - pFileState->deleteMark, false);
+  int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs) ? INT64_MIN
+                                                                           : pFileState->maxTs - pFileState->deleteMark;
+  clearExpiredRowBuff(pFileState, mark, false);
   return pFileState->usedBuffs;
 }
 
@@ -356,7 +359,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     }
 
     SStateKey sKey = {.key = *((SWinKey*)pPos->pKey), .opNum = ((SStreamState*)pFileState->pFileStore)->number};
-    code = streamStatePutBatch(pFileState->pFileStore, "state", batch, &sKey, pPos->pRowBuff, pFileState->rowSize);
+    code = streamStatePutBatch(pFileState->pFileStore, "state", batch, &sKey, pPos->pRowBuff, pFileState->rowSize, 0);
     qDebug("===stream===put %" PRId64 " to disc, res %d", sKey.key.ts, code);
   }
   if (streamStateGetBatchSize(batch) > 0) {
@@ -372,7 +375,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       int32_t len = 0;
       sprintf(keyBuf, "%s:%" PRId64 "", taskKey, ((SStreamState*)pFileState->pFileStore)->checkPointId);
       streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
-      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
+      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
       taosMemoryFree(valBuf);
     }
     {
@@ -381,7 +384,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       int32_t len = 0;
       memcpy(keyBuf, taskKey, strlen(taskKey));
       len = sprintf(valBuf, "%" PRId64 "", ((SStreamState*)pFileState->pFileStore)->checkPointId);
-      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
+      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
     }
     streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
@@ -440,7 +443,12 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
 
 int32_t recoverSnapshot(SStreamFileState* pFileState) {
   int32_t code = TSDB_CODE_SUCCESS;
-  deleteExpiredCheckPoint(pFileState, pFileState->maxTs - pFileState->deleteMark);
+  if (pFileState->maxTs != INT64_MIN) {
+    int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs)
+                       ? INT64_MIN
+                       : pFileState->maxTs - pFileState->deleteMark;
+    deleteExpiredCheckPoint(pFileState, mark);
+  }
   void*   pStVal = NULL;
   int32_t len = 0;
 
@@ -476,3 +484,5 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t streamFileStateGeSelectRowSize(SStreamFileState* pFileState) { return pFileState->selectivityRowSize; }

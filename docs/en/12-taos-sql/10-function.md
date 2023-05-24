@@ -434,7 +434,7 @@ TO_ISO8601(expr [, timezone])
 
 **More explanations**:
 
-- You can specify a time zone in the following format: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。 For example, TO_ISO8601(1, "+00:00").
+- You can specify a time zone in the following format: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00").
 - If the input is a UNIX timestamp, the precision of the returned value is determined by the digits of the input timestamp
 - If the input is a column of TIMESTAMP type, the precision of the returned value is same as the precision set for the current data base in use
 
@@ -626,7 +626,7 @@ algo_type: {
 
 **Applicable table types**: standard tables and supertables
 
-**Explanations**：
+**Explanations**:
 - _p_ is in range [0,100], when _p_ is 0, the result is same as using function MIN; when _p_ is 100, the result is same as function MAX.
 - `algo_type` can only be input as `default` or `t-digest` Enter `default` to use a histogram-based algorithm. Enter `t-digest` to use the t-digest algorithm to calculate the approximation of the quantile. `default` is used by default.
 - The approximation result of `t-digest` algorithm is sensitive to input data order. For example, when querying STable with different input data order there might be minor differences in calculated results.
@@ -672,7 +672,7 @@ If you input a specific column, the number of non-null values in the column is r
 ELAPSED(ts_primary_key [, time_unit])
 ```
 
-**Description**：`elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calculated time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
+**Description**: `elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calculated time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
 
 **Return value type**: Double if the input value is not NULL;
 
@@ -680,7 +680,7 @@ ELAPSED(ts_primary_key [, time_unit])
 
 **Applicable tables**: table, STable, outer in nested query
 
-**Explanations**：
+**Explanations**:
 - `ts_primary_key` parameter can only be the first column of a table, i.e. timestamp primary key.
 - The minimum value of `time_unit` is the time precision of the database. If `time_unit` is not specified, the time precision of the database is used as the default time unit. Time unit specified by `time_unit` can be:
           1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
@@ -758,7 +758,7 @@ SUM(expr)
 HYPERLOGLOG(expr)
 ```
 
-**Description**：
+**Description**:
   The cardinal number of a specific column is returned by using hyperloglog algorithm. The benefit of using hyperloglog algorithm is that the memory usage is under control when the data volume is huge.
   However, when the data volume is very small, the result may be not accurate, it's recommended to use `select count(data) from (select unique(col) as data from table)` in this case.
 
@@ -772,10 +772,10 @@ HYPERLOGLOG(expr)
 ### HISTOGRAM
 
 ```sql
-HISTOGRAM(expr，bin_type, bin_description, normalized)
+HISTOGRAM(expr, bin_type, bin_description, normalized)
 ```
 
-**Description**：Returns count of data points in user-specified ranges.
+**Description**: Returns count of data points in user-specified ranges.
 
 **Return value type** If normalized is set to 1, a DOUBLE is returned; otherwise a BIGINT is returned
 
@@ -783,18 +783,18 @@ HISTOGRAM(expr，bin_type, bin_description, normalized)
 
 **Applicable table types**: table, STable
 
-**Explanations**：
-- bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
-- bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:
+**Explanations**:
+- bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin".
+- bin_description: parameter to describe how to generate buckets can be in the following JSON formats for each bin_type respectively:
     - "user_input": "[1, 3, 5, 7]":
        User specified bin values.
 
     - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
-       "start" - bin starting point.       "width" - bin offset.       "count" - number of bins generated.       "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
+       "start" - bin starting point.       "width" - bin offset.       "count" - number of bins generated.       "infinity" - whether to add (-inf, inf) as start/end point in generated set of bins.
        The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
 
     - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
-       "start" - bin starting point.       "factor" - exponential factor of bin offset.       "count" - number of bins generated.       "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
+       "start" - bin starting point.       "factor" - exponential factor of bin offset.       "count" - number of bins generated.       "infinity" - whether to add (-inf, inf) as start/end point in generated range of bins.
        The above "linear_bin" descriptor generates a set of bins: [-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
 - normalized: setting to 1/0 to turn on/off result normalization. Valid values are 0 or 1.
 
@@ -867,10 +867,16 @@ FIRST(expr)
 ### INTERP
 
 ```sql
-INTERP(expr)
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
 ```
 
-**Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned.
+**Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned. The value of `ignore_null_values` can be 0 or 1, 1 means null values are ignored. The default value of this parameter is 0.
+
 
 **Return value type**: Same as the column being operated upon
 
@@ -1107,7 +1113,7 @@ ignore_negative: {
 **More explanation**:
 
 - It can be used together with `PARTITION BY tbname` against a STable.
-- It can be used together with a selected column. For example: select \_rowts, DERIVATIVE() from。
+- It can be used together with a selected column. For example: select \_rowts, DERIVATIVE() from.
 
 ### DIFF
 
@@ -1131,7 +1137,7 @@ ignore_negative: {
 **More explanation**:
 
 - The number of result rows is the number of rows subtracted by one, no output for the first row
-- It can be used together with a selected column. For example: select \_rowts, DIFF() from。
+- It can be used together with a selected column. For example: select \_rowts, DIFF() from.
 
 
 ### IRATE
@@ -1183,7 +1189,7 @@ STATECOUNT(expr, oper, val)
 **Applicable parameter values**:
 
 - oper : Can be one of `'LT'` (lower than), `'GT'` (greater than), `'LE'` (lower than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), the value is case insensitive, the value must be in quotes.
-- val ： Numeric types
+- val: Numeric types
 
 **Return value type**: Integer
 
@@ -1210,7 +1216,7 @@ STATEDURATION(expr, oper, val, unit)
 **Applicable parameter values**:
 
 - oper : Can be one of `'LT'` (lower than), `'GT'` (greater than), `'LE'` (lower than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), the value is case insensitive, the value must be in quotes.
-- val ： Numeric types
+- val: Numeric types
 - unit: The unit of time interval. Enter one of the following options: 1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks) If you do not enter a unit of time, the precision of the current database is used by default.
 
 **Return value type**: Integer

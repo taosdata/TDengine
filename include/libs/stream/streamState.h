@@ -20,12 +20,12 @@
 #include "tsimplehash.h"
 #include "tstreamFileState.h"
 
+#ifndef _STREAM_STATE_H_
+#define _STREAM_STATE_H_
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#ifndef _STREAM_STATE_H_
-#define _STREAM_STATE_H_
 
 // void*      streamBackendInit(const char* path);
 // void       streamBackendCleanup(void* arg);
@@ -86,9 +86,8 @@ typedef struct {
   int64_t number;
 } SStreamStateCur;
 
-int32_t streamStateFuncPut(SStreamState* pState, const STupleKey* key, const void* value, int32_t vLen);
-int32_t streamStateFuncGet(SStreamState* pState, const STupleKey* key, void** pVal, int32_t* pVLen);
-int32_t streamStateFuncDel(SStreamState* pState, const STupleKey* key);
+int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
+int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen);
 
 int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
 int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);

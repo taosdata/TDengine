@@ -1058,14 +1058,6 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
   pOperator->status = OP_NOT_OPENED;
 }
 
-void verifyOffset(void *pWalReader, STqOffsetVal* pOffset){
-  // if offset version is small than first version , let's seek to first version
-  int64_t firstVer = walGetFirstVer(((SWalReader*)pWalReader)->pWal);
-  if (pOffset->version + 1 < firstVer){
-    pOffset->version = firstVer - 1;
-  }
-}
-
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
@@ -1092,7 +1084,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       tsdbReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
-      verifyOffset(pInfo->tqReader->pWalReader, pOffset);
+      walReaderVerifyOffset(pInfo->tqReader->pWalReader, pOffset);
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, id) < 0) {
         qError("tqSeekVer failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
         return -1;
@@ -1150,7 +1142,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       if (pScanBaseInfo->dataReader == NULL) {
         int32_t code = tsdbReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1,
-                                      pScanInfo->pResBlock, &pScanBaseInfo->dataReader, id, false);
+                                      pScanInfo->pResBlock, &pScanBaseInfo->dataReader, id, false, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           qError("prepare read tsdb snapshot failed, uid:%" PRId64 ", code:%s %s", pOffset->uid, tstrerror(code), id);
           terrno = code;
@@ -1209,7 +1201,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       int32_t        size = tableListGetSize(pTableListInfo);
 
       tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, &pInfo->dataReader, NULL,
-                     false);
+                     false, NULL);
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
       strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);

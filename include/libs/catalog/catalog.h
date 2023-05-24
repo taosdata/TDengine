@@ -129,13 +129,14 @@ typedef struct SSTableVersion {
   int32_t  smaVer;
 } SSTableVersion;
 
-typedef struct SDbVgVersion {
+typedef struct SDbCacheInfo {
   char    dbFName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
+  int32_t cfgVersion;
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
   int64_t stateTs;
-} SDbVgVersion;
+} SDbCacheInfo;
 
 typedef struct STbSVersion {
   char*   tbFName;
@@ -148,7 +149,6 @@ typedef struct SUserAuthVersion {
   int32_t version;
 } SUserAuthVersion;
 
-typedef SDbCfgRsp     SDbCfgInfo;
 typedef SUserIndexRsp SIndexInfo;
 
 typedef void (*catalogCallback)(SMetaData* pResult, void* param, int32_t code);
@@ -179,6 +179,8 @@ int32_t catalogGetDBVgList(SCatalog* pCatalog, SRequestConnInfo* pConn, const ch
 int32_t catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, TAOS_DB_ROUTE_INFO* pInfo);
 
 int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgInfo* dbInfo);
+
+int32_t catalogUpdateDbCfg(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SDbCfgInfo* cfgInfo);
 
 int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);
 
@@ -212,7 +214,7 @@ int32_t catalogGetSTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const 
 
 int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
-int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
+int32_t catalogAsyncUpdateTableMeta(SCatalog* pCtg, STableMetaRsp* pMsg);
 
 int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
@@ -304,7 +306,7 @@ int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray*
 
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion** stables, uint32_t* num);
 
-int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion** dbs, uint32_t* num);
+int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* num);
 
 int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_t* num);
 

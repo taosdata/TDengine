@@ -64,6 +64,13 @@ IF(${TD_WINDOWS})
             ON
         )
 
+    MESSAGE("build geos Win32")
+    option(
+            BUILD_GEOS
+            "If build geos on Windows"
+            ON
+        )
+
 ELSEIF (TD_DARWIN_64)
     IF(${BUILD_TEST})
         add_definitions(-DCOMPILER_SUPPORTS_CXX13)
@@ -171,3 +178,8 @@ option(
    ON 
 )
 
+option(
+   BUILD_RELEASE
+   "If build release version"
+   OFF
+)

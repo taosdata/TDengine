@@ -13,7 +13,7 @@ Syntax Specifications used in this chapter:
 - Information that you input is given in lowercase.
 - \[ \] means optional input, excluding [] itself.
 - | means one of a few options, excluding | itself.
-- … means the item prior to it can be repeated multiple times.
+- ... means the item prior to it can be repeated multiple times.
 
 To better demonstrate the syntax, usage and rules of TDengine SQL, hereinafter it's assumed that there is a data set of data from electric meters. Each meter collects 3 data measurements: current, voltage, phase. The data model is shown below:
 

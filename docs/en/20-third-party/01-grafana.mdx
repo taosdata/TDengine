@@ -200,11 +200,16 @@ As shown above, select the `TDengine` data source in the `Query` and enter the c
 - Group by column name(s): `group by` or `partition by` columns name split by comma. By setting `Group by column name(s)`, it can show multi-dimension data if Sql is `group by` or `partition by`. Such as, it can show data by `dnode_ep` if sql is  `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep`.
 - Format to: format legend for `group by` or `partition by`. Such as it can display series data by `dnode_ep` if sql is `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep` and `Format to` is `mem_system_{{dnode_ep}}`.
 
+:::note
+
+Since the REST connection because is stateless. Grafana plugin can use <db_name>.<table_name> in the SQL command to specify the database name.
+
+:::
+
 Follow the default prompt to query the average system memory usage for the specified interval on the server where the current TDengine deployment is located as follows.
 
 ![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard2.webp)
 
-查询每台 TDengine 服务器指定间隔系统内存平均使用量如下.
 The example to query the average system memory usage for the specified interval on each server as follows.
 
 ![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard3.webp)
@@ -217,7 +222,7 @@ You can install TDinsight dashboard in data source configuration page (like `htt
 
 ![TDengine Database Grafana plugine import dashboard](./import_dashboard.webp)
 
-A dashboard for TDengine 2.x has been published on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)) 。 Check the [TDinsight User Manual](/reference/tdinsight/) for the details.
+A dashboard for TDengine 2.x has been published on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)). Check the [TDinsight User Manual](/reference/tdinsight/) for the details.
 
 For more dashboards using TDengine data source, [search here in Grafana](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource). Here is a sub list:
 

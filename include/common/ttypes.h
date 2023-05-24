@@ -269,7 +269,7 @@ typedef struct {
   (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
 
 #define IS_VAR_DATA_TYPE(t) \
-  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON))
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
 #define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
@@ -316,6 +316,8 @@ static FORCE_INLINE bool isNull(const void *val, int32_t type) {
       return *(uint32_t *)val == TSDB_DATA_UINT_NULL;
     case TSDB_DATA_TYPE_UBIGINT:
       return *(uint64_t *)val == TSDB_DATA_UBIGINT_NULL;
+    case TSDB_DATA_TYPE_GEOMETRY:
+      return varDataLen(val) == sizeof(int8_t) && *(uint8_t *)varDataVal(val) == TSDB_DATA_GEOMETRY_NULL;
 
     default:
       return false;

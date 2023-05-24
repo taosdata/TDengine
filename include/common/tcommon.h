@@ -82,7 +82,7 @@ typedef struct STuplePos {
       int32_t pageId;
       int32_t offset;
     };
-    STupleKey streamTupleKey;
+    SWinKey streamTupleKey;
   };
 } STuplePos;
 
@@ -207,11 +207,6 @@ typedef struct SSDataBlock {
   SArray*          pDataBlock;  // SArray<SColumnInfoData>
   SDataBlockInfo   info;
 } SSDataBlock;
-
-enum {
-  FETCH_TYPE__DATA = 0,
-  FETCH_TYPE__NONE,
-};
 
 typedef struct SVarColAttr {
   int32_t* offset;    // start position for each entry in the list

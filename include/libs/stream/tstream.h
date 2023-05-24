@@ -13,16 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
 #include "os.h"
-#include "query.h"
 #include "streamState.h"
 #include "tdatablock.h"
 #include "tdbInt.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tqueue.h"
-#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -113,14 +110,14 @@ typedef struct {
   int64_t     ver;
   int32_t*    dataRef;
   SPackedData submit;
-} SStreamDataSubmit2;
+} SStreamDataSubmit;
 
 typedef struct {
   int8_t  type;
   int64_t ver;
   SArray* dataRefs;  // SArray<int32_t*>
   SArray* submits;   // SArray<SPackedSubmit>
-} SStreamMergedSubmit2;
+} SStreamMergedSubmit;
 
 typedef struct {
   int8_t type;
@@ -137,7 +134,6 @@ typedef struct {
 typedef struct {
   int8_t       type;
   int64_t      ver;
-  int32_t*     dataRef;
   SSDataBlock* pBlock;
 } SStreamRefDataBlock;
 
@@ -209,10 +205,10 @@ static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
 
 void* streamQueueNextItem(SStreamQueue* queue);
 
-SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit, int32_t type);
-void                streamDataSubmitDestroy(SStreamDataSubmit2* pDataSubmit);
+SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type);
+void                streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit);
 
-SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit);
+SStreamDataSubmit* streamSubmitBlockClone(SStreamDataSubmit* pSubmit);
 
 typedef struct {
   char*              qmsg;
@@ -340,7 +336,7 @@ typedef struct SStreamMeta {
   TTB*         pTaskDb;
   TTB*         pCheckpointDb;
   SHashObj*    pTasks;
-  SArray*      pTaskList;   // SArray<task_id*>
+  SArray*      pTaskList;  // SArray<task_id*>
   void*        ahandle;
   TXN*         txn;
   FTaskExpand* expandFunc;
@@ -376,6 +372,7 @@ typedef struct {
   int32_t upstreamChildId;
   int32_t upstreamNodeId;
   int32_t blockNum;
+  int64_t totalLen;
   SArray* dataLen;  // SArray<int32_t>
   SArray* data;     // SArray<SRetrieveTableRsp*>
 } SStreamDispatchReq;
@@ -531,7 +528,7 @@ void tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 int32_t streamSetupTrigger(SStreamTask* pTask);
 
 int32_t streamProcessRunReq(SStreamTask* pTask);
-int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
+int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
@@ -540,7 +537,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
 void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
-int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock);
+int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
 bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 
@@ -568,6 +565,8 @@ int32_t streamAggRecoverPrepare(SStreamTask* pTask);
 // int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask);
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId);
 
+void         streamMetaInit();
+void         streamMetaCleanup();
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
 void         streamMetaClose(SStreamMeta* streamMeta);
 

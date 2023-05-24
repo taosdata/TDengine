@@ -970,8 +970,8 @@ TaosConsumer consumer = new TaosConsumer<>(config);
 - group.id: consumer: Specifies the group that the consumer is in.
 - value.deserializer: To deserialize the results, you can inherit `com.taosdata.jdbc.tmq.ReferenceDeserializer` and specify the result set bean. You can also inherit `com.taosdata.jdbc.tmq.Deserializer` and perform custom deserialization based on the SQL result set.
 - td.connect.type: Specifies the type connect with TDengine, `jni` or `WebSocket`. default is `jni`
-- httpConnectTimeout：WebSocket connection timeout in milliseconds, the default value is 5000 ms. It only takes effect when using WebSocket type.
-- messageWaitTimeout：socket timeout in milliseconds, the default value is 10000 ms. It only takes effect when using WebSocket type.
+- httpConnectTimeout: WebSocket connection timeout in milliseconds, the default value is 5000 ms. It only takes effect when using WebSocket type.
+- messageWaitTimeout: socket timeout in milliseconds, the default value is 10000 ms. It only takes effect when using WebSocket type.
 - For more information, see [Consumer Parameters](../../../develop/tmq).
 
 #### Subscribe to consume data
@@ -1267,9 +1267,9 @@ The source code of the sample application is under `TDengine/examples/JDBC`:
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 
-**Cause**：taos-jdbcdriver 3.0.1 is compiled on JDK 11.
+**Cause**: taos-jdbcdriver 3.0.1 is compiled on JDK 11.
 
-**Solution**： Use taos-jdbcdriver 3.0.2.
+**Solution**: Use taos-jdbcdriver 3.0.2.
 
 For additional troubleshooting, see [FAQ](../../../train-faq/faq).
 
