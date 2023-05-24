@@ -9,9 +9,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::field::debug;
 
 use crate::{
-    plugins::{service::spawn_rest_service, sink},
-    utils::{port_pool::PortPool, stop_thread},
-    Action, DataSet, DataSetsReq,
+    Action,
+    DataSet,
+    DataSetsReq, plugins::{service::spawn_rest_service, sink}, utils::{port_pool::PortPool, stop_thread},
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -144,8 +144,6 @@ impl InfluxdbConfig {
     }
 }
 
-const INFLUXDB_CONNECTOR_PATH: &'static str = "D:\\tmp\\taosx-influxdb\\taosx-influxdb-1.0.0.exe";
-
 /// InfluxDB DSN example: "influxdb://127.0.0.1:8086/?token=abc&orgId=def&mode=normal&beginTime=2023-05-01&endTime="
 pub async fn influxdb_to_taos(
     mut from: Dsn,
@@ -189,69 +187,56 @@ pub async fn influxdb_to_taos(
         None,
     )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
+    // 连接器路径
+    let connectorPath = if cfg!(target_os = "windows") {
+        "C:\\TDengine\\xplugins\\influxdb\\taosx-influxdb.bat"
+    } else {
+        "/usr/local/taos/xplugins/influxdb/taosx-influxdb.sh"
+    };
     // startup the connector
-    let mut command = async_process::Command::new(INFLUXDB_CONNECTOR_PATH);
-    let child_command = command
+    let mut command = tokio::process::Command::new(connectorPath);
+    let child = command
         .arg(&config_path)
-        .stdout(async_process::Stdio::inherit())
-        .stderr(async_process::Stdio::inherit())
-        .spawn()
-        .context("Start InfluxDB collector error")?;
-    let pid = child_command.id();
-    // waiting until the end
-    log::info!("waiting for InfluxDB connector");
-    tokio::spawn(async move {
-        tokio::select! {
-            // application exit with error code
-            output = child_command.output() => {
-                let output = output.context("InfluxDB connector run error")?;
-                log::info!("InfluxDB exit with status {}", output.status);
-                if !output.status.success() {
-                    let len = output.stdout.len();
-                    let err = if len > 200 {
-                        String::from_utf8_lossy(&output.stdout[len - 200..])
-                    } else {
-                        String::from_utf8_lossy(&output.stdout[..])
-                    };
-                    let _ = ipc.send(());
-                    anyhow::bail!("InfluxDB error: {}", err);
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+    {
+        let mut child = child.spawn().context("Start InfluxDB collector error")?;
+        // waiting until the end
+        log::info!("waiting for InfluxDB connector");
+        tokio::spawn(async move {
+            tokio::select! {
+                // application exit with error code
+                status = child.wait() => {
+                    let status = status?;
+                    log::info!("InfluxDB exit with status {}", status);
+                    if !status.success() {
+                        let _ = ipc.send(());
+                        anyhow::bail!("InfluxDB exist with status {}", status);
+                    }
+                },
+                err = receiver.recv() => {
+                    log::info!("have received worker thread panicked message, terminate child process");
+                    if let Some(err) = err {
+                        let _ = ipc.send(());
+                        anyhow::bail!("InfluxDB writer error: {err}");
+                    }
+                },
+                _ = cancel.cancelled() => {
+                    log::info!("InfluxDB task cancelled");
                 }
-            },
-            _ = tokio::signal::ctrl_c() => {
-                log::info!("Ctrl+C triggered, cancel tasks");
-                cancel.cancel();
-            },
-            err = receiver.recv() => {
-                if let Some(err) = err {
-                    log::warn!("InfluxDB writer error occurred: {err}");
-                    let _ = ipc.send(());
-                    anyhow::bail!("InfluxDB writer error: {err}");
-                }
-            },
-            _ = cancel.cancelled() => {
-                log::info!("InfluxDB task cancelled");
             }
-        }
-        // send an empty tuple
-        let _ = ipc.send(());
-        // stop the connector
-        terminate_child_process(pid)?;
-        log::info!("InfluxDB task Done");
-        // delete the temporary file
-        temp_path.close().unwrap();
-        Ok(())
-    })
-    .await??;
-    Ok(())
-}
-
-/// 杀死连接器进程
-fn terminate_child_process(id: u32) -> anyhow::Result<()> {
-    let mut kill_command = std::process::Command::new("TASKKILL");
-    kill_command
-        .arg("/F")
-        .arg("/PID")
-        .arg(id.to_string())
-        .spawn()?;
+            ;
+            // send an empty tuple
+            ipc.send(())?;
+            // stop the connector
+            let _ = child.kill().await;
+            log::info!("InfluxDB task Done");
+            // delete the temporary file
+            temp_path.close().unwrap();
+            // wait for completion
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Ok(())
+        }).await??;
+    }
     Ok(())
 }

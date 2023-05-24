@@ -120,7 +120,10 @@ async fn ipc_tcp_forward(
         let mut batches = futures::stream::iter(ipc_reader.reader);
         while let Some(res) = batches.next().await {
             // dbg!(&res);
-            sender.send(res.map_err(FlightError::from)).unwrap();
+            if let Err(err) = sender.send(res.map_err(FlightError::from)) {
+                log::warn!("sender send error: {}", err.to_string());
+                break;
+            }
         }
         log::error!("[task:{task_id}] stopped");
     });
@@ -287,9 +290,9 @@ async fn consume_lush_record(
                                         temp_column_value_pair.0.push('`');
                                         temp_column_value_pair.0.push_str(columns[index].as_str());
                                         temp_column_value_pair.0.push_str("`,");
-                                        temp_column_value_pair.1.push('\'');
-                                        temp_column_value_pair.1.push_str(v.into_value().to_string().unwrap().as_str());
-                                        temp_column_value_pair.1.push('\'');
+                                        // temp_column_value_pair.1.push('\'');
+                                        temp_column_value_pair.1.push_str(v.into_value().to_sql_value().as_str());
+                                        // temp_column_value_pair.1.push('\'');
                                         temp_column_value_pair.1.push_str(",");
                                     } else {
                                         // ignore null columnview
@@ -301,7 +304,8 @@ async fn consume_lush_record(
                                 i = i + 1;
                             }   
                         }
-                        column_value_pairs.into_iter().for_each(|(mut c, mut v)| {
+                        let mut count = 0;
+                        for (mut c, mut v) in column_value_pairs {
                             let mut column_names = String::from("(");
                             let mut values = String::from("(");
                             c.pop();
@@ -312,16 +316,17 @@ async fn consume_lush_record(
                             values.push(')');
                             let sql = format!("insert into `{table_name}` {column_names} VALUES {values}");
                             log::debug!("sql: {sql}");
-                            let res = taos.exec_sync(sql);
+                            let res = taos.exec(sql).await;
                             match res {
                                 Ok(num) => {
-                                    info!("written [{num}] records for table {table_name}");
+                                    count = count + num;
                                 }
                                 Err(err) => {
                                     log::error!("written err for {table_name} cause: {}", err);
                                 }
                             }
-                        });
+                        }
+                        info!("written [{count}] records for table {table_name}");
                     } else {
                         stmt.bind(data_vec.as_slice())?;
                         stmt.add_batch().unwrap();

@@ -100,7 +100,9 @@ impl PutStream {
                     }
                     arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                         dbg!(&batch);
-                        tx.send(batch).unwrap();
+                        if let Err(err) = tx.send(batch) {
+                            log::warn!("into_flight_put_result channel send err: {}", err.to_string());
+                        }
                     }
                 }
                 // let app_metadata = message.app_metadata;

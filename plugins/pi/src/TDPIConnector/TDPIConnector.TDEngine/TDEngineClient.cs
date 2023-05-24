@@ -586,7 +586,7 @@ namespace TDPIConnector.TDEngine
                 if (!response.IsSuccessStatusCode)
                 {
                     string errorContent = await response.Content.ReadAsStringAsync();
-                    log.Error($"TaosX Http request failed, {response.StatusCode}: {errorContent} ");
+                    log.Error($"TaosX Http request failed, {response.StatusCode}: {errorContent} sql:{sqlCommand}");
                     throw new TDEngineHttpResponseException(httpStatusCode, 0);
                 }
 

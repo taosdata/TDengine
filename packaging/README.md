@@ -9,17 +9,23 @@ release.py 脚本为 taosx-agent 打包服务，当前仅支持 Windows 打包
 - PI System 授权（pi 依赖）
 - Inno setup 6.2及以上
 
+## 版本号说明
+### PI
+pi版本号格式如：1.0.1.*,前三节编译时手动输入，最后一节自动生成，输入时格式必须为 *.*.*，全为数字。
+
 ## 参数说明
 
 支持参数：
 
 - -c: 需要同时打包的连接器列表，可以多个，空格隔开； 当前支持：opc pi mqtt
 - -t: 脚本快速测试，单独测试某一过程
-- -t pi: 测试 pi 编译安装
+- -t pi: 测试 pi 编译安装，参数版本号可选(-t pi 2.0.1)
 - -t opc: 测试 opc 编译安装
 - -t mqtt: 测试 mqtt 编译安装
 - -t taosx: 测试 taosx-agent 编译安装
 - -t package: 已经安装好的服务打包测试( taosx 必须已经编译安装过)
+- 连接器可带版本号编译，和连接器名空格隔开
+- example: python release.py -c pi 2.0.1
 
 ## 安装说明
 

@@ -4,24 +4,54 @@ using System;
 using TDPIConnector.Core;
 using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
+using System.Reflection;
+using System.Linq;
 
 namespace TDBackfill
 {
     internal class Program
     {
-        //private static readonly ILog logger = LogManager.GetLogger(typeof(Program));
+        private static bool logInit = LogInit();
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-
-        static void Main(string[] args)
+        private static bool LogInit()
         {
             GlobalContext.Properties["applicationName"] = "backfill";
             XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
+            return true;
+        }
+        static void PrintVersion(bool writelog)
+        {
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            var cus_ttributes = assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>();
+            var build_time = cus_ttributes.FirstOrDefault(a => a.Key == "BuildTime").Value;
+            var commit = cus_ttributes.FirstOrDefault(a => a.Key == "Commit").Value;
+
+            AssemblyName assemblyName = assembly.GetName();
+            Version version = assemblyName.Version;
+
+            if (writelog) {
+                log.Info("PI Backfill version is: " + version);
+                log.Info("PI Backfill commit is: " + commit);
+                log.Info("PI Backfill build at: " + build_time);
+            }
+            Console.WriteLine("PI Backfill");
+            Console.WriteLine($"    Version : {version}");
+            Console.WriteLine($"    Commit : {commit}");
+            Console.WriteLine($"    Build Time : {build_time}");
+        }
+        static void Main(string[] args)
+        {
             //create a command line parser using args
             CommandLineParser parser = new CommandLineParser(args);
             //get the command line options
             CommandLineOptions options = parser.GetCommandLineOptions();
-
+            if (options.ShowVersion) {
+                PrintVersion(false);
+                return;
+            }
+            PrintVersion(true);
             if (options.Help)
             {
                 //output to console the help message
@@ -30,6 +60,8 @@ namespace TDBackfill
                 Console.WriteLine("Options:");
                 Console.WriteLine("-h, --help");
                 Console.WriteLine("    Display this help message.");
+                Console.WriteLine("-v, --version");
+                Console.WriteLine("    Display version Information.");
                 Console.WriteLine("-drop, --drop-table");
                 Console.WriteLine("    Drop the associated table before backfilling.");
                 Console.WriteLine("    This will delete all data in the table. Ignored if -t or -f are specified.");
@@ -55,7 +87,14 @@ namespace TDBackfill
             }
             else
             {
-                AppSettings.Init(options.tomlFile);
+                try {
+                    AppSettings.Init(options.tomlFile);
+                }
+                catch (Exception e) {
+                    log.Fatal("Init Failed! Please check toml config file.", e);
+                    return;
+                }
+
                 if (options.tomlFile == "") {
                     AppSettings.tomlConfig.SetBackfillOption(
                         options.BackfillToFirstRecorded,
@@ -101,8 +140,8 @@ namespace TDBackfill
                 }
                 catch (Exception e)
                 {
-                    log.Fatal("Error starting the application.", e);
-                    throw e;
+                    log.Fatal("TDengine verify failed!", e);
+                    return;
                 }
 
                 try
@@ -120,8 +159,8 @@ namespace TDBackfill
                 }
                 catch (Exception e)
                 {
-                    log.Fatal("Error starting the application.", e);
-                    throw e;
+                    log.Fatal("PI System connect failed!.", e);
+                    return;
                 }
 
                 BackfillManager backfillManager = new BackfillManager(piSystemManager, piServerManager, tdEngineProxy);
@@ -139,6 +178,7 @@ namespace TDBackfill
                 catch (Exception e)
                 {
                     log.Error("Error backfilling PI Points", e.InnerException);
+                    return;
                 }
 
                 try
@@ -159,10 +199,10 @@ namespace TDBackfill
                 catch (Exception e)
                 {
                     log.Error("Error backfilling AF Elements", e.InnerException);
+                    return;
                 }
 
-                Console.WriteLine("Press any key to exit...");
-                Console.ReadKey();
+                Console.WriteLine("Backfill finished, exit.");
             }
         }
     }

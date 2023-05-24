@@ -45,12 +45,12 @@ authentication:
       description: Use username and password.
       username:
         display: Username
-        description: OPC server username.
+        description: MQTT Broker username.
         placeholder: username
         required: true
       password:
         display: Password
-        description: OPC server password.
+        description: MQTT Broker password.
         placeholder: password
     - name: certificates
       display: Certificates
