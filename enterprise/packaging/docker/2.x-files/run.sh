@@ -238,14 +238,21 @@ function check_disk() {
         for level in ${disk_usage_level[*]}; do
             if [ ${usage} -ge ${level} ]; then
                 disk_state="error"
-                disk_msg="disk usage over ${level}%"
+                disk_msg="disk usage over ${level}%, current usage: ${usage}%"
                 current_level=${level}
             fi
         done
         if [ ${current_level} -gt ${current_disk_level} ]; then
             post_disk_error_msg
         elif [ ${current_level} -lt ${current_disk_level} ]; then
-            echo "disk usage reduced from ${current_disk_level} to ${current_level}"
+            # hysteresis comparator
+            local downgrade_usage=$(( current_disk_level - 4 ))
+            if [ ${usage} -lt ${downgrade_usage} ]; then
+                echo "disk usage reduced from ${current_disk_level} to ${current_level}"
+            else
+                # echo "disk usage level downgrade not ready: ${usage} still above ${downgrade_usage}"
+                current_level=${current_disk_level}
+            fi
         fi
         current_disk_level=${current_level}
     fi
