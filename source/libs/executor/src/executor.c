@@ -252,7 +252,7 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
                                      uint64_t id) {
   if (msg == NULL) {  // create raw scan
-    SExecTaskInfo* pTaskInfo = doCreateTask(0, id, vgId, OPTR_EXEC_MODEL_QUEUE);
+    SExecTaskInfo* pTaskInfo = doCreateTask(0, id, vgId, OPTR_EXEC_MODEL_QUEUE, &pReaderHandle->api);
     if (NULL == pTaskInfo) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
@@ -264,6 +264,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
       return NULL;
     }
 
+    pTaskInfo->storageAPI = pReaderHandle->api;
     qDebug("create raw scan task info completed, vgId:%d, %s", vgId, GET_TASKID(pTaskInfo));
     return pTaskInfo;
   }
@@ -1092,8 +1093,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       ASSERT(0);
 //      walReaderVerifyOffset(pInfo->tqReader->pWalReader, pOffset);
-//      if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, id) < 0) {
-//        qError("tqSeekVer failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
+//      if (tqReaderSeek(pInfo->tqReader, pOffset->version + 1, id) < 0) {
+//        qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
 //        return -1;
 //      }
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {

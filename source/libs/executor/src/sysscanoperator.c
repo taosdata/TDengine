@@ -157,7 +157,7 @@ int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
 
   const char* db = NULL;
   ASSERT(0);
-//  pAPI->metaFn.storeGetBasicInfo(pVnode, &db, NULL);
+//  pAPI->metaFn.getBasicInfo(pVnode, &db, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -185,7 +185,7 @@ int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
 
   int64_t vgId = 0;
   ASSERT(0);
-//  pAPI->metaFn.storeGetBasicInfo(pVnode, NULL, (int32_t*)&vgId);
+//  pAPI->metaFn.getBasicInfo(pVnode, NULL, (int32_t*)&vgId);
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -451,7 +451,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &db, &vgId);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -522,7 +522,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   int32_t ret = 0;
   if (pInfo->pCur == NULL) {
-    pInfo->pCur = pAPI->metaFn.openMetaCursor(pInfo->readHandle.vnode);
+    pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
   }
 
   if (pInfo->pSchema == NULL) {
@@ -614,7 +614,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   blockDataDestroy(dataBlock);
   if (ret != 0) {
-    pAPI->metaFn.closeMetaCursor(pInfo->pCur);
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
     setOperatorCompleted(pOperator);
   }
@@ -642,7 +642,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &db, &vgId);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -702,7 +702,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
   int32_t ret = 0;
   if (pInfo->pCur == NULL) {
-    pInfo->pCur = pAPI->metaFn.openMetaCursor(pInfo->readHandle.vnode);
+    pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
   }
 
   bool blockFull = false;
@@ -722,7 +722,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
              GET_TASKID(pTaskInfo));
       pAPI->metaReaderFn.clearReader(&smrSuperTable);
-      pAPI->metaFn.closeMetaCursor(pInfo->pCur);
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
       pInfo->pCur = NULL;
       T_LONG_JMP(pTaskInfo->env, terrno);
     }
@@ -756,7 +756,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
   blockDataDestroy(dataBlock);
   if (ret != 0) {
-    pAPI->metaFn.closeMetaCursor(pInfo->pCur);
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
     setOperatorCompleted(pOperator);
   }
@@ -1113,7 +1113,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &db, &vgId);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1292,7 +1292,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pInfo->pCur == NULL) {
-    pInfo->pCur = pAPI->metaFn.openMetaCursor(pInfo->readHandle.vnode);
+    pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
   }
 
   blockDataCleanup(pInfo->pRes);
@@ -1300,7 +1300,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
-  pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &db, &vgId);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1346,7 +1346,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pInfo->pCur->mr.me.name,
                suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
         pAPI->metaReaderFn.clearReader(&mr);
-        pAPI->metaFn.closeMetaCursor(pInfo->pCur);
+        pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
         pInfo->pCur = NULL;
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
@@ -1456,8 +1456,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   // todo temporarily free the cursor here, the true reason why the free is not valid needs to be found
   if (ret != 0) {
-    pAPI->metaFn.closeMetaCursor(pInfo->pCur);
-    pAPI->metaFn.closeMetaCursor(pInfo->pCur);
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
     setOperatorCompleted(pOperator);
   }
@@ -1741,6 +1740,8 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
 
   extractTbnameSlotId(pInfo, pScanNode);
 
+  pInfo->pAPI = &pTaskInfo->storageAPI;
+
   pInfo->accountId = pScanPhyNode->accountId;
   pInfo->pUser = taosStrdup((void*)pUser);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
@@ -1813,7 +1814,7 @@ void destroySysScanOperator(void* param) {
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
-    pInfo->pAPI->metaFn.closeMetaCursor(pInfo->pCur);
+    pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
     pInfo->pCur = NULL;
   }
   if (pInfo->pIdx) {

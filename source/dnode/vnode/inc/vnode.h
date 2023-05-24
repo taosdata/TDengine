@@ -67,17 +67,17 @@ int32_t   vnodeStart(SVnode *pVnode);
 void      vnodeStop(SVnode *pVnode);
 int64_t   vnodeGetSyncHandle(SVnode *pVnode);
 void      vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
-void      vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
+void      vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* numOfTables, int64_t* numOfNormalTables);
 int32_t   vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t   vnodeIsCatchUp(SVnode *pVnode);
 ESyncRole vnodeGetRole(SVnode *pVnode);
 
-int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
+int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list);
 int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);
 int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list);
-void   *vnodeGetIdx(SVnode *pVnode);
-void   *vnodeGetIvtIdx(SVnode *pVnode);
+void   *vnodeGetIdx(void *pVnode);
+void   *vnodeGetIvtIdx(void *pVnode);
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
@@ -105,22 +105,22 @@ typedef struct SMetaEntry  SMetaEntry;
 
 #define META_READER_NOLOCK 0x1
 
-void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
+void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags);
 void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
-int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
-int32_t     metaGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
+int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
+int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
 int         metaGetTableEntryByName(SMetaReader *pReader, const char *name);
 int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList);
 int32_t     metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList);
 int32_t     metaReadNext(SMetaReader *pReader);
-const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
+const void *metaGetTableTagVal(const void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
 
 int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
 int      metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid);
 int      metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
-bool     metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
+bool     metaIsTableExist(void* pVnode, tb_uid_t uid);
 int32_t  metaGetCachedTableUidList(SMeta *pMeta, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
                                    bool *acquired);
 int32_t  metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
@@ -138,7 +138,7 @@ int64_t  metaGetNtbNum(SMeta *pMeta);
 //  int64_t uid;
 //  int64_t ctbNum;
 //} SMetaStbStats;
-int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo);
+int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
 
 //typedef struct SMetaFltParam {
 //  tb_uid_t suid;
@@ -163,7 +163,7 @@ typedef SVCreateTSmaReq SSmaCfg;
 
 typedef struct SMTbCursor SMTbCursor;
 
-SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
+SMTbCursor *metaOpenTbCursor(void *pVnode);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
 int32_t     metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType);
 int32_t     metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType);
@@ -260,16 +260,20 @@ typedef struct STqReader {
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
-void       tqCloseReader(STqReader *);
+void       tqReaderClose(STqReader *);
 
 void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
 int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
-int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
+bool tqReaderIsQueriedTable(STqReader* pReader, uint64_t uid);
+bool tqCurrentBlockConsumed(const STqReader* pReader);
+
+int32_t tqReaderSeek(STqReader *pReader, int64_t ver, const char *id);
 bool    tqNextBlockInWal(STqReader *pReader, const char *idstr);
 bool    tqNextBlockImpl(STqReader *pReader, const char *idstr);
+SWalReader* tqGetWalReader(STqReader* pReader);
 
 int32_t extractMsgFromWal(SWalReader *pReader, void **pItem, const char *id);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);

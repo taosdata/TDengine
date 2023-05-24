@@ -532,7 +532,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   // 1. check if it is existed in meta cache
   if (pCache == NULL) {
     pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, 0);
-    code = pHandle->api.metaReaderFn.readerGetEntryGetUidCache(&mr, pBlock->info.id.uid);
+    code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
       // when encounter the TSDB_CODE_PAR_TABLE_NOT_EXIST error, we proceed.
       if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -561,7 +561,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid));
     if (h == NULL) {
       pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, 0);
-      code = pHandle->api.metaReaderFn.readerGetEntryGetUidCache(&mr, pBlock->info.id.uid);
+      code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
       if (code != TSDB_CODE_SUCCESS) {
         if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
           qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
@@ -693,7 +693,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   int64_t st = taosGetTimestampUs();
 
   while (true) {
-    code = pAPI->tsdReader.tsdReaderNextDataBlock(pTableScanInfo->base.dataReader, &hasNext);
+    code = pAPI->tsdReader.tsdNextDataBlock(pTableScanInfo->base.dataReader, &hasNext);
     if (code) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->base.dataReader);
       T_LONG_JMP(pTaskInfo->env, code);
@@ -975,6 +975,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->sample.sampleRatio = pTableScanNode->ratio;
   pInfo->sample.seed = taosGetTimestampSec();
 
+  pInfo->readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
   //  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
@@ -1103,7 +1104,7 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
   }
 
   bool hasNext = false;
-  code = pAPI->tsdReader.tsdReaderNextDataBlock(pReader, &hasNext);
+  code = pAPI->tsdReader.tsdNextDataBlock(pReader, &hasNext);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     T_LONG_JMP(pTaskInfo->env, code);
@@ -2162,7 +2163,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     bool hasNext = false;
     if (pInfo->dataReader) {
-      code = pAPI->tsdReader.tsdReaderNextDataBlock(pInfo->dataReader, &hasNext);
+      code = pAPI->tsdReader.tsdNextDataBlock(pInfo->dataReader, &hasNext);
       if (code) {
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->dataReader);
         T_LONG_JMP(pTaskInfo->env, code);
@@ -2416,7 +2417,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     // set the extract column id to streamHandle
     pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds);
     SArray* tableIdList = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo);
-    code = pAPI->tqReaderFn.tqReaderSetTargetTableList(pInfo->tqReader, tableIdList);
+    code = pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList);
     if (code != 0) {
       taosArrayDestroy(tableIdList);
       goto _error;
@@ -2457,6 +2458,8 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->igExpired = pTableScanNode->igExpired;
   pInfo->twAggSup.maxTs = INT64_MIN;
   pInfo->pState = NULL;
+  pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
+  pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
 
   // for stream
   if (pTaskInfo->streamInfo.pState) {
@@ -2674,7 +2677,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   qTrace("tsdb/read-table-data: %p, enter next reader", reader);
 
   while (true) {
-    code = pAPI->tsdReader.tsdReaderNextDataBlock(reader, &hasNext);
+    code = pAPI->tsdReader.tsdNextDataBlock(reader, &hasNext);
     if (code != 0) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
       pInfo->base.dataReader = NULL;
@@ -3354,7 +3357,7 @@ static SSDataBlock* buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCount
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
   // get dbname
-  pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &db, &vgId);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
   SName sn = {0};
   tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
   tNameGetDbName(&sn, dbName);
@@ -3396,7 +3399,7 @@ static void buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountSca
     pRes->info.id.groupId = groupId;
 
     int64_t dbTableCount = 0;
-    pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode, &dbTableCount);
+    pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, &dbTableCount, NULL);
     fillTableCountScanDataBlock(pSupp, dbName, "", dbTableCount, pRes);
     setOperatorCompleted(pOperator);
   }
@@ -3411,20 +3414,21 @@ static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanO
     if (strlen(pSupp->stbNameFilter) != 0) {
       tb_uid_t uid = 0;
       pAPI->metaFn.getTableUidByName(pInfo->readHandle.vnode, pSupp->stbNameFilter, &uid);
-      SMetaStbStats stats = {0};
-      ASSERT(0);
-//      metaGetStbStats(pInfo->readHandle.vnode, uid, &stats);
-      int64_t ctbNum = stats.ctbNum;
-      fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbNameFilter, ctbNum, pRes);
+
+      int64_t numOfChildTables = 0;
+      pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, uid, &numOfChildTables);
+
+      fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbNameFilter, numOfChildTables, pRes);
     } else {
       int64_t tbNumVnode = 0;//metaGetTbNum(pInfo->readHandle.vnode);
       fillTableCountScanDataBlock(pSupp, dbName, "", tbNumVnode, pRes);
     }
   } else {
-    int64_t tbNumVnode = 0;//metaGetTbNum(pInfo->readHandle.vnode);
-    pAPI->metaFn.storeGetBasicInfo(pInfo->readHandle.vnode);
+    int64_t tbNumVnode = 0;
+    pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, &tbNumVnode, NULL);
     fillTableCountScanDataBlock(pSupp, dbName, "", tbNumVnode, pRes);
   }
+
   setOperatorCompleted(pOperator);
 }
 

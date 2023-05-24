@@ -307,7 +307,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   SMetaReader mr = {0};
 
   pAPI->metaReaderFn.initReader(&mr, metaHandle, 0);
-  code = pAPI->metaReaderFn.readerGetEntryGetUidCache(&mr, info->uid);
+  code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, info->uid);
   if (TSDB_CODE_SUCCESS != code) {
     pAPI->metaReaderFn.clearReader(&mr);
     *pQualified = false;
@@ -1090,12 +1090,11 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     }
 
     if (!pTagCond) {  // no tag filter condition exists, let's fetch all tables of this super table
-//      vnodeGetCtbIdList();
-      pStorageAPI->metaFn.storeGetChildTableList(pVnode, pScanNode->suid, pUidList);
+      pStorageAPI->metaFn.getChildTableList(pVnode, pScanNode->suid, pUidList);
     } else {
       // failed to find the result in the cache, let try to calculate the results
       if (pTagIndexCond) {
-        void* pIndex = pStorageAPI->metaFn.storeGetInvertIndex(pVnode);
+        void* pIndex = pStorageAPI->metaFn.getInvertIndex(pVnode);
 
         SIndexMetaArg metaArg = {
             .metaEx = pVnode, .idx = pStorageAPI->metaFn.storeGetIndexInfo(pVnode), .ivtIdx = pIndex, .suid = pScanNode->uid};
@@ -1170,7 +1169,7 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
   SMetaReader mr = {0};
 
   pAPI->metaReaderFn.initReader(&mr, pVnode, 0);
-  if (pAPI->metaReaderFn.readerGetEntryGetUidCache(&mr, uid) != 0) {  // table not exist
+  if (pAPI->metaReaderFn.getEntryGetUidCache(&mr, uid) != 0) {  // table not exist
     pAPI->metaReaderFn.clearReader(&mr);
     return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }

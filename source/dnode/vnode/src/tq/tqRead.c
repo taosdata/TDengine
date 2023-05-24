@@ -273,7 +273,7 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
   return pReader;
 }
 
-void tqCloseReader(STqReader* pReader) {
+void tqReaderClose(STqReader* pReader) {
   // close wal reader
   if (pReader->pWalReader) {
     walCloseReader(pReader->pWalReader);
@@ -294,7 +294,7 @@ void tqCloseReader(STqReader* pReader) {
   taosMemoryFree(pReader);
 }
 
-int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
+int32_t tqReaderSeek(STqReader* pReader, int64_t ver, const char* id) {
   if (walReaderSeekVer(pReader->pWalReader, ver) < 0) {
     return -1;
   }
@@ -605,6 +605,8 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk++);
 
   SSDataBlock* pBlock = pReader->pResBlock;
+  *pRes = pBlock;
+
   blockDataCleanup(pBlock);
 
   int32_t sversion = pSubmitTbData->sver;
@@ -1084,7 +1086,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
         for (int32_t i = 0; i < taosArrayGetSize(tbUidList); ++i) {
           uint64_t* id = (uint64_t*)taosArrayGet(tbUidList, i);
 
-          int32_t code = metaGetTableEntryByUidCache(&mr, *id);
+          int32_t code = metaReaderGetTableEntryByUidCache(&mr, *id);
           if (code != TSDB_CODE_SUCCESS) {
             tqError("failed to get table meta, uid:%" PRIu64 " code:%s", *id, tstrerror(terrno));
             continue;

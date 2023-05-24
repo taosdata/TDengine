@@ -14,6 +14,7 @@
  */
 
 #include "vnd.h"
+#include "tstreamUpdate.h"
 
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   SVnodeInfo info = {0};
@@ -444,3 +445,177 @@ void vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) {
   pSnapshot->lastApplyTerm = pVnode->state.commitTerm;
   pSnapshot->lastConfigIndex = -1;
 }
+
+static void initTsdbReaderAPI(TsdReader* pReader);
+static void initMetadataAPI(SStoreMeta* pMeta);
+static void initTqAPI(SStoreTqReader* pTq);
+static void initStateStoreAPI(SStateStore* pStore);
+static void initMetaReaderAPI(SStoreMetaReader* pMetaReader);
+
+void initStorageAPI(SStorageAPI* pAPI) {
+  initTsdbReaderAPI(&pAPI->tsdReader);
+  initMetadataAPI(&pAPI->metaFn);
+  initTqAPI(&pAPI->tqReaderFn);
+  initStateStoreAPI(&pAPI->stateStore);
+  initMetaReaderAPI(&pAPI->metaReaderFn);
+}
+
+void initTsdbReaderAPI(TsdReader* pReader) {
+  pReader->tsdReaderOpen = (__store_reader_open_fn_t)tsdbReaderOpen;
+  pReader->tsdReaderClose = tsdbReaderClose;
+
+  pReader->tsdNextDataBlock = tsdbNextDataBlock;
+
+  pReader->tsdReaderRetrieveDataBlock = tsdbRetrieveDataBlock;
+  pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock;
+
+  pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA;
+
+  pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
+  pReader->tsdReaderResetStatus = tsdbReaderReset;
+
+  pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo;
+  pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable;    // todo this function should be moved away
+
+  pReader->tsdSetQueryTableList = tsdbSetTableList;
+  pReader->tsdSetReaderTaskId = (void (*)(void *, const char *))tsdbReaderSetId;
+}
+
+void initMetadataAPI(SStoreMeta* pMeta) {
+  pMeta->isTableExisted = metaIsTableExist;
+
+  pMeta->openTableMetaCursor = metaOpenTbCursor;
+  pMeta->closeTableMetaCursor = metaCloseTbCursor;
+  pMeta->cursorNext = metaTbCursorNext;
+  pMeta->cursorPrev = metaTbCursorPrev;
+
+  pMeta->getBasicInfo = vnodeGetInfo;
+  pMeta->getNumOfChildTables = metaGetStbStats;
+
+  pMeta->getChildTableList = vnodeGetCtbIdList;
+
+  pMeta->storeGetIndexInfo = vnodeGetIdx;
+  pMeta->getInvertIndex = vnodeGetIvtIdx;
+
+  pMeta->extractTagVal = (const void *(*)(const void *, int16_t, STagVal *))metaGetTableTagVal;
+
+}
+
+void initTqAPI(SStoreTqReader* pTq) {
+  pTq->tqReaderOpen = tqReaderOpen;
+  pTq->tqReaderSetColIdList = tqReaderSetColIdList;
+
+  pTq->tqReaderClose = tqReaderClose;
+  pTq->tqReaderSeek = tqReaderSeek;
+  pTq->tqRetrieveBlock = tqRetrieveDataBlock;
+
+  pTq->tqReaderNextBlockInWal = tqNextBlockInWal;
+
+  pTq->tqNextBlockImpl = tqNextBlockImpl;// todo remove it
+
+  pTq->tqReaderAddTables = tqReaderAddTbUidList;
+  pTq->tqReaderSetQueryTableList = tqReaderSetTbUidList;
+
+  pTq->tqReaderRemoveTables = tqReaderRemoveTbUidList;
+
+  pTq->tqReaderIsQueriedTable = tqReaderIsQueriedTable;
+  pTq->tqReaderCurrentBlockConsumed = tqCurrentBlockConsumed;
+
+  pTq->tqReaderGetWalReader = tqGetWalReader;  // todo remove it
+  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;          // todo remove it
+
+  pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg; // todo remove it
+  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
+}
+
+void initStateStoreAPI(SStateStore* pStore) {
+  pStore->streamFileStateInit = streamFileStateInit;
+  pStore->updateInfoDestoryColseWinSBF = updateInfoDestoryColseWinSBF;
+
+  pStore->streamStateGetByPos = streamStateGetByPos;
+
+  pStore->streamStatePutParName = streamStatePutParName;
+  pStore->streamStateGetParName = streamStateGetParName;
+
+  pStore->streamStateAddIfNotExist = streamStateAddIfNotExist;
+  pStore->streamStateReleaseBuf = streamStateReleaseBuf;
+  pStore->streamStateFreeVal = streamStateFreeVal;
+
+  pStore->streamStatePut = streamStatePut;
+  pStore->streamStateGet = streamStateGet;
+  pStore->streamStateCheck = streamStateCheck;
+  pStore->streamStateGetByPos = streamStateGetByPos;
+  pStore->streamStateDel = streamStateDel;
+  pStore->streamStateClear = streamStateClear;
+  pStore->streamStateSaveInfo = streamStateSaveInfo;
+  pStore->streamStateGetInfo = streamStateGetInfo;
+  pStore->streamStateSetNumber = streamStateSetNumber;
+
+  pStore->streamStateFillPut = streamStateFillPut;
+  pStore->streamStateFillGet = streamStateFillGet;
+  pStore->streamStateFillDel = streamStateFillDel;
+
+  pStore->streamStateCurNext = streamStateCurNext;
+  pStore->streamStateCurPrev = streamStateCurPrev;
+
+  pStore->streamStateGetAndCheckCur = streamStateGetAndCheckCur;
+  pStore->streamStateSeekKeyNext = streamStateSeekKeyNext;
+  pStore->streamStateFillSeekKeyNext = streamStateFillSeekKeyNext;
+  pStore->streamStateFillSeekKeyPrev = streamStateFillSeekKeyPrev;
+  pStore->streamStateFreeCur = streamStateFreeCur;
+
+  pStore->streamStateGetGroupKVByCur = streamStateGetGroupKVByCur;
+  pStore->streamStateGetKVByCur = streamStateGetKVByCur;
+
+  pStore->streamStateSessionAddIfNotExist = streamStateSessionAddIfNotExist;
+  pStore->streamStateSessionPut = streamStateSessionPut;
+  pStore->streamStateSessionGet = streamStateSessionGet;
+  pStore->streamStateSessionDel = streamStateSessionDel;
+  pStore->streamStateSessionClear = streamStateSessionClear;
+  pStore->streamStateSessionGetKVByCur = streamStateSessionGetKVByCur;
+  pStore->streamStateStateAddIfNotExist = streamStateStateAddIfNotExist;
+  pStore->streamStateSessionGetKeyByRange = streamStateSessionGetKeyByRange;
+
+  pStore->updateInfoInit = updateInfoInit;
+  pStore->updateInfoFillBlockData = updateInfoFillBlockData;
+  pStore->updateInfoIsUpdated = updateInfoIsUpdated;
+  pStore->updateInfoIsTableInserted = updateInfoIsTableInserted;
+  pStore->updateInfoDestroy = updateInfoDestroy;
+
+  pStore->updateInfoInitP = updateInfoInitP;
+  pStore->updateInfoAddCloseWindowSBF = updateInfoAddCloseWindowSBF;
+  pStore->updateInfoDestoryColseWinSBF = updateInfoDestoryColseWinSBF;
+  pStore->updateInfoSerialize = updateInfoSerialize;
+  pStore->updateInfoDeserialize = updateInfoDeserialize;
+
+  pStore->streamStateSessionSeekKeyNext = streamStateSessionSeekKeyNext;
+  pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
+  pStore->streamStateSessionSeekKeyCurrentNext = streamStateSessionSeekKeyCurrentNext;
+
+  pStore->streamFileStateInit = streamFileStateInit;
+
+  pStore->streamFileStateDestroy = streamFileStateDestroy;
+  pStore->streamFileStateClear = streamFileStateClear;
+  pStore->needClearDiskBuff = needClearDiskBuff;
+
+  pStore->streamStateOpen = streamStateOpen;
+  pStore->streamStateClose = streamStateClose;
+  pStore->streamStateBegin = streamStateBegin;
+  pStore->streamStateCommit = streamStateCommit;
+  pStore->streamStateDestroy= streamStateDestroy;
+  pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
+}
+
+void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {
+  pMetaReader->initReader = _metaReaderInit;
+  pMetaReader->clearReader = metaReaderClear;
+
+  pMetaReader->getTableEntryByUid = metaReaderGetTableEntryByUid;
+  pMetaReader->clearReader = metaReaderClear;
+
+  pMetaReader->getEntryGetUidCache = metaReaderGetTableEntryByUidCache;
+  pMetaReader->getTableEntryByName = metaGetTableEntryByName;
+
+  pMetaReader->readerReleaseLock = metaReaderReleaseLock;
+}
+

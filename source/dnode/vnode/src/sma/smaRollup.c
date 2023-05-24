@@ -894,7 +894,7 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
 
   metaReaderInit(&mr, SMA_META(pSma), 0);
   smaDebug("vgId:%d, rsma clone qTaskInfo for suid:%" PRIi64, SMA_VID(pSma), pInfo->suid);
-  if (metaGetTableEntryByUidCache(&mr, pInfo->suid) < 0) {
+  if (metaReaderGetTableEntryByUidCache(&mr, pInfo->suid) < 0) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -1121,7 +1121,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
   for (int64_t i = 0; i < arrSize; ++i) {
     suid = *(tb_uid_t *)taosArrayGet(suidList, i);
     smaDebug("vgId:%d, rsma restore, suid is %" PRIi64, TD_VID(pVnode), suid);
-    if (metaGetTableEntryByUidCache(&mr, suid) < 0) {
+    if (metaReaderGetTableEntryByUidCache(&mr, suid) < 0) {
       code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }

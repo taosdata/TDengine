@@ -17,6 +17,11 @@
 #include "osMemory.h"
 #include "tencode.h"
 
+void _metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags) {
+  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
+  metaReaderInit(pReader, pMeta, flags);
+}
+
 void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
@@ -64,96 +69,20 @@ _err:
   return -1;
 }
 
-// int metaGetTableEntryByUidTest(void* meta, SArray *uidList) {
-//
-//   SArray* readerList = taosArrayInit(taosArrayGetSize(uidList), sizeof(SMetaReader));
-//   SArray* uidVersion = taosArrayInit(taosArrayGetSize(uidList), sizeof(STbDbKey));
-//   SMeta  *pMeta = meta;
-//   int64_t version;
-//   SHashObj *uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-//
-//   int64_t stt1 = taosGetTimestampUs();
-//   for(int i = 0; i < taosArrayGetSize(uidList); i++) {
-//     void* ppVal = NULL;
-//     int vlen = 0;
-//     uint64_t *  uid = taosArrayGet(uidList, i);
-//     // query uid.idx
-//     if (tdbTbGet(pMeta->pUidIdx, uid, sizeof(*uid), &ppVal, &vlen) < 0) {
-//       continue;
-//     }
-//     version = *(int64_t *)ppVal;
-//
-//     STbDbKey tbDbKey = {.version = version, .uid = *uid};
-//     taosArrayPush(uidVersion, &tbDbKey);
-//     taosHashPut(uHash, uid, sizeof(int64_t), ppVal, sizeof(int64_t));
-//   }
-//   int64_t stt2 = taosGetTimestampUs();
-//   qDebug("metaGetTableEntryByUidTest1 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt2-stt1);
-//
-//   TBC        *pCur = NULL;
-//   tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
-//   tdbTbcMoveToFirst(pCur);
-//   void *pKey = NULL;
-//   int   kLen = 0;
-//
-//   while(1){
-//     SMetaReader pReader = {0};
-//     int32_t ret = tdbTbcNext(pCur, &pKey, &kLen, &pReader.pBuf, &pReader.szBuf);
-//     if (ret < 0) break;
-//     STbDbKey *tmp = (STbDbKey*)pKey;
-//     int64_t *ver = (int64_t*)taosHashGet(uHash, &tmp->uid, sizeof(int64_t));
-//     if(ver == NULL || *ver != tmp->version) continue;
-//     taosArrayPush(readerList, &pReader);
-//   }
-//   tdbTbcClose(pCur);
-//
-//   taosArrayClear(readerList);
-//   int64_t stt3 = taosGetTimestampUs();
-//   qDebug("metaGetTableEntryByUidTest2 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt3-stt2);
-//   for(int i = 0; i < taosArrayGetSize(uidVersion); i++) {
-//     SMetaReader pReader = {0};
-//
-//     STbDbKey *tbDbKey = taosArrayGet(uidVersion, i);
-//     // query table.db
-//     if (tdbTbGet(pMeta->pTbDb, tbDbKey, sizeof(STbDbKey), &pReader.pBuf, &pReader.szBuf) < 0) {
-//       continue;
-//     }
-//     taosArrayPush(readerList, &pReader);
-//   }
-//   int64_t stt4 = taosGetTimestampUs();
-//   qDebug("metaGetTableEntryByUidTest3 rows:%d, cost:%ld us", taosArrayGetSize(uidList), stt4-stt3);
-//
-//   for(int i = 0; i < taosArrayGetSize(readerList); i++){
-//     SMetaReader* pReader  = taosArrayGet(readerList, i);
-//     metaReaderInit(pReader, meta, 0);
-//     // decode the entry
-//     tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
-//
-//     if (metaDecodeEntry(&pReader->coder, &pReader->me) < 0) {
-//     }
-//     metaReaderClear(pReader);
-//   }
-//   int64_t stt5 = taosGetTimestampUs();
-//   qDebug("metaGetTableEntryByUidTest4 rows:%d, cost:%ld us", taosArrayGetSize(readerList), stt5-stt4);
-//   return 0;
-// }
+bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
+  SVnode* pVnodeObj = pVnode;
+  metaRLock(pVnodeObj->pMeta);  // query uid.idx
 
-bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
-  // query uid.idx
-  metaRLock(pMeta);
-
-  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), NULL, NULL) < 0) {
-    metaULock(pMeta);
-
+  if (tdbTbGet(pVnodeObj->pMeta->pUidIdx, &uid, sizeof(uid), NULL, NULL) < 0) {
+    metaULock(pVnodeObj->pMeta);
     return false;
   }
 
-  metaULock(pMeta);
-
+  metaULock(pVnodeObj->pMeta);
   return true;
 }
 
-int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
+int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
   int64_t version1;
 
@@ -167,7 +96,7 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   return metaGetTableEntryByVersion(pReader, version1, uid);
 }
 
-int metaGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
+int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   SMeta *pMeta = pReader->pMeta;
 
   SMetaInfo info;
@@ -190,7 +119,7 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
   }
 
   uid = *(tb_uid_t *)pReader->pBuf;
-  return metaGetTableEntryByUid(pReader, uid);
+  return metaReaderGetTableEntryByUid(pReader, uid);
 }
 
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
@@ -214,7 +143,7 @@ int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
   int         code = 0;
   SMetaReader mr = {0};
   metaReaderInit(&mr, (SMeta *)meta, 0);
-  code = metaGetTableEntryByUid(&mr, uid);
+  code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
     return -1;
@@ -230,7 +159,7 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
   int         code = 0;
   SMetaReader mr = {0};
   metaReaderInit(&mr, (SMeta *)meta, 0);
-  code = metaGetTableEntryByUid(&mr, uid);
+  code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
     return -1;
@@ -283,7 +212,7 @@ int metaReadNext(SMetaReader *pReader) {
 }
 
 #if 1  // ===================================================
-SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
+SMTbCursor *metaOpenTbCursor(void *pVnode) {
   SMTbCursor *pTbCur = NULL;
 
   pTbCur = (SMTbCursor *)taosMemoryCalloc(1, sizeof(*pTbCur));
@@ -291,12 +220,12 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
     return NULL;
   }
 
-  metaReaderInit(&pTbCur->mr, pMeta, 0);
+  SVnode* pVnodeObj = pVnode;
+  metaReaderInit(&pTbCur->mr, pVnodeObj->pMeta, 0);
 
-  tdbTbcOpen(pMeta->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
+  tdbTbcOpen(pVnodeObj->pMeta->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
 
   tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
-
   return pTbCur;
 }
 
@@ -876,7 +805,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
   STSma  *pTSma = NULL;
   for (int i = 0; i < pSW->number; ++i) {
     smaId = *(tb_uid_t *)taosArrayGet(pSmaIds, i);
-    if (metaGetTableEntryByUid(&mr, smaId) < 0) {
+    if (metaReaderGetTableEntryByUid(&mr, smaId) < 0) {
       tDecoderClear(&mr.coder);
       metaWarn("vgId:%d, no entry for tbId:%" PRIi64 ", smaId:%" PRIi64, TD_VID(pMeta->pVnode), uid, smaId);
       continue;
@@ -926,7 +855,7 @@ STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
   STSma      *pTSma = NULL;
   SMetaReader mr = {0};
   metaReaderInit(&mr, pMeta, 0);
-  if (metaGetTableEntryByUid(&mr, indexUid) < 0) {
+  if (metaReaderGetTableEntryByUid(&mr, indexUid) < 0) {
     metaWarn("vgId:%d, failed to get table entry for smaId:%" PRIi64, TD_VID(pMeta->pVnode), indexUid);
     metaReaderClear(&mr);
     return NULL;
@@ -1027,7 +956,7 @@ SArray *metaGetSmaTbUids(SMeta *pMeta) {
 
 #endif
 
-const void *metaGetTableTagVal(void *pTag, int16_t type, STagVal *val) {
+const void *metaGetTableTagVal(const void *pTag, int16_t type, STagVal *val) {
   STag *tag = (STag *)pTag;
   if (type == TSDB_DATA_TYPE_JSON) {
     return tag;
@@ -1565,30 +1494,35 @@ _exit:
   return code;
 }
 
-int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo) {
+int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t* numOfTables) {
   int32_t code = 0;
+  *numOfTables = 0;
 
-  metaRLock(pMeta);
+  SVnode* pVnodeObj = pVnode;
+  metaRLock(pVnodeObj->pMeta);
 
   // fast path: search cache
-  if (metaStatsCacheGet(pMeta, uid, pInfo) == TSDB_CODE_SUCCESS) {
-    metaULock(pMeta);
+  SMetaStbStats state = {0};
+  if (metaStatsCacheGet(pVnodeObj->pMeta, uid, &state) == TSDB_CODE_SUCCESS) {
+    metaULock(pVnodeObj->pMeta);
+    *numOfTables = state.ctbNum;
     goto _exit;
   }
 
   // slow path: search TDB
   int64_t ctbNum = 0;
-  vnodeGetCtbNum(pMeta->pVnode, uid, &ctbNum);
+  vnodeGetCtbNum(pVnode, uid, &ctbNum);
 
-  metaULock(pMeta);
+  metaULock(pVnodeObj->pMeta);
+  *numOfTables = ctbNum;
 
-  pInfo->uid = uid;
-  pInfo->ctbNum = ctbNum;
+  state.uid = uid;
+  state.ctbNum = ctbNum;
 
   // upsert the cache
-  metaWLock(pMeta);
-  metaStatsCacheUpsert(pMeta, pInfo);
-  metaULock(pMeta);
+  metaWLock(pVnodeObj->pMeta);
+  metaStatsCacheUpsert(pVnodeObj->pMeta, &state);
+  metaULock(pVnodeObj->pMeta);
 
 _exit:
   return code;

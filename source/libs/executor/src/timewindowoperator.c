@@ -2804,6 +2804,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pState->pFileState = pAPI->stateStore.streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, funResSize,
                                                   compareTs, pInfo->pState, pInfo->twAggSup.deleteMark);
   pInfo->dataVersion = 0;
+  pInfo->statestore = pTaskInfo->storageAPI.stateStore;
 
   pOperator->operatorType = pPhyNode->type;
   pOperator->blocking = true;
@@ -4938,7 +4939,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->primaryTsIndex = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  pInfo->pState = taosMemoryCalloc(1, sizeof(void));
+  pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
   *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
   pAPI->stateStore.streamStateSetNumber(pInfo->pState, -1);
 
@@ -4986,6 +4987,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamIntervalAgg, NULL,
                                          destroyStreamFinalIntervalOperatorInfo, optrDefaultBufFn, NULL);
 
+  pInfo->statestore = pTaskInfo->storageAPI.stateStore;
   initIntervalDownStream(downstream, pPhyNode->type, pInfo);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

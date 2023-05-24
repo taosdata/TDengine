@@ -515,6 +515,8 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   SReadHandle handle = {.config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
+  initStorageAPI(&handle.api);
+
   switch (pMsg->msgType) {
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY:

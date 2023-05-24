@@ -35,7 +35,7 @@
 
 #define CLEAR_QUERY_STATUS(q, st) ((q)->status &= (~(st)))
 
-SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model) {
+SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, SStorageAPI* pAPI) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   if (pTaskInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -48,6 +48,7 @@ SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOP
   pTaskInfo->execModel = model;
   pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
   pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
+  pTaskInfo->storageAPI = *pAPI;
 
   taosInitRWLatch(&pTaskInfo->lock);
 
@@ -55,7 +56,6 @@ SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOP
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->id.str = taosMemoryMalloc(64);
   buildTaskId(taskId, queryId, pTaskInfo->id.str);
-
   return pTaskInfo;
 }
 
@@ -78,7 +78,7 @@ void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
 
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model) {
-  *pTaskInfo = doCreateTask(pPlan->id.queryId, taskId, vgId, model);
+  *pTaskInfo = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api);
   if (*pTaskInfo == NULL) {
     taosMemoryFree(sql);
     return terrno;
@@ -123,7 +123,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
   pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, 0);
-  int32_t code = pAPI->metaReaderFn.readerGetEntryGetUidCache(&mr, pScanNode->uid);
+  int32_t code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get the table meta, uid:0x%" PRIx64 ", suid:0x%" PRIx64 ", %s", pScanNode->uid, pScanNode->suid,
            GET_TASKID(pTaskInfo));
@@ -144,7 +144,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
     tDecoderClear(&mr.coder);
 
     tb_uid_t suid = mr.me.ctbEntry.suid;
-    code = pAPI->metaReaderFn.readerGetEntryGetUidCache(&mr, suid);
+    code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, suid);
     if (code != TSDB_CODE_SUCCESS) {
       pAPI->metaReaderFn.clearReader(&mr);
       return terrno;
