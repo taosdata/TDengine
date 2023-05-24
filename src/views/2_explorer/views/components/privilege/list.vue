@@ -235,7 +235,7 @@ export default {
     },
     statusChange(val, data) {
       this.$confirm(
-        this.getTipName(data, val ? this.$t("enable") : this.$t("disable")),
+        this.getTipName(data, val ? this.$t("enable") : this.$t("revoke")),
         this.$t("tips"),
         {
           confirmButtonText: this.$t("confirm"),
@@ -268,7 +268,7 @@ export default {
 
     getTipName(data, type) {
       let tip = this.$t("data.changeDBPrivilegeTip").replace(`{type}`, type);
-      tip = tip.replace(`{listType}`, this.type);
+      tip = tip.replace(`{listType}`, this.$t(data.privilege));
       tip = tip.replace(`{dbName}`, this.currentDB);
       if (this.isUser) {
         if (data.email) {
