@@ -6,7 +6,7 @@ ExternalProject_Add(rocksdb
         SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
         BINARY_DIR "${TD_CONTRIB_DIR}/rocksdb"
         CONFIGURE_COMMAND ""
-        BUILD_COMMAND COMMAND $(MAKE) install-shared -j8
+        BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
         )
