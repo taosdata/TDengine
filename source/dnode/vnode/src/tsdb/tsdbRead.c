@@ -810,7 +810,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
 
   if (pReader->suppInfo.colId[0] != PRIMARYKEY_TIMESTAMP_COL_ID) {
     tsdbError("the first column isn't primary timestamp, %d, %s", pReader->suppInfo.colId[0], pReader->idStr);
-    terrno = TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
     goto _end;
   }
 
@@ -819,7 +819,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   if (type != TSDB_DATA_TYPE_TIMESTAMP) {
     tsdbError("the first column isn't primary timestamp in result block, actual: %s, %s", tDataTypes[type].name,
               pReader->idStr);
-    terrno = TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
     goto _end;
   }
 
@@ -1767,6 +1767,9 @@ static bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SDa
       if (p->ts > pBlock->minKey.ts && index > 0) {
         index -= 1;
       } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
+        if (p->ts == pBlock->minKey.ts && p->version < pBlock->maxVer && index > 0) {
+          index -= 1;
+        }
         break;
       }
     }
@@ -3112,6 +3115,10 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
     // load the last data block of current table
     STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)pStatus->pTableIter;
     if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pScanInfo->uid, sizeof(pScanInfo->uid))) {
+      // reset the index in last block when handing a new file
+      doCleanupTableScanInfo(pScanInfo);
+      pStatus->mapDataCleaned = true;
+
       bool hasNexTable = moveToNextTable(pUidList, pStatus);
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;
@@ -4506,7 +4513,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
 
 _err:
   tsdbError("failed to create data reader, code:%s %s", tstrerror(code), idstr);
-  tsdbReaderClose(pReader);
+  tsdbReaderClose(*ppReader);
   *ppReader = NULL;  // reset the pointer value.
   return code;
 }
@@ -5506,3 +5513,58 @@ void tsdbReaderSetId(STsdbReader* pReader, const char* idstr) {
 }
 
 void tsdbReaderSetCloseFlag(STsdbReader* pReader) { pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
+
+/*-------------todo:refactor the implementation of those APIs in this file to seperate the API into two files------*/
+// opt perf, do NOT create so many readers
+int64_t tsdbGetLastTimestamp(SVnode* pVnode, void* pTableList, int32_t numOfTables, const char* pIdStr) {
+  SQueryTableDataCond cond = {.type = TIMEWINDOW_RANGE_CONTAINED, .numOfCols = 1, .order = TSDB_ORDER_DESC,
+                              .startVersion = -1, .endVersion = -1};
+  cond.twindows.skey = INT64_MIN;
+  cond.twindows.ekey = INT64_MAX;
+
+  cond.colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
+  cond.pSlotList = taosMemoryMalloc(sizeof(int32_t) * cond.numOfCols);
+  if (cond.colList == NULL || cond.pSlotList == NULL) {
+    // todo
+  }
+
+  cond.colList[0].colId = 1;
+  cond.colList[0].slotId = 0;
+  cond.colList[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+
+  cond.pSlotList[0] = 0;
+
+  STableKeyInfo* pTableKeyInfo = pTableList;
+  STsdbReader* pReader = NULL;
+  SSDataBlock* pBlock = createDataBlock();
+
+  SColumnInfoData data = {0};
+  data.info = (SColumnInfo) {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = 1, .bytes = TSDB_KEYSIZE};
+  blockDataAppendColInfo(pBlock, &data);
+
+  int64_t key = INT64_MIN;
+
+  for(int32_t i = 0; i < numOfTables; ++i) {
+    int32_t code = tsdbReaderOpen(pVnode, &cond, &pTableKeyInfo[i], 1, pBlock, &pReader, pIdStr, false, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    bool hasData = false;
+    code = tsdbNextDataBlock(pReader, &hasData);
+    if (!hasData || code != TSDB_CODE_SUCCESS) {
+      continue;
+    }
+
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
+    int64_t k = *(int64_t*)pCol->pData;
+
+    if (key < k) {
+      key = k;
+    }
+
+    tsdbReaderClose(pReader);
+  }
+
+  return 0;
+}

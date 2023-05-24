@@ -285,6 +285,7 @@ void dumpTopic(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "subType", i642str(pObj->subType));
     tjsonAddStringToObject(item, "withMeta", i642str(pObj->withMeta));
     tjsonAddStringToObject(item, "stbUid", i642str(pObj->stbUid));
+    tjsonAddStringToObject(item, "stbName", mndGetStableStr(pObj->stbName));
     tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen));
     tjsonAddStringToObject(item, "astLen", i642str(pObj->astLen));
     tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen));

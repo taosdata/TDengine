@@ -453,6 +453,9 @@ void generateInsertSQL(BindData *data) {
           case TSDB_DATA_TYPE_UBIGINT:
             len += sprintf(data->sql + len, "tubigdata");
             break;
+          case TSDB_DATA_TYPE_GEOMETRY:
+            len += sprintf(data->sql + len, "tgeometrydata");
+            break;
           default:
             printf("!!!invalid tag type:%d", data->pTags[c].buffer_type);
             exit(1);
@@ -521,6 +524,9 @@ void generateInsertSQL(BindData *data) {
         case TSDB_DATA_TYPE_UBIGINT:
           len += sprintf(data->sql + len, "ubigdata");
           break;
+        case TSDB_DATA_TYPE_GEOMETRY:
+          len += sprintf(data->sql + len, "tgeometrydata");
+          break;
         default:
           printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
           exit(1);
@@ -550,7 +556,7 @@ void bpAppendOperatorParam(BindData *data, int32_t *len, int32_t dataType, int32
   if (gCaseCtrl.optrIdxListNum > 0) {
     pInfo = &operInfo[gCaseCtrl.optrIdxList[idx]];
   } else {
-    if (TSDB_DATA_TYPE_VARCHAR == dataType || TSDB_DATA_TYPE_NCHAR == dataType) {
+    if (TSDB_DATA_TYPE_VARCHAR == dataType || TSDB_DATA_TYPE_NCHAR == dataType || TSDB_DATA_TYPE_GEOMETRY == dataType) {
       pInfo = &operInfo[varoperatorList[rand() % tListLen(varoperatorList)]];
     } else {
       pInfo = &operInfo[operatorList[rand() % tListLen(operatorList)]];
@@ -634,6 +640,9 @@ int32_t bpAppendColumnName(BindData *data, int32_t type, int32_t len) {
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       return sprintf(data->sql + len, "ubigdata");
+      break;
+    case TSDB_DATA_TYPE_GEOMETRY:
+      len += sprintf(data->sql + len, "tgeometrydata");
       break;
     default:
       printf("!!!invalid col type:%d", type);
@@ -868,6 +877,7 @@ int32_t prepareColData(BP_BIND_TYPE bType, BindData *data, int32_t bindIdx, int3
       pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       pBase[bindIdx].buffer_length = gVarCharSize;
       pBase[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
       pBase[bindIdx].length = data->binaryLen;
@@ -1210,6 +1220,7 @@ int32_t bpAppendValueString(char *buf, int type, void *value, int32_t valueLen, 
 
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       buf[*len] = '\'';
       ++(*len);
       memcpy(buf + *len, value, valueLen);
@@ -1355,7 +1366,7 @@ void bpCheckColTagFields(TAOS_STMT *stmt, int32_t fieldNum, TAOS_FIELD_E* pField
       exit(1);
     }
 
-    if (pFields[i].type == TSDB_DATA_TYPE_BINARY) {
+    if (pFields[i].type == TSDB_DATA_TYPE_BINARY || pFields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pFields[i].bytes != (pBind[i].buffer_length + 2)) {
         printf("!!!%s %dth field len %d mis-match expect len %d\n", BP_BIND_TYPE_STR(type), i, pFields[i].bytes, (pBind[i].buffer_length + 2));
         exit(1);
@@ -2499,6 +2510,9 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "ubigdata bigint unsigned");
           break;
+        case TSDB_DATA_TYPE_GEOMETRY:
+          blen += sprintf(buf + blen, "geometrydata geometry(%d)", gVarCharSize);
+          break;
         default:
           printf("invalid col type:%d", colList[c]);
           exit(1);
@@ -2557,13 +2571,16 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "tubigdata bigint unsigned");
           break;
+        case TSDB_DATA_TYPE_GEOMETRY:
+          blen += sprintf(buf + blen, "tgeometrydata geometry(%d)", gVarCharSize);
+          break;
         default:
           printf("invalid col type:%d", colList[c]);
           exit(1);
-      }      
+      }
     }
 
-    blen += sprintf(buf + blen, ")");    
+    blen += sprintf(buf + blen, ")");
   }
 
   if (3 == tableType) {
@@ -2614,6 +2631,9 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
           break;
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_GEOMETRY:
+          blen += sprintf(buf + blen, "'geo%d'", rand() % 128);
           break;
         default:
           printf("invalid col type:%d", colList[c]);

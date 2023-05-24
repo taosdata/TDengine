@@ -63,9 +63,6 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
       SColVal*  pVal = &pColVal->colVal;
 
-      if (COL_VAL_IS_NONE(&pColVal->colVal)) {
-        continue;
-      }
       allNullRow = false;
       if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
         if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {

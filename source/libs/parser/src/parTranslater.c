@@ -1168,7 +1168,8 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
       break;
     }
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY: {
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       if (strict && (pVal->node.resType.bytes > targetDt.bytes - VARSTR_HEADER_SIZE)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
@@ -1241,7 +1242,7 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
 }
 
 static int32_t calcTypeBytes(SDataType dt) {
-  if (TSDB_DATA_TYPE_BINARY == dt.type) {
+  if (TSDB_DATA_TYPE_BINARY == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type) {
     return dt.bytes + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
@@ -1523,14 +1524,15 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   SNode*       pTable = pSelect->pFromTable;
 
-  if ((NULL != pTable && QUERY_NODE_REAL_TABLE != nodeType(pTable))) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
-                                   "%s is only supported in single table query", pFunc->functionName);
-  }
-
   if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc || pSelect->hasIndefiniteRowsFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
+
+  if (pSelect->hasInterpFunc && (FUNC_RETURN_ROWS_INDEFINITE == pSelect->returnRows || pSelect->returnRows != fmGetFuncReturnRows(pFunc))) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                "%s ignoring null value options cannot be used when applying to multiple columns", pFunc->functionName);
+  }
+
   if (NULL != pSelect->pWindow || NULL != pSelect->pGroupByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function is not supported in window query or group query", pFunc->functionName);
@@ -1731,7 +1733,10 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     if (fmIsIndefiniteRowsFunc(pFunc->funcId)) {
       pSelect->hasIndefiniteRowsFunc = true;
       pSelect->returnRows = fmGetFuncReturnRows(pFunc);
+    } else if (fmIsInterpFunc(pFunc->funcId)) {
+      pSelect->returnRows = fmGetFuncReturnRows(pFunc);
     }
+
     pSelect->hasMultiRowsFunc = pSelect->hasMultiRowsFunc ? true : fmIsMultiRowsFunc(pFunc->funcId);
     if (fmIsSelectFunc(pFunc->funcId)) {
       pSelect->hasSelectFunc = true;
@@ -2916,6 +2921,7 @@ static int32_t getPositionValue(const SValueNode* pVal) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY:
       return -1;
     case TSDB_DATA_TYPE_BOOL:
       return (pVal->datum.b ? 1 : 0);
@@ -4611,7 +4617,8 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
     }
     if (TSDB_CODE_SUCCESS == code) {
       if ((TSDB_DATA_TYPE_VARCHAR == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN) ||
-          (TSDB_DATA_TYPE_NCHAR == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN)) {
+          (TSDB_DATA_TYPE_NCHAR == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN) ||
+          (TSDB_DATA_TYPE_GEOMETRY == pTag->dataType.type && calcTypeBytes(pTag->dataType) > TSDB_MAX_TAGS_LEN)) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
     }
@@ -4662,7 +4669,8 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     }
     if (TSDB_CODE_SUCCESS == code) {
       if ((TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_BINARY_LEN) ||
-          (TSDB_DATA_TYPE_NCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_NCHAR_LEN)) {
+          (TSDB_DATA_TYPE_NCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_NCHAR_LEN) ||
+          (TSDB_DATA_TYPE_GEOMETRY == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_GEOMETRY_LEN)) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
     }
