@@ -1945,11 +1945,8 @@ typedef struct {
   int8_t withMeta;
   char*  sql;
   char   subDbName[TSDB_DB_FNAME_LEN];
-  union {
-    char* ast;
-    char  subStbName[TSDB_TABLE_FNAME_LEN];
-  };
-  char* subStbFilterAst;
+  char*  ast;
+  char   subStbName[TSDB_TABLE_FNAME_LEN];
 } SCMCreateTopicReq;
 
 int32_t tSerializeSCMCreateTopicReq(void* buf, int32_t bufLen, const SCMCreateTopicReq* pReq);
