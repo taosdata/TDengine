@@ -442,7 +442,9 @@ int32_t tsdbCommitCommit(STsdb *pTsdb) {
   taosThreadRwlockUnlock(&pTsdb->rwLock);
   tsdbUnrefMemTable(pMemTable, NULL, true);
 
-  // check merge (TODO: remove here)
+  // TODO: make this call async
+  code = tsdbMerge(pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {

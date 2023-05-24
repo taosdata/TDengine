@@ -2509,7 +2509,7 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
     ASSERT(pColData->type == pBind->buffer_type);
   }
-  
+
   if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
