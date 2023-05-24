@@ -67,9 +67,8 @@ typedef union {
 
 typedef struct SIFParam {
   SHashObj *pFilter;
-
-  SArray *result;
-  char   *condValue;
+  SArray   *result;
+  char     *condValue;
 
   SIdxFltStatus status;
   uint8_t       colValType;
@@ -79,7 +78,7 @@ typedef struct SIFParam {
   char          colName[TSDB_COL_NAME_LEN * 2 + 4];
 
   SIndexMetaArg arg;
-  SStoreAPI     api;
+  SMetaDataFilterAPI api;
 } SIFParam;
 
 typedef struct SIFCtx {

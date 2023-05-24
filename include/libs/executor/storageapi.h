@@ -21,6 +21,7 @@
 #include "taosdef.h"
 #include "tmsg.h"
 #include "tcommon.h"
+#include "index.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -544,6 +545,7 @@ typedef struct SStorageAPI {
   SStoreSnapshotFn  snapshotFn;
   SStoreTqReader    tqReaderFn;
   SStateStore       stateStore;
+  SMetaDataFilterAPI metaFilter;
 } SStorageAPI;
 
 #ifdef __cplusplus

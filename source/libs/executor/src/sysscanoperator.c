@@ -39,8 +39,9 @@ typedef int32_t (*__sys_filte)(void* pMeta, SNode* cond, SArray* result);
 typedef int32_t (*__sys_check)(SNode* cond);
 
 typedef struct SSTabFltArg {
-  void* pMeta;
-  void* pVnode;
+  void*        pMeta;
+  void*        pVnode;
+  SStorageAPI* pAPI;
 } SSTabFltArg;
 
 typedef struct SSysTableIndex {
@@ -153,11 +154,11 @@ static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t
                                                SFilterInfo* pFilterInfo);
 
 int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
-  void* pVnode = ((SSTabFltArg*)arg)->pVnode;
+  SSTabFltArg* pArg = arg;
+  void*        pVnode = pArg->pVnode;
 
   const char* db = NULL;
-  ASSERT(0);
-//  pAPI->metaFn.getBasicInfo(pVnode, &db, NULL);
+  pArg->pAPI->metaFn.getBasicInfo(pVnode, &db, NULL, NULL, NULL);
 
   SName sn = {0};
   char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -181,11 +182,11 @@ int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
 }
 
 int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
-  void* pVnode = ((SSTabFltArg*)arg)->pVnode;
+  SSTabFltArg* pArg = arg;
+  void*        pVnode = ((SSTabFltArg*)arg)->pVnode;
 
   int64_t vgId = 0;
-  ASSERT(0);
-//  pAPI->metaFn.getBasicInfo(pVnode, NULL, (int32_t*)&vgId);
+  pArg->pAPI->metaFn.getBasicInfo(pVnode, NULL, (int32_t*)&vgId, NULL, NULL);
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -202,7 +203,7 @@ int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
 }
 
 int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
-  void* pMeta = ((SSTabFltArg*)arg)->pMeta;
+  SSTabFltArg* pArg = arg;
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -222,7 +223,8 @@ int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
 }
 
 int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
-  void* pMeta = ((SSTabFltArg*)arg)->pMeta;
+  SSTabFltArg* pArg = arg;
+  SStorageAPI* pAPI = pArg->pAPI;
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -239,10 +241,8 @@ int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
                          .equal = equal,
                          .filterFunc = func};
 
-  ASSERT(0);
-  return 0;
-//  int32_t ret = metaFilterCreateTime(pMeta, &param, result);
-//  return ret;
+  int32_t ret = pAPI->metaFilter.metaFilterCreateTime(pArg->pVnode, &param, result);
+  return ret;
 }
 
 int32_t sysFilte__Ncolumn(void* arg, SNode* pNode, SArray* result) {

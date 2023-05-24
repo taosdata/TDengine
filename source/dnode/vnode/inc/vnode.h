@@ -151,11 +151,6 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
 //
 //} SMetaFltParam;
 
-// TODO, refactor later
-//int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
-//int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *parm, SArray *pUids);
-//int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids);
-//int32_t metaFilterTtl(SMeta *pMeta, SMetaFltParam *param, SArray *pUids);
 
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;

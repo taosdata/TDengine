@@ -1012,8 +1012,8 @@ typedef struct {
   int32_t  vLen;
 } SIdxCursor;
 
-int32_t metaFilterCreateTime(void *meta, void *arg, SArray *pUids) {
-  SMeta         *pMeta = meta;
+int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
+  SMeta         *pMeta = ((SVnode*)pVnode)->pMeta;
   SMetaFltParam *param = arg;
   int32_t        ret = 0;
 
@@ -1072,8 +1072,8 @@ END:
   return ret;
 }
 
-int32_t metaFilterTableName(void *meta, void *arg, SArray *pUids) {
-  SMeta         *pMeta = meta;
+int32_t metaFilterTableName(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
+  SMeta         *pMeta = ((SVnode*)pVnode)->pMeta;
   SMetaFltParam *param = arg;
   int32_t        ret = 0;
   char          *buf = NULL;
@@ -1139,8 +1139,8 @@ END:
 
   return ret;
 }
-int32_t metaFilterTtl(void *meta, void *arg, SArray *pUids) {
-  SMeta         *pMeta = meta;
+int32_t metaFilterTtl(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
+  SMeta         *pMeta = ((SVnode*)pVnode)->pMeta;
   SMetaFltParam *param = arg;
   int32_t        ret = 0;
   char          *buf = NULL;
@@ -1170,8 +1170,8 @@ END:
   // impl later
   return 0;
 }
-int32_t metaFilterTableIds(void *meta, void *arg, SArray *pUids) {
-  SMeta         *pMeta = meta;
+int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
+  SMeta         *pMeta = ((SVnode*)pVnode)->pMeta;
   SMetaFltParam *param = arg;
 
   SMetaEntry oStbEntry = {0};

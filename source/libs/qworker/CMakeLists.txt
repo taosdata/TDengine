@@ -9,11 +9,11 @@ target_include_directories(
 
 IF (TD_GRANT)
     TARGET_LINK_LIBRARIES(qworker
-            PRIVATE os util transport nodes planner qcom executor grant
+            PRIVATE os util transport nodes planner qcom executor index grant
             )
 ELSE ()
     TARGET_LINK_LIBRARIES(qworker
-            PRIVATE os util transport nodes planner qcom executor
+            PRIVATE os util transport nodes planner qcom executor index
             )
 ENDIF()
 

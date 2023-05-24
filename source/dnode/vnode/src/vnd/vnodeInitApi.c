@@ -16,12 +16,14 @@
 #include "storageapi.h"
 #include "vnodeInt.h"
 #include "tstreamUpdate.h"
+#include "meta.h"
 
 static void initTsdbReaderAPI(TsdReader* pReader);
 static void initMetadataAPI(SStoreMeta* pMeta);
 static void initTqAPI(SStoreTqReader* pTq);
 static void initStateStoreAPI(SStateStore* pStore);
 static void initMetaReaderAPI(SStoreMetaReader* pMetaReader);
+static void initMetaFilterAPI(SMetaDataFilterAPI* pFilter);
 
 void initStorageAPI(SStorageAPI* pAPI) {
   initTsdbReaderAPI(&pAPI->tsdReader);
@@ -29,6 +31,7 @@ void initStorageAPI(SStorageAPI* pAPI) {
   initTqAPI(&pAPI->tqReaderFn);
   initStateStoreAPI(&pAPI->stateStore);
   initMetaReaderAPI(&pAPI->metaReaderFn);
+  initMetaFilterAPI(&pAPI->metaFilter);
 }
 
 void initTsdbReaderAPI(TsdReader* pReader) {
@@ -69,7 +72,6 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getInvertIndex = vnodeGetIvtIdx;
 
   pMeta->extractTagVal = (const void *(*)(const void *, int16_t, STagVal *))metaGetTableTagVal;
-
 }
 
 void initTqAPI(SStoreTqReader* pTq) {
@@ -188,4 +190,11 @@ void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {
   pMetaReader->getTableEntryByName = metaGetTableEntryByName;
 
   pMetaReader->readerReleaseLock = metaReaderReleaseLock;
+}
+
+void initMetaFilterAPI(SMetaDataFilterAPI* pFilter) {
+  pFilter->metaFilterCreateTime = metaFilterCreateTime;
+  pFilter->metaFilterTableIds = metaFilterTableIds;
+  pFilter->metaFilterTableName = metaFilterTableName;
+  pFilter->metaFilterTtl = metaFilterTtl;
 }

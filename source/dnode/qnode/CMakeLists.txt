@@ -16,4 +16,5 @@ target_link_libraries(
     PRIVATE executor
     PRIVATE tdb
     PRIVATE wal
+    PRIVATE index
 )

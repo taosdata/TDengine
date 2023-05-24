@@ -239,7 +239,6 @@ void indexCleanup();
  * @param results
  * @return
  */
-
 typedef struct SMetaFltParam {
   uint64_t suid;
   int16_t  cid;
@@ -250,17 +249,12 @@ typedef struct SMetaFltParam {
   int (*filterFunc)(void *a, void *b, int16_t type);
 } SMetaFltParam;
 
-typedef struct SStoreAPI {
-  int32_t (*metaFilterTableIds)();
-  int32_t (*metaFilterCreateTime)();
-  int32_t (*metaFilterTableName)();
-  int32_t (*metaFilterTtl)();
-} SStoreAPI;
-
-//int32_t metaFilterTableIds(void *pMeta, SMetaFltParam *param, SArray *results);
-//int32_t metaFilterCreateTime(void *pMeta, SMetaFltParam *parm, SArray *pUids);
-//int32_t metaFilterTableName(void *pMeta, SMetaFltParam *param, SArray *pUids);
-//int32_t metaFilterTtl(void *pMeta, SMetaFltParam *param, SArray *pUids);
+typedef struct SMetaDataFilterAPI {
+  int32_t (*metaFilterTableIds)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
+  int32_t (*metaFilterCreateTime)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
+  int32_t (*metaFilterTableName)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
+  int32_t (*metaFilterTtl)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
+} SMetaDataFilterAPI;
 
 #ifdef __cplusplus
 }
