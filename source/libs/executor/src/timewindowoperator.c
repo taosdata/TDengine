@@ -2906,7 +2906,7 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
 }
 
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, int64_t gap,
-                               SStreamState* pState, int32_t keySize, int16_t keyType) {
+                               SStreamState* pState, int32_t keySize, int16_t keyType, SStateStore* pStore) {
   pSup->resultRowSize = keySize + getResultRowSize(pCtx, numOfOutput);
   pSup->pScanBlock = createSpecialDataBlock(STREAM_CLEAR);
   pSup->gap = gap;
@@ -2939,6 +2939,8 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SqlFunctionCtx* pCtx, 
     qError("Init stream agg supporter failed since %s, tempDir:%s", terrstr(), tsTempDir);
     return terrno;
   }
+
+  pSup->stateStore = *pStore;
   int32_t code = createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, "function", tsTempDir);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].saveHandle.pBuf = pSup->pResultBuf;
@@ -3600,7 +3602,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   }
 
   code = initStreamAggSupporter(&pInfo->streamAggSup, pSup->pCtx, numOfCols, pSessionNode->gap,
-                                pTaskInfo->streamInfo.pState, 0, 0);
+                                pTaskInfo->streamInfo.pState, 0, 0, &pTaskInfo->storageAPI.stateStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -4149,7 +4151,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   int32_t keySize = sizeof(SStateKeys) + pColNode->node.resType.bytes;
   int16_t type = pColNode->node.resType.type;
   code = initStreamAggSupporter(&pInfo->streamAggSup, pSup->pCtx, numOfCols, 0, pTaskInfo->streamInfo.pState, keySize,
-                                type);
+                                type, &pTaskInfo->storageAPI.stateStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

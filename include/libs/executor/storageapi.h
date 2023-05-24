@@ -396,7 +396,7 @@ int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, in
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables);  // int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo);
   void (*getBasicInfo)(void *pVnode, const char **dbname, int32_t *vgId, int64_t* numOfTables, int64_t* numOfNormalTables);// vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId) & metaGetTbNum(SMeta *pMeta) & metaGetNtbNum(SMeta *pMeta);
 
-  int64_t (*getNumOfRowsInMem)();
+  int64_t (*getNumOfRowsInMem)(void* pVnode);
   /**
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list);
 int32_t vnodeGetCtbIdListByFilter(void *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);

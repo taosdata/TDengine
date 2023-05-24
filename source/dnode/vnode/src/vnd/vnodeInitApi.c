@@ -65,6 +65,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->getBasicInfo = vnodeGetInfo;
   pMeta->getNumOfChildTables = metaGetStbStats;
+//  pMeta->getNumOfRowsInMem = tsdbGetNumOfRowsInMemTable;
 
   pMeta->getChildTableList = vnodeGetCtbIdList;
 

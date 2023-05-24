@@ -277,6 +277,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     }
 
     SReadHandle handle = { .vnode = pVnode, .initTqReader = 1, .pStateBackend = pStreamState };
+    initStorageAPI(&handle.api);
+
     pRSmaInfo->taskInfo[idx] = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle, TD_VID(pVnode));
     if (!pRSmaInfo->taskInfo[idx]) {
       terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
@@ -849,6 +851,8 @@ static int32_t tdCloneQTaskInfo(SSma *pSma, qTaskInfo_t dstTaskInfo, qTaskInfo_t
   TSDB_CHECK_CODE(code, lino, _exit);
 
   SReadHandle handle = { .vnode = pVnode, .initTqReader = 1 };
+  initStorageAPI(&handle.api);
+
   if (ASSERTS(!dstTaskInfo, "dstTaskInfo:%p is not NULL", dstTaskInfo)) {
     code = TSDB_CODE_APP_ERROR;
     TSDB_CHECK_CODE(code, lino, _exit);

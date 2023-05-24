@@ -671,6 +671,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     pHandle->pRef = pRef;
 
     SReadHandle handle = {.vnode = pVnode, .initTableReader = true, .initTqReader = true, .version = ver};
+    initStorageAPI(&handle.api);
+
     pHandle->snapshotVer = ver;
 
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {

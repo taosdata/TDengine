@@ -1814,9 +1814,13 @@ void destroySysScanOperator(void* param) {
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
-    pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    if (pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
+      pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    }
+
     pInfo->pCur = NULL;
   }
+
   if (pInfo->pIdx) {
     taosArrayDestroy(pInfo->pIdx->uids);
     taosMemoryFree(pInfo->pIdx);
@@ -2200,7 +2204,7 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   }
 
   pAPI->tsdReader.tsdReaderGetDataBlockDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
-  blockDistInfo.numOfInmemRows = (int32_t) pAPI->metaFn.getNumOfRowsInMem(pBlockScanInfo->pHandle);
+  blockDistInfo.numOfInmemRows = (int32_t) pAPI->tsdReader.tsdReaderGetNumOfInMemRows(pBlockScanInfo->pHandle);
 
   SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
 

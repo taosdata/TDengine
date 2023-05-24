@@ -250,7 +250,9 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   uint8_t    *pCont;
   SEncoder   *pCoder = &(SEncoder){0};
   SDeleteRes  res = {0};
+
   SReadHandle handle = {.config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
+  initStorageAPI(&handle.api);
 
   code = qWorkerProcessDeleteMsg(&handle, pVnode->pQuery, pMsg, &res);
   if (code) goto _exit;
