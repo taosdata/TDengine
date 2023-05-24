@@ -134,6 +134,11 @@ if(${BUILD_ADDR2LINE})
     endif(NOT ${TD_WINDOWS})
 endif(${BUILD_ADDR2LINE})
 
+# geos
+if(${BUILD_GEOS})
+    cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -470,6 +475,15 @@ if(${BUILD_ADDR2LINE})
     endif(NOT ${TD_WINDOWS})
 endif(${BUILD_ADDR2LINE})
 
+# geos
+if(${BUILD_GEOS})
+    option(BUILD_SHARED_LIBS "Build GEOS with shared libraries" OFF)
+    add_subdirectory(geos EXCLUDE_FROM_ALL)
+    target_include_directories(
+        geos_c
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/geos/include>
+    )
+endif(${BUILD_GEOS})
 
 # ================================================================================================
 # Build test

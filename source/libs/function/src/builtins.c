@@ -18,6 +18,7 @@
 #include "cJSON.h"
 #include "querynodes.h"
 #include "scalar.h"
+#include "geomFunc.h"
 #include "taoserror.h"
 #include "ttime.h"
 
@@ -2107,6 +2108,70 @@ static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateInStrOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_STR_DATA_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateInGeomOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (para1Type != TSDB_DATA_TYPE_GEOMETRY && !IS_NULL_TYPE(para1Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_VARCHAR].bytes, .type = TSDB_DATA_TYPE_VARCHAR};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateIn2NumOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if ((!IS_NUMERIC_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) ||
+      (!IS_NUMERIC_TYPE(para2Type) && !IS_NULL_TYPE(para2Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateIn2GeomOutBool(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if ((para1Type != TSDB_DATA_TYPE_GEOMETRY && !IS_NULL_TYPE(para1Type)) ||
+      (para2Type != TSDB_DATA_TYPE_GEOMETRY && !IS_NULL_TYPE(para2Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, .type = TSDB_DATA_TYPE_BOOL};
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
@@ -3360,6 +3425,96 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_geomfromtext",
+    .type = FUNCTION_TYPE_GEOM_FROM_TEXT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateInStrOutGeom,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = geomFromTextFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_astext",
+    .type = FUNCTION_TYPE_AS_TEXT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateInGeomOutStr,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = asTextFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_makepoint",
+    .type = FUNCTION_TYPE_MAKE_POINT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2NumOutGeom,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = makePointFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_intersects",
+    .type = FUNCTION_TYPE_INTERSECTS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = intersectsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_equals",
+    .type = FUNCTION_TYPE_EQUALS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = equalsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_touches",
+    .type = FUNCTION_TYPE_TOUCHES,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = touchesFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_covers",
+    .type = FUNCTION_TYPE_COVERS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = coversFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_contains",
+    .type = FUNCTION_TYPE_CONTAINS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = containsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_containsproperly",
+    .type = FUNCTION_TYPE_CONTAINS_PROPERLY,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = containsProperlyFunction,
     .finalizeFunc = NULL
   },
 };
