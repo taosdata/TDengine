@@ -20,9 +20,11 @@ typedef struct {
 } SMergeCtx;
 
 typedef struct {
-  STsdb       *tsdb;
-  SMergeCtx    ctx;
-  TFileOpArray fopArr;
+  STsdb           *tsdb;
+  SMergeCtx        ctx;
+  SSttFileWriter  *sttWriter;
+  SDataFileWriter *dataWriter;
+  TFileOpArray     fopArr;
 } SMerger;
 
 static int32_t tsdbMergerOpen(SMerger *merger) {
@@ -68,25 +70,35 @@ static int32_t tsdbMergeFileSet(SMerger *merger, STFileSet *fset) {
   {  // prepare the merger file set
     SSttLvl   *lvl;
     STFileObj *fobj;
-    TARRAY2_FOREACH(&fset->lvlArr, lvl) {
-      TARRAY2_FOREACH(&lvl->farr, fobj) {
-        if (fobj->f.stt.nseg >= merger->tsdb->pVnode->config.sttTrigger) {
-          STFileOp op = {
-              .fid = fset->fid,
-              .optype = TSDB_FOP_REMOVE,
-              .of = fobj->f,
-          };
+    bool       mergerToData = true;
+    int32_t    level = -1;
 
-          code = TARRAY2_APPEND(&merger->fopArr, op);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        } else {
-          if (lvl->level == 0) {
-            continue;
-          } else {
-            // TODO
-          }
-        }
+    TARRAY2_FOREACH(&fset->lvlArr, lvl) {
+      if (lvl->level - level > 1) {
+        mergerToData = false;
+        break;
       }
+
+      if (lvl->level == 0) {
+      } else {
+        ASSERT(TARRAY2_SIZE(&lvl->farr) == 1);
+
+        fobj = TARRAY2_FIRST(&lvl->farr);
+      }
+    }
+
+    // merge to level
+    level = level + 1;
+    lvl = tsdbTFileSetGetLvl(fset, level);
+    if (lvl == NULL) {
+      // open new stt file to merge to
+    } else {
+      // open existing stt file to merge to
+    }
+
+    if (mergerToData) {
+      // code = tsdbDataFWriterOpen(SDataFWriter * *ppWriter, STsdb * pTsdb, SDFileSet * pSet);
+      // TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
@@ -151,8 +163,8 @@ int32_t tsdbMerge(STsdb *tsdb) {
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
-  } else {
-    tsdbDebug("vgId:%d %s done, do merge: %d", vid, __func__, merger.ctx.launched);
+  } else if (merger.ctx.launched) {
+    tsdbDebug("vgId:%d %s done", vid, __func__);
   }
   return 0;
 }
