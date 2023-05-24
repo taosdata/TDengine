@@ -326,7 +326,7 @@ static int32_t open_committer(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *pCom
   pCommitter->minRow = pInfo->info.config.tsdbCfg.minRows;
   pCommitter->maxRow = pInfo->info.config.tsdbCfg.maxRows;
   pCommitter->cmprAlg = pInfo->info.config.tsdbCfg.compression;
-  pCommitter->sttTrigger = 4;  // TODO
+  pCommitter->sttTrigger = pInfo->info.config.sttTrigger;
 
   pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
   if (pCommitter->aTbDataP == NULL) {
@@ -441,6 +441,8 @@ int32_t tsdbCommitCommit(STsdb *pTsdb) {
   pTsdb->imem = NULL;
   taosThreadRwlockUnlock(&pTsdb->rwLock);
   tsdbUnrefMemTable(pMemTable, NULL, true);
+
+  // check merge (TODO: remove here)
 
 _exit:
   if (code) {
