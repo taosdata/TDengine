@@ -74,7 +74,7 @@ ${topDir}/enterprise/packaging/release.sh -v cloud -a $allocator -n $version -m 
 # copy to nas [optional]
 if [ -d $archiveDir ]; then
     cd $archiveDir
-    cp -f $communityDir/release/* ./
+    cp -f $communityDir/release/*.tar.gz ./
 else
     echo "Cannot found $archiveDir on this machine"
 fi
