@@ -521,6 +521,7 @@ typedef struct {
   char*          physicalPlan;
   SSchemaWrapper schema;
   int64_t        stbUid;
+  char           stbName[TSDB_TABLE_FNAME_LEN];
   // forbid condition
   int64_t ntbUid;
   SArray* ntbColIds;
