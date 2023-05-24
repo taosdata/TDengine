@@ -189,13 +189,15 @@ pub async fn influxdb_to_taos(
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connectorPath = if cfg!(target_os = "windows") {
-        "C:\\TDengine\\xplugins\\influxdb\\taosx-influxdb.bat"
+        "C:\\TDengine\\xplugins\\influxdb\\taosx-influxdb.jar"
     } else {
-        "/usr/local/taos/xplugins/influxdb/taosx-influxdb.sh"
+        "/usr/local/taos/xplugins/influxdb/taosx-influxdb.jar"
     };
     // startup the connector
-    let mut command = tokio::process::Command::new(connectorPath);
+    let mut command = tokio::process::Command::new("java");
     let child = command
+        .arg("-jar")
+        .arg(&connectorPath)
         .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
