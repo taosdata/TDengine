@@ -33,7 +33,26 @@ static int32_t tsdbMergerOpen(SMerger *merger) {
 
 static int32_t tsdbMergerClose(SMerger *merger) {
   // TODO
-  ASSERT(0);
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SVnode       *pVnode = merger->tsdb->pVnode;
+  int32_t       vid = TD_VID(pVnode);
+  STFileSystem *fs = merger->tsdb->pFS;
+
+  // edit file system
+  code = tsdbFSEditBegin(fs, &merger->fopArr, TSDB_FEDIT_MERGE);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbFSEditCommit(fs);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // clear the merge
+  TARRAY2_FREE(&merger->fopArr);
+
+_exit:
+  if (code) {
+  } else {
+  }
   return 0;
 }
 
