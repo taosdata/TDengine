@@ -110,6 +110,7 @@ async fn main() -> anyhow::Result<()> {
             .route("/", web::get().to(index))
             .route("/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
+            .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
             .route("/{route}", web::get().to(index))
@@ -147,6 +148,45 @@ async fn rest_sql_builtin(args: web::Data<Args>, req: HttpRequest, sql: String) 
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct RenewLicense {
+    active_code: Option<String>,
+    c_active_code: Option<String>,
+}
+
+impl PartialEq for RenewLicense {
+    fn eq(&self, other: &Self) -> bool {
+        let l = match (&self.active_code, &other.active_code) {
+            (Some(l), Some(r)) => l == r,
+            _ => true,
+        };
+        if !l {
+            return false;
+        }
+        let r = match (&self.c_active_code, &other.c_active_code) {
+            (Some(l), Some(r)) => l == r,
+            _ => true,
+        };
+        return r;
+    }
+}
+
+async fn renew_license(
+    args: web::Data<Args>,
+    req: HttpRequest,
+    body: web::Json<RenewLicense>,
+) -> impl Responder {
+    let header = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or_default();
+    match args.renew(header, &body).await {
+        Ok(ok) => HttpResponse::Ok().json(ok),
+        Err(err) => HttpResponse::InternalServerError().json(err),
+    }
+}
+
 // #[post("/rest/{path:.*}")]
 async fn rest_proxy(
     args: web::Data<Args>,
@@ -165,20 +205,15 @@ async fn rest_proxy(
     match builder.send_stream(body).await {
         Ok(mut ok) => match ok.body().limit(1024 * 1024 * 1024).await {
             Ok(ok) => HttpResponse::Ok().body(ok),
-            Err(err) => {
-                HttpResponse::InternalServerError().json(
-                    RestErrResponse {
-                        code: Code::Failed,
-                        desc: err.to_string(),
-                })
-            }
-        }
-        Err(err) => HttpResponse::InternalServerError().json(
-            RestErrResponse {
+            Err(err) => HttpResponse::InternalServerError().json(RestErrResponse {
                 code: Code::Failed,
                 desc: err.to_string(),
-            }
-        )
+            }),
+        },
+        Err(err) => HttpResponse::InternalServerError().json(RestErrResponse {
+            code: Code::Failed,
+            desc: err.to_string(),
+        }),
     }
 }
 
@@ -216,7 +251,9 @@ async fn x_api(
     let url = format!("{x}/{api}?{}", req.query_string());
     let client = awc::Client::builder().wrap(Tracing).finish();
     let method = req.method();
-    let client = client.request(method.clone(), url).timeout(Duration::from_secs(std::u64::MAX));
+    let client = client
+        .request(method.clone(), url)
+        .timeout(Duration::from_secs(std::u64::MAX));
     let mut resp = client
         .content_type(req.content_type())
         .send_body(bytes)
@@ -239,7 +276,9 @@ async fn x_api_doc(
     let url = format!("{x}/api-doc/openapi.json");
     let client = awc::Client::new();
     let method = req.method();
-    let client = client.request(method.clone(), url).timeout(Duration::from_secs(std::u64::MAX));
+    let client = client
+        .request(method.clone(), url)
+        .timeout(Duration::from_secs(std::u64::MAX));
     let mut resp = client.send_body(bytes).await?;
     let mut api: serde_json::Value = resp.json().await?;
     if let Some(paths) = api.get_mut("paths") {
@@ -381,6 +420,61 @@ impl Args {
             rows: data.len() as _,
             data,
         })
+    }
+
+    async fn renew(
+        &self,
+        header: &str,
+        license: &RenewLicense,
+    ) -> Result<RestOkResponse, RestErrResponse> {
+        if license.active_code.is_none() && license.c_active_code.is_none() {
+            return Err(RestErrResponse {
+                code: Code::Failed,
+                desc: "active code or connector active code must exist at lease one".into(),
+            });
+        }
+        //token
+        let credentials =
+            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
+        let mut dsn: Dsn = self
+            .profile
+            .cluster
+            .as_deref()
+            .unwrap_or("taos://localhost:6030")
+            .parse()
+            .map_err(RestErrResponse::new)?;
+        dsn.username = Some(credentials.user_id);
+        dsn.password = Some(credentials.password);
+        let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
+
+        if let Some(active_code) = license.active_code.as_ref() {
+            let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
+            conn.exec(&sql).await?;
+        }
+        if let Some(active_code) = license.c_active_code.as_ref() {
+            let sql = format!("alter all dnodes 'cActiveCode' '{active_code}'");
+            conn.exec(&sql).await?;
+        }
+        let renewed = conn
+            .query("show dnodes")
+            .await?
+            .deserialize::<RenewLicense>()
+            .all(|l| async move { l.map(|l| l == *license).unwrap_or_default() })
+            .await;
+
+        if renewed {
+            Ok(RestOkResponse {
+                code: Code::Success,
+                column_meta: Default::default(),
+                rows: 0,
+                data: Default::default(),
+            })
+        } else {
+            Err(RestErrResponse {
+                code: Code::Failed,
+                desc: "Alter all dnodes success, but the `show dnodes` result is not consist with new license".to_string(),
+            })
+        }
     }
 }
 #[derive(Debug, serde::Serialize)]
