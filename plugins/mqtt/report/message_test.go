@@ -9,17 +9,15 @@ import (
 func TestMessageList(t *testing.T) {
 	messages := NewMessageList()
 
-	msg1 := &mockMessage{topic: "test", payload: []byte("hello")}
-	msg2 := &mockMessage{topic: "test", payload: []byte("world")}
-	messages.Add(&Message{Message: msg1})
-	messages.Add(&Message{Message: msg2})
+	messages.Add(&Message{Topic: "test", Payload: []byte("hello")})
+	messages.Add(&Message{Topic: "test", Payload: []byte("world")})
 
 	allMessages := messages.GetAll()
 
 	assert.Equal(t, 2, len(allMessages))
-	assert.Equal(t, msg1.Topic(), allMessages[0].Message.Topic())
-	assert.Equal(t, msg2.Topic(), allMessages[1].Message.Topic())
-	assert.Equal(t, msg1.Payload(), allMessages[0].Message.Payload())
-	assert.Equal(t, msg2.Payload(), allMessages[1].Message.Payload())
+	assert.Equal(t, "test", allMessages[0].Topic)
+	assert.Equal(t, "test", allMessages[1].Topic)
+	assert.Equal(t, []byte("hello"), allMessages[0].Payload)
+	assert.Equal(t, []byte("world"), allMessages[1].Payload)
 	assert.Equal(t, 0, messages.list.Len())
 }

@@ -1,4 +1,4 @@
-package main
+package system
 
 import (
 	"fmt"
@@ -21,7 +21,7 @@ remote = "%s"
 [mqtt]
 address = "tcp://127.0.0.1:1883"
 version = "%s"
-client_id = "mqtt_test_all"
+client_id = "mqtt_test_v%d"
 username = "user"
 password = "pass"
 keep_alive = 60
@@ -31,7 +31,7 @@ clean_session = true
 "topic1" = 0
 `
 
-func Test_All(t *testing.T) {
+func Test_v5(t *testing.T) {
 	server, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	if err != nil {
 		t.Error(err)
@@ -39,7 +39,7 @@ func Test_All(t *testing.T) {
 	defer server.Close()
 	finish := make(chan struct{})
 	go accept(t, server, finish)
-	configStr := fmt.Sprintf(testConfig, server.Addr().String(), "3.0")
+	configStr := fmt.Sprintf(testConfig, server.Addr().String(), "5.0", 5)
 	t.Log(configStr)
 
 	f, err := os.CreateTemp("", "*")
@@ -48,8 +48,50 @@ func Test_All(t *testing.T) {
 	assert.NoError(t, err)
 	_ = f.Close()
 	defer os.Remove(f.Name())
-	os.Args = append(os.Args, "-c", f.Name())
-	go main()
+	p := newProgram(f.Name())
+	err = p.Start(nil)
+	assert.NoError(t, err)
+	defer p.Stop(nil)
+	time.Sleep(time.Second)
+	opt := mqtt.NewClientOptions()
+	opt.AddBroker("tcp://127.0.0.1:1883")
+	connected := make(chan struct{})
+	opt.SetOnConnectHandler(func(client mqtt.Client) {
+		connected <- struct{}{}
+	})
+
+	mqttClient := mqtt.NewClient(opt)
+	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
+		t.Fatalf("Error on Client.Connect(): %v", token.Error())
+	}
+	<-connected
+	err = mqttClient.Publish("topic1", 1, false, "value1").Error()
+	assert.NoError(t, err)
+
+	<-finish
+}
+
+func Test_v3(t *testing.T) {
+	server, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Error(err)
+	}
+	defer server.Close()
+	finish := make(chan struct{})
+	go accept(t, server, finish)
+	configStr := fmt.Sprintf(testConfig, server.Addr().String(), "3.0", 3)
+	t.Log(configStr)
+
+	f, err := os.CreateTemp("", "*")
+	assert.NoError(t, err)
+	_, err = f.Write([]byte(configStr))
+	assert.NoError(t, err)
+	_ = f.Close()
+	defer os.Remove(f.Name())
+	p := newProgram(f.Name())
+	err = p.Start(nil)
+	assert.NoError(t, err)
+	defer p.Stop(nil)
 	time.Sleep(time.Second)
 	opt := mqtt.NewClientOptions()
 	opt.AddBroker("tcp://127.0.0.1:1883")
@@ -72,7 +114,6 @@ func Test_All(t *testing.T) {
 func accept(t *testing.T, server *net.TCPListener, finish chan struct{}) {
 	defer func() {
 		finish <- struct{}{}
-		time.Sleep(time.Second * 5)
 	}()
 	conn, err := server.AcceptTCP()
 	if err != nil {
@@ -108,4 +149,30 @@ func accept(t *testing.T, server *net.TCPListener, finish chan struct{}) {
 	} else {
 		t.Error("expect get data")
 	}
+}
+
+func Test_Start(t *testing.T) {
+	server, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Error(err)
+	}
+	defer server.Close()
+	finish := make(chan struct{})
+	go accept(t, server, finish)
+	configStr := fmt.Sprintf(testConfig, server.Addr().String(), "5.0", 5)
+	t.Log(configStr)
+
+	f, err := os.CreateTemp("", "*")
+	assert.NoError(t, err)
+	_, err = f.Write([]byte(configStr))
+	assert.NoError(t, err)
+	_ = f.Close()
+	defer os.Remove(f.Name())
+	s := NewService(f.Name())
+	go func() {
+		Start(s)
+	}()
+	time.Sleep(time.Second)
+	s.Stop()
+	assert.NoError(t, err)
 }

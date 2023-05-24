@@ -1,11 +1,10 @@
-package connector
+package mqttv5
 
 import (
 	"fmt"
 	"testing"
 	"time"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taosx/plugins/mqtt/config"
@@ -24,10 +23,11 @@ func TestNewConnector(t *testing.T) {
 		connected <- struct{}{}
 	}, func(err error) {
 		fmt.Println("closed", err)
-	}, func(client mqtt.Client, message mqtt.Message) {
-		switch message.Topic() {
-		case "sub":
-			assert.Equal(t, []byte("sub1"), message.Payload())
+	}, func(qos byte, topic string, payload []byte) {
+		t.Log("got message", topic, int(qos), string(payload))
+		switch topic {
+		case "sub_v5":
+			assert.Equal(t, []byte("sub_v5"), payload)
 			receivedSub <- struct{}{}
 		}
 	})
@@ -35,12 +35,12 @@ func TestNewConnector(t *testing.T) {
 	connector.SubscribeMultiple(map[string]int{
 		"#": 0,
 	})
-	err := connector.Publish("sub", 0, false, []byte("sub1"))
+	err := connector.Publish("sub_v5", 0, false, []byte("sub_v5"))
 	assert.NoError(t, err)
 	<-receivedSub
 	connector.Stop()
 	time.Sleep(time.Second)
-	err = connector.Publish("sub", 0, false, []byte("sub2"))
+	err = connector.Publish("sub_v5", 0, false, []byte("sub_v5"))
 	assert.Error(t, err)
 }
 

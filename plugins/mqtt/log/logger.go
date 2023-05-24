@@ -26,6 +26,7 @@ type defaultPool struct {
 }
 
 func (p *defaultPool) Put(buf *bytes.Buffer) {
+	fmt.Fprint(os.Stdout)
 	buf.Reset()
 	p.pool.Put(buf)
 }
@@ -52,7 +53,7 @@ func (t *TaosLogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	b.WriteString(entry.Time.Format("01/02 15:04:05.000000"))
 	b.WriteByte(' ')
 	b.WriteString(ServerID)
-	b.WriteString(" MQTT_PLUGIN ")
+	b.WriteByte(' ')
 	b.WriteString(entry.Level.String())
 	b.WriteString(` "`)
 	b.WriteString(entry.Message)

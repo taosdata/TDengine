@@ -14,7 +14,8 @@ remote = "127.0.0.1:33333"
 
 [mqtt]
 address = "tcp://127.0.0.1:1883"
-client_id = "mqtt_test"
+version = "3.0"
+client_id = "mqtt_test_config"
 username = "user"
 password = "pass"
 keep_alive = 60
@@ -100,12 +101,13 @@ func TestParseConfig(t *testing.T) {
 	_, err = f.Write([]byte(testConfig))
 	assert.NoError(t, err)
 	_ = f.Close()
-	want := Config{
+	want := &Config{
 		LogLevel: "debug",
 		Remote:   "127.0.0.1:33333",
 		MQTT: &MQTT{
 			Address:      "tcp://127.0.0.1:1883",
-			ClientID:     "mqtt_test",
+			Version:      "3.0",
+			ClientID:     "mqtt_test_config",
 			Username:     "user",
 			Password:     "pass",
 			KeepAlive:    60,

@@ -141,16 +141,12 @@ func TestReport(t *testing.T) {
 	record := recordBuilder.NewRecord()
 	defer record.Release()
 
-	message := &mockMessage{
-		topic:   topic,
-		qos:     qos,
-		payload: payload,
-	}
-
 	// Write test data using Report()
 	err = reporter.Report([]*Message{{
 		TS:      timestamp,
-		Message: message,
+		Topic:   topic,
+		Qos:     qos,
+		Payload: payload,
 	}})
 	if err != nil {
 		t.Error(err)

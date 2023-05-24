@@ -29,7 +29,7 @@ func TestTaosLogFormatter_Format(t *testing.T) {
 		},
 	}
 
-	want := fmt.Sprintf("%s %s MQTT_PLUGIN info \"This is a test message.\" key1=value1\n",
+	want := fmt.Sprintf("%s %s info \"This is a test message.\" key1=value1\n",
 		timestamp.Format("01/02 15:04:05.000000"), ServerID)
 
 	got, err := formatter.Format(entry)
