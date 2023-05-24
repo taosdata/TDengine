@@ -3765,7 +3765,7 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
         SColumnDataAgg *pAgg = pDataStatis[j];
         SArray         *points = taosArrayInit(2, sizeof(SFltSclPoint));
         fltSclBuildRangeFromBlockSma(colRange, pAgg, numOfRows, points);
-        qDebug("column data agg: nulls %d, rows %d, max %" PRId64 " min " PRId64, pAgg->numOfNull, numOfRows, pAgg->max,
+        qDebug("column data agg: nulls %d, rows %d, max %" PRId64 " min %" PRId64, pAgg->numOfNull, numOfRows, pAgg->max,
                pAgg->min);
 
         SArray *merged = taosArrayInit(8, sizeof(SFltSclPoint));
