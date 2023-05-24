@@ -86,7 +86,7 @@ typedef struct SMetaReader {
 } SMetaReader;
 
 typedef struct SMTbCursor {
-  struct TBC *pDbc;
+  void *      pDbc;
   void *      pKey;
   void *      pVal;
   int32_t     kLen;
@@ -169,7 +169,7 @@ typedef struct SMetaTableInfo {
 typedef struct SSnapContext {
   SMeta *     pMeta;     // todo remove it
   int64_t     snapVersion;
-  struct TBC *pCur;
+  void *      pCur;
   int64_t     suid;
   int8_t      subType;
   SHashObj *  idVersion;

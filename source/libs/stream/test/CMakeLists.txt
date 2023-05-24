@@ -10,7 +10,7 @@ ADD_EXECUTABLE(streamUpdateTest "tstreamUpdateTest.cpp")
 
 TARGET_LINK_LIBRARIES(
   streamUpdateTest
-  PUBLIC os util common gtest gtest_main stream
+  PUBLIC os util common gtest gtest_main stream executor
 )
 
 TARGET_INCLUDE_DIRECTORIES(
