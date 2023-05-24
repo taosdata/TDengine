@@ -9,5 +9,5 @@ target_include_directories(
     PUBLIC "${GRANT_CFG_INCLUDE_DIR}"
 )
 target_link_libraries(
-    mgmt_dnode node_util rocksdb
+    mgmt_dnode node_util
 )

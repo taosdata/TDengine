@@ -106,6 +106,11 @@ option(
     OFF
 )
 
+option(
+    BUILD_WITH_ROCKSDB 
+    "If build with rocksdb" 
+    ON
+)
 
 option(
     BUILD_WITH_SQLITE
