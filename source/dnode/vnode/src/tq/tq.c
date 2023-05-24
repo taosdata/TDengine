@@ -1298,7 +1298,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     atomic_store_8(&pTask->status.taskStatus, pTask->status.keepTaskStatus);
 
     // no lock needs to secure the access of the version
-    if (pReq->igUntreated) {  // discard all the data  when the stream task is suspended.
+    if (pReq->igUntreated && pTask->taskLevel == TASK_LEVEL__SOURCE) {  // discard all the data  when the stream task is suspended.
       pTask->chkInfo.currentVer = sversion;
       walReaderSeekVer(pTask->exec.pWalReader, sversion);
       tqDebug("vgId:%d s-task:%s resume to normal from the latest version:%" PRId64 ", vnode ver:%" PRId64, pTq->pStreamMeta->vgId,
