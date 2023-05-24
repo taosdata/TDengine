@@ -198,13 +198,26 @@ namespace TDPIConnector.TDEngine.TaosxClient
 
         internal void AddAFElementTableTag(string tdEngineTableName, List<KeyValuePair<string, string>> tags)
         {
-            builder.tagVals.Add(tdEngineTableName, tags);
+            if (!builder.tagVals.ContainsKey(tdEngineTableName))
+            {
+                builder.tagVals[tdEngineTableName] = tags;
+            }
+            else {
+                log.Info("found duplicate elements when add tagVal");
+            }
         }
 
         internal void AddPointTableTag(string tdEngineTableName, int pointId)
         {
-            //var tag = new KeyValuePair<string, string>($"pointId", "INT");
-            builder.pointIds.Add($"{tdEngineTableName}", pointId);
+            if (!builder.pointIds.ContainsKey(tdEngineTableName))
+            {
+                //var tag = new KeyValuePair<string, string>($"pointId", "INT");
+                builder.pointIds.Add($"{tdEngineTableName}", pointId);
+            }
+            else
+            {
+                log.Info("found duplicate elements when add pointId");
+            }
         }
 
         public void InitTables() {
