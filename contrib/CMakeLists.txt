@@ -226,7 +226,6 @@ if(${BUILD_WITH_LEVELDB})
 endif(${BUILD_WITH_LEVELDB})
 
 # rocksdb
-if (FALSE)
 # To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
 if(${BUILD_WITH_ROCKSDB})
     if(${TD_LINUX})
@@ -270,14 +269,13 @@ if(${BUILD_WITH_ROCKSDB})
     option(WITH_TOOLS "" OFF)
     option(WITH_LIBURING "" OFF)
 
-    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
+    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" ON)
     add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
     target_include_directories(
         rocksdb
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
     )
 endif(${BUILD_WITH_ROCKSDB})
-endif()
 
 # lucene
 # To support build on ubuntu: sudo apt-get install libboost-all-dev
