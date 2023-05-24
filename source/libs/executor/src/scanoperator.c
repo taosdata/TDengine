@@ -929,7 +929,7 @@ static void destroyTableScanOperatorInfo(void* param) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
   blockDataDestroy(pTableScanInfo->pResBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);
-  destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->readerAPI);
+  destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
   taosMemoryFreeClear(param);
 }
 
@@ -975,7 +975,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->sample.sampleRatio = pTableScanNode->ratio;
   pInfo->sample.seed = taosGetTimestampSec();
 
-  pInfo->readerAPI = pTaskInfo->storageAPI.tsdReader;
+  pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
   //  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
@@ -1075,7 +1075,7 @@ void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint6
   pTableScanInfo->base.cond.endVersion = version;
   pTableScanInfo->scanTimes = 0;
   pTableScanInfo->currentGroupId = -1;
-  pTableScanInfo->readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
+  pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
   pTableScanInfo->base.dataReader = NULL;
 }
 
@@ -1250,7 +1250,7 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
       *pRowIndex = 0;
       pInfo->updateWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-      pTableScanInfo->readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
+      pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
       pTableScanInfo->base.dataReader = NULL;
       return NULL;
     }
@@ -3045,6 +3045,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     goto _error;
   }
 
+  pInfo->base.readerAPI = pTaskInfo->storageAPI.tsdReader;
   pInfo->base.dataBlockLoadFlag = FUNC_DATA_REQUIRED_DATA_LOAD;
   pInfo->base.scanFlag = MAIN_SCAN;
   pInfo->base.readHandle = *readHandle;

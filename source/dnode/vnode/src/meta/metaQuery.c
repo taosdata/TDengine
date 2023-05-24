@@ -139,10 +139,10 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
   return uid;
 }
 
-int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
+int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, (SMeta *)meta, 0);
+  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
@@ -170,10 +170,10 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
   return 0;
 }
 
-int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
+int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, (SMeta *)meta, 0);
+  metaReaderInit(&mr, ((SVnode *)pVnode)->pMeta, 0);
 
   SMetaReader *pReader = &mr;
 
@@ -191,10 +191,10 @@ int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
   return 0;
 }
 
-int metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType) {
+int metaGetTableTypeByName(void *pVnode, char *tbName, ETableType *tbType) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, (SMeta *)meta, 0);
+  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;

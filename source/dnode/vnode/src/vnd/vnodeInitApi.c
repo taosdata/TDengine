@@ -78,6 +78,8 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getTableUidByName = metaGetTableUidByName;
   pMeta->getTableTypeByName = metaGetTableTypeByName;
   pMeta->getTableNameByUid = metaGetTableNameByUid;
+
+  pMeta->getTableSchema = tsdbGetTableSchema;   // todo refactor
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

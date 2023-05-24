@@ -5373,9 +5373,9 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
   return rows;
 }
 
-int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid) {
+int32_t tsdbGetTableSchema(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid) {
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pVnode->pMeta, 0);
+  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
@@ -5405,7 +5405,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   metaReaderClear(&mr);
 
   // get the newest table schema version
-  code = metaGetTbTSchemaEx(pVnode->pMeta, *suid, uid, -1, pSchema);
+  code = metaGetTbTSchemaEx(((SVnode*)pVnode)->pMeta, *suid, uid, -1, pSchema);
   return code;
 }
 

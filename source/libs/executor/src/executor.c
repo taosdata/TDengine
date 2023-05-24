@@ -507,7 +507,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   }
 
   SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50};
-  code = dsDataSinkMgtInit(&cfg);
+  code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
     goto _error;

@@ -224,7 +224,7 @@ typedef struct STableScanInfo {
   int8_t          assignBlockUid;
   bool            hasGroupByTag;
   bool            countOnly;
-  TsdReader    readerAPI;
+//  TsdReader    readerAPI;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
