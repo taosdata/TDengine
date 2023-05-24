@@ -157,7 +157,6 @@
         <el-form-item
           :label="$t('taosuser.directory')"
           prop="directory"
-          required
           v-if="!isEditDialog"
         >
           <el-input v-model.trim="ruleForm.directory"></el-input>
@@ -193,6 +192,7 @@ import {
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import { Message } from "element-ui";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
+import { validDir } from '@/utils/validate';
 export default {
   data() {
     return {
@@ -244,6 +244,10 @@ export default {
             required: true,
             message: this.$t('taosuser.directoryRequired'),
           },
+          {
+            validator: this.checkDirectory,
+            trigger: "blur",  
+          }
         ],
       },
       topicList: [],
@@ -436,6 +440,14 @@ export default {
         return Promise.reject(err);
       }
     },
+    checkDirectory(_, value, callback) {
+      console.log('hshsh',value);
+      if (!validDir(value)) {
+        return callback(new Error(this.$t('formatWrong')));
+      } else {
+        callback()
+      }
+    }
   },
   created() {
     this.getDatabases();

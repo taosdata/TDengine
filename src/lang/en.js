@@ -150,6 +150,9 @@ export default {
   finishedAt: "Finished At",
   from: "From",
   to: "To",
+  revoke: "revoke",
+  read: "read",
+  write: "write",
   plan: {
     pricePlan: "Price Plan",
     planTitle: "TDengine  Price Plan",
@@ -366,7 +369,7 @@ export default {
   data: {
     appendEditor: "Append Editor",
     viewData: "view 200 rows of data",
-    changeDBPrivilegeTip: "Do you want to {type} the {listType} from the {dbName} DB ?",
+    changeDBPrivilegeTip: "Do you want to {type} the {listType} permissions from the {dbName} DB ?",
     exportDataViaCli: `Explorer data via ${oem} CLI`,
     noDatabase: "No Database",
     dataExplorer: "Data Explorer",

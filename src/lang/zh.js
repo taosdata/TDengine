@@ -136,6 +136,9 @@ export default {
   prev: "上一个",
   next: "下一个",
   pleaseSelect: "请选择",
+  revoke: "收回",
+  read: "读",
+  write: "写",
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",
@@ -297,7 +300,7 @@ export default {
   data: {
     appendEditor: "追加到编辑器",
     viewData: "查看200行数据",
-    changeDBPrivilegeTip: "你想从{dbName}数据库{type} {listType}吗?",
+    changeDBPrivilegeTip: "你想从 {dbName} 数据库{type}{listType}权限吗?",
     exportDataViaCli: `通过${oem} CLI交互`,
     noDatabase: "暂无数据库",
     dataExplorer: "数据浏览",
@@ -440,6 +443,7 @@ export default {
   console: {
     exec: "执行",
     addFavorites: "收藏",
+    delFavirote: "删除收藏",
     output: "结果",
     history: "历史",
     favorites: "收藏",
