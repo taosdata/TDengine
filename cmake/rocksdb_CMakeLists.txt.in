@@ -1,11 +1,28 @@
 
 # rocksdb
-ExternalProject_Add(rocksdb
-        GIT_REPOSITORY https://github.com/facebook/rocksdb.git
-        GIT_TAG v8.1.1
-        SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-        TEST_COMMAND ""
-        )
+
+find_library(ROCKSDB_LIB NAMES rocksdb)
+find_path(ROCKSDB_INCLUDE_DIR NAMES rocksdb/db.h)
+
+if (ROCKSDB_LIB AND ROCKSDB_INCLUDE_DIR)
+  set(ROCKSDB_FOUND TRUE)
+endif()
+
+if(ROCKSDB_FOUND)
+  message(STATUS "Found rocksdb")
+else()
+  message(STATUS "Building rocksdb from source")
+
+  ExternalProject_Add(rocksdb
+          GIT_REPOSITORY https://github.com/facebook/rocksdb.git
+          GIT_TAG v8.1.1
+          SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
+          BINARY_DIR "${TD_CONTRIB_DIR}/rocksdb"
+          CONFIGURE_COMMAND ""
+          BUILD_COMMAND COMMAND $(MAKE) install-shared -j8
+          INSTALL_COMMAND ""
+          TEST_COMMAND ""
+          )
+endif()
+
+
