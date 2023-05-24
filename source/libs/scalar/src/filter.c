@@ -3446,10 +3446,10 @@ typedef enum {
 typedef struct {
   SFltSclDatumKind kind;
   union {
-    int64_t  i;  // for int64, uint64 and double and bool (1 true, 0 false)
-    uint64_t u;
-    double   d;
-    uint8_t *pData;  // for varchar, nchar
+    int64_t  i;      // for int and bool (1 true, 0 false) and ts
+    uint64_t u;      // for uint
+    double   d;      // for double
+    uint8_t *pData;  // for varchar, nchar, len prefixed
   };
   SDataType type;    // TODO: original data type, may not be used?
 } SFltSclDatum;
@@ -3765,9 +3765,15 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
         SColumnDataAgg *pAgg = pDataStatis[j];
         SArray         *points = taosArrayInit(2, sizeof(SFltSclPoint));
         fltSclBuildRangeFromBlockSma(colRange, pAgg, numOfRows, points);
+        qDebug("column data agg: nulls %d, rows %d, max %" PRId64 " min " PRId64, pAgg->numOfNull, numOfRows, pAgg->max,
+               pAgg->min);
+
         SArray *merged = taosArrayInit(8, sizeof(SFltSclPoint));
         fltSclIntersect(points, colRange->points, merged);
         bool isIntersect = taosArrayGetSize(merged) != 0;
+        qDebug("filter range execute, scalar mode, column range found. colId: %d colName: %s has overlap: %d",
+               colRange->colNode->colId, colRange->colNode->colName, isIntersect);
+
         taosArrayDestroy(merged);
         taosArrayDestroy(points);
         if (!isIntersect) {
