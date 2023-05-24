@@ -258,7 +258,7 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   STimeWindow w = {0};
   int64_t     startKey = (order == TSDB_ORDER_ASC) ? win.skey : win.ekey;
 
-  getInitialStartTimeWindow(pInterval, startKey, &w, order);
+  getInitialStartTimeWindow(pInterval, startKey, &w, order == TSDB_ORDER_ASC);
   pInfo->pFillInfo = taosCreateFillInfo(w.skey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
                                         pInfo->primaryTsCol, order, id);
 
