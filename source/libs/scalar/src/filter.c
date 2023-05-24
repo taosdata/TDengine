@@ -3472,7 +3472,7 @@ int32_t fltSclCompareWithFloat64(SFltSclDatum *val1, SFltSclDatum *val2) {
     }
     // TODO: varchar, nchar
     default:
-      qError("not support comparsion. %d, %d", val1->kind, val2->kind);
+      qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
       return (val1->kind - val2->kind);
   }
 }
@@ -3489,7 +3489,7 @@ int32_t fltSclCompareWithInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
     }
     // TODO: varchar, nchar
     default:
-      qError("not support comparsion. %d, %d", val1->kind, val2->kind);
+      qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
       return (val1->kind - val2->kind);
   }
 }
@@ -3506,7 +3506,7 @@ int32_t fltSclCompareWithUInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
     }
     // TODO: varchar, nchar
     default:
-      qError("not support comparsion. %d, %d", val1->kind, val2->kind);
+      qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
       return (val1->kind - val2->kind);
   }
 }
@@ -3514,7 +3514,7 @@ int32_t fltSclCompareWithUInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
 int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
   if (val2->kind == FLT_SCL_DATUM_KIND_NULL || val2->kind == FLT_SCL_DATUM_KIND_MIN ||
       val2->kind == FLT_SCL_DATUM_KIND_MAX) {
-      return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
+    return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
   }
 
   switch (val2->kind) {
@@ -3529,7 +3529,7 @@ int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
     }
     // TODO: varchar/nchar
     default:
-      fltError("not supported kind. just return 0");
+      qError("not supported kind when compare datum. kind2 : %d", val2->kind);
       return 0;
       break;
   }
@@ -3585,7 +3585,6 @@ int32_t fltSclMergeSort(SArray *pts1, SArray *pts2, SArray *result) {
   return 0;
 }
 
-// pts1 and pts2 must be ordered and de-duplicated and each range can not be a range of another range
 int32_t fltSclMerge(SArray *pts1, SArray *pts2, bool isUnion, SArray *merged) {
   size_t len1 = taosArrayGetSize(pts1);
   size_t len2 = taosArrayGetSize(pts2);
@@ -3616,7 +3615,6 @@ int32_t fltSclIntersect(SArray *pts1, SArray *pts2, SArray *merged) { return flt
 
 int32_t fltSclUnion(SArray *pts1, SArray *pts2, SArray *merged) { return fltSclMerge(pts1, pts2, true, merged); }
 
-// TODO: column, constant
 typedef struct {
   SColumnNode  *colNode;
   SValueNode   *valNode;
@@ -3675,9 +3673,9 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) 
         datum->d = valNode->datum.d;
         break;
       }
-        // TODO:varchar/nchar/json
+      // TODO:varchar/nchar/json
       default: {
-        qError("not supported");
+        qError("not supported type %d when build datum from value node", valNode->node.resType.type);
         break;
       }
     }
@@ -3687,11 +3685,11 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) 
 
 int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int64_t val) {
   switch (type) {
-    case TSDB_DATA_TYPE_BOOL: 
-    case TSDB_DATA_TYPE_TINYINT: 
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_BIGINT: 
+    case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
       datum->kind = FLT_SCL_DATUM_KIND_INT64;
       datum->i = val;
@@ -3711,10 +3709,10 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int
       datum->d = *(double *)&val;
       break;
     }
-      // TODO:varchar/nchar/json
+    // TODO:varchar/nchar/json
     default: {
       datum->kind = FLT_SCL_DATUM_KIND_NULL;
-      qError("not supported type when build datum from block sma value");
+      qError("not supported type %d when build datum from block sma value", type);
       break;
     }
   }
@@ -3731,6 +3729,13 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
     taosArrayPush(points, &startPt);
     taosArrayPush(points, &endPt);
     return TSDB_CODE_SUCCESS;
+  }
+  if (pAgg->numOfNull > 0) {
+    SFltSclDatum nullDatum = {.kind = FLT_SCL_DATUM_KIND_NULL};
+    SFltSclPoint startPt = {.start = true, .excl = false, .val = nullDatum};
+    SFltSclPoint endPt = {.start = false, .excl = false, .val = nullDatum};
+    taosArrayPush(points, &startPt);
+    taosArrayPush(points, &endPt);
   }
   SFltSclDatum min;
   fltSclBuildDatumFromBlockSmaValue(&min, colRange->colNode->node.resType.type, pAgg->min);
@@ -4357,8 +4362,25 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       }
       break;
     }
+    case OP_TYPE_IS_NULL: {
+      SFltSclDatum nullDatum = {.kind = FLT_SCL_DATUM_KIND_NULL};
+      SFltSclPoint startPt = {.start = true, .excl = false, .val = nullDatum};
+      SFltSclPoint endPt = {.start = false, .excl = false, .val = nullDatum};
+      taosArrayPush(points, &startPt);
+      taosArrayPush(points, &endPt);
+      break;
+    }
+    case OP_TYPE_IS_NOT_NULL: {
+      SFltSclDatum minDatum = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = oper->colNode->node.resType};
+      SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
+      SFltSclDatum maxDatum = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
+      SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};
+      taosArrayPush(points, &startPt);
+      taosArrayPush(points, &endPt);
+      break;
+    }
     default: {
-      qError("not supported op");
+      qError("not supported operator type : %d when build range points", oper->type);
       break;
     }
   }
@@ -4391,26 +4413,30 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
   if (nodeType(pNode) != QUERY_NODE_OPERATOR) {
     return TSDB_CODE_SUCCESS;
   }
+
   SOperatorNode *pOper = (SOperatorNode *)pNode;
-  // TODO: left value node, right column node
-  // TODO: datatype
-  // TODO: operator
   if (pOper->pLeft == NULL || pOper->pRight == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-  if (nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE &&
-      (pOper->opType == OP_TYPE_GREATER_THAN || pOper->opType == OP_TYPE_GREATER_EQUAL ||
-       pOper->opType == OP_TYPE_LOWER_THAN || pOper->opType == OP_TYPE_LOWER_EQUAL ||
-       pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL)) {
-    SValueNode *valNode = (SValueNode *)pOper->pRight;
-    if (IS_NUMERIC_TYPE(valNode->node.resType.type) || valNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      SFltSclOperator sclOp = {
-          .colNode = (SColumnNode*)nodesCloneNode(pOper->pLeft), 
-          .valNode = (SValueNode*)nodesCloneNode(pOper->pRight), 
-          .type = pOper->opType};
-      taosArrayPush(sclOpList, &sclOp);
-    }
+
+  if (!(pOper->opType == OP_TYPE_GREATER_THAN || pOper->opType == OP_TYPE_GREATER_EQUAL ||
+        pOper->opType == OP_TYPE_LOWER_THAN || pOper->opType == OP_TYPE_LOWER_EQUAL ||
+        pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL)) {
+    return TSDB_CODE_SUCCESS;
   }
+
+  if (!(nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SValueNode *valNode = (SValueNode *)pOper->pRight;
+  if (IS_NUMERIC_TYPE(valNode->node.resType.type) || valNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+    SFltSclOperator sclOp = {.colNode = (SColumnNode *)nodesCloneNode(pOper->pLeft),
+                             .valNode = (SValueNode *)nodesCloneNode(pOper->pRight),
+                             .type = pOper->opType};
+    taosArrayPush(sclOpList, &sclOp);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4446,8 +4472,8 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat)
 
   for (int32_t i = 0; i < taosArrayGetSize(sclOpList); ++i) {
     SFltSclOperator *sclOp = taosArrayGet(sclOpList, i);
-    nodesDestroyNode((SNode*)sclOp->colNode);
-    nodesDestroyNode((SNode*)sclOp->valNode);
+    nodesDestroyNode((SNode *)sclOp->colNode);
+    nodesDestroyNode((SNode *)sclOp->valNode);
   }
   taosArrayDestroy(sclOpList);
   return TSDB_CODE_SUCCESS;
