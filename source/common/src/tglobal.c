@@ -148,8 +148,8 @@ int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
 // 1 database precision unit for interval time range, changed accordingly
 int32_t tsMinIntervalTime = 1;
 
-// maximum memory allowed to be allocated for a single csv load (in MB)
-int32_t tsMaxMemUsedByInsert = 1024;
+// maximum batch rows numbers imported from a single csv load
+int32_t tsMaxInsertBatchRows = 1000000;
 
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
@@ -340,7 +340,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   //  if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
   //  if (cfgAddInt32(pCfg, "smlBatchSize", tsSmlBatchSize, 1, INT32_MAX, true) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxInsertBatchRows", tsMaxInsertBatchRows, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
@@ -725,7 +725,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   //  tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
   //  tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
-  tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
+  tsMaxInsertBatchRows = cfgGetItem(pCfg, "maxInsertBatchRows")->i32;
 
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
@@ -987,7 +987,7 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
           } else if (strcasecmp("maxNumOfDistinctRes", name) == 0) {
             tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
           } else if (strcasecmp("maxMemUsedByInsert", name) == 0) {
-            tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
+            tsMaxInsertBatchRows = cfgGetItem(pCfg, "maxInsertBatchRows")->i32;
           } else if (strcasecmp("maxRetryWaitTime", name) == 0) {
             tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
           }
