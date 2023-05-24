@@ -1,12 +1,14 @@
 # 服务端口
 server:
-  port: 9080
+  port: 0
 # 日志配置
 logging:
   config: classpath:log4j2.yml
   level:
+    _org.springframework.*: off
     org.springframework.*: off
     org.apache.*: off
+    io.netty.util.*: off
 spring:
   main:
     log-startup-info: false

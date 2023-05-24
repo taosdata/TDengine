@@ -28,87 +28,87 @@ Configuration:
         onMismatch: DENY
       # 日志打印格式
       PatternLayout:
-        pattern: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n"
-    # 输出到文件
-    RollingFile:
-      # ref=sys-info
-      - name: sys-info
-        # 忽略某些异常降级
-        ignoreExceptions: false
-        # 文件名
-        fileName: ${log.path}/sys-info.log
-        # 归档日志文件名
-        filePattern: "${log.path}/${date:yyyy-MM}/sys-info.%d{yyyy-MM-dd}-%i.log"
-        # 临界值过滤器
-        ThresholdFilter:
-          # 设定级别
-          level: info
-          # 匹配该级别及以上
-          onMatch: ACCEPT
-          # 不匹配该级别以下
-          onMismatch: DENY
-        # 日志打印格式
-        PatternLayout:
-          pattern: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n"
-        # 超过10M自动归档
-        Policies:
-          SizeBasedTriggeringPolicy:
-            size: "10 MB"
-        # 保存文件个数
-        DefaultRolloverStrategy:
-          max: 100
-      # ref=sys-error
-      - name: sys-error
-        # 忽略某些异常降级
-        ignoreExceptions: false
-        # 文件名
-        fileName: ${log.path}/sys-error.log
-        # 归档日志文件名
-        filePattern: "${log.path}/${date:yyyy-MM}/sys-error.%d{yyyy-MM-dd}-%i.log"
-        # 临界值过滤器
-        ThresholdFilter:
-          # 设定级别
-          level: error
-          # 匹配该级别及以上
-          onMatch: ACCEPT
-          # 不匹配该级别以下
-          onMismatch: DENY
-        # 日志打印格式
-        PatternLayout:
-          pattern: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n"
-        # 超过10M自动归档
-        Policies:
-          SizeBasedTriggeringPolicy:
-            size: "10 MB"
-        # 保存文件个数
-        DefaultRolloverStrategy:
-          max: 100
-      # ref=sys-user
-      - name: sys-user
-        # 忽略某些异常降级
-        ignoreExceptions: false
-        # 文件名
-        fileName: ${log.path}/sys-user.log
-        # 归档日志文件名
-        filePattern: "${log.path}/${date:yyyy-MM}/sys-user.%d{yyyy-MM-dd}-%i.log"
-        # 临界值过滤器
-        ThresholdFilter:
-          # 设定级别
-          level: info
-          # 匹配该级别及以上
-          onMatch: ACCEPT
-          # 不匹配该级别以下
-          onMismatch: DENY
-        # 日志打印格式
-        PatternLayout:
-          pattern: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n"
-        # 超过10M自动归档
-        Policies:
-          SizeBasedTriggeringPolicy:
-            size: "10 MB"
-        # 保存文件个数
-        DefaultRolloverStrategy:
-          max: 100
+        pattern: "%d{HH:mm:ss.SSS} %pid %-5level %logger{20} - [%method,%line] - %msg%n"
+#    # 输出到文件
+#    RollingFile:
+#      # ref=sys-info
+#      - name: sys-info
+#        # 忽略某些异常降级
+#        ignoreExceptions: false
+#        # 文件名
+#        fileName: ${log.path}/sys-info.log
+#        # 归档日志文件名
+#        filePattern: "${log.path}/${date:yyyy-MM}/sys-info.%d{yyyy-MM-dd}-%i.log"
+#        # 临界值过滤器
+#        ThresholdFilter:
+#          # 设定级别
+#          level: info
+#          # 匹配该级别及以上
+#          onMatch: ACCEPT
+#          # 不匹配该级别以下
+#          onMismatch: DENY
+#        # 日志打印格式
+#        PatternLayout:
+#          pattern: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n"
+#        # 超过10M自动归档
+#        Policies:
+#          SizeBasedTriggeringPolicy:
+#            size: "10 MB"
+#        # 保存文件个数
+#        DefaultRolloverStrategy:
+#          max: 100
+#      # ref=sys-error
+#      - name: sys-error
+#        # 忽略某些异常降级
+#        ignoreExceptions: false
+#        # 文件名
+#        fileName: ${log.path}/sys-error.log
+#        # 归档日志文件名
+#        filePattern: "${log.path}/${date:yyyy-MM}/sys-error.%d{yyyy-MM-dd}-%i.log"
+#        # 临界值过滤器
+#        ThresholdFilter:
+#          # 设定级别
+#          level: error
+#          # 匹配该级别及以上
+#          onMatch: ACCEPT
+#          # 不匹配该级别以下
+#          onMismatch: DENY
+#        # 日志打印格式
+#        PatternLayout:
+#          pattern: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n"
+#        # 超过10M自动归档
+#        Policies:
+#          SizeBasedTriggeringPolicy:
+#            size: "10 MB"
+#        # 保存文件个数
+#        DefaultRolloverStrategy:
+#          max: 100
+#      # ref=sys-user
+#      - name: sys-user
+#        # 忽略某些异常降级
+#        ignoreExceptions: false
+#        # 文件名
+#        fileName: ${log.path}/sys-user.log
+#        # 归档日志文件名
+#        filePattern: "${log.path}/${date:yyyy-MM}/sys-user.%d{yyyy-MM-dd}-%i.log"
+#        # 临界值过滤器
+#        ThresholdFilter:
+#          # 设定级别
+#          level: info
+#          # 匹配该级别及以上
+#          onMatch: ACCEPT
+#          # 不匹配该级别以下
+#          onMismatch: DENY
+#        # 日志打印格式
+#        PatternLayout:
+#          pattern: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n"
+#        # 超过10M自动归档
+#        Policies:
+#          SizeBasedTriggeringPolicy:
+#            size: "10 MB"
+#        # 保存文件个数
+#        DefaultRolloverStrategy:
+#          max: 100
   Loggers:
     # 系统操作日志
     Root:
@@ -117,8 +117,8 @@ Configuration:
       # 关联输出
       AppenderRef:
         - ref: console
-        - ref: sys-info
-        - ref: sys-error
+#        - ref: sys-info
+#        - ref: sys-error
     Logger:
       # sys-user日志
       - name: sys-user
@@ -128,4 +128,5 @@ Configuration:
         level: info
         # 关联输出
         AppenderRef:
-          - ref: sys-user
+          - ref: console
+#          - ref: sys-user
