@@ -1132,6 +1132,34 @@ int sml_td22900_Test() {
   return code;
 }
 
+int sml_td24070_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "CREATE user test pass 'test'");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "CREATE DATABASE IF NOT EXISTS td24070");
+  taos_free_result(pRes);
+
+  taos_close(taos);
+
+  taos = taos_connect("localhost", "test", "test", NULL, 0);
+  const char* sql[] = {"stb2,t1=1,dataModelName=t0 f1=283i32 1632299372000"};
+
+  pRes = taos_query(taos, "use td24070");
+  taos_free_result(pRes);
+
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
 int sml_td23881_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
@@ -1379,6 +1407,8 @@ int main(int argc, char *argv[]) {
   }
 
   int ret = 0;
+  ret = sml_td24070_Test();
+  ASSERT(!ret);
   ret = sml_td23881_Test();
   ASSERT(ret);
   ret = sml_escape_Test();
