@@ -72,6 +72,12 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getInvertIndex = vnodeGetIvtIdx;
 
   pMeta->extractTagVal = (const void *(*)(const void *, int16_t, STagVal *))metaGetTableTagVal;
+  pMeta->getTableTags = metaGetTableTags;
+  pMeta->getTableTagsByUid = metaGetTableTagsByUids;
+
+  pMeta->getTableUidByName = metaGetTableUidByName;
+  pMeta->getTableTypeByName = metaGetTableTypeByName;
+  pMeta->getTableNameByUid = metaGetTableNameByUid;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

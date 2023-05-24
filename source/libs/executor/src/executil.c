@@ -1100,7 +1100,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
             .metaEx = pVnode, .idx = pStorageAPI->metaFn.storeGetIndexInfo(pVnode), .ivtIdx = pIndex, .suid = pScanNode->uid};
 
         status = SFLT_NOT_INDEX;
-        code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status);
+        code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status, &pStorageAPI->metaFilter);
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
           qWarn("failed to get tableIds from index, suid:%" PRIu64, pScanNode->uid);
           code = TSDB_CODE_SUCCESS;

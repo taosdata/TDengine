@@ -1356,7 +1356,8 @@ static int32_t metaGetTableTagByUid(SMeta *pMeta, int64_t suid, int64_t uid, voi
   return ret;
 }
 
-int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList) {
+int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
+  SMeta* pMeta = ((SVnode*) pVnode)->pMeta;
   const int32_t LIMIT = 128;
 
   int32_t isLock = false;
@@ -1388,8 +1389,8 @@ int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList) {
   return 0;
 }
 
-int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *pUidTagInfo) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid, 1);
+int32_t metaGetTableTags(void* pVnode, uint64_t suid, SArray *pUidTagInfo) {
+  SMCtbCursor *pCur = metaOpenCtbCursor(((SVnode*)pVnode)->pMeta, suid, 1);
 
   // If len > 0 means there already have uids, and we only want the
   // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept

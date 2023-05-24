@@ -354,13 +354,13 @@ typedef struct SStoreMetaReader {
 } SStoreMetaReader;
 
 typedef struct SStoreMeta {
-  SMTbCursor *(*openTableMetaCursor)();   // metaOpenTbCursor
-  void        (*closeTableMetaCursor)();  // metaCloseTbCursor
+  SMTbCursor *(*openTableMetaCursor)(void *pVnode);   // metaOpenTbCursor
+  void        (*closeTableMetaCursor)(SMTbCursor *pTbCur);  // metaCloseTbCursor
   int32_t (*cursorNext)();                // metaTbCursorNext
   int32_t (*cursorPrev)();                // metaTbCursorPrev
 
   int32_t (*getTableTags)(void *pVnode, uint64_t suid, SArray *uidList);
-  int32_t (*getTableTagsByUid)();
+  int32_t (*getTableTagsByUid)(void *pVnode, int64_t suid, SArray *uidList);
   const void *(*extractTagVal)(const void *tag, int16_t type, STagVal *tagVal);  // todo remove it
 
   int32_t (*getTableUidByName)(void *pVnode, char *tbName, uint64_t *uid);

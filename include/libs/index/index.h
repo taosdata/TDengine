@@ -215,23 +215,6 @@ typedef struct SIndexMetaArg {
   int (*metaFilterFunc)(void* metaEx, void* param, SArray* result);
 } SIndexMetaArg;
 
-typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
-
-SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
-
-int32_t doFilterTag(SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result, SIdxFltStatus* status);
-
-/*
- *  init index env
- *
- */
-void indexInit(int32_t threads);
-/*
- * destory index env
- *
- */
-void indexCleanup();
-
 /**
  * the underlying storage module must implement this API to employ the index functions.
  * @param pMeta
@@ -255,6 +238,23 @@ typedef struct SMetaDataFilterAPI {
   int32_t (*metaFilterTableName)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
   int32_t (*metaFilterTtl)(void *pVnode, SMetaFltParam *arg, SArray *pUids);
 } SMetaDataFilterAPI;
+
+typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
+
+SIdxFltStatus idxGetFltStatus(SNode* pFilterNode, SMetaDataFilterAPI* pAPI);
+
+int32_t doFilterTag(SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result, SIdxFltStatus* status, SMetaDataFilterAPI* pAPI);
+
+/*
+ *  init index env
+ *
+ */
+void indexInit(int32_t threads);
+/*
+ * destory index env
+ *
+ */
+void indexCleanup();
 
 #ifdef __cplusplus
 }

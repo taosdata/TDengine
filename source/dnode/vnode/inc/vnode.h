@@ -111,8 +111,8 @@ void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
 int         metaGetTableEntryByName(SMetaReader *pReader, const char *name);
-int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList);
-int32_t     metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList);
+int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList);
+int32_t     metaGetTableTagsByUids(void* pVnode, int64_t suid, SArray *uidList);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(const void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
@@ -139,18 +139,6 @@ int64_t  metaGetNtbNum(SMeta *pMeta);
 //  int64_t ctbNum;
 //} SMetaStbStats;
 int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
-
-//typedef struct SMetaFltParam {
-//  tb_uid_t suid;
-//  int16_t  cid;
-//  int16_t  type;
-//  void    *val;
-//  bool     reverse;
-//  bool     equal;
-//  int (*filterFunc)(void *a, void *b, int16_t type);
-//
-//} SMetaFltParam;
-
 
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;
