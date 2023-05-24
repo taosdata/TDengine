@@ -102,6 +102,8 @@ groups:
           type: bool
       - name: topics
         display: Topics Qos Config
+        description: |
+          e.g: topic1::0,topic2::1 
         hint: 
           type: str
 

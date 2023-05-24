@@ -64,11 +64,15 @@ groups:
         placeholder: 10
         hint:
           type: integer
+          min: 1
+          max: 60
 
       - name: request_timeout
         display: Request Timeout
         hint:
           type: integer
+          min: 1
+          max: 60
         description: Timeout for a request in seconds.
         placeholder: 10
 
@@ -81,16 +85,22 @@ groups:
         description: Number of concurrency while collecting.
         hint:
           type: integer
+          min: 1
+          max: 100
       - name: batch_size
         display: Batch Size
         hint:
           type: integer
+          min: 1
+          max: 10000
         description: Max batch size for each record batch while reporting to target.
         placeholder: 100
       - name: batch_timeout
         display: Batch Timeout
         hint:
           type: integer
+          min: 1
+          max: 60
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
       - name: use_received_time
