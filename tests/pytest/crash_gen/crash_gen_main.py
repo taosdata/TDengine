@@ -2043,18 +2043,19 @@ class TdSuperTable:
             for topic in current_topic_list:
                 topic_list.append(topic)
 
-            consumer.subscribe(topic_list)
-
-            # consumer with random work life 
-            time_start = time.time()
-            while 1:
-                res = consumer.poll(1)
-                consumer.commit(res)
-                if time.time() - time_start > random.randint(5, 50):
-                    break
             try:
+                consumer.subscribe(topic_list)
+
+                # consumer with random work life
+                time_start = time.time()
+                while 1:
+                    res = consumer.poll(1)
+                    consumer.commit(res)
+                    if time.time() - time_start > random.randint(5, 50):
+                        break
                 consumer.unsubscribe()
-            except TmqError as e:
+                consumer.close()
+            except TmqError as err: # topic deleted by other threads
                 pass
             return
 
