@@ -1333,6 +1333,19 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
 
 static bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
   bool continueExec = true;
+  int32_t code = 0;
+
+  int32_t numOfActions = taosArrayGetSize(pTrans->prepareActions);
+  if (numOfActions == 0) goto _OVER;
+
+  mInfo("trans:%d, execute %d prepare actions.", pTrans->id, numOfActions);
+
+  for (int32_t action = 0; action < numOfActions; ++action) {
+    STransAction *pAction = taosArrayGet(pTrans->prepareActions, action);
+    mndTransExecSingleAction(pMnode, pTrans, pAction);
+  }
+
+_OVER:
   pTrans->stage = TRN_STAGE_REDO_ACTION;
   mInfo("trans:%d, stage from prepare to redoAction", pTrans->id);
   return continueExec;

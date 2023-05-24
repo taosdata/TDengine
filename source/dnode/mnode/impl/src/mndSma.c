@@ -388,7 +388,7 @@ static int32_t mndSetCreateSmaVgroupRedoLogs(SMnode *pMnode, STrans *pTrans, SVg
   SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
   if (pVgRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) return -1;
-  if (sdbSetRawStatus(pVgRaw, SDB_STATUS_CREATING) != 0) return -1;
+  if (sdbSetRawStatus(pVgRaw, SDB_STATUS_UPDATE) != 0) return -1;
   return 0;
 }
 
@@ -626,7 +626,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
 
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create sma:%s stream:%s", pTrans->id, pCreate->name, streamObj.name);
-
+  if (mndAddPrepareNewVgAction(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndSetCreateSmaCommitLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
