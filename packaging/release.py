@@ -204,7 +204,7 @@ def build_and_install_pi():
 def build_and_install_opc_on_windows():
     opc_version = get_connector_version(opc_connector)
     print("buildAndInstallOPC on windows start...")
-    opc_connector_path = os.path.join(taosx_dir, "taosx",  "plugins", "opc")
+    opc_connector_path = os.path.join(taosx_dir, "plugins", "opc")
     os.chdir(opc_connector_path)
 
     # 32位编译
