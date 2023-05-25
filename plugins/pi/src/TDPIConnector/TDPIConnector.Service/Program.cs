@@ -7,6 +7,7 @@ using System.Threading;
 using System.Reflection;
 using System.Linq;
 using System.Diagnostics;
+using log4net.Repository;
 
 namespace TDPIConnector.Service
 {
@@ -23,6 +24,8 @@ namespace TDPIConnector.Service
         {
             GlobalContext.Properties["applicationName"] = "pi-connector";
             GlobalContext.Properties["pid"] = Process.GetCurrentProcess().Id;
+            //ILoggerRepository repository = LogManager.GetRepository();
+            //repository.Threshold = log4net.Core.Level.Error;
             XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             return true;
         }
