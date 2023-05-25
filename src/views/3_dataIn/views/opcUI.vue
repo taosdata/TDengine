@@ -855,7 +855,7 @@ export default {
             //     : "+"
             //   : "") +
             dns,
-          parse: this.mqttParser,
+          parser: this.mqttParser,
           name: localStorage.getItem("datainName"),
           to:
             "taos+" +

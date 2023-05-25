@@ -163,8 +163,8 @@
             v-model="ruleForm.expire_date"
             style="width: 100%"
             :picker-options="expireTimeOPtion"
-            type="date"
-            format="yyyy-MM-dd"
+            type="datetime"
+            format="yyyy-MM-dd HH:mm:ss"
           ></el-date-picker>
         </el-form-item>
       </el-form>
@@ -394,10 +394,13 @@ export default {
     },
     async getAgents() {
       try {
-        this.agentList = await getAgentsData(
+        this.agentList = (await getAgentsData(
           localStorage.getItem("local_clusterID"),
           localStorage.getItem("username")
-        );
+        )).map(item=>{
+          item['created_at']=item.created_at?item.created_at.replace(/(?<=\.)\S+$/,'').replace('.','')+'Z':''
+          return item
+        });
       } catch (error) {
         console.log(error);
       }
