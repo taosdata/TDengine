@@ -109,3 +109,7 @@ export function validStreamSql(sql) {
 export function validTopicSql(sql) {
   return /^create topic/i.test(sql)
 }
+
+export function validDir(arg) {
+  return /^[A-Za-z0-9_\/]*$/g.test(arg)
+}

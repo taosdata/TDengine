@@ -156,6 +156,48 @@
           ></el-option>
         </el-select>
       </el-form-item>
+      <el-form-item label="DELETE_MARK">
+        <el-input-number
+          :min="0"
+          :max="999999999999999"
+          v-model="info.deletemark"
+        ></el-input-number>
+        <el-select
+          style="margin-left: 20px"
+          v-model="info.deletemark_unit"
+          placeholder=""
+        >
+          <el-option
+            v-for="item in timeUnitList"
+            :key="item.label"
+            v-bind="item"
+          ></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="FILL_HISTORY">
+        <el-select
+          v-model="info.fill_history"
+          placeholder=""
+        >
+          <el-option
+            v-for="item in expiredList"
+            :key="item.label"
+            v-bind="item"
+          ></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="IGNORE UPDATE">
+        <el-select
+          v-model="info.ignore_update"
+          placeholder=""
+        >
+          <el-option
+            v-for="item in expiredList"
+            :key="item.label"
+            v-bind="item"
+          ></el-option>
+        </el-select>
+      </el-form-item>
     </template>
     <p v-if="errorText" class="errorText">{{ errorText }}</p>
     <el-form-item v-if="model == 'Wizard'">
@@ -306,6 +348,7 @@ export default {
         watermark: 0,
         watermark_unit: "s",
         ignore_expired: 1,
+        deletemark_unit: 's',
       },
       watermarkMax: 15 * 60,
       expiredList: [
@@ -326,6 +369,28 @@ export default {
         {
           label: "minute",
           value: "m",
+        },
+      ],
+      timeUnitList: [
+        {
+          label: "second",
+          value: "s",
+        },
+        {
+          label: "minute",
+          value: "m",
+        },
+        {
+          label: "hour",
+          value: "h",
+        },
+        {
+          label: "week",
+          value: "w",
+        },
+        {
+          label: "day",
+          value: "d",
         },
       ],
       triggerList: [
@@ -461,6 +526,20 @@ export default {
                   this.info.watermark_unit;
               }
 
+              if (this.info.deletemark) {
+                previewSql +=
+                  " DELETE_MARK " +
+                  this.info.deletemark +
+                  this.info.deletemark_unit;
+              }
+
+              if(this.info.fill_history) {
+                previewSql += `  FILL_HISTORY ${this.info.fill_history} `;
+              }
+
+              if(this.info.ignore_update) {
+                previewSql += `  IGNORE UPDATE ${this.info.ignore_update} `;
+              }
               previewSql +=
                 " INTO `" +
                 this.info.target_db.toLowerCase() +

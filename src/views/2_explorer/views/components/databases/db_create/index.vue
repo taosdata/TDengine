@@ -501,11 +501,10 @@
             {
               required: true,
               message: this.$t("data.nameTip"),
-              trigger: "blur",
             },
             {
               validator: (_, value, callback) => {
-                callback(validDatabaseName(value) ? undefined : new Error(this.$t("data.nameTip")));
+                callback(validDatabaseName(value) ? undefined : new Error(this.$t("formatWrong")));
               },
               trigger: "blur",
             },

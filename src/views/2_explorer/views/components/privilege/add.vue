@@ -6,8 +6,9 @@
       :model="info"
       label-position="left"
       label-width="120px"
+      :rules="rules"
     >
-      <el-form-item :label="$t('user')" prop="user_name" required>
+      <el-form-item :label="$t('user')" prop="user_name">
         <el-select v-model="info.user_name" style="width: 100%">
           <el-option
             v-for="item in userList"
@@ -18,7 +19,7 @@
         </el-select>
       </el-form-item>
       <el-form-item :label="$t('database')" prop="roles">
-        <el-checkbox-group v-model="checkList" class="check-role" :min="1">
+        <el-checkbox-group v-model="checkList" class="check-role">
           <el-checkbox label="Read"></el-checkbox>
           <el-checkbox label="Write"></el-checkbox>
           <!-- <el-checkbox label="Database Admin"></el-checkbox> -->
@@ -50,7 +51,7 @@ export default {
   },
   data() {
     return {
-      checkList: ["Read"],
+      checkList: [],
       info: {
         user_name: "",
         roles: [],
@@ -58,12 +59,12 @@ export default {
       requestIng: false,
       roles: [],
       userList: [],
-
-      grantMap: new Map([
-        ["Write", "WRITE"],
-        // ["Database Admin", "ALL"],
-        ["Read", "READ"],
-      ]),
+      rules:{
+        user_name: [{
+          required: true,
+          message: this.$t("pleaseSelect") + this.$t('user')
+        }]
+      }
     };
   },
   created() {
@@ -92,12 +93,7 @@ export default {
         this.$refs.form.validate(async (valid) => {
           if (valid) {
             this.requestIng = true;
-            let grantArr = this.checkList.map((item) => {
-              return this.grantMap.get(item);
-            });
-            let grantStr = grantArr.includes("ALL")
-              ? "ALL"
-              : grantArr.filter((val) => val !== "ALL").join(",");
+            let grantStr = this.checkList.join(",");
             let sql = `grant ${grantStr}  ON ${this.$store.state.dbs.selected_db}.* TO ${this.info.user_name};`;
             await sendSQLReq(sql).then((res) => {
               if (res && res.rows == 1) {

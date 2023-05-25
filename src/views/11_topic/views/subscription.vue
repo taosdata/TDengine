@@ -157,7 +157,7 @@ export default {
       try {
         if (this.topicId) {
           await sendSQLReq(
-            `grant subscribe on ${this.topicId}.* to ${this.ruleForm.user_name};`
+            `grant subscribe on \`${this.topicId}\`.* to ${this.ruleForm.user_name};`
           ).then((res) => {
             if (res.rows) {
               Message.success(this.$t("operateSucc"));
@@ -199,7 +199,7 @@ export default {
         cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {       
-        sendSQLReq(`revoke subscribe on ${this.topicId}.* from ${data.user_name}`).then(res => {
+        sendSQLReq(`revoke subscribe on \`${this.topicId}\`.* from ${data.user_name}`).then(res => {
           if (res.code == 0) {
             Message.success(this.$t("operateSucc"))
             this.getUserData()
