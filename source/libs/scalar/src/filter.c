@@ -3546,7 +3546,7 @@ bool fltSclLessPoint(SFltSclPoint *pt1, SFltSclPoint *pt2) {
   if (pt1->start && pt2->start) {
     return !pt1->excl && pt2->excl;
   } else if (pt1->start) {
-    return pt1->excl && !pt2->excl;
+    return !pt1->excl && !pt2->excl;
   } else if (pt2->start) {
     return pt1->excl || pt2->excl;
   }
@@ -3971,7 +3971,7 @@ static int32_t fltSclGetDatumValueFromPoint(SFltSclPoint *point, SFltSclDatum *d
     getDataMin(d->type.type, &(d->i));
   }
 
-  if ((point->val.kind == FLT_SCL_DATUM_KIND_INT64) || (point->val.kind = FLT_SCL_DATUM_KIND_UINT64)) {
+  if (IS_NUMERIC_TYPE(d->type.type)) {
     if (point->excl) {
       if (point->start) {
         ++d->i;
@@ -3980,7 +3980,7 @@ static int32_t fltSclGetDatumValueFromPoint(SFltSclPoint *point, SFltSclDatum *d
       }
     }
   } else {
-    qError("not supported kind %d when get datum from point", point->val.kind);
+    qError("not supported type %d when get datum from point", d->type.type);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4001,13 +4001,16 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
       if (taosArrayGetSize(points) == 2) {
         SFltSclPoint *startPt = taosArrayGet(points, 0);
         SFltSclPoint *endPt = taosArrayGet(points, 1);
-        SFltSclDatum start;
-        SFltSclDatum end;
+        SFltSclDatum  start;
+        SFltSclDatum  end;
         fltSclGetDatumValueFromPoint(startPt, &start);
         fltSclGetDatumValueFromPoint(endPt, &end);
         win->skey = start.i;
         win->ekey = end.i;
         *isStrict = true;
+        goto _return;
+      } else if (taosArrayGetSize(points) == 0) {
+        *win = TSWINDOW_DESC_INITIALIZER;
         goto _return;
       }
     }
