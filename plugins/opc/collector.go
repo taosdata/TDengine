@@ -17,7 +17,7 @@ import (
 func main() {
 	log.SetOutput(os.Stderr) // log to stderr
 
-	log.Printf("## opc collector version [%s] start ...", version.Version)
+	log.Printf("## opc collector version [%s] start ...", version.ShowVersion())
 	ctx := context.Background()
 	points := flag.NewFlagSet("points", flag.ExitOnError)
 	pointConfigPath := points.String("conf", "", "use --conf to set config path")
@@ -103,5 +103,5 @@ func collect(ctx context.Context, configPath *string) {
 }
 
 func showVersion() {
-	fmt.Println(version.Version)
+	fmt.Println(version.ShowVersion())
 }

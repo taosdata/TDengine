@@ -9,6 +9,7 @@ import re
 from datetime import datetime
 
 mqtt_default_version = "1.0.0"
+opc_default_version = "1.0.0"
 cus_name = "TDengine"
 taosx_agent_name = "taosx-agent"
 connector_array = []
@@ -28,12 +29,14 @@ pi_connector = "pi"
 opc_connector = "opc"
 mqtt_connector = "mqtt"
 
+
 class connector_version:
     def __init__(self, name, version, commit, time):
         self.Name = name
         self.Version = version
         self.Commit = commit
         self.BuildTime = time
+
 
 def get_taosx_version():
     global version
@@ -64,10 +67,12 @@ def set_default_param():
         print('Unknown operating system:', current_os)
         sys.exit()
 
+
 def is_connector(element):
     if element == pi_connector or element == opc_connector or element == mqtt_connector:
         return True
-    return False;
+    return False
+
 
 def read_args():
     global connector_array, package_server_name, test_process
@@ -116,10 +121,12 @@ def change_assemble_file_key(file, key, value):
     pattern = f'\[assembly: AssemblyMetadata\("{key}", "[^"]*"\)\]'
     replace_file_content(file, pattern, new_attribute)
 
+
 def change_assemble_version(file, version):
     new_attribute = f'[assembly: AssemblyVersion("{version}")]'
     pattern = f'\[assembly: AssemblyVersion\("[^"]*"\)\]'
     replace_file_content(file, pattern, new_attribute)
+
 
 def replace_file_content(file, pattern, new_attribute):
     with open(file, "r") as f:
@@ -127,27 +134,31 @@ def replace_file_content(file, pattern, new_attribute):
     new_content = re.sub(pattern, new_attribute, content)
     with open(file, "w") as f:
         f.write(new_content)
-   
+
+
 def change_piconnector_assemble_file(pi_version):
     pi_connector_assembly_file_path = os.path.join(taosx_dir, "plugins", "pi", "src", \
-        "TDPIConnector", "TDPIConnector.Service", "Properties", "AssemblyInfo.cs")
-    change_assemble_file_key(pi_connector_assembly_file_path,"BuildTime", pi_version.BuildTime)
-    change_assemble_file_key(pi_connector_assembly_file_path,"Commit", pi_version.Commit)
+                                                   "TDPIConnector", "TDPIConnector.Service", "Properties",
+                                                   "AssemblyInfo.cs")
+    change_assemble_file_key(pi_connector_assembly_file_path, "BuildTime", pi_version.BuildTime)
+    change_assemble_file_key(pi_connector_assembly_file_path, "Commit", pi_version.Commit)
 
     pi_backfill_assembly_file_path = os.path.join(taosx_dir, "plugins", "pi", "src", \
-        "TDPIConnector", "TDBackfill", "Properties", "AssemblyInfo.cs")
-    change_assemble_file_key(pi_backfill_assembly_file_path,"BuildTime", pi_version.BuildTime)
-    change_assemble_file_key(pi_backfill_assembly_file_path,"Commit", pi_version.Commit)
+                                                  "TDPIConnector", "TDBackfill", "Properties", "AssemblyInfo.cs")
+    change_assemble_file_key(pi_backfill_assembly_file_path, "BuildTime", pi_version.BuildTime)
+    change_assemble_file_key(pi_backfill_assembly_file_path, "Commit", pi_version.Commit)
 
     if pi_version.Version != "":
         change_assemble_version(pi_connector_assembly_file_path, pi_version.Version + ".*")
         change_assemble_version(pi_backfill_assembly_file_path, pi_version.Version + ".*")
+
 
 def check_piconnector_version(version):
     pattern = r'^\d+\.\d+\.\d+$'
     if version != "" and not re.match(pattern, version):
         print("pi connector version input error! Please use fomat as *.*.*")
         sys.exit()
+
 
 def build_and_install_pi():
     pi_version = get_connector_version(pi_connector)
@@ -189,7 +200,9 @@ def build_and_install_pi():
         if os.path.isfile(filepath):
             shutil.copy2(filepath, pi_install_path)
 
+
 def build_and_install_opc_on_windows():
+    opc_version = get_connector_version(opc_connector)
     print("buildAndInstallOPC on windows start...")
     opc_connector_path = os.path.join(taosx_dir, "plugins", "opc")
     os.chdir(opc_connector_path)
@@ -198,7 +211,11 @@ def build_and_install_opc_on_windows():
     os.environ["GOOS"] = "windows"
     os.environ["GOARCH"] = "386"
     opc_app_name = "opc-collector.exe"
-    os.system(f"go build -o dist/windows_386/{opc_app_name}")
+    os.system(f"go build -ldflags "
+              f"\"-s -w -X 'collector/version.Version={opc_version.Version}' "
+              f"-X 'collector/version.BuildAt={opc_version.BuildTime}' "
+              f"-X 'collector/version.CommitID={opc_version.Commit}'\" "
+              f"-o dist/windows_386/{opc_app_name}")
 
     opc_install_path = os.path.join(install_path, "xplugins", "opc")
     init_directory(opc_install_path)
@@ -236,16 +253,17 @@ def build_and_install_mqtt_on_windows():
         print("Build MQTT failed: ", e.strerror)
         sys.exit()
 
+
 def get_connector_version(connector_name):
     version = ""
     for i, arg in enumerate(connector_array):
         if arg == connector_name:
-            if i < len(connector_array) - 1 and not is_connector(connector_array[i+1]):
-                version = connector_array[i+1]
+            if i < len(connector_array) - 1 and not is_connector(connector_array[i + 1]):
+                version = connector_array[i + 1]
             break
     now = datetime.now()
     print("connector_array:", connector_array)
-    current_time = now.strftime("%Y-%m-%d %H:%M:%S") 
+    current_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
     branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('ascii')
     commit = subprocess.check_output(['git', 'rev-list', '-1', branch]).strip().decode('ascii')
@@ -253,6 +271,9 @@ def get_connector_version(connector_name):
     if connector_name == mqtt_connector:
         if version == "":
             version = mqtt_default_version
+    if connector_name == opc_connector:
+        if version == "":
+            version = opc_default_version
 
     print("Current connector_name:", connector_name)
     print("Current branch:", branch)
@@ -261,13 +282,14 @@ def get_connector_version(connector_name):
     print("Build time:", current_time)
     return connector_version(connector_name, version, commit, current_time)
 
+
 def build_and_install_opc():
-    opc_version = get_connector_version(opc_connector)
     if current_os == 'Windows':
         build_and_install_opc_on_windows()
     else:
         print('buildAndInstallOPC not supported on operating system:', current_os)
         sys.exit()
+
 
 def build_and_install_mqtt():
     if current_os == 'Windows':
@@ -275,6 +297,7 @@ def build_and_install_mqtt():
     else:
         print('buildAndInstallMQTT not supported on operating system:', current_os)
         sys.exit()
+
 
 def copy_taos_agent_service_file(taosx_install_path):
     taosx_agent_path = os.path.join(taosx_dir, "taosx-agent", "bin")
@@ -397,7 +420,8 @@ def test_handle(process_param):
         build_and_install_taosx()
     else:
         print("Invalid input. Please enter valid input.")
- 
+
+
 if __name__ == '__main__':
     set_default_param()
     read_args()
@@ -412,8 +436,8 @@ if __name__ == '__main__':
         build_and_install_pi()
     if opc_connector in connector_array:
         build_and_install_opc()
-    if mqtt_connector in connector_array:  
+    if mqtt_connector in connector_array:
         build_and_install_mqtt()
-        
+
     init_release_directory()
     package()
