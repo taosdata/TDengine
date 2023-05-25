@@ -428,7 +428,7 @@ if [ "$exitcode" != "0" ]; then
   exit $exitcode
 fi
 
-if [ -n "${taostools_bin_files}" ]; then
+if [ -n "${taostools_bin_files}" ] && [ "$verMode" != "cloud" ]; then
     wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${taostools_install_dir}/bin/TDinsight.sh && echo "TDinsight.sh downloaded!"|| echo "failed to download TDinsight.sh"
     if [ "$osType" != "Darwin" ]; then
         tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :
