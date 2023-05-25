@@ -247,6 +247,7 @@ export default {
               item["localname"] = item.name ? item.name : "tmq+" + item.id;
               item["localtype"] = item.from_detail ? item.from_detail.name : "";
               item["target"] = item.to_expand ? item.to_expand.subject : "";
+              item['created_at']=item.created_at?item.created_at.replace(/(?<=\.)\S+$/,'').replace('.','')+'Z':''
               return item;
             });
           }

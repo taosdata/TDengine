@@ -179,14 +179,17 @@ export default {
 
     getMqttParser() {
       this.$parent.$parent.mqttParser = {
-        payload: {
-          json: this.columnNum,
-          keep: true,
+        parse: {
+          payload: {
+            json: this.columnNum,
+            keep: true,
+          }
         },
+
         model: {
           name: this.ruleForm.subtableName,
           using: this.ruleForm.supertableName,
-          tags: [].concat(this.ruleForm.tagsName.split(',')),
+          tags: [].concat(this.ruleForm.tagsName.split(",")),
         },
       };
 
