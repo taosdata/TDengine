@@ -1,13 +1,12 @@
 package config
 
 import (
-	"fmt"
-
 	"github.com/BurntSushi/toml"
 )
 
 type MQTT struct {
 	Address      string `toml:"address"`       // mqtt address eg: tcp://127.0.0.1:1883
+	Version      string `toml:"version"`       // mqtt protocol version
 	ClientID     string `toml:"client_id"`     // mqtt client id. If not set will use uuid
 	Username     string `toml:"username"`      // mqtt username
 	Password     string `toml:"password"`      // mqtt password
@@ -25,9 +24,11 @@ type Config struct {
 	Topics   map[string]int `toml:"topics"` // topic:QOS
 }
 
-func ParseConfig(path string) (config Config, err error) {
-	if _, err = toml.DecodeFile(path, &config); err != nil {
-		err = fmt.Errorf("parse config error %v", err)
+func ParseConfig(path string) (*Config, error) {
+	var config Config
+	_, err := toml.DecodeFile(path, &config)
+	if err != nil {
+		return nil, err
 	}
-	return
+	return &config, nil
 }

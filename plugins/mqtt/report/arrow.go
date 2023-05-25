@@ -57,6 +57,7 @@ func NewArrowReporter(remote string) (*ArrowReporter, error) {
 }
 
 func (r *ArrowReporter) Report(list []*Message) error {
+	r.logger.Debugf("report %#v", list)
 	recordBuilder := array.NewRecordBuilder(r.allocator, r.schema)
 	defer recordBuilder.Release()
 	tsField := recordBuilder.Field(0).(*array.TimestampBuilder)
@@ -69,13 +70,13 @@ func (r *ArrowReporter) Report(list []*Message) error {
 	defer payloadField.Release()
 	for i := 0; i < len(list); i++ {
 		tsField.Append(arrow.Timestamp(list[i].TS))
-		topicField.Append(list[i].Message.Topic())
-		qosField.Append(list[i].Message.Qos())
-		payloadField.Append(list[i].Message.Payload())
+		topicField.Append(list[i].Topic)
+		qosField.Append(list[i].Qos)
+		payloadField.Append(list[i].Payload)
 	}
 	record := recordBuilder.NewRecord()
 	defer record.Release()
-	r.logger.Debugf("report data%v:", list)
+	r.logger.Debugf("report data%#v:", list)
 	return r.writer.Write(record)
 }
 

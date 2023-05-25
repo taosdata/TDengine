@@ -3,6 +3,7 @@ remote = "192.168.0.201:6056"
 
 [mqtt]
 address = "tcp://127.0.0.1:1883"
+version = "3.0"
 client_id = "mqtt_test"
 username = "user"
 password = "pass"
