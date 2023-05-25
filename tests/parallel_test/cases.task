@@ -571,7 +571,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py
@@ -1089,7 +1089,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 4
-#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 4

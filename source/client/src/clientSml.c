@@ -230,6 +230,16 @@ void getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tin
   }
 }
 
+static void smlDestroySTableMeta(void *para) {
+  SSmlSTableMeta *meta = *(SSmlSTableMeta**)para;
+  taosHashCleanup(meta->tagHash);
+  taosHashCleanup(meta->colHash);
+  taosArrayDestroy(meta->tags);
+  taosArrayDestroy(meta->cols);
+  taosMemoryFree(meta->tableMeta);
+  taosMemoryFree(meta);
+}
+
 SSmlSTableMeta *smlBuildSTableMeta(bool isDataFormat) {
   SSmlSTableMeta *meta = (SSmlSTableMeta *)taosMemoryCalloc(sizeof(SSmlSTableMeta), 1);
   if (!meta) {
@@ -264,7 +274,7 @@ SSmlSTableMeta *smlBuildSTableMeta(bool isDataFormat) {
   return meta;
 
 cleanup:
-  taosMemoryFree(meta);
+  smlDestroySTableMeta(meta);
   return NULL;
 }
 
@@ -1093,15 +1103,6 @@ static void smlInsertMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols) {
   }
 }
 
-static void smlDestroySTableMeta(SSmlSTableMeta *meta) {
-  taosHashCleanup(meta->tagHash);
-  taosHashCleanup(meta->colHash);
-  taosArrayDestroy(meta->tags);
-  taosArrayDestroy(meta->cols);
-  taosMemoryFree(meta->tableMeta);
-  taosMemoryFree(meta);
-}
-
 static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, bool isTag, SSmlMsgBuf *msg) {
   for (int i = 0; i < taosArrayGetSize(cols); ++i) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
@@ -1141,7 +1142,8 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
   return TSDB_CODE_SUCCESS;
 }
 
-void smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag) {
+void smlDestroyTableInfo(void *para) {
+  SSmlTableInfo *tag = *(SSmlTableInfo**)para;
   for (size_t i = 0; i < taosArrayGetSize(tag->cols); i++) {
     SHashObj *kvHash = (SHashObj *)taosArrayGetP(tag->cols, i);
     taosHashCleanup(kvHash);
@@ -1178,18 +1180,18 @@ void smlDestroyInfo(SSmlHandle *info) {
   qDestroyQuery(info->pQuery);
 
   // destroy info->childTables
-  SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, NULL);
-  while (oneTable) {
-    smlDestroyTableInfo(info, *oneTable);
-    oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, oneTable);
-  }
+//  SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, NULL);
+//  while (oneTable) {
+//    smlDestroyTableInfo(oneTable);
+//    oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, oneTable);
+//  }
 
   // destroy info->superTables
-  SSmlSTableMeta **oneSTable = (SSmlSTableMeta **)taosHashIterate(info->superTables, NULL);
-  while (oneSTable) {
-    smlDestroySTableMeta(*oneSTable);
-    oneSTable = (SSmlSTableMeta **)taosHashIterate(info->superTables, oneSTable);
-  }
+//  SSmlSTableMeta **oneSTable = (SSmlSTableMeta **)taosHashIterate(info->superTables, NULL);
+//  while (oneSTable) {
+//    smlDestroySTableMeta(*oneSTable);
+//    oneSTable = (SSmlSTableMeta **)taosHashIterate(info->superTables, oneSTable);
+//  }
 
   // destroy info->pVgHash
   taosHashCleanup(info->pVgHash);
@@ -1248,6 +1250,8 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->childTables = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   info->tableUids = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   info->superTables = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  taosHashSetFreeFp(info->superTables, smlDestroySTableMeta);
+  taosHashSetFreeFp(info->childTables, smlDestroyTableInfo);
 
   info->id = smlGenId();
   info->pQuery = smlInitHandle();
@@ -1354,6 +1358,9 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
       uDebug("SML:0x%" PRIx64 " smlParseLineBottom add meta, format:%d, linenum:%d", info->id, info->dataFormat,
              info->lineNum);
       SSmlSTableMeta *meta = smlBuildSTableMeta(info->dataFormat);
+      if(meta == NULL){
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       taosHashPut(info->superTables, elements->measure, elements->measureLen, &meta, POINTER_BYTES);
       terrno = 0;
       smlInsertMeta(meta->tagHash, meta->tags, tinfo->tags);
@@ -1473,18 +1480,18 @@ static void smlPrintStatisticInfo(SSmlHandle *info) {
 int32_t smlClearForRerun(SSmlHandle *info) {
   info->reRun = false;
   // clear info->childTables
-  SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, NULL);
-  while (oneTable) {
-    smlDestroyTableInfo(info, *oneTable);
-    oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, oneTable);
-  }
+//  SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, NULL);
+//  while (oneTable) {
+//    smlDestroyTableInfo(info, *oneTable);
+//    oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, oneTable);
+//  }
 
   // clear info->superTables
-  SSmlSTableMeta **oneSTable = (SSmlSTableMeta **)taosHashIterate(info->superTables, NULL);
-  while (oneSTable) {
-    smlDestroySTableMeta(*oneSTable);
-    oneSTable = (SSmlSTableMeta **)taosHashIterate(info->superTables, oneSTable);
-  }
+//  SSmlSTableMeta **oneSTable = (SSmlSTableMeta **)taosHashIterate(info->superTables, NULL);
+//  while (oneSTable) {
+//    smlDestroySTableMeta(*oneSTable);
+//    oneSTable = (SSmlSTableMeta **)taosHashIterate(info->superTables, oneSTable);
+//  }
 
   taosHashClear(info->childTables);
   taosHashClear(info->superTables);

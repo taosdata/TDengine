@@ -168,6 +168,9 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           return TSDB_CODE_SUCCESS;
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
+        if(sMeta == NULL){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         sMeta->tableMeta = pTableMeta;
         taosHashPut(info->superTables, currElement->measure, currElement->measureLen, &sMeta, POINTER_BYTES);
         for (int i = pTableMeta->tableInfo.numOfColumns;
@@ -326,7 +329,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     info->currSTableMeta->uid = tinfo->uid;
     tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
     if (tinfo->tableDataCtx == NULL) {
-      smlDestroyTableInfo(info, tinfo);
+      smlDestroyTableInfo(&tinfo);
       smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
       return TSDB_CODE_SML_INVALID_DATA;
     }
@@ -372,6 +375,9 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           return TSDB_CODE_SUCCESS;
         }
         *tmp = smlBuildSTableMeta(info->dataFormat);
+        if(*tmp == NULL){
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         (*tmp)->tableMeta = pTableMeta;
         taosHashPut(info->superTables, currElement->measure, currElement->measureLen, tmp, POINTER_BYTES);
 
