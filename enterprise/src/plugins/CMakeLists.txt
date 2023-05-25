@@ -83,6 +83,7 @@ IF(TD_BUILD_TAOSA_INTERNAL)
             BUILD_COMMAND
             COMMAND set CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client
             COMMAND set CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib
+            COMMAND go mod tidy
             COMMAND go build -a -o taosadapter.exe -ldflags "-X github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME} -X github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT} -X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
             INSTALL_COMMAND
             COMMAND cmake -E copy taosadapter.exe ${CMAKE_BINARY_DIR}/build/bin
@@ -104,6 +105,7 @@ IF(TD_BUILD_TAOSA_INTERNAL)
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
+            COMMAND go mod tidy
             COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter -ldflags "-X github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME} -X github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT} -X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
             INSTALL_COMMAND
             COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin/
