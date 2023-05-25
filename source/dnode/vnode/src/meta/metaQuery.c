@@ -26,6 +26,7 @@ void _metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMe
 void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->pMeta = pMeta;
+  pReader->flags = flags;
   if (pReader->pMeta && !(flags & META_READER_NOLOCK)) {
     metaRLock(pMeta);
   }
