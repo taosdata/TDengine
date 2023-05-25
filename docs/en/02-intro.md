@@ -3,7 +3,7 @@ sidebar_label: Introduction
 title: Introduction to TDengine Cloud Service
 ---
 
-TDengine Cloud, is the fast, elastic, serverless and cost effective time-series data processing service based on the popular open source time-series database, TDengine. With TDengine Cloud you get the highly optimized and purpose-built for IoT time-series platform, for which TDengine is known.
+TDengine Cloud, is the fast, elastic, and cost effective time-series data processing service based on the popular open source time-series database, TDengine. With TDengine Cloud you get the highly optimized and purpose-built for IoT time-series platform, for which TDengine is known.
 
 This section introduces the major features, competitive advantages and typical use-cases to help you get a high level overview of TDengine cloud service.
 
@@ -45,7 +45,7 @@ For more details on features, please read through the entire documentation.
 
 By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/) and its cloud native design, TDengine Cloud differentiates itself from other time series data cloud services, with the following advantages.
 
-- **Worry Free**: TDengine Cloud is a fast, elastic, serverless purpose built cloud platform for time-series data. It provides worry-free operations with a fully managed cloud service. You pay as you go.
+- **Worry Free**: TDengine Cloud is a fast, elastic, purpose built cloud platform for time-series data. It provides worry-free operations with a fully managed cloud service. You pay as you go.
 
 - **[Simplified Solution](https://tdengine.com/tdengine/simplified-time-series-data-solution/)**: Through built-in caching, stream processing and data subscription features, TDengine provides a simplified solution for time-series data processing. It reduces system design complexity and operation costs significantly.
 
@@ -61,7 +61,7 @@ With TDengine cloud, the **total cost of ownership of your time-series data plat
 
 1. With its built-in caching, stream processing and data subscription, system complexity and operation cost are highly reduced.
 2. With SQL support, it can be seamlessly integrated with many third party tools, and learning costs/migration costs are reduced significantly.
-3. With the elastic, serverless and fully managed service, the operation and maintenance costs are reduced significantly.
+3. With the elastic, fully managed service, the operation and maintenance costs are reduced significantly.
 
 ## Technical Ecosystem
 
