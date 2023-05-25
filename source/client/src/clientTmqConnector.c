@@ -390,6 +390,15 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTableNam
   return (*env)->NewStringUTF(env, tmq_get_table_name(res));
 }
 
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetOffset(JNIEnv *env, jobject jobj, jlong jres) {
+  TAOS_RES *res = (TAOS_RES *)jres;
+  if (res == NULL) {
+    jniDebug("jobj:%p, invalid res handle", jobj);
+    return NULL;
+  }
+  return tmq_get_vgroup_offset(res);
+}
+
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(JNIEnv *env, jobject jobj, jlong con,
                                                                                 jlong res, jobject rowobj,
                                                                                 jobject arrayListObj) {
@@ -491,7 +500,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTopicAssign
     (*env)->ReleaseStringUTFChars(env, jtopic, topicName);
     jniError("jobj:%p, tmq get topic assignment error, topic:%s, code:%d, msg:%s", jobj, topicName, res,
              tmq_err2str(res));
-    taosMemoryFree(pAssign);
+    tmq_free_assignment(pAssign);
     return (jint)res;
   }
 
@@ -506,6 +515,6 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTopicAssign
     (*env)->CallVoidMethod(env, jassignment, g_assignmentSetEnd, assignment.end);
     (*env)->CallBooleanMethod(env, jarrayList, g_arrayListAddFp, jassignment);
   }
-  taosMemoryFree(pAssign);
+  tmq_free_assignment(pAssign);
   return JNI_SUCCESS;
 }
