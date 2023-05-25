@@ -236,7 +236,7 @@ static void smlDestroySTableMeta(void *para) {
   taosHashCleanup(meta->colHash);
   taosArrayDestroy(meta->tags);
   taosArrayDestroy(meta->cols);
-  taosMemoryFree(meta->tableMeta);
+  taosMemoryFreeClear(meta->tableMeta);
   taosMemoryFree(meta);
 }
 
@@ -1045,6 +1045,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       }
     }
 
+    taosMemoryFreeClear(sTableData->tableMeta);
     sTableData->tableMeta = pTableMeta;
     uDebug("SML:0x%" PRIx64 "modify schema uid:%" PRIu64 ", sversion:%d, tversion:%d", info->id, pTableMeta->uid,
            pTableMeta->sversion, pTableMeta->tversion) tmp = (SSmlSTableMeta **)taosHashIterate(info->superTables, tmp);

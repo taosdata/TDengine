@@ -696,6 +696,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
         if(sMeta == NULL){
+          taosMemoryFreeClear(pTableMeta);
           return TSDB_CODE_OUT_OF_MEMORY;
         }
         sMeta->tableMeta = pTableMeta;

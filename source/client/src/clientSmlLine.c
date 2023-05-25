@@ -169,6 +169,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
         if(sMeta == NULL){
+          taosMemoryFreeClear(pTableMeta);
           return TSDB_CODE_OUT_OF_MEMORY;
         }
         sMeta->tableMeta = pTableMeta;
@@ -376,6 +377,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
         }
         *tmp = smlBuildSTableMeta(info->dataFormat);
         if(*tmp == NULL){
+          taosMemoryFreeClear(pTableMeta);
           return TSDB_CODE_OUT_OF_MEMORY;
         }
         (*tmp)->tableMeta = pTableMeta;

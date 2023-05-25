@@ -92,6 +92,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
         if(sMeta == NULL){
+          taosMemoryFreeClear(pTableMeta);
           return TSDB_CODE_OUT_OF_MEMORY;
         }
         sMeta->tableMeta = pTableMeta;
