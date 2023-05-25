@@ -3971,7 +3971,7 @@ static int32_t fltSclGetDatumValueFromPoint(SFltSclPoint *point, SFltSclDatum *d
     getDataMin(d->type.type, &(d->i));
   }
 
-  if (IS_NUMERIC_TYPE(d->type.type)) {
+  if (IS_INTEGER_TYPE(d->type.type) || IS_TIMESTAMP_TYPE(d->type.type)) {
     if (point->excl) {
       if (point->start) {
         ++d->i;
@@ -4460,25 +4460,34 @@ int32_t fltSclProcessCNF(SArray *sclOpListCNF, SArray *colRangeList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
+static bool fltSclIsCollectableNode(SNode *pNode) {
   if (nodeType(pNode) != QUERY_NODE_OPERATOR) {
-    return TSDB_CODE_SUCCESS;
+    return false;
   }
 
   SOperatorNode *pOper = (SOperatorNode *)pNode;
   if (pOper->pLeft == NULL || pOper->pRight == NULL) {
-    return TSDB_CODE_SUCCESS;
+    return false;
   }
 
   if (!(pOper->opType == OP_TYPE_GREATER_THAN || pOper->opType == OP_TYPE_GREATER_EQUAL ||
         pOper->opType == OP_TYPE_LOWER_THAN || pOper->opType == OP_TYPE_LOWER_EQUAL ||
         pOper->opType == OP_TYPE_NOT_EQUAL || pOper->opType == OP_TYPE_EQUAL)) {
-    return TSDB_CODE_SUCCESS;
+    return false;
   }
 
   if (!(nodeType(pOper->pLeft) == QUERY_NODE_COLUMN && nodeType(pOper->pRight) == QUERY_NODE_VALUE)) {
+    return false;
+  }
+  return true;
+}
+
+static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
+  if (!fltSclIsCollectableNode(pNode)) {
     return TSDB_CODE_SUCCESS;
   }
+
+  SOperatorNode *pOper = (SOperatorNode *)pNode;
 
   SValueNode *valNode = (SValueNode *)pOper->pRight;
   if (IS_NUMERIC_TYPE(valNode->node.resType.type) || valNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -4501,6 +4510,11 @@ static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpLi
     return TSDB_CODE_SUCCESS;
   }
   SNode *pExpr = NULL;
+  FOREACH(pExpr, pLogicCond->pParameterList) { 
+    if (!fltSclIsCollectableNode(pExpr)) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
   FOREACH(pExpr, pLogicCond->pParameterList) { fltSclCollectOperatorFromNode(pExpr, sclOpList); }
   return TSDB_CODE_SUCCESS;
 }
