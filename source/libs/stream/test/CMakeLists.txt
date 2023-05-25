@@ -15,11 +15,11 @@ ADD_EXECUTABLE(streamUpdateTest "tstreamUpdateTest.cpp")
 
 IF (TD_GRANT)
     TARGET_LINK_LIBRARIES(streamUpdateTest
-            PUBLIC os util common gtest gtest_main stream executor grant
+            PUBLIC os util common gtest gtest_main stream executor index grant
             )
 ELSE ()
     TARGET_LINK_LIBRARIES(streamUpdateTest
-            PUBLIC os util common gtest gtest_main stream executor
+            PUBLIC os util common gtest gtest_main stream executor index
             )
 ENDIF()
 
