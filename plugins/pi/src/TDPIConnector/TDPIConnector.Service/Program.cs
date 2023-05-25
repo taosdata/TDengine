@@ -6,6 +6,7 @@ using TDPIConnector.Core;
 using System.Threading;
 using System.Reflection;
 using System.Linq;
+using System.Diagnostics;
 
 namespace TDPIConnector.Service
 {
@@ -21,10 +22,11 @@ namespace TDPIConnector.Service
         private static bool LogInit()
         {
             GlobalContext.Properties["applicationName"] = "pi-connector";
+            GlobalContext.Properties["pid"] = Process.GetCurrentProcess().Id;
             XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             return true;
         }
-        static void PrintVersion() {
+        static void PrintVersion(bool writelog) {
             Assembly assembly = Assembly.GetExecutingAssembly();
             var cus_ttributes = assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>();
@@ -34,9 +36,12 @@ namespace TDPIConnector.Service
             AssemblyName assemblyName = assembly.GetName();
             Version version = assemblyName.Version;
 
-            logger.Info("PI Connector version is: " + version);
-            logger.Info("PI Connector commit is: " + commit);
-            logger.Info("PI Connector build at: " + build_time);
+            if (writelog)
+            {
+                logger.Info("PI Connector version is: " + version);
+                logger.Info("PI Connector commit is: " + commit);
+                logger.Info("PI Connector build at: " + build_time);
+            }
             Console.WriteLine("PI Connector");
             Console.WriteLine($"    Version : {version}");
             Console.WriteLine($"    Commit : {commit}");
@@ -50,7 +55,7 @@ namespace TDPIConnector.Service
                 {
                     case "version":
                     case "v":
-                        PrintVersion();
+                        PrintVersion(false);
                         return;
                     case "install":
                     case "i":
@@ -68,6 +73,7 @@ namespace TDPIConnector.Service
                 }
                 Environment.Exit(0);
             }
+            PrintVersion(true);
             WorkMode workMode = WorkMode.Observer;
 
             string tomlConfigFile = "";
@@ -116,7 +122,6 @@ namespace TDPIConnector.Service
             // console mode
             else if (Environment.UserInteractive)
             {
-                PrintVersion();
                 logger.Info("Running in console mode");
 
                 service.Start();
@@ -137,7 +142,6 @@ namespace TDPIConnector.Service
             }
             else
             {
-                PrintVersion();
                 logger.Info("Running in service mode");
                 ServiceBase.Run(servicesToRun);
             }
