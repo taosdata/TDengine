@@ -80,14 +80,14 @@ void* streamBackendInit(const char* path) {
   rocksdb_env_set_low_priority_background_threads(env, 4);
   rocksdb_env_set_high_priority_background_threads(env, 2);
 
-  rocksdb_cache_t* cache = rocksdb_cache_create_lru(128 << 20);
+  rocksdb_cache_t* cache = rocksdb_cache_create_lru(64 << 20);
 
   rocksdb_options_t* opts = rocksdb_options_create();
   rocksdb_options_set_env(opts, env);
   rocksdb_options_set_create_if_missing(opts, 1);
   rocksdb_options_set_create_missing_column_families(opts, 1);
   rocksdb_options_set_write_buffer_size(opts, 64 << 20);
-  rocksdb_options_set_max_total_wal_size(opts, 64 << 20);
+  rocksdb_options_set_max_total_wal_size(opts, 128 << 20);
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 2);
   rocksdb_options_set_info_log_level(opts, 0);
