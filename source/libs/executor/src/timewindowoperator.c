@@ -2755,7 +2755,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
-  pInfo->pState = taosMemoryCalloc(1, sizeof(void));
+  pInfo->pState = taosMemoryCalloc(1, sizeof(SStreamState));
   *(pInfo->pState) = *(pTaskInfo->streamInfo.pState);
   pAPI->stateStore.streamStateSetNumber(pInfo->pState, -1);
   int32_t code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
@@ -2917,8 +2917,10 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SqlFunctionCtx* pCtx, 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pSup->stateStore = *pStore;
+
   initDummyFunction(pSup->pDummyCtx, pCtx, numOfOutput);
-  pSup->pState = taosMemoryCalloc(1, sizeof(void));
+  pSup->pState = taosMemoryCalloc(1, sizeof(SStreamState));
   *(pSup->pState) = *pState;
   pSup->stateStore.streamStateSetNumber(pSup->pState, -1);
 
@@ -2940,7 +2942,6 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SqlFunctionCtx* pCtx, 
     return terrno;
   }
 
-  pSup->stateStore = *pStore;
   int32_t code = createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, "function", tsTempDir);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].saveHandle.pBuf = pSup->pResultBuf;

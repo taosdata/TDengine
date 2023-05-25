@@ -1070,9 +1070,9 @@ static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t grou
   pInfo->groupId = groupCol[rowIndex];
 }
 
-void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint64_t version) {
+void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint64_t ver) {
   pTableScanInfo->base.cond.twindows = *pWin;
-  pTableScanInfo->base.cond.endVersion = version;
+  pTableScanInfo->base.cond.endVersion = ver;
   pTableScanInfo->scanTimes = 0;
   pTableScanInfo->currentGroupId = -1;
   pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
@@ -1182,17 +1182,19 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
       win.ekey = TMAX(win.ekey, endData[*pRowIndex]);
       continue;
     }
+
     if (win.skey == endData[*pRowIndex] && groupId == gpData[*pRowIndex]) {
       win.skey = TMIN(win.skey, startData[*pRowIndex]);
       continue;
     }
+
     ASSERT(!(win.skey > startData[*pRowIndex] && win.ekey < endData[*pRowIndex]) ||
            !(isInTimeWindow(&win, startData[*pRowIndex], 0) || isInTimeWindow(&win, endData[*pRowIndex], 0)));
     break;
   }
 
-  ASSERT(0);
-//  resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
+  STableScanInfo* pTScanInfo = pInfo->pTableScanOp->info;
+  resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
   pInfo->pTableScanOp->status = OP_OPENED;
   return true;
 }
@@ -1650,13 +1652,13 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
-      ASSERT(0);
 //      qDebug("queue scan tsdb return %" PRId64 " rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64,
 //             pResult->info.rows, pResult->info.window.skey, pResult->info.window.ekey,
 //             pInfo->tqReader->pWalReader->curVersion);
       tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, pResult->info.id.uid, pResult->info.window.ekey);
       return pResult;
     }
+
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
     
@@ -1673,7 +1675,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
     while (1) {
       bool hasResult = pAPI->tqReaderFn.tqReaderNextBlockInWal(pInfo->tqReader, id);
-      ASSERT(0);
 
       SSDataBlock* pRes = NULL;
       struct SWalReader* pWalReader = pAPI->tqReaderFn.tqReaderGetWalReader(pInfo->tqReader);
@@ -1757,8 +1758,7 @@ static void setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
 
 static void doCheckUpdate(SStreamScanInfo* pInfo, TSKEY endKey, SSDataBlock* pBlock) {
   if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
-    ASSERT(0);
-//    pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pBlock->info.version);
+    pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pBlock->info.version);
     checkUpdateData(pInfo, true, pBlock, true);
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, endKey);
     if (pInfo->pUpdateDataRes->info.rows > 0) {
@@ -1934,8 +1934,7 @@ FETCH_NEXT_BLOCK:
     pBlock->info.calWin.ekey = INT64_MAX;
     pBlock->info.dataLoad = 1;
     if (pInfo->pUpdateInfo) {
-      ASSERT(0);
-//      pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pBlock->info.version);
+      pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pBlock->info.version);
     }
     blockDataUpdateTsWindow(pBlock, 0);
     switch (pBlock->info.type) {
@@ -3097,9 +3096,9 @@ _error:
 static SSDataBlock* doTableCountScan(SOperatorInfo* pOperator);
 static void         destoryTableCountScanOperator(void* param);
 static void         buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
-                                                   SSDataBlock* pRes, char* dbName, tb_uid_t stbUid);
+                                                   SSDataBlock* pRes, char* dbName, tb_uid_t stbUid, SStorageAPI* pAPI);
 static void         buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
-                                                   SSDataBlock* pRes, char* dbName);
+                                                   SSDataBlock* pRes, char* dbName, SStorageAPI* pAPI);
 static void         buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
                                               STableCountScanSupp* pSupp, SSDataBlock* pRes, char* dbName);
 static void         buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountScanOperatorInfo* pInfo,
@@ -3385,11 +3384,11 @@ static void buildVnodeGroupedTableCount(SOperatorInfo* pOperator, STableCountSca
     }
     if (pInfo->currGrpIdx < taosArrayGetSize(pInfo->stbUidList)) {
       tb_uid_t stbUid = *(tb_uid_t*)taosArrayGet(pInfo->stbUidList, pInfo->currGrpIdx);
-      buildVnodeGroupedStbTableCount(pInfo, pSupp, pRes, dbName, stbUid);
+      buildVnodeGroupedStbTableCount(pInfo, pSupp, pRes, dbName, stbUid, pAPI);
 
       pInfo->currGrpIdx++;
     } else if (pInfo->currGrpIdx == taosArrayGetSize(pInfo->stbUidList)) {
-      buildVnodeGroupedNtbTableCount(pInfo, pSupp, pRes, dbName);
+      buildVnodeGroupedNtbTableCount(pInfo, pSupp, pRes, dbName, pAPI);
 
       pInfo->currGrpIdx++;
     } else {
@@ -3434,7 +3433,7 @@ static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanO
 }
 
 static void buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
-                                           SSDataBlock* pRes, char* dbName) {
+                                           SSDataBlock* pRes, char* dbName, SStorageAPI* pAPI) {
   char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
   if (pSupp->groupByDbName) {
     snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, "");
@@ -3442,18 +3441,18 @@ static void buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, S
 
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
-  int64_t ntbNum = 0;//metaGetNtbNum(pInfo->readHandle.vnode);
-  ASSERT(0);
-  if (ntbNum != 0) {
-    fillTableCountScanDataBlock(pSupp, dbName, "", ntbNum, pRes);
+
+  int64_t numOfTables = 0;//metaGetNtbNum(pInfo->readHandle.vnode);
+  pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, NULL, &numOfTables);
+  if (numOfTables != 0) {
+    fillTableCountScanDataBlock(pSupp, dbName, "", numOfTables, pRes);
   }
 }
 
 static void buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
-                                           SSDataBlock* pRes, char* dbName, tb_uid_t stbUid) {
+                                           SSDataBlock* pRes, char* dbName, tb_uid_t stbUid, SStorageAPI* pAPI) {
   char stbName[TSDB_TABLE_NAME_LEN] = {0};
-  ASSERT(0);
-//  metaGetTableSzNameByUid(pInfo->readHandle.vnode, stbUid, stbName);
+  pAPI->metaFn.getTableNameByUid(pInfo->readHandle.vnode, stbUid, stbName);
 
   char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
   if (pSupp->groupByDbName) {
