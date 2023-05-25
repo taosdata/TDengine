@@ -124,7 +124,7 @@ scl enable devtoolset-9 -- bash
 ### macOS
 
 ```
-brew install argp-standalone pkgconfig
+brew install argp-standalone pkgconfig geos
 ```
 
 ### Setup golang environment
