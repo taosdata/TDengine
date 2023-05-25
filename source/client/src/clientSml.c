@@ -106,7 +106,7 @@ static int32_t smlCheckAuth(SSmlHandle *info,  SRequestConnInfo* conn, const cha
   code = catalogChkAuth(info->pCatalog, conn, &pAuth, &authRes);
 
 
-  return code ? (authRes.pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
+  return (code == TSDB_CODE_SUCCESS) ? (authRes.pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
 
 }
 inline bool smlDoubleToInt64OverFlow(double num) {
