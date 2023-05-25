@@ -3,13 +3,13 @@ package report
 import (
 	"container/list"
 	"sync"
-
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
 type Message struct {
 	TS      int64
-	Message mqtt.Message
+	Topic   string
+	Qos     byte
+	Payload []byte
 }
 
 type MessageList struct {

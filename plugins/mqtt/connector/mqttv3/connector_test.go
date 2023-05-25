@@ -1,11 +1,9 @@
-package connector
+package mqttv3
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taosx/plugins/mqtt/config"
@@ -20,14 +18,14 @@ func TestNewConnector(t *testing.T) {
 		KeepAlive:    30,
 		CleanSession: true,
 	}, logrus.New().WithField("test", "mqtt"), func() {
-		fmt.Println("connected")
+		t.Log("connected")
 		connected <- struct{}{}
 	}, func(err error) {
-		fmt.Println("closed", err)
-	}, func(client mqtt.Client, message mqtt.Message) {
-		switch message.Topic() {
+		t.Log("closed", err)
+	}, func(qos byte, topic string, payload []byte) {
+		switch topic {
 		case "sub":
-			assert.Equal(t, []byte("sub1"), message.Payload())
+			assert.Equal(t, []byte("sub1"), payload)
 			receivedSub <- struct{}{}
 		}
 	})

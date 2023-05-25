@@ -52,7 +52,7 @@ func (t *TaosLogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	b.WriteString(entry.Time.Format("01/02 15:04:05.000000"))
 	b.WriteByte(' ')
 	b.WriteString(ServerID)
-	b.WriteString(" MQTT_PLUGIN ")
+	b.WriteByte(' ')
 	b.WriteString(entry.Level.String())
 	b.WriteString(` "`)
 	b.WriteString(entry.Message)
@@ -83,5 +83,5 @@ func randomID() string {
 func init() {
 	logrus.SetBufferPool(bufferPool)
 	logger.SetFormatter(globalLogFormatter)
-	logger.SetOutput(os.Stdout)
+	logger.SetOutput(os.Stderr)
 }

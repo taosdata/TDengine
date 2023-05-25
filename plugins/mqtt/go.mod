@@ -1,12 +1,15 @@
 module github.com/taosdata/taosx/plugins/mqtt
 
-go 1.17
+go 1.18
 
 require (
 	github.com/BurntSushi/toml v1.2.1
 	github.com/apache/arrow/go/v12 v12.0.0-20230412145451-c4312ea46ba0
+	github.com/eclipse/paho.golang v0.11.0
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/google/uuid v1.3.0
+	github.com/kardianos/service v1.2.2
+	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.1
 )
