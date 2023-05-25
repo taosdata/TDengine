@@ -1190,7 +1190,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         return -1;
       }
 
-      SMetaTableInfo mtInfo = pTaskInfo->storageAPI.snapshotFn.getTableInfoFromSnapshot(sContext);
+      SMetaTableInfo mtInfo = pTaskInfo->storageAPI.snapshotFn.getMetaTableInfoFromSnapshot(sContext);
       pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pInfo->dataReader);
       pInfo->dataReader = NULL;
 

@@ -304,6 +304,8 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
         .version = handle.snapshotVer
     };
 
+    initStorageAPI(&reader.api);
+
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       handle.execHandle.task =
           qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, vgId, &handle.execHandle.numOfCols, 0);

@@ -2185,7 +2185,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       return pBlock;
     }
 
-    SMetaTableInfo mtInfo = pAPI->snapshotFn.getTableInfoFromSnapshot(pInfo->sContext);
+    SMetaTableInfo mtInfo = pAPI->snapshotFn.getMetaTableInfoFromSnapshot(pInfo->sContext);
     STqOffsetVal   offset = {0};
     if (mtInfo.uid == 0) {  // read snapshot done, change to get data from wal
       qDebug("tmqsnap read snapshot done, change to get data from wal");
@@ -2203,8 +2203,8 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     int32_t       dataLen = 0;
     int16_t       type = 0;
     int64_t       uid = 0;
-    if (pAPI->snapshotFn.getMetaInfoFromSnapshot(sContext, &data, &dataLen, &type, &uid) < 0) {
-      qError("tmqsnap getMetafromSnapShot error");
+    if (pAPI->snapshotFn.getTableInfoFromSnapshot(sContext, &data, &dataLen, &type, &uid) < 0) {
+      qError("tmqsnap getTableInfoFromSnapshot error");
       taosMemoryFreeClear(data);
       return NULL;
     }
@@ -2253,6 +2253,7 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
 
   pInfo->pTableListInfo = tableListCreate();
   pInfo->vnode = pHandle->vnode;
+  pInfo->pAPI = &pTaskInfo->storageAPI;
 
   pInfo->sContext = pHandle->sContext;
   setOperatorInfo(pOperator, "RawScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false, OP_NOT_OPENED, pInfo,
@@ -3470,7 +3471,7 @@ static void buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, S
 
   int64_t ctbNum = 0;
   int32_t code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, stbUid, &ctbNum);
-  fillTableCountScanDataBlock(pSupp, dbName, stbName, ctbNum, pRes);
+  fillTableCountScanDataBlock(pSupp, dbName, varDataVal(stbName), ctbNum, pRes);
 }
 
 static void destoryTableCountScanOperator(void* param) {

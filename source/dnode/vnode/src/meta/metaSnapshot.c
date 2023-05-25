@@ -466,7 +466,7 @@ int32_t setForSnapShot(SSnapContext* ctx, int64_t uid) {
   return c;
 }
 
-int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid) {
+int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid) {
   int32_t ret = 0;
   void*   pKey = NULL;
   void*   pVal = NULL;
@@ -598,7 +598,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
   return ret;
 }
 
-SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx) {
+SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext* ctx) {
   SMetaTableInfo result = {0};
   void*          pKey = NULL;
   void*          pVal = NULL;
@@ -619,7 +619,7 @@ SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx) {
 
     int32_t ret = MoveToPosition(ctx, idInfo->version, *uidTmp);
     if (ret != 0) {
-      metaDebug("tmqsnap getUidfromSnapShot not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp, idInfo->version);
+      metaDebug("tmqsnap getMetaTableInfoFromSnapshot not exist uid:%" PRIi64 " version:%" PRIi64, *uidTmp, idInfo->version);
       continue;
     }
     tdbTbcGet((TBC*)ctx->pCur, (const void**)&pKey, &kLen, (const void**)&pVal, &vLen);

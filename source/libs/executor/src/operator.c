@@ -380,17 +380,18 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
       STableListInfo*          pTableListInfo = tableListCreate();
 
       if (pBlockNode->tableType == TSDB_SUPER_TABLE) {
-        SArray* pList = taosArrayInit(4, sizeof(STableKeyInfo));
+        SArray* pList = taosArrayInit(4, sizeof(uint64_t));
         int32_t code = pTaskInfo->storageAPI.metaFn.getChildTableList(pHandle->vnode, pBlockNode->uid, pList);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
+          taosArrayDestroy(pList);
           return NULL;
         }
 
         size_t num = taosArrayGetSize(pList);
         for (int32_t i = 0; i < num; ++i) {
-          STableKeyInfo* p = taosArrayGet(pList, i);
-          tableListAddTableInfo(pTableListInfo, p->uid, 0);
+          uint64_t* id = taosArrayGet(pList, i);
+          tableListAddTableInfo(pTableListInfo, *id, 0);
         }
 
         taosArrayDestroy(pList);

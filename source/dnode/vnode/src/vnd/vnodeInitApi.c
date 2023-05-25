@@ -26,6 +26,7 @@ static void initMetaReaderAPI(SStoreMetaReader* pMetaReader);
 static void initMetaFilterAPI(SMetaDataFilterAPI* pFilter);
 static void initFunctionStateStore(SFunctionStateStore* pStore);
 static void initCacheFn(SStoreCacheReader* pCache);
+static void initSnapshotFn(SStoreSnapshotFn* pSnapshot);
 
 void initStorageAPI(SStorageAPI* pAPI) {
   initTsdbReaderAPI(&pAPI->tsdReader);
@@ -36,6 +37,7 @@ void initStorageAPI(SStorageAPI* pAPI) {
   initMetaFilterAPI(&pAPI->metaFilter);
   initFunctionStateStore(&pAPI->functionStore);
   initCacheFn(&pAPI->cacheFn);
+  initSnapshotFn(&pAPI->snapshotFn);
 }
 
 void initTsdbReaderAPI(TsdReader* pReader) {
@@ -69,7 +71,6 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->getBasicInfo = vnodeGetInfo;
   pMeta->getNumOfChildTables = metaGetStbStats;
-//  pMeta->getNumOfRowsInMem = tsdbGetNumOfRowsInMemTable;
 
   pMeta->getChildTableList = vnodeGetCtbIdList;
 
@@ -224,4 +225,11 @@ void initCacheFn(SStoreCacheReader* pCache) {
   pCache->closeReader = tsdbCacherowsReaderClose;
   pCache->retrieveRows = tsdbRetrieveCacheRows;
   pCache->reuseReader = tsdbReuseCacherowsReader;
+}
+
+void initSnapshotFn(SStoreSnapshotFn* pSnapshot) {
+  pSnapshot->createSnapshot = setForSnapShot;
+  pSnapshot->destroySnapshot = destroySnapContext;
+  pSnapshot->getMetaTableInfoFromSnapshot = getMetaTableInfoFromSnapshot;
+  pSnapshot->getTableInfoFromSnapshot = getTableInfoFromSnapshot;
 }

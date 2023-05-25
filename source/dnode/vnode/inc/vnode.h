@@ -282,8 +282,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 
 int32_t        buildSnapContext(SVnode *pVnode, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta,
                                 SSnapContext **ctxRet);
-int32_t        getMetafromSnapShot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
-SMetaTableInfo getUidfromSnapShot(SSnapContext *ctx);
+int32_t        getTableInfoFromSnapshot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
+SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext *ctx);
 int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
 int32_t        destroySnapContext(SSnapContext *ctx);
 

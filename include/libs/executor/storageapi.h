@@ -196,8 +196,8 @@ typedef struct {
 // int32_t tqReaderSeek(STqReader *pReader, int64_t ver, const char *id);
 // bool    tqNextBlockInWal(STqReader* pReader, const char* idstr);
 // bool    tqNextBlockImpl(STqReader *pReader, const char* idstr);
-// int32_t        getMetafromSnapShot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
-// SMetaTableInfo getUidfromSnapShot(SSnapContext *ctx);
+// int32_t        getTableInfoFromSnapshot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
+// SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext *ctx);
 // int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
 // int32_t        destroySnapContext(SSnapContext *ctx);
 
@@ -310,15 +310,15 @@ typedef struct SStoreTqReader {
 
 typedef struct SStoreSnapshotFn {
   /*
-  int32_t        getMetafromSnapShot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
-  SMetaTableInfo getUidfromSnapShot(SSnapContext *ctx);
+  int32_t        getTableInfoFromSnapshot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
+  SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext *ctx);
   int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
   int32_t        destroySnapContext(SSnapContext *ctx);
    */
   int32_t (*createSnapshot)();
-  void (*destroySnapshot)();
-  SMetaTableInfo (*getTableInfoFromSnapshot)();
-  int32_t (*getMetaInfoFromSnapshot)();
+  int32_t (*destroySnapshot)();
+  SMetaTableInfo (*getMetaTableInfoFromSnapshot)();
+  int32_t (*getTableInfoFromSnapshot)();
 } SStoreSnapshotFn;
 
 /**
