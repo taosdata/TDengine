@@ -42,7 +42,6 @@ typedef struct {
 
 typedef struct {
   void*   tqReader;
-//  void*   meta;
   void*   config;
   void*   vnode;
   void*   mnd;

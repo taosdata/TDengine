@@ -341,7 +341,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
-  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, 0);
+  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, 0, &pAPI->metaFn);
   for (int32_t i = 0; i < numOfUids; ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
 
@@ -1091,12 +1091,13 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
-      ASSERT(0);
-//      walReaderVerifyOffset(pInfo->tqReader->pWalReader, pOffset);
-//      if (tqReaderSeek(pInfo->tqReader, pOffset->version + 1, id) < 0) {
-//        qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
-//        return -1;
-//      }
+      SStoreTqReader* pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
+      SWalReader* pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
+      walReaderVerifyOffset(pWalReader, pOffset);
+      if (pReaderAPI->tqReaderSeek(pInfo->tqReader, pOffset->version + 1, id) < 0) {
+        qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
+        return -1;
+      }
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       // iterate all tables from tableInfoList, and retrieve rows from each table one-by-one
       // those data are from the snapshot in tsdb, besides the data in the wal file.

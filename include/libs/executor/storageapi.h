@@ -84,7 +84,7 @@ typedef struct SMetaReader {
   SMetaEntry          me;
   void *              pBuf;
   int32_t             szBuf;
-  struct SStorageAPI *storageAPI;
+  struct SStoreMeta*  pAPI;
 } SMetaReader;
 
 typedef struct SMTbCursor {
@@ -256,7 +256,7 @@ typedef struct SStoreCacheReader {
   void *(*closeReader)(void *pReader);
   int32_t (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
                           SArray *pTableUidList);
-  void (*reuseReader)(void *pReader, void *pTableIdList, int32_t numOfTables);
+  int32_t (*reuseReader)(void *pReader, void *pTableIdList, int32_t numOfTables);
 } SStoreCacheReader;
 
 /*------------------------------------------------------------------------------------------------------------------*/
@@ -290,6 +290,7 @@ typedef struct SStoreTqReader {
   int32_t (*tqRetrieveBlock)();
   bool (*tqReaderNextBlockInWal)();
   bool (*tqNextBlockImpl)();  // todo remove it
+  SSDataBlock* (*tqGetResultBlock)();
 
   void (*tqReaderSetColIdList)();
   int32_t (*tqReaderSetQueryTableList)();
@@ -345,14 +346,6 @@ int32_t  metaGetCachedTbGroup(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, 
 int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
                                int32_t payloadLen);
  */
-typedef struct SStoreMetaReader {
-  void    (*initReader)(SMetaReader *pReader, void *pMeta, int32_t flags);
-  void    (*clearReader)(SMetaReader *pReader);
-  void    (*readerReleaseLock)(SMetaReader *pReader);
-  int32_t (*getTableEntryByUid)(SMetaReader *pReader, tb_uid_t uid);
-  int32_t (*getTableEntryByName)(SMetaReader *pReader, const char *name);
-  int32_t (*getEntryGetUidCache)(SMetaReader *pReader, tb_uid_t uid);
-} SStoreMetaReader;
 
 typedef struct SStoreMeta {
   SMTbCursor *(*openTableMetaCursor)(void *pVnode);   // metaOpenTbCursor
@@ -387,7 +380,7 @@ int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, in
   void *(*storeGetIndexInfo)();
   void *(*getInvertIndex)(void* pVnode);
   int32_t (*getChildTableList)(void *pVnode, int64_t suid, SArray *list);  // support filter and non-filter cases. [vnodeGetCtbIdList & vnodeGetCtbIdListByFilter]
-  int32_t (*storeGetTableList)();    // vnodeGetStbIdList  & vnodeGetAllTableList
+  int32_t (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);    // vnodeGetStbIdList  & vnodeGetAllTableList
   void *storeGetVersionRange;
   void *storeGetLastTimestamp;
 
@@ -405,9 +398,14 @@ int32_t vnodeGetStbIdList(void *pVnode, int64_t suid, SArray *list);
  */
 } SStoreMeta;
 
-
-
-
+typedef struct SStoreMetaReader {
+  void    (*initReader)(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta* pAPI);
+  void    (*clearReader)(SMetaReader *pReader);
+  void    (*readerReleaseLock)(SMetaReader *pReader);
+  int32_t (*getTableEntryByUid)(SMetaReader *pReader, tb_uid_t uid);
+  int32_t (*getTableEntryByName)(SMetaReader *pReader, const char *name);
+  int32_t (*getEntryGetUidCache)(SMetaReader *pReader, tb_uid_t uid);
+} SStoreMetaReader;
 
 typedef struct SUpdateInfo {
   SArray      *pTsBuckets;
@@ -507,14 +505,14 @@ typedef struct SStateStore {
 } SStateStore;
 
 typedef struct SStorageAPI {
-  SStoreMeta        metaFn;  // todo: refactor
-  TsdReader         tsdReader;
-  SStoreMetaReader  metaReaderFn;
-  SStoreCacheReader cacheFn;
-  SStoreSnapshotFn  snapshotFn;
-  SStoreTqReader    tqReaderFn;
-  SStateStore       stateStore;
-  SMetaDataFilterAPI metaFilter;
+  SStoreMeta          metaFn;  // todo: refactor
+  TsdReader           tsdReader;
+  SStoreMetaReader    metaReaderFn;
+  SStoreCacheReader   cacheFn;
+  SStoreSnapshotFn    snapshotFn;
+  SStoreTqReader      tqReaderFn;
+  SStateStore         stateStore;
+  SMetaDataFilterAPI  metaFilter;
   SFunctionStateStore functionStore;
 } SStorageAPI;
 

@@ -381,9 +381,9 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
 
       if (pBlockNode->tableType == TSDB_SUPER_TABLE) {
         SArray* pList = taosArrayInit(4, sizeof(STableKeyInfo));
-        int32_t code = pTaskInfo->storageAPI.metaFn.storeGetTableList(pHandle->vnode, pBlockNode->uid, pList);
+        int32_t code = pTaskInfo->storageAPI.metaFn.getChildTableList(pHandle->vnode, pBlockNode->uid, pList);
         if (code != TSDB_CODE_SUCCESS) {
-          pTaskInfo->code = terrno;
+          pTaskInfo->code = code;
           return NULL;
         }
 

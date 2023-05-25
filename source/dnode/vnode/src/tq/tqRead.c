@@ -446,6 +446,9 @@ SWalReader* tqGetWalReader(STqReader* pReader) {
   return pReader->pWalReader;
 }
 
+SSDataBlock* tqGetResultBlock (STqReader* pReader) {
+  return pReader->pResBlock;
+}
 
 bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
   if (pReader->msg.msgStr == NULL) {

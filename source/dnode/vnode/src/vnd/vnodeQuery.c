@@ -431,6 +431,14 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* num
   }
 }
 
+int32_t vnodeGetTableList(void* pVnode, int8_t type, SArray* pList) {
+  if (type == TSDB_SUPER_TABLE) {
+    return vnodeGetStbIdList(pVnode, 0, pList);
+  } else {
+    return TSDB_CODE_INVALID_PARA;
+  }
+}
+
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, uid, 1);
 

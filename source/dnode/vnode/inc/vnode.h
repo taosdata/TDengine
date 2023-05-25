@@ -69,6 +69,7 @@ int64_t   vnodeGetSyncHandle(SVnode *pVnode);
 void      vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 void      vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t* numOfTables, int64_t* numOfNormalTables);
 int32_t   vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
+int32_t   vnodeGetTableList(void* pVnode, int8_t type, SArray* pList);
 int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t   vnodeIsCatchUp(SVnode *pVnode);
 ESyncRole vnodeGetRole(SVnode *pVnode);
@@ -105,7 +106,7 @@ typedef struct SMetaEntry  SMetaEntry;
 
 #define META_READER_NOLOCK 0x1
 
-void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags);
+void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta* pAPI);
 void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
@@ -257,6 +258,7 @@ int32_t tqReaderSeek(STqReader *pReader, int64_t ver, const char *id);
 bool    tqNextBlockInWal(STqReader *pReader, const char *idstr);
 bool    tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader* tqGetWalReader(STqReader* pReader);
+SSDataBlock* tqGetResultBlock (STqReader* pReader);
 
 int32_t extractMsgFromWal(SWalReader *pReader, void **pItem, const char *id);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);

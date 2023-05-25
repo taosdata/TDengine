@@ -25,6 +25,7 @@ static void initStateStoreAPI(SStateStore* pStore);
 static void initMetaReaderAPI(SStoreMetaReader* pMetaReader);
 static void initMetaFilterAPI(SMetaDataFilterAPI* pFilter);
 static void initFunctionStateStore(SFunctionStateStore* pStore);
+static void initCacheFn(SStoreCacheReader* pCache);
 
 void initStorageAPI(SStorageAPI* pAPI) {
   initTsdbReaderAPI(&pAPI->tsdReader);
@@ -34,6 +35,7 @@ void initStorageAPI(SStorageAPI* pAPI) {
   initMetaReaderAPI(&pAPI->metaReaderFn);
   initMetaFilterAPI(&pAPI->metaFilter);
   initFunctionStateStore(&pAPI->functionStore);
+  initCacheFn(&pAPI->cacheFn);
 }
 
 void initTsdbReaderAPI(TsdReader* pReader) {
@@ -83,6 +85,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getTableNameByUid = metaGetTableNameByUid;
 
   pMeta->getTableSchema = tsdbGetTableSchema;   // todo refactor
+  pMeta->storeGetTableList = vnodeGetTableList;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {
@@ -109,6 +112,8 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;          // todo remove it
 
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg; // todo remove it
+  pTq->tqGetResultBlock = tqGetResultBlock;
+
   pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
 }
 
@@ -213,4 +218,11 @@ void initMetaFilterAPI(SMetaDataFilterAPI* pFilter) {
 void initFunctionStateStore(SFunctionStateStore* pStore) {
   pStore->streamStateFuncPut = streamStateFuncPut;
   pStore->streamStateFuncGet = streamStateFuncGet;
+}
+
+void initCacheFn(SStoreCacheReader* pCache) {
+  pCache->openReader = tsdbCacherowsReaderOpen;
+  pCache->closeReader = tsdbCacherowsReaderClose;
+  pCache->retrieveRows = tsdbRetrieveCacheRows;
+  pCache->reuseReader = tsdbReuseCacherowsReader;
 }

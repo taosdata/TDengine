@@ -17,14 +17,14 @@
 #include "osMemory.h"
 #include "tencode.h"
 
-void _metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags) {
+void _metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMeta* pAPI) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
   metaReaderInit(pReader, pMeta, flags);
+  pReader->pAPI = pAPI;
 }
 
 void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
-  pReader->flags = flags;
   pReader->pMeta = pMeta;
   if (pReader->pMeta && !(flags & META_READER_NOLOCK)) {
     metaRLock(pMeta);
