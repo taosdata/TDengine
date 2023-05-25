@@ -1,7 +1,6 @@
 package mqttv5
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -19,10 +18,10 @@ func TestNewConnector(t *testing.T) {
 		KeepAlive:    30,
 		CleanSession: true,
 	}, logrus.New().WithField("test", "mqtt"), func() {
-		fmt.Println("connected")
+		t.Log("connected")
 		connected <- struct{}{}
 	}, func(err error) {
-		fmt.Println("closed", err)
+		t.Log("closed", err)
 	}, func(qos byte, topic string, payload []byte) {
 		t.Log("got message", topic, int(qos), string(payload))
 		switch topic {

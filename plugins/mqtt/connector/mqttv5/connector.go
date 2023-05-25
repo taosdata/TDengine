@@ -79,13 +79,12 @@ func (conn *Connector) connect(conf *config.MQTT) {
 			Router: paho.NewSingleHandlerRouter(func(m *paho.Publish) {
 				conn.onMessage(m.QoS, m.Topic, m.Payload)
 			}),
-			OnClientError: func(err error) { fmt.Printf("server requested disconnect: %s\n", err) },
+			OnClientError: func(err error) { conn.onDisconnected(fmt.Errorf("server requested disconnect: %s", err)) },
 			OnServerDisconnect: func(d *paho.Disconnect) {
 				if d.Properties != nil {
-					conn.onDisconnected(fmt.Errorf("server requested disconnect: %s\n", d.Properties.ReasonString))
-					fmt.Printf("server requested disconnect: %s\n", d.Properties.ReasonString)
+					conn.onDisconnected(fmt.Errorf("server requested disconnect: %s", d.Properties.ReasonString))
 				} else {
-					conn.onDisconnected(fmt.Errorf("server requested disconnect; reason code: %d\n", d.ReasonCode))
+					conn.onDisconnected(fmt.Errorf("server requested disconnect; reason code: %d", d.ReasonCode))
 				}
 			},
 		},

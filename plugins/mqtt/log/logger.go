@@ -26,7 +26,6 @@ type defaultPool struct {
 }
 
 func (p *defaultPool) Put(buf *bytes.Buffer) {
-	fmt.Fprint(os.Stdout)
 	buf.Reset()
 	p.pool.Put(buf)
 }
@@ -84,5 +83,5 @@ func randomID() string {
 func init() {
 	logrus.SetBufferPool(bufferPool)
 	logger.SetFormatter(globalLogFormatter)
-	logger.SetOutput(os.Stdout)
+	logger.SetOutput(os.Stderr)
 }
