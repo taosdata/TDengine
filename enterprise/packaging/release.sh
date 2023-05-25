@@ -346,9 +346,12 @@ if [ "$osType" != "Darwin" ]; then
 
   echo "${csudo}./makepkg.sh ${compile_dir} ${verNumber} \"${build_time}\" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}"
   ${csudo}./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}
-  echo "${csudo}./makeclient.sh ${compile_dir} ${verNumber} \"${build_time}\" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}"
-  ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}
-
+  if [[ "$verMode" == "cloud" ]]; then
+    echo "No need to make client for TDengine Cloud."
+  else 
+    echo "${csudo}./makeclient.sh ${compile_dir} ${verNumber} \"${build_time}\" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}"
+    ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}  
+  fi
 else
     echo "No need to run release.sh on macOS"
 #   cd ${top_dir}/community/packaging/tools
