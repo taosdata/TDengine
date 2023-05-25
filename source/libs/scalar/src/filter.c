@@ -3765,8 +3765,8 @@ bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pDataStatis, int32_t
         SColumnDataAgg *pAgg = pDataStatis[j];
         SArray         *points = taosArrayInit(2, sizeof(SFltSclPoint));
         fltSclBuildRangeFromBlockSma(colRange, pAgg, numOfRows, points);
-        qDebug("column data agg: nulls %d, rows %d, max %" PRId64 " min %" PRId64, pAgg->numOfNull, numOfRows, pAgg->max,
-               pAgg->min);
+        qDebug("column data agg: nulls %d, rows %d, max %" PRId64 " min %" PRId64, pAgg->numOfNull, numOfRows,
+               pAgg->max, pAgg->min);
 
         SArray *merged = taosArrayInit(8, sizeof(SFltSclPoint));
         fltSclIntersect(points, colRange->points, merged);
@@ -3960,6 +3960,31 @@ _return:
   return code;
 }
 
+static int32_t fltSclGetDatumValueFromPoint(SFltSclPoint *point, SFltSclDatum *d) {
+  *d = point->val;
+  if (point->val.kind == FLT_SCL_DATUM_KIND_NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (point->val.kind == FLT_SCL_DATUM_KIND_MAX) {
+    getDataMax(d->type.type, &(d->i));
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_MIN) {
+    getDataMin(d->type.type, &(d->i));
+  }
+
+  if ((point->val.kind == FLT_SCL_DATUM_KIND_INT64) || (point->val.kind = FLT_SCL_DATUM_KIND_UINT64)) {
+    if (point->excl) {
+      if (point->start) {
+        ++d->i;
+      } else {
+        --d->i;
+      }
+    }
+  } else {
+    qError("not supported kind %d when get datum from point", point->val.kind);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
@@ -3969,6 +3994,23 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
   FLT_ERR_RET(filterInitFromNode(pNode, &info, FLT_OPTION_NO_REWRITE | FLT_OPTION_TIMESTAMP));
 
   if (info->scalarMode) {
+    SArray *colRanges = info->sclCtx.fltSclRange;
+    if (taosArrayGetSize(colRanges) == 1) {
+      SFltSclColumnRange *colRange = taosArrayGet(colRanges, 0);
+      SArray             *points = colRange->points;
+      if (taosArrayGetSize(points) == 2) {
+        SFltSclPoint *startPt = taosArrayGet(points, 0);
+        SFltSclPoint *endPt = taosArrayGet(points, 1);
+        SFltSclDatum start;
+        SFltSclDatum end;
+        fltSclGetDatumValueFromPoint(startPt, &start);
+        fltSclGetDatumValueFromPoint(endPt, &end);
+        win->skey = start.i;
+        win->ekey = end.i;
+        *isStrict = true;
+        goto _return;
+      }
+    }
     *win = TSWINDOW_INITIALIZER;
     *isStrict = false;
     goto _return;
