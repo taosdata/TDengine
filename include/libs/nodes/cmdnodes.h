@@ -358,6 +358,7 @@ typedef struct SCreateTopicStmt {
   bool      ignoreExists;
   bool      withMeta;
   SNode*    pQuery;
+  SNode*    pWhere;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {

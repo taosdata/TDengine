@@ -666,6 +666,22 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   return code;
 }
 
+
+SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable) {
+  SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
+  if (NULL == select) {
+    return NULL;
+  }
+  select->isDistinct = isDistinct;
+  select->pProjectionList = pProjectionList;
+  select->pFromTable = pTable;
+  sprintf(select->stmtName, "%p", select);
+  select->isTimeLineResult = true;
+  select->onlyHasKeepOrderFunc = true;
+  select->timeRange = TSWINDOW_INITIALIZER;
+  return (SNode*)select;
+}
+
 static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pData, int32_t index, SHashObj** pHash) {
   if (NULL == *pHash) {
     *pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);

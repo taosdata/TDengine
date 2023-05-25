@@ -3836,8 +3836,12 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
     if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
       if (tEncodeCStr(&encoder, pReq->subStbName) < 0) return -1;
     }
-    if (tEncodeI32(&encoder, strlen(pReq->ast)) < 0) return -1;
-    if (tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
+    if (pReq->ast && strlen(pReq->ast) > 0) {
+      if (tEncodeI32(&encoder, strlen(pReq->ast)) < 0) return -1;
+      if (tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
+    } else {
+      if (tEncodeI32(&encoder, 0) < 0) return -1;
+    }
   }
   if (tEncodeI32(&encoder, strlen(pReq->sql)) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
