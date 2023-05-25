@@ -93,7 +93,7 @@ func accept(t *testing.T, server *net.TCPListener, finish chan struct{}) {
 			{Name: "ts", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},
 			{Name: "topic", Type: arrow.BinaryTypes.String},
 			{Name: "qos", Type: &arrow.Uint8Type{}},
-			{Name: "payload", Type: arrow.BinaryTypes.Binary},
+			{Name: "payload", Type: arrow.BinaryTypes.String},
 		},
 		&metadata,
 	)
@@ -102,7 +102,7 @@ func accept(t *testing.T, server *net.TCPListener, finish chan struct{}) {
 		r := reader.Record()
 		assert.Equal(t, "topic1", r.Column(1).(*array.String).Value(0))
 		assert.Equal(t, uint8(0), r.Column(2).(*array.Uint8).Value(0))
-		assert.Equal(t, []byte("value1"), r.Column(3).(*array.Binary).Value(0))
+		assert.Equal(t, "value1", r.Column(3).(*array.String).Value(0))
 		t.Log("record check pass")
 		r.Release()
 	} else {
