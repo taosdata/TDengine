@@ -86,7 +86,7 @@ void* streamBackendInit(const char* path) {
   rocksdb_options_set_env(opts, env);
   rocksdb_options_set_create_if_missing(opts, 1);
   rocksdb_options_set_create_missing_column_families(opts, 1);
-  rocksdb_options_set_write_buffer_size(opts, 64 << 20);
+  rocksdb_options_set_write_buffer_size(opts, 48 << 20);
   rocksdb_options_set_max_total_wal_size(opts, 128 << 20);
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 2);
