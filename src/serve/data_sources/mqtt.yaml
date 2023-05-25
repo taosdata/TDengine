@@ -136,3 +136,41 @@ groups:
             - info
             - debug
             - trace
+
+parser:
+  display: Mqtt Payload Parser Config
+  params:
+  - name: parse
+    hint:
+      type: json
+    alternatives: 
+      - name: json
+        hint: 
+          type: jsonarray
+        display: Json
+        description: Parse Json Object in Payload.
+        params: 
+        - name: name
+          hint: 
+            type: str
+        - name: alias
+          hint:
+            type: str
+        - name: cast
+          hint:
+            type: str
+  
+  - name: model
+    hint:
+      type: json
+    params:
+      - name: name
+        hint: 
+          type: str
+      - name: using
+        hint:
+          type: str
+      - name: tags
+        hint:
+          type: strarray
+    

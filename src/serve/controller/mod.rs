@@ -1468,6 +1468,9 @@ pub struct TaskDetail {
     /// Agent
     #[serde(skip_serializing_if = "Option::is_none")]
     agent: Option<Agent>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parser: Option<serde_json::Value>,
 }
 
 impl From<Task> for TaskDetail {
@@ -1492,6 +1495,7 @@ impl std::ops::DerefMut for TaskDetail {
 impl TaskDetail {
     pub fn new(task: Task) -> Self {
         TaskDetail {
+            parser: task.parser.clone(),
             task,
             from_expand: None,
             from_detail: None,
@@ -1503,6 +1507,7 @@ impl TaskDetail {
 
     pub fn expand_detail(self) -> Self {
         let value = self.task;
+        let parser = value.parser.clone();
         let from_dsn: Dsn = value.from.as_str().parse().unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
         TaskDetail {
@@ -1516,6 +1521,7 @@ impl TaskDetail {
                 .map(|d| d.clone().values_from(to_dsn)),
             task: value,
             agent: None,
+            parser,
         }
     }
 

@@ -5,7 +5,7 @@ use arrow::ipc::RecordBatch;
 use arrow_flight::{FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
 use taos::{AsyncTBuilder, Bindable, Stmt, TaosBuilder, TaosPool};
-use taosx_core::IpcStreamWorker;
+use taosx_core::{IpcStreamWorker, Parser};
 use tonic::{Status, Streaming};
 
 use crate::serve::controller::{Task, TaskControllerRef, TaskDetail};
@@ -74,10 +74,11 @@ impl PutStream {
                 let mut stmt = Stmt::init(taos).context("Initialize STMT")?;
                 let worker = IpcStreamWorker::new(&taos, from, lock, schema).unwrap();
                 dbg!(&task);
+                let parser :Option<Parser> = task.parser.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap());
                 loop {
                     if let Ok(a) = rx.recv() {
                         log::info!("Start writing records: {a:?}");
-                        if let Err(err) = worker.process_record(&mut stmt, a).await {
+                        if let Err(err) = worker.process_record(&mut stmt, a, parser.as_ref()).await {
                             log::warn!("Write stream error: {err}");
                         }
                     } else {
