@@ -24,6 +24,7 @@ static void initTqAPI(SStoreTqReader* pTq);
 static void initStateStoreAPI(SStateStore* pStore);
 static void initMetaReaderAPI(SStoreMetaReader* pMetaReader);
 static void initMetaFilterAPI(SMetaDataFilterAPI* pFilter);
+static void initFunctionStateStore(SFunctionStateStore* pStore);
 
 void initStorageAPI(SStorageAPI* pAPI) {
   initTsdbReaderAPI(&pAPI->tsdReader);
@@ -32,6 +33,7 @@ void initStorageAPI(SStorageAPI* pAPI) {
   initStateStoreAPI(&pAPI->stateStore);
   initMetaReaderAPI(&pAPI->metaReaderFn);
   initMetaFilterAPI(&pAPI->metaFilter);
+  initFunctionStateStore(&pAPI->functionStore);
 }
 
 void initTsdbReaderAPI(TsdReader* pReader) {
@@ -206,4 +208,9 @@ void initMetaFilterAPI(SMetaDataFilterAPI* pFilter) {
   pFilter->metaFilterTableIds = metaFilterTableIds;
   pFilter->metaFilterTableName = metaFilterTableName;
   pFilter->metaFilterTtl = metaFilterTtl;
+}
+
+void initFunctionStateStore(SFunctionStateStore* pStore) {
+  pStore->streamStateFuncPut = streamStateFuncPut;
+  pStore->streamStateFuncGet = streamStateFuncGet;
 }

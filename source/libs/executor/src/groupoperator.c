@@ -451,7 +451,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
   }
 
   pInfo->pGroupCols = extractColumnInfo(pAggNode->pGroupKeys);
-  code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr);
+  code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -467,7 +467,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
   int32_t    num = 0;
   SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, pInfo->groupKeyLen, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState);
+                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -849,7 +849,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   if (pPartNode->pExprs != NULL) {
     int32_t    num = 0;
     SExprInfo* pExprInfo1 = createExprInfo(pPartNode->pExprs, NULL, &num);
-    int32_t    code = initExprSupp(&pInfo->scalarSup, pExprInfo1, num);
+    int32_t    code = initExprSupp(&pInfo->scalarSup, pExprInfo1, num, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;
       pTaskInfo->code = terrno;
@@ -1242,7 +1242,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   if (pPartNode->part.pExprs != NULL) {
     int32_t    num = 0;
     SExprInfo* pCalExprInfo = createExprInfo(pPartNode->part.pExprs, NULL, &num);
-    code = initExprSupp(&pInfo->scalarSup, pCalExprInfo, num);
+    code = initExprSupp(&pInfo->scalarSup, pCalExprInfo, num, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -1257,7 +1257,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
     }
     pInfo->tbnameCalSup.pExprInfo = pSubTableExpr;
     createExprFromOneNode(pSubTableExpr, pPartNode->pSubtable, 0);
-    code = initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1);
+    code = initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -1271,7 +1271,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
     }
-    if (initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags) != 0) {
+    if (initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags, &pTaskInfo->storageAPI.functionStore) != 0) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
     }

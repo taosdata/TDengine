@@ -66,16 +66,6 @@ int32_t       streamStateCommit(SStreamState* pState);
 void          streamStateDestroy(SStreamState* pState, bool remove);
 int32_t       streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark);
 
-//typedef struct {
-//  rocksdb_iterator_t*    iter;
-//  rocksdb_snapshot_t*    snapshot;
-//  rocksdb_readoptions_t* readOpt;
-//  rocksdb_t*             db;
-//
-//  TBC*    pCur;
-//  int64_t number;
-//} SStreamStateCur;
-
 int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
 int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen);
 

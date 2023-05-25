@@ -23,7 +23,6 @@
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tref.h"
-#include "ttimer.h"
 
 #define MAX_TABLE_NAME_NUM 2000000
 

@@ -338,7 +338,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
     goto _error;
   }
 
-  code = initExprSupp(pNoFillSupp, pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs);
+  code = initExprSupp(pNoFillSupp, pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -355,7 +355,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
-  code = initExprSupp(&pOperator->exprSupp, pExprInfo, pInfo->numOfExpr);
+  code = initExprSupp(&pOperator->exprSupp, pExprInfo, pInfo->numOfExpr, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -525,7 +525,7 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
   pFillSup->cur.key = key.ts;
   pFillSup->cur.pRowVal = curVal;
 
-  void* pCur = pAPI->stateStore.streamStateFillSeekKeyPrev(pState, &key);
+  SStreamStateCur* pCur = pAPI->stateStore.streamStateFillSeekKeyPrev(pState, &key);
   SWinKey          preKey = {.ts = INT64_MIN, .groupId = groupId};
   void*            preVal = NULL;
   int32_t          preVLen = 0;
@@ -1139,7 +1139,8 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
     TSKEY            endTs = ts;
     uint64_t         groupId = groupIds[pInfo->srcDelRowIndex];
     SWinKey          key = {.ts = ts, .groupId = groupId};
-    void* pCur = pAPI->stateStore.streamStateGetAndCheckCur(pOperator->pTaskInfo->streamInfo.pState, &key);
+    SStreamStateCur* pCur = pAPI->stateStore.streamStateGetAndCheckCur(pOperator->pTaskInfo->streamInfo.pState, &key);
+
     if (!pCur) {
       pInfo->srcDelRowIndex++;
       continue;
@@ -1355,7 +1356,7 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
   }
 
   SExprInfo* noFillExpr = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &numOfNotFillCols);
-  code = initExprSupp(&pFillSup->notFillExprSup, noFillExpr, numOfNotFillCols);
+  code = initExprSupp(&pFillSup->notFillExprSup, noFillExpr, numOfNotFillCols, &pAPI->functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     destroyStreamFillSupporter(pFillSup);
     return NULL;
@@ -1491,7 +1492,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
     goto _error;
   }
 
-  code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols);
+  code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

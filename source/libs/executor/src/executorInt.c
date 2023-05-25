@@ -979,11 +979,11 @@ static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   return NULL;
 }
 
-int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr) {
+int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore) {
   pSup->pExprInfo = pExprInfo;
   pSup->numOfExprs = numOfExpr;
   if (pSup->pExprInfo != NULL) {
-    pSup->pCtx = createSqlFunctionCtx(pExprInfo, numOfExpr, &pSup->rowEntryInfoOffset);
+    pSup->pCtx = createSqlFunctionCtx(pExprInfo, numOfExpr, &pSup->rowEntryInfoOffset, pStore);
     if (pSup->pCtx == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }

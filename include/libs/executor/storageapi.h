@@ -22,6 +22,7 @@
 #include "tmsg.h"
 #include "tcommon.h"
 #include "index.h"
+#include "function.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -404,41 +405,9 @@ int32_t vnodeGetStbIdList(void *pVnode, int64_t suid, SArray *list);
  */
 } SStoreMeta;
 
-typedef struct STdbState {
-  void*               rocksdb;
-  void**              pHandle;
-  void*               writeOpts;
-  void*               readOpts;
-  void**              cfOpts;
-  void*               dbOpt;
-  struct SStreamTask* pOwner;
-  void*               param;
-  void*               env;
-  SListNode*          pComparNode;
-  void*               pBackendHandle;
-  char                idstr[64];
-  void*               compactFactory;
 
-  void* db;
-  void* pStateDb;
-  void* pFuncStateDb;
-  void* pFillStateDb;  // todo refactor
-  void* pSessionStateDb;
-  void* pParNameDb;
-  void* pParTagDb;
-  void* txn;
-} STdbState;
 
-// incremental state storage
-typedef struct {
-  STdbState*        pTdbState;
-  struct SStreamFileState* pFileState;
-  int32_t           number;
-  SSHashObj*        parNameMap;
-  int64_t           checkPointId;
-  int32_t           taskId;
-  int64_t           streamId;
-} SStreamState;
+
 
 typedef struct SUpdateInfo {
   SArray      *pTsBuckets;
@@ -546,6 +515,7 @@ typedef struct SStorageAPI {
   SStoreTqReader    tqReaderFn;
   SStateStore       stateStore;
   SMetaDataFilterAPI metaFilter;
+  SFunctionStateStore functionStore;
 } SStorageAPI;
 
 #ifdef __cplusplus

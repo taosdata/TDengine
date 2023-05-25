@@ -579,12 +579,11 @@ void    cleanupQueriedTableScanInfo(SSchemaInfo* pSchemaInfo);
 void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 
-int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr);
+int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
 void    cleanupExprSupp(SExprSupp* pSup);
 
-
 int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
-                   const char* pkey, void* pState);
+                   const char* pkey, void* pState, SFunctionStateStore* pStore);
 void    cleanupAggSup(SAggSupporter* pAggSup);
 
 void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows);
