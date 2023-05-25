@@ -4556,7 +4556,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
 
   FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
 
-  info->scalarMode = stat.scalarMode;
+  info->scalarMode = true;
   fltDebug("scalar mode: %d", info->scalarMode);
 
   if (!info->scalarMode) {
