@@ -1083,6 +1083,7 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
 
   qDebug("s-task:%s set the start wal offset to be:%"PRId64, pTask->id.idStr, sversion);
   walReaderSeekVer(pTask->exec.pWalReader, sversion);
+  pTask->chkInfo.currentVer = sversion;
 
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
