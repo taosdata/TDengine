@@ -2632,13 +2632,11 @@ static bool tbCntScanOptIsEligibleConds(STbCntScanOptInfo* pInfo, SNode* pCondit
     return false;
   }
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pConditions)) {
-    return tbCntScanOptIsEligibleLogicCond(pInfo, (SLogicConditionNode*)pConditions) &&
-           LIST_LENGTH(pInfo->pAgg->pGroupKeys) == 0;
+    return tbCntScanOptIsEligibleLogicCond(pInfo, (SLogicConditionNode*)pConditions);
   }
 
   if (QUERY_NODE_OPERATOR == nodeType(pConditions)) {
-    return tbCntScanOptIsEligibleOpCond((SOperatorNode*)pConditions) &&
-           LIST_LENGTH(pInfo->pAgg->pGroupKeys) == 0;
+    return tbCntScanOptIsEligibleOpCond((SOperatorNode*)pConditions);
   }
 
   return false;
