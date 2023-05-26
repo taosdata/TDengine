@@ -116,7 +116,7 @@ impl IpcDataType {
             IpcDataType::Float32 => DataType::Float32,
             IpcDataType::Float64 => DataType::Float64,
             IpcDataType::Timestamp => DataType::Int64,
-            IpcDataType::VarChar(_) => DataType::Binary,
+            IpcDataType::VarChar(_) => DataType::Utf8,
             IpcDataType::NChar(_) => DataType::Utf8,
             IpcDataType::Json => DataType::Utf8,
         }
