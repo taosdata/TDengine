@@ -51,7 +51,8 @@ typedef void   TAOS_SUB;
 #define TSDB_DATA_TYPE_BLOB       18  // binary
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
-#define TSDB_DATA_TYPE_MAX        20
+#define TSDB_DATA_TYPE_GEOMETRY   20  // geometry
+#define TSDB_DATA_TYPE_MAX        21
 
 typedef enum {
   TSDB_OPTION_LOCALE,

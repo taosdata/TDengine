@@ -22,6 +22,7 @@ extern "C" {
 
 #include "tcommon.h"
 #include "tvariant.h"
+#include "tsimplehash.h"
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
@@ -127,18 +128,59 @@ typedef struct SSerializeDataHandle {
   void                 *pState;
 } SSerializeDataHandle;
 
+// incremental state storage
+typedef struct STdbState {
+  void*               rocksdb;
+  void**              pHandle;
+  void*               writeOpts;
+  void*               readOpts;
+  void**              cfOpts;
+  void*               dbOpt;
+  struct SStreamTask* pOwner;
+  void*               param;
+  void*               env;
+  SListNode*          pComparNode;
+  void*               pBackendHandle;
+  char                idstr[64];
+  void*               compactFactory;
+
+  void* db;
+  void* pStateDb;
+  void* pFuncStateDb;
+  void* pFillStateDb;  // todo refactor
+  void* pSessionStateDb;
+  void* pParNameDb;
+  void* pParTagDb;
+  void* txn;
+} STdbState;
+
+typedef struct {
+  STdbState*        pTdbState;
+  struct SStreamFileState* pFileState;
+  int32_t           number;
+  SSHashObj*        parNameMap;
+  int64_t           checkPointId;
+  int32_t           taskId;
+  int64_t           streamId;
+} SStreamState;
+
+typedef struct SFunctionStateStore {
+  int32_t (*streamStateFuncPut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
+  int32_t (*streamStateFuncGet)(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen);
+} SFunctionStateStore;
+
 // sql function runtime context
 typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
   SResultDataInfo      resDataInfo;
-  uint32_t             order;       // data block scanner order: asc|desc
-  uint8_t              isPseudoFunc;// denote current function is pseudo function or not [added for perf reason]
-  uint8_t              isNotNullFunc;// not return null value.
-  uint8_t              scanFlag;    // record current running step, default: 0
-  int16_t              functionId;  // function id
-  char                *pOutput;     // final result output buffer, point to sdata->data
+  uint32_t             order;          // data block scanner order: asc|desc
+  uint8_t              isPseudoFunc;   // denote current function is pseudo function or not [added for perf reason]
+  uint8_t              isNotNullFunc;  // not return null value.
+  uint8_t              scanFlag;       // record current running step, default: 0
+  int16_t              functionId;     // function id
+  char                *pOutput;        // final result output buffer, point to sdata->data
   // input parameter, e.g., top(k, 20), the number of results of top query is kept in param
-  SFunctParam *param;
+  SFunctParam         *param;
   // corresponding output buffer for timestamp of each result, e.g., diff/csum
   SColumnInfoData     *pTsOutput;
   int32_t              numOfParams;
@@ -155,6 +197,7 @@ typedef struct SqlFunctionCtx {
   SSerializeDataHandle saveHandle;
   int32_t              exprIdx;
   char                *udfName;
+  SFunctionStateStore *pStore;
 } SqlFunctionCtx;
 
 typedef struct tExprNode {

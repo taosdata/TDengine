@@ -23,7 +23,6 @@
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tref.h"
-#include "ttimer.h"
 
 #define MAX_TABLE_NAME_NUM 200000
 
@@ -91,13 +90,14 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   return winKeyCmprImpl(&pWin1->key, &pWin2->key);
 }
 
-SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
-  qWarn("open stream state, %s", path);
+SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t szPage, int32_t pages) {
+  qDebug("open stream state, %s", path);
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
   pState->pTdbState = taosMemoryCalloc(1, sizeof(STdbState));
   if (pState->pTdbState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -105,29 +105,33 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     return NULL;
   }
 
+  SStreamTask* pStreamTask = pTask;
   char statePath[1024];
   if (!specPath) {
-    sprintf(statePath, "%s/%d", path, pTask->id.taskId);
+    sprintf(statePath, "%s/%d", path, pStreamTask->id.taskId);
   } else {
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
   }
-  pState->taskId = pTask->id.taskId;
-  pState->streamId = pTask->id.streamId;
+
+  pState->taskId = pStreamTask->id.taskId;
+  pState->streamId = pStreamTask->id.streamId;
+
 #ifdef USE_ROCKSDB
-  // qWarn("open stream state1");
-  taosAcquireRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
-  int code = streamStateOpenBackend(pTask->pMeta->streamBackend, pState);
+  SStreamMeta* pMeta = pStreamTask->pMeta;
+  taosAcquireRef(pMeta->streamBackendId, pMeta->streamBackendRid);
+  int code = streamStateOpenBackend(pMeta->streamBackend, pState);
   if (code == -1) {
-    taosReleaseRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
+    taosReleaseRef(pMeta->streamBackendId, pMeta->streamBackendRid);
     taosMemoryFree(pState);
     pState = NULL;
   }
+
   pState->pTdbState->pOwner = pTask;
   pState->pFileState = NULL;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
-  pState->parNameMap = tSimpleHashInit(1024, hashFn);
 
+  pState->parNameMap = tSimpleHashInit(1024, hashFn);
   return pState;
 
 #else
@@ -449,7 +453,7 @@ int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pV
 #ifdef USE_ROCKSDB
   taosMemoryFree(pVal);
 #else
-  streamFreeVal(pVal);
+  streamStateFreeVal(pVal);
 #endif
   return 0;
 }
@@ -700,7 +704,7 @@ void streamStateFreeCur(SStreamStateCur* pCur) {
   taosMemoryFree(pCur);
 }
 
-void streamFreeVal(void* val) {
+void streamStateFreeVal(void* val) {
 #ifdef USE_ROCKSDB
   taosMemoryFree(val);
 #else

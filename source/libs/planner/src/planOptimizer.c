@@ -2233,7 +2233,7 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
       SNode* pPar = nodesListGetNode(pAggFunc->pParameterList, 0);
       if (QUERY_NODE_COLUMN == nodeType(pPar)) {
         SColumnNode* pCol = (SColumnNode*)pPar;
-        if (pCol->colType == COLUMN_TYPE_TAG) {
+        if (pCol->colType != COLUMN_TYPE_COLUMN) {
           return false;      
         }
       }

@@ -175,7 +175,7 @@ if [ "$pagMode" == "lite" ]; then
 fi
 chmod a+x ${install_dir}/install_client.sh
 
-if [[ $productName == "TDengine" ]]; then
+if [[ $productName == "TDengine" ]] && [ "$verMode" != "cloud" ]; then
   # Copy example code
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
@@ -191,7 +191,7 @@ if [[ $productName == "TDengine" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
-  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
+  if [ "$verMode" == "cluster" ]; then
       # Copy connector
       connector_dir="${code_dir}/connector"
       mkdir -p ${install_dir}/connector

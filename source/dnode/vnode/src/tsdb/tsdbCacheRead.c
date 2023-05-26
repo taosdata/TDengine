@@ -63,9 +63,6 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, i);
       SColVal*  pVal = &pColVal->colVal;
 
-      if (COL_VAL_IS_NONE(&pColVal->colVal)) {
-        continue;
-      }
       allNullRow = false;
       if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
         if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
@@ -346,6 +343,14 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
             hasRes = true;
             p->ts = pColVal->ts;
+            if (k == 0) {
+              if (TARRAY_SIZE(pTableUidList) == 0) {
+                taosArrayPush(pTableUidList, &pKeyInfo->uid);
+              } else {
+                taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
+              }
+            }
+
             if (pColVal->ts < singleTableLastTs && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
               singleTableLastTs = pColVal->ts;
             }
@@ -374,12 +379,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
             pr->lastTs = totalLastTs;
           }
         }
-      }
-
-      if (TARRAY_SIZE(pTableUidList) == 0) {
-        taosArrayPush(pTableUidList, &pKeyInfo->uid);
-      } else {
-        taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
       }
 
       // taosArrayClearEx(pRow, freeItem);

@@ -1385,6 +1385,14 @@ static struct {
      .endFn = tCompBinaryEnd,
      .getI64 = NULL,
      .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_GEOMETRY,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
 };
 
 struct SCompressor {
