@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     tmq::{check_tmq_dsn, group_id_hash, TmqMetrics},
-    Action, 
+    Action,
 };
 use dashmap::DashMap;
 use taos::taos_query::tmq::Assignment;
@@ -277,7 +277,7 @@ async fn sync(
                 for (topic, assignment) in assignments {
                     offsets.insert(topic, assignment);
                 }
-        
+
                 if let Some((offset, message)) = next? {
                     metrics.messages.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);

@@ -1,18 +1,11 @@
-use std::{io::prelude::*, num::ParseIntError, time::Duration};
+use std::{io::prelude::*, sync::Arc, time::Duration};
 
-use actix_web::web::Json;
 use anyhow::Context;
 use itertools::Itertools;
-use serde_json::{Map, Value};
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
-use tracing::field::debug;
 
-use crate::{
-    Action,
-    DataSet,
-    DataSetsReq, plugins::{service::spawn_rest_service, sink}, utils::{port_pool::PortPool, stop_thread},
-};
+use crate::{plugins::sink, utils::port_pool::PortPool, Action, Transferred};
 
 #[derive(Debug, serde::Serialize)]
 struct InfluxdbConfig {
@@ -146,13 +139,14 @@ impl InfluxdbConfig {
 
 /// InfluxDB DSN example: "influxdb://127.0.0.1:8086/?token=abc&orgId=def&mode=normal&beginTime=2023-05-01&endTime="
 pub async fn influxdb_to_taos(
-    mut from: Dsn,
+    from: Dsn,
     actions: Vec<Action>,
-    mut to: Dsn,
+    to: Dsn,
     jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
+    transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: InfluxDB");
     // tdengine
@@ -160,11 +154,11 @@ pub async fn influxdb_to_taos(
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
     let target_pool_for_ipc = target_pool.clone();
     // a random port
-    let ipc = port_pool
+    let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for InfluxDB connection"))?;
     // generate config
-    let config = InfluxdbConfig::new(from, td_database.unwrap(), ipc)?;
+    let config = InfluxdbConfig::new(from, td_database.unwrap(), ipc_port)?;
     // transform to toml
     let toml = toml::to_string(&config)?;
     // write to a temporary file
@@ -185,6 +179,8 @@ pub async fn influxdb_to_taos(
         cancel.clone(),
         with_agent,
         None,
+        Some("influxdb"),
+        transferred,
     )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
@@ -201,6 +197,8 @@ pub async fn influxdb_to_taos(
         .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
+
+    let port_pool = port_pool.clone();
     {
         let mut child = child.spawn().context("Start InfluxDB collector error")?;
         // waiting until the end
@@ -235,6 +233,8 @@ pub async fn influxdb_to_taos(
             log::info!("InfluxDB task Done");
             // delete the temporary file
             temp_path.close().unwrap();
+            // put ipc port back to port pool.
+            port_pool.put(ipc_port);
             // wait for completion
             tokio::time::sleep(Duration::from_millis(100)).await;
             Ok(())

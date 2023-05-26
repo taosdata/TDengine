@@ -253,7 +253,8 @@ impl FlightService for FlightServiceImpl {
                                 log::info!("At [{ts}] action `{action}` triggered with: {context}");
                                 match action {
                                     "list" => {
-                                        let req: ListResponse = serde_json::from_str(&context).unwrap();
+                                        let req: ListResponse =
+                                            serde_json::from_str(&context).unwrap();
                                         dbg!(&req);
 
                                         if let Some((_, sender)) = controller_runner

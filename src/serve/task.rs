@@ -390,9 +390,8 @@ pub(super) async fn stop_task(
     }
 }
 
-
 /// Get Task Offsets by given task id.
-/// 
+///
 /// Return found `Task Offsets` with status 200 or 404 not found if `Task Offsets` is not found from shared in-memory storage.
 
 #[utoipa::path(

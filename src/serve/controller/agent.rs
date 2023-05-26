@@ -170,7 +170,7 @@ impl AgentClaims {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AgentToken(pub String);
 
 impl std::ops::Deref for AgentToken {
