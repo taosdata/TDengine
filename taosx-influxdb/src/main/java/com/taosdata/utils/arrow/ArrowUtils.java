@@ -24,7 +24,11 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
-import java.util.*;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * arrow工具类
@@ -288,7 +292,7 @@ public class ArrowUtils {
                 return new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
             case "date":
             case "timestamp":
-                return new ArrowType.Timestamp(TimeUnit.MILLISECOND, null);
+                return new ArrowType.Timestamp(TimeUnit.NANOSECOND, null);
             case "string":
             case "nchar(1000)":
             default: {
@@ -331,7 +335,7 @@ public class ArrowUtils {
             case "date":
             case "timestamp": {
                 TimeStampMilliVector timeStampMilliVector = (TimeStampMilliVector) structVector.getChild(dataName);
-                timeStampMilliVector.setSafe(index, ((Date) dataValue).getTime());
+                timeStampMilliVector.setSafe(index, ((Instant) dataValue).getEpochSecond() * 1000000 + ((Instant) dataValue).getNano());
                 break;
             }
             case "string":
