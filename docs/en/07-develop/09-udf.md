@@ -602,7 +602,7 @@ taos> select ts, v1, v2, v3,  nsum(v1, v2, v3) from t;
 Query OK, 4 row(s) in set (0.010653s)
 ```
 
-Sample 4: Utilize 3rd party package
+#### Sample 4: Utilize 3rd party package
 
 A UDF which accepts a timestamp and output the next closed Sunday. This sample requires to use third party package `moment`, you need to install it firslty.
 
