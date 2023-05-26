@@ -40,13 +40,11 @@ typedef void (*TArray2Cb)(void *);
 
 #define TARRAY2_MIN_SIZE 16
 
-#define TARRAY2_INITIALIZER \
-  { 0, 0, NULL }
 #define TARRAY2_SIZE(a)       ((a)->size)
 #define TARRAY2_CAPACITY(a)   ((a)->capacity)
 #define TARRAY2_DATA(a)       ((a)->data)
 #define TARRAY2_GET(a, i)     ((a)->data[i])
-#define TARRAY2_GET_PTR(a, i) (&((a)->data[i]))
+#define TARRAY2_GET_PTR(a, i) ((a)->data + i)
 #define TARRAY2_FIRST(a)      ((a)->data[0])
 #define TARRAY2_LAST(a)       ((a)->data[(a)->size - 1])
 

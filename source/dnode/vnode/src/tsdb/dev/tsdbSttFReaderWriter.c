@@ -252,14 +252,14 @@ struct SSttFileWriter {
   // file
   STFile file;
   // data
-  TARRAY2(SSttBlk) sttBlkArray;
-  TARRAY2(SDelBlk) delBlkArray;
-  TARRAY2(STbStatisBlk) statisBlkArray;
-  void          *bloomFilter;  // TODO
-  SFSttFooter    footer;
-  SBlockData     bData[1];
-  SDelBlock      dData[1];
-  STbStatisBlock sData[1];
+  TSttBlkArray    sttBlkArray;
+  TDelBlkArray    delBlkArray;
+  TStatisBlkArray statisBlkArray;
+  void           *bloomFilter;  // TODO
+  SFSttFooter     footer;
+  SBlockData      bData[1];
+  SDelBlock       dData[1];
+  STbStatisBlock  sData[1];
   // helper data
   SSkmInfo skmTb;
   SSkmInfo skmRow;
