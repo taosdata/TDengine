@@ -16,7 +16,6 @@
 #include "tq.h"
 
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
-#define NO_POLL_CNT 5
 
 static int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqMetaRsp* pRsp);
 
@@ -88,14 +87,11 @@ static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, const SMqPollReq* pReq) {
   return 0;
 }
 
-static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
-                                     SRpcMsg* pMsg, bool* pBlockReturned) {
+static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest) {
   uint64_t     consumerId = pRequest->consumerId;
   STqOffsetVal reqOffset = pRequest->reqOffset;
   STqOffset*   pOffset = tqOffsetRead(pTq->pOffsetStore, pRequest->subKey);
   int32_t      vgId = TD_VID(pTq->pVnode);
-
-  *pBlockReturned = false;
 
   // In this vnode, data has been polled by consumer for this topic, so let's continue from the last offset value.
   if (pOffset != NULL) {
@@ -129,28 +125,8 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
         tqOffsetResetToLog(pOffsetVal, pHandle->pRef->refVer - 1);
       }
     } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
-      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-        SMqDataRsp dataRsp = {0};
-        tqInitDataRsp(&dataRsp, pRequest, pHandle->execHandle.subType);
-
-        tqOffsetResetToLog(&dataRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
-        tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, (latest) offset reset to %" PRId64, consumerId,
-                pHandle->subKey, vgId, dataRsp.rspOffset.version);
-        int32_t code = tqSendDataRsp(pTq, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
-        tDeleteSMqDataRsp(&dataRsp);
-
-        *pBlockReturned = true;
-        return code;
-      } else {
-        STaosxRsp taosxRsp = {0};
-        tqInitTaosxRsp(&taosxRsp, pRequest);
-        tqOffsetResetToLog(&taosxRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
-        int32_t code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
-        tDeleteSTaosxRsp(&taosxRsp);
-
-        *pBlockReturned = true;
-        return code;
-      }
+      // offset set to previous version when init
+      tqOffsetResetToLog(pOffsetVal, walGetLastVer(pTq->pVnode->pWal));
     } else if (reqOffset.type == TMQ_OFFSET__RESET_NONE) {
       tqError("tmq poll: subkey:%s, no offset committed for consumer:0x%" PRIx64 " in vg %d, subkey %s, reset none failed",
               pHandle->subKey, consumerId, vgId, pRequest->subKey);
@@ -173,25 +149,19 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
-  if(code != 0) {
+  if(code != 0 && terrno != TSDB_CODE_WAL_LOG_NOT_EXIST) {
     goto end;
   }
 
   //   till now, all data has been transferred to consumer, new data needs to push client once arrived.
-  if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
-      dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
-    if(pHandle->noDataPollCnt >= NO_POLL_CNT){  // send poll result to client if no data 5 times to avoid lost data
-      pHandle->noDataPollCnt = 0;
-      // lock
-      taosWLockLatch(&pTq->lock);
-      code = tqRegisterPushHandle(pTq, pHandle, pMsg);
-      taosWUnLockLatch(&pTq->lock);
-      tDeleteSMqDataRsp(&dataRsp);
-      return code;
-    }
-    else{
-      pHandle->noDataPollCnt++;
-    }
+  if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST || (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
+      dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId)) {
+    // lock
+    taosWLockLatch(&pTq->lock);
+    code = tqRegisterPushHandle(pTq, pHandle, pMsg);
+    taosWUnLockLatch(&pTq->lock);
+    tDeleteSMqDataRsp(&dataRsp);
+    return code;
   }
 
   // NOTE: this pHandle->consumerId may have been changed already.
@@ -326,16 +296,11 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
   // 1. reset the offset if needed
   if (IS_OFFSET_RESET_TYPE(reqOffset.type)) {
     // handle the reset offset cases, according to the consumer's choice.
-    bool blockReturned = false;
-    code = extractResetOffsetVal(&offset, pTq, pHandle, pRequest, pMsg, &blockReturned);
+    code = extractResetOffsetVal(&offset, pTq, pHandle, pRequest);
     if (code != 0) {
       return code;
     }
 
-    // empty block returned, quit
-    if (blockReturned) {
-      return 0;
-    }
   } else { // use the consumer specified offset
     // the offset value can not be monotonious increase??
     offset = reqOffset;

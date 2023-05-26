@@ -1080,6 +1080,9 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   const char*    id = GET_TASKID(pTaskInfo);
 
   // if pOffset equal to current offset, means continue consume
+  char buf[80] = {0};
+  tFormatOffset(buf, 80, &pTaskInfo->streamInfo.currentOffset);
+  qDebug("currentOffset:%s", buf);
   if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.currentOffset)) {
     return 0;
   }

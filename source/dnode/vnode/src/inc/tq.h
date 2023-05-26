@@ -106,7 +106,6 @@ typedef struct {
 //  STqPushHandle pushHandle;    // push
   STqExecHandle execHandle;    // exec
   SRpcMsg*      msg;
-  int32_t       noDataPollCnt;
   tq_handle_status        status;
 } STqHandle;
 
