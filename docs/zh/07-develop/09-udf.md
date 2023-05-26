@@ -338,7 +338,9 @@ def destroy()
  - init 完成初始化工作
  - destroy 完成清理工作
 
-### 标量函数实现模板
+### Python UDF 函数模板
+
+#### 标量函数实现模板
 
 标量函数实现模版如下
 
@@ -352,7 +354,7 @@ def process(input: datablock) -> tuple[output_type]:
 
 注意：定义标题函数最重要是要实现 process 函数，同时必须定义 init 和 destroy 函数即使什么都不做
 
-### 聚合函数实现模板
+#### 聚合函数实现模板
 
 聚合函数实现模版如下
 ```Python
@@ -596,7 +598,7 @@ taos> select ts, v1, v2, v3,  nsum(v1, v2, v3) from t;
 Query OK, 4 row(s) in set (0.010653s)
 ```
 
-示例三：使用第三方库
+#### 示例四：使用第三方库
 
 编写一个 UDF，输入一个时间戳，输出距离这个时间最近的下一个周日。比如今天是 2023-05-25， 则下一个周日是 2023-05-28。
 完成这个函数要用到第三方库 momen。先安装这个库：
