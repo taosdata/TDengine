@@ -807,7 +807,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     rocksdb_options_set_comparator((rocksdb_options_t*)cfOpt[i], compare);
     pCompare[i] = compare;
   }
-  rocksdb_column_family_handle_t** cfHandle = taosMemoryMalloc(cfLen * sizeof(rocksdb_column_family_handle_t*));
+  rocksdb_column_family_handle_t** cfHandle = taosMemoryCalloc(1, cfLen * sizeof(rocksdb_column_family_handle_t*));
   pState->pTdbState->rocksdb = handle->db;
   pState->pTdbState->pHandle = (void**)cfHandle;
   pState->pTdbState->writeOpts = rocksdb_writeoptions_create();
