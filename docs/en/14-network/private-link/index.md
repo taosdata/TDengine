@@ -11,18 +11,12 @@ Currently, TDengine Cloud only supports private endpoint connections in AWS. Oth
 
 The architecture of the PrivateLink is as follows:
 
-![Architecture of PrivateLink](./privatelink-arch.png)
+![TDengine Cloud Architecture of PrivateLink](./privatelink-arch.png)
 <center><figcaption>Figure 1. Architecture of PrivateLink</figcaption></center>
 
-
-For more detailed of the PrivateLink concept, please see the following AWS documents:
-
-[What is AWS PrivateLink?](https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html)
-
-[AWS PrivateLink concepts](https://docs.aws.amazon.com/vpc/latest/privatelink/concepts.html)
-
-
-
+For more detailed of the PrivateLink concept, please see the following AWS documents:  
+[What is AWS PrivateLink?](https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html)  
+[AWS PrivateLink concepts](https://docs.aws.amazon.com/vpc/latest/privatelink/concepts.html)  
 
 ## How to use PrivateLink
 ### Step 1: choose a endpoint service name in TDengine Cloud
@@ -34,31 +28,19 @@ For more detailed of the PrivateLink concept, please see the following AWS docum
 To use the AWS Management Console to create a VPC interface endpoint, perform the following steps:
 
 1. Sign in to the [AWS Management Console](https://aws.amazon.com/console/) and open the Amazon VPC console at [AWS VPC](https://console.aws.amazon.com/vpc/).
+2. Select the region where your VPC is located from the drop-down list in the upper-right corner. Find **Virtual private cloud** in the left navigation pane and Click **Endpoints**, and then click **Create Endpoint** in the upper-right corner. The **Create endpoint** page is displayed.
 
-2. Select the region where your VPC is located from the drop-down list in the upper-right corner. Find **Virtual private cloud** in the left navigation pane and Click **Endpoints**, and then click **Create Endpoint** in the upper-right corner.
-The **Create endpoint** page is displayed.
+   ![TDengine Cloud Create endpoint 1](./create-endpoint-1.png)
+   <center><figcaption>Figure 2. Create Endpoint</figcaption></center>
+3. Select Other endpoint services.
+4. Enter the service name that you choose in **Step 1**. Click **Verify service**.
+5. Select your VPC in the drop-down list. 
+6. In the Subnets area, select all the availability zones, and select the Subnet ID.
+7. Select your security group properly in the Security groups area.
+   :::note
+   Make sure the selected security group allows inbound access from your EC2 instances on port 443.
 
-![Create endpoint 1](./create-endpoint-1.png)
-<center><figcaption>Figure 2. Create Endpoint</figcaption></center>
-
-
-1. Select Other endpoint services.
-2. Enter the service name that you choose in **Step 1**.
-Click **Verify service**.
-
-1. Select your VPC in the drop-down list. 
-
-2. In the Subnets area, select all the availability zones, and select the Subnet ID.
-
-3. Select your security group properly in the Security groups area.
-
-:::note
-Make sure the selected security group allows inbound access from your EC2 instances on port 443.
-
-:::
-
-
-
+   :::
 8. Click Create endpoint. Then you have the **VPC endpoint ID**.
 
 ### Step 3: Create endpoint connection using TDengine Cloud
