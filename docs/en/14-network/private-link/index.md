@@ -11,7 +11,7 @@ Currently, TDengine Cloud only supports private endpoint connections in AWS. Oth
 
 The architecture of the PrivateLink is as follows:
 
-![TDengine Cloud Architecture of PrivateLink](./privatelink-arch.png)
+![TDengine Cloud Architecture of PrivateLink](./privatelink-arch.webp)
 <center><figcaption>Figure 1. Architecture of PrivateLink</figcaption></center>
 
 For more detailed of the PrivateLink concept, please see the following AWS documents:  
@@ -30,7 +30,7 @@ To use the AWS Management Console to create a VPC interface endpoint, perform th
 1. Sign in to the [AWS Management Console](https://aws.amazon.com/console/) and open the Amazon VPC console at [AWS VPC](https://console.aws.amazon.com/vpc/).
 2. Select the region where your VPC is located from the drop-down list in the upper-right corner. Find **Virtual private cloud** in the left navigation pane and Click **Endpoints**, and then click **Create Endpoint** in the upper-right corner. The **Create endpoint** page is displayed.
 
-   ![TDengine Cloud Create endpoint 1](./create-endpoint-1.png)
+   ![TDengine Cloud Create endpoint 1](./create-endpoint-1.webp)
    <center><figcaption>Figure 2. Create Endpoint</figcaption></center>
 3. Select Other endpoint services.
 4. Enter the service name that you choose in **Step 1**. Click **Verify service**.
