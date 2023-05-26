@@ -20,20 +20,13 @@
         :label="$t('datasource.agent')"
         prop="agent"
       >
-        <el-select
+        <el-cascader
           v-model="ruleForm.agent"
           :placeholder="$t('datasource.agenttip')"
-          @change="selectAgenttype"
-        >
-          <el-option value="null" :label="$t('disbleagent')"></el-option>
-          <el-option
-            :label="`${item.id}. ${item.name}`"
-            :value="item.id"
-            v-for="item in agentList"
-            :key="item.id"
-          ></el-option>
-          <el-option value="add" :label="$t('taosagents.createnewagent')"></el-option>
-        </el-select>
+          style="width: 100%"
+          :options="options"
+          @change="selectAgenttype">
+        </el-cascader>
       </el-form-item>
       <el-form-item :label="$t('datasource.sourcetype')" prop="type">
         <el-select
@@ -98,6 +91,24 @@ export default {
       }
       return false;
     },
+    options() {
+      console.log('执行了');
+      return [
+        {
+          value: 'null',
+          label: this.$t('disbleagent'),
+        },
+        {
+          value: 'add',
+          label: this.$t('taosagents.createnewagent'),
+        },
+        {
+          value: 'start',
+          label: this.$t('enableagent'),
+          children: this.agentList
+        }
+      ]
+    }
   },
   data() {
     return {
@@ -139,18 +150,19 @@ export default {
   methods: {
     handleAdd() {
       localStorage.setItem("datainName", this.ruleForm.name);
-      this.$parent.$parent.agentID = this.ruleForm.agent;
+      this.$parent.$parent.agentID = this.ruleForm.agent.length > 1 && this.ruleForm.agent[1];
       this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "", "");
     },
     selectAgenttype() {
       this.ruleForm.type = "";
-      if(this.ruleForm.agent === 'add') {
+      if(this.ruleForm.agent[0] === 'add') {
         this.$emit('addAgent')
-        this.ruleForm.agent = ""
-      } else if (this.ruleForm.agent !== 'null') {
+        this.ruleForm.agent = []
+        this.closeDialog()
+      } else if (this.ruleForm.agent[0] !== 'null') {
         this.originalTypes = deepClone(
           this.agentList
-            .filter((item) => item.id == this.ruleForm.agent)[0]
+            .filter((item) => item.id == this.ruleForm.agent[1])[0]
             .connectors.map((val) => {
               return {
                 id: val,
@@ -172,6 +184,13 @@ export default {
           localStorage.getItem("local_clusterID"),
           localStorage.getItem("username")
         );
+        this.agentList = this.agentList.map(agent => {
+          return {
+            value: agent.id,
+            label: agent.id + '.' + agent.name,
+            ...agent
+          }
+        })
       } catch (error) {
         console.log(error);
       }

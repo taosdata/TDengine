@@ -8,6 +8,7 @@ process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos
 export default {
   //通用部分
   disbleagent:'不启用代理',
+  enableagent:'启用代理',
   database:'数据库',
   warning:'提醒',
   ok:'确定',
