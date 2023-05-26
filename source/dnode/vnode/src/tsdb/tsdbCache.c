@@ -790,7 +790,9 @@ static int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastA
         code = -1;
       }
 
-      taosArraySet(pLastArray, idxKey->idx, pLastCol);
+      SLastCol lastCol = *pLastCol;
+      reallocVarData(&lastCol.colVal);
+      taosArraySet(pLastArray, idxKey->idx, &lastCol);
       taosArrayRemove(remainCols, j);
 
       taosMemoryFree(values_list[i]);
