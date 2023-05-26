@@ -46,7 +46,7 @@ public class ArrowInitDto {
                 return "timestamp";
             case "string":
             default: {
-                return "varchar(1000)";
+                return "nchar(1000)";
             }
         }
     }

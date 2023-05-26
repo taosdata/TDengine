@@ -292,7 +292,7 @@ public class ArrowUtils {
             case "timestamp":
                 return new ArrowType.Timestamp(TimeUnit.MILLISECOND, null);
             case "string":
-            case "varchar(1000)":
+            case "nchar(1000)":
             default: {
                 return new ArrowType.Binary();
             }
@@ -345,7 +345,7 @@ public class ArrowUtils {
                 break;
             }
             case "string":
-            case "varchar(1000)":
+            case "nchar(1000)":
             default: {
                 VarBinaryVector varBinaryVector = (VarBinaryVector) structVector.getChild(dataName);
                 varBinaryVector.setSafe(index, dataValue.toString().getBytes());
