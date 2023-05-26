@@ -376,23 +376,16 @@ static void tsdbSttFWriterDoClose(SSttFileWriter *pWriter) {
   // TODO: do clear the struct
 }
 
-int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer) {
-  writer[0] = taosMemoryMalloc(sizeof(*writer[0]));
-  if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
-  writer[0]->config = config[0];
-  writer[0]->ctx.opened = false;
-  return 0;
-}
-
 static int32_t tsdbSttFileDoWriteBloomFilter(SSttFileWriter *writer) {
   // TODO
   return 0;
 }
+
 static int32_t tsdbSttFileDoUpdateHeader(SSttFileWriter *writer) {
   // TODO
   return 0;
 }
+
 static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, STFileOp *op) {
   int32_t lino;
   int32_t code;
@@ -428,8 +421,7 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, STFileOp *op) {
   code = tsdbFsyncFile(writer->fd);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbCloseFile(&writer->fd);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  tsdbCloseFile(&writer->fd);
 
   ASSERT(writer->config.file.size > writer->file.size);
   op->optype = writer->config.file.size ? TSDB_FOP_MODIFY : TSDB_FOP_CREATE;
@@ -443,11 +435,34 @@ _exit:
   }
   return code;
 }
+
 static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
-  // TODO
-  ASSERT(0);
+  char fname[TSDB_FILENAME_LEN];
+
+  tsdbTFileName(writer->config.tsdb, &writer->config.file, fname);
+  if (writer->config.file.size) {  // truncate the file to the original size
+    ASSERT(writer->config.file.size <= writer->file.size);
+    if (writer->config.file.size < writer->file.size) {
+      taosFtruncateFile(writer->fd->pFD, writer->config.file.size);
+      tsdbCloseFile(&writer->fd);
+    }
+  } else {  // remove the file
+    tsdbCloseFile(&writer->fd);
+    taosRemoveFile(fname);
+  }
+
   return 0;
 }
+
+int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer) {
+  writer[0] = taosMemoryMalloc(sizeof(*writer[0]));
+  if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  writer[0]->config = config[0];
+  writer[0]->ctx.opened = false;
+  return 0;
+}
+
 int32_t tsdbSttFWriterClose(SSttFileWriter **writer, int8_t abort, STFileOp *op) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -456,11 +471,11 @@ int32_t tsdbSttFWriterClose(SSttFileWriter **writer, int8_t abort, STFileOp *op)
   if (!writer[0]->ctx.opened) {
     op->optype = TSDB_FOP_NONE;
   } else {
-    if (!abort) {
-      code = tsdbSttFWriterCloseCommit(writer[0], op);
+    if (abort) {
+      code = tsdbSttFWriterCloseAbort(writer[0]);
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
-      code = tsdbSttFWriterCloseAbort(writer[0]);
+      code = tsdbSttFWriterCloseCommit(writer[0], op);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     tsdbSttFWriterDoClose(writer[0]);
