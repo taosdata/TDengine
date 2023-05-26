@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-// SSttFReader ==========================================
+// SSttFileReader ==========================================
 typedef struct SSttFSegReader       SSttFSegReader;
 typedef struct SSttFileReader       SSttFileReader;
 typedef struct SSttFileReaderConfig SSttFileReaderConfig;
@@ -50,7 +50,7 @@ struct SSttFileReaderConfig {
   // TODO
 };
 
-// SSttFWriter ==========================================
+// SSttFileWriter ==========================================
 typedef struct SSttFileWriter       SSttFileWriter;
 typedef struct SSttFileWriterConfig SSttFileWriterConfig;
 

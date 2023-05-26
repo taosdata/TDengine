@@ -197,9 +197,13 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
       merger->ctx.level++;
 
       // open the reader
-      SSttFileReader *reader;
-      // code = tsdbSttFileReaderOpen(&fobj->f.stt, &reader);
-      // TSDB_CHECK_CODE(code, lino, _exit);
+      SSttFileReader      *reader;
+      SSttFileReaderConfig config = {
+          .pTsdb = merger->tsdb,
+          // TODO
+      };
+      code = tsdbSttFReaderOpen(&config, &reader);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
       code = TARRAY2_APPEND(&merger->sttReaderArr, reader);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -216,34 +220,50 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
   }
 
   // open stt file writer
-  SSttFileWriterConfig config = {
-      .pTsdb = merger->tsdb,
-      .maxRow = merger->maxRow,
-      .szPage = merger->szPage,
-      .cmprAlg = merger->cmprAlg,
-      .pSkmTb = &merger->skmTb,
-      .pSkmRow = &merger->skmRow,
-      .aBuf = merger->aBuf,
-  };
   if (lvl) {
-    config.file = fobj->f;
-  } else {
-    config.file = (STFile){
-        .type = TSDB_FTYPE_STT,
-        .did = {.level = 0, .id = 0},
-        .fid = fset->fid,
-        .cid = merger->cid,
-        .size = 0,
-        .stt = {.level = merger->ctx.level, .nseg = 0},
+    SSttFileWriterConfig config = {
+        .pTsdb = merger->tsdb,
+        .maxRow = merger->maxRow,
+        .szPage = merger->szPage,
+        .cmprAlg = merger->cmprAlg,
+        .pSkmTb = &merger->skmTb,
+        .pSkmRow = &merger->skmRow,
+        .aBuf = merger->aBuf,
+        .file = fobj->f,
     };
+    code = tsdbSttFWriterOpen(&config, &merger->sttWriter);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    SSttFileWriterConfig config = {
+        .pTsdb = merger->tsdb,
+        .maxRow = merger->maxRow,
+        .szPage = merger->szPage,
+        .cmprAlg = merger->cmprAlg,
+        .pSkmTb = &merger->skmTb,
+        .pSkmRow = &merger->skmRow,
+        .aBuf = merger->aBuf,
+        .file =
+            (STFile){
+                .type = TSDB_FTYPE_STT,
+                .did = {.level = 0, .id = 0},
+                .fid = fset->fid,
+                .cid = merger->cid,
+                .size = 0,
+                .stt = {.level = merger->ctx.level, .nseg = 0},
+            },
+    };
+    code = tsdbSttFWriterOpen(&config, &merger->sttWriter);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-  code = tsdbSttFWriterOpen(&config, &merger->sttWriter);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
   // open data file writer
   if (merger->ctx.toData) {
-    // code = tsdbDataFWriterOpen();
-    // TSDB_CHECK_CODE(code, lino, _exit);
+    SDataFileWriterConfig config = {
+        .pTsdb = merger->tsdb,
+        // TODO
+    };
+    code = tsdbDataFileWriterOpen(&config, &merger->dataWriter);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:

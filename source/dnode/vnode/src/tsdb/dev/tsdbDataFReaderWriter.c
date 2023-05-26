@@ -24,3 +24,51 @@ struct SDataFileReader {
 struct SDataFileWriter {
   // TODO
 };
+
+int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **ppWriter) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t vid = TD_VID(config->pTsdb->pVnode);
+// TODO
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbDataFileWriterClose(SDataFileWriter *pWriter) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t vid = 0;  // TODO: TD_VID(config->pTsdb->pVnode);
+// TODO
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbDataFileWriteTSData(SDataFileWriter *pWriter, SBlockData *pBlockData) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t vid = 0;  // TODO: TD_VID(config->pTsdb->pVnode);
+// TODO
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *pWriter, SBlockData *pBlockData) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t vid = 0;  // TODO: TD_VID(config->pTsdb->pVnode);
+// TODO
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+  }
+  return code;
+}
