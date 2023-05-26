@@ -6,6 +6,7 @@ using TDPIConnector.PI;
 using TDPIConnector.TDEngine;
 using System.Reflection;
 using System.Linq;
+using System.Diagnostics;
 
 namespace TDBackfill
 {
@@ -17,6 +18,7 @@ namespace TDBackfill
         private static bool LogInit()
         {
             GlobalContext.Properties["applicationName"] = "backfill";
+            GlobalContext.Properties["pid"] = Process.GetCurrentProcess().Id;
             XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             return true;
         }
