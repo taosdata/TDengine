@@ -825,7 +825,7 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
       SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
 
       SLastCol lastCol = *pLastCol;
-      // reallocVarData(&lastCol.colVal);
+      reallocVarData(&lastCol.colVal);
       taosArrayPush(pLastArray, &lastCol);
 
       if (h) {
@@ -2151,11 +2151,15 @@ static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
     if (key->ts > pItemBack->ts) {
       return false;
     } else if (key->ts >= pItemFront->ts && key->ts <= pItemBack->ts) {
-      // if (key->version <= pItemFront->version || (key->ts == pItemBack->ts && key->version <= pItemBack->version)) {
-      if (key->version <= pItemFront->version || key->version <= pItemBack->version) {
+      if (key->version <= pItemFront->version || (key->ts == pItemBack->ts && key->version <= pItemBack->version)) {
+        // if (key->version <= pItemFront->version || key->version <= pItemBack->version) {
         return true;
       } else {
-        return false;
+        if (*iSkyline > 1) {
+          --*iSkyline;
+        } else {
+          return false;
+        }
       }
     } else {
       if (*iSkyline > 1) {
