@@ -675,7 +675,6 @@ void destroyRocksdbCfInst(RocksdbCfInst* inst) {
 
   rocksdb_readoptions_destroy(inst->rOpt);
   taosMemoryFree(inst->cfOpt);
-  taosMemoryFree(inst->param);
   taosMemoryFreeClear(inst->param);
   taosMemoryFree(inst);
 }
