@@ -14,6 +14,7 @@ target_link_libraries(scalar
     PRIVATE nodes
     PRIVATE function
     PRIVATE qcom
+    PRIVATE parser
 )
 
 if(${BUILD_TEST})

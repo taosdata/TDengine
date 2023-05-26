@@ -161,6 +161,8 @@ void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
 int           metaTtlSmaller(SMeta* pMeta, uint64_t time, SArray* uidList);
 
+void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
+
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
@@ -472,6 +474,8 @@ struct SCompactInfo {
   int64_t     commitID;
   STimeWindow tw;
 };
+
+void initStorageAPI(SStorageAPI* pAPI);
 
 #ifdef __cplusplus
 }

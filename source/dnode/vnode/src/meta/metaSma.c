@@ -36,7 +36,7 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   // validate req
   // save smaIndex
   metaReaderInit(&mr, pMeta, 0);
-  if (metaGetTableEntryByUidCache(&mr, pCfg->indexUid) == 0) {
+  if (metaReaderGetTableEntryByUidCache(&mr, pCfg->indexUid) == 0) {
 #if 1
     terrno = TSDB_CODE_TSMA_ALREADY_EXIST;
     metaReaderClear(&mr);

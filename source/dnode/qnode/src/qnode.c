@@ -14,7 +14,6 @@
  */
 
 #include "executor.h"
-#include "libs/function/function.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
