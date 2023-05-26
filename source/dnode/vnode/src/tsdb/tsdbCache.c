@@ -703,6 +703,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     *pTmpLastCol = *pLastCol;
     pLastCol = pTmpLastCol;
 
+    reallocVarData(&pLastCol->colVal);
     size_t charge = sizeof(*pLastCol);
     if (IS_VAR_DATA_TYPE(pLastCol->colVal.type)) {
       charge += pLastCol->colVal.value.nData;
@@ -853,8 +854,8 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
 
         SLastCol lastCol = *pLastCol;
         reallocVarData(&lastCol.colVal);
-
         taosArraySet(pLastArray, idxKey->idx, &lastCol);
+
         if (h) {
           taosLRUCacheRelease(pCache, h, false);
         }
