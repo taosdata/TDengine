@@ -214,8 +214,7 @@ int         streamGetInit(const char* funcName);
 // |key|-----value------|
 // |key|ttl|len|userData|
 
-static rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfName,
-                                                 rocksdb_snapshot_t** snapshot, rocksdb_readoptions_t** readOpt);
+static rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfName, void** snapshot, void** readOpt);
 
 int defaultKeyComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
   int ret = memcmp(aBuf, bBuf, aLen);
@@ -799,10 +798,10 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   if (ppInst != NULL && *ppInst != NULL) {
     RocksdbCfInst* inst = *ppInst;
     pState->pTdbState->rocksdb = inst->db;
-    pState->pTdbState->pHandle = inst->pHandle;
+    pState->pTdbState->pHandle = (void**)inst->pHandle;
     pState->pTdbState->writeOpts = inst->wOpt;
     pState->pTdbState->readOpts = inst->rOpt;
-    pState->pTdbState->cfOpts = inst->cfOpt;
+    pState->pTdbState->cfOpts = (void**)inst->cfOpt;
     pState->pTdbState->dbOpt = handle->dbOpt;
     pState->pTdbState->param = inst->param;
     pState->pTdbState->pBackendHandle = handle;
@@ -810,6 +809,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     taosThreadMutexUnlock(&handle->cfMutex);
     return 0;
   }
+
   taosThreadMutexUnlock(&handle->cfMutex);
 
   char* err = NULL;
@@ -850,10 +850,10 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     }
   }
   pState->pTdbState->rocksdb = handle->db;
-  pState->pTdbState->pHandle = cfHandle;
+  pState->pTdbState->pHandle = (void**)cfHandle;
   pState->pTdbState->writeOpts = rocksdb_writeoptions_create();
   pState->pTdbState->readOpts = rocksdb_readoptions_create();
-  pState->pTdbState->cfOpts = (rocksdb_options_t**)cfOpt;
+  pState->pTdbState->cfOpts = (void**)(rocksdb_options_t**)cfOpt;
   pState->pTdbState->dbOpt = handle->dbOpt;
   pState->pTdbState->param = param;
   pState->pTdbState->pBackendHandle = handle;
@@ -954,8 +954,7 @@ bool streamStateIterSeekAndValid(rocksdb_iterator_t* iter, char* buf, size_t len
   }
   return true;
 }
-rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfName, rocksdb_snapshot_t** snapshot,
-                                          rocksdb_readoptions_t** readOpt) {
+rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfName, void** snapshot, void** readOpt) {
   int idx = streamGetInit(cfName);
 
   if (snapshot != NULL) {
@@ -1896,7 +1895,7 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
 
   rocksdb_snapshot_t*    snapshot = NULL;
   rocksdb_readoptions_t* readopts = NULL;
-  rocksdb_iterator_t*    pIter = streamStateIterCreate(pState, "default", &snapshot, &readopts);
+  rocksdb_iterator_t*    pIter = streamStateIterCreate(pState, "default", (void**)&snapshot, (void**)&readopts);
   if (pIter == NULL) {
     return -1;
   }
@@ -1966,6 +1965,7 @@ char* streamDefaultIterVal_rocksdb(void* iter, int32_t* len) {
   }
   return dst;
 }
+
 // batch func
 void* streamStateCreateBatch() {
   rocksdb_writebatch_t* pBatch = rocksdb_writebatch_create();

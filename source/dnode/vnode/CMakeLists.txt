@@ -12,6 +12,7 @@ set(
   "src/vnd/vnodeSync.c"
   "src/vnd/vnodeSnapshot.c"
   "src/vnd/vnodeRetention.c"
+  "src/vnd/vnodeInitApi.c"
 
   # meta
   "src/meta/metaOpen.c"

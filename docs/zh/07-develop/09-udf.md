@@ -335,7 +335,7 @@ def init()
 def destroy()
 ```
 
-其中 init 完成初始化工作。 destroy 完成清理工作。如果没有初始化工作，无需定义 init 函数。如果没有清理工作，无需定义 destroy 函数。
+其中 init 完成初始化工作。 destroy 完成清理工作。
 
 ### Python 和 TDengine之间的数据类型映射
 
@@ -386,6 +386,17 @@ pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据�
 
 </details>
 
+### 聚合函数示例 [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pycumsum.py)
+
+pycumsum 使用 numpy 计算输入列所有数据的累积和。
+<details>
+<summary>pycumsum.py</summary>
+
+```c
+{{#include tests/script/sh/pycumsum.py}}
+```
+
+</details>
 ## 管理和使用 UDF
 在使用 UDF 之前需要先将其加入到 TDengine 系统中。关于如何管理和使用 UDF，请参考[管理和使用 UDF](../12-taos-sql/26-udf.md)
 
