@@ -133,7 +133,7 @@ static int32_t open_committer_writer(SCommitter *pCommitter) {
   }
 }
 
-static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, TABLEID *tbid, TSDBROW *pRow) {
+static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, SRowInfo *pRowInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(pCommitter->pTsdb->pVnode);
@@ -143,15 +143,12 @@ static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, TABLEID *tbid, TSDB
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbSttFWriteTSData(pCommitter->pWriter, tbid, pRow);
+  code = tsdbSttFWriteTSData(pCommitter->pWriter, pRowInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
     tsdbError("vgId:%d failed at line %d since %s", vid, lino, tstrerror(code));
-  } else {
-    tsdbTrace("vgId:%d %s done, fid:%d suid:%" PRId64 " uid:%" PRId64 " ts:%" PRId64 " version:%" PRId64, vid, __func__,
-              pCommitter->fid, tbid->suid, tbid->uid, TSDBROW_KEY(pRow).ts, TSDBROW_KEY(pRow).version);
   }
   return 0;
 }
@@ -177,6 +174,7 @@ static int32_t commit_timeseries_data(SCommitter *pCommitter) {
   for (int32_t iTbData = 0; iTbData < taosArrayGetSize(pCommitter->aTbDataP); iTbData++) {
     STbDataIter iter;
     STbData    *pTbData = (STbData *)taosArrayGetP(pCommitter->aTbDataP, iTbData);
+    SRowInfo    rowInfo = {.suid = pTbData->suid, .uid = pTbData->uid};
 
     tsdbTbDataIterOpen(pTbData, &from, 0, &iter);
 
@@ -188,7 +186,8 @@ static int32_t commit_timeseries_data(SCommitter *pCommitter) {
         break;
       }
 
-      code = tsdbCommitWriteTSData(pCommitter, (TABLEID *)pTbData, pRow);
+      rowInfo.row = *pRow;
+      code = tsdbCommitWriteTSData(pCommitter, &rowInfo);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       nRow++;

@@ -601,25 +601,23 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFWriteTSData(SSttFileWriter *pWriter, TABLEID *tbid, TSDBROW *pRow) {
+int32_t tsdbSttFWriteTSData(SSttFileWriter *pWriter, SRowInfo *pRowInfo) {
   int32_t code = 0;
   int32_t lino;
 
-  TSDBKEY key = TSDBROW_KEY(pRow);
+  TABLEID *tbid = (TABLEID *)pRowInfo;
+  TSDBROW *pRow = &pRowInfo->row;
+  TSDBKEY  key = TSDBROW_KEY(pRow);
 
   if (!TABLE_SAME_SCHEMA(pWriter->bData.suid, pWriter->bData.uid, tbid->suid, tbid->uid)) {
     if (pWriter->bData.nRow > 0) {
-      TSDB_CHECK_CODE(                             //
-          code = write_timeseries_block(pWriter),  //
-          lino,                                    //
-          _exit);
+      code = write_timeseries_block(pWriter);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (pWriter->sData.nRow >= pWriter->config.maxRow) {
-      TSDB_CHECK_CODE(                             //
-          code = write_statistics_block(pWriter),  //
-          lino,                                    //
-          _exit);
+      code = write_statistics_block(pWriter);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     pWriter->sData.aData[0][pWriter->sData.nRow] = tbid->suid;   // suid
@@ -631,54 +629,28 @@ int32_t tsdbSttFWriteTSData(SSttFileWriter *pWriter, TABLEID *tbid, TSDBROW *pRo
     pWriter->sData.aData[6][pWriter->sData.nRow] = 1;            // count
     pWriter->sData.nRow++;
 
-    TSDB_CHECK_CODE(                  //
-        code = tsdbUpdateSkmTb(       //
-            pWriter->config.pTsdb,    //
-            tbid,                     //
-            pWriter->config.pSkmTb),  //
-        lino,                         //
-        _exit);
+    code = tsdbUpdateSkmTb(pWriter->config.pTsdb, tbid, pWriter->config.pSkmTb);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-    TABLEID id = {.suid = tbid->suid,  //
-                  .uid = tbid->suid    //
-                             ? 0
-                             : tbid->uid};
-    TSDB_CHECK_CODE(                           //
-        code = tBlockDataInit(                 //
-            &pWriter->bData,                   //
-            &id,                               //
-            pWriter->config.pSkmTb->pTSchema,  //
-            NULL,                              //
-            0),                                //
-        lino,                                  //
-        _exit);
+    TABLEID id = {
+        .suid = tbid->suid,
+        .uid = tbid->uid ? 0 : tbid->uid,
+    };
+    code = tBlockDataInit(&pWriter->bData, &id, pWriter->config.pSkmTb->pTSchema, NULL, 0);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (pRow->type == TSDBROW_ROW_FMT) {
-    TSDB_CHECK_CODE(                   //
-        code = tsdbUpdateSkmRow(       //
-            pWriter->config.pTsdb,     //
-            tbid,                      //
-            TSDBROW_SVERSION(pRow),    //
-            pWriter->config.pSkmRow),  //
-        lino,                          //
-        _exit);
+  if (pRowInfo->row.type == TSDBROW_ROW_FMT) {
+    code = tsdbUpdateSkmRow(pWriter->config.pTsdb, tbid, TSDBROW_SVERSION(pRow), pWriter->config.pSkmRow);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  TSDB_CHECK_CODE(                            //
-      code = tBlockDataAppendRow(             //
-          &pWriter->bData,                    //
-          pRow,                               //
-          pWriter->config.pSkmRow->pTSchema,  //
-          tbid->uid),                         //
-      lino,                                   //
-      _exit);
+  code = tBlockDataAppendRow(&pWriter->bData, pRow, pWriter->config.pSkmRow->pTSchema, tbid->uid);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pWriter->bData.nRow >= pWriter->config.maxRow) {
-    TSDB_CHECK_CODE(                             //
-        code = write_timeseries_block(pWriter),  //
-        lino,                                    //
-        _exit);
+    code = write_timeseries_block(pWriter);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (key.ts > pWriter->sData.aData[4][pWriter->sData.nRow - 1]) {
@@ -694,14 +666,15 @@ int32_t tsdbSttFWriteTSData(SSttFileWriter *pWriter, TABLEID *tbid, TSDBROW *pRo
 
 _exit:
   if (code) {
-    tsdbError(                                    //
-        "vgId:%d %s failed at line %d since %s",  //
-        TD_VID(pWriter->config.pTsdb->pVnode),    //
-        __func__,                                 //
-        lino,                                     //
-        tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
+}
+
+int32_t tsdbSttFWriteTSDataBlock(SSttFileWriter *pWriter, SBlockData *pBlockData) {
+  // TODO
+  return 0;
 }
 
 int32_t tsdbSttFWriteDLData(SSttFileWriter *pWriter, TABLEID *tbid, SDelData *pDelData) {

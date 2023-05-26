@@ -30,7 +30,8 @@ typedef TARRAY2(SSttLvl *) TSttLvlArray;
 typedef TARRAY2(STFileOp) TFileOpArray;
 
 typedef enum {
-  TSDB_FOP_CREATE = 1,
+  TSDB_FOP_NONE = 0,
+  TSDB_FOP_CREATE,
   TSDB_FOP_REMOVE,
   TSDB_FOP_MODIFY,
 } tsdb_fop_t;
