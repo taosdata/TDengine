@@ -315,14 +315,14 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       tsdbCacheGetBatch(pr->pTsdb, pKeyInfo->uid, pRow, pr, ltype);
       // tsdbCacheGet(pr->pTsdb, pKeyInfo->uid, pRow, pr, ltype);
       if (TARRAY_SIZE(pRow) <= 0) {
-        // taosArrayClearEx(pRow, freeItem);
-        taosArrayClear(pRow);
+        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClear(pRow);
         continue;
       }
       SLastCol* pColVal = taosArrayGet(pRow, 0);
       if (COL_VAL_IS_NONE(&pColVal->colVal)) {
-        // taosArrayClearEx(pRow, freeItem);
-        taosArrayClear(pRow);
+        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClear(pRow);
         continue;
       }
 
@@ -381,8 +381,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         }
       }
 
-      // taosArrayClearEx(pRow, freeItem);
-      taosArrayClear(pRow);
+      taosArrayClearEx(pRow, freeItem);
+      // taosArrayClear(pRow);
     }
 
     if (hasRes) {
@@ -394,20 +394,20 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       tsdbCacheGetBatch(pr->pTsdb, uid, pRow, pr, ltype);
       if (TARRAY_SIZE(pRow) <= 0) {
-        // taosArrayClearEx(pRow, freeItem);
-        taosArrayClear(pRow);
+        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClear(pRow);
         continue;
       }
       SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
       if (COL_VAL_IS_NONE(&pColVal->colVal)) {
-        // taosArrayClearEx(pRow, freeItem);
-        taosArrayClear(pRow);
+        taosArrayClearEx(pRow, freeItem);
+        // taosArrayClear(pRow);
         continue;
       }
 
       saveOneRow(pRow, pResBlock, pr, slotIds, dstSlotIds, pRes, pr->idstr);
-      // taosArrayClearEx(pRow, freeItem);
-      taosArrayClear(pRow);
+      taosArrayClearEx(pRow, freeItem);
+      // taosArrayClear(pRow);
 
       taosArrayPush(pTableUidList, &uid);
 
