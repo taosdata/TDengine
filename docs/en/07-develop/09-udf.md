@@ -377,7 +377,7 @@ The `pybitand` function implements bitwise addition for multiple columns. If the
 
 #### Aggregate Function [pyl2norm](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pyl2norm.py)
 
-The `pyl2norm` function finds the second-order norm for all data in the input column. This squares the values, takes a cumulative sum, and finds the square root.
+The `pyl2norm` function finds the second-order norm for all data in the input columns. This squares the values, takes a cumulative sum, and finds the square root.
 <details>
 <summary>pyl2norm.py</summary>
 
@@ -387,5 +387,16 @@ The `pyl2norm` function finds the second-order norm for all data in the input co
 
 </details>
 
+#### Aggregate Function [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pycumsum.py)
+
+The `pycumsum` function finds the cumulative sum for all data in the input columns.
+<details>
+<summary>pycumsum.py</summary>
+
+```c
+{{#include tests/script/sh/pycumsum.py}}
+```
+
+</details>
 ## Manage and Use UDF
 You need to add UDF to TDengine before using it in SQL queries. For more information about how to manage UDF and how to invoke UDF, please see [Manage and Use UDF](../12-taos-sql/26-udf.md).
