@@ -673,7 +673,24 @@ _exit:
 }
 
 int32_t tsdbSttFWriteTSDataBlock(SSttFileWriter *pWriter, SBlockData *pBlockData) {
-  // TODO
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SRowInfo rowInfo;
+  rowInfo.suid = pBlockData->suid;
+  for (int32_t i = 0; i < pBlockData->nRow; i++) {
+    rowInfo.uid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[i];
+    rowInfo.row = tsdbRowFromBlockData(pBlockData, i);
+
+    code = tsdbSttFWriteTSData(pWriter, &rowInfo);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
+  }
   return 0;
 }
 

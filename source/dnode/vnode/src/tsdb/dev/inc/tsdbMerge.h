@@ -16,6 +16,7 @@
 #include "tsdbDataFReaderWriter.h"
 #include "tsdbFS.h"
 #include "tsdbSttFReaderWriter.h"
+#include "tsdbUtil.h"
 
 #ifndef _TD_TSDB_MERGE_H_
 #define _TD_TSDB_MERGE_H_

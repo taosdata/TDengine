@@ -30,6 +30,7 @@ typedef struct {
   SMergeCtx ctx;
   // config
   int32_t  maxRow;
+  int32_t  minRow;
   int32_t  szPage;
   int8_t   cmprAlg;
   int64_t  cid;
@@ -82,6 +83,28 @@ static int32_t tsdbMergeNextRow(SMerger *merger) {
   return 0;
 }
 
+static int32_t tsdbMergeToDataWriteTSDataBlock(SMerger *merger) {
+  if (merger->ctx.bData.nRow == 0) return 0;
+
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t vid = TD_VID(merger->tsdb->pVnode);
+  if (merger->ctx.bData.nRow >= merger->minRow) {
+    // code = tsdbDataFWriteTSDataBlock(merger->dataWriter, &merger->ctx.bData);
+    // TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    code = tsdbSttFWriteTSDataBlock(merger->sttWriter, &merger->ctx.bData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  tBlockDataReset(&merger->ctx.bData);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+  }
+  return code;
+}
 static int32_t tsdbMergeToData(SMerger *merger) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -91,16 +114,30 @@ static int32_t tsdbMergeToData(SMerger *merger) {
     code = tsdbMergeNextRow(merger);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (!merger->ctx.pRowInfo) break;
+    if (!merger->ctx.pRowInfo) {
+      code = tsdbMergeToDataWriteTSDataBlock(merger);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      break;
+    }
+
+    if (!TABLE_SAME_SCHEMA(merger->ctx.bData.suid, merger->ctx.bData.suid, merger->ctx.pRowInfo->suid,
+                           merger->ctx.pRowInfo->uid)) {
+      code = tsdbMergeToDataWriteTSDataBlock(merger);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tsdbUpdateSkmTb(merger->tsdb, (TABLEID *)merger->ctx.pRowInfo, &merger->skmTb);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tBlockDataInit(&merger->ctx.bData, (TABLEID *)merger->ctx.pRowInfo, merger->skmTb.pTSchema, NULL, 0);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
 
     code = tBlockDataAppendRow(&merger->ctx.bData, &merger->ctx.pRowInfo->row, NULL, merger->ctx.pRowInfo->uid);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (merger->ctx.bData.nRow >= merger->maxRow) {
-      // code = tsdbDataFWriteTSDataBlock(merger->dataWriter, &merger->ctx.bData);
-      // TSDB_CHECK_CODE(code, lino, _exit);
-
-      tBlockDataReset(&merger->ctx.bData);
+      code = tsdbMergeToDataWriteTSDataBlock(merger);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
