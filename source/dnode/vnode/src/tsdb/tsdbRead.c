@@ -3433,6 +3433,8 @@ static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader) {
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;
       }
+
+      pBlockScanInfo = pStatus->pTableIter;
     }
     
     initMemDataIterator(*pBlockScanInfo, pReader);
