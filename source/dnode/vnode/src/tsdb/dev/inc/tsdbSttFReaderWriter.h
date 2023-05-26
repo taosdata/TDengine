@@ -13,43 +13,49 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdbFS.h"
+#include "tsdbUtil.h"
+
 #ifndef _TSDB_STT_FILE_WRITER_H
 #define _TSDB_STT_FILE_WRITER_H
-
-#include "tsdbFS.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef TARRAY2(SSttBlk) TSttBlkArray;
+typedef TARRAY2(SDelBlk) TDelBlkArray;
+typedef TARRAY2(STbStatisBlk) TStatisBlkArray;
 
 // SSttFileReader ==========================================
-typedef struct SSttFSegReader       SSttFSegReader;
 typedef struct SSttFileReader       SSttFileReader;
 typedef struct SSttFileReaderConfig SSttFileReaderConfig;
+typedef struct SSttSegReader        SSttSegReader;
+typedef TARRAY2(SSttSegReader *) TSttSegReaderArray;
 
 // SSttFileReader
-int32_t tsdbSttFReaderOpen(const SSttFileReaderConfig *config, SSttFileReader **ppReader);
-int32_t tsdbSttFReaderClose(SSttFileReader **ppReader);
+int32_t tsdbSttFReaderOpen(const SSttFileReaderConfig *config, SSttFileReader **reader);
+int32_t tsdbSttFReaderClose(SSttFileReader **reader);
+int32_t tsdbSttFReaderGetSegReader(SSttFileReader *reader, const TSttSegReaderArray **segReaderArray);
 
-// SSttFSegReader
-int32_t tsdbSttFSegReaderOpen(SSttFileReader *pReader, SSttFSegReader **ppSegReader, int32_t nSegment);
-int32_t tsdbSttFSegReaderClose(SSttFSegReader **ppSegReader);
-int32_t tsdbSttFSegReadBloomFilter(SSttFSegReader *pSegReader, const void *pFilter);
-int32_t tsdbSttFSegReadStatisBlk(SSttFSegReader *pSegReader, const SArray *pStatis);
-int32_t tsdbSttFSegReadDelBlk(SSttFSegReader *pSegReader, const SArray *pDelBlk);
-int32_t tsdbSttFSegReadSttBlk(SSttFSegReader *pSegReader, const SArray *pSttBlk);
-int32_t tsdbSttFSegReadStatisBlock(SSttFSegReader *pSegReader, const void *pBlock);
-int32_t tsdbSttFSegReadDelBlock(SSttFSegReader *pSegReader, const void *pBlock);
-int32_t tsdbSttFSegReadSttBlock(SSttFSegReader *pSegReader, const void *pBlock);
+// SSttSegReader
+int32_t tsdbSttFReadBloomFilter(SSttSegReader *reader, const void *pFilter);
+
+int32_t tsdbSttFReadSttBlk(SSttSegReader *reader, const TSttBlkArray **sttBlkArray);
+int32_t tsdbSttFReadDelBlk(SSttSegReader *reader, const TDelBlkArray **delBlkArray);
+int32_t tsdbSttFReadStatisBlk(SSttSegReader *reader, const TStatisBlkArray **statisBlkArray);
+
+int32_t tsdbSttFReadSttBlock(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData);
+int32_t tsdbSttFReadDelBlock(SSttSegReader *reader, const SDelBlk *delBlk, SDelBlock *dData);
+int32_t tsdbSttFReadStatisBlock(SSttSegReader *reader, const STbStatisBlk *statisBlk, STbStatisBlock *sData);
 
 struct SSttFileReaderConfig {
-  STsdb    *pTsdb;
+  STsdb    *tsdb;
   SSkmInfo *pSkmTb;
   SSkmInfo *pSkmRow;
   uint8_t **aBuf;
-  // TODO
+  int32_t   szPage;
+  STFile    file;
 };
 
 // SSttFileWriter ==========================================

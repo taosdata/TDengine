@@ -67,12 +67,14 @@ static FORCE_INLINE int32_t tarray2_make_room(  //
   return 0;
 }
 
-#define TARRAY2_INIT(a) \
-  do {                  \
-    (a)->size = 0;      \
-    (a)->capacity = 0;  \
-    (a)->data = NULL;   \
+#define TARRAY2_INIT_EX(a, size_, capacity_, data_) \
+  do {                                              \
+    (a)->size = (size_);                            \
+    (a)->capacity = (capacity_);                    \
+    (a)->data = (data_);                            \
   } while (0)
+
+#define TARRAY2_INIT(a) TARRAY2_INIT_EX(a, 0, 0, NULL)
 
 #define TARRAY2_FREE(a)          \
   do {                           \

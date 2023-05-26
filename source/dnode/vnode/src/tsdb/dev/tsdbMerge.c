@@ -199,7 +199,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
       // open the reader
       SSttFileReader      *reader;
       SSttFileReaderConfig config = {
-          .pTsdb = merger->tsdb,
+          .tsdb = merger->tsdb,
           // TODO
       };
       code = tsdbSttFReaderOpen(&config, &reader);
