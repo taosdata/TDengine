@@ -779,7 +779,6 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     return 0;
   }
   taosThreadMutexUnlock(&handle->cfMutex);
-  return 0;
 
   char* err = NULL;
   int   cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
