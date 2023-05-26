@@ -41,7 +41,7 @@ func NewArrowReporter(remote string) (*ArrowReporter, error) {
 			{Name: "ts", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},
 			{Name: "topic", Type: arrow.BinaryTypes.String},
 			{Name: "qos", Type: &arrow.Uint8Type{}},
-			{Name: "payload", Type: arrow.BinaryTypes.Binary},
+			{Name: "payload", Type: arrow.BinaryTypes.String},
 		},
 		&meta,
 	)
@@ -66,13 +66,13 @@ func (r *ArrowReporter) Report(list []*Message) error {
 	defer topicField.Release()
 	qosField := recordBuilder.Field(2).(*array.Uint8Builder)
 	defer qosField.Release()
-	payloadField := recordBuilder.Field(3).(*array.BinaryBuilder)
+	payloadField := recordBuilder.Field(3).(*array.StringBuilder)
 	defer payloadField.Release()
 	for i := 0; i < len(list); i++ {
 		tsField.Append(arrow.Timestamp(list[i].TS))
 		topicField.Append(list[i].Topic)
 		qosField.Append(list[i].Qos)
-		payloadField.Append(list[i].Payload)
+		payloadField.BinaryBuilder.Append(list[i].Payload)
 	}
 	record := recordBuilder.NewRecord()
 	defer record.Release()

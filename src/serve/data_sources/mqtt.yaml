@@ -77,6 +77,18 @@ groups:
     display_order: 1
     description: Some configurations used in connecting step.
     params:
+      - name: version
+        display: Mqtt protocol version
+        value: "3.0"
+        required: true
+        description: |-
+          MQTT protocol version.
+        hint:
+          type: str
+          choices:
+            - "3.0"
+            - "3.1.1"
+            - "5.0"
       - name: client_id
         display: Client id
         description: |-
@@ -102,6 +114,7 @@ groups:
           type: bool
       - name: topics
         display: Topics Qos Config
+        required: true
         description: |
           e.g: topic1::0,topic2::1 
         hint: 
@@ -123,3 +136,41 @@ groups:
             - info
             - debug
             - trace
+
+parser:
+  display: Mqtt Payload Parser Config
+  params:
+  - name: parse
+    hint:
+      type: json
+    alternatives: 
+      - name: json
+        hint: 
+          type: jsonarray
+        display: Json
+        description: Parse Json Object in Payload.
+        params: 
+        - name: name
+          hint: 
+            type: str
+        - name: alias
+          hint:
+            type: str
+        - name: cast
+          hint:
+            type: str
+  
+  - name: model
+    hint:
+      type: json
+    params:
+      - name: name
+        hint: 
+          type: str
+      - name: using
+        hint:
+          type: str
+      - name: tags
+        hint:
+          type: strarray
+    
