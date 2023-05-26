@@ -320,7 +320,7 @@ def process(input: datablock) -> tuple[output_type]:
 
 Description: this function prcesses datablock, which is the input; you can use datablock.data(row, col) to access the python object at location(row,col); the output is a tuple object consisted of objects of type outputtype
 
-### Aggregate UDF Interface
+#### Aggregate UDF Interface
 
 The implementation of an aggregate function is described as follows:
 
