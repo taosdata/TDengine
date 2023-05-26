@@ -171,7 +171,7 @@ function runJDBCCases() {
 	cd $JDBC_DIR
 	git checkout -- .
 	git reset --hard HEAD
-	git checkout main
+	git checkout 3.0
 	git pull
 
 	stopTaosd
