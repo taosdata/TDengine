@@ -334,6 +334,10 @@ TEST_F(ParserSelectTest, subquery) {
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m) ORDER BY _WSTART) "
       "INTERVAL(1n)");
 
+  run("SELECT diff(a) FROM (SELECT _wstart, tag1, tag2, MAX(c1) a FROM st1 PARTITION BY tag1 INTERVAL(1m)) PARTITION BY tag1");
+
+  run("SELECT diff(a) FROM (SELECT _wstart, tag1, tag2, MAX(c1) a FROM st1 PARTITION BY tag1 INTERVAL(1m)) PARTITION BY tag2", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+
   run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
 
   run("SELECT ts FROM (SELECT t1.ts FROM st1s1 t1)");

@@ -153,6 +153,7 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
       colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
     }
 
+    pDataBlock->info.dataLoad = 1;
     pDataBlock->info.rows = p->info.rows;
   }
 

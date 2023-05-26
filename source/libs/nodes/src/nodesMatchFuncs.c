@@ -83,9 +83,10 @@ bool nodesListMatch(const SNodeList* pList, const SNodeList* pSubList) {
   }
 
   SNode* node = NULL;
-  bool match = false;
+  bool match = true;
   FOREACH(node, pList) {
     if (!nodesListMatchExists(pSubList, node)) {
+      match = false;
       break;
     }
   }
@@ -93,7 +94,6 @@ bool nodesListMatch(const SNodeList* pList, const SNodeList* pSubList) {
 }
 
 static bool columnNodeMatch(const SColumnNode* pSub, const SColumnNode* p) {
-  MATCH_STRING_FIELD(dbName);
   if (0 == strcmp(p->colName, pSub->node.aliasName)) {
     return true;
   }

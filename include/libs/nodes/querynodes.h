@@ -327,6 +327,7 @@ typedef struct SSetOperator {
   SNode*           pLimit;
   char             stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t          precision;
+  ETimeLineMode    timeLineResMode;  
 } SSetOperator;
 
 typedef enum ESqlClause {
