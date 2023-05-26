@@ -666,7 +666,6 @@ export default {
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
-    console.log("dd", this.dbsource[0], this.mqttParser, "mqtt初始化");
   },
   watch: {
     dbName: {

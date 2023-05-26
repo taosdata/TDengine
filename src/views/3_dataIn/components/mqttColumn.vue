@@ -7,7 +7,7 @@
       <el-input v-model="params.alias" size="mini" @change="sendLatestCont"></el-input>
     </li>
     <li>
-      <el-input v-model="params.type" size="mini" @change="sendLatestCont"></el-input>
+      <el-input v-model="params.cast" size="mini" @change="sendLatestCont"></el-input>
     </li>
     <li>
       <span class="icon-container" @click="deleteRow" v-if="index!=0">
@@ -38,7 +38,7 @@ export default {
       params: {
         name: "",
         alias: "",
-        type: "",
+        cast: "",
       },
     };
   },
@@ -50,7 +50,7 @@ export default {
       if (!this.params.alias) {
         return true;
       }
-      if (!this.params.type) {
+      if (!this.params.cast) {
         return true;
       }
       return false;
@@ -73,7 +73,6 @@ export default {
     addStatus:{
         deep:true,
         handler(val){
-            console.log(val,'状态变化');
             this.$emit('changeAddStatus')
         }
     }
