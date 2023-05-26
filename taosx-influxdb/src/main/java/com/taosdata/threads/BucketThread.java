@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.TimeZone;
 
 /**
  * Bucket数据读取任务创建线程
@@ -183,8 +184,8 @@ public class BucketThread implements Runnable {
             throw new Exception("parameter endTime configuration error.");
         }
         // 转换格式
-        Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_15);
-        Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_15);
+        Date begin = DateUtils.stringToDate(beginTime, DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
+        Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
         // 默认按天拆分
         if (StringUtils.isEmpty(readWindow)) {
             readWindow = "D";
