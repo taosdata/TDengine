@@ -57,8 +57,8 @@ SSttLvl *tsdbTFileSetGetLvl(STFileSet *fset, int32_t level);
 bool tsdbTFileSetIsEmpty(const STFileSet *fset);
 
 struct STFileOp {
-  int32_t    fid;
   tsdb_fop_t optype;
+  int32_t    fid;
   STFile     of;  // old file state
   STFile     nf;  // new file state
 };

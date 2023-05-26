@@ -22,6 +22,8 @@
 extern "C" {
 #endif
 
+typedef TARRAY2(SSttBlk) TSttBlkArray;
+
 // SSttFileReader ==========================================
 typedef struct SSttFSegReader       SSttFSegReader;
 typedef struct SSttFileReader       SSttFileReader;
@@ -54,19 +56,20 @@ struct SSttFileReaderConfig {
 typedef struct SSttFileWriter       SSttFileWriter;
 typedef struct SSttFileWriterConfig SSttFileWriterConfig;
 
-int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **ppWriter);
-int32_t tsdbSttFWriterClose(SSttFileWriter **ppWriter, int8_t abort, struct STFileOp *op);
-int32_t tsdbSttFWriteTSData(SSttFileWriter *pWriter, SRowInfo *pRowInfo);
-int32_t tsdbSttFWriteTSDataBlock(SSttFileWriter *pWriter, SBlockData *pBlockData);
-int32_t tsdbSttFWriteDLData(SSttFileWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
+int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer);
+int32_t tsdbSttFWriterClose(SSttFileWriter **writer, int8_t abort, STFileOp *op);
+int32_t tsdbSttFWriteTSData(SSttFileWriter *writer, SRowInfo *pRowInfo);
+int32_t tsdbSttFWriteTSDataBlock(SSttFileWriter *writer, SBlockData *pBlockData);
+int32_t tsdbSttFWriteDLData(SSttFileWriter *writer, TABLEID *tbid, SDelData *pDelData);
 
 struct SSttFileWriterConfig {
-  STsdb    *pTsdb;
+  STsdb    *tsdb;
   int32_t   maxRow;
   int32_t   szPage;
   int8_t    cmprAlg;
-  SSkmInfo *pSkmTb;
-  SSkmInfo *pSkmRow;
+  int64_t   compVer;  // compact version
+  SSkmInfo *skmTb;
+  SSkmInfo *skmRow;
   uint8_t **aBuf;
   STFile    file;
 };

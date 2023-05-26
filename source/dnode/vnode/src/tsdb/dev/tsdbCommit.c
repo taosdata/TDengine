@@ -58,12 +58,12 @@ static int32_t open_writer_with_new_stt(SCommitter *pCommitter) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  config.pTsdb = pTsdb;
+  config.tsdb = pTsdb;
   config.maxRow = pCommitter->maxRow;
   config.szPage = pVnode->config.tsdbPageSize;
   config.cmprAlg = pCommitter->cmprAlg;
-  config.pSkmTb = NULL;
-  config.pSkmRow = NULL;
+  config.skmTb = NULL;
+  config.skmRow = NULL;
   config.aBuf = NULL;
   config.file.type = TSDB_FTYPE_STT;
   config.file.did = did;
@@ -93,12 +93,12 @@ static int32_t open_writer_with_exist_stt(SCommitter *pCommitter, const STFile *
 
   SSttFileWriterConfig config = {
       //
-      .pTsdb = pTsdb,
+      .tsdb = pTsdb,
       .maxRow = pCommitter->maxRow,
       .szPage = pVnode->config.tsdbPageSize,
       .cmprAlg = pCommitter->cmprAlg,
-      .pSkmTb = NULL,
-      .pSkmRow = NULL,
+      .skmTb = NULL,
+      .skmRow = NULL,
       .aBuf = NULL,
       .file = *pFile  //
   };

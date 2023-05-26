@@ -222,12 +222,12 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
   // open stt file writer
   if (lvl) {
     SSttFileWriterConfig config = {
-        .pTsdb = merger->tsdb,
+        .tsdb = merger->tsdb,
         .maxRow = merger->maxRow,
         .szPage = merger->szPage,
         .cmprAlg = merger->cmprAlg,
-        .pSkmTb = &merger->skmTb,
-        .pSkmRow = &merger->skmRow,
+        .skmTb = &merger->skmTb,
+        .skmRow = &merger->skmRow,
         .aBuf = merger->aBuf,
         .file = fobj->f,
     };
@@ -235,12 +235,12 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     SSttFileWriterConfig config = {
-        .pTsdb = merger->tsdb,
+        .tsdb = merger->tsdb,
         .maxRow = merger->maxRow,
         .szPage = merger->szPage,
         .cmprAlg = merger->cmprAlg,
-        .pSkmTb = &merger->skmTb,
-        .pSkmRow = &merger->skmRow,
+        .skmTb = &merger->skmTb,
+        .skmRow = &merger->skmRow,
         .aBuf = merger->aBuf,
         .file =
             (STFile){
