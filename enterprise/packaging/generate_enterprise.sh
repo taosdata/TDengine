@@ -23,7 +23,7 @@ ostype=$(uname)
 if [ "${ostype}" == "Darwin" ] || [ "$cpuType" == "arm64" ]; then
     allocator=glibc
 else
-    allocator=jemalloc              # glibc  or  jemalloc, default is jemalloc
+    allocator=glibc              # glibc  or  jemalloc, default is jemalloc
 fi
 
 if [ ! -d $archiveDir ]; then
