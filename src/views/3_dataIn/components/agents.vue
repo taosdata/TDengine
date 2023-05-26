@@ -223,7 +223,7 @@ export default {
     return {
       expireTimeOPtion: {
         disabledDate(time) {
-          return time.getTime() < Date.now();
+          return time.getTime() < Date.now() - 24*3600*1000;
         },
       },
 

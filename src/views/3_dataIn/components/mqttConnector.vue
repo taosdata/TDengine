@@ -93,7 +93,7 @@ export default {
         {
           column: "",
           alias: "",
-          type: "",
+          cast: "",
         },
       ],
       disable: false,
@@ -147,15 +147,12 @@ export default {
   methods: {
     getLatestCont(cont, index) {
       this.$set(this.columnNum, index, cont);
-
-      console.log(cont, index, "获取的内容", this.columnNum);
     },
     changeAddStatus() {
       this.$nextTick(() => {
         this.disable = Array.from(this.$refs.mqtt).every(
           (item) => !item.addStatus
         );
-        console.log(this.$refs.mqtt, this.disable);
       });
     },
     deleteRow(ind) {
@@ -167,10 +164,9 @@ export default {
         this.columnNum.splice(ind, 1);
       });
 
-      console.log(ind, "要删除的索引位置", this.columnNum);
     },
     addRow() {
-      this.columnNum.push({ column: "", alias: "", type: "" });
+      this.columnNum.push({ column: "", alias: "", cast: "" });
       this.changeAddStatus();
     },
     closeMqttDialog() {
@@ -194,7 +190,6 @@ export default {
       };
 
       this.$emit("closeMqttDialog");
-      console.log(this.ruleForm, this.columnNum, "获取参数body", this);
     },
   },
 };
