@@ -573,8 +573,13 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
           if (colDataIsNull_var(pDst, j)) {
             colDataSetNull_var(pDst, numOfRows);
           } else {
+            // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal, first copy it to p2
             char* p1 = colDataGetVarData(pDst, j);
-            colDataSetVal(pDst, numOfRows, p1, false);
+            int32_t len = varDataTLen(p1);
+            char* p2 = taosMemoryMalloc(len);
+            varDataCopy(p2, p1);
+            colDataSetVal(pDst, numOfRows, p2, false);
+            taosMemoryFree(p2);
           }
           numOfRows += 1;
           j += 1;

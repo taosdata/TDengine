@@ -1788,6 +1788,7 @@ void vectorIsNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut,
       ++pOut->numOfQualified;
     }
     colDataSetInt8(pOut->columnData, i, &v);
+    colDataClearNull_f(pOut->columnData->nullbitmap, i);
   }
   pOut->numOfRows = pLeft->numOfRows;
 }
@@ -1799,6 +1800,7 @@ void vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut
       ++pOut->numOfQualified;
     }
     colDataSetInt8(pOut->columnData, i, &v);
+    colDataClearNull_f(pOut->columnData->nullbitmap, i);
   }
   pOut->numOfRows = pLeft->numOfRows;
 }
