@@ -44,9 +44,10 @@ typedef struct STdbState {
   void*                            param;
   void*                            env;
   SListNode*                       pComparNode;
-  void*                            pBackendHandle;
+  void*                            pBackend;
   char                             idstr[64];
   void*                            compactFactory;
+  TdThreadRwlock                   rwLock;
 
   TDB* db;
   TTB* pStateDb;
