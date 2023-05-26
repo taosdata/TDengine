@@ -16,15 +16,33 @@
 #include "inc/tsdbMerge.h"
 
 typedef struct {
-  bool launched;
+  bool       launched;
+  bool       toData;
+  int32_t    level;
+  STFileSet *fset;
 } SMergeCtx;
 
 typedef struct {
-  STsdb           *tsdb;
-  SMergeCtx        ctx;
+  STsdb *tsdb;
+  // config
+  int32_t  maxRow;
+  int32_t  szPage;
+  int8_t   cmprAlg;
+  int64_t  cid;
+  SSkmInfo skmTb;
+  SSkmInfo skmRow;
+  uint8_t *aBuf[5];
+
+  // context
+  SMergeCtx ctx;
+  // reader
+  TARRAY2(SSttFileReader *) sttReaderArr;
+  SDataFileReader *dataReader;
+  // writer
   SSttFileWriter  *sttWriter;
   SDataFileWriter *dataWriter;
-  TFileOpArray     fopArr;
+  // operations
+  TFileOpArray fopArr;
 } SMerger;
 
 static int32_t tsdbMergerOpen(SMerger *merger) {
@@ -58,6 +76,97 @@ _exit:
   return 0;
 }
 
+static int32_t tsdbDoMergeFileSet(SMerger *merger) {
+  // TODO
+  return 0;
+}
+
+static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  int32_t    vid = TD_VID(merger->tsdb->pVnode);
+  STFileSet *fset = merger->ctx.fset;
+
+  // prepare the merger file set
+  SSttLvl   *lvl;
+  STFileObj *fobj;
+  merger->ctx.toData = true;
+  merger->ctx.level = 0;
+
+  TARRAY2_FOREACH(&fset->lvlArr, lvl) {
+    if (lvl->level != merger->ctx.level) {
+      lvl = NULL;
+      break;
+    }
+
+    fobj = TARRAY2_GET(&lvl->farr, 0);
+    if (fobj->f.stt.nseg < merger->tsdb->pVnode->config.sttTrigger) {
+      merger->ctx.toData = false;
+      break;
+    } else {
+      ASSERT(lvl->level == 0 || TARRAY2_SIZE(&lvl->farr) == 1);
+      merger->ctx.level++;
+
+      // open the reader
+      SSttFileReader *reader;
+      // code = tsdbSttFileReaderOpen(&fobj->f.stt, &reader);
+      // TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = TARRAY2_APPEND(&merger->sttReaderArr, reader);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      // add the operation
+      STFileOp op = {
+          .fid = fobj->f.fid,
+          .optype = TSDB_FOP_REMOVE,
+          .of = fobj->f,
+      };
+      code = TARRAY2_APPEND(&merger->fopArr, op);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  }
+
+  // open stt file writer
+  SSttFileWriterConfig config = {
+      .pTsdb = merger->tsdb,
+      .maxRow = merger->maxRow,
+      .szPage = merger->szPage,
+      .cmprAlg = merger->cmprAlg,
+      .pSkmTb = &merger->skmTb,
+      .pSkmRow = &merger->skmRow,
+      .aBuf = merger->aBuf,
+  };
+  if (lvl) {
+    config.file = fobj->f;
+  } else {
+    config.file = (STFile){
+        .type = TSDB_FTYPE_STT,
+        .did = {.level = 0, .id = 0},
+        .fid = fset->fid,
+        .cid = merger->cid,
+        .size = 0,
+        .stt = {.level = merger->ctx.level, .nseg = 0},
+    };
+  }
+  code = tsdbSttFWriterOpen(&config, &merger->sttWriter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // open data file writer
+  if (merger->ctx.toData) {
+    // code = tsdbDataFWriterOpen();
+    // TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
+  // TODO
+  return 0;
+}
 static int32_t tsdbMergeFileSet(SMerger *merger, STFileSet *fset) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -67,47 +176,16 @@ static int32_t tsdbMergeFileSet(SMerger *merger, STFileSet *fset) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  {  // prepare the merger file set
-    SSttLvl   *lvl;
-    STFileObj *fobj;
-    bool       mergerToData = true;
-    int32_t    level = -1;
+  merger->ctx.fset = fset;
 
-    TARRAY2_FOREACH(&fset->lvlArr, lvl) {
-      if (lvl->level - level > 1) {
-        mergerToData = false;
-        break;
-      }
+  code = tsdbMergeFileSetBegin(merger);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-      if (lvl->level == 0) {
-      } else {
-        ASSERT(TARRAY2_SIZE(&lvl->farr) == 1);
+  code = tsdbDoMergeFileSet(merger);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-        fobj = TARRAY2_FIRST(&lvl->farr);
-      }
-    }
-
-    // merge to level
-    level = level + 1;
-    lvl = tsdbTFileSetGetLvl(fset, level);
-    if (lvl == NULL) {
-      // open new stt file to merge to
-    } else {
-      // open existing stt file to merge to
-    }
-
-    if (mergerToData) {
-      // code = tsdbDataFWriterOpen(SDataFWriter * *ppWriter, STsdb * pTsdb, SDFileSet * pSet);
-      // TSDB_CHECK_CODE(code, lino, _exit);
-    }
-  }
-
-  {
-      // do merge the file set
-  }
-
-  {  // end merge the file set
-  }
+  code = tsdbMergeFileSetEnd(merger);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
