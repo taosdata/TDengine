@@ -986,8 +986,15 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   }
 
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-  if ((numOfVnodes > 0 || pMObj != NULL || pSObj != NULL || pQObj != NULL) && !force) {
-    if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
+  if (numOfVnodes > 0 || pMObj != NULL || pSObj != NULL || pQObj != NULL) {
+    bool isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
+    if (isonline && force) {
+      terrno = TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE;
+      mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
+             numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+      goto _OVER;
+    }
+    if (!isonline && !force) {
       terrno = TSDB_CODE_DNODE_OFFLINE;
       mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
              numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
