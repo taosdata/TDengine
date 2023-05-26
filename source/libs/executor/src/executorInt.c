@@ -575,9 +575,14 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
           } else {
             // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal, first copy it to p2
             char* p1 = colDataGetVarData(pDst, j);
-            int32_t len = varDataTLen(p1);
+            int32_t len = 0;
+            if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
+              len = getJsonValueLen(p1);
+            } else {
+              len = varDataTLen(p1);
+            }
             char* p2 = taosMemoryMalloc(len);
-            varDataCopy(p2, p1);
+            memcpy(p2, p1, len);
             colDataSetVal(pDst, numOfRows, p2, false);
             taosMemoryFree(p2);
           }
