@@ -190,9 +190,9 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     tsdbCacheDeleteLast(pTsdb->lruCache, pTbData->uid, eKey);
   }
   */
-  if (eKey >= pTbData->maxKey && sKey <= pTbData->maxKey) {
-    tsdbCacheDel(pTsdb, suid, uid, sKey, eKey);
-  }
+  // if (eKey >= pTbData->maxKey && sKey <= pTbData->maxKey) {
+  tsdbCacheDel(pTsdb, suid, uid, sKey, eKey);
+  //}
 
   tsdbTrace("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
             " at version %" PRId64,

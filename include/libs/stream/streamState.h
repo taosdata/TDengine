@@ -27,65 +27,62 @@
 extern "C" {
 #endif
 
+#include "storageapi.h"
+
 // void*      streamBackendInit(const char* path);
 // void       streamBackendCleanup(void* arg);
 // SListNode* streamBackendAddCompare(void* backend, void* arg);
 // void       streamBackendDelCompare(void* backend, void* arg);
-typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
 
-typedef struct STdbState {
-  rocksdb_t*                       rocksdb;
-  rocksdb_column_family_handle_t** pHandle;
-  rocksdb_writeoptions_t*          writeOpts;
-  rocksdb_readoptions_t*           readOpts;
-  rocksdb_options_t**              cfOpts;
-  rocksdb_options_t*               dbOpt;
-  struct SStreamTask*              pOwner;
-  void*                            param;
-  void*                            env;
-  SListNode*                       pComparNode;
-  void*                            pBackend;
-  char                             idstr[64];
-  void*                            compactFactory;
-  TdThreadRwlock                   rwLock;
+// <<<<<<< HEAD
+// typedef struct STdbState {
+//   rocksdb_t*                       rocksdb;
+//   rocksdb_column_family_handle_t** pHandle;
+//   rocksdb_writeoptions_t*          writeOpts;
+//   rocksdb_readoptions_t*           readOpts;
+//   rocksdb_options_t**              cfOpts;
+//   rocksdb_options_t*               dbOpt;
+//   struct SStreamTask*              pOwner;
+//   void*                            param;
+//   void*                            env;
+//   SListNode*                       pComparNode;
+//   void*                            pBackend;
+//   char                             idstr[64];
+//   void*                            compactFactory;
+//   TdThreadRwlock                   rwLock;
+// =======
+// typedef struct STdbState {
+//  rocksdb_t*                       rocksdb;
+//  rocksdb_column_family_handle_t** pHandle;
+//  rocksdb_writeoptions_t*          writeOpts;
+//  rocksdb_readoptions_t*           readOpts;
+//  rocksdb_options_t**              cfOpts;
+//  rocksdb_options_t*               dbOpt;
+//  struct SStreamTask*              pOwner;
+//  void*                            param;
+//  void*                            env;
+//  SListNode*                       pComparNode;
+//  void*                            pBackendHandle;
+//  char                             idstr[64];
+//  void*                            compactFactory;
+//
+//  TDB* db;
+//  TTB* pStateDb;
+//  TTB* pFuncStateDb;
+//  TTB* pFillStateDb;  // todo refactor
+//  TTB* pSessionStateDb;
+//  TTB* pParNameDb;
+//  TTB* pParTagDb;
+//  TXN* txn;
+//} STdbState;
+//>>>>>>> enh/dev3.0
 
-  TDB* db;
-  TTB* pStateDb;
-  TTB* pFuncStateDb;
-  TTB* pFillStateDb;  // todo refactor
-  TTB* pSessionStateDb;
-  TTB* pParNameDb;
-  TTB* pParTagDb;
-  TXN* txn;
-} STdbState;
-
-// incremental state storage
-typedef struct {
-  STdbState*        pTdbState;
-  SStreamFileState* pFileState;
-  int32_t           number;
-  SSHashObj*        parNameMap;
-  int64_t           checkPointId;
-  int32_t           taskId;
-  int64_t           streamId;
-} SStreamState;
-
-SStreamState* streamStateOpen(char* path, struct SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);
+SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t szPage, int32_t pages);
 void          streamStateClose(SStreamState* pState, bool remove);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);
 void          streamStateDestroy(SStreamState* pState, bool remove);
 int32_t       streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark);
-
-typedef struct {
-  rocksdb_iterator_t*    iter;
-  rocksdb_snapshot_t*    snapshot;
-  rocksdb_readoptions_t* readOpt;
-  rocksdb_t*             db;
-
-  TBC*    pCur;
-  int64_t number;
-} SStreamStateCur;
 
 int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
 int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen);
@@ -120,7 +117,7 @@ int32_t streamStateFillDel(SStreamState* pState, const SWinKey* key);
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
 int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal);
-void    streamFreeVal(void* val);
+void    streamStateFreeVal(void* val);
 
 SStreamStateCur* streamStateGetAndCheckCur(SStreamState* pState, SWinKey* key);
 SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key);

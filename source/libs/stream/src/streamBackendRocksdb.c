@@ -767,10 +767,10 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   if (ppInst != NULL && *ppInst != NULL) {
     RocksdbCfInst* inst = *ppInst;
     pState->pTdbState->rocksdb = inst->db;
-    pState->pTdbState->pHandle = inst->pHandle;
+    pState->pTdbState->pHandle = (void**)inst->pHandle;
     pState->pTdbState->writeOpts = inst->wOpt;
     pState->pTdbState->readOpts = inst->rOpt;
-    pState->pTdbState->cfOpts = inst->cfOpt;
+    pState->pTdbState->cfOpts = (void**)(inst->cfOpt);
     pState->pTdbState->dbOpt = handle->dbOpt;
     pState->pTdbState->param = inst->param;
     pState->pTdbState->pBackend = handle;
@@ -809,10 +809,10 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   }
   rocksdb_column_family_handle_t** cfHandle = taosMemoryMalloc(cfLen * sizeof(rocksdb_column_family_handle_t*));
   pState->pTdbState->rocksdb = handle->db;
-  pState->pTdbState->pHandle = cfHandle;
+  pState->pTdbState->pHandle = (void**)cfHandle;
   pState->pTdbState->writeOpts = rocksdb_writeoptions_create();
   pState->pTdbState->readOpts = rocksdb_readoptions_create();
-  pState->pTdbState->cfOpts = (rocksdb_options_t**)cfOpt;
+  pState->pTdbState->cfOpts = (void**)cfOpt;
   pState->pTdbState->dbOpt = handle->dbOpt;
   pState->pTdbState->param = param;
   pState->pTdbState->pBackend = handle;
@@ -1205,7 +1205,8 @@ SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWin
   }
   pCur->number = pState->number;
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "state", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
 
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   char      buf[128] = {0};
@@ -1245,7 +1246,8 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinK
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) return NULL;
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "state", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
   rocksdb_iter_seek(pCur->iter, buf, (size_t)klen);
 
   rocksdb_iter_prev(pCur->iter);
@@ -1267,7 +1269,8 @@ SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* 
 
   if (pCur == NULL) return NULL;
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "state", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
 
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   char      buf[128] = {0};
@@ -1359,7 +1362,8 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
   }
   pCur->number = pState->number;
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "sess", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "sess", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
 
   char             buf[128] = {0};
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
@@ -1398,7 +1402,8 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pSta
     return NULL;
   }
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "sess", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "sess", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
   pCur->number = pState->number;
 
   char buf[128] = {0};
@@ -1434,7 +1439,8 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
     return NULL;
   }
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "sess", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "sess", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
   pCur->number = pState->number;
 
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
@@ -1526,7 +1532,8 @@ SStreamStateCur* streamStateFillGetCur_rocksdb(SStreamState* pState, const SWinK
   if (pCur == NULL) return NULL;
 
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "fill", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "fill", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
 
   char buf[128] = {0};
   int  len = winKeyEncode((void*)key, buf);
@@ -1585,7 +1592,8 @@ SStreamStateCur* streamStateFillSeekKeyNext_rocksdb(SStreamState* pState, const 
   }
 
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "fill", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "fill", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
 
   char buf[128] = {0};
   int  len = winKeyEncode((void*)key, buf);
@@ -1620,7 +1628,8 @@ SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const 
   }
 
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "fill", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "fill", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
 
   char buf[128] = {0};
   int  len = winKeyEncode((void*)key, buf);
@@ -1655,7 +1664,8 @@ int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSes
   }
   pCur->number = pState->number;
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "sess", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "sess", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
 
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   int32_t          c = 0;
@@ -1925,7 +1935,8 @@ void* streamDefaultIterCreate_rocksdb(SStreamState* pState) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
 
   pCur->db = pState->pTdbState->rocksdb;
-  pCur->iter = streamStateIterCreate(pState, "default", &pCur->snapshot, &pCur->readOpt);
+  pCur->iter = streamStateIterCreate(pState, "default", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
   return pCur;
 }
 int32_t streamDefaultIterValid_rocksdb(void* iter) {

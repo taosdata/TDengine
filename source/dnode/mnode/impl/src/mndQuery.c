@@ -33,6 +33,7 @@ void mndPostProcessQueryMsg(SRpcMsg *pMsg) {
 int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
   int32_t     code = -1;
   SMnode     *pMnode = pMsg->info.node;
+
   SReadHandle handle = {.mnd = pMnode, .pMsgCb = &pMnode->msgCb};
 
   mTrace("msg:%p, in query queue is processing", pMsg);

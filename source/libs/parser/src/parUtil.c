@@ -416,7 +416,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
 end:
   taosHashCleanup(keyHash);
   if (retCode == TSDB_CODE_SUCCESS) {
-    tTagNew(pTagVals, 1, true, ppTag);
+    retCode = tTagNew(pTagVals, 1, true, ppTag);
   }
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);

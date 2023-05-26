@@ -695,6 +695,10 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
           return TSDB_CODE_SUCCESS;
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
+        if(sMeta == NULL){
+          taosMemoryFreeClear(pTableMeta);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         sMeta->tableMeta = pTableMeta;
         taosHashPut(info->superTables, elements->measure, elements->measureLen, &sMeta, POINTER_BYTES);
         for(int i = pTableMeta->tableInfo.numOfColumns; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++){
@@ -784,7 +788,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
       tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
       if (tinfo->tableDataCtx == NULL) {
         smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
-        smlDestroyTableInfo(info, tinfo);
+        smlDestroyTableInfo(&tinfo);
         return TSDB_CODE_SML_INVALID_DATA;
       }
     }
@@ -1048,12 +1052,18 @@ static int32_t smlParseJSONExt(SSmlHandle *info, char *payload) {
     return TSDB_CODE_TSC_INVALID_JSON;
   }
 
-  info->lineNum = payloadNum;
-  info->dataFormat = true;
+
   if (unlikely(info->lines != NULL)) {
+    for (int i = 0; i < info->lineNum; i++) {
+      taosArrayDestroyEx(info->lines[i].colArray, freeSSmlKv);
+      if (info->lines[i].measureTagsLen != 0) taosMemoryFree(info->lines[i].measureTag);
+    }
     taosMemoryFree(info->lines);
     info->lines = NULL;
   }
+  info->lineNum = payloadNum;
+  info->dataFormat = true;
+
   ret = smlClearForRerun(info);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
