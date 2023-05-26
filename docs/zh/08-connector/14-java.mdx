@@ -962,6 +962,7 @@ statement.executeUpdate("create topic if not exists topic_speed as select ts, sp
 
 ```java
 Properties config = new Properties();
+config.setProperty("bootstrap.servers", "localhost:6030");
 config.setProperty("enable.auto.commit", "true");
 config.setProperty("group.id", "group1");
 config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ResultDeserializer");
@@ -969,12 +970,14 @@ config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.Res
 TaosConsumer consumer = new TaosConsumer<>(config);
 ```
 
+- bootstrap.servers: TDengine 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
 - enable.auto.commit: 是否允许自动提交。
 - group.id: consumer: 所在的 group。
 - value.deserializer: 结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
 - td.connect.type: 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
-- httpConnectTimeout：创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
-- messageWaitTimeout：数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
+- httpConnectTimeout: 创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
+- messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
+- httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。
   其他参数请参考：[Consumer 参数列表](../../../develop/tmq#创建-consumer-以及consumer-group)
 
 #### 订阅消费数据
@@ -1016,10 +1019,19 @@ public abstract class ConsumerLoop {
 
     public ConsumerLoop() throws SQLException {
         Properties config = new Properties();
+        config.setProperty("td.connect.type", "jni");
+        config.setProperty("bootstrap.servers", "localhost:6030");
+        config.setProperty("td.connect.user", "root");
+        config.setProperty("td.connect.pass", "taosdata");
+        config.setProperty("auto.offset.reset", "earliest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
+        config.setProperty("auto.commit.interval.ms", "1000");
         config.setProperty("group.id", "group1");
+        config.setProperty("client.id", "1");
         config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
+        config.setProperty("value.deserializer.encoding", "UTF-8");
+        config.setProperty("experimental.snapshot.enable", "true");
 
         this.consumer = new TaosConsumer<>(config);
         this.topics = Collections.singletonList("topic_speed");
@@ -1093,12 +1105,19 @@ public abstract class ConsumerLoop {
 
     public ConsumerLoop() throws SQLException {
         Properties config = new Properties();
-        config.setProperty("bootstrap.servers", "localhost:6041");
         config.setProperty("td.connect.type", "ws");
+        config.setProperty("bootstrap.servers", "localhost:6041");
+        config.setProperty("td.connect.user", "root");
+        config.setProperty("td.connect.pass", "taosdata");
+        config.setProperty("auto.offset.reset", "earliest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
+        config.setProperty("auto.commit.interval.ms", "1000");
         config.setProperty("group.id", "group2");
+        config.setProperty("client.id", "1");
         config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
+        config.setProperty("value.deserializer.encoding", "UTF-8");
+        config.setProperty("experimental.snapshot.enable", "true");
 
         this.consumer = new TaosConsumer<>(config);
         this.topics = Collections.singletonList("topic_speed");

@@ -32,6 +32,7 @@ target_link_libraries(
     PRIVATE nodes 
     PRIVATE qcom 
     PRIVATE scalar 
+    PRIVATE geometry 
     PRIVATE transport 
     PUBLIC uv_a
 )

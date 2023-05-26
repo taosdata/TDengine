@@ -210,6 +210,45 @@ static bool isGroupKeyFunc(SExprInfo* pExprInfo) {
   return (functionType == FUNCTION_TYPE_GROUP_KEY);
 }
 
+static bool getIgoreNullRes(SExprSupp* pExprSup) {
+  for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
+    SExprInfo* pExprInfo = &pExprSup->pExprInfo[i];
+
+    if (isInterpFunc(pExprInfo)) {
+      for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
+        SFunctParam *pFuncParam = &pExprInfo->base.pParam[j];
+        if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
+          return pFuncParam->param.i ? true : false;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+static bool checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull) {
+  if (!ignoreNull) {
+    return false;
+  }
+
+  for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
+    SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
+
+    if (isInterpFunc(pExprInfo)) {
+      int32_t       srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
+      SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
+
+      if (colDataIsNull_s(pSrc, index)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+
 static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
                                    SSDataBlock* pSrcBlock, int32_t index, bool beforeTs) {
   int32_t rows = pResBlock->info.rows;
@@ -272,15 +311,27 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
         if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
           float v = 0;
-          GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
+          if (!IS_VAR_DATA_TYPE(pVar->nType)) {
+            GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
+          } else {
+            v = taosStr2Float(varDataVal(pVar->pz), NULL);
+          }
           colDataSetVal(pDst, rows, (char*)&v, false);
         } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
           double v = 0;
-          GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
+          if (!IS_VAR_DATA_TYPE(pVar->nType)) {
+            GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
+          } else {
+            v = taosStr2Double(varDataVal(pVar->pz), NULL);
+          }
           colDataSetVal(pDst, rows, (char*)&v, false);
         } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
           int64_t v = 0;
-          GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
+          if (!IS_VAR_DATA_TYPE(pVar->nType)) {
+            GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
+          } else {
+            v = taosStr2int64(varDataVal(pVar->pz));
+          }
           colDataSetVal(pDst, rows, (char*)&v, false);
         } else if (IS_BOOLEAN_TYPE(pDst->info.type)) {
           bool v = false;
@@ -591,7 +642,7 @@ static int32_t resetKeeperInfo(STimeSliceOperatorInfo* pInfo) {
 }
 
 static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock,
-                            SExecTaskInfo* pTaskInfo) {
+                            SExecTaskInfo* pTaskInfo, bool ignoreNull) {
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
 
@@ -602,6 +653,10 @@ static void doTimesliceImpl(SOperatorInfo* pOperator, STimeSliceOperatorInfo* pS
     // check for duplicate timestamps
     if (checkDuplicateTimestamps(pSliceInfo, pTsCol, i, pBlock->info.rows)) {
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_FUNC_DUP_TIMESTAMP);
+    }
+
+    if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull)) {
+      continue;
     }
 
     if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -733,6 +788,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   SSDataBlock*            pResBlock = pSliceInfo->pRes;
   SExprSupp*              pSup = &pOperator->exprSupp;
+  bool                    ignoreNull = getIgoreNullRes(pSup);
 
   int32_t        order = TSDB_ORDER_ASC;
   SInterval*     pInterval = &pSliceInfo->interval;
@@ -743,7 +799,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   while (1) {
     if (pSliceInfo->pNextGroupRes != NULL) {
       setInputDataBlock(pSup, pSliceInfo->pNextGroupRes, order, MAIN_SCAN, true);
-      doTimesliceImpl(pOperator, pSliceInfo, pSliceInfo->pNextGroupRes, pTaskInfo);
+      doTimesliceImpl(pOperator, pSliceInfo, pSliceInfo->pNextGroupRes, pTaskInfo, ignoreNull);
       copyPrevGroupKey(&pOperator->exprSupp, pSliceInfo->pPrevGroupKey, pSliceInfo->pNextGroupRes);
       pSliceInfo->pNextGroupRes = NULL;
     }
@@ -777,7 +833,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
       // the pDataBlock are always the same one, no need to call this again
       setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
-      doTimesliceImpl(pOperator, pSliceInfo, pBlock, pTaskInfo);
+      doTimesliceImpl(pOperator, pSliceInfo, pBlock, pTaskInfo, ignoreNull);
       copyPrevGroupKey(&pOperator->exprSupp, pSliceInfo->pPrevGroupKey, pBlock);
     }
 

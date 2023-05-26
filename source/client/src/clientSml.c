@@ -24,72 +24,91 @@ int64_t smlToMilli[3] = {3600000LL, 60000LL, 1000LL};
 int64_t smlFactorNS[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
 int64_t smlFactorS[3] = {1000LL, 1000000LL, 1000000000LL};
 
-void *nodeListGet(NodeList *list, const void *key, int32_t len, _equal_fn_sml fn) {
-  NodeList *tmp = list;
-  while (tmp) {
-    if (fn == NULL) {
-      if (tmp->data.used && tmp->data.keyLen == len && memcmp(tmp->data.key, key, len) == 0) {
-        return tmp->data.value;
-      }
-    } else {
-      if (tmp->data.used && fn(tmp->data.key, key) == 0) {
-        return tmp->data.value;
-      }
-    }
+//void *nodeListGet(NodeList *list, const void *key, int32_t len, _equal_fn_sml fn) {
+//  NodeList *tmp = list;
+//  while (tmp) {
+//    if (fn == NULL) {
+//      if (tmp->data.used && tmp->data.keyLen == len && memcmp(tmp->data.key, key, len) == 0) {
+//        return tmp->data.value;
+//      }
+//    } else {
+//      if (tmp->data.used && fn(tmp->data.key, key) == 0) {
+//        return tmp->data.value;
+//      }
+//    }
+//
+//    tmp = tmp->next;
+//  }
+//  return NULL;
+//}
+//
+//int nodeListSet(NodeList **list, const void *key, int32_t len, void *value, _equal_fn_sml fn) {
+//  NodeList *tmp = *list;
+//  while (tmp) {
+//    if (!tmp->data.used) break;
+//    if (fn == NULL) {
+//      if (tmp->data.keyLen == len && memcmp(tmp->data.key, key, len) == 0) {
+//        return -1;
+//      }
+//    } else {
+//      if (tmp->data.keyLen == len && fn(tmp->data.key, key) == 0) {
+//        return -1;
+//      }
+//    }
+//
+//    tmp = tmp->next;
+//  }
+//  if (tmp) {
+//    tmp->data.key = key;
+//    tmp->data.keyLen = len;
+//    tmp->data.value = value;
+//    tmp->data.used = true;
+//  } else {
+//    NodeList *newNode = (NodeList *)taosMemoryCalloc(1, sizeof(NodeList));
+//    if (newNode == NULL) {
+//      return -1;
+//    }
+//    newNode->data.key = key;
+//    newNode->data.keyLen = len;
+//    newNode->data.value = value;
+//    newNode->data.used = true;
+//    newNode->next = *list;
+//    *list = newNode;
+//  }
+//  return 0;
+//}
+//
+//int nodeListSize(NodeList *list) {
+//  int cnt = 0;
+//  while (list) {
+//    if (list->data.used)
+//      cnt++;
+//    else
+//      break;
+//    list = list->next;
+//  }
+//  return cnt;
+//}
 
-    tmp = tmp->next;
-  }
-  return NULL;
-}
-
-int nodeListSet(NodeList **list, const void *key, int32_t len, void *value, _equal_fn_sml fn) {
-  NodeList *tmp = *list;
-  while (tmp) {
-    if (!tmp->data.used) break;
-    if (fn == NULL) {
-      if (tmp->data.keyLen == len && memcmp(tmp->data.key, key, len) == 0) {
-        return -1;
-      }
-    } else {
-      if (tmp->data.keyLen == len && fn(tmp->data.key, key) == 0) {
-        return -1;
-      }
-    }
-
-    tmp = tmp->next;
-  }
-  if (tmp) {
-    tmp->data.key = key;
-    tmp->data.keyLen = len;
-    tmp->data.value = value;
-    tmp->data.used = true;
+static int32_t smlCheckAuth(SSmlHandle *info,  SRequestConnInfo* conn, const char* pTabName, AUTH_TYPE type){
+  SUserAuthInfo pAuth = {0};
+  snprintf(pAuth.user, sizeof(pAuth.user), "%s", info->taos->user);
+  if (NULL == pTabName) {
+    tNameSetDbName(&pAuth.tbName, info->taos->acctId, info->pRequest->pDb, strlen(info->pRequest->pDb));
   } else {
-    NodeList *newNode = (NodeList *)taosMemoryCalloc(1, sizeof(NodeList));
-    if (newNode == NULL) {
-      return -1;
-    }
-    newNode->data.key = key;
-    newNode->data.keyLen = len;
-    newNode->data.value = value;
-    newNode->data.used = true;
-    newNode->next = *list;
-    *list = newNode;
+    toName(info->taos->acctId, info->pRequest->pDb, pTabName, &pAuth.tbName);
   }
-  return 0;
-}
+  pAuth.type = type;
 
-int nodeListSize(NodeList *list) {
-  int cnt = 0;
-  while (list) {
-    if (list->data.used)
-      cnt++;
-    else
-      break;
-    list = list->next;
-  }
-  return cnt;
-}
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SUserAuthRes authRes = {0};
 
+  code = catalogChkAuth(info->pCatalog, conn, &pAuth, &authRes);
+
+
+  return (code == TSDB_CODE_SUCCESS) ? (authRes.pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
+
+}
 inline bool smlDoubleToInt64OverFlow(double num) {
   if (num >= (double)INT64_MAX || num <= (double)INT64_MIN) return true;
   return false;
@@ -555,7 +574,7 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
-    if ((colField[*index].type == TSDB_DATA_TYPE_VARCHAR &&
+    if (((colField[*index].type == TSDB_DATA_TYPE_VARCHAR || colField[*index].type == TSDB_DATA_TYPE_GEOMETRY) &&
          (colField[*index].bytes - VARSTR_HEADER_SIZE) < kv->length) ||
         (colField[*index].type == TSDB_DATA_TYPE_NCHAR &&
          ((colField[*index].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE < kv->length))) {
@@ -586,7 +605,7 @@ static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
     }
   }
 
-  if (type == TSDB_DATA_TYPE_BINARY && result > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+  if ((type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) && result > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
     result = TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE;
   } else if (type == TSDB_DATA_TYPE_NCHAR && result > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
     result = (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
@@ -594,7 +613,7 @@ static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
 
   if (type == TSDB_DATA_TYPE_NCHAR) {
     result = result * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-  } else if (type == TSDB_DATA_TYPE_BINARY) {
+  } else if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
     result = result + VARSTR_HEADER_SIZE;
   }
   return result;
@@ -638,7 +657,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool 
 }
 
 static int32_t getBytes(uint8_t type, int32_t length) {
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     return smlFindNearestPowerOf2(length, type);
   } else {
     return tDataTypes[type].bytes;
@@ -813,6 +832,10 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
     code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_STB_NOT_EXIST) {
+      code = smlCheckAuth(info, &conn, NULL, AUTH_TYPE_WRITE);
+      if(code != TSDB_CODE_SUCCESS){
+        goto end;
+      }
       uDebug("SML:0x%" PRIx64 " smlModifyDBSchemas create table:%s", info->id, pName.tname);
       SArray *pColumns = taosArrayInit(taosArrayGetSize(sTableData->cols), sizeof(SField));
       SArray *pTags = taosArrayInit(taosArrayGetSize(sTableData->tags), sizeof(SField));
@@ -857,6 +880,10 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
       if (action != SCHEMA_ACTION_NULL) {
+        code = smlCheckAuth(info, &conn, pName.tname, AUTH_TYPE_WRITE);
+        if(code != TSDB_CODE_SUCCESS){
+          goto end;
+        }
         uDebug("SML:0x%" PRIx64 " smlModifyDBSchemas change table tag, table:%s, action:%d", info->id, pName.tname,
                action);
         SArray *pColumns =
@@ -927,6 +954,10 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
       if (action != SCHEMA_ACTION_NULL) {
+        code = smlCheckAuth(info, &conn, pName.tname, AUTH_TYPE_WRITE);
+        if(code != TSDB_CODE_SUCCESS){
+          goto end;
+        }
         uDebug("SML:0x%" PRIx64 " smlModifyDBSchemas change table col, table:%s, action:%d", info->id, pName.tname,
                action);
         SArray *pColumns =
@@ -1367,6 +1398,11 @@ static int32_t smlInsertData(SSmlHandle *info) {
     conn.requestObjRefId = info->pRequest->self;
     conn.mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
 
+    code = smlCheckAuth(info, &conn, pName.tname, AUTH_TYPE_WRITE);
+    if(code != TSDB_CODE_SUCCESS){
+      return code;
+    }
+
     SVgroupInfo vg;
     code = catalogGetTableHashVgroup(info->pCatalog, &conn, &pName, &vg);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1586,9 +1622,7 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
 
   do {
     code = smlModifyDBSchemas(info);
-    if (code == 0 || code == TSDB_CODE_SML_INVALID_DATA || code == TSDB_CODE_PAR_TOO_MANY_COLUMNS
-        || code == TSDB_CODE_PAR_INVALID_TAGS_NUM || code == TSDB_CODE_PAR_INVALID_TAGS_LENGTH
-        || code == TSDB_CODE_PAR_INVALID_ROW_LENGTH || code == TSDB_CODE_MND_FIELD_VALUE_OVERFLOW) {
+    if (code != TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER && code != TSDB_CODE_SDB_OBJ_CREATING && code != TSDB_CODE_MND_TRANS_CONFLICT) {
       break;
     }
     taosMsleep(100);

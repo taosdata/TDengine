@@ -656,7 +656,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
   } else {
     tscInfo("set cfg:%s to %s", pItem->name, str);
     if (TSDB_OPTION_SHELL_ACTIVITY_TIMER == option || TSDB_OPTION_USE_ADAPTER == option) {
-      code = taosSetCfg(pCfg, pItem->name);
+      code = taosApplyLocalCfg(pCfg, pItem->name);
     }
   }
 

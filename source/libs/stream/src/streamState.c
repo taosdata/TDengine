@@ -24,7 +24,7 @@
 #include "tcompare.h"
 #include "tref.h"
 
-#define MAX_TABLE_NAME_NUM 2000000
+#define MAX_TABLE_NAME_NUM 200000
 
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {

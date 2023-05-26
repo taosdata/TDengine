@@ -117,11 +117,9 @@ int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
+int32_t tsMetaCacheMaxSize = -1; // MB
 int32_t tsSlowLogThreshold = 3; // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
-
-
-
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -351,6 +349,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
   if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "metaCacheMaxSize", tsMetaCacheMaxSize, -1, INT32_MAX, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 0, INT32_MAX, true) != 0) return -1;
   if (cfgAddString(pCfg, "slowLogScope", "", true) != 0) return -1;
 
@@ -788,6 +787,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsUseAdapter = cfgGetItem(pCfg, "useAdapter")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
   tsQueryMaxConcurrentTables = cfgGetItem(pCfg, "queryMaxConcurrentTables")->i64;
+  tsMetaCacheMaxSize = cfgGetItem(pCfg, "metaCacheMaxSize")->i32;
   tsSlowLogThreshold = cfgGetItem(pCfg, "slowLogThreshold")->i32;
   if (taosSetSlowLogScope(cfgGetItem(pCfg, "slowLogScope")->str)) {
     return -1;
@@ -916,7 +916,7 @@ void taosLocalCfgForbiddenToChange(char *name, bool *forbidden) {
   *forbidden = false;
 }
 
-int32_t taosSetCfg(SConfig *pCfg, char *name) {
+int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
   int32_t len = strlen(name);
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
@@ -1048,6 +1048,12 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         case 'd': {
           if (strcasecmp("mDebugFlag", name) == 0) {
             mDebugFlag = cfgGetItem(pCfg, "mDebugFlag")->i32;
+          }
+          break;
+        }
+        case 'e': {
+          if (strcasecmp("metaCacheMaxSize", name) == 0) {
+            atomic_store_32(&tsMetaCacheMaxSize, cfgGetItem(pCfg, "metaCacheMaxSize")->i32);
           }
           break;
         }
