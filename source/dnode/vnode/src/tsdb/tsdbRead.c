@@ -1848,7 +1848,7 @@ static bool isCleanFileDataBlock(STsdbReader* pReader, SFileDataBlockInfo* pBloc
   SDataBlockToLoadInfo info = {0};
   getBlockToLoadInfo(&info, pBlockInfo, pBlock, pScanInfo, keyInBuf, pLastBlockReader, pReader);
   bool isCleanFileBlock = !(info.overlapWithNeighborBlock || info.hasDupTs || info.overlapWithKeyInBuf ||
-                            info.overlapWithDelInfo || info.overlapWithLastBlock);
+                            info.overlapWithDelInfo || info.overlapWithLastBlock || info.partiallyRequired);
   return isCleanFileBlock;
 }
 
