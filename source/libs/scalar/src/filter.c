@@ -14,6 +14,7 @@
  */
 #include <tlog.h>
 #include "os.h"
+#include "tglobal.h"
 #include "thash.h"
 // #include "queryLog.h"
 #include "filter.h"
@@ -4510,7 +4511,7 @@ static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpLi
     return TSDB_CODE_SUCCESS;
   }
   SNode *pExpr = NULL;
-  FOREACH(pExpr, pLogicCond->pParameterList) { 
+  FOREACH(pExpr, pLogicCond->pParameterList) {
     if (!fltSclIsCollectableNode(pExpr)) {
       return TSDB_CODE_SUCCESS;
     }
@@ -4614,8 +4615,11 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
   stat.info = info;
 
   FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
-
-  info->scalarMode = true;
+  if (tsFilterScalarMode) {
+    info->scalarMode = true;
+  } else {
+    info->scalarMode = stat.scalarMode;
+  }
   fltDebug("scalar mode: %d", info->scalarMode);
 
   if (!info->scalarMode) {

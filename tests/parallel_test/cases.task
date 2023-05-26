@@ -1274,6 +1274,7 @@
 ,,y,script,./test.sh -f tsim/parser/columnValue_tinyint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_unsign.sim
 ,,y,script,./test.sh -f tsim/parser/condition.sim
+,,y,script,./test.sh -f tsim/parser/condition_scl.sim
 ,,y,script,./test.sh -f tsim/parser/constCol.sim
 ,,y,script,./test.sh -f tsim/parser/create_db.sim
 ,,y,script,./test.sh -f tsim/parser/create_mt.sim
@@ -1353,6 +1354,7 @@
 ,,y,script,./test.sh -f tsim/query/event.sim
 ,,y,script,./test.sh -f tsim/query/forceFill.sim
 ,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
+,,y,script,./test.sh -f tsim/query/emptyTsRange_scl.sim
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
 ,,y,script,./test.sh -f tsim/query/tableCount.sim 
 ,,y,script,./test.sh -f tsim/query/tag_scan.sim 
