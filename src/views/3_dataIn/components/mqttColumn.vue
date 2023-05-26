@@ -1,15 +1,15 @@
 <template>
   <ul class="mqtt-column">
     <li>
-      <el-input v-model="params.name" size="mini" @change="sendLatestCont"></el-input>
+      <el-input v-model="params.name"  @change="sendLatestCont"></el-input>
     </li>
     <li>
-      <el-input v-model="params.alias" size="mini" @change="sendLatestCont"></el-input>
+      <el-input v-model="params.alias"  @change="sendLatestCont"></el-input>
     </li>
     <li>
-      <el-input v-model="params.type" size="mini" @change="sendLatestCont"></el-input>
+      <el-input v-model="params.type"  @change="sendLatestCont"></el-input>
     </li>
-    <li>
+    <li class="icon-col">
       <span class="icon-container" @click="deleteRow" v-if="index!=0">
         <i class="el-icon-minus"></i>
       </span>
@@ -84,13 +84,21 @@ export default {
 .mqtt-column {
   display: grid;
   grid-template-columns: 2fr 2fr 2fr 0.5fr;
-  grid-gap: 10px;
+  column-gap: 10px;
   margin-bottom: 10px;
+  .icon-col{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
   .icon-container {
-    display: inline-block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 3px;
     border: 1px solid #DCDFE6;
     width: 28px;
+    height: 28px;
     border-radius: 50%;
     cursor: pointer;
     &.disabled {

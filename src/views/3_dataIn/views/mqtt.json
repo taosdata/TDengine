@@ -1,0 +1,253 @@
+{
+    "id": "mqtt",
+    "type": "uri",
+    "name": "MQTT",
+    "description": "MQTT stands for Message Queuing Telemetry Transport. It is a lightweight\nmessaging protocol that is easy to implement and use. It is ideal for connecting \ndevices with limited resources, such as battery-powered devices or devices with\nlow bandwidth. MQTT is also a good choice for applications where latency is \nimportant, such as real-time control systems.   \n\nMQTT works by using a publish/subscribe model. This means that devices can\npublish messages to topics, and other devices can subscribe to those topics to  \nreceive the messages. This makes it easy to decouple devices from each other, \nand to scale up applications as needed.  \n\nMQTT is a popular choice for IoT applications. It is supported by a wide range of \ndevices and platforms, and there are many open source and commercial \nimplementations available.  \n\ntaosX could subscribe data from MQTT server by a MQTT connector plugin.  \n\nCheck the help message in each part to see the details.  \n",
+    "options": {
+        "endpoint": {
+            "required": true,
+            "display": "Mqtt Server endpoint",
+            "description": "Mqtt server endpoint. e.g: 127.0.0.1:1883\n",
+            "placeholder": "127.0.0.1:1883"
+        }
+    },
+    "authentication": {
+        "display": "Authentication",
+        "description": "Use username/password plain authentication or with certificate files, or anonymous(default).",
+        "value": "anonymous",
+        "alternatives": [
+            {
+                "name": "anonymous",
+                "display": "Anonymous"
+            },
+            {
+                "name": "plain",
+                "display": "Username",
+                "username": {
+                    "required": true,
+                    "display": "Username",
+                    "description": "MQTT Broker username.",
+                    "placeholder": "username"
+                },
+                "password": {
+                    "display": "Password",
+                    "description": "MQTT Broker password.",
+                    "placeholder": "password"
+                }
+            },
+            {
+                "name": "certificates",
+                "display": "Certificates",
+                "params": [
+                    {
+                        "name": "ca",
+                        "display": "CA",
+                        "hint": {
+                            "type": "file"
+                        },
+                        "description": "CA file path"
+                    },
+                    {
+                        "name": "cert",
+                        "display": "Client certificate file",
+                        "hint": {
+                            "type": "file"
+                        },
+                        "description": "Path to Client certificate file."
+                    },
+                    {
+                        "name": "cert_key",
+                        "display": "Client key file",
+                        "hint": {
+                            "type": "file"
+                        },
+                        "description": "Path to Client certificate file."
+                    }
+                ]
+            }
+        ]
+    },
+    "groups": [
+        {
+            "name": "Connection",
+            "display_order": 1,
+            "description": "Some configurations used in connecting step.",
+            "params": [
+                {
+                    "name": "version",
+                    "display": "Mqtt protocol version",
+                    "hint": {
+                        "type": "str",
+                        "choices": [
+                            "3.0",
+                            "3.1.1",
+                            "5.0"
+                        ]
+                    },
+                    "description": "MQTT protocol version.",
+                    "required": true,
+                    "value": "3.0"
+                },
+                {
+                    "name": "client_id",
+                    "display": "Client id",
+                    "hint": {
+                        "type": "str"
+                    },
+                    "description": "Client id used to connect to mqtt broker."
+                },
+                {
+                    "name": "keep_alive",
+                    "display": "Keep Alive",
+                    "hint": {
+                        "type": "integer",
+                        "min": 1
+                    },
+                    "description": "If the broker does not receive any messages from the client within the keep alive interval,  \nit will assume that the client has disconnected and will close the connection.  \n",
+                    "placeholder": "10"
+                },
+                {
+                    "name": "clean_session",
+                    "display": "Clean Session",
+                    "hint": {
+                        "type": "bool"
+                    },
+                    "description": "True means that the server will forget all information about the session, including the  \nclient's subscriptions. The default value for the clean session flag is true.  \n"
+                },
+                {
+                    "name": "topics",
+                    "display": "Topics Qos Config",
+                    "hint": {
+                        "type": "str"
+                    },
+                    "description": "e.g: topic1::0,topic2::1 \n",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "name": "Others",
+            "display_order": 2,
+            "description": "Other configurations.",
+            "params": [
+                {
+                    "name": "log_level",
+                    "display": "Log Level",
+                    "hint": {
+                        "type": "str",
+                        "choices": [
+                            "error",
+                            "warn",
+                            "info",
+                            "debug",
+                            "trace"
+                        ]
+                    },
+                    "description": "Log Level"
+                }
+            ]
+        }
+    ],
+    "parser": {
+        "display": "Mqtt Payload Parser Config",
+        "params": [
+            {
+                "name": "parse",
+                "hint": {
+                    "type": "json"
+                },
+                "value": "JSON",
+                "params": [
+                    {
+                        "name": "payload",
+                        "type": "json",
+                        "display": "JSON",
+                        "description": "e.g: topic1::0,topic2::1 \n",
+                        "alternatives": [
+                            {
+                                "name": "json",
+                                "display": "Json",
+                                "hint": {
+                                    "type": "jsonarray"
+                                },
+                                "description": "Parse Json Object in Payload.",
+                                "params": [
+                                    {
+                                        "params": [
+                                            {
+                                                "name": "name",
+                                                "hint": {
+                                                    "type": "str"
+                                                }
+                                            },
+                                            {
+                                                "name": "alias",
+                                                "hint": {
+                                                    "type": "str"
+                                                }
+                                            },
+                                            {
+                                                "name": "cast",
+                                                "hint": {
+                                                    "type": "str"
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "params": [
+                                            {
+                                                "name": "name",
+                                                "hint": {
+                                                    "type": "str"
+                                                }
+                                            },
+                                            {
+                                                "name": "alias",
+                                                "hint": {
+                                                    "type": "str"
+                                                }
+                                            },
+                                            {
+                                                "name": "cast",
+                                                "hint": {
+                                                    "type": "str"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "name": "model",
+                "hint": {
+                    "type": "json"
+                },
+                "params": [
+                    {
+                        "name": "name",
+                        "hint": {
+                            "type": "str"
+                        }
+                    },
+                    {
+                        "name": "using",
+                        "hint": {
+                            "type": "str"
+                        }
+                    },
+                    {
+                        "name": "tags",
+                        "hint": {
+                            "type": "strarray"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}

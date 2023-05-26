@@ -202,7 +202,7 @@ export default {
       handler(val) {
         console.log(val, "舰艇类型");
         if (val == "mqtt") {
-          this.$emit("showMqttDialog");
+        //   this.$emit("showMqttDialog");
         }
       },
     },

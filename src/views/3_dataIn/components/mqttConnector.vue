@@ -1,71 +1,79 @@
 <template>
-  <el-dialog
+  <!-- <el-dialog
     align="center"
     :title="$t('datasource.mqtttitle')"
     width="900px"
     :visible.sync="visible"
     :destroy-on-close="true"
     @closed="closeMqttDialog"
-  >
-    <div class="connector">
-      <div class="json-zone">
-        <ul class="header">
-          <li>{{ $t("datasource.colname") }}</li>
-          <li>{{ $t("datasource.rename") }}</li>
-          <li>{{ $t("datasource.type") }}</li>
-          <li></li>
-        </ul>
-        <span class="info">
-          <el-tooltip
-            class="item"
-            effect="light"
-            :content="$t('datasource.addmqtttip')"
-            placement="top-start"
-          >
-            <i class="el-icon-info"></i>
-          </el-tooltip>
-        </span>
-        <div class="col-content">
-          <Mqttcolumn
-            v-for="(item, index) in columnNum"
-            :key="index"
-            :index="index"
-            @deleteRow="deleteRow"
-            @changeAddStatus="changeAddStatus"
-            @sendLatestCont="getLatestCont"
-            ref="mqtt"
-          >
-          </Mqttcolumn>
-        </div>
-        <el-button
-          icon="el-icon-plus"
-          size="small"
-          type="primary"
-          :disabled="!disable"
-          plain
-          @click="addRow"
-        ></el-button>
-      </div>
-      <el-form
-        label-width="110px"
-        :model="ruleForm"
-        :rules="rules"
-        ref="ruleForm"
+  > -->
+  <div class="connector">
+    <span style="color:red;font-size:30px;">{{connectorData.params[0].value}}</span>
+    <el-tabs v-model="connectorData.params[0].value">
+      <el-tab-pane
+        v-for="(item, index) in connectorData.params[0].params"
+        :key="index"
+        :label="item.display"
+        :name="item.display"
       >
-        <el-form-item :label="$t('datasource.subname')" prop="subtableName">
-          <el-input v-model="ruleForm.subtableName" size="mini"></el-input>
-        </el-form-item>
-        <el-form-item
-          :label="$t('datasource.supertable')"
-          prop="supertableName"
-        >
-          <el-input v-model="ruleForm.supertableName" size="mini"></el-input>
-        </el-form-item>
-        <el-form-item label="tags：" prop="tagsName">
-          <el-input v-model="ruleForm.tagsName" size="mini"></el-input>
-        </el-form-item>
-      </el-form>
-      <div class="footer">
+        <div class="json-zone" >
+          <ul class="header">
+            <li>{{ $t("datasource.colname") }}</li>
+            <li>{{ $t("datasource.rename") }}</li>
+            <li>Type</li>
+            <li></li>
+          </ul>
+          <span class="info">
+            <el-tooltip
+              class="item"
+              effect="light"
+              :content="$t('datasource.addmqtttip')"
+              placement="top-start"
+            >
+              <i class="el-icon-info"></i>
+            </el-tooltip>
+          </span>
+          <div class="col-content">
+            <Mqttcolumn
+              v-for="(item, index) in columnNum"
+              :key="index"
+              :index="index"
+              @deleteRow="deleteRow"
+              @changeAddStatus="changeAddStatus"
+              @sendLatestCont="getLatestCont"
+              ref="mqtt"
+            >
+            </Mqttcolumn>
+          </div>
+          <el-button
+            icon="el-icon-plus"
+            size="small"
+            type="primary"
+            :disabled="!disable"
+            plain
+            @click="addRow"
+          ></el-button>
+        </div>
+      </el-tab-pane>
+    </el-tabs>
+
+    <el-form
+      label-width="200px"
+      :model="ruleForm"
+      :rules="rules"
+      ref="ruleForm"
+    >
+      <el-form-item :label="$t('datasource.subname')" prop="subtableName">
+        <el-input v-model="ruleForm.subtableName"></el-input>
+      </el-form-item>
+      <el-form-item :label="$t('datasource.supertable')" prop="supertableName">
+        <el-input v-model="ruleForm.supertableName"></el-input>
+      </el-form-item>
+      <el-form-item label="tags：" prop="tagsName">
+        <el-input v-model="ruleForm.tagsName"></el-input>
+      </el-form-item>
+    </el-form>
+    <!-- <div class="footer">
         <el-button size="small" style="width: 100px" @click="closeMqttDialog">{{
           $t("datasource.cancel")
         }}</el-button>
@@ -77,15 +85,23 @@
           @click="getMqttParser"
           >{{ $t("datasource.ok") }}</el-button
         >
-      </div>
-    </div>
-  </el-dialog>
+      </div> -->
+  </div>
+  <!-- </el-dialog> -->
 </template>
 <script>
 import Mqttcolumn from "./mqttColumn.vue";
 export default {
   name: "MqttConnector",
   components: { Mqttcolumn },
+  props: {
+    connectorData: {
+      type: Object,
+      default: () => {
+        return null;
+      },
+    },
+  },
   data() {
     return {
       visible: true,
@@ -165,9 +181,10 @@ export default {
         type: "warning",
       }).then(() => {
         this.columnNum.splice(ind, 1);
+        this.disable = true;
       });
 
-      console.log(ind, "要删除的索引位置", this.columnNum);
+      console.log(ind, "要删除的索引位置", this.confirmStatus, this.columnNum);
     },
     addRow() {
       this.columnNum.push({ column: "", alias: "", type: "" });
@@ -183,7 +200,7 @@ export default {
           payload: {
             json: this.columnNum,
             keep: true,
-          }
+          },
         },
 
         model: {
@@ -197,6 +214,9 @@ export default {
       console.log(this.ruleForm, this.columnNum, "获取参数body", this);
     },
   },
+  mounted() {
+    console.log(this.connectorData, "parser的props----======");
+  },
 };
 </script>
 <style lang="scss" scoped>
@@ -208,16 +228,18 @@ export default {
   flex-direction: column;
   overflow: hidden;
   max-height: 200px;
-  padding-left: 110px;
+  padding-left: 200px;
   margin-bottom: 15px;
   position: relative;
   .header {
     display: grid;
     grid-template-columns: 2fr 2fr 2fr 1fr;
     margin-bottom: 15px;
+    column-gap: 10px;
     li {
-      color: #4d6992;
+      color: #4259ce;
       font-size: 16px;
+      text-align: center;
     }
   }
   .col-content {
@@ -227,13 +249,20 @@ export default {
   }
   .info {
     position: absolute;
-    top: 38px;
-    left: 70px;
+    top: 45px;
+    left: 0px;
     cursor: pointer;
     i {
       font-size: 25px;
-      color: #4d6992;
+      color: #4259ce;
     }
+  }
+}
+::v-deep {
+  .el-form-item__label {
+    text-align: left;
+    color: #4259ce;
+    font-size: 14px;
   }
 }
 </style>

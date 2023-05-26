@@ -6,6 +6,9 @@
 
         <!-- <h3>{{ dbsource[0].description }}</h3> -->
       </section>
+      <section v-if="tagName == 'mqtt'" class="mqtt-config">
+        <MqttConnector :connectorData='dbsource[0].parser'></MqttConnector>
+      </section>
       <section class="basics">
         <!-- <div class="block-title" v-if="dbsource[0].options.endpoint">
           <span>{{ dbsource[0].options.endpoint.display }}</span>
@@ -591,11 +594,12 @@ import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt, debounce } from "@/utils/index";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
-
+import MqttConnector from "../components/mqttConnector.vue";
 export default {
   name: "DbSourceUI",
   components: {
     "p-three-checkbox": PThreeCheckbox,
+    MqttConnector,
   },
   props: {
     mqttParser: {

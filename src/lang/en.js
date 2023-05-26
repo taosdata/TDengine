@@ -1106,9 +1106,9 @@ export default {
   datasource: {
     mqtttitle:'MQTT Payload Parser',
     colname:'Column Name',
-    rename:'Rename',
+    rename:'Alias',
     coltype:'Type',
-    addmqtttip:'Column name, rename, type cannot be empty before adding',
+    addmqtttip:'Column name, alias, type cannot be empty before adding',
     subname:'Sub Table',
     supertable:'Super Table',
     delcol:'Are you sure to delete?',

@@ -9,7 +9,7 @@
       :dbName="dbName"
       :tagName="tagName"
       :protocol="protocol"
-      :mqttParser='mqttParser'
+      :mqttParser="mqttParser"
       :isEditable="isEditable"
       ref="table"
     ></component>
@@ -20,17 +20,17 @@ import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
 import { getUIData } from "@/api/explorer/datain";
-
+import mqtt from "./mqtt.json";
 export default {
   name: "DbSource",
   components: {
     dbsource: DataSource,
     ui: DbSourceUI,
-    opcui: OpcUI
-    
+    opcui: OpcUI,
   },
   data() {
     return {
+      mqttjson: mqtt,
       protocol: "ua", //只针对opc的ua/da
       tagName: "datasource",
       currentName: "",
@@ -40,7 +40,7 @@ export default {
       dbName: "",
       isEditable: false,
       agentID: "",
-      mqttParser:null
+      mqttParser: null,
     };
   },
   created() {
@@ -68,7 +68,12 @@ export default {
         //新增
 
         let data = this.sourceList.filter((item) => item.id === type);
-        this.uidata = type == "opc" ? data : this.deepClone(data);
+        if (type == "mqtt") {
+          this.uidata = [].concat(this.mqttjson);
+        } else {
+          this.uidata = type == "opc" ? data : this.deepClone(data);
+        }
+        console.log(this.uidata, "只针对mqtt---");
         this.isEditable = false;
         switch (type) {
           case "tmq":
@@ -104,14 +109,13 @@ export default {
             this.tagName = "opc";
             break;
           case "mqtt":
-            console.log('新增mqtt----');
             this.currentName = "opcui";
             this.tagName = "mqtt";
             break;
           case "pibackfill":
             this.currentName = "ui";
             this.tagName = "pibackfill";
-          break;
+            break;
         }
       } else {
         switch (id) {
@@ -144,7 +148,7 @@ export default {
           case "pibackfill":
             this.currentName = "ui";
             this.tagName = "pibackfill";
-          break;
+            break;
         }
         this.isEditable = true;
         this.editId = editid;
@@ -185,7 +189,7 @@ export default {
           }
         } else {
           targetObj[keys] = source[keys];
-          if (!Object.hasOwnProperty.call(targetObj,"value")) {
+          if (!Object.hasOwnProperty.call(targetObj, "value")) {
             targetObj["value"] = undefined;
           }
         }
