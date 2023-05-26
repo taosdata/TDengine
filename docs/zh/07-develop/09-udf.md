@@ -871,7 +871,7 @@ pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据�
 
 </details>
 
-### 聚合函数示例 [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pycumsum.py)
+#### 聚合函数示例 [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pycumsum.py)
 
 pycumsum 使用 numpy 计算输入列所有数据的累积和。
 <details>
