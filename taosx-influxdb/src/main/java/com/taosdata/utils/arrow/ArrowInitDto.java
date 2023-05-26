@@ -34,11 +34,9 @@ public class ArrowInitDto {
             case "boolean":
                 return "bool";
             case "integer":
-                return "int";
             case "long":
                 return "bigint";
             case "float":
-                return "float";
             case "double":
                 return "double";
             case "date":

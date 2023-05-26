@@ -280,12 +280,10 @@ public class ArrowUtils {
                 return new ArrowType.Bool();
             case "integer":
             case "int":
-                return new ArrowType.Int(32, true);
             case "long":
             case "bigint":
                 return new ArrowType.Int(64, true);
             case "float":
-                return new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
             case "double":
                 return new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
             case "date":
@@ -317,22 +315,14 @@ public class ArrowUtils {
                 break;
             }
             case "integer":
-            case "int": {
-                IntVector intVector = (IntVector) structVector.getChild(dataName);
-                intVector.setSafe(index, ((Number) dataValue).intValue());
-                break;
-            }
+            case "int":
             case "long":
             case "bigint": {
                 BigIntVector bigIntVector = (BigIntVector) structVector.getChild(dataName);
                 bigIntVector.setSafe(index, ((Number) dataValue).longValue());
                 break;
             }
-            case "float": {
-                Float4Vector float4Vector = (Float4Vector) structVector.getChild(dataName);
-                float4Vector.setSafe(index, ((Number) dataValue).floatValue());
-                break;
-            }
+            case "float":
             case "double": {
                 Float8Vector float8Vector = (Float8Vector) structVector.getChild(dataName);
                 float8Vector.setSafe(index, ((Number) dataValue).doubleValue());
