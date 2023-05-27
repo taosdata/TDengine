@@ -51,8 +51,8 @@ int32_t tsdbSttFReadStatisBlock(SSttSegReader *reader, const STbStatisBlk *stati
 
 struct SSttFileReaderConfig {
   STsdb    *tsdb;
-  SSkmInfo *pSkmTb;
-  SSkmInfo *pSkmRow;
+  SSkmInfo *skmTb;
+  SSkmInfo *skmRow;
   uint8_t **aBuf;
   int32_t   szPage;
   STFile    file;
