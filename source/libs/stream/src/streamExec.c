@@ -327,7 +327,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     while (1) {
       if (streamTaskShouldPause(&pTask->status)) {
-        return 0;
+        if (batchSize > 1) {
+          break;
+        } else {
+          return 0;
+        }
       }
 
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
