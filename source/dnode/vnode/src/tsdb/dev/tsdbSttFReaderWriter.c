@@ -305,7 +305,7 @@ static int32_t tsdbSttFileDoWriteTSDataBlock(SSttFileWriter *writer) {
   }
   tBlockDataClear(writer->bData);
 
-  code = TARRAY2_APPEND_P(writer->sttBlkArray, sttBlk);
+  code = TARRAY2_APPEND_PTR(writer->sttBlkArray, sttBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -326,31 +326,31 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
       .numRec = STATIS_BLOCK_SIZE(writer->sData),
       .minTid = {.suid = TARRAY2_FIRST(writer->sData->suid), .uid = TARRAY2_FIRST(writer->sData->uid)},
       .maxTid = {.suid = TARRAY2_LAST(writer->sData->suid), .uid = TARRAY2_LAST(writer->sData->uid)},
-      // .minVer = TARRAY2_FIRST(writer->sData->aVer),
-      // .maxVer = TARRAY2_FIRST(writer->sData->aVer),
+      .minVer = TARRAY2_FIRST(writer->sData->minVer),
+      .maxVer = TARRAY2_FIRST(writer->sData->maxVer),
   }};
 
-  // statisBlk->minVer = statisBlk->maxVer = statisBlk->maxVer = writer->sData->aData[2][0];
-  // for (int32_t iRow = 1; iRow < writer->sData->nRow; iRow++) {
-  //   if (statisBlk->minVer > writer->sData->aData[2][iRow]) statisBlk->minVer = writer->sData->aData[2][iRow];
-  //   if (statisBlk->maxVer < writer->sData->aData[2][iRow]) statisBlk->maxVer = writer->sData->aData[2][iRow];
-  // }
+  for (int32_t i = 1; i < STATIS_BLOCK_SIZE(writer->sData); i++) {
+    statisBlk->minVer = TMIN(statisBlk->minVer, TARRAY2_GET(writer->sData->minVer, i));
+    statisBlk->maxVer = TMAX(statisBlk->maxVer, TARRAY2_GET(writer->sData->maxVer, i));
+  }
 
-  // statisBlk->dp.offset = writer->file->size;
-  // statisBlk->dp.size = 0;
+  statisBlk->dp->offset = writer->file->size;
+  statisBlk->dp->size = 0;
 
-  // // TODO: add compression here
-  // int64_t tsize = sizeof(int64_t) * writer->sData->nRow;
-  // for (int32_t i = 0; i < ARRAY_SIZE(writer->sData->aData); i++) {
-  //   code = tsdbWriteFile(writer->fd, writer->file->size, (const uint8_t *)writer->sData->aData[i], tsize);
-  //   TSDB_CHECK_CODE(code, lino, _exit);
+  for (int32_t i = 0; i < ARRAY_SIZE(writer->sData->aData); i++) {
+    int32_t size;
+    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&writer->sData->aData[i]), TARRAY2_DATA_LEN(&writer->sData->aData[i]),
+                        TSDB_DATA_TYPE_BIGINT, TWO_STAGE_COMP, &writer->config->aBuf[0], 0, &size,
+                        &writer->config->aBuf[1]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    statisBlk->size[i] = size;
+    statisBlk->dp->size += size;
+  }
 
-  //   statisBlk->dp.size += tsize;
-  //   writer->file->size += tsize;
-  // }
   tStatisBlockClear(writer->sData);
 
-  code = TARRAY2_APPEND_P(writer->statisBlkArray, statisBlk);
+  code = TARRAY2_APPEND_PTR(writer->statisBlkArray, statisBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -394,7 +394,7 @@ static int32_t tsdbSttFileDoWriteDelBlock(SSttFileWriter *writer) {
   }
   tDelBlockDestroy(writer->dData);
 
-  code = TARRAY2_APPEND_P(writer->delBlkArray, delBlk);
+  code = TARRAY2_APPEND_PTR(writer->delBlkArray, delBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -723,13 +723,13 @@ int32_t tsdbSttFWriteTSDataBlock(SSttFileWriter *writer, SBlockData *bdata) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  SRowInfo rowInfo;
-  rowInfo.suid = bdata->suid;
+  SRowInfo row[1];
+  row->suid = bdata->suid;
   for (int32_t i = 0; i < bdata->nRow; i++) {
-    rowInfo.uid = bdata->uid ? bdata->uid : bdata->aUid[i];
-    rowInfo.row = tsdbRowFromBlockData(bdata, i);
+    row->uid = bdata->uid ? bdata->uid : bdata->aUid[i];
+    row->row = tsdbRowFromBlockData(bdata, i);
 
-    code = tsdbSttFWriteTSData(writer, &rowInfo);
+    code = tsdbSttFWriteTSData(writer, row);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

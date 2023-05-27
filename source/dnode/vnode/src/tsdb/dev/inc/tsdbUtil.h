@@ -38,11 +38,11 @@ typedef union {
 typedef union {
   TARRAY2(int64_t) aData[5];
   struct {
-    TARRAY2(int64_t) aSuid[1];
-    TARRAY2(int64_t) aUid[1];
-    TARRAY2(int64_t) aVer[1];
-    TARRAY2(int64_t) aSkey[1];
-    TARRAY2(int64_t) aEkey[1];
+    TARRAY2(int64_t) suid[1];
+    TARRAY2(int64_t) uid[1];
+    TARRAY2(int64_t) version[1];
+    TARRAY2(int64_t) skey[1];
+    TARRAY2(int64_t) ekey[1];
   };
 } SDelBlock;
 
@@ -55,7 +55,7 @@ typedef struct SDelBlk {
   SFDataPtr dp;
 } SDelBlk;
 
-#define DEL_BLOCK_SIZE(db) TARRAY2_SIZE((db)->aSuid)
+#define DEL_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
 
 int32_t tDelBlockInit(SDelBlock *delBlock);
 int32_t tDelBlockFree(SDelBlock *delBlock);
@@ -97,11 +97,12 @@ typedef union {
 
 typedef struct STbStatisBlk {
   int32_t   numRec;
+  int32_t   size[9];
   TABLEID   minTid;
   TABLEID   maxTid;
   int64_t   minVer;
   int64_t   maxVer;
-  SFDataPtr dp;
+  SFDataPtr dp[1];
 } STbStatisBlk;
 
 #define STATIS_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
@@ -110,8 +111,6 @@ int32_t tStatisBlockInit(STbStatisBlock *statisBlock);
 int32_t tStatisBlockFree(STbStatisBlock *statisBlock);
 int32_t tStatisBlockClear(STbStatisBlock *statisBlock);
 int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *statisRecord);
-int32_t tStatisBlockEncode(STbStatisBlock *statisBlock, void *buf, int32_t size);
-int32_t tStatisBlockDecode(const void *buf, STbStatisBlock *statisBlock);
 
 // other apis
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb);

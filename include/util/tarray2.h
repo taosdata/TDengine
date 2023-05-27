@@ -47,6 +47,7 @@ typedef void (*TArray2Cb)(void *);
 #define TARRAY2_GET_PTR(a, i) ((a)->data + i)
 #define TARRAY2_FIRST(a)      ((a)->data[0])
 #define TARRAY2_LAST(a)       ((a)->data[(a)->size - 1])
+#define TARRAY2_DATA_LEN(a)   ((a)->size * sizeof(typeof((a)->data[0])))
 
 static FORCE_INLINE int32_t tarray2_make_room(  //
     void   *arg,                                // array
@@ -114,9 +115,9 @@ static FORCE_INLINE int32_t tarray2_make_room(  //
     __ret;                                                                                                     \
   })
 
-#define TARRAY2_INSERT_P(a, idx, ep) TARRAY2_INSERT(a, idx, *(ep))
-#define TARRAY2_APPEND(a, e)         TARRAY2_INSERT(a, (a)->size, e)
-#define TARRAY2_APPEND_P(a, ep)      TARRAY2_APPEND(a, *(ep))
+#define TARRAY2_INSERT_PTR(a, idx, ep) TARRAY2_INSERT(a, idx, *(ep))
+#define TARRAY2_APPEND(a, e)           TARRAY2_INSERT(a, (a)->size, e)
+#define TARRAY2_APPEND_PTR(a, ep)      TARRAY2_APPEND(a, *(ep))
 
 // return (TYPE *)
 #define TARRAY2_SEARCH(a, ep, cmp, flag)                                                                     \

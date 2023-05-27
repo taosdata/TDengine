@@ -85,16 +85,6 @@ int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *stat
   return 0;
 }
 
-int32_t tStatisBlockEncode(STbStatisBlock *statisBlock, void *buf, int32_t size) {
-  // TODO
-  return 0;
-}
-
-int32_t tStatisBlockDecode(const void *buf, STbStatisBlock *statisBlock) {
-  // TODO
-  return 0;
-}
-
 // other apis ----------
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb) {
   if (tbid->suid) {
