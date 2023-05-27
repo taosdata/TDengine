@@ -30,10 +30,10 @@ typedef struct SDataFileReaderConfig SDataFileReaderConfig;
 typedef struct SDataFileWriter       SDataFileWriter;
 typedef struct SDataFileWriterConfig SDataFileWriterConfig;
 
-int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **ppWriter);
-int32_t tsdbDataFileWriterClose(SDataFileWriter *pWriter);
-int32_t tsdbDataFileWriteTSData(SDataFileWriter *pWriter, SBlockData *pBlockData);
-int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *pWriter, SBlockData *pBlockData);
+int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer);
+int32_t tsdbDataFileWriterClose(SDataFileWriter *writer);
+int32_t tsdbDataFileWriteTSData(SDataFileWriter *writer, SBlockData *bData);
+int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *writer, SBlockData *bData);
 
 struct SDataFileReaderConfig {
   STsdb *pTsdb;
