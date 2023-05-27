@@ -23,56 +23,99 @@ extern "C" {
 #endif
 
 // SDelBlock ----------
-typedef struct SDelBlock SDelBlock;
-typedef struct SDelBlk   SDelBlk;
 
-int32_t tDelBlockCreate(SDelBlock *pDelBlock, int32_t capacity);
-int32_t tDelBlockDestroy(SDelBlock *pDelBlock);
-int32_t tDelBlockClear(SDelBlock *pDelBlock);
-int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelData *pDelData);
+typedef union {
+  int64_t aData[5];
+  struct {
+    int64_t suid;
+    int64_t uid;
+    int64_t version;
+    int64_t skey;
+    int64_t ekey;
+  };
+} SDelRecord;
+
+typedef union {
+  TARRAY2(int64_t) aData[5];
+  struct {
+    TARRAY2(int64_t) aSuid[1];
+    TARRAY2(int64_t) aUid[1];
+    TARRAY2(int64_t) aVer[1];
+    TARRAY2(int64_t) aSkey[1];
+    TARRAY2(int64_t) aEkey[1];
+  };
+} SDelBlock;
+
+typedef struct SDelBlk {
+  int32_t   nRow;
+  TABLEID   minTid;
+  TABLEID   maxTid;
+  int64_t   minVer;
+  int64_t   maxVer;
+  SFDataPtr dp;
+} SDelBlk;
+
+#define DEL_BLOCK_SIZE(db) TARRAY2_SIZE((db)->aSuid)
+
+int32_t tDelBlockInit(SDelBlock *delBlock);
+int32_t tDelBlockFree(SDelBlock *delBlock);
+int32_t tDelBlockClear(SDelBlock *delBlock);
+int32_t tDelBlockPut(SDelBlock *delBlock, const SDelRecord *delRecord);
+int32_t tDelBlockEncode(SDelBlock *delBlock, void *buf, int32_t size);
+int32_t tDelBlockDecode(const void *buf, SDelBlock *delBlock);
 
 // STbStatisBlock ----------
-typedef struct STbStatisBlock STbStatisBlock;
-typedef struct STbStatisBlk   STbStatisBlk;
+typedef union {
+  int64_t aData[9];
+  struct {
+    int64_t suid;
+    int64_t uid;
+    int64_t firstKey;
+    int64_t firstVer;
+    int64_t lastKey;
+    int64_t lastVer;
+    int64_t minVer;
+    int64_t maxVer;
+    int64_t count;
+  };
+} STbStatisRecord;
 
-int32_t tTbStatisBlockCreate(STbStatisBlock *pTbStatisBlock, int32_t capacity);
-int32_t tTbStatisBlockDestroy(STbStatisBlock *pTbStatisBlock);
-int32_t tTbStatisBlockClear(STbStatisBlock *pTbStatisBlock);
+typedef union {
+  TARRAY2(int64_t) aData[9];
+  struct {
+    TARRAY2(int64_t) suid[1];
+    TARRAY2(int64_t) uid[1];
+    TARRAY2(int64_t) firstKey[1];
+    TARRAY2(int64_t) firstVer[1];
+    TARRAY2(int64_t) lastKey[1];
+    TARRAY2(int64_t) lastVer[1];
+    TARRAY2(int64_t) minVer[1];
+    TARRAY2(int64_t) maxVer[1];
+    TARRAY2(int64_t) aCount[1];
+  };
+} STbStatisBlock;
+
+typedef struct STbStatisBlk {
+  int32_t   numRec;
+  TABLEID   minTid;
+  TABLEID   maxTid;
+  int64_t   minVer;
+  int64_t   maxVer;
+  SFDataPtr dp;
+} STbStatisBlk;
+
+#define STATIS_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
+
+int32_t tStatisBlockInit(STbStatisBlock *statisBlock);
+int32_t tStatisBlockFree(STbStatisBlock *statisBlock);
+int32_t tStatisBlockClear(STbStatisBlock *statisBlock);
+int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *statisRecord);
+int32_t tStatisBlockEncode(STbStatisBlock *statisBlock, void *buf, int32_t size);
+int32_t tStatisBlockDecode(const void *buf, STbStatisBlock *statisBlock);
 
 // other apis
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb);
 int32_t tsdbUpdateSkmRow(STsdb *pTsdb, const TABLEID *tbid, int32_t sver, SSkmInfo *pSkmRow);
-
-/* Exposed Structs */
-// <suid, uid, version, skey, ekey>
-struct SDelBlock {
-  int32_t  capacity;
-  int32_t  nRow;
-  int64_t *aData[5];  // [suid, uid, version, skey, ekey
-};
-
-struct SDelBlk {
-  int32_t   nRow;
-  TABLEID   minTid;
-  TABLEID   maxTid;
-  int64_t   minVer;
-  int64_t   maxVer;
-  SFDataPtr dp;
-};
-
-struct STbStatisBlock {
-  int32_t  capacity;
-  int32_t  nRow;
-  int64_t *aData[7];  // [suid, uid, skey, sver, ekey, ever, count]
-};
-struct STbStatisBlk {
-  int32_t   nRow;
-  TABLEID   minTid;
-  TABLEID   maxTid;
-  int64_t   minVer;
-  int64_t   maxVer;
-  SFDataPtr dp;
-};
 
 #ifdef __cplusplus
 }

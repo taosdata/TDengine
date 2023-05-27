@@ -189,7 +189,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
     }
 
     fobj = TARRAY2_GET(&lvl->farr, 0);
-    if (fobj->f.stt.nseg < merger->tsdb->pVnode->config.sttTrigger) {
+    if (fobj->f.stt->nseg < merger->tsdb->pVnode->config.sttTrigger) {
       merger->ctx.toData = false;
       break;
     } else {
@@ -249,7 +249,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
                 .fid = fset->fid,
                 .cid = merger->cid,
                 .size = 0,
-                .stt = {.level = merger->ctx.level, .nseg = 0},
+                .stt = {{.level = merger->ctx.level, .nseg = 0}},
             },
     };
     code = tsdbSttFWriterOpen(&config, &merger->sttWriter);
@@ -362,7 +362,7 @@ int32_t tsdbMerge(STsdb *tsdb) {
 
     fobj = TARRAY2_GET(&lvl0->farr, 0);
 
-    if (fobj->f.stt.nseg >= sttTrigger) {
+    if (fobj->f.stt->nseg >= sttTrigger) {
       code = tsdbMergeFileSet(&merger, fset);
       TSDB_CHECK_CODE(code, lino, _exit);
     }

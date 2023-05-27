@@ -16,67 +16,82 @@
 #include "dev.h"
 
 // SDelBlock ----------
-int32_t tDelBlockCreate(SDelBlock *pDelBlock, int32_t capacity) {
-  int32_t code;
-
-  memset(pDelBlock, 0, sizeof(*pDelBlock));
-  pDelBlock->capacity = capacity;
-  for (int32_t i = 0; i < ARRAY_SIZE(pDelBlock->aData); ++i) {
-    if ((code = tRealloc((uint8_t **)&pDelBlock->aData[i], sizeof(int64_t) * capacity))) {
-      for (i--; i >= 0; --i) tFree(pDelBlock->aData[i]);
-      return code;
-    }
-  }
-
-  return 0;
-}
-
-int32_t tDelBlockDestroy(SDelBlock *pDelBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(pDelBlock->aData); ++i) {
-    tFree(pDelBlock->aData[i]);
+int32_t tDelBlockInit(SDelBlock *delBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->aData); ++i) {
+    TARRAY2_INIT(&delBlock->aData[i]);
   }
   return 0;
 }
 
-int32_t tDelBlockClear(SDelBlock *pDelBlock) {
-  pDelBlock->nRow = 0;
+int32_t tDelBlockFree(SDelBlock *delBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->aData); ++i) {
+    TARRAY2_FREE(&delBlock->aData[i]);
+  }
   return 0;
 }
 
-int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelData *pDelData) {
-  ASSERT(pDelBlock->nRow < pDelBlock->capacity);
-  pDelBlock->aData[0][pDelBlock->nRow] = tbid->suid;
-  pDelBlock->aData[1][pDelBlock->nRow] = tbid->uid;
-  pDelBlock->aData[2][pDelBlock->nRow] = pDelData->version;
-  pDelBlock->aData[3][pDelBlock->nRow] = pDelData->sKey;
-  pDelBlock->aData[4][pDelBlock->nRow] = pDelData->eKey;
-  pDelBlock->nRow++;
+int32_t tDelBlockClear(SDelBlock *delBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->aData); ++i) {
+    TARRAY2_CLEAR(&delBlock->aData[i], NULL);
+  }
+  return 0;
+}
+
+int32_t tDelBlockPut(SDelBlock *delBlock, const SDelRecord *delRecord) {
+  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->aData); ++i) {
+    int32_t code = TARRAY2_APPEND(&delBlock->aData[i], delRecord->aData[i]);
+    if (code) return code;
+  }
+  return 0;
+}
+
+int32_t tDelBlockEncode(SDelBlock *delBlock, void *buf, int32_t size) {
+  // TODO
+  return 0;
+}
+
+int32_t tDelBlockDecode(const void *buf, SDelBlock *delBlock) {
+  // TODO
   return 0;
 }
 
 // STbStatisBlock ----------
-
-int32_t tTbStatisBlockCreate(STbStatisBlock *pTbStatisBlock, int32_t capacity) {
-  memset(pTbStatisBlock, 0, sizeof(*pTbStatisBlock));
-  pTbStatisBlock->capacity = capacity;
-  for (int32_t i = 0; i < ARRAY_SIZE(pTbStatisBlock->aData); ++i) {
-    if (tRealloc((uint8_t **)&pTbStatisBlock->aData[i], sizeof(int64_t) * capacity)) {
-      for (i--; i >= 0; --i) tFree(pTbStatisBlock->aData[i]);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->aData); ++i) {
+    TARRAY2_INIT(&statisBlock->aData[i]);
   }
   return 0;
 }
 
-int32_t tTbStatisBlockDestroy(STbStatisBlock *pTbStatisBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(pTbStatisBlock->aData); ++i) {
-    tFree(pTbStatisBlock->aData[i]);
+int32_t tStatisBlockFree(STbStatisBlock *statisBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->aData); ++i) {
+    TARRAY2_FREE(&statisBlock->aData[i]);
   }
   return 0;
 }
 
-int32_t tTbStatisBlockClear(STbStatisBlock *pTbStatisBlock) {
-  pTbStatisBlock->nRow = 0;
+int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->aData); ++i) {
+    TARRAY2_CLEAR(&statisBlock->aData[i], NULL);
+  }
+  return 0;
+}
+
+int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *statisRecord) {
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->aData); ++i) {
+    int32_t code = TARRAY2_APPEND(&statisBlock->aData[i], statisRecord->aData[i]);
+    if (code) return code;
+  }
+  return 0;
+}
+
+int32_t tStatisBlockEncode(STbStatisBlock *statisBlock, void *buf, int32_t size) {
+  // TODO
+  return 0;
+}
+
+int32_t tStatisBlockDecode(const void *buf, STbStatisBlock *statisBlock) {
+  // TODO
   return 0;
 }
 

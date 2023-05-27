@@ -267,9 +267,9 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
     if (code) return code;
 
     if (fobj->f.type == TSDB_FTYPE_STT) {
-      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, fobj->f.stt.level);
+      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, fobj->f.stt->level);
       if (!lvl) {
-        code = tsdbSttLvlInit(fobj->f.stt.level, &lvl);
+        code = tsdbSttLvlInit(fobj->f.stt->level, &lvl);
         if (code) return code;
 
         code = TARRAY2_SORT_INSERT(&fset->lvlArr, lvl, tsdbSttLvlCmprFn);
@@ -285,7 +285,7 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
   } else if (op->optype == TSDB_FOP_REMOVE) {
     // delete a file
     if (op->of.type == TSDB_FTYPE_STT) {
-      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, op->of.stt.level);
+      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, op->of.stt->level);
       ASSERT(lvl);
 
       STFileObj  tfobj = {.f = {.cid = op->of.cid}};
@@ -305,7 +305,7 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
     }
   } else {
     if (op->nf.type == TSDB_FTYPE_STT) {
-      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, op->of.stt.level);
+      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, op->of.stt->level);
       ASSERT(lvl);
 
       STFileObj tfobj = {.f = {.cid = op->of.cid}}, *tfobjp = &tfobj;

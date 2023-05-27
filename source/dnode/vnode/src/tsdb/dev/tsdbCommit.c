@@ -70,8 +70,8 @@ static int32_t open_writer_with_new_stt(SCommitter *pCommitter) {
   config.file.fid = pCommitter->fid;
   config.file.cid = pCommitter->eid;
   config.file.size = 0;
-  config.file.stt.level = 0;
-  config.file.stt.nseg = 0;
+  config.file.stt->level = 0;
+  config.file.stt->nseg = 0;
 
   code = tsdbSttFWriterOpen(&config, &pCommitter->pWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -126,7 +126,7 @@ static int32_t open_committer_writer(SCommitter *pCommitter) {
 
   ASSERT(TARRAY2_SIZE(&lvl0->farr) > 0);
   STFileObj *fobj = TARRAY2_LAST(&lvl0->farr);
-  if (fobj->f.stt.nseg >= pCommitter->sttTrigger) {
+  if (fobj->f.stt->nseg >= pCommitter->sttTrigger) {
     return open_writer_with_new_stt(pCommitter);
   } else {
     return open_writer_with_exist_stt(pCommitter, &fobj->f);

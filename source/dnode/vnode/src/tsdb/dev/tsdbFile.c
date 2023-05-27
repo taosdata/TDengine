@@ -130,12 +130,12 @@ static int32_t stt_to_json(const STFile *file, cJSON *json) {
   if (code) return code;
 
   /* lvl */
-  if (cJSON_AddNumberToObject(json, "level", file->stt.level) == NULL) {
+  if (cJSON_AddNumberToObject(json, "level", file->stt->level) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   /* nseg */
-  if (cJSON_AddNumberToObject(json, "nseg", file->stt.nseg) == NULL) {
+  if (cJSON_AddNumberToObject(json, "nseg", file->stt->nseg) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -155,7 +155,7 @@ static int32_t stt_from_json(const cJSON *json, STFile *file) {
   /* lvl */
   item = cJSON_GetObjectItem(json, "level");
   if (cJSON_IsNumber(item)) {
-    file->stt.level = item->valuedouble;
+    file->stt->level = item->valuedouble;
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
   }
@@ -163,7 +163,7 @@ static int32_t stt_from_json(const cJSON *json, STFile *file) {
   /* nseg */
   item = cJSON_GetObjectItem(json, "nseg");
   if (cJSON_IsNumber(item)) {
-    file->stt.nseg = item->valuedouble;
+    file->stt->nseg = item->valuedouble;
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
   }
@@ -290,7 +290,7 @@ bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
 
 bool tsdbIsTFileChanged(const STFile *f1, const STFile *f2) {
   if (f1->size != f2->size) return true;
-  if (f1->type == TSDB_FTYPE_STT && f1->stt.nseg != f2->stt.nseg) return true;
+  if (f1->type == TSDB_FTYPE_STT && f1->stt->nseg != f2->stt->nseg) return true;
   return false;
 }
 
