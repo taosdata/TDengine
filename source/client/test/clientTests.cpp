@@ -1100,7 +1100,7 @@ TEST(clientCase, sub_tb_test) {
 
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
-  tmq_list_append(topicList, "topic_t1");
+  tmq_list_append(topicList, "t1");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
@@ -1118,7 +1118,7 @@ TEST(clientCase, sub_tb_test) {
   tmq_topic_assignment* pAssign = NULL;
   int32_t numOfAssign = 0;
 
-  int32_t code = tmq_get_topic_assignment(tmq, "topic_t1", &pAssign, &numOfAssign);
+  int32_t code = tmq_get_topic_assignment(tmq, "t1", &pAssign, &numOfAssign);
   if (code != 0) {
     printf("error occurs:%s\n", tmq_err2str(code));
     tmq_consumer_close(tmq);
@@ -1127,7 +1127,16 @@ TEST(clientCase, sub_tb_test) {
     return;
   }
 
-  tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgId, 0);
+  tmq_offset_seek(tmq, "t1", pAssign[0].vgId, 4);
+
+  code = tmq_get_topic_assignment(tmq, "t1", &pAssign, &numOfAssign);
+  if (code != 0) {
+    printf("error occurs:%s\n", tmq_err2str(code));
+    tmq_consumer_close(tmq);
+    taos_close(pConn);
+    fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+    return;
+  }
 
   while (1) {
     TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);

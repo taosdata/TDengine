@@ -510,8 +510,6 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   int64_t sver = 0, ever = 0;
   walReaderValidVersionRange(pHandle->execHandle.pTqReader->pWalReader, &sver, &ever);
 
-  int64_t currentVer = walReaderGetCurrentVer(pHandle->execHandle.pTqReader->pWalReader);
-
   SMqDataRsp dataRsp = {0};
   tqInitDataRsp(&dataRsp, &req);
 
@@ -537,7 +535,12 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
     dataRsp.rspOffset.type = TMQ_OFFSET__LOG;
 
     if (reqOffset.type == TMQ_OFFSET__LOG) {
-      dataRsp.rspOffset.version = currentVer; // return current consume offset value
+      int64_t currentVer = walReaderGetCurrentVer(pHandle->execHandle.pTqReader->pWalReader);
+      if (currentVer == -1) { // not start to read data from wal yet, return req offset directly
+        dataRsp.rspOffset.version = reqOffset.version;
+      } else {
+        dataRsp.rspOffset.version = currentVer;  // return current consume offset value
+      }
     } else if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
       dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
     } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
@@ -1085,6 +1088,7 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
 
   qDebug("s-task:%s set the start wal offset to be:%"PRId64, pTask->id.idStr, sversion);
   walReaderSeekVer(pTask->exec.pWalReader, sversion);
+  pTask->chkInfo.currentVer = sversion;
 
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
@@ -1280,6 +1284,8 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
+  tqDebug("vgId:%d receive msg to drop stream task:0x%x", TD_VID(pTq->pVnode), pReq->taskId);
+
   streamMetaRemoveTask(pTq->pStreamMeta, pReq->taskId);
   return 0;
 }

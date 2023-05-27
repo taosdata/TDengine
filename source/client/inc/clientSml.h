@@ -251,7 +251,7 @@ int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);
 uint8_t           smlGetTimestampLen(int64_t num);
 void              clearColValArray(SArray* pCols);
-void              smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag);
+void              smlDestroyTableInfo(void *para);
 
 void freeSSmlKv(void* data);
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
