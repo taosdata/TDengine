@@ -414,13 +414,12 @@ static int32_t tsdbSttFileDoWriteSttBlk(SSttFileWriter *writer) {
   int32_t lino;
 
   writer->footer->sttBlkPtr->offset = writer->file->size;
-  writer->footer->sttBlkPtr->size = sizeof(SSttBlk) * TARRAY2_SIZE(writer->sttBlkArray);
+  writer->footer->sttBlkPtr->size = TARRAY2_DATA_LEN(writer->sttBlkArray);
 
   if (writer->footer->sttBlkPtr->size) {
     code = tsdbWriteFile(writer->fd, writer->file->size, (const uint8_t *)TARRAY2_DATA(writer->sttBlkArray),
                          writer->footer->sttBlkPtr->size);
     TSDB_CHECK_CODE(code, lino, _exit);
-
     writer->file->size += writer->footer->sttBlkPtr->size;
   }
 
@@ -437,7 +436,7 @@ static int32_t tsdbSttFileDoWriteStatisBlk(SSttFileWriter *writer) {
   int32_t lino;
 
   writer->footer->statisBlkPtr->offset = writer->file->size;
-  writer->footer->statisBlkPtr->size = sizeof(STbStatisBlock) * TARRAY2_SIZE(writer->statisBlkArray);
+  writer->footer->statisBlkPtr->size = TARRAY2_DATA_LEN(writer->statisBlkArray);
 
   if (writer->footer->statisBlkPtr->size) {
     code = tsdbWriteFile(writer->fd, writer->file->size, (const uint8_t *)TARRAY2_DATA(writer->statisBlkArray),
@@ -459,7 +458,7 @@ static int32_t tsdbSttFileDoWriteDelBlk(SSttFileWriter *writer) {
   int32_t lino;
 
   writer->footer->delBlkPtr->offset = writer->file->size;
-  writer->footer->delBlkPtr->size = sizeof(SDelBlk) * TARRAY2_SIZE(writer->delBlkArray);
+  writer->footer->delBlkPtr->size = TARRAY2_DATA_LEN(writer->delBlkArray);
 
   if (writer->footer->delBlkPtr->size) {
     code = tsdbWriteFile(writer->fd, writer->file->size, (const uint8_t *)TARRAY2_DATA(writer->delBlkArray),
@@ -526,13 +525,20 @@ _exit:
   return 0;
 }
 
-static void tsdbSttFWriterDoClose(SSttFileWriter *pWriter) {
-  // TODO: do clear the struct
-}
+static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
+  ASSERT(!writer->fd);
 
-static int32_t tsdbSttFileDoWriteBloomFilter(SSttFileWriter *writer) {
-  // TODO
-  return 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(writer->aBufSize); ++i) {
+    tFree(writer->aBuf[i]);
+  }
+  tDestroyTSchema(writer->skmRow->pTSchema);
+  tDestroyTSchema(writer->skmTb->pTSchema);
+  tStatisBlockFree(writer->sData);
+  tDelBlockFree(writer->dData);
+  tBlockDataDestroy(writer->bData);
+  TARRAY2_FREE(writer->statisBlkArray);
+  TARRAY2_FREE(writer->delBlkArray);
+  TARRAY2_FREE(writer->sttBlkArray);
 }
 
 static int32_t tsdbSttFileDoUpdateHeader(SSttFileWriter *writer) {
@@ -563,9 +569,6 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, STFileOp *op) {
   code = tsdbSttFileDoWriteDelBlk(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbSttFileDoWriteBloomFilter(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   code = tsdbSttFileDoWriteFooter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -591,9 +594,6 @@ _exit:
 }
 
 static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
-  char fname[TSDB_FILENAME_LEN];
-
-  tsdbTFileName(writer->config->tsdb, &writer->config->file, fname);
   if (writer->config->file.size) {  // truncate the file to the original size
     ASSERT(writer->config->file.size <= writer->file->size);
     if (writer->config->file.size < writer->file->size) {
@@ -601,6 +601,8 @@ static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
       tsdbCloseFile(&writer->fd);
     }
   } else {  // remove the file
+    char fname[TSDB_FILENAME_LEN];
+    tsdbTFileName(writer->config->tsdb, &writer->config->file, fname);
     tsdbCloseFile(&writer->fd);
     taosRemoveFile(fname);
   }
