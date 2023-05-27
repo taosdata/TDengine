@@ -30,9 +30,9 @@ extern "C" {
 
 #include "inc/tsdbFS.h"
 
-#include "inc/tsdbSttFReaderWriter.h"
+#include "inc/tsdbSttFileRW.h"
 
-#include "inc/tsdbDataFReaderWriter.h"
+#include "inc/tsdbDataFileRW.h"
 
 #ifdef __cplusplus
 }

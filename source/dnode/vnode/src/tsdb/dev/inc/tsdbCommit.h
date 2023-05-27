@@ -14,7 +14,7 @@
  */
 
 #include "tsdbFS.h"
-#include "tsdbSttFReaderWriter.h"
+#include "tsdbSttFileRW.h"
 
 #ifndef _TSDB_COMMIT_H_
 #define _TSDB_COMMIT_H_

@@ -15,8 +15,8 @@
 
 #include "tsdbDef.h"
 
-#ifndef _TD_TSDB_DATA_F_READER_WRITER_H_
-#define _TD_TSDB_DATA_F_READER_WRITER_H_
+#ifndef _TSDB_DATA_FILE_RW_H
+#define _TSDB_DATA_FILE_RW_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,4 +49,4 @@ struct SDataFileWriterConfig {
 }
 #endif
 
-#endif /*_TD_TSDB_DATA_F_READER_WRITER_H_*/
+#endif /*_TSDB_DATA_FILE_RW_H*/

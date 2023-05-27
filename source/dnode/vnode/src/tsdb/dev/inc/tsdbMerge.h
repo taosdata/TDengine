@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDataFReaderWriter.h"
+#include "tsdbDataFileRW.h"
 #include "tsdbFS.h"
-#include "tsdbSttFReaderWriter.h"
+#include "tsdbSttFileRW.h"
 #include "tsdbUtil.h"
 
 #ifndef _TD_TSDB_MERGE_H_

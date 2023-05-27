@@ -16,8 +16,8 @@
 #include "tsdbFS.h"
 #include "tsdbUtil.h"
 
-#ifndef _TSDB_STT_FILE_WRITER_H
-#define _TSDB_STT_FILE_WRITER_H
+#ifndef _TSDB_STT_FILE_RW_H
+#define _TSDB_STT_FILE_RW_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,11 +36,9 @@ typedef TARRAY2(SSttSegReader *) TSttSegReaderArray;
 // SSttFileReader
 int32_t tsdbSttFReaderOpen(const SSttFileReaderConfig *config, SSttFileReader **reader);
 int32_t tsdbSttFReaderClose(SSttFileReader **reader);
-int32_t tsdbSttFReaderGetSegReader(SSttFileReader *reader, const TSttSegReaderArray **segReaderArray);
+int32_t tsdbSttFReaderGetSegReader(SSttFileReader *reader, const TSttSegReaderArray **readerArray);
 
 // SSttSegReader
-int32_t tsdbSttFReadBloomFilter(SSttSegReader *reader, const void *pFilter);
-
 int32_t tsdbSttFReadSttBlk(SSttSegReader *reader, const TSttBlkArray **sttBlkArray);
 int32_t tsdbSttFReadDelBlk(SSttSegReader *reader, const TDelBlkArray **delBlkArray);
 int32_t tsdbSttFReadStatisBlk(SSttSegReader *reader, const TStatisBlkArray **statisBlkArray);
@@ -55,7 +53,7 @@ struct SSttFileReaderConfig {
   SSkmInfo *skmRow;
   uint8_t **aBuf;
   int32_t   szPage;
-  STFile    file;
+  STFile    file[1];
 };
 
 // SSttFileWriter ==========================================
@@ -84,4 +82,4 @@ struct SSttFileWriterConfig {
 }
 #endif
 
-#endif /*_TSDB_STT_FILE_WRITER_H*/
+#endif /*_TSDB_STT_FILE_RW_H*/
