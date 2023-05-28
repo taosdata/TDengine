@@ -127,7 +127,7 @@ In the application code, use `pool.get()? ` to get a connection object [Taos].
 ```rust
 let taos = pool.get()? ;
 ```
-# Connectors
+### Connectors
 
 The [Taos][struct.Taos] object provides an API to perform operations on multiple databases.
 
