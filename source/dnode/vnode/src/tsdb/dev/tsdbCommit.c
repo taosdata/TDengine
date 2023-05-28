@@ -272,8 +272,10 @@ static int32_t commit_fset_end(SCommitter *pCommitter) {
   code = tsdbSttFWriterClose(&pCommitter->pWriter, 0, &op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = TARRAY2_APPEND(&pCommitter->opArray, op);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (op.optype != TSDB_FOP_NONE) {
+    code = TARRAY2_APPEND(&pCommitter->opArray, op);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
 _exit:
   if (code) {

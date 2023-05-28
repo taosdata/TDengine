@@ -14,6 +14,7 @@
  */
 
 #include "tsdbDef.h"
+#include "tsdbFSet.h"
 
 #ifndef _TSDB_DATA_FILE_RW_H
 #define _TSDB_DATA_FILE_RW_H
@@ -26,24 +27,19 @@ extern "C" {
 typedef struct SDataFileReader       SDataFileReader;
 typedef struct SDataFileReaderConfig SDataFileReaderConfig;
 
+int32_t tsdbDataFileReaderOpen(const char *fname, const SDataFileReaderConfig *config, SDataFileReader **reader);
+int32_t tsdbDataFileReaderClose(SDataFileReader *reader);
+
 // SDataFileWriter =============================================
-typedef struct SDataFileWriter       SDataFileWriter;
-typedef struct SDataFileWriterConfig SDataFileWriterConfig;
+typedef struct SDataFileWriter SDataFileWriter;
+typedef struct SDataFileWriterConfig {
+  STsdb *tsdb;
+} SDataFileWriterConfig;
 
 int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer);
-int32_t tsdbDataFileWriterClose(SDataFileWriter *writer);
+int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, STFileOp op[/*TSDB_FTYPE_MAX*/]);
 int32_t tsdbDataFileWriteTSData(SDataFileWriter *writer, SBlockData *bData);
-int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *writer, SBlockData *bData);
-
-struct SDataFileReaderConfig {
-  STsdb *pTsdb;
-  // TODO
-};
-
-struct SDataFileWriterConfig {
-  STsdb *pTsdb;
-  //   TODO
-};
+// int32_t tsdbDataFileWriteDelData(SDataFileWriter *writer, SBlockData *bData);
 
 #ifdef __cplusplus
 }

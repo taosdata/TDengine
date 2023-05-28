@@ -34,7 +34,7 @@ typedef struct SSttSegReader        SSttSegReader;
 typedef TARRAY2(SSttSegReader *) TSttSegReaderArray;
 
 // SSttFileReader
-int32_t tsdbSttFReaderOpen(const SSttFileReaderConfig *config, SSttFileReader **reader);
+int32_t tsdbSttFReaderOpen(const char *fname, const SSttFileReaderConfig *config, SSttFileReader **reader);
 int32_t tsdbSttFReaderClose(SSttFileReader **reader);
 int32_t tsdbSttFReaderGetSegReader(SSttFileReader *reader, const TSttSegReaderArray **readerArray);
 

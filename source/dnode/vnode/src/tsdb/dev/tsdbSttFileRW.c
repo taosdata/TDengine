@@ -84,7 +84,7 @@ static int32_t tsdbSttSegReaderClose(SSttSegReader **reader) {
   return 0;
 }
 
-int32_t tsdbSttFReaderOpen(const SSttFileReaderConfig *config, SSttFileReader **reader) {
+int32_t tsdbSttFReaderOpen(const char *fname, const SSttFileReaderConfig *config, SSttFileReader **reader) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(config->tsdb->pVnode);
@@ -95,8 +95,6 @@ int32_t tsdbSttFReaderOpen(const SSttFileReaderConfig *config, SSttFileReader **
   reader[0]->config[0] = config[0];
 
   // open file
-  char fname[TSDB_FILENAME_LEN];
-  tsdbTFileName(config->tsdb, config->file, fname);
   code = tsdbOpenFile(fname, config->szPage, TD_FILE_READ, &reader[0]->fd);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -221,13 +219,60 @@ int32_t tsdbSttFReadSttBlock(SSttSegReader *reader, const SSttBlk *sttBlk, SBloc
 
 int32_t tsdbSttFReadDelBlock(SSttSegReader *reader, const SDelBlk *delBlk, SDelBlock *dData) {
   int32_t code = 0;
-  // TODO
+  int32_t lino = 0;
+  int32_t vid = TD_VID(reader->reader->config->tsdb->pVnode);
+
+  tDelBlockClear(dData);
+  code = tRealloc(&reader->reader->config->aBuf[0], delBlk->dp->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbReadFile(reader->reader->fd, delBlk->dp->offset, reader->reader->config->aBuf[0], delBlk->dp->size);
+  if (code) TSDB_CHECK_CODE(code, lino, _exit);
+
+  int64_t size = 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(dData->aData); ++i) {
+    code = tsdbDecmprData(reader->reader->config->aBuf[0] + size, delBlk->size[i], TSDB_DATA_TYPE_BIGINT,
+                          TWO_STAGE_COMP, NULL, 0, NULL);  // TODO
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    size += delBlk->size[i];
+  }
+
+  ASSERT(size == delBlk->dp->size);
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d, reason:%s", vid, __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
 int32_t tsdbSttFReadStatisBlock(SSttSegReader *reader, const STbStatisBlk *statisBlk, STbStatisBlock *sData) {
   int32_t code = 0;
-  // TODO
+  int32_t lino = 0;
+  int32_t vid = TD_VID(reader->reader->config->tsdb->pVnode);
+
+  tStatisBlockClear(sData);
+  code = tRealloc(&reader->reader->config->aBuf[0], statisBlk->dp->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbReadFile(reader->reader->fd, statisBlk->dp->offset, reader->reader->config->aBuf[0], statisBlk->dp->size);
+  if (code) TSDB_CHECK_CODE(code, lino, _exit);
+
+  int64_t size = 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(sData->aData); ++i) {
+    code = tsdbDecmprData(reader->reader->config->aBuf[0] + size, statisBlk->size[i], TSDB_DATA_TYPE_BIGINT,
+                          TWO_STAGE_COMP, NULL, 0, NULL);  // TODO
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    size += statisBlk->size[i];
+  }
+
+  ASSERT(size == statisBlk->dp->size);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d, reason:%s", vid, __func__, lino, tstrerror(code));
+  }
   return code;
 }
 

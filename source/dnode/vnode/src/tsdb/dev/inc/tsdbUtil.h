@@ -24,8 +24,9 @@ extern "C" {
 
 // SDelBlock ----------
 
+#define DEL_RECORD_NUM_ELEM 5
 typedef union {
-  int64_t aData[5];
+  int64_t aData[DEL_RECORD_NUM_ELEM];
   struct {
     int64_t suid;
     int64_t uid;
@@ -36,7 +37,7 @@ typedef union {
 } SDelRecord;
 
 typedef union {
-  TARRAY2(int64_t) aData[5];
+  TARRAY2(int64_t) aData[DEL_RECORD_NUM_ELEM];
   struct {
     TARRAY2(int64_t) suid[1];
     TARRAY2(int64_t) uid[1];
@@ -48,11 +49,12 @@ typedef union {
 
 typedef struct SDelBlk {
   int32_t   nRow;
+  int32_t   size[DEL_RECORD_NUM_ELEM];
   TABLEID   minTid;
   TABLEID   maxTid;
   int64_t   minVer;
   int64_t   maxVer;
-  SFDataPtr dp;
+  SFDataPtr dp[1];
 } SDelBlk;
 
 #define DEL_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
@@ -65,8 +67,9 @@ int32_t tDelBlockEncode(SDelBlock *delBlock, void *buf, int32_t size);
 int32_t tDelBlockDecode(const void *buf, SDelBlock *delBlock);
 
 // STbStatisBlock ----------
+#define STATIS_RECORD_NUM_ELEM 9
 typedef union {
-  int64_t aData[9];
+  int64_t aData[STATIS_RECORD_NUM_ELEM];
   struct {
     int64_t suid;
     int64_t uid;
@@ -81,7 +84,7 @@ typedef union {
 } STbStatisRecord;
 
 typedef union {
-  TARRAY2(int64_t) aData[9];
+  TARRAY2(int64_t) aData[STATIS_RECORD_NUM_ELEM];
   struct {
     TARRAY2(int64_t) suid[1];
     TARRAY2(int64_t) uid[1];
@@ -97,7 +100,7 @@ typedef union {
 
 typedef struct STbStatisBlk {
   int32_t   numRec;
-  int32_t   size[9];
+  int32_t   size[STATIS_RECORD_NUM_ELEM];
   TABLEID   minTid;
   TABLEID   maxTid;
   int64_t   minVer;

@@ -22,50 +22,81 @@ struct SDataFileReader {
 
 // SDataFileWriter =============================================
 struct SDataFileWriter {
+  SDataFileWriterConfig config[1];
+  struct {
+    bool opened;
+  } ctx[1];
   // TODO
 };
 
-int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **ppWriter) {
+int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer) {
+  writer[0] = taosMemoryCalloc(1, sizeof(SDataFileWriter));
+  if (!writer[0]) return TSDB_CODE_OUT_OF_MEMORY;
+  writer[0]->ctx->opened = false;
+  return 0;
+}
+
+static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer) {
+  // TODO
+  return 0;
+}
+static int32_t tsdbDataFileWriterCloseAbort(SDataFileWriter *writer) {
+  // TODO
+  return 0;
+}
+static int32_t tsdbDataFileWriterDoClose(SDataFileWriter *writer) {
+  // TODO
+  return 0;
+}
+static int32_t tsdbDataFileWriterCloseImpl(SDataFileWriter *writer, bool abort, STFileOp op[/*TSDB_FTYPE_MAX*/]) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = TD_VID(config->pTsdb->pVnode);
-// TODO
+  int32_t vid = TD_VID(writer->config->tsdb->pVnode);
+
+  if (!writer->ctx->opened) {
+    for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) op[i].optype = TSDB_FOP_NONE;
+  } else {
+    if (abort) {
+      code = tsdbDataFileWriterCloseAbort(writer);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } else {
+      code = tsdbDataFileWriterCloseCommit(writer);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    tsdbDataFileWriterDoClose(writer);
+  }
+  taosMemoryFree(writer);
+
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
   }
   return code;
 }
-
-int32_t tsdbDataFileWriterClose(SDataFileWriter *pWriter) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  int32_t vid = 0;  // TODO: TD_VID(config->pTsdb->pVnode);
-// TODO
-_exit:
+int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, STFileOp op[/*TSDB_FTYPE_MAX*/]) {
+  int32_t code = tsdbDataFileWriterCloseImpl(writer[0], abort, op);
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
+    return code;
+  } else {
+    writer[0] = NULL;
+    return 0;
   }
-  return code;
 }
 
-int32_t tsdbDataFileWriteTSData(SDataFileWriter *pWriter, SBlockData *pBlockData) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  int32_t vid = 0;  // TODO: TD_VID(config->pTsdb->pVnode);
-// TODO
-_exit:
-  if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
-  }
-  return code;
+static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
+  // TODO
+  return 0;
 }
-
-int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *pWriter, SBlockData *pBlockData) {
+int32_t tsdbDataFileWriteTSData(SDataFileWriter *writer, SBlockData *bData) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = 0;  // TODO: TD_VID(config->pTsdb->pVnode);
-// TODO
+  int32_t vid = TD_VID(writer->config->tsdb->pVnode);
+
+  if (!writer->ctx->opened) {
+    code = tsdbDataFileWriterDoOpen(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));

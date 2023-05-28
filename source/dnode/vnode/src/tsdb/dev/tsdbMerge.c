@@ -202,7 +202,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
           .tsdb = merger->tsdb,
           // TODO
       };
-      code = tsdbSttFReaderOpen(&config, &reader);
+      code = tsdbSttFReaderOpen(fobj->fname, &config, &reader);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = TARRAY2_APPEND(&merger->sttReaderArr, reader);
@@ -259,7 +259,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
   // open data file writer
   if (merger->ctx.toData) {
     SDataFileWriterConfig config = {
-        .pTsdb = merger->tsdb,
+        .tsdb = merger->tsdb,
         // TODO
     };
     code = tsdbDataFileWriterOpen(&config, &merger->dataWriter);
