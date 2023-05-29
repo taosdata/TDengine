@@ -121,6 +121,12 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
     } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
       walRefLastVer(pTq->pVnode->pWal, pHandle->pRef);
       tqOffsetResetToLog(pOffsetVal, pHandle->pRef->refVer);
+      STqOffset offset = {0};
+      strcpy(offset.subKey, pRequest->subKey);
+      if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
+        terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
+        return -1;
+      }
     } else if (reqOffset.type == TMQ_OFFSET__RESET_NONE) {
       tqError("tmq poll: subkey:%s, no offset committed for consumer:0x%" PRIx64 " in vg %d, subkey %s, reset none failed",
               pHandle->subKey, consumerId, vgId, pRequest->subKey);
