@@ -5,7 +5,7 @@ use arrow::ipc::RecordBatch;
 use arrow_flight::{FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
 use taos::{AsyncQueryable, AsyncTBuilder, Bindable, Dsn, Stmt, TaosBuilder, TaosPool};
-use taosx_core::{ConnectorLicense, IpcStreamWorker};
+use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser};
 use tonic::{Status, Streaming};
 
 use crate::serve::controller::{
