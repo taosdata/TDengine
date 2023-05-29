@@ -713,7 +713,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       }
 
       SArray* tbUidList = NULL;
-      ret = qGetTableList(req.suid, pVnode->pMeta, pVnode, pHandle->execHandle.execTb.node, &tbUidList);
+      ret = qGetTableList(req.suid, pVnode, pHandle->execHandle.execTb.node, &tbUidList);
       if(ret != TDB_CODE_SUCCESS) {
         tqError("qGetTableList error:%d vgId:%d, subkey:%s consumer:0x%" PRIx64, ret, pVnode->config.vgId, req.subKey, pHandle->consumerId);
         taosArrayDestroy(tbUidList);
