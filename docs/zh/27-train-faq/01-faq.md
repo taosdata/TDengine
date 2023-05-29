@@ -77,7 +77,7 @@ description: 一些常见问题的解决方法汇总
 
  - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
 
-11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](https://docs.taosdata.com/3.0-preview/operation/diagnose/)。
+11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](../../operation/diagnose/)。
 
 ### 5. 遇到错误 Unable to resolve FQDN” 怎么办？
 
@@ -246,5 +246,11 @@ launchctl limit maxfiles
 ### 20 建库时提示 Out of dnodes
 该提示是创建 db 的 vnode 数量不够了，需要的 vnode 不能超过了 dnode 中 vnode 的上限。因为系统默认是一个 dnode 中有 CPU 核数两倍的 vnode，也可以通过配置文件中的参数 supportVnodes 控制。
 正常调大 taos.cfg 中 supportVnodes 参数即可。
+
+### 21 【查询】在服务器上的使用 tao-CLI 能查到指定时间段的数据，但在客户端机器上查不到？
+这种情况是因为客户端与服务器上设置的时区不一致导致的，调整客户端与服务器的时区一致即可解决。
+
+### 22 【表名】表名确认是存在的，但写入或查询时报表不存在错误，非常奇怪，什么原因？ 
+TDengine 中的所有名称，包括数据库名、表名等都是区分大小写的，如果这些名称在程序或 taos-CLI 中没有使用反引号（`）括起来使用，即使你输入的是大写的，引擎也会转化成小写来使用，如果名称前后加上了反引号，引擎就不会再转化成小写，会保持原样来使用。
 
 

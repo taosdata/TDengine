@@ -57,6 +57,28 @@ int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   return 0;
 }
 
+const char* vnodeRoleToStr(ESyncRole role) {
+  switch (role) {
+    case TAOS_SYNC_ROLE_VOTER:
+      return "true";
+    case TAOS_SYNC_ROLE_LEARNER:
+      return "false";
+    default:
+      return "unknown";
+  }
+}
+
+const ESyncRole vnodeStrToRole(char* str) {
+  if(strcmp(str, "true") == 0){
+    return TAOS_SYNC_ROLE_VOTER;
+  }
+  if(strcmp(str, "false") == 0){
+    return TAOS_SYNC_ROLE_LEARNER;
+  }
+
+  return TAOS_SYNC_ROLE_ERROR;
+}
+
 int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   const SVnodeCfg *pCfg = (SVnodeCfg *)pObj;
 
@@ -112,6 +134,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "hashChange", pCfg->hashChange) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashPrefix", pCfg->hashPrefix) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashSuffix", pCfg->hashSuffix) < 0) return -1;
@@ -128,9 +151,9 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) return -1;
   if (tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", nodeInfo) < 0) return -1;
-  vDebug("vgId:%d, encode config, replicas:%d selfIndex:%d", pCfg->vgId, pCfg->syncCfg.replicaNum,
-         pCfg->syncCfg.myIndex);
-  for (int i = 0; i < pCfg->syncCfg.replicaNum; ++i) {
+  vDebug("vgId:%d, encode config, replicas:%d totalReplicas:%d selfIndex:%d", pCfg->vgId, pCfg->syncCfg.replicaNum,
+         pCfg->syncCfg.totalReplicaNum, pCfg->syncCfg.myIndex);
+  for (int i = 0; i < pCfg->syncCfg.totalReplicaNum; ++i) {
     SJson     *info = tjsonCreateObject();
     SNodeInfo *pNode = (SNodeInfo *)&pCfg->syncCfg.nodeInfo[i];
     if (info == NULL) return -1;
@@ -138,6 +161,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     if (tjsonAddStringToObject(info, "nodeFqdn", pNode->nodeFqdn) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "nodeId", pNode->nodeId) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "clusterId", pNode->clusterId) < 0) return -1;
+    if (tjsonAddStringToObject(info, "isReplica", vnodeRoleToStr(pNode->nodeRole)) < 0) return -1;
     if (tjsonAddItemToArray(nodeInfo, info) < 0) return -1;
     vDebug("vgId:%d, encode config, replica:%d ep:%s:%u dnode:%d", pCfg->vgId, i, pNode->nodeFqdn, pNode->nodePort,
            pNode->nodeId);
@@ -226,6 +250,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashEnd", pCfg->hashEnd, code);
   if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "hashChange", pCfg->hashChange, code);
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashMethod", pCfg->hashMethod, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashPrefix", pCfg->hashPrefix, code);
@@ -251,10 +277,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");
   int    arraySize = tjsonGetArraySize(nodeInfo);
-  if (arraySize != pCfg->syncCfg.replicaNum) return -1;
+  pCfg->syncCfg.totalReplicaNum = arraySize;
 
-  vDebug("vgId:%d, decode config, replicas:%d selfIndex:%d", pCfg->vgId, pCfg->syncCfg.replicaNum,
-         pCfg->syncCfg.myIndex);
+  vDebug("vgId:%d, decode config, replicas:%d totalReplicas:%d selfIndex:%d", pCfg->vgId, pCfg->syncCfg.replicaNum,
+         pCfg->syncCfg.totalReplicaNum, pCfg->syncCfg.myIndex);
   for (int i = 0; i < arraySize; ++i) {
     SJson     *info = tjsonGetArrayItem(nodeInfo, i);
     SNodeInfo *pNode = &pCfg->syncCfg.nodeInfo[i];
@@ -266,6 +292,15 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (code < 0) return -1;
     tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);
     if (code < 0) return -1;
+    char role[10] = {0};
+    code = tjsonGetStringValue(info, "isReplica", role);
+    if (code < 0) return -1;
+    if(strlen(role) != 0){
+      pNode->nodeRole = vnodeStrToRole(role);
+    }
+    else{
+      pNode->nodeRole = TAOS_SYNC_ROLE_VOTER;
+    }
     vDebug("vgId:%d, decode config, replica:%d ep:%s:%u dnode:%d", pCfg->vgId, i, pNode->nodeFqdn, pNode->nodePort,
            pNode->nodeId);
   }

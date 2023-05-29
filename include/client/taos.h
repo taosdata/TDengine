@@ -51,7 +51,8 @@ typedef void   TAOS_SUB;
 #define TSDB_DATA_TYPE_BLOB       18  // binary
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #define TSDB_DATA_TYPE_BINARY     TSDB_DATA_TYPE_VARCHAR  // string
-#define TSDB_DATA_TYPE_MAX        20
+#define TSDB_DATA_TYPE_GEOMETRY   20  // geometry
+#define TSDB_DATA_TYPE_MAX        21
 
 typedef enum {
   TSDB_OPTION_LOCALE,
@@ -101,6 +102,7 @@ typedef struct TAOS_FIELD_E {
 #endif
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *res, int code);
+typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type);
 
 typedef struct TAOS_MULTI_BIND {
   int       buffer_type;
@@ -120,6 +122,10 @@ typedef enum {
   SET_CONF_RET_ERR_ONLY_ONCE = -5,
   SET_CONF_RET_ERR_TOO_LONG = -6
 } SET_CONF_RET_CODE;
+
+typedef enum {
+  TAOS_NOTIFY_PASSVER = 0,
+} TAOS_NOTIFY_TYPE;
 
 #define RET_MSG_LENGTH 1024
 typedef struct setConfRet {
@@ -162,7 +168,7 @@ DLL_EXPORT int        taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name
 DLL_EXPORT int        taos_stmt_get_tag_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields);
 DLL_EXPORT int        taos_stmt_get_col_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields);
 // let stmt to reclaim TAOS_FIELD_E that was allocated by `taos_stmt_get_tag_fields`/`taos_stmt_get_col_fields`
-DLL_EXPORT void       taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields);
+DLL_EXPORT void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields);
 
 DLL_EXPORT int       taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
 DLL_EXPORT int       taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
@@ -228,6 +234,8 @@ DLL_EXPORT int taos_load_table_info(TAOS *taos, const char *tableNameList);
 // set heart beat thread quit mode , if quicByKill 1 then kill thread else quit from inner
 DLL_EXPORT void taos_set_hb_quit(int8_t quitByKill);
 
+DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type);
+
 /*  --------------------------schemaless INTERFACE------------------------------- */
 
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision);
@@ -265,6 +273,12 @@ DLL_EXPORT tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errst
 DLL_EXPORT const char *tmq_err2str(int32_t code);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
+typedef struct tmq_topic_assignment {
+  int32_t vgId;
+  int64_t currentOffset;
+  int64_t begin;
+  int64_t end;
+} tmq_topic_assignment;
 
 DLL_EXPORT int32_t   tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
 DLL_EXPORT int32_t   tmq_unsubscribe(tmq_t *tmq);
@@ -273,6 +287,10 @@ DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
 DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
 DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
 DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
+DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment,
+                                              int32_t *numOfAssignment);
+DLL_EXPORT void      tmq_free_assignment(tmq_topic_assignment* pAssignment);
+DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
 
 /* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
 
@@ -294,6 +312,7 @@ DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_comm
 DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
+DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
 
 /* ------------------------------ TAOSX -----------------------------------*/
 // note: following apis are unstable

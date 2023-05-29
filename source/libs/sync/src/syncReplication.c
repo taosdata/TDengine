@@ -64,15 +64,15 @@ int32_t syncNodeReplicate(SSyncNode* pNode) {
 }
 
 int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
-  if (pNode->state != TAOS_SYNC_STATE_LEADER || pNode->replicaNum == 1) {
+  if (pNode->state != TAOS_SYNC_STATE_LEADER || pNode->raftCfg.cfg.totalReplicaNum == 1) {
     return -1;
   }
-  for (int32_t i = 0; i < pNode->replicaNum; i++) {
+  for (int32_t i = 0; i < pNode->totalReplicaNum; i++) {
     if (syncUtilSameId(&pNode->replicasId[i], &pNode->myRaftId)) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    (void)syncLogReplDoOnce(pMgr, pNode);
+    (void)syncLogReplStart(pMgr, pNode);
   }
   return 0;
 }

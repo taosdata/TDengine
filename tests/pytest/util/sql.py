@@ -78,29 +78,38 @@ class TDSql:
         self.cursor.execute(s)
         time.sleep(2)
 
-    def error(self, sql):
+    def error(self, sql, expectedErrno = None):
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrNotOccured = True
+
         try:
             self.cursor.execute(sql)
         except BaseException as e:
             expectErrNotOccured = False
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            self.errno = e.errno
             self.error_info = repr(e)
             # print(error_info)
             # self.error_info = error_info[error_info.index('(')+1:-1].split(",")[0].replace("'","")
             # self.error_info = (','.join(error_info.split(",")[:-1]).split("(",1)[1:][0]).replace("'","")
             # print("!!!!!!!!!!!!!!",self.error_info)
-            
+
         if expectErrNotOccured:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
             tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
         else:
             self.queryRows = 0
             self.queryCols = 0
             self.queryResult = None
-            tdLog.info("sql:%s, expect error occured" % (sql))
+
+            if expectedErrno != None:
+                if  expectedErrno == self.errno:
+                    tdLog.info("sql:%s, expected errno %s occured" % (sql, expectedErrno))
+                else:
+                  tdLog.exit("%s(%d) failed: sql:%s, errno %s occured, but not expected errno %s" % (caller.filename, caller.lineno, sql, self.errno, expectedErrno))
+            else:
+              tdLog.info("sql:%s, expect error occured" % (sql))
+
             return self.error_info
-            
+
 
     def query(self, sql, row_tag=None,queryTimes=10):
         self.sql = sql
@@ -431,7 +440,7 @@ class TDSql:
                 time.sleep(1)
                 continue
 
-    def execute(self, sql,queryTimes=10):
+    def execute(self, sql,queryTimes=30):
         self.sql = sql
         i=1
         while i <= queryTimes:

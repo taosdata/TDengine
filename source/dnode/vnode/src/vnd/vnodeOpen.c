@@ -76,19 +76,41 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   }
 
   SSyncCfg *pCfg = &info.config.syncCfg;
-  pCfg->myIndex = pReq->selfIndex;
-  pCfg->replicaNum = pReq->replica;
+ 
+  pCfg->replicaNum = 0;
+  pCfg->totalReplicaNum = 0;
   memset(&pCfg->nodeInfo, 0, sizeof(pCfg->nodeInfo));
 
-  vInfo("vgId:%d, save config while alter, replicas:%d selfIndex:%d", pReq->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int i = 0; i < pReq->replica; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     pNode->nodeId = pReq->replicas[i].id;
     pNode->nodePort = pReq->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pReq->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodeRole = TAOS_SYNC_ROLE_VOTER;
     (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
+    pCfg->replicaNum++;
   }
+  if(pReq->selfIndex != -1){
+    pCfg->myIndex = pReq->selfIndex;
+  }
+  for (int i = pCfg->replicaNum; i < pReq->replica + pReq->learnerReplica; ++i) {
+    SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    pNode->nodeId = pReq->learnerReplicas[pCfg->totalReplicaNum].id;
+    pNode->nodePort = pReq->learnerReplicas[pCfg->totalReplicaNum].port;
+    pNode->nodeRole = TAOS_SYNC_ROLE_LEARNER;
+    tstrncpy(pNode->nodeFqdn, pReq->learnerReplicas[pCfg->totalReplicaNum].fqdn, sizeof(pNode->nodeFqdn));
+    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
+    pCfg->totalReplicaNum++;
+  }
+  pCfg->totalReplicaNum += pReq->replica;
+  if(pReq->learnerSelfIndex != -1){
+    pCfg->myIndex = pReq->replica + pReq->learnerSelfIndex;
+  }
+
+  vInfo("vgId:%d, save config while alter, replicas:%d totalReplicas:%d selfIndex:%d", 
+            pReq->vgId, pCfg->replicaNum, pCfg->totalReplicaNum, pCfg->myIndex);
 
   info.config.syncCfg = *pCfg;
   ret = vnodeSaveInfo(dir, &info);
@@ -176,11 +198,13 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   info.config.vgId = pReq->dstVgId;
   info.config.hashBegin = pReq->hashBegin;
   info.config.hashEnd = pReq->hashEnd;
+  info.config.hashChange = true;
   info.config.walCfg.vgId = pReq->dstVgId;
 
   SSyncCfg *pCfg = &info.config.syncCfg;
   pCfg->myIndex = 0;
   pCfg->replicaNum = 1;
+  pCfg->totalReplicaNum = 1;
   memset(&pCfg->nodeInfo, 0, sizeof(pCfg->nodeInfo));
 
   vInfo("vgId:%d, alter vnode replicas to 1", pReq->srcVgId);
@@ -211,8 +235,6 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
            tstrerror(terrno));
     return -1;
   }
-
-  // todo vnode compact here
 
   vInfo("vgId:%d, vnode hashrange is altered", info.config.vgId);
   return 0;
@@ -248,7 +270,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   // save vnode info on dnode ep changed
   bool      updated = false;
   SSyncCfg *pCfg = &info.config.syncCfg;
-  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+  for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort)) {
       updated = true;
@@ -285,8 +307,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   tsem_init(&(pVnode->canCommit), 0, 1);
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
-
-  vnodeUpdCommitSched(pVnode);
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -405,6 +425,14 @@ void vnodeClose(SVnode *pVnode) {
 
 // start the sync timer after the queue is ready
 int32_t vnodeStart(SVnode *pVnode) { return vnodeSyncStart(pVnode); }
+
+int32_t vnodeIsCatchUp(SVnode *pVnode){
+  return syncIsCatchUp(pVnode->sync);
+}
+
+ESyncRole vnodeGetRole(SVnode *pVnode){
+  return syncGetRole(pVnode->sync);
+}
 
 void vnodeStop(SVnode *pVnode) {}
 

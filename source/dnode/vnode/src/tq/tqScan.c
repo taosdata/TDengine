@@ -51,7 +51,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
   metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
 
   // TODO add reference to gurantee success
-  if (metaGetTableEntryByUidCache(&mr, uid) < 0) {
+  if (metaReaderGetTableEntryByUidCache(&mr, uid) < 0) {
     metaReaderClear(&mr);
     return -1;
   }
@@ -82,6 +82,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
     qStreamSetOpen(task);
+
     tqDebug("consumer:0x%" PRIx64 " vgId:%d, tmq one task start execute", pHandle->consumerId, vgId);
     if (qExecTask(task, &pDataBlock, &ts) != TSDB_CODE_SUCCESS) {
       tqError("consumer:0x%" PRIx64 " vgId:%d, task exec error since %s", pHandle->consumerId, vgId, terrstr());
@@ -205,7 +206,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     STqReader* pReader = pExec->pTqReader;
     tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver);
-    while (tqNextBlockImpl(pReader)) {
+    while (tqNextBlockImpl(pReader, NULL)) {
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
       SSubmitTbData* pSubmitTbDataRet = NULL;

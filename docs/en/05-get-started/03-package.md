@@ -10,7 +10,7 @@ import PkgListV3 from "/components/PkgListV3";
 
 This document describes how to install TDengine on Linux/Windows/macOS and perform queries and inserts.
 
-- The easiest way to explore TDengine is through [TDengine Cloud](http://cloud.tdengine.com). 
+- The easiest way to explore TDengine is through [TDengine Cloud](https://cloud.tdengine.com). 
 - To get started with TDengine on Docker, see [Quick Install on Docker](../../get-started/docker).
 - If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
@@ -102,7 +102,7 @@ sudo apt-get install tdengine
 
 :::tip
 This installation method is supported only for Debian and Ubuntu.
-::::
+:::
 </TabItem>
 <TabItem label="Windows" value="windows">
 
@@ -207,6 +207,8 @@ The following `launchctl` commands can help you manage TDengine service:
 - Stop TDengine Server: `sudo launchctl stop com.tdengine.taosd`
 
 - Check TDengine Server status: `sudo launchctl list | grep taosd`
+
+- Check TDengine Server status details: `launchctl print system/com.tdengine.taosd`
 
 :::info
 - Please use `sudo` to run `launchctl` to manage _com.tdengine.taosd_ with administrator privileges.

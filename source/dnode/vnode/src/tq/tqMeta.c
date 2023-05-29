@@ -55,7 +55,7 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
     if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execCol.qmsg) < 0) return -1;
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     pHandle->execHandle.execDb.pFilterOutTbUid =
-        taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+        taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     int32_t size = 0;
     if (tDecodeI32(pDecoder, &size) < 0) return -1;
     for (int32_t i = 0; i < size; i++) {
@@ -297,15 +297,16 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       code = -1;
       goto end;
     }
-    walRefVer(handle.pRef, handle.snapshotVer);
+    walSetRefVer(handle.pRef, handle.snapshotVer);
 
     SReadHandle reader = {
-        .meta = pTq->pVnode->pMeta,
         .vnode = pTq->pVnode,
         .initTableReader = true,
         .initTqReader = true,
-        .version = handle.snapshotVer,
+        .version = handle.snapshotVer
     };
+
+    initStorageAPI(&reader.api);
 
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       handle.execHandle.task =
@@ -332,7 +333,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
       handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
 
-      buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta,
+      buildSnapContext(reader.vnode, reader.version, 0, handle.execHandle.subType, handle.fetchMeta,
                        (SSnapContext**)(&reader.sContext));
       handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, 0);
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
@@ -357,12 +358,14 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
 
-      buildSnapContext(reader.meta, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,
+      buildSnapContext(reader.vnode, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,
                        handle.fetchMeta, (SSnapContext**)(&reader.sContext));
       handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, 0);
     }
     tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, vgId);
+    taosWLockLatch(&pTq->lock);
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));
+    taosWUnLockLatch(&pTq->lock);
   }
 
 end:

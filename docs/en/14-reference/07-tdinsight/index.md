@@ -12,8 +12,8 @@ After TDengine starts, it automatically writes many metrics in specific interval
 
 To deploy TDinsight, we need
 - a single-node TDengine server or a multi-node TDengine cluster and a [Grafana] server are required. This dashboard requires TDengine 3.0.1.0 and above, with the monitoring feature enabled. For detailed configuration, please refer to [TDengine monitoring configuration](../config/#monitoring-parameters).
-- taosAdapter has been instaleld and running, please refer to [taosAdapter](../taosadapter).
-- taosKeeper has been installed and running, please refer to  [taosKeeper](../taoskeeper).
+- taosAdapter has been installed and running, please refer to [taosAdapter](../taosadapter).
+- taosKeeper has been installed and running, please refer to [taosKeeper](../taosKeeper).
 
 Please record
 - The endpoint of taosAdapter REST service, for example `http://tdengine.local:6041`
@@ -149,7 +149,7 @@ curl --no-progress-meter -u admin:admin http://localhost:3000/api/alert-notifica
 Use the `uid` value obtained above as `-E` input.
 
 ```bash
-sudo ./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord -E existing-notifier
+./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord -E existing-notifier
 ```
 
 If you want to monitor multiple TDengine clusters, you need to set up numerous TDinsight dashboards. Setting up non-default TDinsight requires some changes: the `-n` `-i` `-t` options need to be changed to non-default names, and `-N` and `-L` should also be changed if using the built-in SMS alerting feature.
@@ -233,7 +233,7 @@ After the importing is done, `TDinsight for 3.x` dashboard is available on the p
 
 In the `TDinsight for 3.x` dashboard, choose the database used by taosKeeper to store monitoring data, you can see the monitoring result.
 
-![TDengine Database TDinsight 选择数据库](./assets/select_dashboard_db.webp)
+![TDengine Database TDinsight select database](./assets/select_dashboard_db.webp)
 
 ## TDinsight dashboard details
 

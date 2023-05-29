@@ -1255,7 +1255,7 @@ int32_t taosArrayCompareString(const void *a, const void *b) {
 int32_t comparestrPatternMatch(const void *pLeft, const void *pRight) {
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
 
-  ASSERT(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
+  ASSERT(varDataTLen(pRight) <= TSDB_MAX_FIELD_LEN);
   size_t pLen = varDataLen(pRight);
   size_t sz = varDataLen(pLeft);
 
@@ -1284,7 +1284,7 @@ int32_t comparewcsPatternNMatch(const void *pLeft, const void *pRight) {
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
 
-  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -1307,7 +1307,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -1351,7 +1351,8 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = compareDoubleVal;
       break;
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       if (optr == OP_TYPE_MATCH) {
         comparFn = comparestrRegexMatch;
       } else if (optr == OP_TYPE_NMATCH) {
@@ -1436,6 +1437,7 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
     case TSDB_DATA_TYPE_UBIGINT:
       return (order == TSDB_ORDER_ASC) ? compareUint64Val : compareUint64ValDesc;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       return (order == TSDB_ORDER_ASC) ? compareLenPrefixedStr : compareLenPrefixedStrDesc;
     case TSDB_DATA_TYPE_NCHAR:
       return (order == TSDB_ORDER_ASC) ? compareLenPrefixedWStr : compareLenPrefixedWStrDesc;

@@ -23,6 +23,7 @@ extern "C" {
 #include "query.h"
 #include "tcommon.h"
 #include "tmsgcb.h"
+#include "storageapi.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -41,7 +42,6 @@ typedef struct {
 
 typedef struct {
   void*   tqReader;
-  void*   meta;
   void*   config;
   void*   vnode;
   void*   mnd;
@@ -51,10 +51,10 @@ typedef struct {
   bool    initTableReader;
   bool    initTqReader;
   int32_t numOfVgroups;
+  void*   sContext;  // SSnapContext*
 
-  void* sContext;  // SSnapContext*
-
-  void* pStateBackend;
+  void*   pStateBackend;
+  struct SStorageAPI api;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
@@ -191,8 +191,6 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
 STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo);
-
-void verifyOffset(void *pWalReader, STqOffsetVal* pOffset);
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType);
 

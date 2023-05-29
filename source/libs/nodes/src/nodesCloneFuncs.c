@@ -157,7 +157,8 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY: {
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       int32_t len = pSrc->node.resType.bytes + 1;
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
@@ -455,6 +456,7 @@ static int32_t logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst
   COPY_SCALAR_FIELD(numOfChannels);
   COPY_SCALAR_FIELD(srcGroupId);
   COPY_SCALAR_FIELD(groupSort);
+  COPY_SCALAR_FIELD(ignoreGroupId);
   return TSDB_CODE_SUCCESS;
 }
 

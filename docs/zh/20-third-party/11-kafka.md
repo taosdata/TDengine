@@ -48,15 +48,14 @@ Confluent 提供了 Docker 和二进制包两种安装方式。本文仅介绍�
 
 ```
 curl -O http://packages.confluent.io/archive/7.1/confluent-7.1.1.tar.gz
-tar xzf confluent-7.1.1.tar.gz -C /opt/test
+tar xzf confluent-7.1.1.tar.gz -C /opt/
 ```
 
 然后需要把 `$CONFLUENT_HOME/bin` 目录加入 PATH。
 
 ```title=".profile"
 export CONFLUENT_HOME=/opt/confluent-7.1.1
-PATH=$CONFLUENT_HOME/bin
-export PATH
+export PATH=$CONFLUENT_HOME/bin:$PATH
 ```
 
 以上脚本可以追加到当前用户的 profile 文件（~/.profile 或 ~/.bash_profile）
@@ -319,7 +318,6 @@ connection.backoff.ms=5000
 topic.prefix=tdengine-source-
 poll.interval.ms=1000
 fetch.max.rows=100
-out.format=line
 key.converter=org.apache.kafka.connect.storage.StringConverter
 value.converter=org.apache.kafka.connect.storage.StringConverter
 ```
@@ -333,7 +331,15 @@ DROP DATABASE IF EXISTS test;
 CREATE DATABASE test;
 USE test;
 CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
-INSERT INTO d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-03 14:38:05.000',10.30000,219,0.31000) d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-03 14:38:15.000',12.60000,218,0.33000) d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-03 14:38:16.800',12.30000,221,0.31000) d1002 USING meters TAGS(California.SanFrancisco, 3) VALUES('2018-10-03 14:38:16.650',10.30000,218,0.25000) d1003 USING meters TAGS(California.LosAngeles, 2) VALUES('2018-10-03 14:38:05.500',11.80000,221,0.28000) d1003 USING meters TAGS(California.LosAngeles, 2) VALUES('2018-10-03 14:38:16.600',13.40000,223,0.29000) d1004 USING meters TAGS(California.LosAngeles, 3) VALUES('2018-10-03 14:38:05.000',10.80000,223,0.29000) d1004 USING meters TAGS(California.LosAngeles, 3) VALUES('2018-10-03 14:38:06.500',11.50000,221,0.35000);
+
+INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:05.000',10.30000,219,0.31000) \
+            d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:15.000',12.60000,218,0.33000) \
+            d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:16.800',12.30000,221,0.31000) \
+            d1002 USING meters TAGS('California.SanFrancisco', 3) VALUES('2018-10-03 14:38:16.650',10.30000,218,0.25000) \
+            d1003 USING meters TAGS('California.LosAngeles', 2)   VALUES('2018-10-03 14:38:05.500',11.80000,221,0.28000) \
+            d1003 USING meters TAGS('California.LosAngeles', 2)   VALUES('2018-10-03 14:38:16.600',13.40000,223,0.29000) \
+            d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:05.000',10.80000,223,0.29000) \
+            d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:06.500',11.50000,221,0.35000);
 ```
 
 使用 TDengine CLI, 执行 SQL 文件。
@@ -350,7 +356,7 @@ confluent local services connect connector load TDengineSourceConnector --config
 
 ### 查看 topic 数据
 
-使用 kafka-console-consumer 命令行工具监控主题 tdengine-source-test 中的数据。一开始会输出所有历史数据， 往 TDengine 插入两条新的数据之后，kafka-console-consumer 也立即输出了新增的两条数据。
+使用 kafka-console-consumer 命令行工具监控主题 tdengine-source-test 中的数据。一开始会输出所有历史数据， 往 TDengine 插入两条新的数据之后，kafka-console-consumer 也立即输出了新增的两条数据。 输出数据 InfluxDB line protocol 的格式。
 
 ```
 kafka-console-consumer --bootstrap-server localhost:9092 --from-beginning --topic tdengine-source-test
@@ -388,7 +394,7 @@ confluent local services connect connector status
 如果按照前述操作，此时应有两个活跃的 connector。使用下面的命令 unload：
 
 ```
-confluent local services connect connector unload TDengineSourceConnector
+confluent local services connect connector unload TDengineSinkConnector
 confluent local services connect connector unload TDengineSourceConnector
 ```
 
@@ -427,11 +433,12 @@ confluent local services connect connector unload TDengineSourceConnector
 ### TDengine Source Connector 特有的配置
 
 1. `connection.database`: 源数据库名称，无缺省值。
-2. `topic.prefix`： 数据导入 kafka 后 topic 名称前缀。 使用 `topic.prefix` + `connection.database` 名称作为完整 topic 名。默认为空字符串 ""。
-3. `timestamp.initial`: 数据同步起始时间。格式为'yyyy-MM-dd HH:mm:ss'。默认为 "1970-01-01 00:00:00"。
-4. `poll.interval.ms`: 拉取数据间隔，单位为 ms。默认为 1000。
+2. `topic.prefix`： 数据导入 kafka 时使用的 topic 名称的前缀。默认为空字符串 ""。
+3. `timestamp.initial`: 数据同步起始时间。格式为'yyyy-MM-dd HH:mm:ss'，若未指定则从指定 DB 中最早的一条记录开始。
+4. `poll.interval.ms`: 检查是否有新建或删除的表的时间间隔，单位为 ms。默认为 1000。
 5. `fetch.max.rows` : 检索数据库时最大检索条数。 默认为 100。
-6. `out.format`: 数据格式。取值 line 或 json。line 表示 InfluxDB Line 协议格式， json 表示 OpenTSDB JSON 格式。默认为 line。
+6. `query.interval.ms`: 从 TDengine 一次读取数据的时间跨度，需要根据表中的数据特征合理配置，避免一次查询的数据量过大或过小；在具体的环境中建议通过测试设置一个较优值，默认值为 1000.
+7. `topic.per.stable`: 如果设置为true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix>-<connection.database>-<stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix>-<connection.database>`
 
 ## 其他说明
 

@@ -8,10 +8,20 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 # bloomFilterTest
 ADD_EXECUTABLE(streamUpdateTest "tstreamUpdateTest.cpp")
 
-TARGET_LINK_LIBRARIES(
-  streamUpdateTest
-  PUBLIC os util common gtest stream
-)
+#TARGET_LINK_LIBRARIES(
+#  streamUpdateTest
+#  PUBLIC os util common gtest gtest_main stream executor
+#)
+
+IF (TD_GRANT)
+    TARGET_LINK_LIBRARIES(streamUpdateTest
+            PUBLIC os util common gtest gtest_main stream executor index grant
+            )
+ELSE ()
+    TARGET_LINK_LIBRARIES(streamUpdateTest
+            PUBLIC os util common gtest gtest_main stream executor index
+            )
+ENDIF()
 
 TARGET_INCLUDE_DIRECTORIES(
   streamUpdateTest

@@ -376,6 +376,7 @@ void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
         fprintf(stdout, "%d: %" PRId64 " \n", id++, *(int64_t *)key);
         break;
       case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_GEOMETRY:
         fprintf(stdout, "%d: %s \n", id++, key);
         break;
       case TSDB_DATA_TYPE_DOUBLE:

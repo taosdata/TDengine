@@ -255,7 +255,7 @@ The `connect()` function returns a `taos.TaosConnection` instance. In client-sid
 
 All arguments to the `connect()` function are optional keyword arguments. The following are the connection parameters specified.
 
-- `url`： The URL of taosAdapter REST service. The default is <http://localhost:6041>.
+- `url`: The URL of taosAdapter REST service. The default is <http://localhost:6041>.
 - `user`: TDengine user name. The default is `root`.
 - `password`: TDengine user password. The default is `taosdata`.
 - `timeout`: HTTP request timeout. Enter a value in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Usually, no configuration is needed.
@@ -454,6 +454,56 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 
 ```python
 {{#include docs/examples/python/conn_websocket_pandas.py}}
+```
+
+</TabItem>
+</Tabs>
+
+### Schemaless Insert
+
+Connector support schemaless insert.
+
+<Tabs defaultValue="list">
+<TabItem value="list" label="List Insert">
+
+Simple insert
+
+```python
+{{#include docs/examples/python/schemaless_insert.py}}
+```
+
+Insert with ttl argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_ttl.py}}
+```
+
+Insert with req_id argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_req_id.py}}
+```
+
+</TabItem>
+
+<TabItem value="raw" label="Raw Insert">
+
+Simple insert
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw.py}}
+```
+
+Insert with ttl argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
+```
+
+Insert with req_id argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
 ```
 
 </TabItem>

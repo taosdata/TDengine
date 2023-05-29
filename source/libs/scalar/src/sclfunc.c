@@ -12,7 +12,7 @@ typedef double (*_double_fn)(double);
 typedef double (*_double_fn_2)(double, double);
 typedef int (*_conv_fn)(int);
 typedef void (*_trim_fn)(char *, char *, int32_t, int32_t);
-typedef int16_t (*_len_fn)(char *, int32_t);
+typedef uint16_t (*_len_fn)(char *, int32_t);
 
 /** Math functions **/
 static double tlog(double v) { return log(v); }
@@ -286,10 +286,10 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 }
 
 /** String functions **/
-static int16_t tlength(char *input, int32_t type) { return varDataLen(input); }
+static VarDataLenT tlength(char *input, int32_t type) { return varDataLen(input); }
 
-static int16_t tcharlength(char *input, int32_t type) {
-  if (type == TSDB_DATA_TYPE_VARCHAR) {
+static VarDataLenT tcharlength(char *input, int32_t type) {
+  if (type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     return varDataLen(input);
   } else {  // NCHAR
     return varDataLen(input) / TSDB_NCHAR_SIZE;
@@ -377,7 +377,7 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, int32_t type, int16_t *dataLen) {
+static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, int32_t type, VarDataLenT *dataLen) {
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4 *newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     int32_t len = varDataLen(input);
@@ -457,7 +457,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       continue;
     }
 
-    int16_t dataLen = 0;
+    VarDataLenT dataLen = 0;
     for (int32_t i = 0; i < inputNum; ++i) {
       int32_t rowIdx = (pInput[i].numOfRows == 1) ? 0 : k;
       input[i] = colDataGetData(pInputData[i], rowIdx);
@@ -526,8 +526,8 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       continue;
     }
 
-    int16_t dataLen = 0;
-    bool    hasNull = false;
+    VarDataLenT dataLen = 0;
+    bool        hasNull = false;
     for (int32_t i = 1; i < inputNum; ++i) {
       if (colDataIsNull_s(pInputData[i], k) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
         hasNull = true;
@@ -695,7 +695,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 /** Conversion functions **/
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
-  int16_t inputLen = GET_PARAM_BYTES(&pInput[0]);
+  int32_t inputLen = GET_PARAM_BYTES(&pInput[0]);
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen = GET_PARAM_BYTES(&pOutput[0]);
 
@@ -935,7 +935,8 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         break;
       }
-      case TSDB_DATA_TYPE_BINARY: {
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_GEOMETRY: {
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           // NOTE: sprintf will append '\0' at the end of string
           int32_t len = sprintf(varDataVal(output), "%.*s", (int32_t)(outputLen - VARSTR_HEADER_SIZE),
@@ -1124,7 +1125,8 @@ _end:
 int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
   int64_t timePrec;
-  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+  int32_t idx = (inputNum == 2) ? 1 : 2;
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[idx]), pInput[idx].columnData->pData);
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
