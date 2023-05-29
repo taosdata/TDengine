@@ -3466,6 +3466,22 @@ static int32_t createDefaultFillNode(STranslateContext* pCxt, SNode** pOutput) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t createDefaultEveryNode(STranslateContext* pCxt, SNode** pOutput) {
+  SValueNode* pEvery = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (NULL == pEvery) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pEvery->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  pEvery->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  pEvery->isDuration = true;
+  pEvery->literal = taosStrdup("1s");
+
+
+  *pOutput = (SNode*)pEvery;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
   int32_t len = strlen(pInterval->literal);
 
@@ -3481,7 +3497,12 @@ static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
 static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  code = checkEvery(pCxt, (SValueNode*)(*pEvery));
+  if (NULL == *pEvery) {
+    code = createDefaultEveryNode(pCxt, pEvery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkEvery(pCxt, (SValueNode*)(*pEvery));
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExpr(pCxt, pEvery);
   }
@@ -3527,8 +3548,12 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
 
   if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                   "Missing RANGE clause, EVERY clause or FILL clause");
+    if (QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
+      // single point interp every can be omitted
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                     "Missing RANGE clause, EVERY clause or FILL clause");
+    }
   }
 
   int32_t code = translateExpr(pCxt, &pSelect->pRange);
@@ -3744,7 +3769,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceTbName(pCxt, pSelect);
   }
-  
+
   return code;
 }
 
