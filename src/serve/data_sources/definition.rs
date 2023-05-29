@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use taos::Dsn;
+use taosx_core::Parser;
 use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -102,6 +103,24 @@ pub struct Param {
     /// Condition for a parameter, eg. "if: protocol.ws"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#if: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alternatives: Option<Vec<ParamAlternatives>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<Vec<Param>>,
+
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct ParamAlternatives {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hint: Option<Hint>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>, 
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub params: Vec<Param>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -216,6 +235,16 @@ pub struct Target {
     pub selectable: Option<bool>,
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
+pub struct ParserDefinition {
+    pub display: String,   
+    pub required: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<Vec<Param>>,
+}
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode)]
 pub struct DataSourceDefinition {
     /// Data source driver id
@@ -263,6 +292,10 @@ pub struct DataSourceDefinition {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub datasets: Option<DatasetsDefinition>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parser: Option<ParserDefinition>,
+
 }
 
 impl DataSourceDefinition {
@@ -434,6 +467,8 @@ impl DataSourceDefinition {
                 value: Some(value),
                 display: None,
                 r#if: None,
+                alternatives: None,
+                params: None,
             })
         }
         self

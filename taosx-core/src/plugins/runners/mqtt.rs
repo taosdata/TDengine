@@ -25,6 +25,7 @@ struct MqttConfig {
 #[derive(Debug, serde::Serialize)]
 struct MqttConnectConfig {
     address: String,
+    version: String,
     client_id: String,
     username: String,
     password: String,
@@ -94,6 +95,7 @@ impl MqttConfig {
             remote: format!("127.0.0.1:{ipc_port}"),
             mqtt: MqttConnectConfig {
                 address,
+                version: dsn.remove("version").unwrap_or("3.0".to_string()),
                 client_id: dsn.remove("client_id").unwrap_or("".to_string()),
                 username: dsn.remove("username").unwrap_or("".to_string()),
                 password: dsn.remove("password").unwrap_or("".to_string()),
@@ -334,6 +336,7 @@ fn test_mqtt_config() {
     let log_level = "debug".to_string();
     let remote = "127.0.0.1:62307".to_string();
     let address = "tcp://127.0.0.1:1883".to_string();
+    let version = String::from("3.0");
     // let client_id = Some("12123".to_string());
     let client_id = "".to_string();
     let username = "mqtt_test".to_string();
@@ -359,6 +362,7 @@ MIIEpAIBAAKCAQEAzLiGiSwpxkENtjrzS7pNLblTnWe4HUUFwYyUX0H
         remote,
         mqtt: MqttConnectConfig {
             address,
+            version,
             client_id,
             username,
             password,

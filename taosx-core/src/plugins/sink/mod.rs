@@ -963,6 +963,7 @@ impl<'a> IpcStreamWorker<'a> {
         &self,
         stmt: &mut Stmt,
         record: RecordBatch,
+        parser: Option<&Parser>,
     ) -> anyhow::Result<usize> {
         if let Some(sql) = self.parser.metadata().init_sql_string() {
             let guard = self.lock.lock().await;
@@ -995,12 +996,11 @@ impl<'a> IpcStreamWorker<'a> {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .unwrap();
-                // todo: parser
                 consume_flat_record(
                     &self.taos,
                     &record,
                     &mut count,
-                    None, // todo: license
+                    parser, // todo: license
                     self.license,
                     self.transferred,
                 )

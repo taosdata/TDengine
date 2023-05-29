@@ -2,22 +2,25 @@
 id: mqtt
 name: MQTT
 description: |
-  MQTT stands for Message Queuing Telemetry Transport. It is a lightweight
-  messaging protocol that is easy to implement and use. It is ideal for connecting 
-  devices with limited resources, such as battery-powered devices or devices with
-  low bandwidth. MQTT is also a good choice for applications where latency is 
+  MQTT stands for Message Queuing Telemetry Transport. It is a  
+  lightweight messaging protocol that is easy to implement and  
+  use. It is ideal for connecting devices with limited resources,  
+  such as battery-powered devices or devices with low bandwidth.  
+  MQTT is also a good choice for applications where latency is  
   important, such as real-time control systems.   
 
-  MQTT works by using a publish/subscribe model. This means that devices can
-  publish messages to topics, and other devices can subscribe to those topics to  
-  receive the messages. This makes it easy to decouple devices from each other, 
-  and to scale up applications as needed.  
+  MQTT works by using a publish/subscribe model. This means that  
+  devices can publish messages to topics, and other devices can  
+  subscribe to those topics to receive the messages. This makes  
+  it easy to decouple devices from each other, and to scale up  
+  applications as needed.  
 
-  MQTT is a popular choice for IoT applications. It is supported by a wide range of 
-  devices and platforms, and there are many open source and commercial 
-  implementations available.  
+  MQTT is a popular choice for IoT applications. It is supported  
+  by a wide range of devices and platforms, and there are many  
+  open source and commercial implementations available.  
 
-  taosX could subscribe data from MQTT server by a MQTT connector plugin.  
+  taosX could subscribe data from MQTT broker by a connector  
+  plugin.  
 
   Check the help message in each part to see the details.  
 type: uri
@@ -59,24 +62,50 @@ authentication:
         - name: ca
           display: CA
           description: CA file path
+          required: true
           hint: 
             type: file
         - name: cert
           display: Client certificate file
           description: Path to Client certificate file. 
+          required: true
           hint: 
             type: file
         - name: cert_key
           display: Client key file
           description: Path to Client certificate file. 
+          required: true
           hint:
             type: file
-
+        - name: username
+          display: Username
+          description: MQTT Broker username.
+          placeholder: username
+          hint:
+            type: str
+        - name: password
+          display: Password
+          description: MQTT Broker password.
+          placeholder: password
+          hint:
+            type: str
 groups:
   - name: Connection
     display_order: 1
     description: Some configurations used in connecting step.
     params:
+      - name: version
+        display: Mqtt protocol version
+        value: "3.0"
+        required: true
+        description: |-
+          MQTT protocol version.
+        hint:
+          type: str
+          choices:
+            - "3.0"
+            - "3.1.1"
+            - "5.0"
       - name: client_id
         display: Client id
         description: |-
@@ -90,18 +119,23 @@ groups:
           type: integer
           min: 1
         description: |
-          If the broker does not receive any messages from the client within the keep alive interval,  
-          it will assume that the client has disconnected and will close the connection.  
+          If the broker does not receive any messages from the  
+          client within the keep alive interval, it will assume  
+          that the client has disconnected and will close the  
+          connection.  
         placeholder: 10
       - name: clean_session
         display: Clean Session
+        value: true
         description: |
-          True means that the server will forget all information about the session, including the  
-          client's subscriptions. The default value for the clean session flag is true.  
+          True means that the server will forget all information  
+          about the session, including the client's subscriptions.  
+          The default value for the clean session flag is true.  
         hint:
           type: bool
       - name: topics
         display: Topics Qos Config
+        required: true
         description: |
           e.g: topic1::0,topic2::1 
         hint: 
@@ -123,3 +157,7 @@ groups:
             - info
             - debug
             - trace
+
+parser:
+  display: None
+  required: true
