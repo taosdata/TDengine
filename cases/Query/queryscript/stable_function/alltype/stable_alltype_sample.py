@@ -85,7 +85,7 @@ class TDTestQuery(TDCase):
     def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random("%s" % db, 10)  
+        self.tdCreateData.dropandcreateDB_random_diff("%s" % db, 10)  
  
     def right_case_1(self):
         self.logger.info("\n==========================right case 1==========================\n")
