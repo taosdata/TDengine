@@ -295,7 +295,7 @@ Then execute the command below.
 ldconfig
 ```
 
-3. If you want to utilize some 3rd party python packages using `PYTHONPATH`, please set configuration parameter `UdfdLdLibPath` to the value of `PYTHONPATH` before starting `taosd`.
+3. If you want to utilize some 3rd party python packages in your Python UDF, please set configuration parameter `UdfdLdLibPath` to the value of `PYTHONPATH` before starting `taosd`.
 
 4. Launch `taosd` service
    
@@ -503,7 +503,7 @@ Now, we have finished the first PDF in Python, and learned some basic debugging 
 
 The `myfun` UDF example in sample 1 has passed, but it has two drawbacks.
 
-1. It accepts only one column of data as input, and doesn't throw exception if you passes multiple columns.这
+1. It accepts only one column of data as input, and doesn't throw exception if you passes multiple columns.
 
 ```sql
 taos> select myfun(v1, v2) from t;
