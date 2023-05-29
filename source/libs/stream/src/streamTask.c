@@ -17,7 +17,14 @@
 #include "tstream.h"
 #include "wal.h"
 
-SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory) {
+static int32_t mndAddToTaskset(SArray* pArray, SStreamTask* pTask) {
+  int32_t childId = taosArrayGetSize(pArray);
+  pTask->selfChildId = childId;
+  taosArrayPush(pArray, &pTask);
+  return 0;
+}
+
+SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory, int64_t triggerParam, SArray* pTaskList) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -28,6 +35,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHisto
   pTask->id.streamId = streamId;
   pTask->taskLevel = taskLevel;
   pTask->fillHistory = fillHistory;
+  pTask->triggerParam = triggerParam;
 
   char buf[128] = {0};
   sprintf(buf, "0x%" PRIx64 "-%d", pTask->id.streamId, pTask->id.taskId);
@@ -37,6 +45,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHisto
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
 
+  mndAddToTaskset(pTaskList, pTask);
   return pTask;
 }
 

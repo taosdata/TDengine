@@ -27,13 +27,6 @@ extern bool tsDeployOnSnode;
 static int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup);
 static void setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask);
 
-static int32_t mndAddToTaskset(SArray* pArray, SStreamTask* pTask) {
-  int32_t childId = taosArrayGetSize(pArray);
-  pTask->selfChildId = childId;
-  taosArrayPush(pArray, &pTask);
-  return 0;
-}
-
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
                            int64_t watermark, int64_t deleteMark) {
   SNode*      pAst = NULL;
@@ -236,13 +229,11 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
 int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup) {
   SArray* pTaskList = taosArrayGetP(pStream->tasks, SINK_NODE_LEVEL);
 
-  SStreamTask* pTask = tNewStreamTask(pStream->uid, TASK_LEVEL__SINK, pStream->fillHistory);
+  SStreamTask* pTask = tNewStreamTask(pStream->uid, TASK_LEVEL__SINK, pStream->fillHistory, 0, pTaskList);
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-
-  mndAddToTaskset(pTaskList, pTask);
 
   pTask->nodeId = vgId;
   pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -257,13 +248,10 @@ static int32_t mndScheduleFillHistoryStreamTask(SMnode* pMnode, SStreamObj* pStr
 static int32_t addSourceStreamTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTaskList, SStreamObj* pStream,
                                    SSubplan* plan, uint64_t uid, int8_t taskLevel, int8_t fillHistory,
                                    bool hasExtraSink) {
-  SStreamTask* pTask = tNewStreamTask(uid, taskLevel, fillHistory);
+  SStreamTask* pTask = tNewStreamTask(uid, taskLevel, fillHistory, pStream->triggerParam, pTaskList);
   if (pTask == NULL) {
     return terrno;
   }
-
-  mndAddToTaskset(pTaskList, pTask);
-  pTask->triggerParam = pStream->triggerParam; // trigger
 
   // sink or dispatch
   if (hasExtraSink) {
@@ -376,15 +364,12 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         return -1;
       }
 
-      pInnerTask = tNewStreamTask(pStream->uid, TASK_LEVEL__AGG, pStream->fillHistory);
+      pInnerTask = tNewStreamTask(pStream->uid, TASK_LEVEL__AGG, pStream->fillHistory, pStream->triggerParam, taskInnerLevel);
       if (pInnerTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         qDestroyQueryPlan(pPlan);
         return -1;
       }
-
-      mndAddToTaskset(taskInnerLevel, pInnerTask);
-      pInnerTask->triggerParam = pStream->triggerParam;      // trigger
 
       // dispatch
       if (mndAddDispatcherForInnerTask(pMnode, pStream, pInnerTask) < 0) {
@@ -445,7 +430,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         continue;
       }
 
-      SStreamTask* pTask = tNewStreamTask(pStream->uid, TASK_LEVEL__SOURCE, pStream->fillHistory);
+      SStreamTask* pTask = tNewStreamTask(pStream->uid, TASK_LEVEL__SOURCE, pStream->fillHistory, 0, taskSourceLevel);
       if (pTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         sdbRelease(pSdb, pVgroup);
@@ -453,11 +438,8 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         return -1;
       }
 
-      mndAddToTaskset(taskSourceLevel, pTask);
-
       // all the source tasks dispatch result to a single agg node.
       setFixedDownstreamEpInfo(pTask, pInnerTask);
-      pTask->triggerParam = 0;
 
       if (mndAssignStreamTaskToVgroup(pMnode, pTask, plan, pVgroup) < 0) {
         sdbRelease(pSdb, pVgroup);
