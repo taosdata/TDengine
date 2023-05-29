@@ -1,7 +1,7 @@
-use std::{io::prelude::*, num::ParseIntError, time::Duration, str::FromStr};
+use std::{io::prelude::*, num::ParseIntError, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use chrono::{NaiveDateTime, Local, };
+use chrono::{Local, NaiveDateTime};
 use itertools::Itertools;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
@@ -11,7 +11,7 @@ use toml::value::Datetime;
 use crate::{
     plugins::{service::spawn_rest_service, sink},
     utils::{port_pool::PortPool, stop_thread},
-    Action, DataSet, DataSetsReq,
+    Action, DataSet, DataSetsReq, Transferred,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -178,23 +178,33 @@ impl PiConfig {
             None
         };
 
-        let backfill_start_time = if let Some(backfill_start) =  dsn.remove("BackfillStartTime") {
-            let parsed_time = NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                .map_err(|err| PiError::ParseError("BackfillStartTime", backfill_start.clone()))?.and_local_timezone(Local).unwrap();
-            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| PiError::ParseError("BackfillStartTime", backfill_start))?;
+        let backfill_start_time = if let Some(backfill_start) = dsn.remove("BackfillStartTime") {
+            let parsed_time =
+                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                    .map_err(|err| {
+                        PiError::ParseError("BackfillStartTime", backfill_start.clone())
+                    })?
+                    .and_local_timezone(Local)
+                    .unwrap();
+            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str())
+                .map_err(|err| PiError::ParseError("BackfillStartTime", backfill_start))?;
             Some(parsed_time)
         } else {
             None
         };
-        let backfill_end_time = if let Some(backfill_start) =  dsn.remove("BackfillEndTime") {
-            let parsed_time = NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                .map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start.clone()))?.and_local_timezone(Local).unwrap();
-            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start))?;
+        let backfill_end_time = if let Some(backfill_start) = dsn.remove("BackfillEndTime") {
+            let parsed_time =
+                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                    .map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start.clone()))?
+                    .and_local_timezone(Local)
+                    .unwrap();
+            let parsed_time = Datetime::from_str(parsed_time.to_rfc3339().as_str())
+                .map_err(|err| PiError::ParseError("BackfillEndTime", backfill_start))?;
             Some(parsed_time)
         } else {
             None
         };
-        
+
         Ok(Self {
             server_name,
             system_name,
@@ -230,6 +240,7 @@ pub async fn pi_to_taos(
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
+    transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: PI or PIBACKFILL");
     #[cfg(not(target_os = "windows"))]
@@ -243,14 +254,14 @@ pub async fn pi_to_taos(
 
     let target_pool_for_ipc = target_pool.clone();
 
-    let ipc = port_pool
+    let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let sql = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let driver = from.driver.clone();
-    let config = PiConfig::new(from, td_database.unwrap(), ipc, sql)?;
+    let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql)?;
 
     //toml::ser::ValueSerializer
     let toml = toml::to_string(&config)?;
@@ -272,6 +283,8 @@ pub async fn pi_to_taos(
         cancel.clone(),
         with_agent,
         None,
+        Some("pi"),
+        transferred,
     )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -294,13 +307,13 @@ pub async fn pi_to_taos(
         "pi" => {
             let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
             child_command = command
-            .arg("-f")
-            .arg(&config_path)
-            .stdout(async_process::Stdio::inherit())
-            .stderr(async_process::Stdio::inherit())
-            .spawn()
-            .context("Start PI collector error")?;
-        },
+                .arg("-f")
+                .arg(&config_path)
+                .stdout(async_process::Stdio::inherit())
+                .stderr(async_process::Stdio::inherit())
+                .spawn()
+                .context("Start PI collector error")?;
+        }
         "pibackfill" => {
             let mut command = async_process::Command::new(PI_BACKFILL_PATH);
             child_command = command
@@ -310,14 +323,16 @@ pub async fn pi_to_taos(
                 .stderr(async_process::Stdio::inherit())
                 .spawn()
                 .context("Start PI Backfill error")?;
-        },
+        }
         _ => {
             anyhow::bail!("wrong driver configed");
         }
     }
-    
+
     let pid = child_command.id();
     log::info!("waiting for PI connector");
+
+    let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
             output = child_command.output() => {
@@ -358,6 +373,7 @@ pub async fn pi_to_taos(
         terminate_child_process(pid)?;
         log::info!("pi task Done");
         temp_path.close().unwrap();
+        port_pool.put(ipc_port);
         Ok(())
     })
     .await??;
@@ -413,7 +429,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .stderr(async_process::Stdio::piped())
         .output()
         .await?;
-        // .context("Start PI collector error")?;
+    // .context("Start PI collector error")?;
     log::info!("PI Connector exit with status {}", output.status);
 
     let json: Value = serde_json::from_slice(&output.stdout)?;

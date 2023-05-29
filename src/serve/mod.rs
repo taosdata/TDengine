@@ -20,6 +20,7 @@ mod agent;
 mod controller;
 mod data_sources;
 mod metrics;
+mod routes;
 mod rpc;
 mod task;
 
@@ -27,11 +28,13 @@ use controller::*;
 use data_sources::*;
 
 use crate::serve::controller::agent::{
-    Agent, AgentConnectors, AgentProps, AgentStatus, AgentUpdates, AgentWithToken,
+    Agent, AgentConnectors, AgentProps, AgentStatus, AgentUpdates, AgentWithToken, AgentToken,
 };
 
-use self::agent::{create_agent, delete_agent, get_agents, update_agent};
-
+use self::{
+    agent::{create_agent, delete_agent, get_agents, update_agent},
+    routes::cluster::get_cluster_connector_transferred,
+};
 
 #[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, ToSchema)]
 pub struct DataSetsReq {
@@ -43,7 +46,6 @@ pub struct DataSetsReq {
     offset: usize,
     limit: usize,
 }
-
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -94,7 +96,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(create_agent)
             .service(update_agent)
             .service(delete_agent)
-            .service(get_agents);
+            .service(get_agents)
+            .service(get_cluster_connector_transferred);
     }
 }
 impl Cli {
@@ -136,8 +139,11 @@ impl Cli {
                     AgentUpdates,
                     AgentWithToken,
                     AgentStatus,
+                    AgentToken,
                     AgentConnectors,
                     DataSetsReq,
+                    ConnectorTransferred,
+                    DatasetsDefinition,
                     // DataSet,
 
                 ),
@@ -163,13 +169,16 @@ impl Cli {
                 agent::create_agent,
                 agent::update_agent,
                 agent::delete_agent,
-                agent::get_agents
+                agent::get_agents,
+
+                routes::cluster::get_cluster_connector_transferred,
 
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints"),
                 (name = "data sources", description = "Data in/out"),
                 (name = "agents", description = "Agents Management"),
+                (name = "cluster", description = "Cluster Information"),
             ),
         )]
         struct ApiDoc;

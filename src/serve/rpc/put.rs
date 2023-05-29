@@ -4,11 +4,14 @@ use anyhow::Context;
 use arrow::ipc::RecordBatch;
 use arrow_flight::{FlightData, PutResult};
 use futures::{Stream, TryStreamExt};
-use taos::{AsyncTBuilder, Bindable, Stmt, TaosBuilder, TaosPool};
-use taosx_core::{IpcStreamWorker, Parser};
+use taos::{AsyncQueryable, AsyncTBuilder, Bindable, Dsn, Stmt, TaosBuilder, TaosPool};
+use taosx_core::{ConnectorLicense, IpcStreamWorker};
 use tonic::{Status, Streaming};
 
-use crate::serve::controller::{Task, TaskControllerRef, TaskDetail};
+use crate::serve::controller::{
+    transferred::{ConnectorTransferred, Transferred},
+    Task, TaskControllerRef, TaskDetail,
+};
 
 #[derive(Debug)]
 pub struct PutStream {
@@ -62,17 +65,85 @@ impl PutStream {
             .ok_or_else(|| anyhow::format_err!("Invalid IPC stream"))?;
         if let arrow_flight::decode::DecodedPayload::Schema(schema) = schema.payload {
             let taos = pool.get().await?;
+            let from_dsn: Dsn = task.from.parse()?;
+            let to_dsn: Dsn = task.to.parse()?;
+
+            let connector = match from_dsn.driver.as_str() {
+                "opcda" => Some("opc_da"),
+                "opcua" => Some("opc_ua"),
+                "mqtt" => Some("mqtt"),
+                "influxdb" => Some("influxdb"),
+                "kafka" => Some("kafka"),
+                "pi" => Some("pi"),
+                _ => None,
+            };
+
+            let license: Option<ConnectorLicense> = if let Some(connector) = connector {
+                let license: Option<ConnectorLicense> = taos
+                    .query_one::<_, String>(&format!(
+                        "select {connector} from information_schema.ins_grants"
+                    ))
+                    .await
+                    .unwrap_or(None)
+                    .and_then(|s| serde_json::from_str(&s).ok());
+
+                if let Some(license) = license {
+                    if license.is_expired() {
+                        anyhow::bail!(
+                    "Connector expired, please contact the database administrator for license"
+                )
+                    } else {
+                        if license.number == -1 {
+                            None
+                        } else {
+                            Some(license)
+                        }
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let transferred = match connector {
+                Some(connector) => {
+                    let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
+                    let cluster_id: i64 = taos
+                        .query_one("select id from information_schema.ins_cluster")
+                        .await
+                        .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
+                        .unwrap();
+                    self.controller
+                        .transferred
+                        .get(&(cluster_id, from_dsn.driver.clone()))
+                        .await
+                }
+                _ => None,
+            };
+
+            // let transferred = self.controller.transferred.get((cluster_id, ))
             async fn ipc_stream_writer(
                 task: TaskDetail,
                 taos: &taos::Taos,
                 lock: Arc<tokio::sync::Mutex<()>>,
                 schema: Arc<arrow::datatypes::Schema>,
                 rx: flume::Receiver<arrow::record_batch::RecordBatch>,
+                license: Option<ConnectorLicense>,
+                transferred: Option<Arc<ConnectorTransferred>>,
             ) -> anyhow::Result<()> {
                 dbg!(&task);
                 let from = task.from.parse().unwrap();
                 let mut stmt = Stmt::init(taos).context("Initialize STMT")?;
-                let worker = IpcStreamWorker::new(&taos, from, lock, schema).unwrap();
+                let worker = IpcStreamWorker::new(
+                    &taos,
+                    from,
+                    lock,
+                    schema,
+                    license.as_ref(),
+                    transferred.as_deref(),
+                )
+                .unwrap();
                 dbg!(&task);
                 let parser :Option<Parser> = task.parser.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap());
                 loop {
@@ -87,7 +158,9 @@ impl PutStream {
                     }
                 }
             }
-            tokio::spawn(async move { ipc_stream_writer(task, &taos, lock, schema, rx).await });
+            tokio::spawn(async move {
+                ipc_stream_writer(task, &taos, lock, schema, rx, license, transferred).await
+            });
         }
 
         Ok(stream
@@ -102,7 +175,10 @@ impl PutStream {
                     arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                         dbg!(&batch);
                         if let Err(err) = tx.send(batch) {
-                            log::warn!("into_flight_put_result channel send err: {}", err.to_string());
+                            log::warn!(
+                                "into_flight_put_result channel send err: {}",
+                                err.to_string()
+                            );
                         }
                     }
                 }

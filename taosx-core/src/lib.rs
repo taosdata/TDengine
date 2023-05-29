@@ -13,21 +13,27 @@ pub mod utils;
 
 mod plugins;
 
+use chrono::NaiveDate;
+use serde::Deserialize;
+use serde_with::serde_as;
 use taos::Dsn;
 
 pub use csv::*;
+use dashmap::DashMap;
 pub use legacy::*;
 pub use local_to_taos::local_to_taos;
 pub use parquets::*;
 pub use plugins::*;
+use std::sync::{
+    atomic::{AtomicU32, AtomicU64},
+    Arc,
+};
+use taos::taos_query::tmq::Assignment;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
-use utils::port_pool::{self, PortPool};
-use dashmap::DashMap;
-use std::sync::Arc;
-use taos::taos_query::tmq::Assignment;
+use utils::port_pool::PortPool;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
@@ -42,6 +48,29 @@ enum Compression {
     Zstd,
 }
 
+#[derive(Debug, Default)]
+pub struct Transferred {
+    pub stables: AtomicU32,
+    pub tables: AtomicU32,
+    pub records: AtomicU64,
+    pub points: AtomicU64,
+}
+#[serde_as]
+#[derive(Debug, Deserialize)]
+pub struct ConnectorLicense {
+    pub r#type: String,
+    pub number: i64,
+    pub speed: i64,
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub expire: u16,
+}
+
+impl ConnectorLicense {
+    pub fn is_expired(&self) -> bool {
+        (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days()
+            > self.expire as i64
+    }
+}
 #[derive(Debug, Default, Clone)]
 pub struct TaskOpts {
     pub from: Dsn,
@@ -55,6 +84,7 @@ pub struct TaskOpts {
     pub with_agent: Option<(i64, String, String)>,
     // pub port_pool: OnceCell<PortPool>
     pub offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    pub transferred: Option<Arc<Transferred>>,
 }
 
 impl Drop for TaskOpts {
@@ -83,6 +113,7 @@ impl TaskOpts {
             with_agent,
             // port_pool,
             offsets,
+            transferred,
         } = self;
 
         {
@@ -99,7 +130,15 @@ impl TaskOpts {
                     .await?;
                 }
                 ("tmq", "local") => {
-                    tmq_to_local(from.clone(), to.clone(), *jobs, *force, cancel.clone(),offsets.clone()).await?;
+                    tmq_to_local(
+                        from.clone(),
+                        to.clone(),
+                        *jobs,
+                        *force,
+                        cancel.clone(),
+                        offsets.clone(),
+                    )
+                    .await?;
                 }
                 ("local", "taos") => {
                     local_to_taos(from.clone(), to.clone(), *jobs, *force).await?;
@@ -122,6 +161,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
+                        transferred.clone(),
                     )
                     .await?;
                 }
@@ -134,6 +174,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
+                        transferred.clone(),
                     )
                     .await?;
                 }
@@ -146,6 +187,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
+                        transferred.clone(),
                     )
                     .await?;
                 }
@@ -158,7 +200,9 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                    ).await?;
+                        transferred.clone(),
+                    )
+                    .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
