@@ -33,6 +33,7 @@ sub_module = []
 class ReleaseInfo:
     def __init__(self, os):
         self.OS = os
+        self.CpuType = ""
         self.DefaultBuildMode = "Release"
         self.TaosXVersion = ""
         self.ReleasePath = ""
@@ -115,6 +116,7 @@ def init_build_info():
     parser.add_argument('-b', '--build_mode', help='Debug or Release, Release by default')
     parser.add_argument('-s', '--sub_version_mode', nargs='+', metavar=('pi', 'Debug'), \
         help='Set the compilation mode of a submodule separately')
+    parser.add_argument('-c', '--cpu_type', help='cpu [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] ')
     parser.add_argument('-t', '--test_process', help='test single process(pi,opc,mqtt,taosx, package)')
 
     args, unknown_args = parser.parse_known_args()
@@ -128,6 +130,8 @@ def init_build_info():
     release_info.TaosXVersion = get_taosx_version()
     if args.build_mode:
         release_info.DefaultBuildMode = args.build_mode
+    if args.cpu_type:
+        release_info.CpuType = args.cpu_type
     if args.test_process:
         test_process = args.test_process
     sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
