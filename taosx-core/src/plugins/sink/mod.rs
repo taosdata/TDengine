@@ -9,6 +9,7 @@ use arrow_flight::{flight_service_client::FlightServiceClient, FlightClient, Put
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{FutureExt, Stream, TryFutureExt, TryStreamExt};
+use serde::Deserialize;
 use std::{
     any::Any,
     cell::{RefCell, UnsafeCell},
@@ -34,7 +35,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::IntoStreamingRequest;
 use tracing::{debug, info, instrument};
 
-use crate::{OPCConfig, Parser};
+use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
 use super::runners::opc::{opc_config_blocking, opc_config_from, OpcTableConfig};
 use taosx_ipc::{
@@ -201,6 +202,8 @@ async fn ipc_tcp_read(
     config: Option<OpcTableConfig>,
     cancel: CancellationToken,
     parser: Option<Parser>,
+    connector: Option<&'static str>,
+    transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
@@ -212,7 +215,7 @@ async fn ipc_tcp_read(
             log::debug!("cancel IPC worker");
             Ok(())
         },
-        done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, parser) => {
+        done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, parser, connector, transferred) => {
             log::info!("IPC stopped");
             done
         }
@@ -229,7 +232,18 @@ async fn ipc_unix_read(
 ) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
-    ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, None).await
+    ipc_process(
+        client,
+        pool,
+        ipc_reader,
+        ipc_ack_writer,
+        lock,
+        config,
+        None,
+        None,
+        None,
+    )
+    .await
 }
 
 // #[instrument(skip(taos, record, names, marks))]
@@ -241,13 +255,29 @@ async fn consume_lush_record(
     names: &str,
     marks: &str,
     records: &mut usize,
+    license: Option<&ConnectorLicense>,
+    transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
+    if let Some((license, transferred)) = license.zip(transferred) {
+        let used = transferred.records.load(Ordering::SeqCst);
+        if used > license.number as _ {
+            anyhow::bail!(
+                "Connector {} out of number: {}/{}",
+                license.r#type,
+                used,
+                license.number
+            );
+        }
+    }
     match record {
         LushMessage::Tables(tables) => {
             for table in tables {
                 let sql = table.to_sql(None).unwrap();
                 info!("Tables: {sql}");
                 taos.exec(&sql).await?;
+                if let Some(transferred) = transferred {
+                    transferred.tables.fetch_add(1, Ordering::SeqCst);
+                }
             }
         }
         LushMessage::Insert(record) => {
@@ -274,15 +304,15 @@ async fn consume_lush_record(
                             }
                         }
                         debug_assert!(columns.len() == data_vec.len());
-                        let mut column_value_pairs:Vec<(String, String)> = Vec::new();
+                        let mut column_value_pairs: Vec<(String, String)> = Vec::new();
                         for (index, v) in data_vec.iter().enumerate() {
                             let mut i = 0;
                             while i < v.len() {
-                                let mut temp_column_value_pair= column_value_pairs.get_mut(i);
+                                let mut temp_column_value_pair = column_value_pairs.get_mut(i);
                                 if temp_column_value_pair.is_none() {
                                     let pair = (String::new(), String::new());
                                     column_value_pairs.insert(i, pair);
-                                    temp_column_value_pair= column_value_pairs.get_mut(i);
+                                    temp_column_value_pair = column_value_pairs.get_mut(i);
                                 }
                                 let temp_column_value_pair = temp_column_value_pair.unwrap();
                                 if let Some(v) = v.get(i) {
@@ -291,7 +321,9 @@ async fn consume_lush_record(
                                         temp_column_value_pair.0.push_str(columns[index].as_str());
                                         temp_column_value_pair.0.push_str("`,");
                                         // temp_column_value_pair.1.push('\'');
-                                        temp_column_value_pair.1.push_str(v.into_value().to_sql_value().as_str());
+                                        temp_column_value_pair
+                                            .1
+                                            .push_str(v.into_value().to_sql_value().as_str());
                                         // temp_column_value_pair.1.push('\'');
                                         temp_column_value_pair.1.push_str(",");
                                     } else {
@@ -302,7 +334,7 @@ async fn consume_lush_record(
                                     log::debug!("column view {} is null", columns[index]);
                                 }
                                 i = i + 1;
-                            }   
+                            }
                         }
                         let mut count = 0;
                         for (mut c, mut v) in column_value_pairs {
@@ -314,7 +346,9 @@ async fn consume_lush_record(
                             v.pop();
                             values.push_str(v.as_str());
                             values.push(')');
-                            let sql = format!("insert into `{table_name}` {column_names} VALUES {values}");
+                            let sql = format!(
+                                "insert into `{table_name}` {column_names} VALUES {values}"
+                            );
                             log::debug!("sql: {sql}");
                             let res = taos.exec(sql).await;
                             match res {
@@ -333,6 +367,12 @@ async fn consume_lush_record(
                         let n = stmt.execute()?;
 
                         info!("written : [{n}] records");
+                        if let Some(transferred) = transferred {
+                            transferred.records.fetch_add(n as _, Ordering::SeqCst);
+                            transferred
+                                .points
+                                .fetch_add((n * data_vec.len()) as _, Ordering::SeqCst);
+                        }
                     }
                 }
             }
@@ -346,7 +386,8 @@ async fn consume_point_record(
     record: &PointMessage,
     count: &mut usize,
     config: &OpcTableConfig,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<usize> {
+    let mut points = 0;
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
         // process id, name, ts, value, status
@@ -378,13 +419,13 @@ async fn consume_point_record(
             let mut new_cv_vec = Vec::new();
             let sql = if config.use_received_time {
                 let server_ts_column_name = server_ts_column_name.clone().unwrap();
-                new_cv_vec.push(received_ts_cv.slice(i..i+1).unwrap());
-                new_cv_vec.push(value_cv.slice(i..i+1).unwrap());
-                new_cv_vec.push(server_ts_cv.slice(i..i+1).unwrap());
+                new_cv_vec.push(received_ts_cv.slice(i..i + 1).unwrap());
+                new_cv_vec.push(value_cv.slice(i..i + 1).unwrap());
+                new_cv_vec.push(server_ts_cv.slice(i..i + 1).unwrap());
                 format!("insert into {table} ({ts_cloumn_name}, {field}, {server_ts_column_name}) values (?, ?, ?)")
             } else {
-                new_cv_vec.push(server_ts_cv.slice(i..i+1).unwrap());
-                new_cv_vec.push(value_cv.slice(i..i+1).unwrap());
+                new_cv_vec.push(server_ts_cv.slice(i..i + 1).unwrap());
+                new_cv_vec.push(value_cv.slice(i..i + 1).unwrap());
                 format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
             };
             debug!("sql: {}", sql);
@@ -394,7 +435,10 @@ async fn consume_point_record(
             stmt.add_batch().context("STMT adding batch error")?;
             let res = stmt.execute();
             match res {
-                Ok(n) => *count += n,
+                Ok(n) => {
+                    *count += n;
+                    points += n;
+                }
                 Err(err) => {
                     let block = RawBlock::parse_from_raw_block(
                         views_to_raw_block(&new_cv_vec),
@@ -406,7 +450,7 @@ async fn consume_point_record(
             }
         }
     }
-    Ok(())
+    Ok(points)
 }
 
 async fn consume_flat_record(
@@ -414,7 +458,20 @@ async fn consume_flat_record(
     record: &FlatMessage,
     _count: &mut usize,
     parser: Option<&Parser>,
+    license: Option<&ConnectorLicense>,
+    transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
+    if let Some((license, transferred)) = license.zip(transferred) {
+        let used = transferred.records.load(Ordering::SeqCst);
+        if used > license.number as _ {
+            anyhow::bail!(
+                "Connector {} out of number: {}/{}",
+                license.r#type,
+                used,
+                license.number
+            );
+        }
+    }
     // let stmt = Stmt::init(_taos)?;
     let mut max_lengths = HashMap::new();
 
@@ -488,6 +545,11 @@ async fn consume_flat_record(
                                                 dbg!(&err);
                                                 if let Some(sql) = records.stable_sql() {
                                                     dbg!(&sql);
+                                                    if let Some(transferred) = transferred {
+                                                        transferred
+                                                            .stables
+                                                            .fetch_add(1, Ordering::SeqCst);
+                                                    }
                                                     _taos.exec(&sql).await.unwrap();
                                                     let sql = records.table_sql();
 
@@ -526,7 +588,12 @@ async fn consume_flat_record(
                                                     //.inspect_err(|err| tracing::warn!("{}", err))?
                                                 } else {
                                                     let sql = records.table_sql();
-                                                    dbg!(&sql);
+                                                    // dbg!(&sql);
+                                                    if let Some(transferred) = transferred {
+                                                        transferred
+                                                            .tables
+                                                            .fetch_add(1, Ordering::SeqCst);
+                                                    }
                                                     _taos.exec(&sql).await.unwrap();
                                                 }
                                             }
@@ -565,12 +632,17 @@ async fn consume_flat_record(
                                                     Err(err)?;
                                                 }
                                             }
+                                            if let Some(transferred) = transferred {
+                                                transferred.tables.fetch_add(1, Ordering::SeqCst);
+                                            }
                                             break;
                                         }
                                         //.inspect_err(|err| tracing::warn!("{}", err))?
                                     } else {
                                         let sql = records.table_sql();
-                                        dbg!(&sql);
+                                        if let Some(transferred) = transferred {
+                                            transferred.tables.fetch_add(1, Ordering::SeqCst);
+                                        }
                                         _taos.exec(&sql).await.unwrap();
                                     }
 
@@ -597,6 +669,15 @@ async fn consume_flat_record(
                                 }
                                 continue;
                             } else {
+                                if let Some(transferred) = transferred {
+                                    transferred
+                                        .records
+                                        .fetch_add(raw.nrows() as _, Ordering::SeqCst);
+                                    transferred.points.fetch_add(
+                                        (raw.nrows() * raw.ncols()) as _,
+                                        Ordering::SeqCst,
+                                    );
+                                }
                                 break;
                             }
                         }
@@ -619,8 +700,14 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
+    license: Option<&ConnectorLicense>,
+    transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
-    let columns = ipc_reader.columns().into_iter().map(|s| format!("{s}")).collect_vec();
+    let columns = ipc_reader
+        .columns()
+        .into_iter()
+        .map(|s| format!("{s}"))
+        .collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
     let mut stmt = Stmt::init(taos)?;
@@ -633,7 +720,18 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_lush_record(&taos, &mut stmt, record, &columns, &names, &marks, &mut count).await?;
+            consume_lush_record(
+                &taos,
+                &mut stmt,
+                record,
+                &columns,
+                &names,
+                &marks,
+                &mut count,
+                license,
+                transferred,
+            )
+            .await?;
             ipc_ack_writer.write_ok()?;
         }
     }
@@ -647,18 +745,36 @@ async fn ipc_point_reader<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
     config: Option<OpcTableConfig>,
+    license: Option<&ConnectorLicense>,
+    transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
     let mut stmt = Stmt::init(taos)?;
     for record in ipc_reader {
         if let Ok(record) = record {
+            if let Some((license, transferred)) = license.zip(transferred) {
+                let used = transferred.points.load(Ordering::SeqCst);
+                if used > license.number as _ {
+                    anyhow::bail!(
+                        "Connector {} out of points: {}/{}",
+                        license.r#type,
+                        used,
+                        license.number
+                    )
+                }
+            }
             let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_point_record(&mut stmt, &record, &mut count, config.as_ref().unwrap()).await?;
+            let n = consume_point_record(&mut stmt, &record, &mut count, config.as_ref().unwrap())
+                .await?;
 
             ipc_ack_writer.write_ok()?;
+
+            if let Some(transferred) = transferred {
+                transferred.points.fetch_add(n as _, Ordering::SeqCst);
+            }
         }
     }
     println!("finished, totally {count} rows");
@@ -670,6 +786,8 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
     parser: Option<&Parser>,
+    license: Option<&ConnectorLicense>,
+    transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
     for record in ipc_reader {
@@ -678,7 +796,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_flat_record(&taos, &record, &mut count, parser).await?;
+            consume_flat_record(&taos, &record, &mut count, parser, license, transferred).await?;
 
             ipc_ack_writer.write_ok()?;
         }
@@ -696,10 +814,42 @@ async fn ipc_process<R: Read, W: Write>(
     lock: Arc<Mutex<()>>,
     config: Option<OpcTableConfig>,
     parser: Option<Parser>,
+    connector: Option<&str>,
+    transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
+
+    let license: Option<ConnectorLicense> = if let Some(connector) = connector {
+        let license: Option<ConnectorLicense> = taos
+            .query_one::<_, String>(&format!(
+                "select {connector} from information_schema.ins_grants"
+            ))
+            .await
+            .unwrap_or(None)
+            .and_then(|s| serde_json::from_str(&s).ok());
+
+        if let Some(license) = license {
+            if license.is_expired() {
+                anyhow::bail!(
+                    "Connector {connector} expired, please contact the database administrator for license",
+                )
+            } else {
+                if license.number == -1 {
+                    None
+                } else {
+                    Some(license)
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
+
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         let guard = lock.lock().await;
         let max_retries = 10;
@@ -723,10 +873,37 @@ async fn ipc_process<R: Read, W: Write>(
     match stream_type {
         StreamType::Line => todo!(),
         StreamType::Flat => {
-            ipc_flat_stream_reader(&taos, ipc_reader, ipc_ack_writer, parser.as_ref()).await?
+            ipc_flat_stream_reader(
+                &taos,
+                ipc_reader,
+                ipc_ack_writer,
+                parser.as_ref(),
+                license.as_ref(),
+                transferred.as_deref(),
+            )
+            .await?
         }
-        StreamType::Lush => ipc_lush_stream_reader(&taos, ipc_reader, ipc_ack_writer).await?,
-        StreamType::Point => ipc_point_reader(&taos, ipc_reader, ipc_ack_writer, config).await?,
+        StreamType::Lush => {
+            ipc_lush_stream_reader(
+                &taos,
+                ipc_reader,
+                ipc_ack_writer,
+                license.as_ref(),
+                transferred.as_deref(),
+            )
+            .await?
+        }
+        StreamType::Point => {
+            ipc_point_reader(
+                &taos,
+                ipc_reader,
+                ipc_ack_writer,
+                config,
+                license.as_ref(),
+                transferred.as_deref(),
+            )
+            .await?
+        }
     }
     Ok(())
 }
@@ -739,6 +916,8 @@ pub struct IpcStreamWorker<'a> {
     from: Dsn,
     config: Option<OPCConfig>,
     opc_table_config: OnceCell<OpcTableConfig>,
+    license: Option<&'a ConnectorLicense>,
+    transferred: Option<&'a Transferred>,
     // stmt: Arc<UnsafeCell<Stmt>>,
 }
 
@@ -751,6 +930,9 @@ impl<'a> IpcStreamWorker<'a> {
         from: Dsn,
         lock: Arc<Mutex<()>>,
         schema: Arc<Schema>,
+        license: Option<&'a ConnectorLicense>,
+        transferred: Option<&'a Transferred>,
+        // license: Option<>
     ) -> anyhow::Result<Self> {
         let config = if from.driver.starts_with("opc") {
             Some(opc_config_blocking(taos, &from, 1)?)
@@ -767,7 +949,8 @@ impl<'a> IpcStreamWorker<'a> {
             task: None,
             config,
             opc_table_config: OnceCell::const_new(),
-            // stmt: Arc::new(UnsafeCell::new(stmt)),
+            license,
+            transferred, // stmt: Arc::new(UnsafeCell::new(stmt)),
         })
     }
 
@@ -813,11 +996,24 @@ impl<'a> IpcStreamWorker<'a> {
                 })
                 .unwrap();
                 // todo: parser
-                consume_flat_record(&self.taos, &record, &mut count, None).await?;
+                consume_flat_record(
+                    &self.taos,
+                    &record,
+                    &mut count,
+                    None, // todo: license
+                    self.license,
+                    self.transferred,
+                )
+                .await?;
                 Ok(count)
             }
             StreamType::Lush => {
-                let columns = self.parser.columns().into_iter().map(|s| format!("{s}")).collect_vec();
+                let columns = self
+                    .parser
+                    .columns()
+                    .into_iter()
+                    .map(|s| format!("{s}"))
+                    .collect_vec();
                 let names = columns.iter().map(|n| format!("`{n}`")).join(",");
                 let marks = std::iter::repeat('?').take(columns.len()).join(",");
 
@@ -829,10 +1025,32 @@ impl<'a> IpcStreamWorker<'a> {
                 })
                 .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
                 // let stmt = unsafe { &mut *self.stmt.get() };
-                consume_lush_record(&self.taos, stmt, record, &columns, &names, &marks, &mut count).await?;
+                consume_lush_record(
+                    &self.taos,
+                    stmt,
+                    record,
+                    &columns,
+                    &names,
+                    &marks,
+                    &mut count,
+                    self.license,
+                    self.transferred,
+                )
+                .await?;
                 Ok(count)
             }
             StreamType::Point => {
+                if let Some((license, transferred)) = self.license.zip(self.transferred) {
+                    let used = transferred.points.load(Ordering::SeqCst);
+                    if used > license.number as _ {
+                        anyhow::bail!(
+                            "Connector {} out of points: {}/{}",
+                            license.r#type,
+                            used,
+                            license.number
+                        )
+                    }
+                }
                 let message = self.parser.parse(record)?;
                 let mut count = 0;
                 let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
@@ -858,7 +1076,11 @@ impl<'a> IpcStreamWorker<'a> {
                     }
                 };
                 drop(guard);
-                consume_point_record(stmt, &record, &mut count, config).await?;
+                let _n = consume_point_record(stmt, &record, &mut count, config).await?;
+                if let Some(transferred) = self.transferred {
+                    transferred.points.fetch_add(_n as _, Ordering::SeqCst);
+                }
+                // todo: license
                 Ok(count)
             }
         }
@@ -1027,6 +1249,8 @@ pub fn listen_tcp_socket(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     parser: Option<Parser>,
+    connector: Option<&'static str>,
+    transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<std::sync::mpsc::Sender<()>> {
     let addr = socket.as_ref();
     use socket2::{Domain, Socket, Type};
@@ -1085,10 +1309,21 @@ pub fn listen_tcp_socket(
                         let lock = sql_lock.clone();
                         let config = config.clone();
                         let parser = parser.clone();
+                        let connector = connector.clone();
+                        let transferred = transferred.clone();
                         runtime.spawn(async move {
-                            let res =
-                                ipc_tcp_read(client, pool, stream, lock, config, cancel, parser)
-                                    .await;
+                            let res = ipc_tcp_read(
+                                client,
+                                pool,
+                                stream,
+                                lock,
+                                config,
+                                cancel,
+                                parser,
+                                connector,
+                                transferred,
+                            )
+                            .await;
                             if let Err(err) = res {
                                 // panic!("{err:?}");
                                 log::error!("ipc read err: {}", err);

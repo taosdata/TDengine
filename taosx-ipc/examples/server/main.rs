@@ -157,7 +157,11 @@ fn handle_lush_message<R: Read, W: Write>(
         taos.exec(&sql)?;
         // taos.exec_sync(&sql).unwrap();
     }
-    let columns = ipc_reader.columns().into_iter().map(|s| format!("{s}")).collect_vec();
+    let columns = ipc_reader
+        .columns()
+        .into_iter()
+        .map(|s| format!("{s}"))
+        .collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
 
@@ -203,24 +207,30 @@ fn handle_lush_message<R: Read, W: Write>(
                                 // stmt.bind(data_vec.as_slice()).unwrap();
                                 // stmt.add_batch().unwrap();
                                 // let n = stmt.execute().unwrap();
-                                let mut column_value_pairs:Vec<(String, String)> = Vec::new();
+                                let mut column_value_pairs: Vec<(String, String)> = Vec::new();
                                 debug_assert!(columns.len() == data_vec.len());
                                 for (index, v) in data_vec.iter().enumerate() {
                                     let mut i = 0;
                                     while i < v.len() {
-                                        let mut temp_column_value_pair= column_value_pairs.get_mut(i);
+                                        let mut temp_column_value_pair =
+                                            column_value_pairs.get_mut(i);
                                         if temp_column_value_pair.is_none() {
                                             let pair = (String::new(), String::new());
                                             column_value_pairs.insert(i, pair);
-                                            temp_column_value_pair= column_value_pairs.get_mut(i);
+                                            temp_column_value_pair = column_value_pairs.get_mut(i);
                                         }
-                                        let temp_column_value_pair = temp_column_value_pair.unwrap();
+                                        let temp_column_value_pair =
+                                            temp_column_value_pair.unwrap();
                                         if let Some(v) = v.get(i) {
                                             if !v.is_null() {
-                                                temp_column_value_pair.0.push_str(columns[index].as_str());
+                                                temp_column_value_pair
+                                                    .0
+                                                    .push_str(columns[index].as_str());
                                                 temp_column_value_pair.0.push_str(",");
                                                 temp_column_value_pair.1.push('\'');
-                                                temp_column_value_pair.1.push_str(v.into_value().to_string().unwrap().as_str());
+                                                temp_column_value_pair.1.push_str(
+                                                    v.into_value().to_string().unwrap().as_str(),
+                                                );
                                                 temp_column_value_pair.1.push('\'');
                                                 temp_column_value_pair.1.push_str(",");
                                             } else {
@@ -241,7 +251,9 @@ fn handle_lush_message<R: Read, W: Write>(
                                     v.pop();
                                     values.push_str(v.as_str());
                                     values.push(')');
-                                    let sql = format!("insert into {table_name} {column_names} VALUES {values}");
+                                    let sql = format!(
+                                        "insert into {table_name} {column_names} VALUES {values}"
+                                    );
                                     println!("sql: {sql}");
                                     let res = taos.exec(sql).unwrap();
                                     info!("written [{res}] records for table {table_name}");
