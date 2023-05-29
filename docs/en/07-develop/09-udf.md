@@ -503,7 +503,7 @@ Now, we have finished the first PDF in Python, and learned some basic debugging 
 
 The `myfun` UDF example in sample 1 has passed, but it has two drawbacks.
 
-1. It accepts only one column of data as input, and doesn't throw exception if you passes multiple columns.
+1. It the program accepts only one column of data as input, but it doesn't throw exception if you passes multiple columns.
 
 ```sql
 taos> select myfun(v1, v2) from t;
@@ -514,7 +514,7 @@ taos> select myfun(v1, v2) from t;
                2.302585093 |
 ```
 
-2. `null` value is not processed. We except the program to throw exception and terminate if `null` is passed as input.
+2. `null` value is not processed. We expect the program to throw exception and terminate if `null` is passed as input.
 
 So, we try to optimize the process() function as below.
 
@@ -642,7 +642,7 @@ Create and test the UDF.
 create function nextsunday as '/root/udf/nextsunday.py' outputtype binary(10) language 'Python';
 ```
 
-If your `taosd` is started using `systemd`, you man encounter the error below. Next we will show how to debug.
+If your `taosd` is started using `systemd`, you may encounter the error below. Next we will show how to debug.
 
 ```sql
 taos> select ts, nextsunday(ts) from t;
@@ -826,7 +826,7 @@ CREATE OR REPLACE FUNCTION function_name AS OUTPUTTYPE int LANGUAGE 'Python';
 CREATE OR REPLACE AGGREGATE FUNCTION function_name AS OUTPUTTYPE BUFSIZE buf_size int LANGUAGE 'Python';
 ```
 
-Note: If keyword `AGGREGATE` used, the UDF will be treated as aggregate UDF despite what it was before; Similarly, if there is no keyword `aggregate`, the UDF will be treated as scalar function despite what it was before. 更
+Note: If keyword `AGGREGATE` used, the UDF will be treated as aggregate UDF despite what it was before; Similarly, if there is no keyword `aggregate`, the UDF will be treated as scalar function despite what it was before.
 
 5. Show the UDF
   
