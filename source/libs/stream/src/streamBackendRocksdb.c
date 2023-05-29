@@ -910,7 +910,7 @@ int streamGetInit(SStreamState* pState, const char* funcName) {
       break;
     }
   }
-  if (idx != -1) {
+  if (pState != NULL && idx != -1) {
     rocksdb_column_family_handle_t* cf = NULL;
     taosThreadRwlockRdlock(&pState->pTdbState->rwLock);
     cf = pState->pTdbState->pHandle[idx];
