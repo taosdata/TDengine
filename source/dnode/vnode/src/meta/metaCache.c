@@ -499,8 +499,9 @@ static void initCacheKey(uint64_t* buf, const SHashObj* pHashMap, uint64_t suid,
   ASSERT(keyLen == sizeof(uint64_t) * 2);
 }
 
-int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1,
+int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1,
                                   bool* acquireRes) {
+  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
   int32_t vgId = TD_VID(pMeta->pVnode);
 
   // generate the composed key for LRU cache
@@ -603,9 +604,10 @@ static int32_t addNewEntry(SHashObj* pTableEntry, const void* pKey, int32_t keyL
 }
 
 // check both the payload size and selectivity ratio
-int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
+int32_t metaUidFilterCachePut(void* pVnode, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
                               int32_t payloadLen, double selectivityRatio) {
   int32_t code = 0;
+  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
   int32_t vgId = TD_VID(pMeta->pVnode);
 
   if (selectivityRatio > tsSelectivityRatio) {

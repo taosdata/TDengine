@@ -494,8 +494,8 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     listNode->pNodeList = group;
     genTbGroupDigest((SNode*)listNode, digest, &context);
     nodesFree(listNode);
-
-    pAPI->metaFn.getCachedTableList(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), &tableList);
+    ASSERT(0);
+//    pAPI->metaFn.getCachedTableList(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), &tableList, true);
     if (tableList) {
       taosArrayDestroy(pTableListInfo->pTableList);
       pTableListInfo->pTableList = tableList;
@@ -630,9 +630,10 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     info->groupId = calcGroupId(keyBuf, len);
   }
 
+  ASSERT(0);
   if (tsTagFilterCache) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
-    pAPI->metaFn.putTableListIntoCache(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), tableList, taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
+//    pAPI->metaFn.putCachedTableList(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), tableList, taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
   }
 
   //  int64_t st2 = taosGetTimestampUs();

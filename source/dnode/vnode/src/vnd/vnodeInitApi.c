@@ -41,7 +41,8 @@ void initStorageAPI(SStorageAPI* pAPI) {
 }
 
 void initTsdbReaderAPI(TsdReader* pReader) {
-  pReader->tsdReaderOpen = (__store_reader_open_fn_t)tsdbReaderOpen;
+  pReader->tsdReaderOpen = (int32_t(*)(void*, SQueryTableDataCond*, void*, int32_t, SSDataBlock*, void**, const char*,
+                                       bool, SHashObj**))tsdbReaderOpen;
   pReader->tsdReaderClose = tsdbReaderClose;
 
   pReader->tsdNextDataBlock = tsdbNextDataBlock;
@@ -87,6 +88,9 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->getTableSchema = tsdbGetTableSchema;   // todo refactor
   pMeta->storeGetTableList = vnodeGetTableList;
+
+  pMeta->getCachedTableList = metaGetCachedTableUidList;
+  pMeta->putCachedTableList = metaUidFilterCachePut;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {
