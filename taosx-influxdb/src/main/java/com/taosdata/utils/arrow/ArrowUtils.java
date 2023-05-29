@@ -334,8 +334,8 @@ public class ArrowUtils {
             }
             case "date":
             case "timestamp": {
-                TimeStampMilliVector timeStampMilliVector = (TimeStampMilliVector) structVector.getChild(dataName);
-                timeStampMilliVector.setSafe(index, ((Instant) dataValue).getEpochSecond() * 1000000 + ((Instant) dataValue).getNano());
+                TimeStampNanoVector timeStampNanoVector = (TimeStampNanoVector) structVector.getChild(dataName);
+                timeStampNanoVector.setSafe(index, ((Instant) dataValue).getEpochSecond() * 1_000_000 + ((Instant) dataValue).getNano());
                 break;
             }
             case "string":

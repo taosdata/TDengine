@@ -17,7 +17,7 @@ Configuration:
       # ref=console
       name: console
       # 控制台
-      target: SYSTEM_OUT
+      target: SYSTEM_ERR
       # 临界值过滤器
       ThresholdFilter:
         # 设定级别
