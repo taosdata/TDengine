@@ -1095,6 +1095,8 @@ having_clause_opt(A) ::= HAVING search_condition(B).                            
 range_opt(A) ::= .                                                                { A = NULL; }
 range_opt(A) ::=
   RANGE NK_LP expr_or_subquery(B) NK_COMMA expr_or_subquery(C) NK_RP.             { A = createInterpTimeRange(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+range_opt(A) ::=
+  RANGE NK_LP expr_or_subquery(B) NK_RP.                                          { A = createInterpTimePoint(pCxt, releaseRawExprNode(pCxt, B)); }
 
 every_opt(A) ::= .                                                                { A = NULL; }
 every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }
