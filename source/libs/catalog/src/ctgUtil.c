@@ -1482,7 +1482,7 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 
   switch (pReq->type) {
     case AUTH_TYPE_READ: {
-      if (pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
+      if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
         req->singleType = AUTH_TYPE_READ;
         CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
         if (pRes->pass || res->metaNotExists) {
@@ -1498,7 +1498,7 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       break;
     }
     case AUTH_TYPE_WRITE: {
-      if (pInfo->writeTbs && taosHashGetSize(pInfo->writeTbs) > 0) {
+      if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->writeTbs && taosHashGetSize(pInfo->writeTbs) > 0) {
         req->singleType = AUTH_TYPE_WRITE;
         CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
         if (pRes->pass || res->metaNotExists) {
