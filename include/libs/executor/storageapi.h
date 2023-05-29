@@ -103,63 +103,6 @@ typedef struct SRowBuffPos {
   bool  beUsed;
 } SRowBuffPos;
 
-// int32_t tsdbReuseCacherowsReader(void* pReader, void* pTableIdList, int32_t numOfTables);
-// int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
-//                                SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
-// int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
-//                              SArray *pTableUids);
-// void   *tsdbCacherowsReaderClose(void *pReader);
-// int32_t tsdbGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
-
-// int32_t      tsdbReaderOpen(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-//                            SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr, bool countOnly, SHashObj** pIgnoreTables);
-// int32_t      tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
-// void         tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
-// void         tsdbReaderClose(STsdbReader *pReader);
-// int32_t      tsdbNextDataBlock(STsdbReader *pReader, bool *hasNext);
-// int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
-// void         tsdbReleaseDataBlock(STsdbReader *pReader);
-// SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
-// int32_t      tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
-// int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
-// int64_t      tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
-// void        *tsdbGetIdx(void *pMeta);
-// void        *tsdbGetIvtIdx(void *pMeta);
-// uint64_t     tsdbGetReaderMaxVersion(STsdbReader *pReader);
-// void         tsdbReaderSetCloseFlag(STsdbReader *pReader);
-// int64_t      tsdbGetLastTimestamp(void* pVnode, void* pTableList, int32_t numOfTables, const char* pIdStr);
-
-// int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list);
-// int32_t vnodeGetCtbIdListByFilter(void *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);
-// int32_t vnodeGetStbIdList(void *pVnode, int64_t suid, SArray *list);
-// void   *vnodeGetIdx(void *pVnode);
-// void   *vnodeGetIvtIdx(void *pVnode);
-
-// void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
-// void        metaReaderReleaseLock(SMetaReader *pReader);
-// void        metaReaderClear(SMetaReader *pReader);
-// int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
-// int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
-// int         metaGetTableEntryByName(SMetaReader *pReader, const char *name);
-// int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList);
-// int32_t     metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList);
-// const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
-// int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
-//
-// int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
-// int      metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid);
-// int      metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
-// bool     metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
-// int32_t  metaGetCachedTableUidList(SMeta *pMeta, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
-//                                   bool *acquired);
-// int32_t  metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
-//                               int32_t payloadLen, double selectivityRatio);
-// int32_t  metaUidCacheClear(SMeta *pMeta, uint64_t suid);
-// tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
-// int32_t  metaGetCachedTbGroup(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray** pList);
-// int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
-//                               int32_t payloadLen);
-
 // tq
 typedef struct SMetaTableInfo {
   int64_t         suid;
@@ -201,63 +144,38 @@ typedef struct {
 // int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
 // int32_t        destroySnapContext(SSnapContext *ctx);
 
+// clang-format off
 /*-------------------------------------------------new api format---------------------------------------------------*/
-
-//  typedef int32_t       (*__store_reader_(STsdbReader *pReader, const void *pTableList, int32_t num);
-//  typedef void          (*tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
-//  typedef void          (*tsdbReaderClose(STsdbReader *pReader);
-//  typedef int32_t       (*tsdbNextDataBlock(STsdbReader *pReader, bool *hasNext);
-//  typedef int32_t       (*tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
-//  typedef void          (*tsdbReleaseDataBlock(STsdbReader *pReader);
-//  typedef SSDataBlock * (*tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
-//  typedef int32_t       (*tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
-//  typedef int32_t       (*tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
-//  typedef int64_t       (*tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
-//  typedef void        * (*tsdbGetIdx(void *pMeta);
-//  typedef void        * (*tsdbGetIvtIdx(void *pMeta);
-//  typedef uint64_t      (*tsdbGetReaderMaxVersion(STsdbReader *pReader);
-//  typedef void          (*tsdbReaderSetCloseFlag(STsdbReader *pReader);
-//  typedef int64_t       (*tsdbGetLastTimestamp(void* pVnode, void* pTableList, int32_t numOfTables, const char* pIdStr);
-
-typedef int32_t (*__store_reader_open_fn_t)(void *pVnode, SQueryTableDataCond *pCond, void *pTableList,
-                                            int32_t numOfTables, SSDataBlock *pResBlock, void **ppReader,
-                                            const char *idstr, bool countOnly, SHashObj **pIgnoreTables);
-
 typedef struct TsdReader {
-  __store_reader_open_fn_t tsdReaderOpen;
-  void (*tsdReaderClose)();
-  void (*tsdSetReaderTaskId)(void *pReader, const char *pId);
-  int32_t (*tsdSetQueryTableList)();
-  int32_t (*tsdNextDataBlock)();
+  int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
+                           SSDataBlock* pResBlock, void** ppReader, const char* idstr, bool countOnly,
+                           SHashObj** pIgnoreTables);
+  void         (*tsdReaderClose)();
+  void         (*tsdSetReaderTaskId)(void *pReader, const char *pId);
+  int32_t      (*tsdSetQueryTableList)();
+  int32_t      (*tsdNextDataBlock)();
 
-  int32_t (*tsdReaderRetrieveBlockSMAInfo)();
+  int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
   SSDataBlock *(*tsdReaderRetrieveDataBlock)();
 
-  void (*tsdReaderReleaseDataBlock)();
+  void         (*tsdReaderReleaseDataBlock)();
 
-  int32_t (*tsdReaderResetStatus)();
-  int32_t (*tsdReaderGetDataBlockDistInfo)();
-  int64_t (*tsdReaderGetNumOfInMemRows)();
-  void (*tsdReaderNotifyClosing)();
+  int32_t      (*tsdReaderResetStatus)();
+  int32_t      (*tsdReaderGetDataBlockDistInfo)();
+  int64_t      (*tsdReaderGetNumOfInMemRows)();
+  void         (*tsdReaderNotifyClosing)();
 } TsdReader;
 
-
-/**
- * int32_t tsdbReuseCacherowsReader(void* pReader, void* pTableIdList, int32_t numOfTables);
-int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
-int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
-                              SArray *pTableUids);
-void   *tsdbCacherowsReaderClose(void *pReader);
- */
 typedef struct SStoreCacheReader {
-  int32_t (*openReader)(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                        SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
-  void *(*closeReader)(void *pReader);
-  int32_t (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
-                          SArray *pTableUidList);
-  int32_t (*reuseReader)(void *pReader, void *pTableIdList, int32_t numOfTables);
+  int32_t  (*openReader)(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
+                         SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
+  void    *(*closeReader)(void *pReader);
+  int32_t  (*retrieveRows)(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, const int32_t *dstSlotIds,
+                           SArray *pTableUidList);
+  int32_t  (*reuseReader)(void *pReader, void *pTableIdList, int32_t numOfTables);
 } SStoreCacheReader;
+
+// clang-format on
 
 /*------------------------------------------------------------------------------------------------------------------*/
 /*
@@ -309,16 +227,10 @@ typedef struct SStoreTqReader {
 } SStoreTqReader;
 
 typedef struct SStoreSnapshotFn {
-  /*
-  int32_t        getTableInfoFromSnapshot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
-  SMetaTableInfo getMetaTableInfoFromSnapshot(SSnapContext *ctx);
-  int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
-  int32_t        destroySnapContext(SSnapContext *ctx);
-   */
-  int32_t (*createSnapshot)();
-  int32_t (*destroySnapshot)();
-  SMetaTableInfo (*getMetaTableInfoFromSnapshot)();
-  int32_t (*getTableInfoFromSnapshot)();
+  int32_t (*createSnapshot)(SSnapContext *ctx, int64_t uid);
+  int32_t (*destroySnapshot)(SSnapContext *ctx);
+  SMetaTableInfo (*getMetaTableInfoFromSnapshot)(SSnapContext* ctx);
+  int32_t (*getTableInfoFromSnapshot)(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid);
 } SStoreSnapshotFn;
 
 /**
@@ -327,12 +239,10 @@ void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
-int         metaGetTableEntryByName(SMetaReader *pReader, const char *name);
 int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList);
 const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
 
-int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
 int      metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid);
 int      metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
 bool     metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
@@ -340,51 +250,40 @@ int32_t  metaGetCachedTableUidList(SMeta *pMeta, tb_uid_t suid, const uint8_t *k
                                    bool *acquired);
 int32_t  metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen, double selectivityRatio);
-int32_t  metaUidCacheClear(SMeta *pMeta, uint64_t suid);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray** pList);
-int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
-                               int32_t payloadLen);
+int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload, int32_t payloadLen);
  */
 
 typedef struct SStoreMeta {
-  SMTbCursor *(*openTableMetaCursor)(void *pVnode);   // metaOpenTbCursor
-  void        (*closeTableMetaCursor)(SMTbCursor *pTbCur);  // metaCloseTbCursor
-  int32_t (*cursorNext)();                // metaTbCursorNext
-  int32_t (*cursorPrev)();                // metaTbCursorPrev
+  SMTbCursor *(*openTableMetaCursor)(void *pVnode);                        // metaOpenTbCursor
+  void        (*closeTableMetaCursor)(SMTbCursor *pTbCur);                 // metaCloseTbCursor
+  int32_t     (*cursorNext)(SMTbCursor *pTbCur, ETableType jumpTableType); // metaTbCursorNext
+  int32_t     (*cursorPrev)(SMTbCursor *pTbCur, ETableType jumpTableType); // metaTbCursorPrev
 
-  int32_t (*getTableTags)(void *pVnode, uint64_t suid, SArray *uidList);
-  int32_t (*getTableTagsByUid)(void *pVnode, int64_t suid, SArray *uidList);
+  int32_t     (*getTableTags)(void *pVnode, uint64_t suid, SArray *uidList);
+  int32_t     (*getTableTagsByUid)(void *pVnode, int64_t suid, SArray *uidList);
   const void *(*extractTagVal)(const void *tag, int16_t type, STagVal *tagVal);  // todo remove it
 
-  int32_t (*getTableUidByName)(void *pVnode, char *tbName, uint64_t *uid);
-  int32_t (*getTableTypeByName)(void *pVnode, char *tbName, ETableType *tbType);
-  int32_t (*getTableNameByUid)(void *pVnode, uint64_t uid, char *tbName);
-  bool (*isTableExisted)(void *pVnode, tb_uid_t uid);
+  int32_t     (*getTableUidByName)(void *pVnode, char *tbName, uint64_t *uid);
+  int32_t     (*getTableTypeByName)(void *pVnode, char *tbName, ETableType *tbType);
+  int32_t     (*getTableNameByUid)(void *pVnode, uint64_t uid, char *tbName);
+  bool        (*isTableExisted)(void *pVnode, tb_uid_t uid);
 
-  /**
-   * int32_t  metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
-                               int32_t payloadLen, double selectivityRatio);
-int32_t  metaUidCacheClear(SMeta *pMeta, uint64_t suid);
-tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
-int32_t  metaGetCachedTbGroup(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray** pList);
-int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
-                               int32_t payloadLen);
-   */
-  void (*getCachedTableList)();
-  void (*putTableListIntoCache)();
+  int32_t     (*metaGetCachedTbGroup)(void* pVnode, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray** pList);
+  int32_t     (*metaPutTbGroupToCache)(void* pVnode, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload, int32_t payloadLen);
 
-  /**
-   *
-   */
-  void *(*storeGetIndexInfo)();
-  void *(*getInvertIndex)(void* pVnode);
-  int32_t (*getChildTableList)(void *pVnode, int64_t suid, SArray *list);  // support filter and non-filter cases. [vnodeGetCtbIdList & vnodeGetCtbIdListByFilter]
-  int32_t (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);    // vnodeGetStbIdList  & vnodeGetAllTableList
-  void *storeGetVersionRange;
-  void *storeGetLastTimestamp;
+  int32_t     (*getCachedTableList)(void* pVnode, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1, bool* acquireRes);
+  int32_t     (*putCachedTableList)(void* pVnode, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload, int32_t payloadLen, double selectivityRatio);
 
-  int32_t (*getTableSchema)(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);  // tsdbGetTableSchema
+  void       *(*storeGetIndexInfo)();
+  void       *(*getInvertIndex)(void* pVnode);
+  int32_t     (*getChildTableList)(void *pVnode, int64_t suid, SArray *list);  // support filter and non-filter cases. [vnodeGetCtbIdList & vnodeGetCtbIdListByFilter]
+  int32_t     (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);    // vnodeGetStbIdList  & vnodeGetAllTableList
+  void       *storeGetVersionRange;
+  void       *storeGetLastTimestamp;
+
+  int32_t     (*getTableSchema)(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);  // tsdbGetTableSchema
 
   // db name, vgId, numOfTables, numOfSTables
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables);  // int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo);
