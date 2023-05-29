@@ -15,6 +15,7 @@
 
 #include "tsdbDef.h"
 #include "tsdbFSet.h"
+#include "tsdbUtil.h"
 
 #ifndef _TSDB_DATA_FILE_RW_H
 #define _TSDB_DATA_FILE_RW_H
@@ -23,23 +24,36 @@
 extern "C" {
 #endif
 
-// SDataFileReader =============================================
-typedef struct SDataFileReader       SDataFileReader;
-typedef struct SDataFileReaderConfig SDataFileReaderConfig;
+typedef TARRAY2(SBlockIdx) TBlockIdxArray;
+typedef TARRAY2(SDataBlk) TDataBlkArray;
 
-int32_t tsdbDataFileReaderOpen(const char *fname, const SDataFileReaderConfig *config, SDataFileReader **reader);
+// SDataFileReader =============================================
+typedef struct SDataFileReader SDataFileReader;
+typedef struct SDataFileReaderConfig {
+  STsdb  *tsdb;
+  STFile  f[TSDB_FTYPE_MAX];
+  int32_t szPage;
+} SDataFileReaderConfig;
+
+int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
+                               SDataFileReader **reader);
 int32_t tsdbDataFileReaderClose(SDataFileReader *reader);
+int32_t tsdbDataFileReadBlockIdx(SDataFileReader *reader, const TBlockIdxArray **blockIdxArray);
+int32_t tsdbDataFileReadDataBlk(SDataFileReader *reader, const SBlockIdx *blockIdx, const TDataBlkArray **dataBlkArray);
+
+int32_t tsdbDataFileReadDataBlock(SDataFileReader *reader, const SDataBlk *dataBlk, SBlockData *bData);
+int32_t tsdbDataFileReadDelData(SDataFileReader *reader, const SDelBlk *delBlk, SDelData *dData);
 
 // SDataFileWriter =============================================
 typedef struct SDataFileWriter SDataFileWriter;
 typedef struct SDataFileWriterConfig {
   STsdb *tsdb;
+  STFile f[TSDB_FTYPE_MAX];
 } SDataFileWriterConfig;
 
 int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer);
 int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, STFileOp op[/*TSDB_FTYPE_MAX*/]);
 int32_t tsdbDataFileWriteTSData(SDataFileWriter *writer, SBlockData *bData);
-// int32_t tsdbDataFileWriteDelData(SDataFileWriter *writer, SBlockData *bData);
 
 #ifdef __cplusplus
 }

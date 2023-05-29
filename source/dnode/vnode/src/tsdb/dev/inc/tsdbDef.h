@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+#define TSDB_ERROR_LOG(vid, lino, code) \
+  tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code))
+
 typedef struct SFDataPtr {
   int64_t offset;
   int64_t size;
