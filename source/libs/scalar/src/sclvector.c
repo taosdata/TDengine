@@ -1791,7 +1791,11 @@ void vectorNotMatch(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOu
 void vectorIsNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
   for (int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 1 : 0;
+    if (v) {
+      ++pOut->numOfQualified;
+    }
     colDataSetInt8(pOut->columnData, i, &v);
+    colDataClearNull_f(pOut->columnData->nullbitmap, i);
   }
   pOut->numOfRows = pLeft->numOfRows;
 }
@@ -1799,7 +1803,11 @@ void vectorIsNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut,
 void vectorNotNull(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
   for (int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 0 : 1;
+    if (v) {
+      ++pOut->numOfQualified;
+    }
     colDataSetInt8(pOut->columnData, i, &v);
+    colDataClearNull_f(pOut->columnData->nullbitmap, i);
   }
   pOut->numOfRows = pLeft->numOfRows;
 }
@@ -1811,6 +1819,13 @@ void vectorIsTrue(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut,
       int8_t v = 0;
       colDataSetInt8(pOut->columnData, i, &v);
       colDataClearNull_f(pOut->columnData->nullbitmap, i);
+    }
+    {
+      bool v = false;
+      GET_TYPED_DATA(v, bool, pOut->columnData->info.type, colDataGetData(pOut->columnData, i));
+      if (v) {
+        ++pOut->numOfQualified;
+      }
     }
   }
   pOut->columnData->hasNull = false;
@@ -1851,7 +1866,9 @@ void vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
       char *pLeftData = colDataGetVarData(pLeft->columnData, i);
       getJsonValue(pLeftData, jsonKey, &isExist);
     }
-
+    if (isExist) {
+      ++pOut->numOfQualified;
+    }
     colDataSetVal(pOutputCol, i, (const char *)(&isExist), false);
   }
   taosMemoryFree(jsonKey);

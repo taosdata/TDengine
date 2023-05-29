@@ -87,6 +87,16 @@ static int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId) {
     }
   }
 
+  int64_t skipToVer = walReaderGetSkipToVersion(pTask->exec.pWalReader);
+  if (skipToVer != 0 && skipToVer > pTask->chkInfo.currentVer) {
+    int32_t code = walReaderSeekVer(pTask->exec.pWalReader, skipToVer);
+    if (code != TSDB_CODE_SUCCESS) {  // no data in wal, quit
+      return code;
+    }
+
+    tqDebug("vgId:%d s-task:%s wal reader jump to ver:%" PRId64, vgId, pTask->id.idStr, skipToVer);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
