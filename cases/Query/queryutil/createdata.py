@@ -692,8 +692,8 @@ class TDCreateData():
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
         
-        self.add_data_random(database,n,1630000000000)
-        self.add_data_random(database,n,1640000000000)
+        # self.add_data_random(database,n,1630000000000)
+        # self.add_data_random(database,n,1640000000000)
 
     def dropandcreateDB_random_concat(self,database,n):
         #为concat函数定制的，多binary和多nchar
@@ -876,8 +876,8 @@ class TDCreateData():
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
         
-        self.add_data_random(database,n,1630000000000)
-        self.add_data_random(database,n,1640000000000)
+        # self.add_data_random(database,n,1630000000000)
+        # self.add_data_random(database,n,1640000000000)
         
                                
     def dropandcreateDB_null(self,database,n):
