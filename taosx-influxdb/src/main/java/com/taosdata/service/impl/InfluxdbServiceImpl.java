@@ -196,7 +196,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                         } else if ("table".equalsIgnoreCase(key)) {
                             influxdbBucketDataEntity.setTable(String.valueOf(value));
                         } else if ("_time".equalsIgnoreCase(key)) {
-                            influxdbBucketDataEntity.setTime(Date.from((Instant) value));
+                            influxdbBucketDataEntity.setTime((Instant) value);
                         } else if ("_field".equalsIgnoreCase(key)) {
                             influxdbBucketDataEntity.setField(String.valueOf(value));
                         } else if ("_value".equalsIgnoreCase(key)) {

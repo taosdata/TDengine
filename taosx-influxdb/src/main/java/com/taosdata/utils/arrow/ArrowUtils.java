@@ -24,7 +24,11 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
-import java.util.*;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * arrow工具类
@@ -70,7 +74,7 @@ public class ArrowUtils {
     private ArrowInitDto getArrowInit(InfluxdbMeasurementEntity influxdbMeasurementEntity) {
         ArrowInitDto arrowInitDto = new ArrowInitDto();
         // name
-        arrowInitDto.setName(influxdbMeasurementEntity.getMeasurement());
+        arrowInitDto.setName(influxdbMeasurementEntity.getBucket() + "_" + influxdbMeasurementEntity.getMeasurement());
         // columns
         List<ArrowInitDto.Column> columns = new ArrayList<>();
         columns.add(arrowInitDto.new Column("time", "timestamp"));
@@ -280,19 +284,17 @@ public class ArrowUtils {
                 return new ArrowType.Bool();
             case "integer":
             case "int":
-                return new ArrowType.Int(32, true);
             case "long":
             case "bigint":
                 return new ArrowType.Int(64, true);
             case "float":
-                return new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
             case "double":
                 return new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
             case "date":
             case "timestamp":
-                return new ArrowType.Timestamp(TimeUnit.MILLISECOND, null);
+                return new ArrowType.Timestamp(TimeUnit.NANOSECOND, null);
             case "string":
-            case "varchar(1000)":
+            case "nchar(1000)":
             default: {
                 return new ArrowType.Binary();
             }
@@ -317,22 +319,14 @@ public class ArrowUtils {
                 break;
             }
             case "integer":
-            case "int": {
-                IntVector intVector = (IntVector) structVector.getChild(dataName);
-                intVector.setSafe(index, ((Number) dataValue).intValue());
-                break;
-            }
+            case "int":
             case "long":
             case "bigint": {
                 BigIntVector bigIntVector = (BigIntVector) structVector.getChild(dataName);
                 bigIntVector.setSafe(index, ((Number) dataValue).longValue());
                 break;
             }
-            case "float": {
-                Float4Vector float4Vector = (Float4Vector) structVector.getChild(dataName);
-                float4Vector.setSafe(index, ((Number) dataValue).floatValue());
-                break;
-            }
+            case "float":
             case "double": {
                 Float8Vector float8Vector = (Float8Vector) structVector.getChild(dataName);
                 float8Vector.setSafe(index, ((Number) dataValue).doubleValue());
@@ -341,11 +335,11 @@ public class ArrowUtils {
             case "date":
             case "timestamp": {
                 TimeStampMilliVector timeStampMilliVector = (TimeStampMilliVector) structVector.getChild(dataName);
-                timeStampMilliVector.setSafe(index, ((Date) dataValue).getTime());
+                timeStampMilliVector.setSafe(index, ((Instant) dataValue).getEpochSecond() * 1000000 + ((Instant) dataValue).getNano());
                 break;
             }
             case "string":
-            case "varchar(1000)":
+            case "nchar(1000)":
             default: {
                 VarBinaryVector varBinaryVector = (VarBinaryVector) structVector.getChild(dataName);
                 varBinaryVector.setSafe(index, dataValue.toString().getBytes());

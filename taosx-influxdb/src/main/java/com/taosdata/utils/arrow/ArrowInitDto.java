@@ -34,11 +34,9 @@ public class ArrowInitDto {
             case "boolean":
                 return "bool";
             case "integer":
-                return "int";
             case "long":
                 return "bigint";
             case "float":
-                return "float";
             case "double":
                 return "double";
             case "date":
@@ -46,7 +44,7 @@ public class ArrowInitDto {
                 return "timestamp";
             case "string":
             default: {
-                return "varchar(1000)";
+                return "nchar(1000)";
             }
         }
     }
