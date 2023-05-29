@@ -690,7 +690,7 @@ _err:
   return -1;
 }
 
-int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **pMetaRsp) {
+int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRsp **pMetaRsp) {
   SMetaEntry  me = {0};
   SMetaReader mr = {0};
 
@@ -729,7 +729,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMe
   metaReaderClear(&mr);
 
   // build SMetaEntry
-  me.version = version;
+  me.version = ver;
   me.type = pReq->type;
   me.uid = pReq->uid;
   me.name = pReq->name;

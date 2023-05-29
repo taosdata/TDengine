@@ -59,7 +59,7 @@ typedef struct SDataSinkMgtCfg {
   uint32_t maxDataBlockNumPerQuery;
 } SDataSinkMgtCfg;
 
-int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg);
+int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI);
 
 typedef struct SInputData {
   const struct SSDataBlock* pData;

@@ -61,9 +61,10 @@ static int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId) {
   // seek the stored version and extract data from WAL
   int64_t firstVer = walReaderGetValidFirstVer(pTask->exec.pWalReader);
   if (pTask->chkInfo.currentVer < firstVer) {
+    tqWarn("vgId:%d s-task:%s ver:%"PRId64" earlier than the first ver of wal range %" PRId64 ", forward to %" PRId64, vgId,
+           pTask->id.idStr, pTask->chkInfo.currentVer, firstVer, firstVer);
+
     pTask->chkInfo.currentVer = firstVer;
-    tqWarn("vgId:%d s-task:%s ver earlier than the first ver of wal range %" PRId64 ", forward to %" PRId64, vgId,
-           pTask->id.idStr, firstVer, pTask->chkInfo.currentVer);
 
     // todo need retry if failed
     int32_t code = walReaderSeekVer(pTask->exec.pWalReader, pTask->chkInfo.currentVer);
@@ -84,6 +85,16 @@ static int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId) {
       // append the data for the stream
       tqDebug("vgId:%d s-task:%s wal reader initial seek to ver:%" PRId64, vgId, pTask->id.idStr, pTask->chkInfo.currentVer);
     }
+  }
+
+  int64_t skipToVer = walReaderGetSkipToVersion(pTask->exec.pWalReader);
+  if (skipToVer != 0 && skipToVer > pTask->chkInfo.currentVer) {
+    int32_t code = walReaderSeekVer(pTask->exec.pWalReader, skipToVer);
+    if (code != TSDB_CODE_SUCCESS) {  // no data in wal, quit
+      return code;
+    }
+
+    tqDebug("vgId:%d s-task:%s wal reader jump to ver:%" PRId64, vgId, pTask->id.idStr, skipToVer);
   }
 
   return TSDB_CODE_SUCCESS;

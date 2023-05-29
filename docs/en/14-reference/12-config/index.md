@@ -111,7 +111,7 @@ The parameters described in this document by the effect that they have on the sy
 | Attribute     | Description                                    |
 | ------------- | ---------------------------------------------- |
 | Applicable    | Client/Server                                  |
-| Meaning       | The maximum waiting time to get avaliable conn |
+| Meaning       | The maximum waiting time to get available conn |
 | Value Range   | 10-50000000(ms)                                |
 | Default Value | 500000                                         |
 
