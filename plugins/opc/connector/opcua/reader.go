@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os/signal"
 	"regexp"
 	"strings"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/gopcua/opcua"
 	"github.com/gopcua/opcua/ua"
+	"github.com/sunpe/gobox/logger"
 )
 
 type uaNode struct {
@@ -80,9 +80,7 @@ func newReader(debug bool, connectConfig common.UaConnectConfig, pointConfig com
 }
 
 func (r *reader) connect(ctx context.Context) error {
-	if r.debug {
-		log.Println("## connect to opc ua server", "endpoint", r.connectConfig.Endpoint)
-	}
+	logger.Debug("## connect to opc ua server", "endpoint", r.connectConfig.Endpoint)
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -93,14 +91,14 @@ func (r *reader) connect(ctx context.Context) error {
 	r.state = opcua.Connecting
 	opts, err := r.setupOptions(ctx)
 	if err != nil {
-		log.Println("## setup options error ", err)
+		logger.Error("## setup options error", "error", err)
 		return err
 	}
 
 	if r.client != nil {
-		log.Println("## Closing connection due to Connection already instantiated")
-		if err := r.client.Close(); err != nil {
-			log.Println("## close connection error ", err)
+		logger.Warn("## Closing connection due to Connection already instantiated")
+		if err = r.client.Close(); err != nil {
+			logger.Error("## close connection error", "error", err)
 		}
 	}
 
@@ -114,14 +112,12 @@ func (r *reader) connect(ctx context.Context) error {
 	}
 
 	r.state = opcua.Connected
-	log.Printf("## create reader %p and connected to opc ua server", r)
+	logger.Info("## create reader %p and connected to opc ua server", "reader", r)
 	return nil
 }
 
 func (r *reader) ensureConnected(ctx context.Context) error {
-	if r.debug {
-		log.Println("## ensure connected to opc ua server")
-	}
+	logger.Debug("## ensure connected to opc ua server")
 	if r.state == opcua.Disconnected {
 		if err := r.connect(ctx); err != nil {
 			return err
@@ -141,7 +137,7 @@ func (r *reader) stop(ctx context.Context) {
 			return
 		}
 		if err := r.client.CloseWithContext(ctx); err != nil {
-			log.Println("## close opc ua connection error", err)
+			logger.Error("## close opc ua connection error", "error", err)
 		}
 		r.client = nil
 		r.state = opcua.Disconnected
@@ -223,8 +219,7 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 			select {
 			case <-checkConnTicker.C:
 				if r.state == opcua.Connected && !r.OpcConnected() {
-					log.Println("## opc ua connection is not alive")
-					panic("opc ua connection is not alive")
+					logger.Panic("## opc ua connection is not alive")
 				}
 			case <-r.done:
 				return
@@ -233,7 +228,7 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 			case <-ticker.C:
 				values, err := r.observeValue(ctx)
 				if err != nil {
-					log.Println("## observe metric error ", err)
+					logger.Error("## observe metric error", "error", err)
 					continue
 				}
 
@@ -265,18 +260,16 @@ func (r *reader) observeValue(ctx context.Context) ([]*common.NodeValue, error) 
 	for i, item := range res.Results {
 		node := r.nodes[i]
 		identifier := node.nodeID.String()
-		if r.debug {
-			log.Printf("## observe opc ua identifier [%s] value [%v] type [%v]", identifier,
-				item.Value.Value(), item.Value.Type())
-		}
+		logger.DebugF("## observe opc ua identifier [%s] value [%v] type [%v]", identifier, item.Value.Value(),
+			item.Value.Type())
 
 		if item.Status != ua.StatusOK && !r.containsBad {
-			log.Printf("## observe data for identifier [%q] status [%v] is not ok(0x0) ", identifier, item.Status)
+			logger.WarnF("## observe data for identifier [%q] status [%v] is not ok(0x0) ", identifier, item.Status)
 			continue
 		}
 
 		if err = r.checkValueType(identifier, item, node.valueType); err != nil {
-			log.Printf("## check value type for identifier [%q] error [%v]", identifier, err)
+			logger.ErrorF("## check value type for identifier [%q] error [%v]", identifier, err)
 			continue
 		}
 
@@ -328,7 +321,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 			defer cancel()
 			_ = sub.Cancel(cancelCtx)
 
-			log.Println("## cancel subscription")
+			logger.Warn("## cancel subscription")
 		}()
 
 		checkConnTicker := time.NewTicker(10 * time.Second)
@@ -338,8 +331,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 			select {
 			case <-checkConnTicker.C:
 				if !r.OpcConnected() {
-					log.Println("## opc ua connection is not alive")
-					panic("opc ua connection is not alive")
+					logger.Panic("## opc ua connection is not alive")
 				}
 			case <-r.done:
 				return
@@ -351,18 +343,18 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 				}
 
 				if value.Error != nil {
-					log.Println("## subscribe error", value.Error)
+					logger.Error("## subscribe error", "error", value.Error)
 					continue
 				}
 
 				v, ok := value.Value.(*ua.DataChangeNotification)
 				if !ok {
-					log.Printf("what's this publish result? %#v", value)
+					logger.WarnF("what's this publish result? %#v", value)
 					continue
 				}
 				if r.debug {
 					j, _ := json.Marshal(v)
-					log.Println("## subscribe from opc ua", string(j))
+					logger.DebugF("## subscribe from opc ua %s", string(j))
 				}
 				for _, item := range v.MonitoredItems {
 					var ts time.Time
@@ -382,7 +374,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 
 					status := item.Value.Status
 					if status != ua.StatusOK && !r.containsBad {
-						log.Printf("## observe data for identifier [%q] status [%v] is not ok(0x0) ", id, status)
+						logger.WarnF("## observe data for identifier [%q] status [%v] is not ok(0x0) ", id, status)
 						continue
 					}
 
@@ -408,14 +400,14 @@ func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, c
 	ch = make(chan *opcua.PublishNotificationData, 1)
 	sub, err = r.client.SubscribeWithContext(ctx, &opcua.SubscriptionParameters{}, ch)
 	if err != nil {
-		log.Println("## subscribe failed ", err)
+		logger.Error("## subscribe failed", "error", err)
 		return nil, nil, fmt.Errorf("subscribe failed: %w", err)
 	}
 
 	for i, node := range r.nodes {
 		if _, err = sub.Monitor(ua.TimestampsToReturnBoth, opcua.NewMonitoredItemCreateRequestWithDefaults(
 			node.nodeID, ua.AttributeIDValue, uint32(i))); err != nil {
-			log.Println("## subscribe monitor failed ", err)
+			logger.Error("## subscribe monitor failed", "error", err)
 			return nil, nil, fmt.Errorf("subscribe monitor failed: %w", err)
 		}
 	}
@@ -478,7 +470,7 @@ func (r *reader) generateOptions(endpoints []*ua.EndpointDescription) (opts []op
 	if len(r.connectConfig.Certificate) != 0 && len(r.connectConfig.PrivateKey) != 0 {
 		certificate, err := tls.LoadX509KeyPair(r.connectConfig.Certificate, r.connectConfig.PrivateKey)
 		if err != nil {
-			log.Println("## Failed to load certificate ", err)
+			logger.Error("## Failed to load certificate ", "error", err)
 			return nil, err
 		}
 
@@ -506,7 +498,7 @@ func (r *reader) generateOptions(endpoints []*ua.EndpointDescription) (opts []op
 
 	serverEndpoint, err := r.getServerEndpoint(endpoints, securityPolity, securityMode)
 	if err != nil {
-		log.Println("## get server endpoint error ", err)
+		logger.Error("## get server endpoint error ", "error", err)
 		return nil, err
 	}
 

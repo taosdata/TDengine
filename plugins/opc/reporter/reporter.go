@@ -4,7 +4,6 @@ import (
 	"collector/common"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"sync"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/apache/arrow/go/v12/arrow"
 	"github.com/apache/arrow/go/v12/arrow/array"
 	"github.com/apache/arrow/go/v12/arrow/memory"
+	"github.com/sunpe/gobox/logger"
 )
 
 type Reporter interface {
@@ -64,17 +64,13 @@ func (r *OpcReporter) Report(ctx context.Context, valueCh <-chan *common.NodeVal
 	}
 	r.startWriting(ctx)
 	r.readValue(valueCh)
-	if r.debug {
-		log.Println("## opc reporter is done.")
-	}
+	logger.Debug("## opc reporter is done.")
 	return nil
 }
 
 func (r *OpcReporter) readValue(valueCh <-chan *common.NodeValue) {
 	defer func() {
-		if r.debug {
-			log.Println("## read value is done.")
-		}
+		logger.Debug("## read value is done.")
 
 		for _, ch := range r.channels {
 			close(ch)
@@ -88,18 +84,14 @@ func (r *OpcReporter) readValue(valueCh <-chan *common.NodeValue) {
 
 func (r *OpcReporter) createValueChannel() {
 	for _, valueType := range r.valueTypes {
-		if r.debug {
-			log.Println("## create value channel for ", valueType)
-		}
+		logger.Debug("## create value channel for ", "value type", valueType)
 		r.channels[valueType] = make(chan *common.NodeValue, r.batchSize)
 	}
 }
 
 func (r *OpcReporter) createWriters() error {
 	for _, valueType := range r.valueTypes {
-		if r.debug {
-			log.Printf("## create %d writer for %s", r.concurrent, valueType)
-		}
+		logger.DebugF("## create %d writer for %s", r.concurrent, valueType)
 		for i := 0; i < r.concurrent; i++ {
 			w, err := r.createWriter(valueType)
 			if err != nil {
@@ -129,7 +121,7 @@ func (r *OpcReporter) startWriting(ctx context.Context) {
 		go func(w writer) {
 			defer r.wait.Done()
 			if err := w.write(ctx); err != nil {
-				log.Panicf("## write error. %v", err)
+				logger.PanicF("## write error. %v", err)
 			}
 		}(w)
 	}
@@ -146,7 +138,7 @@ func (r *OpcReporter) Stop(ctx context.Context) {
 			_ = w.close(ctx)
 		}
 
-		log.Println("## opc reporter stopped!")
+		logger.Info("## opc reporter is stopping...")
 	})
 }
 

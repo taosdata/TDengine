@@ -5,9 +5,10 @@ import (
 	"collector/connector"
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
+
+	"github.com/sunpe/gobox/logger"
 )
 
 type UaConnector struct {
@@ -29,7 +30,7 @@ func NewConnector(config common.Config) (connector.Connector, error) {
 	}
 	readers, err := createReaders(config)
 	if err != nil {
-		log.Println("## create opc ua reader error", err)
+		logger.Error("## create opc ua reader error", "error", err)
 		return nil, err
 	}
 
@@ -82,7 +83,7 @@ func (c *UaConnector) Stop(ctx context.Context) {
 			}
 		}
 		c.readers = nil
-		log.Println("## opc ua connector stopped!")
+		logger.Warn("## opc ua connector stopped!")
 	})
 }
 
@@ -92,7 +93,7 @@ func (c *UaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, er
 		go func(r *reader) {
 			defer c.wait.Done()
 			if err := c.collect(ctx, r); err != nil {
-				log.Println("## collect error", err)
+				logger.Error("## collect error", "error", err)
 				panic(err)
 			}
 		}(r)
@@ -103,12 +104,12 @@ func (c *UaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, er
 
 func (c *UaConnector) collect(ctx context.Context, r *reader) error {
 	if c.collectMode == common.OPcUaSubscribeType {
-		log.Println("## opc ua connector is in subscribe mode")
+		logger.Info("## opc ua connector is in subscribe mode")
 		return r.subscribe(ctx, c.ch)
 	}
 
 	if c.collectMode == common.OpcUaObserveType {
-		log.Println("## opc ua connector collect is in observe mode")
+		logger.Info("## opc ua connector collect is in observe mode")
 		return r.observe(ctx, c.ch)
 	}
 

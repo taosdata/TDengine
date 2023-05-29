@@ -4,13 +4,14 @@ import (
 	"collector/common"
 	"context"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/sunpe/gobox/logger"
 )
 
 type Connector interface {
@@ -32,7 +33,7 @@ func NewFakeConnector(config common.CollectConfig) *FakeConnector {
 func (f *FakeConnector) Stop(_ context.Context) {
 	f.once.Do(func() {
 		close(f.done)
-		log.Println("## fake connector stopped!")
+		logger.Warn("## fake connector stopped!")
 	})
 }
 
