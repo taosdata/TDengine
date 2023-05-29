@@ -268,8 +268,11 @@ if(${BUILD_WITH_ROCKSDB})
     option(WITH_BENCHMARK_TOOLS "" OFF)
     option(WITH_TOOLS "" OFF)
     option(WITH_LIBURING "" OFF)
-
+    IF (TD_LINUX) 
     option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" ON)
+    ELSE()
+    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
+    ENDIF()
     add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
     target_include_directories(
         rocksdb
