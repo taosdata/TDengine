@@ -9,6 +9,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Date;
+import java.util.TimeZone;
 
 /**
  * 时间工具类
@@ -80,10 +81,22 @@ public class DateUtils {
      * @return
      */
     public static Date stringToDate(String date, String dateFormat) throws Exception {
+        return stringToDate(date, dateFormat, TimeZone.getDefault());
+    }
+
+    /**
+     * 字符串转换日期
+     *
+     * @param date
+     * @param dateFormat
+     * @return
+     */
+    public static Date stringToDate(String date, String dateFormat, TimeZone timeZone) throws Exception {
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat);
         if (StringUtils.isEmpty(date)) {
             throw new Exception("invalid date exception");
         }
+        simpleDateFormat.setTimeZone(timeZone);
         return simpleDateFormat.parse(date);
     }
 

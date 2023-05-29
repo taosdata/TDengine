@@ -3,7 +3,7 @@ package com.taosdata.model.entity;
 import com.alibaba.fastjson.JSONObject;
 import lombok.Data;
 
-import java.util.Date;
+import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -18,7 +18,7 @@ public class InfluxdbBucketDataEntity {
 
     private String measurement;
     private String table;
-    private Date time;
+    private Instant time;
     private String field;
     private Object value;
     private Map<String, Object> tags;
