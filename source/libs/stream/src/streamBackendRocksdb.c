@@ -749,6 +749,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
     RocksdbCfInst* inst = *pIter;
     SCfComparator  compare = {.comp = inst->pCompares, .numOfComp = cfLen};
     inst->pCompareNode = streamBackendAddCompare(handle, &compare);
+    pIter = taosHashIterate(handle->cfInst, pIter);
   }
 
   taosMemoryFree(cfHandle);
