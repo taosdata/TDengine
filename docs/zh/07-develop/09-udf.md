@@ -367,7 +367,7 @@ def start() -> bytes:
 def reduce(inputs: datablock, buf: bytes) -> bytes
     # deserialize buf to state
     # reduce the inputs and state into new_state. 
-    # use inputs.data(i,j) to access python ojbect of location(i,j)
+    # use inputs.data(i,j) to access python object of location(i,j)
     # serialize new_state into new_state_bytes
     return new_state_bytes   
 def finish(buf: bytes) -> output_type:

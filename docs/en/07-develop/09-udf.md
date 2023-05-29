@@ -10,7 +10,7 @@ User-defined functions can be scalar functions or aggregate functions. Scalar fu
 
 TDengine supports user-defined functions written in C or Python. This document describes the usage of user-defined functions.
 
-## Implement a UDF in C 
+## Implement a UDF in C
 
 When you create a user-defined function, you must implement standard interface functions:
 - For scalar functions, implement the `scalarfn` interface function.
@@ -111,13 +111,13 @@ Interface functions return a value that indicates whether the operation was succ
 For information about the parameters for interface functions, see Data Model
 
 #### Scalar Interface
- `int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn)` 
- 
+ `int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn)`
+
  Replace `scalarfn` with the name of your function. This function performs scalar calculations on data blocks. You can configure a value through the parameters in the `resultColumn` structure.
 
 The parameters in the function are defined as follows:
   - inputDataBlock: The data block to input.
-  - resultColumn: The column to output. The column to output. 
+  - resultColumn: The column to output. The column to output.
 
 #### Aggregate Interface
 
@@ -197,7 +197,7 @@ The data structure is described as follows:
 - The SUdfDataBlock block includes the number of rows (numOfRows) and the number of columns (numCols). udfCols[i] (0 <= i <= numCols-1) indicates that each column is of type SUdfColumn.
 - SUdfColumn includes the definition of the data type of the column (colMeta) and the data in the column (colData).
 - The member definitions of SUdfColumnMeta are the same as the data type definitions in `taos.h`.
-- The data in SUdfColumnData can become longer. varLenCol indicates variable-length data, and fixLenCol indicates fixed-length data. 
+- The data in SUdfColumnData can become longer. varLenCol indicates variable-length data, and fixLenCol indicates fixed-length data.
 - SUdfInterBuf defines the intermediate structure `buffer` and the number of results in the buffer `numOfResult`.
 
 Additional functions are defined in `taosudf.h` to make it easier to work with these structures.
@@ -350,7 +350,10 @@ def init():
     # initialization
 def destroy():
     # destroy
-def process(input: datablock) -> tuple[output_type]:  
+def process(input: datablock) -> tuple[output_type]:
+    # process input datablock,
+    # datablock.data(row, col) is to access the python object in location(row,col)
+    # return tuple object consisted of object of type outputtype
 ```
 
 Note：process() must be implemeted, init() and destroy() must be defined too but they can do nothing.
@@ -366,12 +369,12 @@ def start() -> bytes:
     #return serialize(init_state)
 def reduce(inputs: datablock, buf: bytes) -> bytes
     # deserialize buf to state
-    # reduce the inputs and state into new_state. 
-    # use inputs.data(i,j) to access python ojbect of location(i,j)
+    # reduce the inputs and state into new_state.
+    # use inputs.data(i,j) to access python object of location(i,j)
     # serialize new_state into new_state_bytes
-    return new_state_bytes   
+    return new_state_bytes
 def finish(buf: bytes) -> output_type:
-    #return obj of type outputtype   
+    #return obj of type outputtype
 ```
 
 Note: aggregate UDF requires init(), destroy(), start(), reduce() and finish() to be impemented. start() generates the initial result in buffer, then the input data is divided into multiple row data blocks, reduce() is invoked for each data block `inputs` and intermediate `buf`, finally finish() is invoked to generate final result from the intermediate result `buf`.
@@ -844,8 +847,9 @@ select * from ins_functions \G;
 SHOW functions;
 DROP FUNCTION function_name;
 ```
- 
+
 ### More Python UDF Samples
+
 #### Scalar Function [pybitand](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/pybitand.py)
 
 The `pybitand` function implements bitwise addition for multiple columns. If there is only one column, the column is returned. The `pybitand` function ignores null values.
