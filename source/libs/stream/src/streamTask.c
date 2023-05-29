@@ -17,7 +17,7 @@
 #include "tstream.h"
 #include "wal.h"
 
-SStreamTask* tNewStreamTask(int64_t streamId) {
+SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return NULL;
@@ -25,6 +25,8 @@ SStreamTask* tNewStreamTask(int64_t streamId) {
 
   pTask->id.taskId = tGenIdPI32();
   pTask->id.streamId = streamId;
+  pTask->taskLevel = taskLevel;
+  pTask->fillHistory = fillHistory;
 
   char buf[128] = {0};
   sprintf(buf, "0x%" PRIx64 "-%d", pTask->id.streamId, pTask->id.taskId);
