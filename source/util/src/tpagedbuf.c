@@ -482,7 +482,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 
     SPageInfo** pInfo = (SPageInfo**)((*pi)->pn->data);
     if (*pInfo != *pi) {
-      terrno = TSDB_CODE_QRY_SYS_ERROR;
+      terrno = TSDB_CODE_APP_ERROR;
       uError("inconsistently data in paged buffer, pInfo:%p, pi:%p, %s", *pInfo, *pi, pBuf->id);
       return NULL;
     }
