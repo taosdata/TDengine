@@ -31,10 +31,10 @@ static void initSnapshotFn(SStoreSnapshotFn* pSnapshot);
 void initStorageAPI(SStorageAPI* pAPI) {
   initTsdbReaderAPI(&pAPI->tsdReader);
   initMetadataAPI(&pAPI->metaFn);
-  initTqAPI(&pAPI->tqReaderFn);
   initStateStoreAPI(&pAPI->stateStore);
   initMetaReaderAPI(&pAPI->metaReaderFn);
   initMetaFilterAPI(&pAPI->metaFilter);
+  initTqAPI(&pAPI->tqReaderFn);
   initFunctionStateStore(&pAPI->functionStore);
   initCacheFn(&pAPI->cacheFn);
   initSnapshotFn(&pAPI->snapshotFn);
@@ -91,6 +91,9 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->getCachedTableList = metaGetCachedTableUidList;
   pMeta->putCachedTableList = metaUidFilterCachePut;
+
+  pMeta->metaGetCachedTbGroup = metaGetCachedTbGroup;
+  pMeta->metaPutTbGroupToCache = metaPutTbGroupToCache;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

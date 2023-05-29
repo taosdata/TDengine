@@ -120,15 +120,13 @@ int32_t  metaGetCachedTableUidList(void *pVnode, tb_uid_t suid, const uint8_t *k
 int32_t  metaUidFilterCachePut(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen, double selectivityRatio);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
-int32_t  metaTbGroupCacheClear(SMeta *pMeta, uint64_t suid);
-int32_t  metaGetCachedTbGroup(SMeta *pMeta, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
-int32_t  metaPutTbGroupToCache(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
+int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
+int32_t  metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen);
 
 int64_t  metaGetTbNum(SMeta *pMeta);
-int64_t  metaGetNtbNum(SMeta *pMeta);
 
-int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
+int32_t  metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
 
 // tsdb
 typedef struct STsdbReader STsdbReader;
