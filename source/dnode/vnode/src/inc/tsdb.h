@@ -76,9 +76,8 @@ typedef struct STsdbFilterInfo  STsdbFilterInfo;
 #define TSDBROW_ROW_FMT ((int8_t)0x0)
 #define TSDBROW_COL_FMT ((int8_t)0x1)
 
-#define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
-#define TSDB_MAX_SUBBLOCKS 8
-#define TSDB_FHDR_SIZE     512
+#define TSDB_FILE_DLMT ((uint32_t)0xF00AFA0F)
+#define TSDB_FHDR_SIZE 512
 
 #define VERSION_MIN 0
 #define VERSION_MAX INT64_MAX
@@ -498,7 +497,7 @@ struct SDataBlk {
   int32_t    nRow;
   int8_t     hasDup;
   int8_t     nSubBlock;
-  SBlockInfo aSubBlock[TSDB_MAX_SUBBLOCKS];
+  SBlockInfo aSubBlock[1];
   SSmaInfo   smaInfo;
 };
 
