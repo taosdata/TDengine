@@ -538,7 +538,23 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
       terrno = TSDB_CODE_QRY_INVALID_INPUT;
       return -1;
     }
+  }else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE && pTopic->ast != NULL){
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
+      mError("topic:%s, failed to create since %s", pTopic->name, terrstr());
+      return -1;
+    }
 
+    SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
+    if (qCreateQueryPlan(&cxt, &pPlan, NULL) != 0) {
+      mError("failed to create topic:%s since %s", pTopic->name, terrstr());
+      nodesDestroyNode(pAst);
+      return -1;
+    }
+    nodesDestroyNode(pAst);
+  }
+
+  if(pPlan){
     int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
     if (levelNum != 1) {
       qDestroyQueryPlan(pPlan);
@@ -579,7 +595,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
     mDebug("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp->vgId);
 
-    if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
+    if (pSubplan) {
       int32_t msgLen;
 
       pSubplan->execNode.epSet = pVgEp->epSet;
@@ -591,8 +607,6 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
         terrno = TSDB_CODE_QRY_INVALID_INPUT;
         return -1;
       }
-    } else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
-      pVgEp->qmsg = taosStrdup(pTopic->ast);
     } else {
       pVgEp->qmsg = taosStrdup("");
     }

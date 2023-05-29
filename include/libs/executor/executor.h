@@ -82,7 +82,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
                                      uint64_t id);
 
-int32_t qGetTableList(int64_t suid, void* metaHandle, void* pVnode, void* pTagCond, void* pTagIndexCond, SArray **tableList);
+int32_t qGetTableList(int64_t suid, void* metaHandle, void* pVnode, void* node, SArray **tableList);
 
 /**
  * set the task Id, usually used by message queue process

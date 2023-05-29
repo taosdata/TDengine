@@ -420,6 +420,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       mError("failed to create topic:%s since %s", pCreate->name, terrstr());
       taosMemoryFree(topicObj.ast);
       taosMemoryFree(topicObj.sql);
+      nodesDestroyNode(pAst);
       return -1;
     }
 
@@ -427,6 +428,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     if (topicObj.ntbColIds == NULL) {
       taosMemoryFree(topicObj.ast);
       taosMemoryFree(topicObj.sql);
+      nodesDestroyNode(pAst);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
@@ -442,6 +444,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
       taosMemoryFree(topicObj.ast);
       taosMemoryFree(topicObj.sql);
+      nodesDestroyNode(pAst);
       return -1;
     }
 
@@ -462,8 +465,11 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
     topicObj.stbUid = pStb->uid;
     mndReleaseStb(pMnode, pStb);
-    topicObj.ast = taosStrdup(pCreate->ast);
-    topicObj.astLen = strlen(pCreate->ast) + 1;
+    if(pCreate->ast != NULL){
+      qDebugL("topic:%s ast %s", topicObj.name, pCreate->ast);
+      topicObj.ast = taosStrdup(pCreate->ast);
+      topicObj.astLen = strlen(pCreate->ast) + 1;
+    }
   }
   /*} else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {*/
   /*topicObj.ast = NULL;*/

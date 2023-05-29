@@ -338,13 +338,15 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
 
-      if (nodesStringToNode(handle.execHandle.execTb.qmsg, &handle.execHandle.execTb.node) != 0) {
-        tqError("nodesStringToNode error in sub stable, since %s", terrstr());
-        return -1;
+      if(strcmp(handle.execHandle.execTb.qmsg, "") != 0) {
+        if (nodesStringToNode(handle.execHandle.execTb.qmsg, &handle.execHandle.execTb.node) != 0) {
+          tqError("nodesStringToNode error in sub stable, since %s", terrstr());
+          return -1;
+        }
       }
 
       SArray* tbUidList = NULL;
-      int ret = qGetTableList(handle.execHandle.execTb.suid, pTq->pVnode->pMeta, pTq->pVnode, handle.execHandle.execTb.node, NULL, &tbUidList);
+      int ret = qGetTableList(handle.execHandle.execTb.suid, pTq->pVnode->pMeta, pTq->pVnode, handle.execHandle.execTb.node, &tbUidList);
       if(ret != TDB_CODE_SUCCESS) {
         tqError("qGetTableList error:%d handle %s consumer:0x%" PRIx64, ret, handle.subKey, handle.consumerId);
         taosArrayDestroy(tbUidList);

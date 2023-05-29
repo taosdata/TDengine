@@ -2772,8 +2772,8 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
   if (pReq->subType == TOPIC_SUB_TYPE__COLUMN) {
     buf = taosDecodeString(buf, &pReq->qmsg);
   } else if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
-    buf = taosDecodeString(buf, &pReq->qmsg);
     buf = taosDecodeFixedI64(buf, &pReq->suid);
+    buf = taosDecodeString(buf, &pReq->qmsg);
   }
   return (void*)buf;
 }

@@ -518,19 +518,22 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       pHandle->execHandle.execTb.qmsg = req.qmsg;
       req.qmsg = NULL;
 
-      if (nodesStringToNode(pHandle->execHandle.execTb.qmsg, &pHandle->execHandle.execTb.node) != 0) {
-        tqError("nodesStringToNode error in sub stable, since %s", terrstr());
-        return -1;
+      if(strcmp(pHandle->execHandle.execTb.qmsg, "") != 0) {
+        if (nodesStringToNode(pHandle->execHandle.execTb.qmsg, &pHandle->execHandle.execTb.node) != 0) {
+          tqError("nodesStringToNode error in sub stable, since %s, vgId:%d, subkey:%s consumer:0x%" PRIx64, terrstr(),
+                  pVnode->config.vgId, req.subKey, pHandle->consumerId);
+          return -1;
+        }
       }
 
       SArray* tbUidList = NULL;
-      ret = qGetTableList(req.suid, pVnode->pMeta, pVnode, pHandle->execHandle.execTb.node, NULL, &tbUidList);
+      ret = qGetTableList(req.suid, pVnode->pMeta, pVnode, pHandle->execHandle.execTb.node, &tbUidList);
       if(ret != TDB_CODE_SUCCESS) {
-        tqError("qGetTableList error:%d handle %s consumer:0x%" PRIx64, ret, req.subKey, pHandle->consumerId);
+        tqError("qGetTableList error:%d vgId:%d, subkey:%s consumer:0x%" PRIx64, ret, pVnode->config.vgId, req.subKey, pHandle->consumerId);
         taosArrayDestroy(tbUidList);
         goto end;
       }
-      tqDebug("vgId:%d, tq try to get ctb for stb subscribe, suid:%" PRId64, pVnode->config.vgId, req.suid);
+      tqDebug("tq try to get ctb for stb subscribe, vgId:%d, subkey:%s consumer:0x%" PRIx64 " suid:%" PRId64, pVnode->config.vgId, req.subKey, pHandle->consumerId, req.suid);
       pHandle->execHandle.pTqReader = tqReaderOpen(pVnode);
       tqReaderSetTbUidList(pHandle->execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
