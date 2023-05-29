@@ -238,10 +238,11 @@ pub struct Target {
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
 pub struct ParserDefinition {
     pub display: String,   
+    pub required: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub params: Vec<Param>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<Vec<Param>>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode)]

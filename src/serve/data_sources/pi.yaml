@@ -2,16 +2,20 @@
 id: pi
 name: PI
 description: |
-  The PI System is a suite of software products that are used for data 
-  collection, historicizing, finding, analyzing, delivering, and visualizing. 
-  It is marketed as an enterprise infrastructure for  management of real-time  
-  data and events. The term PI System is often used to refer to the PI Server  
-  but the two are not the same. The PI  System refers to all OSIsoft software  
-  products whereas the PI Server is the core product of the PI System. Data  
-  can be automatically collected from many sources (control systems, lab  
+  The PI System is a suite of software products that are used  
+  for data collection, historicizing, finding, analyzing,  
+  delivering, and visualizing. It is marketed as an enterprise  
+  infrastructure for management of real-time data and  
+  events.  
+  The term PI System is often used to refer to the PI Server 
+  but the two are not the same. The PI  System refers to all  
+  OSIsoft software products whereas the PI Server is the  
+  core product of the PI System. Data can be automatically  
+  collected from many sources (control systems, lab  
   equipment, calculations, manual entry or custom software).
 
-  taosX could pull real-time data from PI System by a PI connector plugin.
+  taosX could pull real-time data from PI System by a PI  
+  connector plugin.
 type: uri
 options:
   host:

@@ -2,22 +2,25 @@
 id: mqtt
 name: MQTT
 description: |
-  MQTT stands for Message Queuing Telemetry Transport. It is a lightweight
-  messaging protocol that is easy to implement and use. It is ideal for connecting 
-  devices with limited resources, such as battery-powered devices or devices with
-  low bandwidth. MQTT is also a good choice for applications where latency is 
+  MQTT stands for Message Queuing Telemetry Transport. It is a  
+  lightweight messaging protocol that is easy to implement and  
+  use. It is ideal for connecting devices with limited resources,  
+  such as battery-powered devices or devices with low bandwidth.  
+  MQTT is also a good choice for applications where latency is  
   important, such as real-time control systems.   
 
-  MQTT works by using a publish/subscribe model. This means that devices can
-  publish messages to topics, and other devices can subscribe to those topics to  
-  receive the messages. This makes it easy to decouple devices from each other, 
-  and to scale up applications as needed.  
+  MQTT works by using a publish/subscribe model. This means that  
+  devices can publish messages to topics, and other devices can  
+  subscribe to those topics to receive the messages. This makes  
+  it easy to decouple devices from each other, and to scale up  
+  applications as needed.  
 
-  MQTT is a popular choice for IoT applications. It is supported by a wide range of 
-  devices and platforms, and there are many open source and commercial 
-  implementations available.  
+  MQTT is a popular choice for IoT applications. It is supported  
+  by a wide range of devices and platforms, and there are many  
+  open source and commercial implementations available.  
 
-  taosX could subscribe data from MQTT server by a MQTT connector plugin.  
+  taosX could subscribe data from MQTT broker by a connector  
+  plugin.  
 
   Check the help message in each part to see the details.  
 type: uri
@@ -116,14 +119,18 @@ groups:
           type: integer
           min: 1
         description: |
-          If the broker does not receive any messages from the client within the keep alive interval,  
-          it will assume that the client has disconnected and will close the connection.  
+          If the broker does not receive any messages from the  
+          client within the keep alive interval, it will assume  
+          that the client has disconnected and will close the  
+          connection.  
         placeholder: 10
       - name: clean_session
         display: Clean Session
+        value: true
         description: |
-          True means that the server will forget all information about the session, including the  
-          client's subscriptions. The default value for the clean session flag is true.  
+          True means that the server will forget all information  
+          about the session, including the client's subscriptions.  
+          The default value for the clean session flag is true.  
         hint:
           type: bool
       - name: topics
@@ -152,39 +159,5 @@ groups:
             - trace
 
 parser:
-  display: Mqtt Payload Parser Config
-  params:
-  - name: parse
-    hint:
-      type: json
-    alternatives: 
-      - name: json
-        hint: 
-          type: jsonarray
-        display: Json
-        description: Parse Json Object in Payload.
-        params: 
-        - name: name
-          hint: 
-            type: str
-        - name: alias
-          hint:
-            type: str
-        - name: cast
-          hint:
-            type: str
-  
-  - name: model
-    hint:
-      type: json
-    params:
-      - name: name
-        hint: 
-          type: str
-      - name: using
-        hint:
-          type: str
-      - name: tags
-        hint:
-          type: strarray
-    
+  display: None
+  required: true
