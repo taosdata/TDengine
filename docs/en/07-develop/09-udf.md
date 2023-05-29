@@ -667,7 +667,7 @@ grep 'sys path' taospyudf.log  | tail -1
 
 You may find that the default library search path is `/lib/python3/dist-packages` (just for example, it may be different in your system), but `moment` is installed to `/usr/local/lib/python3.8/dist-packages` (for example, it may be different in your system). Then we change the library search path of python UDF.
 
-Check `sys.path`
+Check `sys.path`, which must include the packages you install with pip3 command previously, as shown below:
 
 ```python
 >>> import sys
@@ -682,6 +682,8 @@ UdfdLdLibPath /usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/usr/local/lib/p
 ```
 
 Save it, then restart `taosd`, using `systemctl restart taosd`, and test again, it will succeed this time.
+
+Note: If your cluster consists of multiple `taosd` instances, you have to repeat same process for each of them.
 
 ```sql
 taos> select ts, nextsunday(ts) from t;
