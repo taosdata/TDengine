@@ -498,7 +498,7 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                 char* pStr) {
-  return sprintf(pStr, "%s*%d*%s*%s*%d", pUser, acctId, pDb, (NULL != pTable && '\0' == pTable[0]) ? NULL : pTable,
+  return sprintf(pStr, "%s*%d*%s*%s*%d", pUser, acctId, pDb, (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable,
                  type);
 }
 
@@ -524,6 +524,9 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
     strncpy(pStr, pStart, p - pStart);
     *pNext = ++p;
   }
+  if (*pStart == '`' && *(pStart + 1) == '`') {
+    *pStr = 0;
+  }
 }
 
 static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
@@ -532,7 +535,11 @@ static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUser
   pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
   getStringFromAuthStr(p, pUserAuth->tbName.dbname, &p);
   getStringFromAuthStr(p, pUserAuth->tbName.tname, &p);
-  pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
+  if (pUserAuth->tbName.tname[0]) {
+    pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
+  } else {
+    pUserAuth->tbName.type = TSDB_DB_NAME_T;
+  }
   pUserAuth->type = getIntegerFromAuthStr(p, &p);
 }
 
