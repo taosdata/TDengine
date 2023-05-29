@@ -345,9 +345,12 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
           return -1;
         }
       }
+      buildSnapContext(reader.vnode, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,
+                       handle.fetchMeta, (SSnapContext**)(&reader.sContext));
+      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, 0);
 
       SArray* tbUidList = NULL;
-      int ret = qGetTableList(handle.execHandle.execTb.suid, pTq->pVnode, handle.execHandle.execTb.node, &tbUidList);
+      int ret = qGetTableList(handle.execHandle.execTb.suid, pTq->pVnode, handle.execHandle.execTb.node, &tbUidList, handle.execHandle.task);
       if(ret != TDB_CODE_SUCCESS) {
         tqError("qGetTableList error:%d handle %s consumer:0x%" PRIx64, ret, handle.subKey, handle.consumerId);
         taosArrayDestroy(tbUidList);
@@ -357,10 +360,6 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
       tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList);
       taosArrayDestroy(tbUidList);
-
-      buildSnapContext(reader.vnode, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,
-                       handle.fetchMeta, (SSnapContext**)(&reader.sContext));
-      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, 0);
     }
     tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, vgId);
     taosWLockLatch(&pTq->lock);
