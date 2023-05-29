@@ -3,7 +3,7 @@ use anyhow::Result;
 use arrow::{
     array::{BinaryBuilder, Float64Builder, Int32Builder, TimestampMillisecondBuilder},
     datatypes::DataType,
-    ipc::{writer::StreamWriter, NullBuilder, Null},
+    ipc::{writer::StreamWriter, Null, NullBuilder},
 };
 
 use taosx_ipc::prelude::*;
@@ -118,8 +118,9 @@ async fn main() -> Result<()> {
 
         builder
             .field_builder::<Int32Builder>(1)
-            .unwrap().append_null();
-            // .append_value(Null);
+            .unwrap()
+            .append_null();
+        // .append_value(Null);
         builder
             .field_builder::<Float64Builder>(2)
             .unwrap()
@@ -148,8 +149,9 @@ async fn main() -> Result<()> {
             .append_value(101i32);
         builder
             .field_builder::<Float64Builder>(2)
-            .unwrap().append_null();
-            // .append_value(101.);
+            .unwrap()
+            .append_null();
+        // .append_value(101.);
         builder
             .field_builder::<BinaryBuilder>(3)
             .unwrap()
@@ -178,8 +180,9 @@ async fn main() -> Result<()> {
             .append_value(102.3);
         builder
             .field_builder::<BinaryBuilder>(3)
-            .unwrap().append_null();
-            // .append_value("中文2".as_bytes());
+            .unwrap()
+            .append_null();
+        // .append_value("中文2".as_bytes());
         builder
             .field_builder::<BinaryBuilder>(4)
             .unwrap()

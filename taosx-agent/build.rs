@@ -40,7 +40,8 @@ fn labeling(mut file: &File) -> SdResult<()> {
      ::const_format::concatcp!(PKG_VERSION,"-",SHORT_COMMIT," (built ",BUILD_OS," ",BUILD_TIME,")")
 }} else {{
     ::const_format::concatcp!(PKG_VERSION,"-",SHORT_COMMIT,"-dirty"," (built ",BUILD_OS," ",BUILD_TIME,")")
-}};"#)?;
+}};"#
+    )?;
     writeln!(
         file,
         r#"pub const CUS_CLI_NAME: &str = "{}x-agent";"#,

@@ -115,7 +115,6 @@ pub struct Task {
 
     /// Task trigger events, default will be oneshot.
     pub trigger: Option<String>,
-
     // / Labels for a task.
     // /
     // / You can use k-v style label such as `key::value` or key-only label `key`.

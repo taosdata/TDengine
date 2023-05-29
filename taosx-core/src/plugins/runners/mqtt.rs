@@ -3,6 +3,7 @@ use std::{
     io::{BufRead, Write},
     num::ParseIntError,
     str::ParseBoolError,
+    sync::Arc,
     time::Duration,
 };
 
@@ -11,7 +12,7 @@ use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 
-use crate::{plugins::sink, utils::port_pool::PortPool, Action, Parser, TaskOpts};
+use crate::{plugins::sink, utils::port_pool::PortPool, Action, Parser, TaskOpts, Transferred};
 
 #[derive(Debug, serde::Serialize)]
 struct MqttConfig {
@@ -131,6 +132,7 @@ pub async fn mqtt_to_taos(
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
+    transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: MQTT");
     if to.subject.is_none() {
@@ -166,6 +168,8 @@ pub async fn mqtt_to_taos(
             cancel.clone(),
             with_agent,
             parser.clone(),
+            Some("mqtt"),
+            transferred,
         )?
     } else {
         sink::listen_tcp_socket_with_agent(
@@ -190,6 +194,7 @@ pub async fn mqtt_to_taos(
         .stderr(async_process::Stdio::inherit())
         .spawn()
         .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
+    let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
             status = child.wait() => {
@@ -215,6 +220,7 @@ pub async fn mqtt_to_taos(
         let _ = child.kill().await;
         log::info!("mqtt to taos task done");
         temp_path.close().unwrap();
+        port_pool.put(ipc_port);
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
     })
@@ -280,6 +286,15 @@ pub(super) fn get_string_from_param_or_file(
 async fn test_mqtt_parser() {
     std::env::set_var("RUST_LOG", "debug,tokio=warn");
     pretty_env_logger::init();
+    let transferred = Arc::new(Transferred::default());
+    let metrics = transferred.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(200));
+        loop {
+            interval.tick().await;
+            dbg!(&metrics);
+        }
+    });
     let opts = TaskOpts {
         transform: vec![],
         from: "mqtt://192.168.0.201:11883?topics=topic-1::1"
@@ -311,6 +326,7 @@ async fn test_mqtt_parser() {
         // port_pool: ONCE,
         with_agent: None,
         offsets: Default::default(),
+        transferred: Some(transferred),
     };
     opts.run(&PortPool::default()).await.unwrap();
 }

@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap, f32::consts::E, io::prelude::*, num::ParseIntError, str::FromStr,
-    time::Duration,
+    sync::Arc, time::Duration,
 };
 
 use anyhow::Context;
@@ -16,7 +16,7 @@ use tracing::instrument;
 use crate::{
     plugins::sink,
     utils::{port_pool::PortPool, stop_thread},
-    Action, DataSet, DataSetsReq,
+    Action, DataSet, DataSetsReq, Transferred,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -633,6 +633,7 @@ pub async fn opc_to_taos(
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
+    transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OPC");
     if to.subject.is_none() {
@@ -652,6 +653,11 @@ pub async fn opc_to_taos(
     log::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
     let mut table_config = None;
+    let connector = match config.opc_type {
+        OpcType::FAKE => None,
+        OpcType::OPCDA => Some("opc_da"),
+        OpcType::OPCUA => Some("opc_ua"),
+    };
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
         let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
@@ -667,6 +673,8 @@ pub async fn opc_to_taos(
             cancel.clone(),
             with_agent,
             None,
+            connector,
+            transferred.clone(),
         )?
     } else {
         sink::listen_tcp_socket_with_agent(
@@ -678,6 +686,7 @@ pub async fn opc_to_taos(
         )?
     };
 
+    let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(OPC_CONNECTOR_PATH);
     let child = command
         .arg("collect")
@@ -717,6 +726,7 @@ pub async fn opc_to_taos(
             // terminate_child_process(pid)?;
             log::info!("OPC to taos task done");
             temp_path.close().unwrap();
+            port_pool.put(ipc_port);
             tokio::time::sleep(Duration::from_millis(100)).await;
             Ok(())
         }).await??;
@@ -791,22 +801,26 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     temp_path.close()?;
     // let json = String::from_utf8_lossy(&output.stdout);
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    log::debug!("opc datasets : {}", serde_json::to_string(&res).unwrap_or("".to_string()));
-    let options = vec![OptionSet {
-        name: "table".to_string(),
-        description: Some("Table name".to_string()),
-        required: true
-    },
-    OptionSet {
-        name: "field".to_string(),
-        description: Some("Field name".to_string()),
-        required: true
-    },
-    OptionSet {
-        name: "type".to_string(),
-        description: Some("Field type".to_string()),
-        required: true
-    },
+    log::debug!(
+        "opc datasets : {}",
+        serde_json::to_string(&res).unwrap_or("".to_string())
+    );
+    let options = vec![
+        OptionSet {
+            name: "table".to_string(),
+            description: Some("Table name".to_string()),
+            required: true,
+        },
+        OptionSet {
+            name: "field".to_string(),
+            description: Some("Field name".to_string()),
+            required: true,
+        },
+        OptionSet {
+            name: "type".to_string(),
+            description: Some("Field type".to_string()),
+            required: true,
+        },
     ];
     let format = Some("{id}::{table}::{field}::{type}".to_string());
     if let Some(pattern) = req.pattern.as_deref() {
@@ -833,14 +847,17 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
             .collect_vec();
         Ok(res)
     } else {
-        Ok(res.into_iter()
-        .map(|mut set| {
-            set.category = Some(req.categories[0].clone());
-            set.options = Some(options.clone());
-            set.format = format.clone();
-            set
-        })
-        .skip(req.offset).take(req.limit).collect())
+        Ok(res
+            .into_iter()
+            .map(|mut set| {
+                set.category = Some(req.categories[0].clone());
+                set.options = Some(options.clone());
+                set.format = format.clone();
+                set
+            })
+            .skip(req.offset)
+            .take(req.limit)
+            .collect())
     }
 }
 
@@ -990,6 +1007,7 @@ async fn test_with_agent() -> anyhow::Result<()> {
         &PortPool::default(),
         CancellationToken::new(),
         Some((2, "http://127.0.0.1:6051".into(), "".into())),
+        None,
     )
     .await?;
     Ok(())

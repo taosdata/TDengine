@@ -16,6 +16,7 @@ use flume::Sender;
 use itertools::Itertools;
 use serde::de::IntoDeserializer;
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::port_pool::PortPool;
@@ -28,6 +29,7 @@ use tokio_util::sync::CancellationToken;
 use utoipa::*;
 
 pub(crate) mod agent;
+pub(crate) mod transferred;
 
 mod datetime_format {
     use chrono::{DateTime, SecondsFormat, Utc};
@@ -101,6 +103,7 @@ use self::agent::{
     Agent, AgentActivity, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
     AgentWorker,
 };
+use self::transferred::Transferred;
 
 use super::data_sources::DataSourceDefinition;
 
@@ -195,6 +198,7 @@ pub(super) struct TaskController {
     pub offsets: RwLock<HashMap<i64, Arc<DashMap<String, Vec<Assignment>>>>>,
     // pub agent_workers: RwLock<HashMap<i64, AgentWorker>>
     // tasks: Mutex<Vec<Task>>,
+    pub transferred: Transferred,
 }
 
 impl Debug for TaskController {
@@ -361,6 +365,7 @@ impl TaskController {
         MIGRATOR.run(&pool).await?;
         let scheduler = JobScheduler::new().await?;
         scheduler.start().await?;
+        let transferred = Transferred::new(pool.clone(), Duration::from_secs(1));
         Ok(Self {
             pool,
             runtime: None,
@@ -369,6 +374,7 @@ impl TaskController {
             secret: RwLock::new(None),
             agent_tasks: Default::default(),
             offsets: Default::default(),
+            transferred,
         })
     }
 
@@ -407,14 +413,27 @@ impl TaskController {
         } else {
             task.from.parse()?
         };
+        let to_dsn: Dsn = task.to.parse()?;
 
         let token = tokio_util::sync::CancellationToken::new();
         let cloned_token = token.clone();
         let offsets = Arc::new(DashMap::new());
-        self.offsets
-        .write()
-        .await
-        .insert(id, offsets.clone());
+        self.offsets.write().await.insert(id, offsets.clone());
+
+        let transferred = match from.driver.as_str() {
+            "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
+                let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
+                let cluster_id: i64 = taos
+                    .query_one("select id from information_schema.ins_cluster")
+                    .await
+                    .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
+                    .unwrap();
+                self.transferred
+                    .get(&(cluster_id, from.driver.clone()))
+                    .await
+            }
+            _ => None,
+        };
         let opts = TaskOpts {
             transform: vec![],
             from,
@@ -429,10 +448,10 @@ impl TaskController {
             cancel: CancellationToken::new(),
             // port_pool: ONCE,
             with_agent: None,
-            offsets
+            offsets,
+            transferred,
         };
         // dbg!(&opts);
-
         let agent_task_worker = if let Some(id) = task.via {
             // self.init_agent_worker(id)?;
             self.init_agent_worker(id).await;
@@ -977,12 +996,11 @@ impl TaskController {
         Ok(())
     }
 
-    pub async fn offsets(&self, id: i64) -> anyhow::Result<Option<Arc<DashMap<String, Vec<Assignment>>>>> {
-        let offsets = self.offsets
-        .read()
-        .await
-        .get(&id)
-        .cloned();
+    pub async fn offsets(
+        &self,
+        id: i64,
+    ) -> anyhow::Result<Option<Arc<DashMap<String, Vec<Assignment>>>>> {
+        let offsets = self.offsets.read().await.get(&id).cloned();
         Ok(offsets)
     }
 
@@ -1150,7 +1168,7 @@ impl TaskController {
     }
 
     pub async fn get_tasks_of_agent(&self, agent_id: i64) -> anyhow::Result<Vec<TaskDetail>> {
-        let mut conn = self.pool.acquire().await?;
+        let conn = self.pool.acquire().await?;
         let trans = self.pool.begin().await?;
         self.tasks(TaskFilter::default().via(agent_id)).await?;
         // self
@@ -1172,6 +1190,26 @@ impl TaskController {
         let data = recv.recv_async().await??;
         Ok(data)
     }
+
+    pub async fn cluster_transferred(
+        &self,
+        cluster_id: i64,
+    ) -> anyhow::Result<Vec<ConnectorTransferred>> {
+        let vec: Vec<ConnectorTransferred> =
+            sqlx::query_as("select * from connector_transferred where cluster_id = ?")
+                .bind(cluster_id)
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(vec)
+    }
+}
+
+#[derive(Debug, Default, Serialize, ToSchema, FromRow)]
+pub struct ConnectorTransferred {
+    pub connector: String,
+    pub tables: i32,
+    pub records: i64,
+    pub points: i64,
 }
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
@@ -2134,21 +2172,18 @@ mod tests {
             254, 65534, 1, 1)",
             "create table tb3 using stb2 tags( NULL, NULL, NULL, NULL, NULL,
             NULL, NULL, NULL, NULL, NULL,
-            NULL, NULL, NULL, NULL)",           
+            NULL, NULL, NULL, NULL)",
         ])
         .await?;
 
-        taos.exec_many([
-            "drop database if exists db2",
-        ])
-        .await?;
+        taos.exec_many(["drop database if exists db2"]).await?;
 
         let controller = TaskController::from_sqlite("sqlite::memory:").await?;
 
         let task_props: NewTask = serde_json::from_str(&format!(
             r#"
         {{
-            "from": "tmq:///ws_abc1", 
+            "from": "tmq:///ws_abc1",
             "to":"taos:///db2",
             "force": true
         }}
@@ -2165,7 +2200,7 @@ mod tests {
 
         // sleep to wait for task started.
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-        
+
         // let task_after_start = controller.get(task.id).await?;
         // dbg!(&task_after_start);
 

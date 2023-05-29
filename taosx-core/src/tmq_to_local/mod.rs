@@ -173,7 +173,7 @@ async fn backup(
                 for (topic, assignment) in assignments {
                     offsets.insert(topic, assignment);
                 }
-                
+
                 if let Some((offset, message)) = next? {
                     metrics
                         .messages
