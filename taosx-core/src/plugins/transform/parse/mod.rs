@@ -456,6 +456,19 @@ impl Parser {
             }
 
             let mut columns_indices = Vec::from_iter(0..batch.num_columns());
+            let spec_columns = if let Some(cols) = table.columns.as_ref() {
+                //
+                let mut indices = Vec::new();
+                for name in cols {
+                    let (index, _) = schema.column_with_name(name).ok_or_else(|| {
+                        anyhow::format_err!("Selected column {} not found in stream message", name)
+                    })?;
+                    indices.push(index);
+                }
+                Some(indices)
+            } else {
+                None
+            };
             let (tags, columns) = if let Some(tags) = &table.tags {
                 let mut indices = vec![];
                 for name in tags {
@@ -467,19 +480,20 @@ impl Parser {
                     columns_indices[i] = usize::MAX;
                 }
                 let tags = batches[0].project(&indices)?;
+                let cols = spec_columns.unwrap_or(
+                    columns_indices
+                        .into_iter()
+                        .filter(|v| *v != usize::MAX)
+                        .collect_vec(),
+                );
+                (Some(tags), batch.project(&cols).unwrap())
+            } else {
                 (
-                    Some(tags),
+                    None,
                     batch
-                        .project(
-                            &columns_indices
-                                .into_iter()
-                                .filter(|v| *v != usize::MAX)
-                                .collect_vec(),
-                        )
+                        .project(&spec_columns.unwrap_or(columns_indices))
                         .unwrap(),
                 )
-            } else {
-                (None, batch.project(&columns_indices).unwrap())
             };
 
             let tables = (0..batch.num_rows())
