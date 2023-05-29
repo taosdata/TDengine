@@ -296,7 +296,7 @@ ldconfig
 3. 如果 Python UDF 程序执行时，通过 PYTHONPATH 引用其它的包，可以设置 taos.cfg 的 UdfdLdLibPath 变量为PYTHONPATH的内容
 
 4. 启动 `taosd` 服务
-细节请参考 [快速开始](../get-started)
+细节请参考 [快速开始](../../get-started)
 
 ### 接口定义
 
