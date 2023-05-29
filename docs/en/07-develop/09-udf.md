@@ -299,7 +299,7 @@ ldconfig
 
 4. Launch `taosd` service
    
-Please refer to [Get Started](../get-started)
+Please refer to [Get Started](../../get-started)
 
 ### Interface definition
 
