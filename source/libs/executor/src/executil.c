@@ -1159,7 +1159,8 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList
   pNode.uid = suid;
   pNode.tableType = TSDB_SUPER_TABLE;
   STableListInfo* pTableListInfo = tableListCreate();
-  int code = getTableList(pVnode, &pNode, pSubplan->pTagCond, pSubplan->pTagIndexCond, pTableListInfo, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI);
+  uint8_t digest[17] = {0};
+  int code = getTableList(pVnode, &pNode, pSubplan->pTagCond, pSubplan->pTagIndexCond, pTableListInfo, digest, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI);
   *tableList = pTableListInfo->pTableList;
   pTableListInfo->pTableList = NULL;
   tableListDestroy(pTableListInfo);
