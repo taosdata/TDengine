@@ -237,6 +237,10 @@ if(${BUILD_WITH_ROCKSDB})
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
     endif(${TD_DARWIN})
 
+    if (${TD_DARWIN_ARM64})
+        set(HAS_ARMV8_CRC true)
+    endif(${TD_DARWIN_ARM64})
+
     if (${TD_WINDOWS})
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819")  
     endif(${TD_WINDOWS})
