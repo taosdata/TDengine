@@ -375,7 +375,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetVgroupId(JN
   TAOS_RES *res = (TAOS_RES *)jres;
   if (res == NULL) {
     jniDebug("jobj:%p, invalid res handle", jobj);
-    return -1;
+    return JNI_RESULT_SET_NULL;
   }
   return tmq_get_vgroup_id(res);
 }
@@ -394,7 +394,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetOffset(JNI
   TAOS_RES *res = (TAOS_RES *)jres;
   if (res == NULL) {
     jniDebug("jobj:%p, invalid res handle", jobj);
-    return -1;
+    return JNI_RESULT_SET_NULL;
   }
   return tmq_get_vgroup_offset(res);
 }
