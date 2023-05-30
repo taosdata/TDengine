@@ -64,7 +64,6 @@ typedef struct STsdbReadSnap    STsdbReadSnap;
 typedef struct SBlockInfo       SBlockInfo;
 typedef struct SSmaInfo         SSmaInfo;
 typedef struct SBlockCol        SBlockCol;
-typedef struct SVersionRange    SVersionRange;
 typedef struct SLDataIter       SLDataIter;
 typedef struct SDiskCol         SDiskCol;
 typedef struct SDiskData        SDiskData;
@@ -374,11 +373,6 @@ struct STsdb {
 struct TSDBKEY {
   int64_t version;
   TSKEY   ts;
-};
-
-struct SVersionRange {
-  uint64_t minVer;
-  uint64_t maxVer;
 };
 
 typedef struct SMemSkipListNode SMemSkipListNode;

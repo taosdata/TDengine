@@ -187,6 +187,13 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI64(pEncoder, pTask->chkInfo.version) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->fillHistory) < 0) return -1;
 
+  if (tEncodeI64(pEncoder, pTask->historyTaskId.streamId)) return -1;
+  if (tEncodeI32(pEncoder, pTask->historyTaskId.taskId)) return -1;
+  if (tEncodeU64(pEncoder, pTask->dataRange.range.minVer)) return -1;
+  if (tEncodeU64(pEncoder, pTask->dataRange.range.maxVer)) return -1;
+  if (tEncodeI64(pEncoder, pTask->dataRange.window.skey)) return -1;
+  if (tEncodeI64(pEncoder, pTask->dataRange.window.ekey)) return -1;
+
   int32_t epSz = taosArrayGetSize(pTask->childEpInfo);
   if (tEncodeI32(pEncoder, epSz) < 0) return -1;
   for (int32_t i = 0; i < epSz; i++) {
@@ -239,6 +246,13 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI64(pDecoder, &pTask->chkInfo.id) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->chkInfo.version) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->fillHistory) < 0) return -1;
+
+  if (tDecodeI64(pDecoder, &pTask->historyTaskId.streamId)) return -1;
+  if (tDecodeI32(pDecoder, &pTask->historyTaskId.taskId)) return -1;
+  if (tDecodeU64(pDecoder, &pTask->dataRange.range.minVer)) return -1;
+  if (tDecodeU64(pDecoder, &pTask->dataRange.range.maxVer)) return -1;
+  if (tDecodeI64(pDecoder, &pTask->dataRange.window.skey)) return -1;
+  if (tDecodeI64(pDecoder, &pTask->dataRange.window.ekey)) return -1;
 
   int32_t epSz;
   if (tDecodeI32(pDecoder, &epSz) < 0) return -1;

@@ -476,7 +476,7 @@ int32_t mndPersistStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStrea
     }
   }
 
-  // persistent stream task for history data
+  // persistent stream task for already stored ts data
   if (pStream->conf.fillHistory) {
     level = taosArrayGetSize(pStream->pHTasksList);
 
@@ -492,7 +492,6 @@ int32_t mndPersistStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStrea
       }
     }
   }
-
 
   return 0;
 }
@@ -639,6 +638,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   pReq->head.vgId = htonl(pTask->nodeId);
   pReq->taskId = pTask->id.taskId;
   STransAction action = {0};

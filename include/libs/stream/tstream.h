@@ -276,6 +276,11 @@ typedef struct SStreamStatus {
   int8_t keepTaskStatus;
 } SStreamStatus;
 
+typedef struct SHistoryDataRange {
+  SVersionRange range;
+  STimeWindow   window;
+} SHistoryDataRange;
+
 struct SStreamTask {
   SStreamId       id;
   int32_t         totalLevel;
@@ -290,9 +295,9 @@ struct SStreamTask {
   STaskExec       exec;
   int8_t          fillHistory;  // fill history
 
-  int64_t         ekey;         // end ts key
-  int64_t         endVer;       // end version
-  SStreamId       historyTaskId;
+  SHistoryDataRange dataRange;
+  SStreamId         historyTaskId;
+
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
   int32_t nextCheckId;
