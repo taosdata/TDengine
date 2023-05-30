@@ -641,7 +641,7 @@ static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
   return 0;
 }
 
-int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer) {
+int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer) {
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
   if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
@@ -650,7 +650,7 @@ int32_t tsdbSttFWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **
   return 0;
 }
 
-int32_t tsdbSttFWriterClose(SSttFileWriter **writer, int8_t abort, STFileOp *op) {
+int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, STFileOp *op) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(writer[0]->config->tsdb->pVnode);
@@ -677,7 +677,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
+int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -752,7 +752,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFWriteTSDataBlock(SSttFileWriter *writer, SBlockData *bdata) {
+int32_t tsdbSttFileWriteTSDataBlock(SSttFileWriter *writer, SBlockData *bdata) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -762,7 +762,7 @@ int32_t tsdbSttFWriteTSDataBlock(SSttFileWriter *writer, SBlockData *bdata) {
     row->uid = bdata->uid ? bdata->uid : bdata->aUid[i];
     row->row = tsdbRowFromBlockData(bdata, i);
 
-    code = tsdbSttFWriteTSData(writer, row);
+    code = tsdbSttFileWriteTSData(writer, row);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -774,7 +774,7 @@ _exit:
   return 0;
 }
 
-int32_t tsdbSttFWriteDLData(SSttFileWriter *writer, TABLEID *tbid, SDelData *pDelData) {
+int32_t tsdbSttFileWriteDLData(SSttFileWriter *writer, TABLEID *tbid, SDelData *pDelData) {
   ASSERTS(0, "TODO: Not implemented yet");
 
   int32_t code;
