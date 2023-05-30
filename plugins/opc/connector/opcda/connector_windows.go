@@ -7,7 +7,8 @@ import (
 	"collector/common"
 	"collector/connector"
 	"context"
-	"log"
+
+	"github.com/sunpe/gobox/logger"
 )
 
 type DaConnector struct {
@@ -29,7 +30,7 @@ func (d *DaConnector) Stop(ctx context.Context) {
 		d.r.stop(ctx)
 	}
 	d.r = nil
-	log.Println("## opc da connector stopped!")
+	logger.Warn("## opc da connector stopped!")
 }
 
 func (d *DaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, error) {

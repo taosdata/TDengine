@@ -8,9 +8,10 @@ import (
 	"collector/reporter"
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
+
+	"github.com/sunpe/gobox/logger"
 )
 
 type Collector interface {
@@ -47,12 +48,12 @@ func NewCollector(_ context.Context, config common.Config) (*OpcCollector, error
 	}
 
 	if err != nil {
-		log.Println("## create connector for worker error ", err)
+		logger.Error("## create connector for worker error ", "error", err)
 		return nil, fmt.Errorf("create connector for worker error %v", err)
 	}
 	r, err := reporter.NewOpcReporter(config)
 	if err != nil {
-		log.Println("## create reporter for worker error ", err)
+		logger.Error("## create reporter for worker error ", "error", err)
 		return nil, fmt.Errorf("create reporter for worker error %v", err)
 	}
 
@@ -65,7 +66,7 @@ var _ Collector = (*OpcCollector)(nil)
 func (c *OpcCollector) Collect(ctx context.Context) error {
 	ch, err := c.collector.Collect(ctx)
 	if err != nil {
-		log.Println("## collector data error", err)
+		logger.Error("## collector data error", "error", err)
 		return err
 	}
 	cancelCtx, cancel := context.WithCancel(ctx)
@@ -84,6 +85,6 @@ func (c *OpcCollector) Stop(ctx context.Context) {
 			c.reporter.Stop(ctx)
 		}
 
-		log.Println("## opc collector stopped!")
+		logger.Warn("## opc collector stopped!")
 	})
 }

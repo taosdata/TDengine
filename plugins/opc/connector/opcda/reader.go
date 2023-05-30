@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os/signal"
 	"regexp"
 	"sync"
@@ -17,6 +16,7 @@ import (
 	"time"
 
 	"github.com/konimarti/opc"
+	"github.com/sunpe/gobox/logger"
 )
 
 // state connection state
@@ -115,13 +115,13 @@ func (r *reader) connect(_ context.Context) error {
 
 	if r.debug {
 		opc.Debug()
-		log.Println("## Connecting to OPC DA server", "server", r.server, "nodes", r.nodes, "tags", r.tags)
+		logger.DebugF("## Connecting to OPC DA server", "server", r.server, "nodes", r.nodes, "tags", r.tags)
 	}
 
 	r.state = connecting
 
 	if r.client != nil {
-		log.Println("## Closing connector due to Connection already instantiated")
+		logger.Warn("## Closing connector due to Connection already instantiated")
 		r.client.Close()
 	}
 
@@ -154,7 +154,7 @@ func (r *reader) stop(_ context.Context) {
 func (r *reader) ensureConnect(ctx context.Context) error {
 	if r.state != connected || r.client == nil {
 		if err := r.connect(ctx); err != nil {
-			log.Println("## ensureConnect error", "err", err)
+			logger.Error("## ensureConnect error", "err", err)
 			return err
 		}
 	}
@@ -189,11 +189,9 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 				return
 			case <-ticker.C:
 				for id, item := range r.client.Read() {
-					if r.debug {
-						log.Printf("## read data for identifier. id %s. item %v, value type %T", id, item, item.Value)
-					}
+					logger.DebugF("## read data for identifier. id %s. item %v, value type %T", id, item, item.Value)
 					if !item.Good() && !r.containsBad {
-						log.Printf("## read data for identifier %q status %v is not ok ", id, item)
+						logger.WarnF("## read data for identifier %q status %v is not ok ", id, item)
 						continue
 					}
 					ch <- &common.NodeValue{

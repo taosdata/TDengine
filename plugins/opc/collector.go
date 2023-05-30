@@ -12,12 +12,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/sunpe/gobox/logger"
 )
 
 func main() {
-	log.SetOutput(os.Stderr) // log to stderr
+	logger.Init(logger.WithWriter(os.Stderr), logger.WithAttr("pid", os.Getpid()))
 
-	log.Printf("## opc collector version [%s] start ...", version.ShowVersion())
+	logger.InfoF("## opc collector version [%s] start ...", version.ShowVersion())
 	ctx := context.Background()
 	points := flag.NewFlagSet("points", flag.ExitOnError)
 	pointConfigPath := points.String("conf", "", "use --conf to set config path")
@@ -26,7 +28,7 @@ func main() {
 	collectConfigPath := coll.String("conf", "", "use --conf to set config path")
 
 	if len(os.Args) < 2 {
-		log.Panicf("## param error %v", os.Args[1:])
+		logger.Panic("## param error.", "params", os.Args[1:])
 		return
 	}
 
@@ -40,30 +42,34 @@ func main() {
 	case "version":
 		showVersion()
 	default:
-		log.Panicf("## unknown command %s ", os.Args[1])
+		logger.Panic("## unknown command", "command", os.Args[1])
 		return
 	}
 }
 
 func getAllNodes(ctx context.Context, configPath *string) {
 	if configPath == nil || len(*configPath) == 0 {
-		log.Panicf("## config file is null")
+		log.Println("## config file is null")
+		logger.Panic("## config file is null")
 		return
 	}
 	config, err := common.ParseConfig(*configPath)
 	if err != nil {
-		log.Panic("## parse config file error ", err)
+		logger.Panic("## parse config file error.", "error", err)
 		return
+	}
+	if config.Debug {
+		logger.Init(logger.WithWriter(os.Stderr), logger.WithLevel(logger.LevelDebug), logger.WithAttr("pid", os.Getpid()))
 	}
 	pointer, err := worker.NewOpcPointer(config)
 	if err != nil {
-		log.Panic("## new opc pointer error ", err)
+		logger.Panic("## new opc pointer error. ", "error", err)
 		return
 	}
 	defer pointer.Exist(ctx)
 	points, err := pointer.GetAllPoints(ctx)
 	if err != nil {
-		log.Panic("## get all pointer error ", err)
+		logger.Panic("## get all pointer error ", "error", err)
 		return
 	}
 	j, _ := json.Marshal(points)
@@ -72,17 +78,20 @@ func getAllNodes(ctx context.Context, configPath *string) {
 
 func collect(ctx context.Context, configPath *string) {
 	if configPath == nil || len(*configPath) == 0 {
-		log.Panic("## config file is null")
+		logger.Panic("## config file is null")
 		return
 	}
 	config, err := common.ParseConfig(*configPath)
 	if err != nil {
-		log.Panic("## parse config file error ", err)
+		logger.Panic("## parse config file error ", "error", err)
 		return
+	}
+	if config.Debug {
+		logger.Init(logger.WithWriter(os.Stderr), logger.WithLevel(logger.LevelDebug), logger.WithAttr("pid", os.Getpid()))
 	}
 	collector, err := worker.NewCollector(ctx, config)
 	if err != nil {
-		log.Panic("## new opc collector error ", err)
+		logger.Panic("## new opc collector error ", "error", err)
 		return
 	}
 	defer collector.Stop(ctx)
@@ -90,14 +99,14 @@ func collect(ctx context.Context, configPath *string) {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 		if _, ok := <-ch; ok {
-			log.Println("## receive stop signal, stop collect opc data")
+			logger.Warn("## receive stop signal, stop collect opc data")
 			collector.Stop(ctx)
 			return
 		}
 	}()
 	err = collector.Collect(ctx)
 	if err != nil {
-		log.Panic("## collect opc data error ", err)
+		logger.Panic("## collect opc data error ", "error", err)
 		return
 	}
 }
