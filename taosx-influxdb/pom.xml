@@ -112,37 +112,37 @@
     </dependencyManagement>
 
     <build>
-        <plugins>
+        <!--<plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-        </plugins>
-        <!--<plugins>
-            &lt;!&ndash; 启动入口类 &ndash;&gt;
+        </plugins>-->
+        <plugins>
+            <!-- 启动入口类 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
                     <archive>
                         <manifest>
-                            &lt;!&ndash; 这个属性特别关键，如果没有这个属性，有时候我们引用的包maven库下面可能会有多个包，并且只有一个是正确的 &ndash;&gt;
+                            <!-- 这个属性特别关键，如果没有这个属性，有时候我们引用的包maven库下面可能会有多个包，并且只有一个是正确的 -->
                             <useUniqueVersions>false</useUniqueVersions>
-                            &lt;!&ndash; 为依赖包添加路径, 这些路径会写在MANIFEST文件的Class-Path下 &ndash;&gt;
+                            <!-- 为依赖包添加路径, 这些路径会写在MANIFEST文件的Class-Path下 -->
                             <addClasspath>true</addClasspath>
-                            &lt;!&ndash; 依赖的jar包添加classPath的时候的前缀，如果这个jar本身和依赖包在同一级目录，则不需要添加 &ndash;&gt;
+                            <!-- 依赖的jar包添加classPath的时候的前缀，如果这个jar本身和依赖包在同一级目录，则不需要添加 -->
                             <classpathPrefix>lib</classpathPrefix>
-                            &lt;!&ndash; 启动入口类 &ndash;&gt;
+                            <!-- 启动入口类 -->
                             <mainClass>com.taosdata.StartApplication</mainClass>
                         </manifest>
                         <manifestEntries>
-                            &lt;!&ndash; 在Class-Path下添加配置文件的路径，假如这个项目可能要引入一些外部资源，但是你打包的时候并不想把这些资源文件打进包里面，这个时候你必须在这边额外指定一些这些资源文件的路径 &ndash;&gt;
+                            <!-- 在Class-Path下添加配置文件的路径，假如这个项目可能要引入一些外部资源，但是你打包的时候并不想把这些资源文件打进包里面，这个时候你必须在这边额外指定一些这些资源文件的路径 -->
                             <Class-Path>.</Class-Path>
                         </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
-            &lt;!&ndash; 拷贝第三方依赖文件到指定目录 &ndash;&gt;
+            <!-- 拷贝第三方依赖文件到指定目录 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
@@ -153,19 +153,19 @@
                             <goal>copy-dependencies</goal>
                         </goals>
                         <configuration>
-                            &lt;!&ndash; 指定目录 &ndash;&gt;
+                            <!-- 指定目录 -->
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            &lt;!&ndash; 是否不包含间接依赖的包 &ndash;&gt;
+                            <!-- 是否不包含间接依赖的包 -->
                             <excludeTransitive>false</excludeTransitive>
-                            &lt;!&ndash; 复制的jar文件去掉版本信息 &ndash;&gt;
-                            <stripVersion>false</stripVersion>
-                            &lt;!&ndash; 包含compile、provided、system &ndash;&gt;
+                            <!-- 复制的jar文件去掉版本信息 -->
+                            <stripVersion>true</stripVersion>
+                            <!-- 包含compile、provided、system -->
                             <includeScope>compile</includeScope>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
-            &lt;!&ndash; 使用assembly自定义输出内容 &ndash;&gt;
+            <!-- 使用assembly自定义输出内容 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -178,14 +178,20 @@
                     </execution>
                 </executions>
                 <configuration>
-                    &lt;!&ndash; 打包文件名 &ndash;&gt;
+                    <!-- 打包文件名 -->
                     <finalName>taosx-influxdb</finalName>
-                    &lt;!&ndash; assembly配置路径 &ndash;&gt;
+                    <!-- assembly配置路径 -->
                     <descriptors>
                         <descriptor>src/assembly/assembly.xml</descriptor>
                     </descriptors>
+                    <!-- 不拼接jar-with-dependencies -->
+                    <appendAssemblyId>false</appendAssemblyId>
+                    <!-- 额外增加一个fatjar -->
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
                 </configuration>
             </plugin>
-        </plugins>-->
+        </plugins>
     </build>
 </project>
