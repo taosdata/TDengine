@@ -231,6 +231,7 @@ if(${BUILD_WITH_ROCKSDB})
     if(${TD_LINUX})
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=unused-function -Wno-errno=unused-private-field -Wno-error=unused-result")
     endif(${TD_LINUX})
+    MESSAGE(STATUS "CXXXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
 
     if(${TD_DARWIN})
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
@@ -252,7 +253,7 @@ if(${BUILD_WITH_ROCKSDB})
     endif(${TD_DARWIN})
 
     if(${TD_WINDOWS})
-        option(WITH_JNI "" ON)
+	    option(WITH_JNI "" OFF)
     endif(${TD_WINDOWS})
 
     if(${TD_WINDOWS})
@@ -264,7 +265,7 @@ if(${BUILD_WITH_ROCKSDB})
     option(WITH_FALLOCATE "" OFF)
     option(WITH_JEMALLOC "" OFF)
     option(WITH_GFLAGS "" OFF)
-    option(PORTABLE "" ON)
+    option(PORTABLE "" OFF)
     option(WITH_LIBURING "" OFF)
     option(FAIL_ON_WARNINGS OFF)
 
@@ -272,8 +273,11 @@ if(${BUILD_WITH_ROCKSDB})
     option(WITH_BENCHMARK_TOOLS "" OFF)
     option(WITH_TOOLS "" OFF)
     option(WITH_LIBURING "" OFF)
-
+    IF (TD_LINUX) 
     option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" ON)
+    ELSE()
+    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
+    ENDIF()
     add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
     target_include_directories(
         rocksdb

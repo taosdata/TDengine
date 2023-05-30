@@ -160,11 +160,24 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTableNam
 
 /*
  * Class:     com_taosdata_jdbc_tmq_TMQConnector
+ * Method:    tmqGetOffset
+ * Signature: (J)Ljava/lang/String;
+ */
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetOffset(JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     com_taosdata_jdbc_tmq_TMQConnector
  * Method:    fetchBlockImp
  * Signature: (JJLcom/taosdata/jdbc/TSDBResultSetBlockData;ILjava/util/List;)I
  */
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(JNIEnv *, jobject, jlong, jlong,
                                                                                 jobject, jobject);
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqSeekImp(JNIEnv *, jobject, jlong, jstring, jint,
+                                                                          jlong);
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTopicAssignmentImp(JNIEnv *, jobject, jlong,
+                                                                                        jstring, jobject);
 
 #ifdef __cplusplus
 }
