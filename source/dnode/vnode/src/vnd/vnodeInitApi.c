@@ -31,17 +31,18 @@ static void initSnapshotFn(SStoreSnapshotFn* pSnapshot);
 void initStorageAPI(SStorageAPI* pAPI) {
   initTsdbReaderAPI(&pAPI->tsdReader);
   initMetadataAPI(&pAPI->metaFn);
-  initTqAPI(&pAPI->tqReaderFn);
   initStateStoreAPI(&pAPI->stateStore);
   initMetaReaderAPI(&pAPI->metaReaderFn);
   initMetaFilterAPI(&pAPI->metaFilter);
+  initTqAPI(&pAPI->tqReaderFn);
   initFunctionStateStore(&pAPI->functionStore);
   initCacheFn(&pAPI->cacheFn);
   initSnapshotFn(&pAPI->snapshotFn);
 }
 
 void initTsdbReaderAPI(TsdReader* pReader) {
-  pReader->tsdReaderOpen = (__store_reader_open_fn_t)tsdbReaderOpen;
+  pReader->tsdReaderOpen = (int32_t(*)(void*, SQueryTableDataCond*, void*, int32_t, SSDataBlock*, void**, const char*,
+                                       bool, SHashObj**))tsdbReaderOpen;
   pReader->tsdReaderClose = tsdbReaderClose;
 
   pReader->tsdNextDataBlock = tsdbNextDataBlock;
@@ -87,6 +88,12 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->getTableSchema = tsdbGetTableSchema;   // todo refactor
   pMeta->storeGetTableList = vnodeGetTableList;
+
+  pMeta->getCachedTableList = metaGetCachedTableUidList;
+  pMeta->putCachedTableList = metaUidFilterCachePut;
+
+  pMeta->metaGetCachedTbGroup = metaGetCachedTbGroup;
+  pMeta->metaPutTbGroupToCache = metaPutTbGroupToCache;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

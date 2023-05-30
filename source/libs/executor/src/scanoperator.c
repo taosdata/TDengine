@@ -3446,7 +3446,7 @@ static void buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, S
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
 
-  int64_t numOfTables = 0;//metaGetNtbNum(pInfo->readHandle.vnode);
+  int64_t numOfTables = 0;
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, NULL, NULL, &numOfTables);
 
   if (numOfTables != 0) {

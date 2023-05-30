@@ -78,6 +78,12 @@ ELSEIF (TD_DARWIN_64)
 ENDIF ()
 
 option(
+        BUILD_GEOS
+        "If build geos on Windows"
+        OFF
+    )
+
+option(
     BUILD_SHARED_LIBS
     ""
     OFF
