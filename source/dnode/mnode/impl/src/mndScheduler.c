@@ -22,9 +22,10 @@
 #include "tname.h"
 #include "tuuid.h"
 
+#define SINK_NODE_LEVEL (0)
 extern bool tsDeployOnSnode;
 
-static int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup);
+static int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup);
 static void setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask);
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
@@ -100,9 +101,7 @@ int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
   return 0;
 }
 
-#define SINK_NODE_LEVEL (0)
-
-int32_t mndAddDispatcherForInnerTask(SMnode* pMnode, SStreamObj* pStream, SStreamTask* pTask) {
+int32_t mndAddDispatcherForInnerTask(SMnode* pMnode, SStreamObj* pStream, SArray* pSinkNodeList, SStreamTask* pTask) {
   bool isShuffle = false;
 
   if (pStream->fixedSinkVgId == 0) {
@@ -120,7 +119,6 @@ int32_t mndAddDispatcherForInnerTask(SMnode* pMnode, SStreamObj* pStream, SStrea
     sdbRelease(pMnode->pSdb, pDb);
   }
 
-  SArray* pSinkNodeList = taosArrayGetP(pStream->tasks, SINK_NODE_LEVEL);
   int32_t numOfSinkNodes = taosArrayGetSize(pSinkNodeList);
 
   if (isShuffle) {
@@ -187,6 +185,7 @@ int32_t mndAssignTaskToSnode(SMnode* pMnode, SStreamTask* pTask, SSubplan* plan,
   return 0;
 }
 
+// todo random choose a node to do compute
 SVgObj* mndSchedFetchOneVg(SMnode* pMnode, int64_t dbUid) {
   void*   pIter = NULL;
   SVgObj* pVgroup = NULL;
@@ -203,7 +202,7 @@ SVgObj* mndSchedFetchOneVg(SMnode* pMnode, int64_t dbUid) {
 }
 
 // create sink node for each vgroup.
-int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
+int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SArray* pTaskList, SStreamObj* pStream) {
   SSdb*   pSdb = pMnode->pSdb;
   void*   pIter = NULL;
 
@@ -219,17 +218,15 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
       continue;
     }
 
-    mndAddSinkTaskToStream(pStream, pMnode, pVgroup->vgId, pVgroup);
+    mndAddSinkTaskToStream(pStream, pTaskList, pMnode, pVgroup->vgId, pVgroup);
     sdbRelease(pSdb, pVgroup);
   }
 
   return 0;
 }
 
-int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup) {
-  SArray* pTaskList = taosArrayGetP(pStream->tasks, SINK_NODE_LEVEL);
-
-  SStreamTask* pTask = tNewStreamTask(pStream->uid, TASK_LEVEL__SINK, pStream->fillHistory, 0, pTaskList);
+int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup) {
+  SStreamTask* pTask = tNewStreamTask(pStream->uid, TASK_LEVEL__SINK, pStream->conf.fillHistory, 0, pTaskList);
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -245,17 +242,18 @@ static int32_t mndScheduleFillHistoryStreamTask(SMnode* pMnode, SStreamObj* pStr
   return 0;
 }
 
-static int32_t addSourceStreamTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTaskList, SStreamObj* pStream,
+static int32_t addSourceStreamTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTaskList, SArray* pSinkTaskList, SStreamObj* pStream,
                                    SSubplan* plan, uint64_t uid, int8_t taskLevel, int8_t fillHistory,
                                    bool hasExtraSink) {
-  SStreamTask* pTask = tNewStreamTask(uid, taskLevel, fillHistory, pStream->triggerParam, pTaskList);
+  SStreamTask* pTask = tNewStreamTask(uid, taskLevel, fillHistory, pStream->conf.triggerParam, pTaskList);
   if (pTask == NULL) {
     return terrno;
   }
 
   // sink or dispatch
   if (hasExtraSink) {
-    mndAddDispatcherForInnerTask(pMnode, pStream, pTask);
+
+    mndAddDispatcherForInnerTask(pMnode, pStream, pSinkTaskList, pTask);
   } else {
     mndSetSinkTaskInfo(pStream, pTask);
   }
@@ -292,31 +290,23 @@ void setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask) {
   pDstTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
 }
 
-int32_t appendToUpstream(SStreamTask* pTask, SStreamTask* pUpstream) {
+int32_t appendToDownstream(SStreamTask* pTask, SStreamTask* pDownstream) {
   SStreamChildEpInfo* pEpInfo = createStreamTaskEpInfo(pTask);
   if (pEpInfo == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if(pUpstream->childEpInfo == NULL) {
-    pUpstream->childEpInfo = taosArrayInit(4, POINTER_BYTES);
+  if(pDownstream->childEpInfo == NULL) {
+    pDownstream->childEpInfo = taosArrayInit(4, POINTER_BYTES);
   }
   
-  taosArrayPush(pUpstream->childEpInfo, &pEpInfo);
+  taosArrayPush(pDownstream->childEpInfo, &pEpInfo);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
+static int32_t doScheduleStream(uint64_t uid, SArray* pTasksList, SStreamObj* pStream, SMnode* pMnode, SQueryPlan* pPlan) {
   SSdb* pSdb = pMnode->pSdb;
-
-  SQueryPlan* pPlan = qStringToQueryPlan(pStream->physicalPlan);
-  if (pPlan == NULL) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
-    return -1;
-  }
-
   int32_t planTotLevel = LIST_LENGTH(pPlan->pSubplans);
-  pStream->tasks = taosArrayInit(planTotLevel, POINTER_BYTES);
 
   bool    hasExtraSink = false;
   bool    externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
@@ -331,17 +321,17 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
 
   if (planTotLevel == 2 || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
     SArray* taskOneLevel = taosArrayInit(0, POINTER_BYTES);
-    taosArrayPush(pStream->tasks, &taskOneLevel);
+    taosArrayPush(pTasksList, &taskOneLevel);
 
     // add extra sink
     hasExtraSink = true;
     if (pStream->fixedSinkVgId == 0) {
-      if (mndAddShuffleSinkTasksToStream(pMnode, pStream) < 0) {
+      if (mndAddShuffleSinkTasksToStream(pMnode, taskOneLevel, pStream) < 0) {
         // TODO free
         return -1;
       }
     } else {
-      if (mndAddSinkTaskToStream(pStream, pMnode, pStream->fixedSinkVgId, &pStream->fixedSinkVg) < 0) {
+      if (mndAddSinkTaskToStream(pStream, taskOneLevel, pMnode, pStream->fixedSinkVgId, &pStream->fixedSinkVg) < 0) {
         // TODO free
         return -1;
       }
@@ -355,7 +345,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
     // inner level
     {
       SArray* taskInnerLevel = taosArrayInit(0, POINTER_BYTES);
-      taosArrayPush(pStream->tasks, &taskInnerLevel);
+      taosArrayPush(pTasksList, &taskInnerLevel);
 
       SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
       SSubplan*      plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
@@ -364,16 +354,15 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         return -1;
       }
 
-      pInnerTask = tNewStreamTask(pStream->uid, TASK_LEVEL__AGG, pStream->fillHistory, pStream->triggerParam, taskInnerLevel);
+      pInnerTask = tNewStreamTask(uid, TASK_LEVEL__AGG, pStream->conf.fillHistory, pStream->conf.triggerParam, taskInnerLevel);
       if (pInnerTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
-        qDestroyQueryPlan(pPlan);
         return -1;
       }
 
       // dispatch
-      if (mndAddDispatcherForInnerTask(pMnode, pStream, pInnerTask) < 0) {
-        qDestroyQueryPlan(pPlan);
+      SArray* pSinkNodeList = taosArrayGet(pTasksList, SINK_NODE_LEVEL);
+      if (mndAddDispatcherForInnerTask(pMnode, pStream, pSinkNodeList, pInnerTask) < 0) {
         return -1;
       }
 
@@ -383,14 +372,12 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
           SVgObj* pVgroup = mndSchedFetchOneVg(pMnode, pStream->sourceDbUid);
           if (mndAssignStreamTaskToVgroup(pMnode, pInnerTask, plan, pVgroup) < 0) {
             sdbRelease(pSdb, pVgroup);
-            qDestroyQueryPlan(pPlan);
             return -1;
           }
           sdbRelease(pSdb, pVgroup);
         } else {
           if (mndAssignTaskToSnode(pMnode, pInnerTask, plan, pSnode) < 0) {
             sdbRelease(pSdb, pSnode);
-            qDestroyQueryPlan(pPlan);
             return -1;
           }
         }
@@ -398,7 +385,6 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         SVgObj* pVgroup = mndSchedFetchOneVg(pMnode, pStream->sourceDbUid);
         if (mndAssignStreamTaskToVgroup(pMnode, pInnerTask, plan, pVgroup) < 0) {
           sdbRelease(pSdb, pVgroup);
-          qDestroyQueryPlan(pPlan);
           return -1;
         }
 
@@ -408,7 +394,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
 
     // source level
     SArray* taskSourceLevel = taosArrayInit(0, POINTER_BYTES);
-    taosArrayPush(pStream->tasks, &taskSourceLevel);
+    taosArrayPush(pTasksList, &taskSourceLevel);
 
     SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 1);
     SSubplan*      plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
@@ -430,11 +416,10 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         continue;
       }
 
-      SStreamTask* pTask = tNewStreamTask(pStream->uid, TASK_LEVEL__SOURCE, pStream->fillHistory, 0, taskSourceLevel);
+      SStreamTask* pTask = tNewStreamTask(uid, TASK_LEVEL__SOURCE, pStream->conf.fillHistory, 0, taskSourceLevel);
       if (pTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         sdbRelease(pSdb, pVgroup);
-        qDestroyQueryPlan(pPlan);
         return -1;
       }
 
@@ -443,23 +428,21 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
 
       if (mndAssignStreamTaskToVgroup(pMnode, pTask, plan, pVgroup) < 0) {
         sdbRelease(pSdb, pVgroup);
-        qDestroyQueryPlan(pPlan);
         return -1;
       }
 
-      int32_t code = appendToUpstream(pTask, pInnerTask);
+      int32_t code = appendToDownstream(pTask, pInnerTask);
       sdbRelease(pSdb, pVgroup);
 
       if (code != TSDB_CODE_SUCCESS) {
         terrno = code;
-        qDestroyQueryPlan(pPlan);
         return -1;
       }
     }
   } else if (planTotLevel == 1) {
     // create exec stream task, since only one level, the exec task is also the source task
     SArray* pTaskList = taosArrayInit(0, POINTER_BYTES);
-    taosArrayPush(pStream->tasks, &pTaskList);
+    taosArrayPush(pTasksList, &pTaskList);
 
     SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
     if (LIST_LENGTH(inner->pNodeList) != 1) {
@@ -487,18 +470,34 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       }
 
       // new stream task
-      int32_t code = addSourceStreamTask(pMnode, pVgroup, pTaskList, pStream, plan, pStream->uid, TASK_LEVEL__SOURCE, pStream->fillHistory, hasExtraSink);
+      SArray* pSinkNodeTaskList = taosArrayGet(pTasksList, SINK_NODE_LEVEL);
+      int32_t code = addSourceStreamTask(pMnode, pVgroup, pTaskList, pSinkNodeTaskList, pStream, plan, uid, TASK_LEVEL__SOURCE, pStream->conf.fillHistory, hasExtraSink);
       sdbRelease(pSdb, pVgroup);
 
       if (code != TSDB_CODE_SUCCESS) {
-        qDestroyQueryPlan(pPlan);
         return -1;
       }
     }
   }
 
-  qDestroyQueryPlan(pPlan);
   return 0;
+}
+
+int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
+  SQueryPlan* pPlan = qStringToQueryPlan(pStream->physicalPlan);
+  if (pPlan == NULL) {
+    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    return -1;
+  }
+
+  int32_t code = doScheduleStream(pStream->uid, pStream->tasks, pStream, pMnode, pPlan);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = doScheduleStream(pStream->batchTaskUid, pStream->pBatchTask, pStream, pMnode, pPlan);
+  }
+
+  qDestroyQueryPlan(pPlan);
+  return code;
 }
 
 int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub) {

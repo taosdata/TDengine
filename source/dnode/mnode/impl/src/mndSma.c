@@ -555,20 +555,20 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.version = 1;
   streamObj.sql = taosStrdup(pCreate->sql);
   streamObj.smaId = smaObj.uid;
-  streamObj.watermark = pCreate->watermark;
+  streamObj.conf.watermark = pCreate->watermark;
   streamObj.deleteMark = pCreate->deleteMark;
-  streamObj.fillHistory = STREAM_FILL_HISTORY_ON;
-  streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
-  streamObj.triggerParam = pCreate->maxDelay;
+  streamObj.conf.fillHistory = STREAM_FILL_HISTORY_ON;
+  streamObj.conf.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
+  streamObj.conf.triggerParam = pCreate->maxDelay;
   streamObj.ast = taosStrdup(smaObj.ast);
 
   // check the maxDelay
-  if (streamObj.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
+  if (streamObj.conf.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
     int64_t msInterval = convertTimeFromPrecisionToUnit(pCreate->interval, pDb->cfg.precision, TIME_UNIT_MILLISECOND);
-    streamObj.triggerParam = msInterval > TSDB_MIN_ROLLUP_MAX_DELAY ? msInterval : TSDB_MIN_ROLLUP_MAX_DELAY;
+    streamObj.conf.triggerParam = msInterval > TSDB_MIN_ROLLUP_MAX_DELAY ? msInterval : TSDB_MIN_ROLLUP_MAX_DELAY;
   }
-  if (streamObj.triggerParam > TSDB_MAX_ROLLUP_MAX_DELAY) {
-    streamObj.triggerParam = TSDB_MAX_ROLLUP_MAX_DELAY;
+  if (streamObj.conf.triggerParam > TSDB_MAX_ROLLUP_MAX_DELAY) {
+    streamObj.conf.triggerParam = TSDB_MAX_ROLLUP_MAX_DELAY;
   }
 
   if (mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg) != 0) {
@@ -597,8 +597,8 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
       .pAstRoot = pAst,
       .topicQuery = false,
       .streamQuery = true,
-      .triggerType = streamObj.trigger,
-      .watermark = streamObj.watermark,
+      .triggerType = streamObj.conf.trigger,
+      .watermark = streamObj.conf.watermark,
       .deleteMark = streamObj.deleteMark,
   };
 

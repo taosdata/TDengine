@@ -637,6 +637,14 @@ typedef struct {
   SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
+typedef struct SStreamConf {
+  int8_t  igExpired;
+  int8_t  trigger;
+  int8_t  fillHistory;
+  int64_t triggerParam;
+  int64_t watermark;
+} SStreamConf;
+
 typedef struct {
   char name[TSDB_STREAM_FNAME_LEN];
   // ctl
@@ -650,12 +658,7 @@ typedef struct {
   // info
   int64_t uid;
   int8_t  status;
-  // config
-  int8_t  igExpired;
-  int8_t  trigger;
-  int8_t  fillHistory;
-  int64_t triggerParam;
-  int64_t watermark;
+  SStreamConf conf;
   // source and target
   int64_t sourceDbUid;
   int64_t targetDbUid;
@@ -665,14 +668,18 @@ typedef struct {
   int64_t targetStbUid;
 
   // fixedSinkVg is not applicable for encode and decode
-  SVgObj fixedSinkVg;
+  SVgObj  fixedSinkVg;
   int32_t fixedSinkVgId;  // 0 for shuffle
 
   // transformation
   char*          sql;
   char*          ast;
   char*          physicalPlan;
-  SArray*        tasks;  // SArray<SArray<SStreamTask>>
+  SArray*        tasks;        // SArray<SArray<SStreamTask>>
+
+  SArray*        pBatchTask;   // generate the results for already stored ts data
+  int64_t        batchTaskUid; // stream task for history ts data
+
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
 

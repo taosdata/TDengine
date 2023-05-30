@@ -239,7 +239,7 @@ static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {
 }
 
 static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
-  int8_t trigger = pStream->trigger;
+  int8_t trigger = pStream->conf.trigger;
   if (trigger == STREAM_TRIGGER_AT_ONCE) {
     strcpy(dst, "at once");
   } else if (trigger == STREAM_TRIGGER_WINDOW_CLOSE) {
@@ -301,11 +301,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->uid = mndGenerateUid(pObj->name, strlen(pObj->name));
   pObj->status = 0;
 
-  pObj->igExpired = pCreate->igExpired;
-  pObj->trigger = pCreate->triggerType;
-  pObj->triggerParam = pCreate->maxDelay;
-  pObj->watermark = pCreate->watermark;
-  pObj->fillHistory = pCreate->fillHistory;
+  pObj->conf.igExpired = pCreate->igExpired;
+  pObj->conf.trigger = pCreate->triggerType;
+  pObj->conf.triggerParam = pCreate->maxDelay;
+  pObj->conf.watermark = pCreate->watermark;
+  pObj->conf.fillHistory = pCreate->fillHistory;
   pObj->deleteMark = pCreate->deleteMark;
   pObj->igCheckUpdate = pCreate->igUpdate;
 
@@ -387,9 +387,9 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .pAstRoot = pAst,
       .topicQuery = false,
       .streamQuery = true,
-      .triggerType = pObj->trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->trigger,
-      .watermark = pObj->watermark,
-      .igExpired = pObj->igExpired,
+      .triggerType = pObj->conf.trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->conf.trigger,
+      .watermark = pObj->conf.watermark,
+      .igExpired = pObj->conf.igExpired,
       .deleteMark = pObj->deleteMark,
       .igCheckUpdate = pObj->igCheckUpdate,
   };
@@ -459,8 +459,9 @@ int32_t mndPersistStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStrea
   int32_t level = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < level; i++) {
     SArray *pLevel = taosArrayGetP(pStream->tasks, i);
-    int32_t sz = taosArrayGetSize(pLevel);
-    for (int32_t j = 0; j < sz; j++) {
+
+    int32_t numOfTasks = taosArrayGetSize(pLevel);
+    for (int32_t j = 0; j < numOfTasks; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
       if (mndPersistTaskDeployReq(pTrans, pTask) < 0) {
         return -1;
@@ -1157,7 +1158,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pStream->watermark, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStream->conf.watermark, false);
 
     char trigger[20 + VARSTR_HEADER_SIZE] = {0};
     char trigger2[20] = {0};
