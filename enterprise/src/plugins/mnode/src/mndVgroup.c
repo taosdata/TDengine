@@ -118,6 +118,7 @@ _OVER:
   return code;
 }
 
+/*
 int32_t mndAddAlterVnodeTypeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int32_t dnodeId) {
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
   if (pDnode == NULL) return -1;
@@ -143,9 +144,11 @@ int32_t mndAddAlterVnodeTypeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, 
 
   return 0;
 }
+*/
 
 int32_t mndBuildAlterVgroupActionImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb, SVgObj *pVgroup,
                                   SArray *pArray) {
+  /*
   SVgObj newVgroup = {0};
   memcpy(&newVgroup, pVgroup, sizeof(SVgObj));
 
@@ -228,6 +231,7 @@ int32_t mndBuildAlterVgroupActionImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pO
     }
     (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
   }
+  */
 
   return 0;
 }
