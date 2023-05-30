@@ -41,7 +41,11 @@ struct STsdbIter {
       int32_t               iRow;
     } data[1];
     struct {
-      SMemTable *memt;
+      SMemTable  *memt;
+      TSDBKEY     from[1];
+      SRBTreeIter iter[1];
+      STbData    *tbData;
+      STbDataIter tbIter[1];
     } memt[1];
   };
 };
@@ -156,8 +160,38 @@ _exit:
 }
 
 static int32_t tsdbMemTableIterNext(STsdbIter *iter, const TABLEID *tbid) {
-  // TODO
-  ASSERT(0);
+  SRBTreeNode *node;
+
+  while (!iter->ctx->noMoreData) {
+    while (iter->memt->tbData && tsdbTbDataIterNext(iter->memt->tbIter)) {
+      if (tbid && tbid->suid == iter->memt->tbData->suid && tbid->uid == iter->memt->tbData->uid) {
+        iter->memt->tbData = NULL;
+        break;
+      }
+      iter->row->row = *tsdbTbDataIterGet(iter->memt->tbIter);
+      goto _exit;
+    }
+
+    for (;;) {
+      node = tRBTreeIterNext(iter->memt->iter);
+      if (!node) {
+        iter->ctx->noMoreData = true;
+        break;
+      }
+
+      iter->memt->tbData = TCONTAINER_OF(node, STbData, rbtn);
+      if (tbid && tbid->suid == iter->memt->tbData->suid && tbid->uid == iter->memt->tbData->uid) {
+        continue;
+      } else {
+        iter->row->suid = iter->memt->tbData->suid;
+        iter->row->uid = iter->memt->tbData->uid;
+        tsdbTbDataIterOpen(iter->memt->tbData, iter->memt->from, 0, iter->memt->tbIter);
+        break;
+      }
+    }
+  }
+
+_exit:
   return 0;
 }
 
@@ -204,9 +238,8 @@ static int32_t tsdbDataIterOpen(STsdbIter *iter) {
 }
 
 static int32_t tsdbMemTableIterOpen(STsdbIter *iter) {
-  // TODO
-  ASSERT(0);
-  return 0;
+  iter->memt->iter[0] = tRBTreeIterCreate(iter->memt->memt->tbDataTree, 1);
+  return tsdbMemTableIterNext(iter, NULL);
 }
 
 static int32_t tsdbSttIterClose(STsdbIter *iter) {
@@ -219,11 +252,7 @@ static int32_t tsdbDataIterClose(STsdbIter *iter) {
   return 0;
 }
 
-static int32_t tsdbMemTableIterClose(STsdbIter *iter) {
-  // TODO
-  ASSERT(0);
-  return 0;
-}
+static int32_t tsdbMemTableIterClose(STsdbIter *iter) { return 0; }
 
 int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
   int32_t code;
@@ -244,6 +273,7 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
       break;
     case TSDB_ITER_TYPE_MEMT:
       iter[0]->memt->memt = config->memt;
+      iter[0]->memt->from[0] = config->from[0];
       code = tsdbMemTableIterOpen(iter[0]);
       break;
     default:

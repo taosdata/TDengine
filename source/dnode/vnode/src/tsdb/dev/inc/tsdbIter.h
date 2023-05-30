@@ -40,7 +40,10 @@ typedef struct {
   union {
     SSttSegReader   *sttReader;
     SDataFileReader *dataReader;
-    SMemTable       *memt;
+    struct {
+      SMemTable *memt;
+      TSDBKEY    from[1];
+    };
   };
 } STsdbIterConfig;
 

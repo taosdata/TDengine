@@ -409,6 +409,7 @@ struct STbData {
   SDelData    *pTail;
   SMemSkipList sl;
   STbData     *next;
+  SRBTreeNode  rbtn[1];
 };
 
 struct SMemTable {
@@ -425,6 +426,7 @@ struct SMemTable {
   int32_t          nTbData;
   int32_t          nBucket;
   STbData        **aBucket;
+  SRBTree          tbDataTree[1];
 };
 
 struct TSDBROW {

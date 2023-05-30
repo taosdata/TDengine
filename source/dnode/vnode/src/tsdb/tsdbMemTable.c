@@ -38,6 +38,16 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, int64_t version,
                                         SSubmitTbData *pSubmitTbData, int32_t *affectedRows);
 
+static int32_t tTbDataCmprFn(const SRBTreeNode *n1, const SRBTreeNode *n2) {
+  STbData *tbData1 = TCONTAINER_OF(n1, STbData, rbtn);
+  STbData *tbData2 = TCONTAINER_OF(n2, STbData, rbtn);
+  if (tbData1->suid < tbData2->suid) return -1;
+  if (tbData1->suid > tbData2->suid) return 1;
+  if (tbData1->uid < tbData2->uid) return -1;
+  if (tbData1->uid > tbData2->uid) return 1;
+  return 0;
+}
+
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   int32_t    code = 0;
   SMemTable *pMemTable = NULL;
@@ -66,6 +76,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     goto _err;
   }
   vnodeBufPoolRef(pMemTable->pPool);
+  tRBTreeCreate(pMemTable->tbDataTree, tTbDataCmprFn);
 
   *ppMemTable = pMemTable;
   return code;
@@ -405,6 +416,8 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   pTbData->next = pMemTable->aBucket[idx];
   pMemTable->aBucket[idx] = pTbData;
   pMemTable->nTbData++;
+
+  tRBTreePut(pMemTable->tbDataTree, pTbData->rbtn);
 
   taosWUnLockLatch(&pMemTable->latch);
 
