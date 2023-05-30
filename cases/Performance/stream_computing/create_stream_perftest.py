@@ -126,16 +126,19 @@ class CreateStreamPerftest(TDCase):
                         
                         
                         # 1 thread
+                        total_use = 0
                         for i in range(self.stream_count):
                             result_dict = dict()
                             create_start = datetime.now().timestamp()
                             self.tdCom.create_stream(stream_name=f'stream_max_test{i}', des_table=f'{self.stream_dbname}.output_stream_tb{i}', trigger_mode="at_once", fill_history_value=fill_history_value, source_sql=stream_sql)
                             create_end = datetime.now().timestamp()
                             create_use = round(create_end-create_start, 1)
+                            total_use += create_use
+                            total_use = round(total_use, 1)
                             result_dict["stream_no"] = str(i)
                             result_dict["create_use_time"] = f'{create_use}s'
                             result_dict_list.append(result_dict)
-                            
+
                         # # n thread
                         # sql_list = list()
                         # pool = threadpool.ThreadPool(10)
@@ -153,6 +156,7 @@ class CreateStreamPerftest(TDCase):
                         f.write(f'----------------------------------spent and usage----------------------------------\n')
                         for i in result_dict_list:
                             f.write(f'{str(i)}\n')
+                        f.write(f'total: {total_use}s\n')
                         f.close()
                         env_setting = self.get_component_by_name("prometheus")
                         Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
