@@ -19,7 +19,7 @@
 #include "trpc.h"
 
 extern SCatalogMgmt gCtgMgmt;
-SCtgDebug           gCTGDebug = {.statEnable = true};
+SCtgDebug           gCTGDebug = {0};
 
 #if 0
 
