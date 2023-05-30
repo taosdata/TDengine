@@ -2,27 +2,27 @@
 id: mqtt
 name: MQTT
 description: |
-  MQTT stands for Message Queuing Telemetry Transport. It is a  
-  lightweight messaging protocol that is easy to implement and  
-  use. It is ideal for connecting devices with limited resources,  
-  such as battery-powered devices or devices with low bandwidth.  
-  MQTT is also a good choice for applications where latency is  
-  important, such as real-time control systems.   
+  MQTT stands for Message Queuing Telemetry Transport. It is a
+  lightweight messaging protocol that is easy to implement and
+  use. It is ideal for connecting devices with limited resources,
+  such as battery-powered devices or devices with low bandwidth.
+  MQTT is also a good choice for applications where latency is
+  important, such as real-time control systems.
 
-  MQTT works by using a publish/subscribe model. This means that  
-  devices can publish messages to topics, and other devices can  
-  subscribe to those topics to receive the messages. This makes  
-  it easy to decouple devices from each other, and to scale up  
-  applications as needed.  
+  MQTT works by using a publish/subscribe model. This means that
+  devices can publish messages to topics, and other devices can
+  subscribe to those topics to receive the messages. This makes
+  it easy to decouple devices from each other, and to scale up
+  applications as needed.
 
-  MQTT is a popular choice for IoT applications. It is supported  
-  by a wide range of devices and platforms, and there are many  
-  open source and commercial implementations available.  
+  MQTT is a popular choice for IoT applications. It is supported
+  by a wide range of devices and platforms, and there are many
+  open source and commercial implementations available.
 
-  taosX could subscribe data from MQTT broker by a connector  
-  plugin.  
+  taosX could subscribe data from MQTT broker by a connector
+  plugin.
 
-  Check the help message in each part to see the details.  
+  Check the help message in each part to see the details.
 type: uri
 options:
   endpoint:
@@ -63,17 +63,17 @@ authentication:
           display: CA
           description: CA file path
           required: true
-          hint: 
+          hint:
             type: file
         - name: cert
           display: Client certificate file
-          description: Path to Client certificate file. 
+          description: Path to Client certificate file.
           required: true
-          hint: 
+          hint:
             type: file
         - name: cert_key
           display: Client key file
-          description: Path to Client certificate file. 
+          description: Path to Client certificate file.
           required: true
           hint:
             type: file
@@ -119,26 +119,26 @@ groups:
           type: integer
           min: 1
         description: |
-          If the broker does not receive any messages from the  
-          client within the keep alive interval, it will assume  
-          that the client has disconnected and will close the  
-          connection.  
+          If the broker does not receive any messages from the
+          client within the keep alive interval, it will assume
+          that the client has disconnected and will close the
+          connection.
         placeholder: 10
       - name: clean_session
         display: Clean Session
         value: true
         description: |
-          True means that the server will forget all information  
-          about the session, including the client's subscriptions.  
-          The default value for the clean session flag is true.  
+          True means that the server will forget all information
+          about the session, including the client's subscriptions.
+          The default value for the clean session flag is true.
         hint:
           type: bool
       - name: topics
         display: Topics Qos Config
         required: true
         description: |
-          e.g: topic1::0,topic2::1 
-        hint: 
+          e.g: topic1::0,topic2::1
+        hint:
           type: str
 
 
@@ -159,5 +159,26 @@ groups:
             - trace
 
 parser:
-  display: None
+  display: MQTT Payload Parser
+  description: |
+    MQTT will report exactly four fields of data for each data stream:
+
+    - **ts**: the collect timestamp.
+    - **topic**: the topic name to subscribe.
+    - **qos**: the QoS of the message, usually 0, 1, 2.
+    - **payload**: the data payload of the message.
+
+    taosX could parse the payload with JSON extractor and let users to specify the
+    data model in the database, for example, the table name pattern and stable name pattern,
+    field names as tags or field names as columns.
+  fields:
+  - name: ts
+    description: Timestamp.
+  - name: topic
+    description: Topic name.
+  - name: qos
+    description: QoS, one of 0/1/2.
+  - name: payload
+    description: Payload
+
   required: true
