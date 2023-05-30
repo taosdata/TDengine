@@ -208,6 +208,7 @@ char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
+bool    tsFilterScalarMode = false;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -521,6 +522,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "checkpointInterval", tsCheckpointInterval, 0, INT64_MAX, 0) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, 0) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -898,6 +901,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
   tsCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i64;
 
+  tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
+  
   GRANT_CFG_GET;
   return 0;
 }

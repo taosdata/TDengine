@@ -34,7 +34,24 @@ extern "C" {
 // SListNode* streamBackendAddCompare(void* backend, void* arg);
 // void       streamBackendDelCompare(void* backend, void* arg);
 
-//typedef struct STdbState {
+// <<<<<<< HEAD
+// typedef struct STdbState {
+//   rocksdb_t*                       rocksdb;
+//   rocksdb_column_family_handle_t** pHandle;
+//   rocksdb_writeoptions_t*          writeOpts;
+//   rocksdb_readoptions_t*           readOpts;
+//   rocksdb_options_t**              cfOpts;
+//   rocksdb_options_t*               dbOpt;
+//   struct SStreamTask*              pOwner;
+//   void*                            param;
+//   void*                            env;
+//   SListNode*                       pComparNode;
+//   void*                            pBackend;
+//   char                             idstr[64];
+//   void*                            compactFactory;
+//   TdThreadRwlock                   rwLock;
+// =======
+// typedef struct STdbState {
 //  rocksdb_t*                       rocksdb;
 //  rocksdb_column_family_handle_t** pHandle;
 //  rocksdb_writeoptions_t*          writeOpts;
@@ -58,6 +75,7 @@ extern "C" {
 //  TTB* pParTagDb;
 //  TXN* txn;
 //} STdbState;
+//>>>>>>> enh/dev3.0
 
 SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t szPage, int32_t pages);
 void          streamStateClose(SStreamState* pState, bool remove);
