@@ -5899,15 +5899,15 @@ static int32_t checkCollectTopicTags(STranslateContext* pCxt, SCreateTopicStmt* 
     nodesDestroyList(colCxt.pTags);
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Columns are forbidden in where clause");
   }
-  if (NULL == colCxt.pTags) {
-    for (int32_t i = 0; i < pMeta->tableInfo.numOfTags; ++i) {
-      SSchema* tag = &pMeta->schema[pMeta->tableInfo.numOfColumns + i];
+  if (NULL == colCxt.pTags) {   // put one column to select
+//    for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+      SSchema* column = &pMeta->schema[0];
       SColumnNode* col = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-      strcpy(col->colName, tag->name);
+      strcpy(col->colName, column->name);
       strcpy(col->node.aliasName, col->colName);
       strcpy(col->node.userAlias, col->colName);
       addTagList(&colCxt.pTags, (SNode*)col);
-    }
+//    }
   }
 
   *ppProjection = colCxt.pTags;
