@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 #include "tcommon.h"
-#include "tvariant.h"
 #include "tsimplehash.h"
+#include "tvariant.h"
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
@@ -77,7 +77,7 @@ enum {
 enum {
   MAIN_SCAN = 0x0u,
   REVERSE_SCAN = 0x1u,  // todo remove it
-  PRE_SCAN = 0x2u,   // pre-scan belongs to the main scan and occurs before main scan
+  PRE_SCAN = 0x2u,      // pre-scan belongs to the main scan and occurs before main scan
 };
 
 typedef struct SPoint1 {
@@ -130,43 +130,44 @@ typedef struct SSerializeDataHandle {
 
 // incremental state storage
 typedef struct STdbState {
-  void*               rocksdb;
-  void**              pHandle;
-  void*               writeOpts;
-  void*               readOpts;
-  void**              cfOpts;
-  void*               dbOpt;
-  struct SStreamTask* pOwner;
-  void*               param;
-  void*               env;
-  SListNode*          pComparNode;
-  void*               pBackendHandle;
+  void               *rocksdb;
+  void              **pHandle;
+  void               *writeOpts;
+  void               *readOpts;
+  void              **cfOpts;
+  void               *dbOpt;
+  struct SStreamTask *pOwner;
+  void               *param;
+  void               *env;
+  SListNode          *pComparNode;
+  void               *pBackend;
   char                idstr[64];
-  void*               compactFactory;
+  void               *compactFactory;
+  TdThreadRwlock      rwLock;
 
-  void* db;
-  void* pStateDb;
-  void* pFuncStateDb;
-  void* pFillStateDb;  // todo refactor
-  void* pSessionStateDb;
-  void* pParNameDb;
-  void* pParTagDb;
-  void* txn;
+  void *db;
+  void *pStateDb;
+  void *pFuncStateDb;
+  void *pFillStateDb;  // todo refactor
+  void *pSessionStateDb;
+  void *pParNameDb;
+  void *pParTagDb;
+  void *txn;
 } STdbState;
 
 typedef struct {
-  STdbState*        pTdbState;
-  struct SStreamFileState* pFileState;
-  int32_t           number;
-  SSHashObj*        parNameMap;
-  int64_t           checkPointId;
-  int32_t           taskId;
-  int64_t           streamId;
+  STdbState               *pTdbState;
+  struct SStreamFileState *pFileState;
+  int32_t                  number;
+  SSHashObj               *parNameMap;
+  int64_t                  checkPointId;
+  int32_t                  taskId;
+  int64_t                  streamId;
 } SStreamState;
 
 typedef struct SFunctionStateStore {
-  int32_t (*streamStateFuncPut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
-  int32_t (*streamStateFuncGet)(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen);
+  int32_t (*streamStateFuncPut)(SStreamState *pState, const SWinKey *key, const void *value, int32_t vLen);
+  int32_t (*streamStateFuncGet)(SStreamState *pState, const SWinKey *key, void **ppVal, int32_t *pVLen);
 } SFunctionStateStore;
 
 // sql function runtime context
@@ -180,7 +181,7 @@ typedef struct SqlFunctionCtx {
   int16_t              functionId;     // function id
   char                *pOutput;        // final result output buffer, point to sdata->data
   // input parameter, e.g., top(k, 20), the number of results of top query is kept in param
-  SFunctParam         *param;
+  SFunctParam *param;
   // corresponding output buffer for timestamp of each result, e.g., diff/csum
   SColumnInfoData     *pTsOutput;
   int32_t              numOfParams;
