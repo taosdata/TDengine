@@ -116,9 +116,8 @@ class TDTestCase:
         # init
         self.ts = 1600000000000
         self.childCnt = 5
-        self.childRow = 2000000
+        self.childRow = 1000000
         self.batchSize = 5000
-        self.c1_values = []
         
         # total
         self.c1Cnt = 0
@@ -262,7 +261,7 @@ class TDTestCase:
 
         time1 = "%.2f"%(spend1*1000)
         time2 = "%.2f"%(spend2*1000)
-        if spend2 < spend1 * 5:
+        if spend2 < spend1 * 8:
             tdLog.exit(f"performance not passed! sma spend1={time1}ms no sma spend2= {time2}ms sql1={sql1} sql2= {sql2}")
             return 
         tdLog.info(f"performance passed! sma spend1={time1}ms no sma spend2= {time2}ms sql1={sql1} sql2= {sql2}")
