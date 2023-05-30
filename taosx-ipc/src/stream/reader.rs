@@ -4,7 +4,7 @@ use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
         Int16Array, Int32Array, Int64Array, Int8Array, ListArray, StringArray, StructArray,
-        TimestampMillisecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        TimestampMillisecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, TimestampMicrosecondArray, TimestampNanosecondArray,
     },
     datatypes::{DataType, Schema, SchemaRef},
     error::ArrowError,
@@ -964,8 +964,36 @@ pub fn parse_column_view_with_types(
                             ColumnView::from_millis_timestamp(values)
                         }
                     }
-                    arrow::datatypes::TimeUnit::Microsecond => todo!(),
-                    arrow::datatypes::TimeUnit::Nanosecond => todo!(),
+                    arrow::datatypes::TimeUnit::Microsecond => {
+                        let a = column
+                            .as_any()
+                            .downcast_ref::<TimestampMicrosecondArray>()
+                            .unwrap();
+                        if a.null_count() == 0 {
+                            let v = a.values();
+                            ColumnView::from_micros_timestamp(v.to_vec())
+                        } else {
+                            let values = (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect();
+                            ColumnView::from_micros_timestamp(values)
+                        }
+                    },
+                    arrow::datatypes::TimeUnit::Nanosecond => {
+                        let a = column
+                            .as_any()
+                            .downcast_ref::<TimestampNanosecondArray>()
+                            .unwrap();
+                        if a.null_count() == 0 {
+                            let v = a.values();
+                            ColumnView::from_nanos_timestamp(v.to_vec())
+                        } else {
+                            let values = (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect();
+                            ColumnView::from_nanos_timestamp(values)
+                        }
+                    },
                 },
                 DataType::Date32 => todo!(),
                 DataType::Date64 => todo!(),
