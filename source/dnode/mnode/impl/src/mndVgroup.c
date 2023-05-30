@@ -28,7 +28,6 @@
 #define VGROUP_VER_NUMBER   1
 #define VGROUP_RESERVE_SIZE 64
 
-static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
@@ -1251,7 +1250,7 @@ int32_t mndAddPrepareNewVgAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVg) {
   SSdbRaw *pRaw = mndVgroupActionEncode(pVg);
   if (pRaw == NULL) goto _err;
 
-  STransAction action = {.pRaw = pRaw};
+  STransAction action = {.pRaw = pRaw, .msgType = TDMT_MND_CREATE_VG};
   if (mndTransAppendPrepareAction(pTrans, &action) != 0) goto _err;
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_CREATING);
   pRaw = NULL;

@@ -91,6 +91,11 @@ void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 void    mndTransRefresh(SMnode *pMnode, STrans *pTrans);
 int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, const char *dbname);
 
+SSdbRaw *mndTransEncode(STrans *pTrans);
+SSdbRow *mndTransDecode(SSdbRaw *pRaw);
+void     mndTransDropData(STrans *pTrans);
+
+bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans);
 #ifdef __cplusplus
 }
 #endif

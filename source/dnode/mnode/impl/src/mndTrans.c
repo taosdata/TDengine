@@ -28,8 +28,6 @@
 #define TRANS_ARRAY_SIZE   8
 #define TRANS_RESERVE_SIZE 48
 
-static SSdbRaw *mndTransEncode(STrans *pTrans);
-static SSdbRow *mndTransDecode(SSdbRaw *pRaw);
 static int32_t  mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t  mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
 static int32_t  mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc);
@@ -38,14 +36,12 @@ static int32_t mndTransAppendLog(SArray *pArray, SSdbRaw *pRaw);
 static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction);
 static void    mndTransDropLogs(SArray *pArray);
 static void    mndTransDropActions(SArray *pArray);
-static void    mndTransDropData(STrans *pTrans);
 static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pArray);
 static int32_t mndTransExecuteRedoLogs(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransExecuteUndoLogs(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransExecuteCommitActions(SMnode *pMnode, STrans *pTrans);
-static bool    mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformRedoLogStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformUndoLogStage(SMnode *pMnode, STrans *pTrans);
@@ -142,7 +138,7 @@ _OVER:
   return ret;
 }
 
-static SSdbRaw *mndTransEncode(STrans *pTrans) {
+SSdbRaw *mndTransEncode(STrans *pTrans) {
   terrno = TSDB_CODE_INVALID_MSG;
   int8_t sver = taosArrayGetSize(pTrans->prepareActions) ? TRANS_VER2_NUMBER : TRANS_VER1_NUMBER;
 
@@ -267,7 +263,7 @@ _OVER:
   return ret;
 }
 
-static SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
+SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_INVALID_MSG;
 
   SSdbRow     *pRow = NULL;
@@ -444,7 +440,7 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   return 0;
 }
 
-static void mndTransDropData(STrans *pTrans) {
+void mndTransDropData(STrans *pTrans) {
   if (pTrans->prepareActions != NULL) {
     mndTransDropActions(pTrans->prepareActions);
     pTrans->prepareActions = NULL;
@@ -1330,7 +1326,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
   return code;
 }
 
-static bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
+bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
   bool continueExec = true;
   int32_t code = 0;
 
@@ -1341,7 +1337,11 @@ static bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
 
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pTrans->prepareActions, action);
-    mndTransExecSingleAction(pMnode, pTrans, pAction);
+    code = mndTransExecSingleAction(pMnode, pTrans, pAction);
+    if (code != 0) {
+      mError("trans:%d, failed to execute prepare action:%d, numOfActions:%d", pTrans->id, action, numOfActions);
+      return false;
+    }
   }
 
 _OVER:

@@ -27,6 +27,7 @@ void     mndCleanupVgroup(SMnode *pMnode);
 SVgObj  *mndAcquireVgroup(SMnode *pMnode, int32_t vgId);
 void     mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup);
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
+SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 SEpSet   mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup);
 int32_t  mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId);
 void     mndSortVnodeGid(SVgObj *pVgroup);
