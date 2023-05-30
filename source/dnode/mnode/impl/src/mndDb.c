@@ -473,7 +473,6 @@ int32_t mndSetCreateDbRedoActionsImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
     SVgObj *pVgroup = pVgroups + vg;
 
-    pVgroup->replica = 1;
     SVnodeGid *pVgid = pVgroup->vnodeGid;
     if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid) != 0) {
       return -1;
@@ -505,17 +504,15 @@ int32_t mndSetCreateDbUndoActionsImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 }
 #endif
 
-static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
-  SDbObj dbObj = {0};
-  memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
-  memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
-  dbObj.createdTime = taosGetTimestampMs();
-  dbObj.updateTime = dbObj.createdTime;
-  dbObj.uid = mndGenerateUid(dbObj.name, TSDB_DB_FNAME_LEN);
-  dbObj.cfgVersion = 1;
-  dbObj.vgVersion = 1;
-  memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
-  dbObj.cfg = (SDbCfg){
+extern void mndSetCfgFromCreateReqImpl(SDbCfg *pCfg, SCreateDbReq *pCreate);
+
+void mndSetCfgFromCreateReq(SDbCfg *pCfg, SCreateDbReq *pCreate){
+  mndSetCfgFromCreateReqImpl(pCfg, pCreate);
+}
+
+#ifndef TD_ENTERPRISE
+void mndSetCfgFromCreateReqImpl(SDbCfg *pCfg, SCreateDbReq *pCreate){
+  *pCfg = (SDbCfg){
       .numOfVgroups = pCreate->numOfVgroups,
       .numOfStables = pCreate->numOfStables,
       .buffer = pCreate->buffer,
@@ -532,7 +529,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .walLevel = pCreate->walLevel,
       .precision = pCreate->precision,
       .compression = pCreate->compression,
-      .replications = pCreate->replications,
+      .replications = 1,
       .strict = pCreate->strict,
       .cacheLast = pCreate->cacheLast,
       .hashMethod = 1,
@@ -546,6 +543,21 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .hashSuffix = pCreate->hashSuffix,
       .tsdbPageSize = pCreate->tsdbPageSize,
   };
+}
+#endif
+
+static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
+  SDbObj dbObj = {0};
+  memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
+  memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
+  dbObj.createdTime = taosGetTimestampMs();
+  dbObj.updateTime = dbObj.createdTime;
+  dbObj.uid = mndGenerateUid(dbObj.name, TSDB_DB_FNAME_LEN);
+  dbObj.cfgVersion = 1;
+  dbObj.vgVersion = 1;
+  memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
+  
+  mndSetCfgFromCreateReq(&dbObj.cfg, pCreate);
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
   dbObj.cfg.pRetensions = pCreate->pRetensions;
@@ -668,7 +680,14 @@ _OVER:
   return code;
 }
 
-static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
+extern int32_t mndSetDbCfgFromAlterDbReqImpl(SDbObj *pDb, SAlterDbReq *pAlter);
+
+int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter){
+  return mndSetDbCfgFromAlterDbReqImpl(pDb, pAlter);
+}
+
+#ifndef TD_ENTERPRISE
+int32_t mndSetDbCfgFromAlterDbReqImpl(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->buffer > 0 && pAlter->buffer != pDb->cfg.buffer) {
@@ -736,7 +755,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->replications > 0 && pAlter->replications != pDb->cfg.replications) {
-    pDb->cfg.replications = pAlter->replications;
+    pDb->cfg.replications = 1;
     pDb->vgVersion++;
     terrno = 0;
   }
@@ -769,6 +788,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   return terrno;
 }
+#endif
 
 static int32_t mndSetAlterDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
