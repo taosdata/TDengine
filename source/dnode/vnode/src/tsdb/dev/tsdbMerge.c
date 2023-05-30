@@ -91,7 +91,7 @@ static int32_t tsdbMergeToDataWriteTSDataBlock(SMerger *merger) {
     // code = tsdbDataFWriteTSDataBlock(merger->dataWriter, &merger->ctx->bData);
     // TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    code = tsdbSttFWriteTSDataBlock(merger->sttWriter, &merger->ctx->bData);
+    code = tsdbSttFileWriteTSDataBlock(merger->sttWriter, &merger->ctx->bData);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -157,7 +157,7 @@ static int32_t tsdbMergeToUpperLevel(SMerger *merger) {
 
     if (!merger->ctx->row) break;
 
-    code = tsdbSttFWriteTSData(merger->sttWriter, merger->ctx->row);
+    code = tsdbSttFileWriteTSData(merger->sttWriter, merger->ctx->row);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -187,7 +187,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
     }
 
     fobj = TARRAY2_GET(&lvl->farr, 0);
-    if (fobj->f.stt->nseg < merger->tsdb->pVnode->config.sttTrigger) {
+    if (fobj->f->stt->nseg < merger->tsdb->pVnode->config.sttTrigger) {
       merger->ctx->toData = false;
       break;
     } else {
@@ -208,9 +208,9 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
 
       // add the operation
       STFileOp op = {
-          .fid = fobj->f.fid,
+          .fid = fobj->f->fid,
           .optype = TSDB_FOP_REMOVE,
-          .of = fobj->f,
+          .of = fobj->f[0],
       };
       code = TARRAY2_APPEND(&merger->fopArr, op);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -227,9 +227,9 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
         .skmTb = &merger->skmTb,
         .skmRow = &merger->skmRow,
         .aBuf = merger->aBuf,
-        .file = fobj->f,
+        .file = fobj->f[0],
     };
-    code = tsdbSttFWriterOpen(&config, &merger->sttWriter);
+    code = tsdbSttFileWriterOpen(&config, &merger->sttWriter);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     SSttFileWriterConfig config = {
@@ -250,7 +250,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
                 .stt = {{.level = merger->ctx->level, .nseg = 0}},
             },
     };
-    code = tsdbSttFWriterOpen(&config, &merger->sttWriter);
+    code = tsdbSttFileWriterOpen(&config, &merger->sttWriter);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -276,7 +276,7 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
   int32_t vid = TD_VID(merger->tsdb->pVnode);
 
   STFileOp op;
-  code = tsdbSttFWriterClose(&merger->sttWriter, 0, &op);
+  code = tsdbSttFileWriterClose(&merger->sttWriter, 0, &op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (op.optype != TSDB_FOP_NONE) {
@@ -356,7 +356,7 @@ int32_t tsdbMerge(STsdb *tsdb) {
 
     fobj = TARRAY2_GET(&lvl0->farr, 0);
 
-    if (fobj->f.stt->nseg >= sttTrigger) {
+    if (fobj->f->stt->nseg >= sttTrigger) {
       code = tsdbMergeFileSet(merger, fset);
       TSDB_CHECK_CODE(code, lino, _exit);
     }

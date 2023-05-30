@@ -205,7 +205,7 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   if (!fobj[0]) return TSDB_CODE_OUT_OF_MEMORY;
 
   taosThreadMutexInit(&fobj[0]->mutex, NULL);
-  fobj[0]->f = *f;
+  fobj[0]->f[0] = f[0];
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
   tsdbTFileName(pTsdb, f, fobj[0]->fname);
@@ -295,9 +295,9 @@ bool tsdbIsTFileChanged(const STFile *f1, const STFile *f2) {
 }
 
 int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2) {
-  if (fobj1[0]->f.cid < fobj2[0]->f.cid) {
+  if (fobj1[0]->f->cid < fobj2[0]->f->cid) {
     return -1;
-  } else if (fobj1[0]->f.cid > fobj2[0]->f.cid) {
+  } else if (fobj1[0]->f->cid > fobj2[0]->f->cid) {
     return 1;
   } else {
     return 0;

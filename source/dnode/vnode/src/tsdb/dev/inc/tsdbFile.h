@@ -71,7 +71,7 @@ struct STFile {
 
 struct STFileObj {
   TdThreadMutex mutex;
-  STFile        f;
+  STFile        f[1];
   int32_t       state;
   int32_t       ref;
   char          fname[TSDB_FILENAME_LEN];

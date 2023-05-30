@@ -37,7 +37,7 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
   const STFileObj *fobj1;
   TARRAY2_FOREACH(&lvl1->farr, fobj1) {
     STFileObj *fobj;
-    code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fobj);
+    code = tsdbTFileObjInit(pTsdb, fobj1->f, &fobj);
     if (code) {
       tsdbSttLvlClear(lvl);
       return code;
@@ -66,25 +66,25 @@ static int32_t tsdbSttLvlApplyEdit(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl *l
     STFileObj *fobj2 = i2 < TARRAY2_SIZE(&lvl2->farr) ? TARRAY2_GET(&lvl2->farr, i2) : NULL;
 
     if (fobj1 && fobj2) {
-      if (fobj1->f.cid < fobj2->f.cid) {
+      if (fobj1->f->cid < fobj2->f->cid) {
         // create a file obj
-        code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fobj2);
+        code = tsdbTFileObjInit(pTsdb, fobj1->f, &fobj2);
         if (code) return code;
         code = TARRAY2_APPEND(&lvl2->farr, fobj2);
         if (code) return code;
         i1++;
         i2++;
-      } else if (fobj1->f.cid > fobj2->f.cid) {
+      } else if (fobj1->f->cid > fobj2->f->cid) {
         // remove a file obj
         TARRAY2_REMOVE(&lvl2->farr, i2, tsdbSttLvlRemoveFObj);
       } else {
-        if (tsdbIsSameTFile(&fobj1->f, &fobj2->f)) {
-          if (tsdbIsTFileChanged(&fobj1->f, &fobj2->f)) {
-            fobj2->f = fobj1->f;
+        if (tsdbIsSameTFile(fobj1->f, fobj2->f)) {
+          if (tsdbIsTFileChanged(fobj1->f, fobj2->f)) {
+            fobj2->f[0] = fobj1->f[0];
           }
         } else {
           TARRAY2_REMOVE(&lvl2->farr, i2, tsdbSttLvlRemoveFObj);
-          code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fobj2);
+          code = tsdbTFileObjInit(pTsdb, fobj1->f, &fobj2);
           if (code) return code;
           code = TARRAY2_SORT_INSERT(&lvl2->farr, fobj2, tsdbTFileObjCmpr);
           if (code) return code;
@@ -94,7 +94,7 @@ static int32_t tsdbSttLvlApplyEdit(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl *l
       }
     } else if (fobj1) {
       // create a file obj
-      code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fobj2);
+      code = tsdbTFileObjInit(pTsdb, fobj1->f, &fobj2);
       if (code) return code;
       code = TARRAY2_APPEND(&lvl2->farr, fobj2);
       if (code) return code;
@@ -127,7 +127,7 @@ static int32_t tsdbSttLvlToJson(const SSttLvl *lvl, cJSON *json) {
     if (item == NULL) return TSDB_CODE_OUT_OF_MEMORY;
     cJSON_AddItemToArray(ajson, item);
 
-    int32_t code = tsdbTFileToJson(&fobj->f, item);
+    int32_t code = tsdbTFileToJson(fobj->f, item);
     if (code) return code;
   }
 
@@ -186,7 +186,7 @@ int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json) {
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset->farr[ftype] == NULL) continue;
 
-    code = tsdbTFileToJson(&fset->farr[ftype]->f, json);
+    code = tsdbTFileToJson(fset->farr[ftype]->f, json);
     if (code) return code;
   }
 
@@ -266,10 +266,10 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
     code = tsdbTFileObjInit(pTsdb, &op->nf, &fobj);
     if (code) return code;
 
-    if (fobj->f.type == TSDB_FTYPE_STT) {
-      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, fobj->f.stt->level);
+    if (fobj->f->type == TSDB_FTYPE_STT) {
+      SSttLvl *lvl = tsdbTFileSetGetLvl(fset, fobj->f->stt->level);
       if (!lvl) {
-        code = tsdbSttLvlInit(fobj->f.stt->level, &lvl);
+        code = tsdbSttLvlInit(fobj->f->stt->level, &lvl);
         if (code) return code;
 
         code = TARRAY2_SORT_INSERT(&fset->lvlArr, lvl, tsdbSttLvlCmprFn);
@@ -279,8 +279,8 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
       code = TARRAY2_SORT_INSERT(&lvl->farr, fobj, tsdbTFileObjCmpr);
       if (code) return code;
     } else {
-      ASSERT(fset->farr[fobj->f.type] == NULL);
-      fset->farr[fobj->f.type] = fobj;
+      ASSERT(fset->farr[fobj->f->type] == NULL);
+      fset->farr[fobj->f->type] = fobj;
     }
   } else if (op->optype == TSDB_FOP_REMOVE) {
     // delete a file
@@ -288,7 +288,7 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
       SSttLvl *lvl = tsdbTFileSetGetLvl(fset, op->of.stt->level);
       ASSERT(lvl);
 
-      STFileObj  tfobj = {.f = {.cid = op->of.cid}};
+      STFileObj  tfobj = {.f[0] = {.cid = op->of.cid}};
       STFileObj *tfobjp = &tfobj;
       int32_t    idx = TARRAY2_SEARCH_IDX(&lvl->farr, &tfobjp, tsdbTFileObjCmpr, TD_EQ);
       ASSERT(idx >= 0);
@@ -299,7 +299,7 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
         // TARRAY2_REMOVE(&fset->lvlArr, lvl - fset->lvlArr.data, tsdbSttLvlClear);
       }
     } else {
-      ASSERT(tsdbIsSameTFile(&op->of, &fset->farr[op->of.type]->f));
+      ASSERT(tsdbIsSameTFile(&op->of, fset->farr[op->of.type]->f));
       tsdbTFileObjUnref(fset->farr[op->of.type]);
       fset->farr[op->of.type] = NULL;
     }
@@ -308,14 +308,14 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
       SSttLvl *lvl = tsdbTFileSetGetLvl(fset, op->of.stt->level);
       ASSERT(lvl);
 
-      STFileObj tfobj = {.f = {.cid = op->of.cid}}, *tfobjp = &tfobj;
+      STFileObj tfobj = {.f[0] = {.cid = op->of.cid}}, *tfobjp = &tfobj;
       tfobjp = TARRAY2_SEARCH_EX(&lvl->farr, &tfobjp, tsdbTFileObjCmpr, TD_EQ);
 
       ASSERT(tfobjp);
 
-      tfobjp->f = op->nf;
+      tfobjp->f[0] = op->nf;
     } else {
-      fset->farr[op->nf.type]->f = op->nf;
+      fset->farr[op->nf.type]->f[0] = op->nf;
     }
   }
 
@@ -334,18 +334,18 @@ int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *f
     STFileObj *fobj2 = fset2->farr[ftype];
 
     if (fobj1 && fobj2) {
-      if (tsdbIsSameTFile(&fobj1->f, &fobj2->f)) {
-        if (tsdbIsTFileChanged(&fobj1->f, &fobj2->f)) {
-          fobj2->f = fobj1->f;
+      if (tsdbIsSameTFile(fobj1->f, fobj2->f)) {
+        if (tsdbIsTFileChanged(fobj1->f, fobj2->f)) {
+          fobj2->f[0] = fobj1->f[0];
         }
       } else {
         tsdbTFileObjRemove(fobj2);
-        code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fset2->farr[ftype]);
+        code = tsdbTFileObjInit(pTsdb, fobj1->f, &fset2->farr[ftype]);
         if (code) return code;
       }
     } else if (fobj1) {
       // create a new file
-      code = tsdbTFileObjInit(pTsdb, &fobj1->f, &fset2->farr[ftype]);
+      code = tsdbTFileObjInit(pTsdb, fobj1->f, &fset2->farr[ftype]);
       if (code) return code;
     } else {
       // remove the file
@@ -412,7 +412,7 @@ int32_t tsdbTFileSetInitEx(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fse
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset1->farr[ftype] == NULL) continue;
 
-    code = tsdbTFileObjInit(pTsdb, &fset1->farr[ftype]->f, &fset[0]->farr[ftype]);
+    code = tsdbTFileObjInit(pTsdb, fset1->farr[ftype]->f, &fset[0]->farr[ftype]);
     if (code) {
       tsdbTFileSetClear(fset);
       return code;
@@ -479,12 +479,12 @@ int64_t tsdbTFileSetMaxCid(const STFileSet *fset) {
   int64_t maxCid = 0;
   for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset->farr[ftype] == NULL) continue;
-    maxCid = TMAX(maxCid, fset->farr[ftype]->f.cid);
+    maxCid = TMAX(maxCid, fset->farr[ftype]->f->cid);
   }
   const SSttLvl   *lvl;
   const STFileObj *fobj;
   TARRAY2_FOREACH(&fset->lvlArr, lvl) {
-    TARRAY2_FOREACH(&lvl->farr, fobj) { maxCid = TMAX(maxCid, fobj->f.cid); }
+    TARRAY2_FOREACH(&lvl->farr, fobj) { maxCid = TMAX(maxCid, fobj->f->cid); }
   }
   return maxCid;
 }

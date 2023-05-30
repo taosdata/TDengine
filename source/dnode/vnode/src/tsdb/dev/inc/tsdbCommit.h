@@ -13,7 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdbDataFileRW.h"
 #include "tsdbFS.h"
+#include "tsdbIter.h"
 #include "tsdbSttFileRW.h"
 
 #ifndef _TSDB_COMMIT_H_
