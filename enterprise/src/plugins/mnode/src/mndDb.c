@@ -110,3 +110,33 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   return code;
 }
+
+int32_t mndSetCreateDbRedoActionsImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups){
+  for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
+    SVgObj *pVgroup = pVgroups + vg;
+
+    for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
+      SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
+      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid) != 0) {
+        return -1;
+      }
+    }
+  }
+
+  return 0;
+}
+
+int32_t mndSetCreateDbUndoActionsImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups){
+  for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
+    SVgObj *pVgroup = pVgroups + vg;
+
+    for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
+      SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
+      if (mndAddDropVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid, false) != 0) {
+        return -1;
+      }
+    }
+  }
+
+  return 0;
+}
