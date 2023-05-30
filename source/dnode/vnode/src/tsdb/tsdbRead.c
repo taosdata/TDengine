@@ -5244,6 +5244,9 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
 }
 
 static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows, int32_t numOfBucket) {
+  if (numOfRows < startRow) {
+    return 0;
+  }
   int32_t bucketIndex = ((numOfRows - startRow) / bucketRange);
   if (bucketIndex == numOfBucket) {
     bucketIndex -= 1;
