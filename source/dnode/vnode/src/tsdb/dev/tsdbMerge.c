@@ -16,18 +16,16 @@
 #include "inc/tsdbMerge.h"
 
 typedef struct {
-  bool       launched;
-  bool       toData;
-  int32_t    level;
-  STFileSet *fset;
-  SRowInfo  *pRowInfo;
-  SBlockData bData;
-} SMergeCtx;
-
-typedef struct {
   STsdb *tsdb;
   // context
-  SMergeCtx ctx;
+  struct {
+    bool       opened;
+    bool       toData;
+    int32_t    level;
+    STFileSet *fset;
+    SRowInfo  *row;
+    SBlockData bData;
+  } ctx[1];
   // config
   int32_t  maxRow;
   int32_t  minRow;
@@ -48,7 +46,7 @@ typedef struct {
 } SMerger;
 
 static int32_t tsdbMergerOpen(SMerger *merger) {
-  merger->ctx.launched = true;
+  merger->ctx->opened = true;
   TARRAY2_INIT(&merger->fopArr);
   return 0;
 }
@@ -84,20 +82,20 @@ static int32_t tsdbMergeNextRow(SMerger *merger) {
 }
 
 static int32_t tsdbMergeToDataWriteTSDataBlock(SMerger *merger) {
-  if (merger->ctx.bData.nRow == 0) return 0;
+  if (merger->ctx->bData.nRow == 0) return 0;
 
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(merger->tsdb->pVnode);
-  if (merger->ctx.bData.nRow >= merger->minRow) {
-    // code = tsdbDataFWriteTSDataBlock(merger->dataWriter, &merger->ctx.bData);
+  if (merger->ctx->bData.nRow >= merger->minRow) {
+    // code = tsdbDataFWriteTSDataBlock(merger->dataWriter, &merger->ctx->bData);
     // TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    code = tsdbSttFWriteTSDataBlock(merger->sttWriter, &merger->ctx.bData);
+    code = tsdbSttFWriteTSDataBlock(merger->sttWriter, &merger->ctx->bData);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  tBlockDataReset(&merger->ctx.bData);
+  tBlockDataReset(&merger->ctx->bData);
 
 _exit:
   if (code) {
@@ -114,28 +112,28 @@ static int32_t tsdbMergeToData(SMerger *merger) {
     code = tsdbMergeNextRow(merger);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (!merger->ctx.pRowInfo) {
+    if (!merger->ctx->row) {
       code = tsdbMergeToDataWriteTSDataBlock(merger);
       TSDB_CHECK_CODE(code, lino, _exit);
       break;
     }
 
-    if (!TABLE_SAME_SCHEMA(merger->ctx.bData.suid, merger->ctx.bData.suid, merger->ctx.pRowInfo->suid,
-                           merger->ctx.pRowInfo->uid)) {
+    if (!TABLE_SAME_SCHEMA(merger->ctx->bData.suid, merger->ctx->bData.suid, merger->ctx->row->suid,
+                           merger->ctx->row->uid)) {
       code = tsdbMergeToDataWriteTSDataBlock(merger);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tsdbUpdateSkmTb(merger->tsdb, (TABLEID *)merger->ctx.pRowInfo, &merger->skmTb);
+      code = tsdbUpdateSkmTb(merger->tsdb, (TABLEID *)merger->ctx->row, &merger->skmTb);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tBlockDataInit(&merger->ctx.bData, (TABLEID *)merger->ctx.pRowInfo, merger->skmTb.pTSchema, NULL, 0);
+      code = tBlockDataInit(&merger->ctx->bData, (TABLEID *)merger->ctx->row, merger->skmTb.pTSchema, NULL, 0);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tBlockDataAppendRow(&merger->ctx.bData, &merger->ctx.pRowInfo->row, NULL, merger->ctx.pRowInfo->uid);
+    code = tBlockDataAppendRow(&merger->ctx->bData, &merger->ctx->row->row, NULL, merger->ctx->row->uid);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (merger->ctx.bData.nRow >= merger->maxRow) {
+    if (merger->ctx->bData.nRow >= merger->maxRow) {
       code = tsdbMergeToDataWriteTSDataBlock(merger);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -157,9 +155,9 @@ static int32_t tsdbMergeToUpperLevel(SMerger *merger) {
     code = tsdbMergeNextRow(merger);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (!merger->ctx.pRowInfo) break;
+    if (!merger->ctx->row) break;
 
-    code = tsdbSttFWriteTSData(merger->sttWriter, merger->ctx.pRowInfo);
+    code = tsdbSttFWriteTSData(merger->sttWriter, merger->ctx->row);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -174,27 +172,27 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
   int32_t    code = 0;
   int32_t    lino = 0;
   int32_t    vid = TD_VID(merger->tsdb->pVnode);
-  STFileSet *fset = merger->ctx.fset;
+  STFileSet *fset = merger->ctx->fset;
 
   // prepare the merger file set
   SSttLvl   *lvl;
   STFileObj *fobj;
-  merger->ctx.toData = true;
-  merger->ctx.level = 0;
+  merger->ctx->toData = true;
+  merger->ctx->level = 0;
 
   TARRAY2_FOREACH(&fset->lvlArr, lvl) {
-    if (lvl->level != merger->ctx.level) {
+    if (lvl->level != merger->ctx->level) {
       lvl = NULL;
       break;
     }
 
     fobj = TARRAY2_GET(&lvl->farr, 0);
     if (fobj->f.stt->nseg < merger->tsdb->pVnode->config.sttTrigger) {
-      merger->ctx.toData = false;
+      merger->ctx->toData = false;
       break;
     } else {
       ASSERT(lvl->level == 0 || TARRAY2_SIZE(&lvl->farr) == 1);
-      merger->ctx.level++;
+      merger->ctx->level++;
 
       // open the reader
       SSttFileReader      *reader;
@@ -249,7 +247,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
                 .fid = fset->fid,
                 .cid = merger->cid,
                 .size = 0,
-                .stt = {{.level = merger->ctx.level, .nseg = 0}},
+                .stt = {{.level = merger->ctx->level, .nseg = 0}},
             },
     };
     code = tsdbSttFWriterOpen(&config, &merger->sttWriter);
@@ -257,7 +255,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
   }
 
   // open data file writer
-  if (merger->ctx.toData) {
+  if (merger->ctx->toData) {
     SDataFileWriterConfig config = {
         .tsdb = merger->tsdb,
         // TODO
@@ -286,7 +284,7 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (merger->ctx.toData) {
+  if (merger->ctx->toData) {
     // code = tsdbDataFWriterClose();
     // TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -301,18 +299,18 @@ static int32_t tsdbMergeFileSet(SMerger *merger, STFileSet *fset) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (merger->ctx.launched == false) {
+  if (merger->ctx->opened == false) {
     code = tsdbMergerOpen(merger);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  merger->ctx.fset = fset;
+  merger->ctx->fset = fset;
 
   code = tsdbMergeFileSetBegin(merger);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // do merge
-  if (merger->ctx.toData) {
+  if (merger->ctx->toData) {
     code = tsdbMergeToData(merger);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
@@ -343,13 +341,9 @@ int32_t tsdbMerge(STsdb *tsdb) {
   STFileObj    *fobj;
   int32_t       sttTrigger = vnode->config.sttTrigger;
 
-  SMerger merger = {
-      .tsdb = tsdb,
-      .ctx =
-          {
-              .launched = false,
-          },
-  };
+  SMerger merger[1];
+  merger->tsdb = tsdb;
+  merger->ctx->opened = false;
 
   // loop to merge each file set
   TARRAY2_FOREACH(&fs->cstate, fset) {
@@ -363,21 +357,21 @@ int32_t tsdbMerge(STsdb *tsdb) {
     fobj = TARRAY2_GET(&lvl0->farr, 0);
 
     if (fobj->f.stt->nseg >= sttTrigger) {
-      code = tsdbMergeFileSet(&merger, fset);
+      code = tsdbMergeFileSet(merger, fset);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
   // end the merge
-  if (merger.ctx.launched) {
-    code = tsdbMergerClose(&merger);
+  if (merger->ctx->opened) {
+    code = tsdbMergerClose(merger);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
-  } else if (merger.ctx.launched) {
+    TSDB_ERROR_LOG(vid, lino, code);
+  } else if (merger->ctx->opened) {
     tsdbDebug("vgId:%d %s done", vid, __func__);
   }
   return 0;
