@@ -263,6 +263,7 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
 
 _OVER:
   *offset = dataPos;
+  taosMemoryFreeClear(action.pCont);
   return ret;
 }
 
@@ -279,7 +280,6 @@ static SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   int32_t      undoActionNum = 0;
   int32_t      commitActionNum = 0;
   int32_t      dataPos = 0;
-  STransAction action = {0};
 
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
@@ -360,7 +360,6 @@ _OVER:
     mError("trans:%d, failed to parse from raw:%p since %s", pTrans->id, pRaw, terrstr());
     mndTransDropData(pTrans);
     taosMemoryFreeClear(pRow);
-    taosMemoryFreeClear(action.pCont);
     return NULL;
   }
 
