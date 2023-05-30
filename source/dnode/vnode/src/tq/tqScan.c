@@ -51,7 +51,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
   metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
 
   // TODO add reference to gurantee success
-  if (metaGetTableEntryByUidCache(&mr, uid) < 0) {
+  if (metaReaderGetTableEntryByUidCache(&mr, uid) < 0) {
     metaReaderClear(&mr);
     return -1;
   }

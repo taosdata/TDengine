@@ -163,7 +163,6 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
   int32_t code = 0;
 
   ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
-
   void* exec = pTask->exec.pExecutor;
 
   qSetStreamOpOpen(exec);
@@ -328,7 +327,11 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     while (1) {
       if (streamTaskShouldPause(&pTask->status)) {
-        return 0;
+        if (batchSize > 1) {
+          break;
+        } else {
+          return 0;
+        }
       }
 
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
@@ -404,7 +407,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     {
       // set input
-      void*   pExecutor = pTask->exec.pExecutor;
+      void* pExecutor = pTask->exec.pExecutor;
 
       const SStreamQueueItem* pItem = pInput;
       if (pItem->type == STREAM_INPUT__GET_RES) {

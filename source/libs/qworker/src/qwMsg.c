@@ -440,11 +440,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   int64_t  rId = msg.refId;
   int32_t  eId = msg.execId;
 
-  SQWMsg qwMsg = {.node = node,
-                  .msg = msg.msg,
-                  .msgLen = msg.msgLen,
-                  .connInfo = pMsg->info,
-                  .msgType = pMsg->msgType};
+  SQWMsg qwMsg = {.node = node, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgType = pMsg->msgType};
   qwMsg.msgInfo.explain = msg.explain;
   qwMsg.msgInfo.taskType = msg.taskType;
   qwMsg.msgInfo.needFetch = msg.needFetch;

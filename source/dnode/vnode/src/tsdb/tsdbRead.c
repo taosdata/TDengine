@@ -754,7 +754,7 @@ static int32_t initResBlockInfo(SResultBlockInfo* pResBlockInfo, int64_t capacit
   return terrno;
 }
 
-static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsdbReader** ppReader, int32_t capacity,
+static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void** ppReader, int32_t capacity,
                                 SSDataBlock* pResBlock, const char* idstr) {
   int32_t      code = 0;
   int8_t       level = 0;
@@ -810,7 +810,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
 
   if (pReader->suppInfo.colId[0] != PRIMARYKEY_TIMESTAMP_COL_ID) {
     tsdbError("the first column isn't primary timestamp, %d, %s", pReader->suppInfo.colId[0], pReader->idStr);
-    terrno = TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
     goto _end;
   }
 
@@ -819,7 +819,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   if (type != TSDB_DATA_TYPE_TIMESTAMP) {
     tsdbError("the first column isn't primary timestamp in result block, actual: %s, %s", tDataTypes[type].name,
               pReader->idStr);
-    terrno = TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
     goto _end;
   }
 
@@ -1767,6 +1767,9 @@ static bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SDa
       if (p->ts > pBlock->minKey.ts && index > 0) {
         index -= 1;
       } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
+        if (p->ts == pBlock->minKey.ts && p->version < pBlock->maxVer && index > 0) {
+          index -= 1;
+        }
         break;
       }
     }
@@ -1845,7 +1848,7 @@ static bool isCleanFileDataBlock(STsdbReader* pReader, SFileDataBlockInfo* pBloc
   SDataBlockToLoadInfo info = {0};
   getBlockToLoadInfo(&info, pBlockInfo, pBlock, pScanInfo, keyInBuf, pLastBlockReader, pReader);
   bool isCleanFileBlock = !(info.overlapWithNeighborBlock || info.hasDupTs || info.overlapWithKeyInBuf ||
-                            info.overlapWithDelInfo || info.overlapWithLastBlock);
+                            info.overlapWithDelInfo || info.overlapWithLastBlock || info.partiallyRequired);
   return isCleanFileBlock;
 }
 
@@ -3437,6 +3440,7 @@ static int32_t buildBlockFromBufferSequentially(STsdbReader* pReader) {
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;
       }
+      pBlockScanInfo = pStatus->pTableIter;
     }
     
     initMemDataIterator(*pBlockScanInfo, pReader);
@@ -4392,11 +4396,12 @@ static void freeSchemaFunc(void* param) {
 }
 
 // ====================================== EXPOSED APIs ======================================
-int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
-                       SSDataBlock* pResBlock, STsdbReader** ppReader, const char* idstr, bool countOnly, SHashObj** pIgnoreTables) {
+int32_t tsdbReaderOpen(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
+                       SSDataBlock* pResBlock, void** ppReader, const char* idstr, bool countOnly, SHashObj** pIgnoreTables) {
   STimeWindow window = pCond->twindows;
+  SVnodeCfg* pConf = &(((SVnode*)pVnode)->config);
 
-  int32_t capacity = pVnode->config.tsdbCfg.maxRows;
+  int32_t capacity = pConf->tsdbCfg.maxRows;
   if (pResBlock != NULL) {
     blockDataEnsureCapacity(pResBlock, capacity);
   }
@@ -4427,7 +4432,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     }
 
     // here we only need one more row, so the capacity is set to be ONE.
-    code = tsdbReaderCreate(pVnode, pCond, &pReader->innerReader[0], 1, pResBlock, idstr);
+    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[0], 1, pResBlock, idstr);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
@@ -4441,7 +4446,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     }
     pCond->order = order;
 
-    code = tsdbReaderCreate(pVnode, pCond, &pReader->innerReader[1], 1, pResBlock, idstr);
+    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[1], 1, pResBlock, idstr);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
@@ -4491,7 +4496,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     goto _err;
   }
 
-  pReader->status.pLDataIter = taosMemoryCalloc(pVnode->config.sttTrigger, sizeof(SLDataIter));
+  pReader->status.pLDataIter = taosMemoryCalloc(pConf->sttTrigger, sizeof(SLDataIter));
   if (pReader->status.pLDataIter == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -4510,7 +4515,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
 
 _err:
   tsdbError("failed to create data reader, code:%s %s", tstrerror(code), idstr);
-  tsdbReaderClose(pReader);
+  tsdbReaderClose(*ppReader);
   *ppReader = NULL;  // reset the pointer value.
   return code;
 }
@@ -5377,10 +5382,10 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
   return rows;
 }
 
-int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid) {
+int32_t tsdbGetTableSchema(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid) {
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pVnode->pMeta, 0);
-  int32_t code = metaGetTableEntryByUidCache(&mr, uid);
+  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     metaReaderClear(&mr);
@@ -5393,7 +5398,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   if (mr.me.type == TSDB_CHILD_TABLE) {
     tDecoderClear(&mr.coder);
     *suid = mr.me.ctbEntry.suid;
-    code = metaGetTableEntryByUidCache(&mr, *suid);
+    code = metaReaderGetTableEntryByUidCache(&mr, *suid);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
       metaReaderClear(&mr);
@@ -5409,7 +5414,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   metaReaderClear(&mr);
 
   // get the newest table schema version
-  code = metaGetTbTSchemaEx(pVnode->pMeta, *suid, uid, -1, pSchema);
+  code = metaGetTbTSchemaEx(((SVnode*)pVnode)->pMeta, *suid, uid, -1, pSchema);
   return code;
 }
 
@@ -5542,7 +5547,7 @@ int64_t tsdbGetLastTimestamp(SVnode* pVnode, void* pTableList, int32_t numOfTabl
   int64_t key = INT64_MIN;
 
   for(int32_t i = 0; i < numOfTables; ++i) {
-    int32_t code = tsdbReaderOpen(pVnode, &cond, &pTableKeyInfo[i], 1, pBlock, &pReader, pIdStr, false, NULL);
+    int32_t code = tsdbReaderOpen(pVnode, &cond, &pTableKeyInfo[i], 1, pBlock, (void**)&pReader, pIdStr, false, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
