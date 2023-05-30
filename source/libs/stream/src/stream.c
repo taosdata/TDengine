@@ -315,7 +315,6 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
              pTask->id.idStr, STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE, total,
              size);
       destroyStreamDataBlock((SStreamDataBlock*) pItem);
-      taosFreeQitem(pItem);
       return -1;
     }
 
