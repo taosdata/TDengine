@@ -117,7 +117,7 @@ class TDTestCase:
         self.ts = 1600000000000
         self.childCnt = 5
         self.childRow = 2000000
-        self.batchSize = 2000
+        self.batchSize = 5000
         self.c1_values = []
         
         # total
