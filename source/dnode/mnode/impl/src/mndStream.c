@@ -428,17 +428,22 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
   tEncodeStreamTask(&encoder, pTask);
+
   int32_t size = encoder.pos;
   int32_t tlen = sizeof(SMsgHead) + size;
   tEncoderClear(&encoder);
+
   void *buf = taosMemoryCalloc(1, tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   ((SMsgHead *)buf)->vgId = htonl(pTask->nodeId);
+
   void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   tEncoderInit(&encoder, abuf, size);
+
   tEncodeStreamTask(&encoder, pTask);
   tEncoderClear(&encoder);
 
@@ -448,10 +453,12 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
   action.pCont = buf;
   action.contLen = tlen;
   action.msgType = TDMT_STREAM_TASK_DEPLOY;
+
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(buf);
     return -1;
   }
+
   return 0;
 }
 
@@ -468,6 +475,25 @@ int32_t mndPersistStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStrea
       }
     }
   }
+
+  // persistent stream task for history data
+  if (pStream->conf.fillHistory) {
+    level = taosArrayGetSize(pStream->pHTasksList);
+
+    for (int32_t i = 0; i < level; i++) {
+      SArray *pLevel = taosArrayGetP(pStream->pHTasksList, i);
+
+      int32_t numOfTasks = taosArrayGetSize(pLevel);
+      for (int32_t j = 0; j < numOfTasks; j++) {
+        SStreamTask *pTask = taosArrayGetP(pLevel, j);
+        if (mndPersistTaskDeployReq(pTrans, pTask) < 0) {
+          return -1;
+        }
+      }
+    }
+  }
+
+
   return 0;
 }
 
@@ -475,11 +501,13 @@ int32_t mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
   if (mndPersistStreamTasks(pMnode, pTrans, pStream) < 0) {
     return -1;
   }
+
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     return -1;
   }
+
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   return 0;
 }
@@ -491,6 +519,7 @@ int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
     mndTransDrop(pTrans);
     return -1;
   }
+
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
   return 0;
 }
@@ -733,6 +762,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
+
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);

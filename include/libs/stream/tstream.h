@@ -289,9 +289,10 @@ struct SStreamTask {
   SCheckpointInfo chkInfo;
   STaskExec       exec;
   int8_t          fillHistory;  // fill history
+
   int64_t         ekey;         // end ts key
   int64_t         endVer;       // end version
-
+  SStreamId       historyTaskId;
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
   int32_t nextCheckId;

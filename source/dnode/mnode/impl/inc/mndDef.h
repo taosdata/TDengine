@@ -677,8 +677,8 @@ typedef struct {
   char*          physicalPlan;
   SArray*        tasks;        // SArray<SArray<SStreamTask>>
 
-  SArray*        pBatchTask;   // generate the results for already stored ts data
-  int64_t        batchTaskUid; // stream task for history ts data
+  SArray*        pHTasksList;   // generate the results for already stored ts data
+  int64_t        hTaskUid; // stream task for history ts data
 
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
