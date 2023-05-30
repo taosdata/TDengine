@@ -270,41 +270,11 @@ def build_and_install_mqtt_on_windows(mode):
         print("Build MQTT failed: ", e.strerror)
         sys.exit()
 
-
-def get_connector_version(connector_name):
-    version = ""
-    for i, arg in enumerate(sub_module):
-        if arg == connector_name:
-            if i < len(sub_module) - 1 and not is_connector(sub_module[i + 1]):
-                version = sub_module[i + 1]
-            break
-    now = datetime.now()
-    print("sub_module:", sub_module)
-    current_time = now.strftime("%Y-%m-%d %H:%M:%S")
-
-    branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('ascii')
-    commit = subprocess.check_output(['git', 'rev-list', '-1', branch]).strip().decode('ascii')
-
-    if connector_name == mqtt_connector:
-        if version == "":
-            version = mqtt_default_version
-    if connector_name == opc_connector:
-        if version == "":
-            version = opc_default_version
-
-    print("Current connector_name:", connector_name)
-    print("Current branch:", branch)
-    print("Current commit:", commit)
-    print("Build version:", version)
-    print("Build time:", current_time)
-    return sub_module_build_info(connector_name, version, commit, current_time)
-
-
 def build_and_install_opc(mode):
     if release_info.OS == 'Windows':
         build_and_install_opc_on_windows(mode)
     else:
-        print('buildAndInstallOPC not supported on operating system:', current_os)
+        print('buildAndInstallOPC not supported on operating system:', release_info.OS)
         sys.exit()
 
 
@@ -312,7 +282,7 @@ def build_and_install_mqtt(mode):
     if release_info.OS == 'Windows':
         build_and_install_mqtt_on_windows(mode)
     else:
-        print('buildAndInstallMQTT not supported on operating system:', current_os)
+        print('buildAndInstallMQTT not supported on operating system:', release_info.OS)
         sys.exit()
 
 
