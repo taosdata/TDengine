@@ -108,7 +108,6 @@ if $rows != 6 then
   return -1
 endi
 
-return -1
 sql create topic topic_stable_1 as stable stb where t1 > 0
 sql create topic topic_stable_1 as stable stb where t1 > 0 and t1 < 0
 sql create topic topic_stable_1 as stable stb where 1 > 0
