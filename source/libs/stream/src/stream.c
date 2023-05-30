@@ -322,7 +322,6 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
     int32_t code = taosWriteQitem(pTask->inputQueue->queue, pItem);
     if (code != TSDB_CODE_SUCCESS) {
       destroyStreamDataBlock((SStreamDataBlock*) pItem);
-      taosFreeQitem(pItem);
       return code;
     }
   } else if (type == STREAM_INPUT__CHECKPOINT) {
