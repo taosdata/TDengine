@@ -14,7 +14,9 @@
  */
 
 #include "trbtree.h"
+#include "tsdbDataFileRW.h"
 #include "tsdbDef.h"
+#include "tsdbSttFileRW.h"
 
 #ifndef _TSDB_ITER_H_
 #define _TSDB_ITER_H_
@@ -27,7 +29,25 @@ typedef struct SIterMerger SIterMerger;
 typedef struct STsdbIter   STsdbIter;
 typedef TARRAY2(STsdbIter *) TTsdbIterArray;
 
+typedef enum {
+  TSDB_ITER_TYPE_STT = 1,
+  TSDB_ITER_TYPE_DATA,
+  TSDB_ITER_TYPE_MEMT,
+} EIterType;
+
+typedef struct {
+  EIterType type;
+  union {
+    SSttSegReader   *sttReader;
+    SDataFileReader *dataReader;
+    SMemTable       *memt;
+  };
+} STsdbIterConfig;
+
 // STsdbIter ===============
+int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter);
+int32_t tsdbIterClose(STsdbIter **iter);
+int32_t tsdbIterNext(STsdbIter *iter);
 
 // SIterMerger ===============
 int32_t   tsdbIterMergerInit(const TTsdbIterArray *iterArray, SIterMerger **merger);
