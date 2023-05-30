@@ -473,6 +473,7 @@ int32_t mndSetCreateDbRedoActionsImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
     SVgObj *pVgroup = pVgroups + vg;
 
+    pVgroup->replica = 1;
     SVnodeGid *pVgid = pVgroup->vnodeGid;
     if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid) != 0) {
       return -1;
@@ -490,7 +491,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 
 #ifndef TD_ENTERPRISE
-static int32_t mndSetCreateDbUndoActionsImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups){
+int32_t mndSetCreateDbUndoActionsImpl(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups){
   for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
     SVgObj *pVgroup = pVgroups + vg;
 
