@@ -112,7 +112,7 @@ func (r *reader) connect(ctx context.Context) error {
 	}
 
 	r.state = opcua.Connected
-	logger.Info("## create reader %p and connected to opc ua server", "reader", r)
+	//logger.InfoF("## create reader %p and connected to opc ua server", "reader", r)
 	return nil
 }
 
@@ -483,7 +483,7 @@ func (r *reader) generateOptions(endpoints []*ua.EndpointDescription) (opts []op
 	}
 
 	// Select the most appropriate authentication mode from server capabilities and user input
-	authMode, authOption := r.authOptions(r.connectConfig.AuthMethod, cert, r.connectConfig.Username,
+	authMode, authOption := r.authOptions(strings.ToLower(r.connectConfig.AuthMethod), cert, r.connectConfig.Username,
 		r.connectConfig.Password)
 	opts = append(opts, authOption)
 

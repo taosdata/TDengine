@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -161,13 +162,13 @@ func (c *UaConnectConfig) validateSecurityMode() error {
 	return nil
 }
 
-var authMethods = []string{"Certificate", "Username", "Anonymous"}
+var authMethods = []string{"certificate", "username", "anonymous"}
 
 func (c *UaConnectConfig) validateAuthMethod() error {
-	if !InSlice[string](c.AuthMethod, authMethods) {
+	if !InSlice[string](strings.ToLower(c.AuthMethod), authMethods) {
 		return fmt.Errorf("invalid auth method %q", c.AuthMethod)
 	}
-	if c.AuthMethod == "Username" && (len(c.Username) == 0 || len(c.Password) == 0) {
+	if strings.ToLower(c.AuthMethod) == "username" && (len(c.Username) == 0 || len(c.Password) == 0) {
 		return errors.New("user name and password is required for `Username` auth method")
 	}
 	return nil
