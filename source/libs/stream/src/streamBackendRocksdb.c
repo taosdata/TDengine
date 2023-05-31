@@ -1026,10 +1026,10 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err); \
     if (err != NULL) {                                                                                   \
       taosMemoryFree(err);                                                                               \
-      qDebug("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);             \
+      qError("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);             \
       code = -1;                                                                                         \
     } else {                                                                                             \
-      qDebug("streamState str:%s succ to write to %s, valLen:%d", toString, funcname, vLen);             \
+      qTrace("streamState str:%s succ to write to %s, valLen:%d", toString, funcname, vLen);             \
     }                                                                                                    \
     taosMemoryFree(ttlV);                                                                                \
   } while (0);
@@ -1056,10 +1056,10 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     char*                  val = rocksdb_get_cf(db, opts, pHandle, (const char*)buf, klen, (size_t*)&len, &err);       \
     if (val == NULL) {                                                                                                 \
       if (err == NULL) {                                                                                               \
-        qDebug("streamState str: %s failed to read from %s_%s, err: not exist", toString, pState->pTdbState->idstr,    \
+        qTrace("streamState str: %s failed to read from %s_%s, err: not exist", toString, pState->pTdbState->idstr,    \
                funcname);                                                                                              \
       } else {                                                                                                         \
-        qDebug("streamState str: %s failed to read from %s_%s, err: %s", toString, pState->pTdbState->idstr, funcname, \
+        qError("streamState str: %s failed to read from %s_%s, err: %s", toString, pState->pTdbState->idstr, funcname, \
                err);                                                                                                   \
         taosMemoryFreeClear(err);                                                                                      \
       }                                                                                                                \
@@ -1068,11 +1068,11 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
       char*   p = NULL;                                                                                                \
       int32_t len = ginitDict[i].deValueFunc(val, len, NULL, (char**)pVal);                                            \
       if (len < 0) {                                                                                                   \
-        qDebug("streamState str: %s failed to read from %s_%s, err: already ttl ", toString, pState->pTdbState->idstr, \
+        qError("streamState str: %s failed to read from %s_%s, err: already ttl ", toString, pState->pTdbState->idstr, \
                funcname);                                                                                              \
         code = -1;                                                                                                     \
       } else {                                                                                                         \
-        qDebug("streamState str: %s succ to read from %s_%s, valLen:%d", toString, pState->pTdbState->idstr, funcname, \
+        qTrace("streamState str: %s succ to read from %s_%s, valLen:%d", toString, pState->pTdbState->idstr, funcname, \
                len);                                                                                                   \
       }                                                                                                                \
       taosMemoryFree(val);                                                                                             \
@@ -1107,7 +1107,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
       taosMemoryFree(err);                                                                                          \
       code = -1;                                                                                                    \
     } else {                                                                                                        \
-      qDebug("streamState str: %s succ to del from %s_%s", toString, pState->pTdbState->idstr, funcname);           \
+      qTrace("streamState str: %s succ to del from %s_%s", toString, pState->pTdbState->idstr, funcname);           \
     }                                                                                                               \
   } while (0);
 
