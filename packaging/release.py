@@ -30,8 +30,6 @@ class SubmoduleBuildInfo:
     def __init__(self, name, build_mode):
         self.Name = name
         self.VersionMode = build_mode
-    def to_string(self):
-        return f"{self.Name}: {self.VersionMode}"
 sub_module = []
 
 class ReleaseInfo:
@@ -52,11 +50,6 @@ class ReleaseInfo:
                 value = getattr(self, attr)
                 if not callable(value):
                     print(f"{attr:<20}: {value}")
-    def to_string(self):
-        result = []
-        for attr in self:
-            result.append(f"{attr.OS}: {attr.CpuType}")
-        return result   
 release_info = ReleaseInfo(platform.system())
 
 def get_taosx_version():
