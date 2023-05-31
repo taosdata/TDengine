@@ -16,16 +16,16 @@
 #include "inc/tsdbMerge.h"
 
 typedef struct {
-  STsdb        *tsdb;
-  TFileSetArray fsetArr[1];
-  int32_t       sttTrigger;
-  int32_t       maxRow;
-  int32_t       minRow;
-  int32_t       szPage;
-  int8_t        cmprAlg;
-  int64_t       compactVersion;
-  int64_t       cid;
-  SSkmInfo      skmTb[1];
+  STsdb         *tsdb;
+  TFileSetArray *fsetArr;
+  int32_t        sttTrigger;
+  int32_t        maxRow;
+  int32_t        minRow;
+  int32_t        szPage;
+  int8_t         cmprAlg;
+  int64_t        compactVersion;
+  int64_t        cid;
+  SSkmInfo       skmTb[1];
 
   // context
   struct {
@@ -549,18 +549,16 @@ int32_t tsdbMerge(STsdb *tsdb) {
 
   SMerger merger[1] = {{
       .tsdb = tsdb,
-      .fsetArr = {TARRAY2_INITIALIZER},
       .sttTrigger = tsdb->pVnode->config.sttTrigger,
   }};
 
-  code = tsdbFSCopySnapshot(tsdb->pFS, merger->fsetArr);
+  code = tsdbFSCreateCopySnapshot(tsdb->pFS, &merger->fsetArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbDoMerge(merger);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tsdbFSClearSnapshot(merger->fsetArr);
-  TARRAY2_FREE(merger->fsetArr);
+  tsdbFSDestroyCopySnapshot(&merger->fsetArr);
 
 _exit:
   if (code) {

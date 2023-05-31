@@ -45,16 +45,16 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   tsem_init(&fs[0]->canEdit, 0, 1);
   fs[0]->state = TSDB_FS_STATE_NONE;
   fs[0]->neid = 0;
-  TARRAY2_INIT(&fs[0]->cstate);
-  TARRAY2_INIT(&fs[0]->nstate);
+  TARRAY2_INIT(fs[0]->fSetArr);
+  TARRAY2_INIT(fs[0]->fSetArrTmp);
 
   return 0;
 }
 
 static int32_t destroy_fs(STFileSystem **fs) {
   if (fs[0] == NULL) return 0;
-  TARRAY2_FREE(&fs[0]->cstate);
-  TARRAY2_FREE(&fs[0]->nstate);
+  TARRAY2_FREE(fs[0]->fSetArr);
+  TARRAY2_FREE(fs[0]->fSetArrTmp);
   tsem_destroy(&fs[0]->canEdit);
   taosMemoryFree(fs[0]);
   fs[0] = NULL;
@@ -242,8 +242,8 @@ static bool is_same_file(const STFile *f1, const STFile f2) {
 
 static int32_t apply_commit(STFileSystem *fs) {
   int32_t        code = 0;
-  TFileSetArray *fsetArray1 = &fs->cstate;
-  TFileSetArray *fsetArray2 = &fs->nstate;
+  TFileSetArray *fsetArray1 = fs->fSetArr;
+  TFileSetArray *fsetArray2 = fs->fSetArrTmp;
   int32_t        i1 = 0, i2 = 0;
 
   while (i1 < TARRAY2_SIZE(fsetArray1) || i2 < TARRAY2_SIZE(fsetArray2)) {
@@ -357,7 +357,7 @@ static int32_t tsdbFSScanAndFix(STFileSystem *fs) {
 
   // get max commit id
   const STFileSet *fset;
-  TARRAY2_FOREACH(&fs->cstate, fset) { fs->neid = TMAX(fs->neid, tsdbTFileSetMaxCid(fset)); }
+  TARRAY2_FOREACH(fs->fSetArr, fset) { fs->neid = TMAX(fs->neid, tsdbTFileSetMaxCid(fset)); }
 
   // TODO
   return 0;
@@ -371,8 +371,8 @@ static int32_t update_fs_if_needed(STFileSystem *pFS) {
 static int32_t tsdbFSDupState(STFileSystem *fs) {
   int32_t code;
 
-  const TFileSetArray *src = &fs->cstate;
-  TFileSetArray       *dst = &fs->nstate;
+  const TFileSetArray *src = fs->fSetArr;
+  TFileSetArray       *dst = fs->fSetArrTmp;
 
   TARRAY2_CLEAR(dst, tsdbTFileSetClear);
 
@@ -405,7 +405,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   current_fname(pTsdb, mCurrent, TSDB_FCURRENT_M);
 
   if (taosCheckExistFile(fCurrent)) {  // current.json exists
-    code = load_fs(pTsdb, fCurrent, &fs->cstate);
+    code = load_fs(pTsdb, fCurrent, fs->fSetArr);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (taosCheckExistFile(cCurrent)) {
@@ -416,7 +416,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
         code = abort_edit(fs);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        code = load_fs(pTsdb, cCurrent, &fs->nstate);
+        code = load_fs(pTsdb, cCurrent, fs->fSetArrTmp);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         code = commit_edit(fs);
@@ -435,7 +435,7 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
     code = tsdbFSScanAndFix(fs);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    code = save_fs(&fs->cstate, fCurrent);
+    code = save_fs(fs->fSetArr, fCurrent);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -449,8 +449,8 @@ _exit:
 }
 
 static int32_t close_file_system(STFileSystem *fs) {
-  TARRAY2_CLEAR(&fs->cstate, tsdbTFileSetClear);
-  TARRAY2_CLEAR(&fs->nstate, tsdbTFileSetClear);
+  TARRAY2_CLEAR(fs->fSetArr, tsdbTFileSetClear);
+  TARRAY2_CLEAR(fs->fSetArrTmp, tsdbTFileSetClear);
   // TODO
   return 0;
 }
@@ -473,7 +473,7 @@ static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSe
 static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
   int32_t        code = 0;
   int32_t        lino = 0;
-  TFileSetArray *fsetArray = &fs->nstate;
+  TFileSetArray *fsetArray = fs->fSetArrTmp;
 
   STFileSet      *fset = NULL;
   const STFileOp *op;
@@ -568,7 +568,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // save fs
-  code = save_fs(&fs->nstate, current_t);
+  code = save_fs(fs->fSetArrTmp, current_t);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -596,34 +596,42 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset) {
   STFileSet  tfset = {.fid = fid};
   STFileSet *pset = &tfset;
-  fset[0] = TARRAY2_SEARCH_EX(&fs->cstate, &pset, tsdbTFileSetCmprFn, TD_EQ);
+  fset[0] = TARRAY2_SEARCH_EX(fs->fSetArr, &pset, tsdbTFileSetCmprFn, TD_EQ);
   return 0;
 }
 
-int32_t tsdbFSCopySnapshot(STFileSystem *fs, TFileSetArray *fsetArr) {
+int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
   int32_t    code = 0;
   STFileSet *fset;
   STFileSet *fset1;
 
-  ASSERT(TARRAY2_SIZE(fsetArr) == 0);
+  fsetArr[0] = taosMemoryMalloc(sizeof(TFileSetArray));
+  if (fsetArr == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  TARRAY2_INIT(fsetArr[0]);
 
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
-  TARRAY2_FOREACH(&fs->cstate, fset) {
+  TARRAY2_FOREACH(fs->fSetArr, fset) {
     code = tsdbTFileSetInitEx(fs->tsdb, fset, &fset1);
     if (code) break;
 
-    code = TARRAY2_APPEND(fsetArr, fset1);
+    code = TARRAY2_APPEND(fsetArr[0], fset1);
     if (code) break;
   }
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
 
   if (code) {
-    TARRAY2_CLEAR(fsetArr, tsdbTFileSetClear);
+    TARRAY2_CLEAR_FREE(fsetArr[0], tsdbTFileSetClear);
+    taosMemoryFree(fsetArr[0]);
+    fsetArr[0] = NULL;
   }
   return code;
 }
 
-int32_t tsdbFSClearSnapshot(TFileSetArray *fsetArr) {
-  TARRAY2_CLEAR(fsetArr, tsdbTFileSetClear);
+int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr) {
+  if (fsetArr[0]) {
+    TARRAY2_CLEAR_FREE(fsetArr[0], tsdbTFileSetClear);
+    fsetArr[0] = NULL;
+  }
   return 0;
 }

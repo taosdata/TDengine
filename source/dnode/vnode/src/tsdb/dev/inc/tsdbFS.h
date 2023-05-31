@@ -36,13 +36,13 @@ typedef enum {
 int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback);
 int32_t tsdbCloseFS(STFileSystem **fs);
 // snapshot
-int32_t tsdbFSCopySnapshot(STFileSystem *fs, TFileSetArray *fsetArr);
-int32_t tsdbFSClearSnapshot(TFileSetArray *fsetArr);
+int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
+int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr);
 // txn
-int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid);
+int32_t tsdbFSAllocEid(STFileSystem *fs, int64_t *eid);
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
-int32_t tsdbFSEditCommit(STFileSystem *pFS);
-int32_t tsdbFSEditAbort(STFileSystem *pFS);
+int32_t tsdbFSEditCommit(STFileSystem *fs);
+int32_t tsdbFSEditAbort(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 
@@ -53,8 +53,8 @@ struct STFileSystem {
   int32_t       state;
   int64_t       neid;
   EFEditT       etype;
-  TFileSetArray cstate;
-  TFileSetArray nstate;
+  TFileSetArray fSetArr[1];
+  TFileSetArray fSetArrTmp[1];
 };
 
 #ifdef __cplusplus
