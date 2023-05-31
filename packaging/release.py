@@ -344,14 +344,14 @@ def build_and_install_taosx_agent(mode):
 
 def build_and_install_influxdb(mode):
     print("build_and_install_influxdb on windows start...")
-    influxdb_connector_path = os.path.join(taosx_dir, "taosx-influxdb")
+    influxdb_connector_path = os.path.join(taosx_dir,  "plugins", "influxdb")
     os.chdir(influxdb_connector_path)
     build = "mvn clean package"
     print(build)
     os.system(build)
     influxdb_install_path = os.path.join(release_info.InstallPath, "plugins", "influxdb")
     init_directory(influxdb_install_path)
-    influxdb_path = os.path.join(influxdb_connector_path, "target", "taosx-influxdb-1.0.0.jar")
+    influxdb_path = os.path.join(influxdb_connector_path, "target", "taosx-influxdb.jar")
     try:
         shutil.copy2(influxdb_path, influxdb_install_path)
     except FileNotFoundError as e:
