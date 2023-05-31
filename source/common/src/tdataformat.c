@@ -2503,7 +2503,7 @@ _exit:
   return code;
 }
 
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen) {
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
@@ -2515,6 +2515,9 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
       if (pBind->is_null && pBind->is_null[i]) {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
+      } else if (pBind->length[i] > buffMaxLen) {
+        uError("var data length too big, len:%d, max:%d", pBind->length[i], buffMaxLen);
+        return TSDB_CODE_INVALID_PARA;
       } else {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
             pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
