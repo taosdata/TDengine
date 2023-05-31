@@ -5,8 +5,9 @@ go 1.20
 require (
 	github.com/BurntSushi/toml v1.2.1
 	github.com/apache/arrow/go/v12 v12.0.0-20230426023424-8fbf2d732789
-	github.com/gopcua/opcua v0.3.13
+	github.com/gopcua/opcua v0.3.15
 	github.com/konimarti/opc v0.3.1
+	github.com/sunpe/gobox v0.0.0-20230529082514-972c4d79c54f
 )
 
 require (
@@ -29,9 +30,10 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.15.1 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
-	github.com/prometheus/common v0.43.0 // indirect
-	github.com/prometheus/procfs v0.9.0 // indirect
+	github.com/prometheus/common v0.44.0 // indirect
+	github.com/prometheus/procfs v0.10.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
+	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/tools v0.9.1 // indirect

@@ -4,13 +4,13 @@ import (
 	"collector/common"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"time"
 
 	"github.com/apache/arrow/go/v12/arrow"
 	"github.com/apache/arrow/go/v12/arrow/ipc"
 	"github.com/apache/arrow/go/v12/arrow/memory"
+	"github.com/sunpe/gobox/logger"
 )
 
 type writer interface {
@@ -56,9 +56,7 @@ var _ writer = (*ArrowWriter)(nil)
 // and write to arrow ipc writer
 // when batch size or batch timeout reached
 func (w *ArrowWriter) write(ctx context.Context) (err error) {
-	if w.debug {
-		log.Printf("## start write arrow writer %p", w)
-	}
+	logger.DebugF("## start write arrow writer %p", w)
 
 	ticker := time.NewTicker(w.batchTimeout)
 	defer ticker.Stop()
@@ -77,9 +75,7 @@ func (w *ArrowWriter) write(ctx context.Context) (err error) {
 			return
 		case value, ok := <-w.ch:
 			if !ok {
-				if w.debug {
-					log.Printf("## value channel closed. exit!")
-				}
+				logger.Debug("## value channel closed. exit!")
 				return
 			}
 			values = append(values, value)
@@ -87,13 +83,13 @@ func (w *ArrowWriter) write(ctx context.Context) (err error) {
 				continue
 			}
 			if err = w.doWrite(ctx, values); err != nil {
-				log.Printf("## write record error %v", err)
+				logger.ErrorF("## write record error %v", err)
 				return
 			}
 			values = make([]*common.NodeValue, 0, w.batchSize)
 		case <-ticker.C:
 			if err = w.doWrite(ctx, values); err != nil {
-				log.Printf("## write record error %v", err)
+				logger.ErrorF("## write record error %v", err)
 				return
 			}
 			values = make([]*common.NodeValue, 0, w.batchSize)
@@ -104,10 +100,8 @@ func (w *ArrowWriter) write(ctx context.Context) (err error) {
 func (w *ArrowWriter) close(_ context.Context) error {
 	close(w.done)
 	<-w.closeWriter
-	if w.debug {
-		log.Printf("## close arrow writer %p", w)
-		log.Printf("## close ipc writer instance %p", w)
-	}
+	logger.DebugF("## close arrow writer %p", w)
+	logger.DebugF("## close ipc writer instance %p", w)
 	return w.ipcWriter.Close()
 }
 
@@ -117,12 +111,12 @@ func (w *ArrowWriter) doWrite(ctx context.Context, values []*common.NodeValue) e
 	}
 	record, err := w.pack(ctx, values)
 	if err != nil {
-		log.Printf("## pack record error %v", err)
+		logger.ErrorF("## pack record error %v", "error", err)
 		return err
 	}
 
-	if err := w.writeRecord(ctx, record); err != nil {
-		log.Printf("## write record error %v", err)
+	if err = w.writeRecord(ctx, record); err != nil {
+		logger.ErrorF("## write record error %v", "error", err)
 		return err
 	}
 	return nil
@@ -135,7 +129,7 @@ func (w *ArrowWriter) pack(_ context.Context, values []*common.NodeValue) (recor
 func (w *ArrowWriter) writeRecord(_ context.Context, record arrow.Record) (err error) {
 	if w.debug {
 		j, _ := record.MarshalJSON()
-		log.Printf("## report to taosx by writer [%p] values [%s]", w, string(j))
+		logger.DebugF("## report to taosx by writer [%p] values [%s]", w, string(j))
 	}
 	return w.ipcWriter.Write(record)
 }
