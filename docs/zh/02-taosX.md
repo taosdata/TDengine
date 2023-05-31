@@ -41,6 +41,23 @@ sudo rmtaox
 
 ```
 
+#### FAQ: 
+1. 安装后都会有哪些文件被复制到了哪个安装目录？
+    * 复制 bin/taosx 、bin/taosx-agent 到 /usr/local/taosX/bin
+    * 复制 plugins/influxdb、plugins/mqtt、plugins/opc 等到 /usr/local/taosX/plugins
+    * 复制 scripts/taosx.service、script/taosx-agent.service 到 /usr/local/taosX/script
+    * 复制 install.sh、rmtaosX.sh 到 /usr/local/taosX 
+    * 复制 config/agent.example.toml 到 /usr/local/taosX/config 和 /etc/taosX
+
+2. taosX -V 提示 "Command not found" 应该如何解决？
+    * 检验问题1，保证所有的文件都被复制到对应的目录
+    * 创建软连接
+    ``` bash
+    ln -s /usr/local/taosX/bin/taosx /usr/bin/taosx
+    ln -s /usr/local/taosX/bin/taosx-agent /usr/bin/taosx-agent
+    ln -s /usr/local/taosX/rmtaosX.sh /usr/bin/rmtaosx
+    ```
+
 ### Windows 安装
 
 @xinsheng，请在此补充详细的 Linux 安装过程
