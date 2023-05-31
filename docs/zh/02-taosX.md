@@ -23,8 +23,37 @@ description:  "为了能够方便地将各种数据源中的数据导入 TDengin
 
 ### Windows 安装
 
-@xinsheng，请在此补充详细的 Linux 安装过程
-
+- 下载需要的 taosX 安装包，例如taosx-{version}-windows-installer.exe，执行安装
+- 可使用uninstall_taosx.exe进行卸载
+- 使用taosx-srv.exe和taosx-agent.exe可以以服务模式启动taosx和taos-agent
+- 其他connector，安装在plugins下，会由agent调用
+- windows默认安装在```C:\Program Files\taosX```,目录结构如下：
+~~~
+├── bin
+│   ├── taosx.exe
+│   ├── taosx-srv.exe
+│   ├── taosx-srv.xml
+│   ├── taosx-agent.exe
+│   ├── taosx-agent-srv.exe
+│   ├── taosx-agent-srv.xml
+├── plugins
+│   ├── influxdb
+│   │   └── taosx-inflxdb.jar
+│   ├── mqtt
+│   │   └── taosx-mqtt.exe
+│   └── opc
+│       └── taosx-opc.exe
+│   ├── influxdb
+│   │   └── taosx-inflxdb.exe
+│   └── pi
+│       └── TDBackfill.exe
+│       └── TDPIConnector.Service.exe
+│       └── ...
+└── config
+│   ├── agent.example.toml
+├── uninstall_taosx.exe
+├── uninstall_taosx.dat
+~~~
 
 ## 运行模式
 
