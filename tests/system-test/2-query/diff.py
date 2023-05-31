@@ -192,6 +192,9 @@ class TDTestCase:
         tdSql.error(f"select diff(col1,1.23) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col1,-1) from  {dbname}.stb_1")
         tdSql.query(f"select ts,diff(col1),ts from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1, 1),diff(col2) from {dbname}.stb_1")
+        tdSql.error(f"select diff(col1, 1),diff(col2, 0) from {dbname}.stb_1")
+        tdSql.error(f"select diff(col1, 1),diff(col2, 1) from {dbname}.stb_1")
 
         tdSql.query(f"select diff(ts) from  {dbname}.stb_1")
         tdSql.checkRows(10)
