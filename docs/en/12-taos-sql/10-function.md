@@ -867,10 +867,16 @@ FIRST(expr)
 ### INTERP
 
 ```sql
-INTERP(expr)
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
 ```
 
-**Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned.
+**Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned. The value of `ignore_null_values` can be 0 or 1, 1 means null values are ignored. The default value of this parameter is 0.
+
 
 **Return value type**: Same as the column being operated upon
 
@@ -1002,8 +1008,7 @@ SAMPLE(expr, k)
 
 **More explanations**:
 
-This function cannot be used in expression calculation.
-- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
+- This function cannot be used in expression calculation.
 
 
 ### TAIL
@@ -1082,7 +1087,6 @@ CSUM(expr)
 
 - Arithmetic operation can't be performed on the result of `csum` function
 - Can only be used with aggregate functions This function can be used with supertables and standard tables.
-- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
 
 
 ### DERIVATIVE
@@ -1106,7 +1110,6 @@ ignore_negative: {
 
 **More explanation**:
 
-- It can be used together with `PARTITION BY tbname` against a STable.
 - It can be used together with a selected column. For example: select \_rowts, DERIVATIVE() from.
 
 ### DIFF
@@ -1169,7 +1172,6 @@ MAVG(expr, k)
 
 - Arithmetic operation can't be performed on the result of `MAVG`.
 - Can only be used with data columns, can't be used with tags. - Can't be used with aggregate functions.
-- Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
 
 
 ### STATECOUNT
@@ -1195,7 +1197,6 @@ STATECOUNT(expr, oper, val)
 
 **More explanations**:
 
-- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline]
 - Can't be used with window operation, like interval/state_window/session_window
 
 
@@ -1223,7 +1224,6 @@ STATEDURATION(expr, oper, val, unit)
 
 **More explanations**:
 
-- Must be used together with `PARTITION BY tbname` when it's used on a STable to force the result into each single timeline]
 - Can't be used with window operation, like interval/state_window/session_window
 
 
@@ -1241,7 +1241,6 @@ TWA(expr)
 
 **Applicable table types**: standard tables and supertables
 
-- Must be used together with `PARTITION BY tbname` to force the result into each single timeline.
 
 
 ## System Information Functions

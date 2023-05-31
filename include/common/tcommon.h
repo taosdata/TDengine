@@ -37,6 +37,13 @@ extern "C" {
 )
 // clang-format on
 
+typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
+
+typedef struct STableKeyInfo {
+  uint64_t uid;
+  uint64_t groupId;
+} STableKeyInfo;
+
 typedef struct SWinKey {
   uint64_t groupId;
   TSKEY    ts;

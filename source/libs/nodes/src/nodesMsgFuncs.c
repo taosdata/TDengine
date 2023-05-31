@@ -825,6 +825,7 @@ static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, varDataTLen(pNode->datum.p));
       break;
     case TSDB_DATA_TYPE_JSON:
@@ -923,7 +924,8 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY: {
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       if (pTlv->len > pNode->node.resType.bytes + VARSTR_HEADER_SIZE) {
         code = TSDB_CODE_FAILED;
         break;

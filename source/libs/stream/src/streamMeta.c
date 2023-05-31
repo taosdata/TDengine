@@ -268,12 +268,14 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
+
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
 
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
-
     int32_t num = taosArrayGetSize(pMeta->pTaskList);
+
+    qDebug("s-task:%s set the drop task flag, remain running s-task:%d", pTask->id.idStr, num - 1);
     for (int32_t i = 0; i < num; ++i) {
       int32_t* pTaskId = taosArrayGet(pMeta->pTaskList, i);
       if (*pTaskId == taskId) {
@@ -283,6 +285,8 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
     }
 
     streamMetaReleaseTask(pMeta, pTask);
+  } else {
+    qDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", pMeta->vgId, taskId);
   }
 
   taosWUnLockLatch(&pMeta->lock);
@@ -296,6 +300,7 @@ int32_t streamMetaBegin(SStreamMeta* pMeta) {
   return 0;
 }
 
+// todo add error log
 int32_t streamMetaCommit(SStreamMeta* pMeta) {
   if (tdbCommit(pMeta->db, pMeta->txn) < 0) {
     qError("failed to commit stream meta");
@@ -311,6 +316,7 @@ int32_t streamMetaCommit(SStreamMeta* pMeta) {
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
+
   return 0;
 }
 
@@ -373,7 +379,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     }
 
     if (pTask->fillHistory) {
-      pTask->status.taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
+      ASSERT(pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM);
       streamTaskCheckDownstream(pTask, ver);
     }
   }

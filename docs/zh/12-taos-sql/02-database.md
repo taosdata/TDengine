@@ -121,6 +121,8 @@ alter_database_option: {
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
   | KEEP value
+  | WAL_RETENTION_PERIOD value
+  | WAL_RETENTION_SIZE value
 }
 ```
 

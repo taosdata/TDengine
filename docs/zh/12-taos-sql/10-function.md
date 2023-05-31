@@ -869,10 +869,15 @@ FIRST(expr)
 ### INTERP
 
 ```sql
-INTERP(expr)
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
 ```
 
-**功能说明**：返回指定时间截面指定列的记录值或插值。
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值, 缺省值为0。
 
 **返回数据类型**：同字段类型。
 
@@ -996,7 +1001,6 @@ SAMPLE(expr, k)
 **使用说明**：
 
 - 不能参与表达式计算；该函数可以应用在普通表和超级表上；
-- 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
 
 
 ### TAIL
@@ -1075,7 +1079,6 @@ CSUM(expr)
 
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
 - 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。
-- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### DERIVATIVE
@@ -1099,7 +1102,6 @@ ignore_negative: {
 
 **使用说明**:
 
-- DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 - 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
@@ -1162,7 +1164,6 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
-- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### STATECOUNT
@@ -1188,7 +1189,6 @@ STATECOUNT(expr, oper, val)
 
 **使用说明**：
 
-- 该函数可以应用在普通表上，在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 
@@ -1216,7 +1216,6 @@ STATEDURATION(expr, oper, val, unit)
 
 **使用说明**：
 
-- 该函数可以应用在普通表上，在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 
@@ -1233,8 +1232,6 @@ TWA(expr)
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
-
-**使用说明**： TWA 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 
 
 ## 系统信息函数

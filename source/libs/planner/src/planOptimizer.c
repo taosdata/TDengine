@@ -1292,6 +1292,16 @@ static int32_t smaIndexOptFindSmaFunc(SNode* pQueryFunc, SNodeList* pSmaFuncs) {
   return -1;
 }
 
+static SNode* smaIndexOptFindWStartFunc(SNodeList* pSmaFuncs) {
+  SNode* pSmaFunc = NULL;
+  FOREACH(pSmaFunc, pSmaFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pSmaFunc) && FUNCTION_TYPE_WSTART == ((SFunctionNode*)pSmaFunc)->funcType) {
+      return pSmaFunc;
+    }
+  }
+  return NULL;
+}
+
 static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNodeList* pSmaFuncs,
                                         SNodeList** pOutput) {
   SNodeList* pCols = NULL;
@@ -1299,6 +1309,7 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    index = 0;
   int32_t    smaFuncIndex = -1;
+  bool       hasWStart = false;
   FOREACH(pFunc, pFuncs) {
     smaFuncIndex = smaIndexOptFindSmaFunc(pFunc, pSmaFuncs);
     if (smaFuncIndex < 0) {
@@ -1308,11 +1319,35 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
+      if (!hasWStart) {
+        if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pCols->pTail->pNode)->colId) {
+          hasWStart = true;
+        }
+      }
     }
     ++index;
   }
 
   if (TSDB_CODE_SUCCESS == code && smaFuncIndex >= 0) {
+    if (!hasWStart) {
+      SNode* pWsNode = smaIndexOptFindWStartFunc(pSmaFuncs);
+      if (!pWsNode) {
+        nodesDestroyList(pCols);
+        code = TSDB_CODE_APP_ERROR;
+        qError("create sma cols failed since %s(_wstart not exist)", tstrerror(code));
+        return code;
+      }
+      SExprNode exprNode;
+      exprNode.resType = ((SExprNode*)pWsNode)->resType;
+      sprintf(exprNode.aliasName, "#expr_%d", index + 1);
+      SNode* pkNode = smaIndexOptCreateSmaCol((SNode*)&exprNode, tableId, PRIMARYKEY_TIMESTAMP_COL_ID);
+      code = nodesListPushFront(pCols, pkNode);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pkNode);
+        nodesDestroyList(pCols);
+        return code;
+      }
+    }
     *pOutput = pCols;
   } else {
     nodesDestroyList(pCols);
@@ -2195,6 +2230,13 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
     SFunctionNode* pAggFunc = (SFunctionNode*)pFunc;
     if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
+      SNode* pPar = nodesListGetNode(pAggFunc->pParameterList, 0);
+      if (QUERY_NODE_COLUMN == nodeType(pPar)) {
+        SColumnNode* pCol = (SColumnNode*)pPar;
+        if (pCol->colType != COLUMN_TYPE_COLUMN) {
+          return false;      
+        }
+      }
       if (hasSelectFunc || QUERY_NODE_VALUE == nodeType(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         return false;
       }
@@ -2295,6 +2337,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
     lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, true);
+    nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, false);
     nodesClearList(cxt.pLastCols);
   }

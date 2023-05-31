@@ -351,6 +351,7 @@ typedef struct {
   rocksdb_writeoptions_t              *writeoptions;
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
+  rocksdb_writebatch_t                *rwritebatch;
   TdThreadMutex                        rMutex;
   STSchema                            *pTSchema;
 } SRocksCache;
@@ -845,9 +846,6 @@ int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
-
-void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
-size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
 // int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 

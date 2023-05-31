@@ -78,11 +78,11 @@ enum {
   TASK_TRIGGER_STATUS__ACTIVE,
 };
 
-enum {
+typedef enum {
   TASK_LEVEL__SOURCE = 1,
   TASK_LEVEL__AGG,
   TASK_LEVEL__SINK,
-};
+} ETASK_LEVEL;
 
 enum {
   TASK_OUTPUT__FIXED_DISPATCH = 1,
@@ -284,13 +284,13 @@ struct SStreamTask {
   int16_t         dispatchMsgType;
   SStreamStatus   status;
   int32_t         selfChildId;
-  int32_t         nodeId;
+  int32_t         nodeId;      // vgroup id
   SEpSet          epSet;
   SCheckpointInfo chkInfo;
   STaskExec       exec;
-
-  // fill history
-  int8_t fillHistory;
+  int8_t          fillHistory;  // fill history
+  int64_t         ekey;         // end ts key
+  int64_t         endVer;       // end version
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
@@ -351,7 +351,7 @@ typedef struct SStreamMeta {
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
 
-SStreamTask* tNewStreamTask(int64_t streamId);
+SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory, int64_t triggerParam, SArray* pTaskList);
 int32_t      tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeStreamTask(SStreamTask* pTask);
@@ -372,6 +372,7 @@ typedef struct {
   int32_t upstreamChildId;
   int32_t upstreamNodeId;
   int32_t blockNum;
+  int64_t totalLen;
   SArray* dataLen;  // SArray<int32_t>
   SArray* data;     // SArray<SRetrieveTableRsp*>
 } SStreamDispatchReq;
@@ -527,7 +528,7 @@ void tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 int32_t streamSetupTrigger(SStreamTask* pTask);
 
 int32_t streamProcessRunReq(SStreamTask* pTask);
-int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
+int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
@@ -536,7 +537,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
 void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
-int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock);
+int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
 bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 
