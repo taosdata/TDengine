@@ -75,6 +75,9 @@ static FORCE_INLINE int32_t tarray2_make_room(  //
 
 #define TARRAY2_INIT(a) TARRAY2_INIT_EX(a, 0, 0, NULL)
 
+#define TARRAY2_INITIALIZER \
+  { 0, 0, NULL }
+
 #define TARRAY2_FREE(a)          \
   do {                           \
     if ((a)->data) {             \

@@ -31,6 +31,7 @@ typedef TARRAY2(STbStatisBlk) TStatisBlkArray;
 typedef struct SSttFileReader       SSttFileReader;
 typedef struct SSttFileReaderConfig SSttFileReaderConfig;
 typedef struct SSttSegReader        SSttSegReader;
+typedef TARRAY2(SSttFileReader *) TSttFileReaderArray;
 typedef TARRAY2(SSttSegReader *) TSttSegReaderArray;
 
 // SSttFileReader

@@ -128,8 +128,8 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
     return tsdbCommitOpenNewSttWriter(committer);
   }
 
-  ASSERT(TARRAY2_SIZE(&lvl0->farr) > 0);
-  STFileObj *fobj = TARRAY2_LAST(&lvl0->farr);
+  ASSERT(TARRAY2_SIZE(lvl0->fobjArr) > 0);
+  STFileObj *fobj = TARRAY2_LAST(lvl0->fobjArr);
   if (fobj->f->stt->nseg >= committer->sttTrigger) {
     return tsdbCommitOpenNewSttWriter(committer);
   } else {

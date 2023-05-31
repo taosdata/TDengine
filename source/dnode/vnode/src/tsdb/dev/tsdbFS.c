@@ -41,7 +41,7 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   fs[0] = taosMemoryCalloc(1, sizeof(*fs[0]));
   if (fs[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  fs[0]->pTsdb = pTsdb;
+  fs[0]->tsdb = pTsdb;
   tsem_init(&fs[0]->canEdit, 0, 1);
   fs[0]->state = TSDB_FS_STATE_NONE;
   fs[0]->neid = 0;
@@ -256,7 +256,7 @@ static int32_t apply_commit(STFileSystem *fs) {
         TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetRemove);
       } else if (fset1->fid > fset2->fid) {
         // create new file set with fid of fset2->fid
-        code = tsdbTFileSetInitEx(fs->pTsdb, fset2, &fset1);
+        code = tsdbTFileSetInitEx(fs->tsdb, fset2, &fset1);
         if (code) return code;
         code = TARRAY2_SORT_INSERT(fsetArray1, fset1, tsdbTFileSetCmprFn);
         if (code) return code;
@@ -264,7 +264,7 @@ static int32_t apply_commit(STFileSystem *fs) {
         i2++;
       } else {
         // edit
-        code = tsdbTFileSetApplyEdit(fs->pTsdb, fset2, fset1);
+        code = tsdbTFileSetApplyEdit(fs->tsdb, fset2, fset1);
         if (code) return code;
         i1++;
         i2++;
@@ -274,7 +274,7 @@ static int32_t apply_commit(STFileSystem *fs) {
       TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetRemove);
     } else {
       // create new file set with fid of fset2->fid
-      code = tsdbTFileSetInitEx(fs->pTsdb, fset2, &fset1);
+      code = tsdbTFileSetInitEx(fs->tsdb, fset2, &fset1);
       if (code) return code;
       code = TARRAY2_SORT_INSERT(fsetArray1, fset1, tsdbTFileSetCmprFn);
       if (code) return code;
@@ -290,11 +290,11 @@ static int32_t commit_edit(STFileSystem *fs) {
   char current[TSDB_FILENAME_LEN];
   char current_t[TSDB_FILENAME_LEN];
 
-  current_fname(fs->pTsdb, current, TSDB_FCURRENT);
+  current_fname(fs->tsdb, current, TSDB_FCURRENT);
   if (fs->etype == TSDB_FEDIT_COMMIT) {
-    current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_C);
+    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);
   } else if (fs->etype == TSDB_FEDIT_MERGE) {
-    current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_M);
+    current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
   } else {
     ASSERT(0);
   }
@@ -310,9 +310,9 @@ static int32_t commit_edit(STFileSystem *fs) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(fs->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(fs->tsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d %s success, etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, fs->etype);
+    tsdbInfo("vgId:%d %s success, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
   }
   return code;
 }
@@ -327,9 +327,9 @@ static int32_t abort_edit(STFileSystem *fs) {
   char fname[TSDB_FILENAME_LEN];
 
   if (fs->etype == TSDB_FEDIT_COMMIT) {
-    current_fname(fs->pTsdb, fname, TSDB_FCURRENT_C);
+    current_fname(fs->tsdb, fname, TSDB_FCURRENT_C);
   } else if (fs->etype == TSDB_FEDIT_MERGE) {
-    current_fname(fs->pTsdb, fname, TSDB_FCURRENT_M);
+    current_fname(fs->tsdb, fname, TSDB_FCURRENT_M);
   } else {
     ASSERT(0);
   }
@@ -345,9 +345,9 @@ static int32_t abort_edit(STFileSystem *fs) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed since %s", TD_VID(fs->pTsdb->pVnode), __func__, tstrerror(code));
+    tsdbError("vgId:%d %s failed since %s", TD_VID(fs->tsdb->pVnode), __func__, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d %s success, etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, fs->etype);
+    tsdbInfo("vgId:%d %s success, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, fs->etype);
   }
   return code;
 }
@@ -379,7 +379,7 @@ static int32_t tsdbFSDupState(STFileSystem *fs) {
   const STFileSet *fset1;
   TARRAY2_FOREACH(src, fset1) {
     STFileSet *fset2;
-    code = tsdbTFileSetInitEx(fs->pTsdb, fset1, &fset2);
+    code = tsdbTFileSetInitEx(fs->tsdb, fset1, &fset2);
     if (code) return code;
     code = TARRAY2_APPEND(dst, fset2);
     if (code) return code;
@@ -391,7 +391,7 @@ static int32_t tsdbFSDupState(STFileSystem *fs) {
 static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   int32_t code = 0;
   int32_t lino = 0;
-  STsdb  *pTsdb = fs->pTsdb;
+  STsdb  *pTsdb = fs->tsdb;
 
   code = update_fs_if_needed(fs);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -492,7 +492,7 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
       }
     }
 
-    code = tsdbTFileSetEdit(fs->pTsdb, fset, op);
+    code = tsdbTFileSetEdit(fs->tsdb, fset, op);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -550,10 +550,10 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
 
   switch (etype) {
     case TSDB_FEDIT_COMMIT:
-      current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_C);
+      current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);
       break;
     case TSDB_FEDIT_MERGE:
-      current_fname(fs->pTsdb, current_t, TSDB_FCURRENT_M);
+      current_fname(fs->tsdb, current_t, TSDB_FCURRENT_M);
       break;
     default:
       ASSERT(0);
@@ -573,10 +573,10 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, lino,
+    tsdbError("vgId:%d %s failed at line %d since %s, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, lino,
               tstrerror(code), etype);
   } else {
-    tsdbInfo("vgId:%d %s done, etype:%d", TD_VID(fs->pTsdb->pVnode), __func__, etype);
+    tsdbInfo("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, etype);
   }
   return code;
 }
@@ -597,5 +597,33 @@ int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset) {
   STFileSet  tfset = {.fid = fid};
   STFileSet *pset = &tfset;
   fset[0] = TARRAY2_SEARCH_EX(&fs->cstate, &pset, tsdbTFileSetCmprFn, TD_EQ);
+  return 0;
+}
+
+int32_t tsdbFSCopySnapshot(STFileSystem *fs, TFileSetArray *fsetArr) {
+  int32_t    code = 0;
+  STFileSet *fset;
+  STFileSet *fset1;
+
+  ASSERT(TARRAY2_SIZE(fsetArr) == 0);
+
+  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  TARRAY2_FOREACH(&fs->cstate, fset) {
+    code = tsdbTFileSetInitEx(fs->tsdb, fset, &fset1);
+    if (code) break;
+
+    code = TARRAY2_APPEND(fsetArr, fset1);
+    if (code) break;
+  }
+  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+
+  if (code) {
+    TARRAY2_CLEAR(fsetArr, tsdbTFileSetClear);
+  }
+  return code;
+}
+
+int32_t tsdbFSClearSnapshot(TFileSetArray *fsetArr) {
+  TARRAY2_CLEAR(fsetArr, tsdbTFileSetClear);
   return 0;
 }

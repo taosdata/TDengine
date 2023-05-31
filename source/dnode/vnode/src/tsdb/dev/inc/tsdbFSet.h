@@ -65,13 +65,13 @@ struct STFileOp {
 
 struct SSttLvl {
   int32_t       level;
-  TFileObjArray farr;
+  TFileObjArray fobjArr[1];
 };
 
 struct STFileSet {
   int32_t      fid;
   STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
-  TSttLvlArray lvlArr;                // level array
+  TSttLvlArray lvlArr[1];             // level array
 };
 
 #ifdef __cplusplus

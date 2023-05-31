@@ -35,6 +35,9 @@ typedef enum {
 // open/close
 int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback);
 int32_t tsdbCloseFS(STFileSystem **fs);
+// snapshot
+int32_t tsdbFSCopySnapshot(STFileSystem *fs, TFileSetArray *fsetArr);
+int32_t tsdbFSClearSnapshot(TFileSetArray *fsetArr);
 // txn
 int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid);
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
@@ -45,7 +48,7 @@ int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 
 /* Exposed Structs */
 struct STFileSystem {
-  STsdb        *pTsdb;
+  STsdb        *tsdb;
   tsem_t        canEdit;
   int32_t       state;
   int64_t       neid;
