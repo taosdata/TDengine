@@ -1797,9 +1797,10 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
 
 static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
-  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  const char*    id = GET_TASKID(pTaskInfo);
 
+  SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
   SStreamScanInfo* pInfo = pOperator->info;
 
   qDebug("stream scan started, %s", GET_TASKID(pTaskInfo));
@@ -1922,7 +1923,9 @@ FETCH_NEXT_BLOCK:
       return NULL;
     }
 
-    int32_t      current = pInfo->validBlockIndex++;
+    int32_t  current = pInfo->validBlockIndex++;
+    qDebug("process %d/%d input data blocks, %s", current, (int32_t) total, id);
+
     SPackedData* pPacked = taosArrayGet(pInfo->pBlockLists, current);
     SSDataBlock* pBlock = pPacked->pDataBlock;
     if (pBlock->info.parTbName[0]) {
@@ -2057,7 +2060,6 @@ FETCH_NEXT_BLOCK:
       return pInfo->pUpdateRes;
     }
 
-    const char*     id = GET_TASKID(pTaskInfo);
     SSDataBlock*    pBlock = pInfo->pRes;
     SDataBlockInfo* pBlockInfo = &pBlock->info;
     int32_t         totalBlocks = taosArrayGetSize(pInfo->pBlockLists);

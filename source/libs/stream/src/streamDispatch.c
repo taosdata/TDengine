@@ -510,14 +510,17 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   int8_t old =
       atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
   if (old != TASK_OUTPUT_STATUS__NORMAL) {
-    qDebug("s-task:%s task wait for dispatch rsp, not dispatch now", pTask->id.idStr);
+    qDebug("s-task:%s task wait for dispatch rsp, not dispatch now, output status:%d", pTask->id.idStr, old);
     return 0;
   }
 
+  qDebug("s-task:%s start to dispatch msg, output status:%d", pTask->id.idStr, pTask->outputStatus);
+
   SStreamDataBlock* pDispatchedBlock = streamQueueNextItem(pTask->outputQueue);
   if (pDispatchedBlock == NULL) {
-    qDebug("s-task:%s stop dispatching since no output in output queue", pTask->id.idStr);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
+    qDebug("s-task:%s stop dispatching since no output in output queue, output status:%d", pTask->id.idStr,
+           pTask->outputStatus);
     return 0;
   }
 
@@ -527,6 +530,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   if (code != TSDB_CODE_SUCCESS) {
     streamQueueProcessFail(pTask->outputQueue);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
+    qDebug("s-task:%s failed to dispatch msg to downstream, output status:%d", pTask->id.idStr, pTask->outputStatus);
   }
 
   // this block can be freed only when it has been pushed to down stream.

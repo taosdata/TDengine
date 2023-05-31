@@ -16,9 +16,9 @@
 #include "streamInc.h"
 
 // maximum allowed processed block batches. One block may include several submit blocks
-#define MAX_STREAM_EXEC_BATCH_NUM 128
-#define MIN_STREAM_EXEC_BATCH_NUM 16
-#define MAX_STREAM_RESULT_DUMP_THRESHOLD  1000
+#define MAX_STREAM_EXEC_BATCH_NUM 32
+#define MIN_STREAM_EXEC_BATCH_NUM 8
+#define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
 
 static int32_t updateCheckPointInfo (SStreamTask* pTask);
 
@@ -385,7 +385,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     if (pTask->taskLevel == TASK_LEVEL__SINK) {
       ASSERT(pInput->type == STREAM_INPUT__DATA_BLOCK);
-      qDebug("s-task:%s sink node start to sink result. numOfBlocks:%d", pTask->id.idStr, batchSize);
+      qDebug("s-task:%s sink task start to sink %d blocks", pTask->id.idStr, batchSize);
       streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pInput);
       continue;
     }
