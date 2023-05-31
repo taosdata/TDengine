@@ -1281,6 +1281,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   } else {
     tqDebug("vgId:%d failed to find task:0x%x", vgId, taskId);
+    return TSDB_CODE_INVALID_MSG;
   }
 }
 
