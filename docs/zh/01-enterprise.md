@@ -192,3 +192,19 @@ balance vgroup leader;
 **注意**
 
 Raft选举本身带有随机性，所以通过选举的重新分布产生的均匀分布也是带有一定的概率，不会完全的均匀。**该命令的副作用是影响查询和写入**，在vgroup重新选举时，从开始选举到选举出新的 leader 这段时间，这 个vgroup 无法写入和查询。选举过程一般在秒级完成。所有的vgroup会依次逐个重新选举。
+
+### 恢复数据节点
+
+当集群中的某个数据节点（dnode）的数据全部丢失或被破坏，比如磁盘损坏或者目录被误删除，可以通过 `restore dnode` 命令来恢复该数据节点上的部分或全部逻辑节点，该功能依赖多副本中的其它副本进行数据复制，所以只在集群中 dnode 数量大于等于 3 且副本数为 3 的情况下能够工作。
+
+
+```sql
+restore dnode <dnode_id>；# 恢复dnode上的mnode，所有vnode和qnode
+restore mnode on dnode <dnode_id>；# 恢复dnode上的mnode
+restore vnode on dnode <dnode_id> ；# 恢复dnode上的所有vnode
+restore qnode on dnode <dnode_id>；# 恢复dnode上的qnode
+```
+
+**限制**
+- 该功能是基于已有的复制功能的恢复，不是灾难恢复或者备份恢复，所以对于要恢复的 mnode 和 vnode来说，使用该命令的前提是还存在该 mnode 或 vnode 的其它两个副本仍然能够正常工作。
+- 该命令不能修复数据目录中的个别文件的损坏或者丢失。例如，如果某个 mnode 或者 vnode 中的个别文件或数据损坏，无法单独恢复损坏的某个文件或者某块数据。此时，可以选择将该  mnode/vnode 的数据全部清空再进行恢复。
