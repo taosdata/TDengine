@@ -1,32 +1,26 @@
-name: Build Latest
+name: CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-    branches:
-      - main
+  workflow_dispatch:
+
+env:
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
 
 jobs:
-  centos:
+  build:
     name: CentOS 7.9
     runs-on: ubuntu-latest
-    container: docker.io/centos:7
-
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Rust
-        id: setup-rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          default: true
-
-      - name: Install compiler
-        run: |
-          yum install -y autoconf make automake cmake gcc gcc-g++ openssl-devel
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
+      - name: Run sccache stat for check
+        shell: bash
+        run: ${SCCACHE_PATH} --show-stats
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -36,48 +30,20 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
+          key: ${{ runner.os }}-cargo
 
       - uses: actions/cache@v3
         name: Target Caches
         with:
           path: |
             target
-          key: ${{ runner.os }}-cargo-target
+          key: ${{ runner.os }}-target
 
       - name: Build taosX
         run: |
-          cargo build --release --no-default-features --features optin --features native-tls
-          strip target/release/taosx
-          mv target/release/taosx target/release/taosx-amd64
+          cargo build
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: taosx
-          path: target/release/taosx-amd64
-  release:
-    needs: centos
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-        with:
-          name: taosx
-      - uses: rickstaa/action-create-tag@v1
-        with:
-          tag: "latest"
-          message: "Latest"
-          force_push_tag: true
-      - run: |
-          chmod +x taosx-amd64
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          name: Latest
-          tag_name: latest
-          files: |
-            taosx-amd64
+      - name: Run sccache stat for check
+        shell: bash
+        run: ${SCCACHE_PATH} --show-stats
+
