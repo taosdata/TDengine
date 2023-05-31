@@ -133,6 +133,11 @@ _OUT:
 
 static int32_t mndTransValidateImp(SMnode *pMnode, STrans *pTrans) {
   if (pTrans->stage == TRN_STAGE_PREPARE) {
+    if (mndTransCheckConflict(pMnode, pTrans) < 0) {
+      mError("trans:%d, failed to validate trans conflicts.", pTrans->id);
+      return -1;
+    }
+
     return mndTransValidatePrepareStage(pMnode, pTrans);
   }
   return 0;
@@ -153,10 +158,12 @@ static int32_t mndTransValidate(SMnode *pMnode, SSdbRaw *pRaw) {
 _OUT:
   if (pTrans) mndTransDropData(pTrans);
   if (pRow) taosMemoryFreeClear(pRow);
+  if (code) terrno = (terrno ? terrno : TSDB_CODE_MND_TRANS_CONFLICT);
   return code;
 }
 
-int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
+  terrno = TSDB_CODE_SUCCESS;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
   STrans    *pTrans = NULL;
@@ -177,6 +184,8 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, const SFsmCbMeta *pMet
   code = mndTransValidate(pMnode, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to validate requested trans since %s", transId, terrstr());
+    code = 0;
+    pMeta->code = terrno;
     goto _OUT;
   }
 
@@ -236,7 +245,7 @@ _OUT:
   return 0;
 }
 
-int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
+int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   SMnode *pMnode = pFsm->data;
   int32_t code = pMsg->code;
   if (code != 0) {
@@ -245,6 +254,7 @@ int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *
 
   pMsg->info.conn.applyIndex = pMeta->index;
   pMsg->info.conn.applyTerm = pMeta->term;
+  pMeta->code = 0;
 
   atomic_store_64(&pMnode->applied, pMsg->info.conn.applyIndex);
 
@@ -255,7 +265,7 @@ int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *
   code = mndProcessWriteMsg(pMnode, pMsg, pMeta);
 
 _OUT:
-  mndPostMgmtCode(pMnode, code);
+  mndPostMgmtCode(pMnode, code ? code : pMeta->code);
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
   return code;
