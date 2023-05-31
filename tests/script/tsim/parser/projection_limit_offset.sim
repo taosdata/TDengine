@@ -380,10 +380,10 @@ if $row != 8 then
 endi
 
 sql select diff(k) from tm0
-if $row != 3 then
+if $row != 4 then
    return -1
 endi
-if $data20 != -1 then
+if $data20 != NULL then
    return -1
 endi
 
