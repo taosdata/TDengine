@@ -2857,7 +2857,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
     // it is a clean block, load it directly
     if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pBlockScanInfo, keyInBuf, pLastBlockReader) &&
         pBlock->nRow <= pReader->resBlockInfo.capacity) {
-      if (asc || ((!asc) && (!hasDataInLastBlock(pLastBlockReader)))) {
+      if (asc || (!hasDataInLastBlock(pLastBlockReader))) {
         code = copyBlockDataToSDataBlock(pReader);
         if (code) {
           goto _end;
@@ -2876,7 +2876,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
     }
   }
 
-  SBlockData*         pBlockData = &pReader->status.fileBlockData;
+  SBlockData* pBlockData = &pReader->status.fileBlockData;
 
   while (1) {
     bool hasBlockData = false;
@@ -2890,7 +2890,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
         pDumpInfo->rowIndex += step;
 
-        SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
+        pBlock = getCurrentBlock(&pReader->status.blockIter);
         if (pDumpInfo->rowIndex >= pBlock->nRow || pDumpInfo->rowIndex < 0) {
           pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);  // NOTE: get the new block info
 
@@ -2918,7 +2918,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
     // currently loaded file data block is consumed
     if ((pBlockData->nRow > 0) && (pDumpInfo->rowIndex >= pBlockData->nRow || pDumpInfo->rowIndex < 0)) {
-      SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
+      pBlock = getCurrentBlock(&pReader->status.blockIter);
       setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
       break;
     }
