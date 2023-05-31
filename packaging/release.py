@@ -6,6 +6,8 @@ import subprocess
 import sys
 import toml
 import re
+import linux_release
+
 from datetime import datetime
 
 cus_name = "TDengine"
@@ -455,25 +457,31 @@ if __name__ == '__main__':
     if test_process != "":
         test_handle(test_process)
         sys.exit()
-    init_install_directory()
-    for task in sub_module:
-        if taosx_name == task.Name:
-            print("build taosx")
-            build_and_install_taosx(task.VersionMode)
-        if taosx_agent_name == task.Name:
-            print("build taosx-agent")
-            build_and_install_taosx_agent(task.VersionMode)
-        if pi_connector == task.Name:
-            print("build pi")
-            build_and_install_pi(task.VersionMode)
-        if opc_connector == task.Name:
-            print("build taosx-opc")
-            build_and_install_opc(task.VersionMode)
-        if mqtt_connector == task.Name:
-            print("build taosx-mqtt")
-            build_and_install_mqtt(task.VersionMode)
-        if influxdb_connector == task.Name:
-            print("build influxdb_connector")
-            build_and_install_influxdb(task.VersionMode)
-    init_release_directory()
-    package()
+        
+    if release_info.OS.lower() == 'linux':
+        linux_release.release(release_info=release_info, build_info=sub_module)
+    elif release_info.OS.lower() == 'windows':
+        init_install_directory()
+        for task in sub_module:
+            if taosx_name == task.Name:
+                print("build taosx")
+                build_and_install_taosx(task.VersionMode)
+            if taosx_agent_name == task.Name:
+                print("build taosx-agent")
+                build_and_install_taosx_agent(task.VersionMode)
+            if pi_connector == task.Name:
+                print("build pi")
+                build_and_install_pi(task.VersionMode)
+            if opc_connector == task.Name:
+                print("build taosx-opc")
+                build_and_install_opc(task.VersionMode)
+            if mqtt_connector == task.Name:
+                print("build taosx-mqtt")
+                build_and_install_mqtt(task.VersionMode)
+            if influxdb_connector == task.Name:
+                print("build influxdb_connector")
+                build_and_install_influxdb(task.VersionMode)
+        init_release_directory()
+        package()
+    else:
+        raise Exception("Unsupported operating system: {}".format(release_info.OS))
