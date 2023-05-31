@@ -1,157 +1,116 @@
 <template>
-  <el-dialog
-    align="center"
-    :title="$t('datasource.mqtttitle')"
-    width="900px"
-    :visible.sync="visible"
-    :destroy-on-close="true"
-    @closed="closeMqttDialog"
-  >
-    <div class="connector">
-      <div class="json-zone">
-        <ul class="header">
-          <li>{{ $t("datasource.colname") }}</li>
-          <li>{{ $t("datasource.rename") }}</li>
-          <li>{{ $t("datasource.type") }}</li>
-          <li></li>
-        </ul>
-        <span class="info">
-          <el-tooltip
-            class="item"
-            effect="light"
-            :content="$t('datasource.addmqtttip')"
-            placement="top-start"
-          >
-            <i class="el-icon-info"></i>
-          </el-tooltip>
-        </span>
-        <div class="col-content">
-          <Mqttcolumn
-            v-for="(item, index) in columnNum"
-            :key="index"
-            :index="index"
-            @deleteRow="deleteRow"
-            @changeAddStatus="changeAddStatus"
-            @sendLatestCont="getLatestCont"
-            ref="mqtt"
-          >
-          </Mqttcolumn>
-        </div>
-        <el-button
-          icon="el-icon-plus"
-          size="small"
-          type="primary"
-          :disabled="!disable"
-          plain
-          @click="addRow"
-        ></el-button>
-      </div>
-      <el-form
-        label-width="110px"
-        :model="ruleForm"
-        :rules="rules"
-        ref="ruleForm"
-      >
-        <el-form-item :label="$t('datasource.subname')" prop="subtableName">
-          <el-input v-model="ruleForm.subtableName" size="mini"></el-input>
-        </el-form-item>
-        <el-form-item
-          :label="$t('datasource.supertable')"
-          prop="supertableName"
+  <div class="connector">
+    <div class="json-zone">
+      <ul class="header">
+        <li>{{ $t("datasource.colname") }}</li>
+        <li>{{ $t("datasource.rename") }}</li>
+        <li>Type</li>
+        <li></li>
+      </ul>
+      <span class="info">
+        <el-tooltip
+          class="item"
+          effect="light"
+          :content="$t('datasource.addmqtttip')"
+          placement="top-start"
         >
-          <el-input v-model="ruleForm.supertableName" size="mini"></el-input>
-        </el-form-item>
-        <el-form-item label="tags：" prop="tagsName">
-          <el-input v-model="ruleForm.tagsName" size="mini"></el-input>
-        </el-form-item>
-      </el-form>
-      <div class="footer">
-        <el-button size="small" style="width: 100px" @click="closeMqttDialog">{{
-          $t("datasource.cancel")
-        }}</el-button>
-        <el-button
-          type="primary"
-          size="small"
-          style="width: 100px"
-          :disabled="confirmStatus"
-          @click="getMqttParser"
-          >{{ $t("datasource.ok") }}</el-button
+          <i class="el-icon-info"></i>
+        </el-tooltip>
+      </span>
+      <div class="col-content">
+        <Mqttcolumn
+          v-for="(item, index) in connectorData.parse.payload.json"
+          :key="index"
+          :index="index"
+          :colData="item"
+          @deleteRow="deleteRow"
+          @changeAddStatus="changeAddStatus"
+          ref="mqtt"
         >
+        </Mqttcolumn>
       </div>
+      <el-button
+        icon="el-icon-plus"
+        size="small"
+        type="primary"
+        :disabled="disable"
+        plain
+        @click="addRow"
+      ></el-button>
     </div>
-  </el-dialog>
+
+    <el-form
+      label-width="200px"
+      :model="connectorData.model"
+      :rules="rules"
+      ref="ruleForm"
+    >
+      <el-form-item
+        v-for="(item, index) in Object.keys(connectorData.model)"
+        :key="index"
+        :prop="item"
+        :label="item"
+      >
+        <template v-if="Array.isArray(connectorData.model[item])">
+          <span slot="label">
+            <el-tooltip
+              effect="light"
+              content="e.g:a,b,c"
+              placement="right-start"
+            >
+              <i class="el-icon-info"></i>
+            </el-tooltip>
+
+            {{ item }}
+          </span>
+          <el-input
+            :value="connectorData.model[item].toString()"
+            @input="getTagOrColumn($event, item)"
+          ></el-input>
+        </template>
+
+        <el-input v-model="connectorData.model[item]" v-else></el-input>
+      </el-form-item>
+    </el-form>
+  </div>
 </template>
 <script>
 import Mqttcolumn from "./mqttColumn.vue";
 export default {
   name: "MqttConnector",
   components: { Mqttcolumn },
+  props: {
+    connectorData: {
+      type: Object,
+      default: () => {
+        return null;
+      },
+    },
+  },
   data() {
     return {
       visible: true,
-      columnNum: [
-        {
-          column: "",
-          alias: "",
-          cast: "",
-        },
-      ],
       disable: false,
-      ruleForm: {
-        subtableName: "",
-        supertableName: "",
-        tagsName: "",
-      },
+      nameisnull:true,
       rules: {
-        subtableName: [
+        name: [
           {
             required: true,
             message: this.$t("datasource.subtip"),
             trigger: "blur",
           },
         ],
-        supertableName: [
-          {
-            required: true,
-            message: this.$t("datasource.supertip"),
-            trigger: "blur",
-          },
-        ],
-        tagsName: [
-          {
-            required: true,
-            message: this.$t("datasource.tagtip"),
-            trigger: "blur",
-          },
-        ],
       },
     };
   },
-  computed: {
-    confirmStatus() {
-      if (!this.ruleForm.subtableName) {
-        return true;
-      }
-      if (!this.ruleForm.supertableName) {
-        return true;
-      }
-      if (!this.ruleForm.tagsName) {
-        return true;
-      }
-      if (!this.disable) {
-        return true;
-      }
-      return false;
-    },
-  },
   methods: {
-    getLatestCont(cont, index) {
-      this.$set(this.columnNum, index, cont);
+    getTagOrColumn(event, val) {
+      this.connectorData.model[val] = event.split(',');
     },
     changeAddStatus() {
       this.$nextTick(() => {
-        this.disable = Array.from(this.$refs.mqtt).every(
-          (item) => !item.addStatus
+        this.disable = Array.from(this.$refs.mqtt).some(
+          (item) => item.addStatus
         );
       });
     },
@@ -161,58 +120,59 @@ export default {
         cancelButtonText: this.$t("datasource.cancel"),
         type: "warning",
       }).then(() => {
-        this.columnNum.splice(ind, 1);
+        let oldData = this.$store.state.app.mqttParser;
+        oldData.parse.payload.json.splice(ind, 1);
+        this.$store.commit("app/SET_MQTT_PARSER", oldData);
+        this.disable = false;
       });
-
     },
     addRow() {
-      this.columnNum.push({ column: "", alias: "", cast: "" });
+      let oldData = this.$store.state.app.mqttParser;
+      oldData.parse.payload.json.push({
+        name: "",
+        alias: "",
+        cast: "",
+      });
+      this.$store.commit("app/SET_MQTT_PARSER", oldData);
       this.changeAddStatus();
     },
     closeMqttDialog() {
       this.$emit("closeMqttDialog");
     },
-
-    getMqttParser() {
-      this.$parent.$parent.mqttParser = {
-        parse: {
-          payload: {
-            json: this.columnNum,
-            keep: true,
-          }
-        },
-
-        model: {
-          name: this.ruleForm.subtableName,
-          using: this.ruleForm.supertableName,
-          tags: [].concat(this.ruleForm.tagsName.split(",")),
-        },
-      };
-
-      this.$emit("closeMqttDialog");
-    },
+    submit(){
+        this.$refs['ruleForm'].validate((valid)=>{
+            if(valid){
+                this.nameisnull=false
+            }else{
+                this.nameisnull=true
+                return false
+            }
+        })
+    }
+  },
+  mounted() {
+    this.changeAddStatus()
   },
 };
 </script>
 <style lang="scss" scoped>
-.connector {
-  margin-top: 15px;
-}
 .json-zone {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   max-height: 200px;
-  padding-left: 110px;
+  padding-left: 200px;
   margin-bottom: 15px;
   position: relative;
   .header {
     display: grid;
     grid-template-columns: 2fr 2fr 2fr 1fr;
     margin-bottom: 15px;
+    column-gap: 10px;
     li {
-      color: #4d6992;
+      color: #4259ce;
       font-size: 16px;
+      text-align: center;
     }
   }
   .col-content {
@@ -222,13 +182,28 @@ export default {
   }
   .info {
     position: absolute;
-    top: 38px;
-    left: 70px;
+    top: 45px;
+    left: 0px;
     cursor: pointer;
     i {
       font-size: 25px;
-      color: #4d6992;
+      color: #4259ce;
     }
   }
+}
+::v-deep {
+  .el-form-item__label {
+    text-align: left;
+    color: #4259ce;
+    font-size: 14px;
+  }
+}
+.header-cont {
+  margin-bottom: 10px;
+}
+.block-title {
+  font-size: 16px;
+  color: #4259ce;
+  font-weight: 600;
 }
 </style>

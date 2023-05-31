@@ -9,7 +9,8 @@
       :dbName="dbName"
       :tagName="tagName"
       :protocol="protocol"
-      :mqttParser='mqttParser'
+      :mqttParser="mqttParser"
+      :constMqttparser="parserobj"
       :isEditable="isEditable"
       ref="table"
     ></component>
@@ -20,17 +21,17 @@ import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
 import { getUIData } from "@/api/explorer/datain";
-
+import parserobj from "./mqttparser.json";
 export default {
   name: "DbSource",
   components: {
     dbsource: DataSource,
     ui: DbSourceUI,
-    opcui: OpcUI
-    
+    opcui: OpcUI,
   },
   data() {
     return {
+      parserobj,
       protocol: "ua", //只针对opc的ua/da
       tagName: "datasource",
       currentName: "",
@@ -40,7 +41,7 @@ export default {
       dbName: "",
       isEditable: false,
       agentID: "",
-      mqttParser:null
+      mqttParser: null,
     };
   },
   created() {
@@ -68,7 +69,13 @@ export default {
         //新增
 
         let data = this.sourceList.filter((item) => item.id === type);
-        this.uidata = type == "opc" ? data : this.deepClone(data);
+        if (type == "mqtt") {
+          this.uidata = this.deepClone(data);
+
+          this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
+        } else {
+          this.uidata = type == "opc" ? data : this.deepClone(data);
+        }
         this.isEditable = false;
         switch (type) {
           case "tmq":
@@ -104,14 +111,13 @@ export default {
             this.tagName = "opc";
             break;
           case "mqtt":
-            console.log('新增mqtt----');
             this.currentName = "opcui";
             this.tagName = "mqtt";
             break;
           case "pibackfill":
             this.currentName = "ui";
             this.tagName = "pibackfill";
-          break;
+            break;
         }
       } else {
         switch (id) {
@@ -140,11 +146,19 @@ export default {
           case "mqtt":
             this.currentName = "opcui";
             this.tagName = "mqtt";
+
+            this.uidata[0].parser.fields = this.uidata[0].parser.fields.map((item) => {
+              if (item.name == "payload") {
+                item["value"] = "json";
+              }
+              return item;
+            });
+
             break;
           case "pibackfill":
             this.currentName = "ui";
             this.tagName = "pibackfill";
-          break;
+            break;
         }
         this.isEditable = true;
         this.editId = editid;
@@ -185,7 +199,7 @@ export default {
           }
         } else {
           targetObj[keys] = source[keys];
-          if (!Object.hasOwnProperty.call(targetObj,"value")) {
+          if (!Object.hasOwnProperty.call(targetObj, "value")) {
             targetObj["value"] = undefined;
           }
         }
@@ -198,6 +212,13 @@ export default {
           this.$refs.table.refresh();
         });
       }
+    },
+  },
+  watch: {
+    "$store.state.app.mqttParser": {
+      deep: true,
+      handler(val) {
+      },
     },
   },
 };

@@ -1,12 +1,17 @@
 <template>
   <div class="dnode-block">
-    <div style="font-size: 18px;">
+    <div style="font-size: 18px">
       <p class="title">
         <span>{{ $t("topic.agent") }}</span>
       </p>
     </div>
-    <el-table style="margin-top: 20px" :data="agentList" size="mini" max-height="250">
-      <el-table-column label="ID" prop="id" ></el-table-column>
+    <el-table
+      style="margin-top: 20px"
+      :data="agentList"
+      size="mini"
+      max-height="250"
+    >
+      <el-table-column label="ID" prop="id"></el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.cluster_id')"
         prop="cluster_id"
@@ -17,10 +22,7 @@
         prop="name"
       ></el-table-column>
 
-      <el-table-column
-        :label="$t('taosagents.connectors')"
-        prop="connectors"
-      >
+      <el-table-column :label="$t('taosagents.connectors')" prop="connectors">
         <template slot-scope="scope">
           <span>{{ scope.row.connectors.join(",") }}</span>
         </template></el-table-column
@@ -163,8 +165,8 @@
             v-model="ruleForm.expire_date"
             style="width: 100%"
             :picker-options="expireTimeOPtion"
-            type="datetime"
-            format="yyyy-MM-dd HH:mm:ss"
+            type="date"
+            format="yyyy-MM-dd"
           ></el-date-picker>
         </el-form-item>
       </el-form>
@@ -216,14 +218,14 @@ import {
 import { copy } from "@/utils/index";
 import { getUIData } from "@/api/explorer/datain";
 import { format } from "date-fns";
-
+import {Message} from 'element-ui'
 export default {
   name: "Agent",
   data() {
     return {
       expireTimeOPtion: {
         disabledDate(time) {
-          return time.getTime() < Date.now() - 24*3600*1000;
+          return time.getTime() < Date.now() - 24 * 3600 * 1000;
         },
       },
 
@@ -307,7 +309,11 @@ export default {
           type: "warning",
         }
       ).then(async () => {
-        await deleteAgent(data.id);
+        await deleteAgent(data.id).catch((err) => {
+          err.response.data &&
+            err.response.data.message &&
+            Message.error(err.response.data.message);
+        });
         this.getAgents();
       });
     },
@@ -394,12 +400,16 @@ export default {
     },
     async getAgents() {
       try {
-        this.agentList = (await getAgentsData(
-          localStorage.getItem("local_clusterID"),
-          localStorage.getItem("username")
-        )).map(item=>{
-          item['created_at']=item.created_at?item.created_at.replace(/(?<=\.)\S+$/,'').replace('.','')+'Z':''
-          return item
+        this.agentList = (
+          await getAgentsData(
+            localStorage.getItem("local_clusterID"),
+            localStorage.getItem("username")
+          )
+        ).map((item) => {
+          item["created_at"] = item.created_at
+            ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") + "Z"
+            : "";
+          return item;
         });
       } catch (error) {
         console.log(error);
@@ -487,15 +497,15 @@ export default {
     }
   }
 }
-.title{
-    background-color: #ecf8ff;
-    border-left-color: #50bfff;
-    color: #333;
-    border-left-width: 5px;
-    border-left-style: solid;
-    border-radius: 4px;
-    font-size: 16px;
-    margin: 10px 0;
-    padding: 8px 16px;
+.title {
+  background-color: #ecf8ff;
+  border-left-color: #50bfff;
+  color: #333;
+  border-left-width: 5px;
+  border-left-style: solid;
+  border-radius: 4px;
+  font-size: 16px;
+  margin: 10px 0;
+  padding: 8px 16px;
 }
 </style>
