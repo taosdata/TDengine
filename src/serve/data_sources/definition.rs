@@ -242,7 +242,7 @@ pub struct ParserDefinition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub params: Option<Vec<Param>>,
+    pub fields: Option<Vec<Param>>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode)]

@@ -119,18 +119,18 @@ groups:
           type: integer
           min: 1
         description: |
-          If the broker does not receive any messages from the
-          client within the keep alive interval, it will assume
-          that the client has disconnected and will close the
+          If the broker does not receive any messages from the<br>
+          client within the keep alive interval, it will assume<br>
+          that the client has disconnected and will close the<br>
           connection.
         placeholder: 10
       - name: clean_session
         display: Clean Session
         value: true
         description: |
-          True means that the server will forget all information
-          about the session, including the client's subscriptions.
-          The default value for the clean session flag is true.
+          True means that the server will forget all information<br>
+          about the session, including the client's subscriptions.<br>
+          The default value for the clean session flag is true.<br>
         hint:
           type: bool
       - name: topics
