@@ -28,7 +28,7 @@ version = "0.5.1"
 - -b: build mode,可选Debug\Release,默认Release
 - -l: 需要同时打包的连接器列表，可以多个，空格隔开； 当前支持：opc pi mqtt influxdb.改参数不传表示包含所有连接器
 - -s: submodel build mode, 各个模块单独配置Debug/Release，该配置比-b参数有限，没有配置的模块使用-b配置
-- -t: 脚本快速测试，单独测试某一过程（支持taosx,agent,opc,pi,mqtt,package）
+- -t: 脚本快速测试，单独测试某一过程（仅支持windows, 支持taosx,agent,opc,pi,mqtt,package）
 - -t pi: 示例，测试 pi 编译安装
 - -t package: 已经安装好的服务打包测试( taosx taosx-agent必须已经编译安装过)
 - 连接器可带版本号编译，和连接器名空格隔开
@@ -38,13 +38,64 @@ version = "0.5.1"
 
 - 输出路径：taosx\release
 - 文件名：
-    - taosx-agent and OPC:   taosx-{version}-windows-installer.exe
-- 均安装在默认安装目录(C:\TDengine)下
-    - taosx           C:\TDengine\bin
-    - taosx-agent     C:\TDengine\bin
-    - taosx-agent-srv C:\TDengine\bin
-    - taosx-agent cfg C:\TDengine\cfg
-    - pi C:\TDengine\xplugins\pi
-    - opc C:\TDengine\xplugins\opc
-    - mqtt C:\TDengine\xplugins\mqtt
-    - influxdb C:\TDengine\xplugins\mqtt
+    - windows:   taosx-{version}-windows-installer.exe
+    - linux:     taosX-{version}-Linux-x64.tar.gz
+- windows使用安装程序进行安装，使用uninstall_taosx.exe进行卸载。taosx-srv.exe和taosx-agent.exe可以以服务模式启动taosx和taos-agent
+- windows安装目录为C:\Program Files\taosX，目录结构如下：
+~~~
+├── bin
+│   ├── taosx.exe
+│   ├── taosx-srv.exe
+│   ├── taosx-srv.xml
+│   ├── taosx-agent.exe
+│   ├── taosx-agent-srv.exe
+│   ├── taosx-agent-srv.xml
+├── plugins
+│   ├── influxdb
+│   │   └── taosx-inflxdb.jar
+│   ├── mqtt
+│   │   └── taosx-mqtt.exe
+│   └── opc
+│       └── taosx-opc.exe
+│   ├── influxdb
+│   │   └── taosx-inflxdb.exe
+│   └── pi
+│       └── ***
+└── config
+│   ├── agent.example.toml
+├── uninstall_taosx.exe
+├── uninstall_taosx.dat
+~~~
+- linux下需要安装程序先解压，后安装使用，示例如下：
+``` bash
+# 解压文件
+tar -zxf taosX-0.5.1-Linux-x64.tar.gz
+cd taosX-0.5.1-Linux-x64
+# 安装
+sudo ./install.sh
+# 验证
+taosx -V 
+# taosx 0.5.1-b9827b00-dirty (built linux-x86_64 2023-05-31 09:11:13 +08:00)
+taosx-agent -V 
+# taosx-agent 0.1.0-33c1e5e4 (built linux-x86_64 2023-05-26 14:24:13 +08:00)
+
+# start taosX and taosx-agent system service
+sudo systemctl start taosx
+sudo systemctl start taosx-agent
+
+# check status of tasx and taosx-agent serverice
+sudo systemctl status taosx
+sudo systemctl status taosx-agent
+
+# stop taosx and taosx-agent
+sudo systemctl stop taosx
+sudo systemctl stop taosx-agent
+
+# 卸载
+sudo rmtaox
+```
+- linux下文件路径说明
+  1. taosX, Agent, Explorer: /usr/local/bin
+  2. connectors: /usr/local/taosX/plugins
+  3. logs for tasoX and Agent: /usr/local/taosX/logs
+  4. rmtaosX.sh:  /user/local/taosx
