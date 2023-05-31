@@ -611,7 +611,7 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, STFileOp *op) {
 
   tsdbCloseFile(&writer->fd);
 
-  ASSERT(writer->config->file.size > writer->file->size);
+  ASSERT(writer->config->file.size < writer->file->size);
   op->optype = writer->config->file.size ? TSDB_FOP_MODIFY : TSDB_FOP_CREATE;
   op->fid = writer->config->file.fid;
   op->of = writer->config->file;

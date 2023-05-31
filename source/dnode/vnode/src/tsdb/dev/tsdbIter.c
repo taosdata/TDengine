@@ -163,12 +163,14 @@ static int32_t tsdbMemTableIterNext(STsdbIter *iter, const TABLEID *tbid) {
   SRBTreeNode *node;
 
   while (!iter->ctx->noMoreData) {
-    while (iter->memt->tbData && tsdbTbDataIterNext(iter->memt->tbIter)) {
+    for (TSDBROW *row; iter->memt->tbData && (row = tsdbTbDataIterGet(iter->memt->tbIter));) {
       if (tbid && tbid->suid == iter->memt->tbData->suid && tbid->uid == iter->memt->tbData->uid) {
         iter->memt->tbData = NULL;
         break;
       }
-      iter->row->row = *tsdbTbDataIterGet(iter->memt->tbIter);
+      iter->row->row = row[0];
+
+      tsdbTbDataIterNext(iter->memt->tbIter);
       goto _exit;
     }
 
