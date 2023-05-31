@@ -8,11 +8,18 @@ description: "为了易于企业版用户更容易使用和管理数据库，TDe
 
 为了易于企业版用户更容易使用和管理数据库，TDengine 3.0 企业版提供了一个全新的可视化组件 taosExplorer。用户能够在其中方便地管理数据库管理系统中中各元素（数据库、超级表、子表）的生命周期，执行查询，监控系统状态，管理用户和授权，完成数据备份和恢复，与其它集群之间进行数据同步，导出数据，管理主题和流计算。
 
-### 配置和启动
+### 部署服务
+
+@zhengqin，请 review 并修改本节内容
+
+#### 准备工作
 
 1.  taosExplorer 没有独立的安装包，请使用 TDegnine 企业版安装包进行安装。
-2.  在启动 taosExplorer 之前，请先确认 TDengine 集群已经正确设置并运行（即 taosd 服务），taosAdapter 也已经正确设置和运行并与 TDengine 集群保持连接状态。如果想要使用数据备份和恢复或者数据同步功能，请确保 taosX 服务也已经正确设置和运行。
-3.  在启动 taosExplorer 之前，请确保配置文件中的内容正确。
+2.  在启动 taosExplorer 之前，请先确认 TDengine 集群已经正确设置并运行（即 taosd 服务），taosAdapter 也已经正确设置和运行并与 TDengine 集群保持连接状态。如果想要使用数据备份和恢复或者数据同步功能，请确保 taosX 服务和 Agent 服务也已经正确设置和运行。
+
+#### 配置
+
+在启动 taosExplorer 之前，请确保配置文件中的内容正确。
 
 ```TOML
 listen = "0.0.0.0:6060"
@@ -27,6 +34,8 @@ x_api = "http://localhost:6050"
 -   log_level - 日志级别，可选值为 "debug", "info", "warn", "error", "fatal"
 -   cluster - TDengine集群的 taosadapter 地址 
 -   x_api - taosX 的服务地址
+
+#### 启动
 
 然后启动 taosExplorer，可以直接在命令行执行 taos-explorer 或者使用下面的 systemctl 脚本用 systemctl 来启动 taosExplorer 服务
 
@@ -44,6 +53,10 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 ```
+
+#### 问题排查
+
+@zhengqin，此处添加如何查看 taosExplorer 的日志并举例常见错误
 
 ### 登录
 
@@ -123,6 +136,35 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 6.创建InfluxDB如下：
 
 ![添加 InfluxDB 数据源](./influxdb.png)
+
+
+#### 从 TDengine 备份数据文件到本地
+
+@zhengqin，在这里描述简单的操作步骤，以及对图形界面上关键参数的说明（下同）
+
+#### 从本地数据文件恢复到 TDengine
+
+@zhengqin
+
+#### 从 OPC-UA 同步数据到 TDengine
+
+@chenyang
+
+#### 从 OPC-DA 同步数据到 TDengine (Windows)
+
+@zhengqin
+
+#### 从 Pi 同步数据到 TDengine (Windows)
+
+@chenyang
+
+#### 从 InfluxDB 同步数据到 TDengine
+
+@zhengqin
+
+#### 从 MQTT 同步数据到 TDengine
+
+@xuwang
 
 ### 数据订阅
 

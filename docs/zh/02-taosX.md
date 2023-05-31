@@ -10,18 +10,107 @@ description:  "为了能够方便地将各种数据源中的数据导入 TDengin
 
 **使用限制**：taosX 只能用于企业版数据库服务端。
 
-**安装与配置**
+## 安装与配置
 
-taosX 没有独立的安装包，在安装了 TDengine 企业版之后，您的系统中就已经拥有了 taosX，请使用 Linux 系统命令 which 来确认它存在于系统中。如果您希望用于将 Pi 或 OPC UA/DA 中的数据迁移到 TDengine 中，可以使用 Windwos 版本的独立安装包，包含 taosX + Pi 连接器，或者包含 taosX + OPC 连接器。
+有两种安装 taosX 的方式：
+
+1. 使用 TDengine 安装包，在安装了 TDengine 企业版之后，您的系统中就已经拥有了 taosX，请使用 Linux 系统命令 which 来确认它存在于系统中。TDengine 企业版中自带的 taosX 可以进行从 TDengine 到 TDengine 的数据复制和同步，可以进行备份数据到本地文件和从本地文件恢复。
+2. 使用独立的 taosX 安装包，其中除了 taosX 之外，还包含 Pi 连接器（限 Windows）， OPC 连接器， InfluxDB 连接器， MQTT 连接器，以及必要的 Agent 组件，taosX + Agent + 某个连接器可以用于将相应数据源的数据同步到 TDengine。
+
+### Linux 安装
+
+@xiaolei，请在此补充详细的 Linux 安装过程
+
+### Windows 安装
+
+@xinsheng，请在此补充详细的 Linux 安装过程
+
 
 ## 运行模式
 
-1.  工具模式
+taosX 是进行数据同步与复制的核心组件，以下运行模式指 taosX 的运行模式，其它组件的运行模式在 taosX 的不同运行模式下与之适配。
 
-在命令行上添加必要的参数直接启动 taosX 即为工具模式运行。当命令行参数所指定的任务完成后 taosX 会自动停止。taosX 在运行中如果出现错误也会自动停止。也可以在任意时刻使用 ctrl+c 停止 taosX 的运行。
+### 命令行模式
+
+可以直接在命令行上添加必要的参数直接启动 taosX 即为命令行模式运行。当命令行参数所指定的任务完成后 taosX 会自动停止。taosX 在运行中如果出现错误也会自动停止。也可以在任意时刻使用 ctrl+c 停止 taosX 的运行。本节介绍如何使用 taosX 的各种使用场景下的命令行。
+
+#### 从 TDengine 到 TDengine 的数据同步
+
+1. 3.0 -> 3.0
+2. 2.4(2.6) -> 3.0
+
+@chenyang，请在此补充详细的命令行参数，及示例（含 Linux 和 Windows），按如下结构 (下同)
+
+1. 参数列表及其含义
+2. Linux/Windows 示例
+3. 常见错误排查
+
+#### 从 TDengine 备份数据文件到本地
+
+@chenyang
+
+#### 从本地数据文件恢复到 TDengine
+
+@chenyang
+
+#### 从 OPC-UA 同步数据到 TDengine
+
+@chenyang
+
+#### 从 OPC-DA 同步数据到 TDengine (Windows)
+
+@zhengqin
+
+#### 从 Pi 同步数据到 TDengine (Windows)
+
+@chenyang
+
+### 从 InfluxDB 同步数据到 TDengine
+
+@zhengqin
+
+### 从 MQTT 同步数据到 TDengine
+
+@xuwang
+
+### 服务模式
+
+在服务模式下， taosX，Agent 以及 taosExplorer 均已服务态运行，各种操作通过 taosExplorer 的图形界面进行。
+
+### 部署 taosX
+
+@xuwang，此处添加如何配置和启动 taosX 服务，以及如何查看 taosX 日志排查常见错误，并举例常见错误
+
+#### 配置
+
+#### 启动
+
+#### 问题排查
+
+### 部署 Agent 
+
+@xuwang，此处添加如何配置和启动 Agent 服务，以及如何查看 Agent 日志排查常见错误，并举例常见错误
+
+#### 配置
+
+#### 启动
+
+#### 问题排查
+
+### 部署 taosExplorer
+
+请参考  taosExplorer
 
 
-2.  服务模式
+### 数据同步功能
+
+请参考 taosExplorer
+
+
+
+
+
+1.  服务模式
 
 使用 systemctl 命令来启动、停止和检测 taosX 服务。
 
