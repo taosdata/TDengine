@@ -122,7 +122,7 @@ pub struct AgentProps {
 #[derive(Debug, Serialize, Deserialize, ToSchema, IntoParams)]
 pub struct AgentUpdates {
     pub name: Option<String>,
-    pub expire_time: Option<NaiveDate>,
+    pub expire_date: Option<NaiveDate>,
     pub connectors: Option<Vec<String>>,
 }
 
@@ -130,7 +130,7 @@ impl AgentUpdates {
     pub fn update_agent_with(&self, id: i64) -> Option<String> {
         let name = self.name.as_ref().map(|v| format!("`name` = \"{}\"", v));
         let exp = self
-            .expire_time
+            .expire_date
             .as_ref()
             .map(|v| format!("`expire_date` = \"{}\"", v.format("%Y-%m-%d")));
         let connectors = self
