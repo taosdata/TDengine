@@ -484,7 +484,7 @@ SHashObj *mndDupUseDbHash(SHashObj *pOld) {
   return pNew;
 }
 
-static int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
+int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   memcpy(pNew, pUser, sizeof(SUserObj));
   pNew->authVersion++;
   pNew->updateTime = taosGetTimestampMs();
@@ -504,7 +504,7 @@ static int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   return 0;
 }
 
-static void mndUserFreeObj(SUserObj *pUser) {
+void mndUserFreeObj(SUserObj *pUser) {
   taosHashCleanup(pUser->readDbs);
   taosHashCleanup(pUser->writeDbs);
   taosHashCleanup(pUser->topics);

@@ -446,7 +446,8 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   return 0;
 }
 
-static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups,
+                                        SUserObj *pUserDuped) {
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
   if (pDbRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pDbRaw) != 0) return -1;
@@ -458,6 +459,11 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
     if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) return -1;
     if (sdbSetRawStatus(pVgRaw, SDB_STATUS_READY) != 0) return -1;
   }
+
+  SSdbRaw* pUserRaw = mndUserActionEncode(pUserDuped);
+  if (pUserRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pUserRaw) != 0) return -1;
+  if (sdbSetRawStatus(pUserRaw, SDB_STATUS_READY) != 0) return -1;
 
   return 0;
 }
@@ -565,6 +571,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     return -1;
   }
 
+  // add database privileges for user
+  SUserObj newUserObj = {0};
+  if (mndUserDupObj(pUser, &newUserObj) != 0) goto _OVER;
+  taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN);
+  taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN);
+
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-db");
   if (pTrans == NULL) goto _OVER;
@@ -577,7 +589,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
-  if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
+  if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, &newUserObj) != 0) goto _OVER;
   if (mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -586,6 +598,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
 
 _OVER:
   taosMemoryFree(pVgroups);
+  mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);
   return code;
 }

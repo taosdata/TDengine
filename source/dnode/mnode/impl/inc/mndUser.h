@@ -38,6 +38,8 @@ int32_t   mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int3
 int32_t   mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db);
 int32_t   mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic);
 
+int32_t   mndUserDupObj(SUserObj *pUser, SUserObj *pNew);
+void      mndUserFreeObj(SUserObj *pUser);
 #ifdef __cplusplus
 }
 #endif
