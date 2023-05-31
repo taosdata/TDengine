@@ -237,7 +237,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     int32_t leftRsp = atomic_sub_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
-    qDebug("task %d is shuffle, left waiting rsp %d", pTask->id.taskId, leftRsp);
+    qDebug("s-task:%s is shuffle, left waiting rsp %d", pTask->id.idStr, leftRsp);
     if (leftRsp > 0) {
       return 0;
     }
@@ -245,6 +245,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   int8_t old = atomic_exchange_8(&pTask->outputStatus, pRsp->inputStatus);
   ASSERT(old == TASK_OUTPUT_STATUS__WAIT);
+
+  qDebug("s-task:%s receive dispatch rsp, output status:%d", pTask->id.idStr, pTask->outputStatus);
 
   // the input queue of the (down stream) task that receive the output data is full, so the TASK_INPUT_STATUS_BLOCKED is rsp
   // todo we need to send EMPTY PACKAGE to detect if the input queue is available for output of upstream task, every 50 ms.
