@@ -60,7 +60,7 @@ int32_t tsNumOfQnodeQueryThreads = 4;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
-int32_t tsMaxStreamBackendCache = 256;  // M
+int32_t tsMaxStreamBackendCache = 128;  // M
 
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
