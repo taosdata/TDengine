@@ -30,6 +30,10 @@
           :label="$t('datasource.createat')"
           prop="created_at"
         ></el-table-column>
+        <el-table-column
+          :label="$t('datasource.via')"
+          prop="via"
+        ></el-table-column>
         <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
   
         <el-table-column :label="$t('datasource.status')" prop="status">
@@ -223,6 +227,10 @@ export default {
     edit(data) {
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
+        if(data.from_expand&&data.from_expand.id=='mqtt'){
+           this.$store.commit('app/SET_MQTT_PARSER',data.parser)
+           this.$parent.parserobj=data.parser
+        }
         let dbname =
           data.to_expand && data.to_expand.subject
             ? data.to_expand.subject

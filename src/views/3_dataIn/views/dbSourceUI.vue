@@ -680,7 +680,7 @@ export default {
       if (end[0].value) {
         return time.getTime() > new Date(end[0].value).getTime();
       } else {
-        return false
+        return false;
       }
     };
     const backfillEnd = (time) => {
@@ -690,7 +690,7 @@ export default {
       if (start[0].value) {
         return time.getTime() < new Date(start[0].value).getTime();
       } else {
-        return false
+        return false;
       }
     };
     return {
@@ -791,7 +791,10 @@ export default {
         console.log(error);
       }
     },
-
+    //处理空值和‘undefined’字符值
+    handleEmptyValue(val){
+      return !Object.is(val,null)&&!Object.is(val,undefined)&&!Object.is(val,'')&&!Object.is(val,'undefined')
+    },
     async submit() {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
@@ -823,24 +826,26 @@ export default {
             )[0];
             let username = window.encodeURIComponent(userinfo.username.value);
             let pwd = window.encodeURIComponent(userinfo.password.value);
-            dns += `://${username}:${pwd}@${
-              data.options.host.value ? data.options.host.value : ""
+            dns +=`://`
+            if (this.handleEmptyValue(username)) {
+              dns += `${username}`
             }
-        `;
+            if (this.handleEmptyValue(pwd)) {
+              dns += `:${pwd}`
+            }
+            
           } else if (data.authentication.value == "token") {
             let userinfo = data.authentication.alternatives.filter(
               (item) => item.name == "token"
             )[0];
             let token = window.encodeURIComponent(userinfo.params[0].value);
-            dns += `://${token}@${
-              data.options.host.value ? data.options.host.value : ""
+            if (this.handleEmptyValue(token)) {
+              dns += `${token}`
             }
-        `;
           }
-          //   dns += `://${localStorage.getItem("username")}:${this.decryptPwd}@${
-          //     data.options.host.value ? data.options.host.value : ""
-          //   }
-          // `;
+          // if(this.handleEmptyValue(data.options.host.value)){
+              dns += `@${data.options.host.value?data.options.host.value:''}`
+            // }
         } else {
           if (this.tagName == "influxdb") {
             if (data.options.host.value && !this.isIP) {

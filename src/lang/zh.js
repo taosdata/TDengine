@@ -881,6 +881,10 @@ export default {
   },
 
   datasource: {
+    payloadtip:'请选择mqtt payload',
+    keep:'Keep',
+    agentexpiretip:'过期时间必须大于当前时间',
+    mqttparsertip:'确保mqtt parser的必输项目都已填写完毕',
     // mqtttitle:'MQTT Payload Parser',
     // colname:'列名',
     // rename:'重命名',
@@ -890,7 +894,7 @@ export default {
     // supertable:'超级表',
     // delcol:'确定要删除吗?',
     // subtip:'请输入子表',
-    // supertip:'请输入超级表',
+    // supertip:'请输入超级表', 
     // tagtip:'请输入tag名称',
     iptip:'请输入正确的ip地址',
     porttip:'请输入正确的端口号',
@@ -913,6 +917,7 @@ export default {
     type: '类型',
     target: '目标数据库',
     createat: '创建时间',
+    via:'代理ID',
     status: '状态',
     operation: '操作',
     addsource: '添加数据源',

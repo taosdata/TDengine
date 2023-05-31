@@ -1,0 +1,20 @@
+{
+    "parse": {
+        "payload": {
+            "json": [
+                {
+                    "name": "",
+                    "alias": "",
+                    "cast": ""
+                }
+            ],
+            "keep": true
+        }
+    },
+    "model": {
+        "name": "",
+        "using": "",
+        "tags": [],
+        "columns": []
+    }
+}

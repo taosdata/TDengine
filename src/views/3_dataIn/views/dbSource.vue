@@ -10,6 +10,7 @@
       :tagName="tagName"
       :protocol="protocol"
       :mqttParser="mqttParser"
+      :constMqttparser="parserobj"
       :isEditable="isEditable"
       ref="table"
     ></component>
@@ -20,7 +21,7 @@ import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
 import { getUIData } from "@/api/explorer/datain";
-import mqtt from "./mqtt.json";
+import parserobj from "./mqttparser.json";
 export default {
   name: "DbSource",
   components: {
@@ -30,7 +31,7 @@ export default {
   },
   data() {
     return {
-      mqttjson: mqtt,
+      parserobj,
       protocol: "ua", //只针对opc的ua/da
       tagName: "datasource",
       currentName: "",
@@ -69,11 +70,12 @@ export default {
 
         let data = this.sourceList.filter((item) => item.id === type);
         if (type == "mqtt") {
-          this.uidata = [].concat(this.mqttjson);
+          this.uidata = this.deepClone(data);
+
+          this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
           this.uidata = type == "opc" ? data : this.deepClone(data);
         }
-        console.log(this.uidata, "只针对mqtt---");
         this.isEditable = false;
         switch (type) {
           case "tmq":
@@ -144,6 +146,14 @@ export default {
           case "mqtt":
             this.currentName = "opcui";
             this.tagName = "mqtt";
+
+            this.uidata[0].parser.fields = this.uidata[0].parser.fields.map((item) => {
+              if (item.name == "payload") {
+                item["value"] = "json";
+              }
+              return item;
+            });
+
             break;
           case "pibackfill":
             this.currentName = "ui";
@@ -202,6 +212,13 @@ export default {
           this.$refs.table.refresh();
         });
       }
+    },
+  },
+  watch: {
+    "$store.state.app.mqttParser": {
+      deep: true,
+      handler(val) {
+      },
     },
   },
 };

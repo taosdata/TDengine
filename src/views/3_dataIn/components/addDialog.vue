@@ -157,8 +157,9 @@ export default {
       this.ruleForm.type = "";
       if(this.ruleForm.agent[0] === 'add') {
         this.$emit('addAgent')
-        this.ruleForm.agent = []
-        this.closeDialog()
+        this.$nextTick(() => {
+          this.closeDialog()
+        })
       } else if (this.ruleForm.agent[0] !== 'null') {
         this.originalTypes = deepClone(
           this.agentList

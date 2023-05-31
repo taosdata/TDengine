@@ -3,17 +3,9 @@
     <div class="left-ui">
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
+      </section>
 
-        <!-- <h3>{{ dbsource[0].description }}</h3> -->
-      </section>
-      <section v-if="tagName == 'mqtt'" class="mqtt-config">
-        <MqttConnector :connectorData='dbsource[0].parser'></MqttConnector>
-      </section>
       <section class="basics">
-        <!-- <div class="block-title" v-if="dbsource[0].options.endpoint">
-          <span>{{ dbsource[0].options.endpoint.display }}</span>
-          <el-input v-model="dbsource[0].options.endpoint.value" :placeholder="dbsource[0].options.endpoint.placeholder"></el-input>
-        </div> -->
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
@@ -73,85 +65,7 @@
               ></div>
             </div>
           </div>
-          <!-- <div style="width: 100%" v-if="JSON.stringify(dbsource[0].options.port)!=='{}'">
-            <span
-              :class="[
-                'label',
-                dbsource[0].options.port.required ? 'required' : '',
-              ]"
-              >{{ dbsource[0].options.port.display }}</span
-            >
-
-            <div class="label-value">
-              <el-input
-                v-model="dbsource[0].options.port.value"
-                :placeholder="dbsource[0].options.port.placeholder"
-              ></el-input>
-              <div
-                v-html="transforHtml(dbsource[0].options.port.description)"
-                class="description"
-              ></div>
-            </div>
-          </div> -->
         </div>
-        <!-- <div style="width: 100%">
-          <span
-            :class="[
-              'label',
-              dbsource[0].options.username.required ? 'required' : '',
-            ]"
-            >{{ dbsource[0].options.username.display }}</span
-          >
-          <div class="label-value">
-            <el-input
-              :placeholder="dbsource[0].options.username.placeholder"
-              v-model="dbsource[0].options.username.value"
-            ></el-input>
-            <div
-              v-html="transforHtml(dbsource[0].options.username.description)"
-              class="description"
-            ></div>
-          </div>
-        </div> -->
-        <!-- <div style="width: 100%">
-          <span
-            :class="[
-              'label',
-              dbsource[0].options.password.required ? 'required' : '',
-            ]"
-            >{{ dbsource[0].options.password.display }}</span
-          >
-          <div class="label-value">
-            <el-input
-              :placeholder="dbsource[0].options.password.placeholder"
-              v-model="dbsource[0].options.password.value"
-              type="password"
-            ></el-input>
-            <div
-              v-html="transforHtml(dbsource[0].options.password.description)"
-              class="description"
-            ></div>
-          </div>
-        </div> -->
-        <!-- <div style="width: 100%">
-          <span
-            :class="[
-              'label',
-              dbsource[0].options.subject.required ? 'required' : '',
-            ]"
-            >{{ dbsource[0].options.subject.display }}</span
-          >
-          <div class="label-value">
-            <el-input
-              :placeholder="dbsource[0].options.subject.placeholder"
-              v-model="dbsource[0].options.subject.value"
-            ></el-input>
-            <div
-              v-html="transforHtml(dbsource[0].options.subject.description)"
-              class="description"
-            ></div>
-          </div>
-        </div> -->
       </section>
       <section class="authentication" v-if="dbsource[0].authentication.display">
         <div>
@@ -206,16 +120,17 @@
                   v-else
                   v-for="(p, index) in at.params"
                   :key="index"
-                  style="
-                    width: 100%;
-                    display: flex;
-                    align-items: baseline;
-                    margin-bottom: 8px;
-                  "
+                  :style="textareas.includes(p.name) ? styleareaobj : styleobj"
                 >
-                  <span :class="['label', p.required ? 'required' : '']">{{
-                    p.display
-                  }}</span>
+                  <span
+                    :class="['label', p.required ? 'required' : '']"
+                    :style="
+                      textareas.includes(p.name)
+                        ? { 'padding-top': '10px!important' }
+                        : {}
+                    "
+                    >{{ p.display }}</span
+                  >
 
                   <div style="flex: 1">
                     <template v-if="p.hint && p.hint.choices">
@@ -242,6 +157,8 @@
                       :type="
                         p.name == 'password' || p.name == 'token'
                           ? 'password'
+                          : textareas.includes(p.name)
+                          ? 'textarea'
                           : 'text'
                       "
                       style="margin-bottom: 8px"
@@ -255,104 +172,6 @@
               </el-tab-pane>
             </template>
           </el-tabs>
-          <!-- <el-radio-group v-model="dbsource[0].authentication.value">
-            <template v-for="at in dbsource[0].authentication.alternatives">
-              <el-radio :key="at.name" :label="at.name"
-                >{{ at.display }}
-                <span class="des" style="color: #acaab2" v-if="at.description"
-                  >({{ at.description }})</span
-                >
-              </el-radio>
-            </template>
-          </el-radio-group>
-          <div class="authen-details">
-            <template v-if="dbsource[0].authentication.value == 'plain'">
-              <div class="plain">
-                <div class="plain-item">
-                  <span class="label">{{
-                    dbsource[0].authentication.alternatives[1].username.display
-                  }}</span>
-                  <div style="width: 100%">
-                    <el-input
-                      v-model="
-                        dbsource[0].authentication.alternatives[1].username
-                          .value
-                      "
-                    ></el-input>
-                    <p
-                      class="description"
-                      v-html="
-                        transforHtml(
-                          dbsource[0].authentication.alternatives[1].username
-                            .description
-                        )
-                      "
-                    ></p>
-                  </div>
-                </div>
-
-                <div class="plain-item">
-                  <span class="label">{{
-                    dbsource[0].authentication.alternatives[1].password.display
-                  }}</span>
-                  <div style="width: 100%">
-                    <el-input
-                      v-model="
-                        dbsource[0].authentication.alternatives[1].password
-                          .value
-                      "
-                    ></el-input>
-                    <p
-                      class="description"
-                      v-html="
-                        transforHtml(
-                          dbsource[0].authentication.alternatives[1].password
-                            .description
-                        )
-                      "
-                    ></p>
-                  </div>
-                </div>
-              </div>
-            </template>
-            <template v-if="dbsource[0].authentication.value == 'certificates'">
-              <div
-                v-for="al in dbsource[0].authentication.alternatives.slice(2)"
-                :key="al.name"
-                style="
-                  display: flex;
-                  align-items: baseline;
-                  flex-direction: column;
-                "
-              >
-                <span class="label">{{ al.display }}</span>
-                <div
-                  v-for="(p, index) in al.params"
-                  :key="index"
-                  style="width: 100%; margin-top: 10px"
-                >
-                  <span class="label">{{ p.display }}</span>
-                  <template v-if="p.hint == 'file' || p.hint.type == 'file'">
-                    <el-input v-model="p.value" type="textarea"></el-input
-                  ></template>
-                  <template v-if="p.hint.choices">
-                    <el-select v-model="p.value" style="width: 100%">
-                      <el-option
-                        v-for="item in p.hint.choices"
-                        :key="item"
-                        :label="item"
-                        :value="item"
-                      ></el-option>
-                    </el-select>
-                  </template>
-                  <div
-                    class="description"
-                    v-html="transforHtml(p.description)"
-                  ></div>
-                </div>
-              </div>
-            </template>
-          </div> -->
         </div>
       </section>
       <section
@@ -494,11 +313,7 @@
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
                   <template v-if="p.hint.choices">
-                    <el-select
-                      v-model="p.value"
-                      placeholder=""
-                      style="margin-left: -15px"
-                    >
+                    <el-select v-model="p.value" placeholder="">
                       <el-option
                         v-for="c in p.hint.choices"
                         :key="c"
@@ -560,9 +375,53 @@
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <section class="ungrounded" v-if="dbsource[0].params"></section>
+      <section v-if="tagName == 'mqtt'" class="mqtt-config">
+        <div class="header">
+          <div class="block-title">
+            <span>{{ dbsource[0].parser.display }}</span>
+          </div>
+          <div
+            class="description"
+            v-html="transforHtml(dbsource[0].parser.description)"
+          ></div>
+        </div>
+        <ul class="mqtt-fields">
+          <li v-for="(field, index) in dbsource[0].parser.fields" :key="index">
+            <span
+              :class="['label', field.name == 'payload' ? 'required' : '']"
+              >{{ field.name }}</span
+            >
+            <div class="mqtt-field">
+              <el-select
+                v-model="field.value"
+                :disabled="field.name != 'payload'"
+                placeholder=""
+                @change="selectPayload(field.value)"
+              >
+                <el-option
+                  v-for="pay in mqttpayload"
+                  :key="pay"
+                  :label="pay"
+                  :value="pay"
+                ></el-option>
+              </el-select>
+              <div
+                class="description"
+                v-html="transforHtml(field.description)"
+              ></div>
+            </div>
+          </li>
+        </ul>
+        <div class="parser-config" v-if="payloadVal">
+          <MqttConnector
+            :connectorData="constMqttparser"
+            ref="mqtt"
+          ></MqttConnector>
+        </div>
+      </section>
       <section class="choose-db">
         <span class="label required">Target Database</span>
-        <el-select v-model="dbname" placeholder="" style="margin-left: -15px">
+        <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
             :key="db['node-key']"
@@ -602,6 +461,12 @@ export default {
     MqttConnector,
   },
   props: {
+    constMqttparser: {
+      type: Object,
+      default: () => {
+        return null;
+      },
+    },
     mqttParser: {
       type: Object,
       default: () => {
@@ -637,6 +502,20 @@ export default {
   },
   data() {
     return {
+      textareas: ["ca", "cert", "cert_key", "certificate"],
+      styleobj: {
+        width: "100%",
+        display: "flex",
+        "align-items": "baseline",
+        "margin-bottom": "8px",
+      },
+      styleareaobj: {
+        width: "100%",
+        display: "flex",
+        "margin-bottom": "8px",
+      },
+      payloadVal: "",
+      mqttpayload: ["json"],
       decryptPwd: "", //解密的密码
       // dbsource,
       disable: false,
@@ -664,13 +543,15 @@ export default {
     this.getDatabases();
     if (this.isEditable) {
       this.dbname = this.dbName;
+      if (this.tagName == "mqtt") {
+        this.payloadVal = "json";
+      }
     }
   },
   mounted() {
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
-    console.log("dd", this.dbsource[0], this.mqttParser, "mqtt初始化");
   },
   watch: {
     dbName: {
@@ -683,6 +564,9 @@ export default {
     },
   },
   methods: {
+    selectPayload(val) {
+      this.payloadVal = val;
+    },
     transforHtml(val) {
       if (val) {
         return marked.parse(val);
@@ -732,7 +616,9 @@ export default {
             Message({
               type: "warning",
               message:
-                this.$t("datasource.msg:") + `${data.options[key].display} `,
+                this.$t("datasource.msg") +
+                ":" +
+                `${data.options[key].display} `,
             });
             return;
           }
@@ -779,8 +665,8 @@ export default {
               Message({
                 type: "warning",
                 message:
-                  this.$t("datasource.msg:") +
-                  `${data.groups[index].params[g].name} `,
+                  this.$t("datasource.msg") +
+                  ":"`${data.groups[index].params[g].name} `,
               });
               return;
             } else {
@@ -850,6 +736,29 @@ export default {
           });
           return;
         }
+        if (this.tagName == "mqtt") {
+          let payloadselect = this.dbsource[0].parser.fields.filter(
+            (item) => item.name == "payload"
+          )[0].value;
+          if (!payloadselect) {
+            Message({
+              type: "warning",
+              message: this.$t("datasource.payloadtip"),
+            });
+            return;
+          }
+          this.$refs.mqtt.submit();
+          if (
+            this.$refs.mqtt &&
+            (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull)
+          ) {
+            Message({
+              type: "warning",
+              message: this.$t("datasource.mqttparsertip"),
+            });
+            return;
+          }
+        }
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
@@ -859,7 +768,7 @@ export default {
             //     : "+"
             //   : "") +
             dns,
-          parser: this.mqttParser,
+          parser: this.$store.state.app.mqttParser,
           name: localStorage.getItem("datainName"),
           to:
             "taos+" +
@@ -875,23 +784,29 @@ export default {
           piParams["via"] = this.$parent.agentID;
         }
         if (this.isEditable) {
-          await EditSource(piParams, this.editId).then(() => {
-            this.$parent.toggleComponent("opctable", this.protocol);
-          });
+          await EditSource(piParams, this.editId)
+            .then(() => {
+              this.$parent.toggleComponent("opctable", this.protocol);
+            })
+            .catch((err) => {
+              err.response.data &&
+                err.response.data.message &&
+                Message.error(err.response.data.message);
+            });
         } else {
-          await AddSource(piParams).then((res) => {
-            if (res && res.id) {
-              this.$parent.toggleComponent("opctable", "");
-              Message.success(this.$t("datasource.successtip"));
-            }
-          });
+          await AddSource(piParams)
+            .then((res) => {
+              if (res && res.id) {
+                this.$parent.toggleComponent("opctable", "");
+                Message.success(this.$t("datasource.successtip"));
+              }
+            })
+            .catch((err) => {
+              err.response.data &&
+                err.response.data.message &&
+                Message.error(err.response.data.message);
+            });
         }
-        // await AddSource(piParams).then((res) => {
-        //   if (res && res.id) {
-        //     this.$parent.toggleComponent("opctable", "");
-        //     Message.success("Operation Successfully!");
-        //   }
-        // });
       } catch (error) {
         console.log(error);
       }
@@ -1003,12 +918,15 @@ export default {
           offset: 0,
           limit: 10,
         };
-        const viaObj = {
-          via: this.$parent.agentID,
-        };
-        if (viaObj.via) {
-          Object.assign(params, viaObj);
+        if (this.$parent.agentID) {
+          const viaObj = {
+            via: this.$parent.agentID,
+          };
+          if (viaObj.via) {
+            Object.assign(params, viaObj);
+          }
         }
+
         this.loading = true;
         getUaAndDaData(params)
           .then((res) => {
@@ -1039,6 +957,10 @@ export default {
       border: none !important;
       box-shadow: inset 0 0 0 1px rgb(190, 188, 188);
     }
+    .el-textarea__inner {
+      min-height: 40px !important;
+      height: 40px;
+    }
   }
   .label-value {
     display: flex;
@@ -1056,6 +978,7 @@ export default {
       padding: 15px;
     }
     .block-title {
+      margin-bottom: 10px;
       span {
         font-size: 16px;
         color: #4259ce;
@@ -1073,7 +996,7 @@ export default {
       position: relative;
       &::before {
         content: "*";
-        position: absolute;
+        // position: absolute;
         color: red;
         font-size: 14px;
         line-height: 25px;
@@ -1271,6 +1194,24 @@ export default {
       :last-child {
         display: flex;
         justify-content: flex-end;
+      }
+    }
+  }
+
+  .mqtt-fields {
+    margin-bottom: 25px;
+    li {
+      display: flex;
+      margin-bottom: 8px;
+      margin-top: 15px;
+      align-items: baseline;
+      .mqtt-field {
+        flex: 1;
+        width: 100%;
+        .el-select {
+          width: 100%;
+          margin-bottom: 8px;
+        }
       }
     }
   }
