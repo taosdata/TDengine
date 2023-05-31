@@ -1121,6 +1121,27 @@ static int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData
     endPos = doBinarySearchKey(pBlockData->aTSKEY, pBlock->nRow, pos, key, pReader->order);
   }
 
+  if ((pReader->verRange.maxVer >= pBlock->minVer && pReader->verRange.maxVer < pBlock->maxVer)||
+      (pReader->verRange.minVer <= pBlock->maxVer && pReader->verRange.minVer > pBlock->minVer)) {
+    int32_t i = endPos;
+
+    if (asc) {
+      for(; i >= 0; --i) {
+        if (pBlockData->aVersion[i] <= pReader->verRange.maxVer) {
+          break;
+        }
+      }
+    } else {
+      for(; i < pBlock->nRow; ++i) {
+        if (pBlockData->aVersion[i] >= pReader->verRange.minVer) {
+          break;
+        }
+      }
+    }
+
+    endPos = i;
+  }
+
   return endPos;
 }
 
@@ -1260,10 +1281,11 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
     return 0;
   }
 
+  // row index of dump info remain the initial position, let's find the appropriate start position.
   if ((pDumpInfo->rowIndex == 0 && asc) || (pDumpInfo->rowIndex == pBlock->nRow - 1 && (!asc))) {
-    if (asc && pReader->window.skey <= pBlock->minKey.ts) {
+    if (asc && pReader->window.skey <= pBlock->minKey.ts && pReader->verRange.minVer <= pBlock->minVer) {
       // pDumpInfo->rowIndex = 0;
-    } else if (!asc && pReader->window.ekey >= pBlock->maxKey.ts) {
+    } else if (!asc && pReader->window.ekey >= pBlock->maxKey.ts && pReader->verRange.maxVer >= pBlock->maxVer) {
       // pDumpInfo->rowIndex = pBlock->nRow - 1;
     } else {  // find the appropriate the start position in current block, and set it to be the current rowIndex
       int32_t pos = asc ? pBlock->nRow - 1 : 0;
@@ -1279,6 +1301,29 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
             pBlock->maxVer, pReader->idStr);
         return TSDB_CODE_INVALID_PARA;
       }
+
+      ASSERT(pReader->verRange.minVer <= pBlock->maxVer && pReader->verRange.maxVer >= pBlock->minVer);
+
+      // find the appropriate start position that satisfies the version requirement.
+      if ((pReader->verRange.maxVer >= pBlock->minVer && pReader->verRange.maxVer < pBlock->maxVer)||
+          (pReader->verRange.minVer <= pBlock->maxVer && pReader->verRange.minVer > pBlock->minVer)) {
+        int32_t i = pDumpInfo->rowIndex;
+        if (asc) {
+          for(; i < pBlock->nRow; ++i) {
+            if (pBlockData->aVersion[i] >= pReader->verRange.minVer) {
+              break;
+            }
+          }
+        } else {
+          for(; i >= 0; --i) {
+            if (pBlockData->aVersion[i] <= pReader->verRange.maxVer) {
+              break;
+            }
+          }
+        }
+
+        pDumpInfo->rowIndex = i;
+      }
     }
   }
 
@@ -1293,6 +1338,9 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
   int32_t dumpedRows = asc ? (endIndex - pDumpInfo->rowIndex) : (pDumpInfo->rowIndex - endIndex);
   if (dumpedRows > pReader->resBlockInfo.capacity) {  // output buffer check
     dumpedRows = pReader->resBlockInfo.capacity;
+  } else if (dumpedRows <= 0) {  // no qualified rows in current data block, abort directly.
+    setBlockAllDumped(pDumpInfo, pReader->window.ekey, pReader->order);
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t i = 0;
