@@ -419,3 +419,29 @@ pub(super) async fn get_task_offsets_by_id(
         }),
     }
 }
+
+/// Get Task activities by given task id.
+///
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task activities of the task", body = Vec<TaskActivity>),
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
+)]
+#[get("/tasks/{id}/activities")]
+pub(super) async fn get_task_activities_by_id(
+    id: Path<i64>,
+    task_store: Data<TaskControllerRef>,
+) -> impl Responder {
+    let id = id.into_inner();
+    match task_store.task_activities(id).await {
+        Ok(acts) => HttpResponse::Ok().json(acts),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: err.to_string(),
+        }),
+    }
+}
