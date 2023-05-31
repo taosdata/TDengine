@@ -396,6 +396,7 @@ export default {
     manageDBprivilege: "Manage Database Privilege",
     viewTable: "View Table Config",
     createnormalTable: 'Create Normal Table',
+    createsubTable: 'Create Sub Table',
     name: "Name",
     keep: "Keep",
     update: "Update",
@@ -426,7 +427,7 @@ export default {
     maxRowsTip: "The maximum number of rows stored in single data block, default value 4,096.",
     minRowsTip: "The minimum number of rows stored in single data block, default value is 100.",
     cacheLast: "CacheLast",
-    nameTip: "Name format error!",
+    nameTip: "The /name/ name is required!",
     daysTip: "DAYS is the time span for a data file to store data,<br />default: 10",
     precisionTip: `The precision at which a database records timestamps, ms for milliseconds, us for microseconds, or ns for nanoseconds, the default value is ms`,
     keepTip: `The number of days for keeping the data files, the default value is 3,650, the data files that have last over KEEP would be deleted automatically.You can use m (minutes), h (hours), and d (days) as the unit.`,
@@ -487,7 +488,9 @@ export default {
     performanceRelatedParameters: "Performance Related Parameters",
     dataPersistenceParameters: "Data Persistence Parameters",
     walParameters: "WAL Parameters",
-    specialParameters: "Special Parameters" 
+    specialParameters: "Special Parameters",
+    modifyColumn: 'Modify column width',
+    renameColumn: 'Change column name'
   },
   dataIn: {
     connector: "Connectors",

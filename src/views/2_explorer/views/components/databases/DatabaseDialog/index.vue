@@ -98,7 +98,7 @@ export default {
         name: [
           {
             required: true,
-            message: this.$t("data.nameTip"),
+            message: this.$t("data.nameTip").replace('/name/',this.$t('data.databases')),
             trigger: "blur"
           }
         ]

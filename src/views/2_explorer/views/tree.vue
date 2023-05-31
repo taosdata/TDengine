@@ -678,7 +678,7 @@ export default {
           del: this.$t("data.delTable"),
         },
         stable: {
-          add: this.$t("data.createnormalTable", [data.name]),
+          add: this.$t("data.createsubTable", [data.name]),
           edit: this.$t("data.editTable", [data.name]),
           view: this.$t("data.viewTable"),
           del: this.$t("data.delTable"),
