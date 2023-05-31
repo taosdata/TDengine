@@ -278,18 +278,18 @@ export default {
     },
     del(data) {
       this.$confirm(
-        "Are you sure  to delete " + data.id + " backup task?",
-        "Warning",
+        this.$t("replication.backupDel").replace("{id}", data.id),
+        this.$t("warning"),
         {
-          confirmButtonText: "Ok",
-          cancelButtonText: "Cancel",
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
           type: "warning",
         }
       ).then(async () => {
         await excuteDel(data.id).then((res) => {
           Message({
             type: "success",
-            message: "Deleted Successfully",
+            message: this.$t('delSucc'),
           });
           this.getBackData();
         });
@@ -316,7 +316,7 @@ export default {
     async start(val, data) {
       try {
         await excuteStart(data.id).then((res) => {
-          Message.success("Operation Successfully Completed!");
+          Message.success(this.$t('operateSucc'));
           this.getBackData();
         });
       } catch (err) {
@@ -326,7 +326,7 @@ export default {
     async stop(val, data) {
       try {
         await excuteStop(data.id).then((res) => {
-          Message.success("Operation Successfully Completed!");
+          Message.success(this.$t('operateSucc'));
           this.getBackData();
         });
       } catch (err) {
@@ -338,7 +338,7 @@ export default {
       if (val) {
         this.$confirm(
           this.$t("replication.backupTip")
-            .replace("{operate}", "start")
+            .replace("{operate}", this.$t("replication.start"))
             .replace("{id}", data.id),
           this.$t("warning"),
           {
@@ -352,7 +352,7 @@ export default {
       } else {
         this.$confirm(
           this.$t("replication.backupTip")
-            .replace("{operate}", "stop")
+            .replace("{operate}", this.$t("replication.stop"))
             .replace("{id}", data.id),
           this.$t("warning"),
           {
@@ -402,7 +402,7 @@ export default {
         };
         await addBackupData(this.clusterid, params).then((res) => {
           if (res && Object.hasOwnProperty.call(res, "id")) {
-            Message.success("Created Successfully!");
+            Message.success(this.$t('createSucc'));
             this.getBackData();
             this.dialog = false;
           }
