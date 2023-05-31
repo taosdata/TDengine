@@ -364,7 +364,10 @@ int32_t tsdbIterMergerInit(const TTsdbIterArray *iterArray, SIterMerger **merger
 }
 
 int32_t tsdbIterMergerClear(SIterMerger **merger) {
-  taosMemoryFree(merger[0]);
+  if (merger[0]) {
+    taosMemoryFree(merger[0]);
+    merger[0] = NULL;
+  }
   return 0;
 }
 

@@ -73,10 +73,10 @@ struct SSttFileWriterConfig {
   int32_t   szPage;
   int8_t    cmprAlg;
   int64_t   compactVersion;  // compact version
+  STFile    file;
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
   uint8_t **aBuf;
-  STFile    file;
 };
 
 #ifdef __cplusplus
