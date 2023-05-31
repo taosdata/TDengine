@@ -1110,6 +1110,13 @@ impl TaskController {
     pub async fn delete_agent(&self, agent_id: i64) -> anyhow::Result<()> {
         let mut conn = self.pool.acquire().await?;
         let trans = self.pool.begin().await?;
+        let ids = sqlx::query_as::<_, (i64,)>("select id from tasks where via = ?")
+            .bind(agent_id)
+            .fetch_all(&mut conn)
+            .await?;
+        if !ids.is_empty() {
+            anyhow::bail!("should delete associated tasks before delete agent");
+        }
 
         sqlx::query("delete from agent_activities where id = ?")
             .bind(agent_id)
@@ -1122,15 +1129,6 @@ impl TaskController {
             .execute(&mut conn)
             .await?;
         trans.commit().await?;
-        let ids = sqlx::query_as::<_, (i64,)>("select id from tasks where via = ?")
-            .bind(agent_id)
-            .fetch_all(&mut conn)
-            .await?;
-
-        for (id,) in ids {
-            log::info!("Delete task {id} since agent {agent_id} deleted");
-            let _ = self.delete(id).await;
-        }
 
         Ok(())
     }
