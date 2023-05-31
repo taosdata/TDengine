@@ -1272,13 +1272,15 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t             taskId = ntohl(pRsp->upstreamTaskId);
   SStreamTask*        pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
-  tqDebug("recv dispatch rsp, code:%x", pMsg->code);
+
+  int32_t vgId = pTq->pStreamMeta->vgId;
+  tqDebug("vgId:%d recv dispatch rsp, code:%d", vgId, pMsg->code);
   if (pTask) {
     streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   } else {
-    return -1;
+    tqDebug("vgId:%d failed to find task:0x%x", vgId, taskId);
   }
 }
 

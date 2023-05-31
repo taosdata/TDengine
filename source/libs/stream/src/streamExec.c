@@ -385,7 +385,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     if (pTask->taskLevel == TASK_LEVEL__SINK) {
       ASSERT(pInput->type == STREAM_INPUT__DATA_BLOCK);
-      qDebug("s-task:%s sink node start to sink result. numOfBlocks:%d", pTask->id.idStr, batchSize);
+      qDebug("s-task:%s sink task start to sink %d blocks", pTask->id.idStr, batchSize);
       streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pInput);
       continue;
     }
