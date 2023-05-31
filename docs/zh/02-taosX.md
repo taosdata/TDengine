@@ -36,6 +36,9 @@ taosx -V
 taosx-agent -V 
 # taosx-agent 0.1.0-33c1e5e4 (built linux-x86_64 2023-05-26 14:24:13 +08:00)
 
+# 卸载
+sudo rmtaox
+
 ```
 
 ### Windows 安装
