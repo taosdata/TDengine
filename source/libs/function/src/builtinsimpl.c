@@ -2663,7 +2663,7 @@ bool diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   } else {
     pDiffInfo->ignoreNegative = false;
   }
-  pDiffInfo->includeNull = false;
+  pDiffInfo->includeNull = true;
   pDiffInfo->firstOutput = false;
   return true;
 }
