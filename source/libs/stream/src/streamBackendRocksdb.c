@@ -92,6 +92,7 @@ void* streamBackendInit(const char* path) {
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 2);
   rocksdb_options_set_info_log_level(opts, 0);
+  rocksdb_options_set_db_write_buffer_size(opts, 256 << 20);
 
   pHandle->env = env;
   pHandle->dbOpt = opts;
