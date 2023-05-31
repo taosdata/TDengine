@@ -77,7 +77,7 @@ static int32_t tsdbSttIterNext(STsdbIter *iter, const TABLEID *tbid) {
         continue;
       }
 
-      int32_t code = tsdbSttFReadSttBlock(iter->stt->reader, sttBlk, iter->stt->bData);
+      int32_t code = tsdbSttFileReadSttBlock(iter->stt->reader, sttBlk, iter->stt->bData);
       if (code) return code;
 
       iter->stt->iRow = 0;
@@ -200,7 +200,7 @@ _exit:
 static int32_t tsdbSttIterOpen(STsdbIter *iter) {
   int32_t code;
 
-  code = tsdbSttFReadSttBlk(iter->stt->reader, &iter->stt->sttBlkArray);
+  code = tsdbSttFileReadSttBlk(iter->stt->reader, &iter->stt->sttBlkArray);
   if (code) return code;
 
   if (TARRAY2_SIZE(iter->stt->sttBlkArray) == 0) {

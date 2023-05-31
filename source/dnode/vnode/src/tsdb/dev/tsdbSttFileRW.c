@@ -84,7 +84,7 @@ static int32_t tsdbSttSegReaderClose(SSttSegReader **reader) {
   return 0;
 }
 
-int32_t tsdbSttFReaderOpen(const char *fname, const SSttFileReaderConfig *config, SSttFileReader **reader) {
+int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *config, SSttFileReader **reader) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(config->tsdb->pVnode);
@@ -117,12 +117,12 @@ int32_t tsdbSttFReaderOpen(const char *fname, const SSttFileReaderConfig *config
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", vid, __func__, lino, tstrerror(code));
-    tsdbSttFReaderClose(reader);
+    tsdbSttFileReaderClose(reader);
   }
   return code;
 }
 
-int32_t tsdbSttFReaderClose(SSttFileReader **reader) {
+int32_t tsdbSttFileReaderClose(SSttFileReader **reader) {
   tsdbCloseFile(&reader[0]->fd);
   TARRAY2_CLEAR_FREE(reader[0]->readerArray, tsdbSttSegReaderClose);
   taosMemoryFree(reader[0]);
@@ -130,13 +130,13 @@ int32_t tsdbSttFReaderClose(SSttFileReader **reader) {
   return 0;
 }
 
-int32_t tsdbSttFReaderGetSegReader(SSttFileReader *reader, const TSttSegReaderArray **readerArray) {
+int32_t tsdbSttFileReaderGetSegReader(SSttFileReader *reader, const TSttSegReaderArray **readerArray) {
   readerArray[0] = reader->readerArray;
   return 0;
 }
 
 // SSttFSegReader
-int32_t tsdbSttFReadStatisBlk(SSttSegReader *reader, const TStatisBlkArray **statisBlkArray) {
+int32_t tsdbSttFileReadStatisBlk(SSttSegReader *reader, const TStatisBlkArray **statisBlkArray) {
   if (!reader->ctx.statisBlkLoaded) {
     if (reader->footer->statisBlkPtr->size > 0) {
       ASSERT(reader->footer->statisBlkPtr->size % sizeof(STbStatisBlk) == 0);
@@ -161,7 +161,7 @@ int32_t tsdbSttFReadStatisBlk(SSttSegReader *reader, const TStatisBlkArray **sta
   return 0;
 }
 
-int32_t tsdbSttFReadDelBlk(SSttSegReader *reader, const TDelBlkArray **delBlkArray) {
+int32_t tsdbSttFileReadDelBlk(SSttSegReader *reader, const TDelBlkArray **delBlkArray) {
   if (!reader->ctx.delBlkLoaded) {
     if (reader->footer->delBlkPtr->size > 0) {
       ASSERT(reader->footer->delBlkPtr->size % sizeof(SDelBlk) == 0);
@@ -186,7 +186,7 @@ int32_t tsdbSttFReadDelBlk(SSttSegReader *reader, const TDelBlkArray **delBlkArr
   return 0;
 }
 
-int32_t tsdbSttFReadSttBlk(SSttSegReader *reader, const TSttBlkArray **sttBlkArray) {
+int32_t tsdbSttFileReadSttBlk(SSttSegReader *reader, const TSttBlkArray **sttBlkArray) {
   if (!reader->ctx.sttBlkLoaded) {
     if (reader->footer->sttBlkPtr->size > 0) {
       ASSERT(reader->footer->sttBlkPtr->size % sizeof(SSttBlk) == 0);
@@ -211,13 +211,13 @@ int32_t tsdbSttFReadSttBlk(SSttSegReader *reader, const TSttBlkArray **sttBlkArr
   return 0;
 }
 
-int32_t tsdbSttFReadSttBlock(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData) {
+int32_t tsdbSttFileReadSttBlock(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-int32_t tsdbSttFReadDelBlock(SSttSegReader *reader, const SDelBlk *delBlk, SDelBlock *dData) {
+int32_t tsdbSttFileReadDelBlock(SSttSegReader *reader, const SDelBlk *delBlk, SDelBlock *dData) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(reader->reader->config->tsdb->pVnode);
@@ -246,7 +246,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFReadStatisBlock(SSttSegReader *reader, const STbStatisBlk *statisBlk, STbStatisBlock *sData) {
+int32_t tsdbSttFileReadStatisBlock(SSttSegReader *reader, const STbStatisBlk *statisBlk, STbStatisBlock *sData) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(reader->reader->config->tsdb->pVnode);

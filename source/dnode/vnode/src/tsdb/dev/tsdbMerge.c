@@ -229,7 +229,7 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
           .szPage = merger->szPage,
           .file[0] = merger->ctx->fobj->f[0],
       }};
-      code = tsdbSttFReaderOpen(merger->ctx->fobj->fname, config, &reader);
+      code = tsdbSttFileReaderOpen(merger->ctx->fobj->fname, config, &reader);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = TARRAY2_APPEND(merger->sttReaderArr, reader);
@@ -253,7 +253,7 @@ static int32_t tsdbMergeFileSetBeginOpenIter(SMerger *merger) {
   TARRAY2_FOREACH(merger->sttReaderArr, sttReader) {
     const TSttSegReaderArray *segReaderArr;
 
-    code = tsdbSttFReaderGetSegReader(sttReader, &segReaderArr);
+    code = tsdbSttFileReaderGetSegReader(sttReader, &segReaderArr);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     SSttSegReader *segReader;
@@ -450,7 +450,7 @@ static int32_t tsdbMergeFileSetEndCloseIter(SMerger *merger) {
 }
 
 static int32_t tsdbMergeFileSetEndCloseReader(SMerger *merger) {
-  TARRAY2_CLEAR(merger->sttReaderArr, tsdbSttFReaderClose);
+  TARRAY2_CLEAR(merger->sttReaderArr, tsdbSttFileReaderClose);
   return 0;
 }
 
