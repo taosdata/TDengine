@@ -18,7 +18,7 @@
 // maximum allowed processed block batches. One block may include several submit blocks
 #define MAX_STREAM_EXEC_BATCH_NUM 32
 #define MIN_STREAM_EXEC_BATCH_NUM 8
-#define MAX_STREAM_RESULT_DUMP_THRESHOLD  1000
+#define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
 
 static int32_t updateCheckPointInfo (SStreamTask* pTask);
 
