@@ -16,7 +16,16 @@
 #include "inc/tsdbMerge.h"
 
 typedef struct {
-  STsdb *tsdb;
+  STsdb   *tsdb;
+  int32_t  maxRow;
+  int32_t  minRow;
+  int32_t  szPage;
+  int8_t   cmprAlg;
+  int64_t  compactVersion;
+  int64_t  cid;
+  SSkmInfo skmTb;
+  SSkmInfo skmRow;
+  uint8_t *aBuf[5];
   // context
   struct {
     bool       opened;
@@ -26,18 +35,11 @@ typedef struct {
     SRowInfo  *row;
     SBlockData bData;
   } ctx[1];
-  // config
-  int32_t  maxRow;
-  int32_t  minRow;
-  int32_t  szPage;
-  int8_t   cmprAlg;
-  int64_t  cid;
-  SSkmInfo skmTb;
-  SSkmInfo skmRow;
-  uint8_t *aBuf[5];
   // reader
-  TARRAY2(SSttFileReader *) sttReaderArr;
+  TARRAY2(SSttFileReader *) sttReaderArr[1];
   SDataFileReader *dataReader;
+  TTsdbIterArray   iterArr[1];
+  SIterMerger     *iterMerger;
   // writer
   SSttFileWriter  *sttWriter;
   SDataFileWriter *dataWriter;
@@ -203,7 +205,7 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
       code = tsdbSttFReaderOpen(fobj->fname, &config, &reader);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = TARRAY2_APPEND(&merger->sttReaderArr, reader);
+      code = TARRAY2_APPEND(merger->sttReaderArr, reader);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       // add the operation
@@ -334,12 +336,11 @@ int32_t tsdbMerge(STsdb *tsdb) {
   int32_t code = 0;
   int32_t lino;
 
-  SVnode       *vnode = tsdb->pVnode;
-  int32_t       vid = TD_VID(vnode);
+  int32_t       vid = TD_VID(tsdb->pVnode);
   STFileSystem *fs = tsdb->pFS;
   STFileSet    *fset;
   STFileObj    *fobj;
-  int32_t       sttTrigger = vnode->config.sttTrigger;
+  int32_t       sttTrigger = tsdb->pVnode->config.sttTrigger;
 
   SMerger merger[1];
   merger->tsdb = tsdb;

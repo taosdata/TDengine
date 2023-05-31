@@ -71,7 +71,7 @@ struct SSttFileWriterConfig {
   int32_t   maxRow;
   int32_t   szPage;
   int8_t    cmprAlg;
-  int64_t   compVer;  // compact version
+  int64_t   compactVersion;  // compact version
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
   uint8_t **aBuf;
