@@ -550,6 +550,7 @@ typedef struct SMultiwayMergeOperatorInfo {
   bool           ignoreGroupId;
   uint64_t       groupId;
   STupleHandle*  prefetchedTuple;
+  int32_t        currStream;
 } SMultiwayMergeOperatorInfo;
 
 int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
@@ -582,7 +583,8 @@ int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
     tsortAddSource(pInfo->pSortHandle, ps);
   }
 
-  int32_t code = tsortOpen(pInfo->pSortHandle);
+  //int32_t code = tsortOpen(pInfo->pSortHandle);
+  int32_t code = TSDB_CODE_SUCCESS;
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
@@ -711,6 +713,29 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
   return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
 }
 
+
+SSDataBlock* getMultiwayBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, SArray* pColMatchInfo,
+                                        SOperatorInfo* pOperator) {
+  SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
+
+  int32_t capacity = pOperator->resultInfo.capacity;
+
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  blockDataCleanup(pDataBlock);
+
+  while (pInfo->currStream < pOperator->numOfDownstream) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[pInfo->currStream];
+    SSDataBlock*   pBlock = pDownstream->fpSet.getNextFn(pDownstream);
+    if (pBlock == NULL) {
+      ++pInfo->currStream;
+    } else {
+      copyDataBlock(pDataBlock, pBlock);
+      break;
+    }
+  }
+  return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
+}
+
 SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -725,7 +750,7 @@ SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator) {
   }
 
   qDebug("start to merge final sorted rows, %s", GET_TASKID(pTaskInfo));
-  SSDataBlock* pBlock = getMultiwaySortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pInfo->matchInfo.pList, pOperator);
+  SSDataBlock* pBlock = getMultiwayBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pInfo->matchInfo.pList, pOperator);
   if (pBlock != NULL) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
   } else {

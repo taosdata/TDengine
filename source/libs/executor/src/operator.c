@@ -532,6 +532,16 @@ void destroyOperator(SOperatorInfo* pOperator) {
     return;
   }
 
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* info = (STableScanInfo*)(pOperator->info);
+    qInfo("table scan operator %p total time: %"PRId64, pOperator, info->opTime);
+  }
+
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    STableMergeScanInfo* info = (STableMergeScanInfo*)(pOperator->info);
+    qInfo("table merge scan operator %p total time: %"PRId64, pOperator, info->opTime);
+  }
+
   if (pOperator->fpSet.closeFn != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
   }

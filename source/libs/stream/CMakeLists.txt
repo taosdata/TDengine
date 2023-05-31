@@ -9,7 +9,7 @@ target_include_directories(
 if(${BUILD_WITH_ROCKSDB})
   target_link_libraries(
     stream
-    PUBLIC rocksdb tdb
+    PUBLIC rocksdb-shared tdb
     PRIVATE  os util transport qcom executor wal index
   )
 

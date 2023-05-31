@@ -269,7 +269,7 @@ if(${BUILD_WITH_ROCKSDB})
     option(WITH_TOOLS "" OFF)
     option(WITH_LIBURING "" OFF)
 
-    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
+    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" ON)
     add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
     target_include_directories(
         rocksdb

@@ -858,25 +858,10 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
   STableUidList* pList = &pReader->status.uidList;
 
   int32_t i = 0, j = 0;
-  while (i < num && j < numOfTables) {
-    pBlockIdx = (SBlockIdx*)taosArrayGet(aBlockIdx, i);
-    if (pBlockIdx->suid != pReader->suid) {
-      i += 1;
-      continue;
-    }
-
-    if (pBlockIdx->uid < pList->tableUidList[j]) {
-      i += 1;
-      continue;
-    }
-
-    if (pBlockIdx->uid > pList->tableUidList[j]) {
-      j += 1;
-      continue;
-    }
-
-    if (pBlockIdx->uid == pList->tableUidList[j]) {
-      // this block belongs to a table that is not queried.
+  if (numOfTables == 1) {
+    SBlockIdx idx = {.suid = pReader->suid, .uid = pList->tableUidList[0]};
+    pBlockIdx = taosArraySearch(aBlockIdx, &idx, tCmprBlockIdx, TD_EQ);
+    if (pBlockIdx != NULL){
       STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
       if (pScanInfo == NULL) {
         tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
@@ -888,12 +873,45 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
       }
 
       taosArrayPush(pIndexList, pBlockIdx);
+    }
+  } else 
+  {
+    while (i < num && j < numOfTables) {
+      pBlockIdx = (SBlockIdx*)taosArrayGet(aBlockIdx, i);
+      if (pBlockIdx->suid != pReader->suid) {
+        i += 1;
+        continue;
+      }
 
-      i += 1;
-      j += 1;
+      if (pBlockIdx->uid < pList->tableUidList[j]) {
+        i += 1;
+        continue;
+      }
+
+      if (pBlockIdx->uid > pList->tableUidList[j]) {
+        j += 1;
+        continue;
+      }
+
+      if (pBlockIdx->uid == pList->tableUidList[j]) {
+        // this block belongs to a table that is not queried.
+        STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
+        if (pScanInfo == NULL) {
+          tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
+          return terrno;
+        }
+
+        if (pScanInfo->pBlockList == NULL) {
+          pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBlockIndex));
+        }
+
+        taosArrayPush(pIndexList, pBlockIdx);
+
+        i += 1;
+        j += 1;
+      }
     }
   }
-
   int64_t et2 = taosGetTimestampUs();
   tsdbDebug("load block index for %d/%d tables completed, elapsed time:%.2f ms, set blockIdx:%.2f ms, size:%.2f Kb %s",
             numOfTables, (int32_t)num, (et1 - st) / 1000.0, (et2 - et1) / 1000.0, num * sizeof(SBlockIdx) / 1024.0,

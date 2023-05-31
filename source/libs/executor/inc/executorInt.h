@@ -224,6 +224,7 @@ typedef struct STableScanInfo {
   int8_t          assignBlockUid;
   bool            hasGroupByTag;
   bool            countOnly;
+  int64_t         opTime;
 //  TsdReader    readerAPI;
 } STableScanInfo;
 
@@ -248,6 +249,8 @@ typedef struct STableMergeScanInfo {
   SSDataBlock*    pResBlock;
   SSampleExecInfo sample;  // sample execution info
   SSortExecInfo   sortExecInfo;
+  int64_t         opTime;
+  int32_t         groupIndex;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {

@@ -809,6 +809,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
 }
 
 static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
+  int64_t startTime = taosGetTimestampUs();
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
@@ -821,6 +822,8 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     while (1) {
       SSDataBlock* result = doGroupedTableScan(pOperator);
       if (result || (pOperator->status == OP_EXEC_DONE) || isTaskKilled(pTaskInfo)) {
+        int64_t endTime = taosGetTimestampUs();
+        pInfo->opTime += (endTime - startTime);
         return result;
       }
 
@@ -833,6 +836,8 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       if (pInfo->currentTable >= numOfTables) {
         qDebug("all table checked in table list, total:%d, return NULL, %s", numOfTables, GET_TASKID(pTaskInfo));
         taosRUnLockLatch(&pTaskInfo->lock);
+        int64_t endTime = taosGetTimestampUs();
+        pInfo->opTime += (endTime - startTime);
         return NULL;
       }
 
@@ -850,6 +855,8 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     if (pInfo->currentGroupId == -1) {
       if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
         setOperatorCompleted(pOperator);
+        int64_t endTime = taosGetTimestampUs();
+        pInfo->opTime += (endTime - startTime);
         return NULL;
       }
 
@@ -871,11 +878,15 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     SSDataBlock* result = doGroupedTableScan(pOperator);
     if (result != NULL) {
+        int64_t endTime = taosGetTimestampUs();
+        pInfo->opTime += (endTime - startTime);
       return result;
     }
 
     if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
       setOperatorCompleted(pOperator);
+      int64_t endTime = taosGetTimestampUs();
+      pInfo->opTime += (endTime - startTime);
       return NULL;
     }
 
@@ -893,10 +904,16 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     result = doGroupedTableScan(pOperator);
     if (result != NULL) {
+      int64_t endTime = taosGetTimestampUs();
+      pInfo->opTime += (endTime - startTime);
       return result;
     }
 
     setOperatorCompleted(pOperator);
+    {
+        int64_t endTime = taosGetTimestampUs();
+        pInfo->opTime += (endTime - startTime);
+    }
     return NULL;
   }
 }
@@ -2791,9 +2808,9 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   int32_t tableStartIdx = pInfo->tableStartIndex;
   int32_t tableEndIdx = pInfo->tableEndIndex;
-
+  pInfo->groupIndex = tableStartIdx;
   pInfo->base.dataReader = NULL;
-
+  qInfo("zsl debug: tables number: %d %d %d", tableEndIdx-tableStartIdx+1, tableStartIdx, tableEndIdx);
   // todo the total available buffer should be determined by total capacity of buffer of this task.
   // the additional one is reserved for merge result
   pInfo->sortBufSize = pInfo->bufPageSize * (tableEndIdx - tableStartIdx + 1 + 1);
@@ -2830,8 +2847,8 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     tsortAddSource(pInfo->pSortHandle, ps);
   }
 
-  int32_t code = tsortOpen(pInfo->pSortHandle);
-
+  //int32_t code = tsortOpen(pInfo->pSortHandle);
+  int32_t code = TSDB_CODE_SUCCESS;
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
@@ -2903,6 +2920,36 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
   return (pResBlock->info.rows > 0) ? pResBlock : NULL;
 }
 
+SSDataBlock* getTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock* pResBlock, int32_t capacity,
+                                              SOperatorInfo* pOperator) {
+  int64_t startTime = taosGetTimestampUs();
+
+  SSDataBlock *pBlock = NULL;                                              
+  STableMergeScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
+  
+  blockDataCleanup(pResBlock);
+
+  while (pInfo->groupIndex <= pInfo->tableEndIndex) {
+    STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, pInfo->groupIndex - pInfo->tableStartIndex);
+    blockDataCleanup(param->inputBlock);
+    pBlock = getTableDataBlockImpl(param);
+    if (pBlock == NULL) {
+      ++pInfo->groupIndex;
+    } else {
+      copyDataBlock(pResBlock, pBlock);
+      break;
+    }
+  }
+
+  bool limitReached = applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo);
+  qDebug("%s get sorted row block, rows:%" PRId64 ", limit:%" PRId64, GET_TASKID(pTaskInfo), pResBlock->info.rows,
+         pInfo->limitInfo.numOfOutputRows);
+  int64_t endTime = taosGetTimestampUs();
+  pInfo->opTime += (endTime-startTime);
+  return (pResBlock->info.rows > 0) ? pResBlock : NULL;
+}
+
 SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -2935,7 +2982,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
-    pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity,
+    pBlock = getTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity,
                                               pOperator);
     if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->groupId;
