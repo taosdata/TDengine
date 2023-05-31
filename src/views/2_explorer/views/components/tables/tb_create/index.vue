@@ -59,7 +59,7 @@
                 :disabled="typeHasSpe(column.type) || index == 0"
               >
                 <el-option
-                  v-for="item in handleTypeList(column.type, 'dataType')"
+                  v-for="item in column.typeList"
                   :key="item.value"
                   v-bind="item"
                 ></el-option>
@@ -85,7 +85,6 @@
                 size="small"
                 v-model="column.field"
                 :placeholder="$t('data.columnNameTip')"
-                :disabled="isEdit"
               >
                 <template slot="append">
                   <el-button
@@ -120,6 +119,23 @@
                   v-bind="item"
                 ></el-option>
               </el-select>
+              <el-input-number
+                v-if="currentData.type == 'VARCHAR' || currentData.type == 'NCHAR'"
+                :value="
+                  currentData.type == 'VARCHAR'
+                    ? currentData.varcharLength
+                    : currentData.ncharLength
+                "
+                @change="
+                  (newVal, oldVal) =>
+                    handleEditChange(newVal, currentData.type)
+                "
+                :min="1"
+                :max="currentData.type == 'VARCHAR' ? 16374 : 4093"
+                label="Length"
+                controls-position="right"
+                class="custom-length"
+              ></el-input-number>
               <el-input
                 size="small"
                 v-model="currentData.field"
@@ -273,7 +289,7 @@ export default {
         name: [
           {
             required: true,
-            message: this.$t("data.nameTip"),
+            message: this.$t("data.nameTip").replace('/name/',this.$t('dashboard.tables')),
             trigger: "blur",
           },
           {
@@ -281,7 +297,7 @@ export default {
               callback(
                 validDatabaseName(value)
                   ? undefined
-                  : new Error(this.$t("data.nameTip"))
+                  : new Error(this.$t("data.nameTip").replace('/name/',this.$t('dashboard.tables')))
               );
             },
             trigger: "blur",
@@ -308,22 +324,13 @@ export default {
         this.$set(this.table_form.columns[index], "ncharLength", newVal);
       }
     },
-    // 当修改时，如果字段的类型为binary和nchar则需要对可修改的进行过滤，只保留比其大的
-    handleTypeList(currentType, name) {
-      if (!this.isEdit) return this[name];
-      // 当数据类型为BINARY和NCHAR才会进行过滤并且是修改状态下的时候
-      let index = VariableTableColumnType.findIndex((item) =>
-        currentType.startsWith(item)
-      );
-      if (index == -1) return this[name];
-      return this[name].filter((item) => {
-        let cur = item.value.match(/\d+/);
-        return (
-          item.value.startsWith(VariableTableColumnType[index]) &&
-          cur &&
-          +cur[0] > +currentType.match(/\d+/)?.[0]
-        );
-      });
+    handleEditChange(newVal, type) {
+      if (type === "VARCHAR") {
+        this.$set(this.currentData, "varcharLength", newVal);
+      }
+      if (type === "NCHAR") {
+        this.$set(this.currentData, "ncharLength", newVal);
+      }
     },
     // 判断类型是不是可以修改的类型
     typeHasSpe(currentType) {
@@ -341,20 +348,32 @@ export default {
           type: "INT",
           field: "",
           varcharLength:8,
-          ncharLength:8
+          ncharLength:8,
+          typeList: dataType
         });
       }
       this.columnEdit = true;
       this.currentData = { field: "", type: "INT",varcharLength:8,
           ncharLength:8 };
     },
-    columnTypeChange(column) {
-      let params = {
-        operation: "modify column",
-        first_field: column.field,
-        second_field: column.type,
-      };
-      this.updateData(params);
+    columnTypeChange(column) { 
+      let params = null
+      let rename_params = null
+      if(!this.typeHasSpe(column.type) && column.type_old !== column.type) {
+        params = {
+          operation: "modify column",
+          first_field: column.field_old,
+          second_field: column.type,
+        };
+      } 
+      if(column.field_old !== column.field) {
+        rename_params = {
+          operation: "rename column",
+          first_field: column.field_old, // old_col_name
+          second_field: column.field, // new_col_name
+        };
+      }
+      this.updateTypeField(params, rename_params);  
     },
     minusColumn(index, data) {
       if (!this.isEdit) return this.table_form.columns.remove(index);
@@ -377,12 +396,12 @@ export default {
       this.loading = true;
       await changeTableStruct(
         params,
-        this.selected_db + "." + this.table_form.name
+        "`" + this.selected_db + "`" + "." + "`" + this.table_form.name + "`"
       )
         .then(() => {
           this.$message.success(this.$t("operateSucc"));
         })
-        .catch(() => false);
+        .catch((err) => this.$message.error(err?.desc));
       this.loading = false;
       // 修改tag的value时只获取当前value的值
       if (tag) {
@@ -393,7 +412,7 @@ export default {
             this.table_form.stbTmpl,
             this.table_form.name
           )
-        )[tag.field];
+        )[0][tag.field];
       } else {
         this.$store
           .dispatch("tables/getTableStruct", {
@@ -402,6 +421,32 @@ export default {
           })
           .catch(() => false);
       }
+    },
+    async updateTypeField(params, rename_params) {
+      if (this.loading) return;
+      this.loading = true;
+      let second_params = "`" + this.selected_db + "`" + "." + "`" + this.table_form.name + "`"
+      if(params) {
+        await changeTableStruct(params, second_params)
+          .then(async () => {
+            this.$message.success(this.$t('data.modifyColumn') + this.$t("operateSucc"));
+          })
+          .catch((err) => this.$message.error(err?.desc));
+      }
+      if(rename_params) {
+        await changeTableStruct(rename_params,second_params)
+          .then(async () => {
+            this.$message.success(this.$t('data.renameColumn') + this.$t("operateSucc"));
+          })
+          .catch((err) => this.$message.error(err?.desc));
+      }
+      this.loading = false;
+      this.$store
+        .dispatch("tables/getTableStruct", {
+          tableName: this.table_form.name,
+          stableName: this.table_form.stbTmpl,
+        })
+        .catch(() => false);
     },
     foldTags() {
       this.isTagsFold = !this.isTagsFold;
@@ -465,7 +510,11 @@ export default {
       let params = {
         operation: "add column",
         first_field: this.currentData.field,
-        second_field: this.currentData.type,
+        second_field: this.currentData.type === 'VARCHAR' 
+        ? this.currentData.type + `(${this.currentData.varcharLength})`
+        : this.currentData.type === 'NCHAR' 
+        ? this.currentData.type + `(${this.currentData.ncharLength})` 
+        : this.currentData.type,
       };
       this.columnEdit = false;
       this.updateData(params);

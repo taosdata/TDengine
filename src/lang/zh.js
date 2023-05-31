@@ -322,6 +322,7 @@ export default {
     manageDBprivilege: "管理数据库权限",
     viewDatabase: "查看数据库配置",
     createnormalTable: '创建普通表',
+    createsubTable: '创建子表',
     dbName: "数据库名称",
     createAt: "创建时间",
     showTable: "展示表",
@@ -336,7 +337,7 @@ export default {
     days: "天",
     precision: "时间精度",
     cacheLast: "缓存配置",
-    nameTip: "数据库名称必填!",
+    nameTip: "/name/名称必填!",
     daysTip: "数据文件存储数据的时间跨度，</br> 默认为：10",
     precisionTip: "数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒",
     keepTip: "数据文件的保存天数，缺省值是 3650 天，超出 KEEP 所指定的保存天数的数据文件会被自动删除。支持 m（分钟）、h（小时）和 d（天）三个单位。也可以都不写单位。",
@@ -424,7 +425,9 @@ export default {
     performanceRelatedParameters: "性能调优相关参数",
     dataPersistenceParameters: "数据持久化存储参数",
     walParameters: "WAL 配置参数",
-    specialParameters: "特殊参数" 
+    specialParameters: "特殊参数",
+    modifyColumn: '修改列宽',
+    renameColumn: '修改列名' 
   },
   connecter: {
     filterToken: "过滤令牌",

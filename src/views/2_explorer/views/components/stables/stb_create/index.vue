@@ -414,7 +414,7 @@ export default {
         name: [
           {
             required: true,
-            message: this.$t("data.nameTip"),
+            message: this.$t("data.nameTip").replace('/name/',this.$t('dashboard.stables')),
             trigger: "blur",
           },
           {
@@ -422,7 +422,7 @@ export default {
               callback(
                 validDatabaseName(value)
                   ? undefined
-                  : new Error(this.$t("data.nameTip"))
+                  : new Error(this.$t("data.nameTip").replace('/name/',this.$t('dashboard.stables')))
               );
             },
             trigger: "blur",

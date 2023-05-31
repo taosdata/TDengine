@@ -59,7 +59,7 @@ export function createTableReq(payload) {
 export function changeTableStruct(data, tableName) {
   let { operation, first_field = "", second_field = "" } = data;
   let sql = "";
-  sql = `ALTER TABLE   \`${tableName}\` ${operation} ${first_field} ${second_field};`;
+  sql = `ALTER TABLE   ${tableName} ${operation} ${first_field} ${second_field};`;
   return sendSQLReq(sql).catch(err => {
     return Promise.reject(err);
   });
