@@ -115,6 +115,14 @@ static int32_t tsdbMergeToDataTableEnd(SMerger *merger) {
 
     int32_t numRow = (merger->ctx->bData[pidx].nRow + merger->ctx->bData[cidx].nRow) / 2;
 
+    if (numRow < merger->minRow) {
+      code = tsdbDataFileWriteTSDataBlock(merger->dataWriter, merger->ctx->bData + cidx);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      tBlockDataClear(merger->ctx->bData + cidx);
+
+      goto _write_cidx;
+    }
+
     SRowInfo row[1] = {{
         .suid = merger->ctx->tbid->suid,
         .uid = merger->ctx->tbid->uid,
@@ -144,6 +152,7 @@ static int32_t tsdbMergeToDataTableEnd(SMerger *merger) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else {
+  _write_cidx:
     if (merger->ctx->bData[cidx].nRow < merger->minRow) {
       code = tsdbSttFileWriteTSDataBlock(merger->sttWriter, merger->ctx->bData + cidx);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -171,6 +180,7 @@ static int32_t tsdbMergeToDataTableBegin(SMerger *merger) {
   code = tsdbUpdateSkmTb(merger->tsdb, merger->ctx->tbid, merger->skmTb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  merger->ctx->bDataIdx = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(merger->ctx->bData); i++) {
     code = tBlockDataInit(merger->ctx->bData, merger->ctx->tbid, merger->skmTb->pTSchema, NULL, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
