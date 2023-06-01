@@ -92,7 +92,6 @@ export default {
       return false;
     },
     options() {
-      console.log('执行了');
       return [
         {
           value: 'null',
@@ -167,7 +166,7 @@ export default {
             .connectors.map((val) => {
               return {
                 id: val,
-                name: this.dataTypeMap.get(val),
+                name: this.dataTypeMap.get(val)
               };
             })
         );
@@ -189,9 +188,11 @@ export default {
           return {
             value: agent.id,
             label: agent.id + '.' + agent.name,
+            disabled:new Date(agent.expire_date)<Date.now(),
             ...agent
           }
         })
+        console.log(this.agentList,'this.agentList');
       } catch (error) {
         console.log(error);
       }

@@ -653,7 +653,8 @@ export default {
                 type: "warning",
                 message:
                   this.$t("datasource.msg") +
-                  ":"+`${currentAuth[0].username.display} `,
+                  ":" +
+                  `${currentAuth[0].username.display} `,
               });
               return;
             }
@@ -679,19 +680,20 @@ export default {
         dns = dns.replace(reg, "").trim();
         let querystr = "";
         for (let index = 0; index < data.groups.length; index++) {
-          for (let g=0;g< data.groups[index].params.length;g++) {
+          for (let g = 0; g < data.groups[index].params.length; g++) {
             if (
               Object.hasOwnProperty.call(
                 data.groups[index].params[g],
                 "required"
               ) &&
-              data.groups[index].params[g]["value"]==undefined
+              data.groups[index].params[g]["value"] == undefined
             ) {
               Message({
                 type: "warning",
                 message:
                   this.$t("datasource.msg") +
-                  ":"+`${data.groups[index].params[g].display} `,
+                  ":" +
+                  `${data.groups[index].params[g].display} `,
               });
               return;
             } else {
@@ -710,7 +712,6 @@ export default {
               }
             }
           }
-         
         }
 
         if (data.authentication.value == "certificates") {
@@ -972,6 +973,14 @@ export default {
   },
 };
 </script>
+<style  >
+
+  .el-select-dropdown__item {
+    font-family: "element-icons" !important;
+    font-weight:500;
+  }
+
+</style>
 <style lang="scss" scoped>
 .source-ui {
   padding-left: 20px;

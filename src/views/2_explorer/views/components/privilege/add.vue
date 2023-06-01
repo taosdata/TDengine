@@ -102,6 +102,8 @@ export default {
                 Message.error(this.$t('operateFail'));
               }
               this.$emit('close',true)
+            }).catch(err=>{
+              err&&err.desc&&Message.error(err.desc)
             });
           } else {
             return false;
