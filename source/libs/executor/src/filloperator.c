@@ -61,6 +61,7 @@ typedef struct SFillOperatorInfo {
   SExprSupp         noFillExprSupp;
 } SFillOperatorInfo;
 
+static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock);
 static void destroyFillOperatorInfo(void* param);
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag);
 
@@ -72,14 +73,16 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   int32_t order = TSDB_ORDER_ASC;
   int32_t scanFlag = MAIN_SCAN;
   getTableScanInfo(pOperator, &order, &scanFlag, false);
-
-  int64_t ekey = pInfo->existNewGroupBlock->info.window.ekey;
   taosResetFillInfo(pInfo->pFillInfo, getFillInfoStart(pInfo->pFillInfo));
 
   blockDataCleanup(pInfo->pRes);
   doApplyScalarCalculation(pOperator, pInfo->existNewGroupBlock, order, scanFlag);
 
-  taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, ekey);
+  revisedFillStartKey(pInfo, pInfo->existNewGroupBlock);
+
+  int64_t ts = (order == TSDB_ORDER_ASC)? pInfo->existNewGroupBlock->info.window.ekey:pInfo->existNewGroupBlock->info.window.skey;
+  taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, ts);
+
   taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
 
   int32_t numOfResultRows = pResultInfo->capacity - pResBlock->info.rows;
@@ -117,6 +120,55 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
 
   projectApplyFunctions(pNoFillSupp->pExprInfo, pInfo->pRes, pBlock, pNoFillSupp->pCtx, pNoFillSupp->numOfExprs, NULL);
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;
+}
+
+// todo refactor: decide the start key according to the query time range.
+static void revisedFillStartKey(SFillOperatorInfo* pInfo, SSDataBlock* pBlock) {
+  int32_t order = pInfo->pFillInfo->order;
+
+  if (order == TSDB_ORDER_ASC) {
+    int64_t skey = pBlock->info.window.skey;
+    if (skey < pInfo->pFillInfo->start) {  // the start key may be smaller than the
+      ASSERT( taosFillNotStarted(pInfo->pFillInfo));
+      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);
+    } else if (pInfo->pFillInfo->start < skey) {
+      int64_t t = skey;
+      SInterval* pInterval = &pInfo->pFillInfo->interval;
+
+      while(1) {
+        int64_t prev = taosTimeAdd(t, -pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+        if (prev < pInfo->pFillInfo->start) {
+          t = prev;
+          break;
+        }
+        t = prev;
+      }
+
+      // todo time window chosen problem: t or prev value?
+      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
+    }
+  } else {
+    int64_t ekey = pBlock->info.window.ekey;
+    if (ekey > pInfo->pFillInfo->start) {
+      ASSERT( taosFillNotStarted(pInfo->pFillInfo));
+      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, ekey);
+    } else if (ekey < pInfo->pFillInfo->start) {
+      int64_t t = ekey;
+      SInterval* pInterval = &pInfo->pFillInfo->interval;
+
+      while(1) {
+        int64_t prev = taosTimeAdd(t, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+        if (prev < pInfo->pFillInfo->start) {
+          t = prev;
+          break;
+        }
+        t = prev;
+      }
+
+      // todo time window chosen problem: t or prev value?
+      taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, t);
+    }
+  }
 }
 
 static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
@@ -164,28 +216,16 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
       blockDataEnsureCapacity(pInfo->pFinalRes, pBlock->info.rows);
       doApplyScalarCalculation(pOperator, pBlock, order, scanFlag);
 
-      if (pInfo->curGroupId == 0 || pInfo->curGroupId == pInfo->pRes->info.id.groupId) {
+      if (pInfo->curGroupId == 0 || (pInfo->curGroupId == pInfo->pRes->info.id.groupId)) {
+        if (pInfo->curGroupId == 0) {
+          revisedFillStartKey(pInfo, pBlock);
+        }
+
         pInfo->curGroupId = pInfo->pRes->info.id.groupId;  // the first data block
         pInfo->totalInputRows += pInfo->pRes->info.rows;
 
-        if (order == TSDB_ORDER_ASC) {
-          int64_t skey = pBlock->info.window.skey;
-          if (skey < pInfo->pFillInfo->start) {  // the start key may be smaller than the
-            ASSERT( taosFillNotStarted(pInfo->pFillInfo));
-            taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);
-          }
-
-          taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, pBlock->info.window.ekey);
-        } else {
-          int64_t ekey = pBlock->info.window.ekey;
-          if (ekey > pInfo->pFillInfo->start) {
-            ASSERT( taosFillNotStarted(pInfo->pFillInfo));
-            taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, ekey);
-          }
-
-          taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, pBlock->info.window.skey);
-        }
-
+        int64_t ts = (order == TSDB_ORDER_ASC)? pBlock->info.window.ekey:pBlock->info.window.skey;
+        taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, ts);
         taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
       } else if (pInfo->curGroupId != pBlock->info.id.groupId) {  // the new group data block
         pInfo->existNewGroupBlock = pBlock;
@@ -276,6 +316,9 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols, pValNode);
 
   int64_t startKey = (order == TSDB_ORDER_ASC) ? win.skey : win.ekey;
+
+//  STimeWindow w = {0};
+//  getInitialStartTimeWindow(pInterval, startKey, &w, order == TSDB_ORDER_ASC);
   pInfo->pFillInfo = taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
                                         pInfo->primaryTsCol, order, id);
 
