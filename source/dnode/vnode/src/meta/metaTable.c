@@ -866,11 +866,11 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
     return code;
   }
 
-  void *pData = NULL;
-  int   nData = 0;
+  void *pData = NULL, *pKey = NULL;
+  int   nData = 0, nKey = 0;
 
   while (1) {
-    int32_t ret = tdbTbcNext(pCur, NULL, NULL, &pData, &nData);
+    int32_t ret = tdbTbcNext(pCur, &pKey, &nKey, &pData, &nData);
     if (ret < 0) {
       break;
     }
@@ -879,7 +879,7 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
     SDecoder   dc = {0};
     tDecoderInit(&dc, pData, nData);
     metaDecodeEntry(&dc, &me);
-    if (me.type == TSDB_CHILD_TABLE) {
+    if (me.type != TSDB_SUPER_TABLE) {
       int32_t ret = vnodeValidateTableHash(pMeta->pVnode, me.name);
       if (TSDB_CODE_VND_HASH_MISMATCH == ret) {
         taosArrayPush(uidList, &me.uid);
@@ -888,6 +888,7 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
     tDecoderClear(&dc);
   }
   tdbFree(pData);
+  tdbFree(pKey);
   tdbTbcClose(pCur);
 
   return 0;
