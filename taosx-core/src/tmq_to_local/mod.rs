@@ -156,6 +156,7 @@ async fn backup(
     metrics: Arc<TmqMetrics>,
     stop_at: Option<DateTime<Local>>,
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    version: String,
 ) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
@@ -168,7 +169,18 @@ async fn backup(
                 break;
             }
             next = stream.try_next() => {
-                let assignments = consumer.assignments().await.unwrap();
+                let (a, b, c, _) = version
+                .split('.')
+                .map(|x| x.parse::<i32>().unwrap())
+                .collect_tuple()
+                .unwrap();
+                log::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
+                let assignments = if a >= 3 && b >= 0 && c >= 5 {
+                    consumer.assignments().await.unwrap()
+                } else {
+                    vec![]
+                };
+                
                 log::debug!("assignment: {:?}", assignments);
                 for (topic, assignment) in assignments {
                     offsets.insert(topic, assignment);
@@ -281,6 +293,8 @@ pub async fn tmq_to_local(
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
 ) -> Result<()> {
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
+
+    let version = builder.server_version().await?.to_owned();
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     if !builder.is_enterprise_edition().await? {
@@ -428,7 +442,7 @@ pub async fn tmq_to_local(
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
             let handle = tokio::spawn(backup(
-                sender, consumer, man, task_id, barrier, cancel, metrics, stop_at, offsets,
+                sender, consumer, man, task_id, barrier, cancel, metrics, stop_at, offsets, version.clone(),
             ));
             handles.push(handle);
             task_id += 1;
