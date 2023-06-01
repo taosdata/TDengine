@@ -49,16 +49,16 @@ groups:
     display_order: 1
     description: Configure the data migration task
     params:
-      - name: mode
-        display: Task Mode
-        description: Whether to resume running from the last breakpoint
-        placeholder: normal
-        hint:
-          type: str
-          choices:
-            - normal
-            - resume
-        required: true
+#      - name: mode
+#        display: Task Mode
+#        description: Whether to resume running from the last breakpoint
+#        placeholder: normal
+#        hint:
+#          type: str
+#          choices:
+#            - normal
+#            - resume
+#        required: true
       - name: beginTime
         display: Data Begin Time
         description: Set a data start time
@@ -67,11 +67,11 @@ groups:
         required: true
       - name: endTime
         display: Data End Time
-        description: Set a data end time
+        description: Set a data end time, if empty, the latest data will always be transmitted
         placeholder: YYYY-MM-DD HH:MM:SS
         hint: time
       - name: buckets
         display: Buckets
-        description: Input the buckets to migrate, multiple separated by commas.
+        description: Input the buckets to migrate, multiple separated by commas, empty means all in the organization
         placeholder: bucket1,bucket2,...
         hint: str
