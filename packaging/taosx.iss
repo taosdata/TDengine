@@ -19,15 +19,19 @@ Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 Source: "{#MyAppSourceDir}\plugins\*"; DestDir: "{app}\plugins"; Flags: recursesubdirs
 Source: "{#MyAppSourceDir}\bin\{#TaosXAgentName}.exe"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\{#TaosXName}.exe"; DestDir: "{app}\bin"
-Source: "{#MyAppSourceDir}\bin\taosx-agent-srv.*"; DestDir: "{app}\bin"
-Source: "{#MyAppSourceDir}\bin\{#TaosXName}-srv.*"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\cfg\agent.example.toml"; DestDir: "{app}\cfg"
 
+
+[run]
+Filename: {sys}\sc.exe; Parameters: "create taosx start= DEMAND binPath= ""C:\\Program Files\\taosX\\bin\\taosx.exe --win_service""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosx-agent start= DEMAND binPath= ""C:\\Program Files\\taosX\\bin\\taosx-agent.exe --win_service""" ; Flags: runhidden
+
+
 [UninstallRun]
-RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx-srv" ; Flags: runhidden
-RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent-srv" ; Flags: runhidden
-RunOnceId: "deltaosx"; Filename: {sys}\sc.exe; Parameters: "delete taosx-srv" ; Flags: runhidden
-RunOnceId: "deltaosx-agent"; Filename: {sys}\sc.exe; Parameters: "delete taosx-agent-srv" ; Flags: runhidden
+RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
+RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent" ; Flags: runhidden
+RunOnceId: "deltaosx"; Filename: {sys}\sc.exe; Parameters: "delete taosx" ; Flags: runhidden
+RunOnceId: "deltaosx-agent"; Filename: {sys}\sc.exe; Parameters: "delete taosx-agent" ; Flags: runhidden
 
 [CODE]
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -47,8 +51,6 @@ end;
 [UninstallDelete]
 Type: files; Name: "{app}\bin\{#TaosXAgentName}.exe"
 Type: files; Name: "{app}\bin\{#TaosXName}.exe"
-Type: files; Name: "{app}\bin\taosx-agent-srv.*"
-Type: files; Name: "{app}\bin\{#TaosXName}-srv.*"
 Type: files; Name: "{app}\xplugins\pi\*.*"
 Type: files; Name: "{app}\xplugins\opc\*.*"
 Type: files; Name: "{app}\xplugins\mqtt\*.*"

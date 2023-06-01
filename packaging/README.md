@@ -44,15 +44,14 @@ version = "0.5.1"
     - windows:   taosx-{version}-windows-installer.exe
     - linux:     taosX-{version}-Linux-x64.tar.gz
 - windows 使用安装程序进行安装，使用 uninstall_taosx.exe 进行卸载。taosx-srv.exe 和 taosx-agent.exe 可以以服务模式启动 taosx 和 taos-agent
+- 命令窗口执行 ```sc start/stop taosx``` 管理 taosx 服务
+- 命令窗口执行 ```sc start/stop taosx-agent``` 管理 taosx-agent 服务
+- 使用 uninstall_taosx.exe 卸载 taosx
 - windows 安装目录为```C:\Program Files\taosX```，目录结构如下：
 ~~~
 ├── bin
 │   ├── taosx.exe
-│   ├── taosx-srv.exe
-│   ├── taosx-srv.xml
 │   ├── taosx-agent.exe
-│   ├── taosx-agent-srv.exe
-│   ├── taosx-agent-srv.xml
 ├── plugins
 │   ├── influxdb
 │   │   └── taosx-inflxdb.jar

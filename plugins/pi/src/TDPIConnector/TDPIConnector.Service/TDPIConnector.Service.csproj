@@ -7,7 +7,7 @@
     <ProjectGuid>{38DC9CC7-FE7D-4CDF-AD35-F31F7962269C}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>TDPIConnector.Service</RootNamespace>
-    <AssemblyName>TDPIConnector.Service</AssemblyName>
+    <AssemblyName>taosx-pi</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
