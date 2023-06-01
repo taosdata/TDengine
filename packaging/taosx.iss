@@ -24,10 +24,10 @@ Source: "{#MyAppSourceDir}\bin\{#TaosXName}-srv.*"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\cfg\agent.example.toml"; DestDir: "{app}\cfg"
 
 [UninstallRun]
-RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
-RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent" ; Flags: runhidden
-RunOnceId: "deltaosx"; Filename: {sys}\sc.exe; Parameters: "delete taosx" ; Flags: runhidden
-RunOnceId: "deltaosx-agent"; Filename: {sys}\sc.exe; Parameters: "delete taosx-agent" ; Flags: runhidden
+RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx-srv" ; Flags: runhidden
+RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent-srv" ; Flags: runhidden
+RunOnceId: "deltaosx"; Filename: {sys}\sc.exe; Parameters: "delete taosx-srv" ; Flags: runhidden
+RunOnceId: "deltaosx-agent"; Filename: {sys}\sc.exe; Parameters: "delete taosx-agent-srv" ; Flags: runhidden
 
 [CODE]
 procedure CurStepChanged(CurStep: TSetupStep);
