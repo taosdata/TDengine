@@ -1,7 +1,13 @@
 use std::{
     collections::HashMap, f32::consts::E, io::prelude::*, num::ParseIntError, str::FromStr,
     sync::Arc, time::Duration,
+    fs,
+    fs::File,
+    path::Path,
+    process::Stdio,
 };
+
+use chrono::Local;
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -612,6 +618,28 @@ const OPC_CONNECTOR_PATH: &str = {
     }
 };
 
+const LOG_PATH: &str = {
+    #[cfg(all(target_os = "windows"))]
+    {
+        ".\\logs\\opc"
+    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        "./logs/opc"
+    }
+};
+
+const LOG_FILE: &str = {
+    #[cfg(all(target_os = "windows"))]
+    {
+        "\\opc.log"
+    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        "/opc.log"
+    }
+};
+
 pub async fn opc_config_from(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OpcTableConfig> {
     let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
     config.parse_tables_with(taos).await
@@ -688,11 +716,26 @@ pub async fn opc_to_taos(
 
     let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(OPC_CONNECTOR_PATH);
+
+    fs::create_dir_all(LOG_PATH)?;
+
+    let log_file_name = format!("{LOG_PATH}{LOG_FILE}");
+
+    if !Path::new(&log_file_name).exists() {
+        File::create(&log_file_name)?;
+    }
+    
+    let log_file = fs::OpenOptions::new()
+    .append(true)
+    .open(&log_file_name)
+    .unwrap();
+    let log_io = Stdio::from(log_file);
+
     let child = command
         .arg("collect")
         .arg(format!("--conf={}", &config_path.display()))
         .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit());
+        .stderr(log_io);
     {
         let mut child = child.spawn()?;
         tokio::spawn(async move {
