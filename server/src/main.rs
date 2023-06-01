@@ -13,7 +13,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use actix_embed::Embed;
 use actix_web::{
     error::{self, PayloadError},
-    http::{header::{ContentType, AUTHORIZATION}, StatusCode},
+    http::{header::{ContentType, AUTHORIZATION}, },
     middleware::{self, Logger},
     post,
     web::{self},
@@ -23,7 +23,7 @@ use awc::Client;
 
 use clap::Parser;
 use rust_embed::RustEmbed;
-use serde::{Deserialize, Serialize, __private::ser::FlatMapSerializeStructVariantAsMapValue};
+use serde::{Deserialize, Serialize, };
 
 fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
     match level {
