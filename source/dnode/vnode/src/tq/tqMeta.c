@@ -37,7 +37,9 @@ int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
     }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
     if (tEncodeI64(pEncoder, pHandle->execHandle.execTb.suid) < 0) return -1;
-    if (tEncodeCStr(pEncoder, pHandle->execHandle.execTb.qmsg) < 0) return -1;
+    if (pHandle->execHandle.execTb.qmsg != NULL){
+      if (tEncodeCStr(pEncoder, pHandle->execHandle.execTb.qmsg) < 0) return -1;
+    }
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
