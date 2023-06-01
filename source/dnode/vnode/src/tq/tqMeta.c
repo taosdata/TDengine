@@ -341,7 +341,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
 
-      if(strcmp(handle.execHandle.execTb.qmsg, "") != 0) {
+      if(handle.execHandle.execTb.qmsg != NULL && strcmp(handle.execHandle.execTb.qmsg, "") != 0) {
         if (nodesStringToNode(handle.execHandle.execTb.qmsg, &handle.execHandle.execTb.node) != 0) {
           tqError("nodesStringToNode error in sub stable, since %s", terrstr());
           return -1;
