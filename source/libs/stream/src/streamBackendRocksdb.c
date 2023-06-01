@@ -1134,31 +1134,29 @@ int32_t streamStateDel_rocksdb(SStreamState* pState, const SWinKey* key) {
 int32_t streamStateClear_rocksdb(SStreamState* pState) {
   qDebug("streamStateClear_rocksdb");
 
-  SStateKey sKey = {.key = {.ts = 0, .groupId = 0}, .opNum = pState->number};
-  SStateKey eKey = {.key = {.ts = INT64_MAX, .groupId = UINT64_MAX}, .opNum = pState->number};
   char      sKeyStr[128] = {0};
   char      eKeyStr[128] = {0};
+  SStateKey sKey = {.key = {.ts = 0, .groupId = 0}, .opNum = pState->number};
+  SStateKey eKey = {.key = {.ts = INT64_MAX, .groupId = UINT64_MAX}, .opNum = pState->number};
 
   int sLen = stateKeyEncode(&sKey, sKeyStr);
   int eLen = stateKeyEncode(&eKey, eKeyStr);
 
-  char toStringStart[128] = {0};
-  char toStringEnd[128] = {0};
-  if (qDebugFlag & DEBUG_TRACE) {
-    stateKeyToString(&sKey, toStringStart);
-    stateKeyToString(&eKey, toStringEnd);
-  }
-
-  char* err = NULL;
   if (pState->pTdbState->pHandle[1] != NULL) {
+    char* err = NULL;
     rocksdb_delete_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, pState->pTdbState->pHandle[1],
                             sKeyStr, sLen, eKeyStr, eLen, &err);
-  }
-  // rocksdb_compact_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->pHandle[0], sKeyStr, sLen, eKeyStr,
-  // eLen);
-  if (err != NULL) {
-    qWarn("failed to delete range cf(state) start: %s, end:%s, reason:%s", toStringStart, toStringEnd, err);
-    taosMemoryFree(err);
+    if (err != NULL) {
+      char toStringStart[128] = {0};
+      char toStringEnd[128] = {0};
+      stateKeyToString(&sKey, toStringStart);
+      stateKeyToString(&eKey, toStringEnd);
+
+      qWarn("failed to delete range cf(state) start: %s, end:%s, reason:%s", toStringStart, toStringEnd, err);
+      taosMemoryFree(err);
+    } else {
+      rocksdb_compact_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->pHandle[1], sKeyStr, sLen, eKeyStr, eLen);
+    }
   }
 
   return 0;
