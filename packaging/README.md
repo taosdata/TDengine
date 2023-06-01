@@ -62,7 +62,9 @@ version = "0.5.1"
 │   ├── influxdb
 │   │   └── taosx-inflxdb.exe
 │   └── pi
-│       └── ***
+│       └── taosx-pi.exe
+│       └── taosx-pi-backfill.exe
+│       └── ...
 └── config
 │   ├── agent.example.toml
 ├── uninstall_taosx.exe
