@@ -218,5 +218,5 @@ restore qnode on dnode <dnode_id>；# 恢复dnode上的qnode
 alter {dnode <dnode_id>|all dnodes} {'activeCode'|'cActiveCode'} ['value']；# 设置指定数据节点或全部数据节点的授权码。
 ```
 **注意**
-- activeCode value 的有效长度为：0 或 108, cActiveCode value 的有效长度为： 0 或 [108,254]
+- activeCode 为 TDengine cluster 的授权码，其 value 的有效长度为：0 或 108；cActiveCode 为 TDengine connectors 的授权码，其 value 的有效长度为： 0 或 [108,254]。
 - 集群的授权信息是所有数据节点授权信息的并集：如果任意一项指标变大，则授权信息在 1 分钟内生效；如果授权指标减少，则在 1 小时内生效。集群授权信息通过 `show grants` 命令查看。
