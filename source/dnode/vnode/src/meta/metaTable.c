@@ -848,7 +848,52 @@ static void metaDropTables(SMeta *pMeta, SArray *tbUids) {
   metaULock(pMeta);
 }
 
-int metaTrimTables(SMeta *pMeta, int64_t version) {
+static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
+  int32_t code = 0;
+  // 1, tranverse table's
+  // 2, validate table name using vnodeValidateTableHash
+  // 3, push invalidated table's uid into uidList
+
+  TBC *pCur;
+  code = tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
+  if (code < 0) {
+    return code;
+  }
+
+  code = tdbTbcMoveToFirst(pCur);
+  if (code) {
+    tdbTbcClose(pCur);
+    return code;
+  }
+
+  void *pData = NULL;
+  int   nData = 0;
+
+  while (1) {
+    int32_t ret = tdbTbcNext(pCur, NULL, NULL, &pData, &nData);
+    if (ret < 0) {
+      break;
+    }
+
+    SMetaEntry me = {0};
+    SDecoder   dc = {0};
+    tDecoderInit(&dc, pData, nData);
+    metaDecodeEntry(&dc, &me);
+    if (me.type == TSDB_CHILD_TABLE) {
+      int32_t ret = vnodeValidateTableHash(pMeta->pVnode, me.name);
+      if (TSDB_CODE_VND_HASH_MISMATCH == ret) {
+        taosArrayPush(uidList, &me.uid);
+      }
+    }
+    tDecoderClear(&dc);
+  }
+  tdbFree(pData);
+  tdbTbcClose(pCur);
+
+  return 0;
+}
+
+int32_t metaTrimTables(SMeta *pMeta) {
   int32_t code = 0;
 
   SArray *tbUids = taosArrayInit(8, sizeof(int64_t));
@@ -856,7 +901,7 @@ int metaTrimTables(SMeta *pMeta, int64_t version) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  // code = metaFilterTableByHash(pMeta, /*ttl, */ tbUids);
+  code = metaFilterTableByHash(pMeta, tbUids);
   if (code != 0) {
     goto end;
   }
@@ -1027,7 +1072,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
 
     metaUpdateStbStats(pMeta, e.ctbEntry.suid, -1);
     metaUidCacheClear(pMeta, e.ctbEntry.suid);
-    metaTbGroupCacheClear(pMeta, e.ctbEntry.suid);    
+    metaTbGroupCacheClear(pMeta, e.ctbEntry.suid);
   } else if (e.type == TSDB_NORMAL_TABLE) {
     // drop schema.db (todo)
 
@@ -1039,7 +1084,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
 
     metaStatsCacheDrop(pMeta, uid);
     metaUidCacheClear(pMeta, uid);
-    metaTbGroupCacheClear(pMeta, uid);        
+    metaTbGroupCacheClear(pMeta, uid);
     --pMeta->pVnode->config.vndStats.numOfSTables;
   }
 
@@ -1460,7 +1505,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
               ((STag *)(ctbEntry.ctbEntry.pTags))->len, pMeta->txn);
 
   metaUidCacheClear(pMeta, ctbEntry.ctbEntry.suid);
-  metaTbGroupCacheClear(pMeta, ctbEntry.ctbEntry.suid);        
+  metaTbGroupCacheClear(pMeta, ctbEntry.ctbEntry.suid);
 
   metaULock(pMeta);
 
