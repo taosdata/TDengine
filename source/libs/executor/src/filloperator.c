@@ -215,7 +215,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
       doApplyScalarCalculation(pOperator, pBlock, order, scanFlag);
 
       if (pInfo->curGroupId == 0 || (pInfo->curGroupId == pInfo->pRes->info.id.groupId)) {
-        if (pInfo->curGroupId == 0) {
+        if (pInfo->curGroupId == 0 && taosFillNotStarted(pInfo->pFillInfo)) {
           revisedFillStartKey(pInfo, pBlock, order);
         }
 
