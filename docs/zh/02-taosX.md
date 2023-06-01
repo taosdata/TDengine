@@ -23,19 +23,16 @@ description:  "为了能够方便地将各种数据源中的数据导入 TDengin
 
 ### Windows 安装
 
-- 下载需要的 taosX 安装包，例如taosx-{version}-windows-installer.exe，执行安装
-- 可使用uninstall_taosx.exe进行卸载
-- 使用taosx-srv.exe和taosx-agent.exe可以以服务模式启动taosx和taos-agent
-- 其他connector，安装在plugins下，会由agent调用
-- windows默认安装在```C:\Program Files\taosX```,目录结构如下：
+- 下载需要的 taosX 安装包，例如 taosx-{version}-windows-installer.exe，执行安装
+- 可使用 uninstall_taosx.exe 进行卸载
+- 命令行执行 ```sc start/stop taosx``` 启动/停止 taosx 服务
+- 命令行执行 ```sc start/stop taosx-ageent``` 启动/停止 taosx-agent 服务
+- 其他 connector，安装在 plugins 下，会由 taosx-agent 调用
+- windows 默认安装在```C:\Program Files\taosX```,目录结构如下：
 ~~~
 ├── bin
 │   ├── taosx.exe
-│   ├── taosx-srv.exe
-│   ├── taosx-srv.xml
 │   ├── taosx-agent.exe
-│   ├── taosx-agent-srv.exe
-│   ├── taosx-agent-srv.xml
 ├── plugins
 │   ├── influxdb
 │   │   └── taosx-inflxdb.jar
@@ -46,8 +43,8 @@ description:  "为了能够方便地将各种数据源中的数据导入 TDengin
 │   ├── influxdb
 │   │   └── taosx-inflxdb.exe
 │   └── pi
-│       └── TDBackfill.exe
-│       └── TDPIConnector.Service.exe
+│       └── taosx-pi.exe
+│       └── taosx-pi-backfill.exe
 │       └── ...
 └── config
 │   ├── agent.example.toml
