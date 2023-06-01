@@ -26,13 +26,16 @@ version = "0.5.1"
 - -h: 查看本帮助信息
 - -c: cpu type [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...]
 - -b: build mode,可选Debug\Release,默认Release
-- -l: 需要同时打包的连接器列表，可以多个，空格隔开； 当前支持：opc pi mqtt influxdb.改参数不传表示包含所有连接器
-- -s: submodel build mode, 各个模块单独配置Debug/Release，该配置比-b参数有限，没有配置的模块使用-b配置
+- -l: 需要同时打包的连接器列表，可以多个，空格隔开； 当前支持：opc pi mqtt influxdb.该参数不传表示包含支持的所有连接器（windows下无pi），注意taosx及taosx-agent不是连接器，一定在安装包里
+- -s: submodel build mode, 各个模块单独配置Debug/Release，该配置比-b参数优先，没有配置的模块使用-b配置
+- -s: ```examples, -s pi debug``` 表示pi模块使用debug模式，无论-b参数如何配置（支持对taosx, taosx-agent, pi, opc, mqtt, influxdb分别配置）
+- -s: ```examples, -s pi debug taosx release``` 表示pi模块使用debug模式，taosx使用release模式，无论-b参数如何配置
 - -t: 脚本快速测试，单独测试某一过程（仅支持windows, 支持taosx,agent,opc,pi,mqtt,package）
 - -t pi: 示例，测试 pi 编译安装
 - -t package: 已经安装好的服务打包测试( taosx taosx-agent必须已经编译安装过)
 - 连接器可带版本号编译，和连接器名空格隔开
-- example: python release.py -c pi 
+- example: ```python release.py -c x64 -s pi debug```  所有连接器集合打包，除了pi debug模式，其他都是release模式
+- example: ```python release.py -c x64 -b debug -l pi opc -s pi release taosx release```  pi及opc连接器集合打包，除了pi和taosx release模式，其他模块都是debug模式
 
 ## 安装说明
 
