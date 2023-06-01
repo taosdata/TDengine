@@ -26,11 +26,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 import org.tomlj.Toml;
-import org.tomlj.TomlArray;
 import org.tomlj.TomlParseResult;
 
 import javax.annotation.Resource;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -151,12 +149,7 @@ public class PreLoading implements CommandLineRunner {
             this.nettyClientConfig.setHost((String) tomlParseResult.get("taosx.host"));
             this.nettyClientConfig.setPort(((Long) tomlParseResult.get("taosx.port")).intValue());
             this.taskConfig.setMode((String) tomlParseResult.get("task.mode"));
-            List<String> buckets = new ArrayList<>();
-            TomlArray tomlArray = (TomlArray) tomlParseResult.get("task.buckets");
-            for (int i = 0; i < tomlArray.size(); i++) {
-                buckets.add((String) tomlArray.get(i));
-            }
-            this.taskConfig.setBuckets(buckets);
+            this.taskConfig.setBuckets(Arrays.asList((String) tomlParseResult.get("task.bucket")));
             this.taskConfig.setBeginTime((String) tomlParseResult.get("task.beginTime"));
             this.taskConfig.setEndTime((String) tomlParseResult.get("task.endTime"));
         } catch (Exception e) {

@@ -70,8 +70,9 @@ groups:
         description: Set a data end time, if empty, the latest data will always be transmitted
         placeholder: YYYY-MM-DD HH:MM:SS
         hint: time
-      - name: buckets
-        display: Buckets
-        description: Input the buckets to migrate, multiple separated by commas, empty means all in the organization
-        placeholder: bucket1,bucket2,...
+      - name: bucket
+        display: Bucket
+        description: Input a specified bucket to migrate
+        placeholder: bucket
         hint: str
+        required: true

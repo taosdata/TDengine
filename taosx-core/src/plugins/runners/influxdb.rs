@@ -45,8 +45,8 @@ struct TaosxConfig {
 struct TaskConfig {
     #[serde(rename = "mode")]
     task_mode: String,
-    #[serde(rename = "buckets")]
-    task_buckets: Vec<String>,
+    #[serde(rename = "bucket")]
+    task_bucket: String,
     #[serde(rename = "beginTime")]
     task_beginTime: String,
     #[serde(rename = "endTime")]
@@ -63,6 +63,8 @@ pub enum InfluxdbError {
     InfluxOrgIdIsRequired(Dsn),
     #[error("The data begin time is required: {0}")]
     TaskBeginTimeIsRequired(Dsn),
+    #[error("The bucket is required: {0}")]
+    TaskBucketIsRequired(Dsn),
 }
 
 impl InfluxdbConfig {
@@ -93,14 +95,9 @@ impl InfluxdbConfig {
 
         // the task config
         let task_mode = dsn.remove("mode").unwrap_or("normal".to_string());
-        let task_buckets = dsn
-            .remove("buckets")
-            .unwrap_or_default()
-            .split(',')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
+        let task_bucket = dsn
+            .remove("bucket")
+            .ok_or_else(|| InfluxdbError::TaskBucketIsRequired(dsn.clone()))?;
         let task_beginTime = dsn
             .remove("beginTime")
             .ok_or_else(|| InfluxdbError::TaskBeginTimeIsRequired(dsn.clone()))?;
@@ -122,7 +119,7 @@ impl InfluxdbConfig {
 
         let task = TaskConfig {
             task_mode,
-            task_buckets,
+            task_bucket,
             task_beginTime,
             task_endTime,
         };
