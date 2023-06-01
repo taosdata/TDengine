@@ -20,7 +20,14 @@ Source: "{#MyAppSourceDir}\plugins\*"; DestDir: "{app}\plugins"; Flags: recurses
 Source: "{#MyAppSourceDir}\bin\{#TaosXAgentName}.exe"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\{#TaosXName}.exe"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\taosx-agent-srv.*"; DestDir: "{app}\bin"
+Source: "{#MyAppSourceDir}\bin\{#TaosXName}-srv.*"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\cfg\agent.example.toml"; DestDir: "{app}\cfg"
+
+[UninstallRun]
+RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
+RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent" ; Flags: runhidden
+RunOnceId: "deltaosx"; Filename: {sys}\sc.exe; Parameters: "delete taosx" ; Flags: runhidden
+RunOnceId: "deltaosx-agent"; Filename: {sys}\sc.exe; Parameters: "delete taosx-agent" ; Flags: runhidden
 
 [CODE]
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -41,6 +48,7 @@ end;
 Type: files; Name: "{app}\bin\{#TaosXAgentName}.exe"
 Type: files; Name: "{app}\bin\{#TaosXName}.exe"
 Type: files; Name: "{app}\bin\taosx-agent-srv.*"
+Type: files; Name: "{app}\bin\{#TaosXName}-srv.*"
 Type: files; Name: "{app}\xplugins\pi\*.*"
 Type: files; Name: "{app}\xplugins\opc\*.*"
 Type: files; Name: "{app}\xplugins\mqtt\*.*"
