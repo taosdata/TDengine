@@ -795,7 +795,6 @@ export default {
             //     : "+"
             //   : "") +
             dns,
-          parser: this.$store.state.app.mqttParser,
           name: localStorage.getItem("datainName"),
           to:
             "taos+" +
@@ -807,6 +806,9 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
+        if(this.tagName=='mqtt'){
+          piParams['parser']=this.$store.state.app.mqttParser
+        }
         if (this.$parent.agentID) {
           piParams["via"] = this.$parent.agentID;
         }
