@@ -132,7 +132,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-    qDebug("s-task:%s set source blocks:%d", id, (int32_t)numOfBlocks);
+
+    qDebug("s-task:%s in this batch, all %d blocks need to be processed and dump results", id, (int32_t)numOfBlocks);
     ASSERT(pInfo->validBlockIndex == 0 && taosArrayGetSize(pInfo->pBlockLists) == 0);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
@@ -140,6 +141,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
         taosArrayPush(pInfo->pBlockLists, pReq);
       }
+
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
       taosArrayPush(pInfo->pBlockLists, input);
@@ -150,6 +152,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         SPackedData  tmp = { .pDataBlock = pDataBlock };
         taosArrayPush(pInfo->pBlockLists, &tmp);
       }
+
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {
       ASSERT(0);

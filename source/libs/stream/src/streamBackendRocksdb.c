@@ -38,6 +38,15 @@ typedef struct {
   rocksdb_comparator_t**           pCompares;
 } RocksdbCfInst;
 
+uint32_t nextPow2(uint32_t x) {
+  x = x - 1;
+  x = x | (x >> 1);
+  x = x | (x >> 2);
+  x = x | (x >> 4);
+  x = x | (x >> 8);
+  x = x | (x >> 16);
+  return x + 1;
+}
 int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t nCf);
 
 void destroyRocksdbCfInst(RocksdbCfInst* inst);
@@ -92,6 +101,8 @@ void* streamBackendInit(const char* path) {
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 2);
   rocksdb_options_set_info_log_level(opts, 0);
+  uint32_t dbLimit = nextPow2(tsMaxStreamBackendCache);
+  rocksdb_options_set_db_write_buffer_size(opts, dbLimit << 20);
 
   pHandle->env = env;
   pHandle->dbOpt = opts;
