@@ -107,7 +107,6 @@ pub struct Param {
     pub alternatives: Option<Vec<ParamAlternatives>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Vec<Param>>,
-
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -118,7 +117,7 @@ pub struct ParamAlternatives {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<Hint>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>, 
+    pub description: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub params: Vec<Param>,
 }
@@ -237,7 +236,7 @@ pub struct Target {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
 pub struct ParserDefinition {
-    pub display: String,   
+    pub display: String,
     pub required: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -295,7 +294,6 @@ pub struct DataSourceDefinition {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parser: Option<ParserDefinition>,
-
 }
 
 impl DataSourceDefinition {

@@ -233,9 +233,9 @@ const PI_BACKFILL_PATH: &'static str = "C:\\TDengine\\xplugins\\pi\\TDBackfill.e
 
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 pub async fn pi_to_taos(
-    mut from: Dsn,
+    from: Dsn,
     actions: Vec<Action>,
-    mut to: Dsn,
+    to: Dsn,
     jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,

@@ -1,0 +1,48 @@
+[config]
+load_cargo_aliases = false
+skip_core_tasks = true
+default_to_workspace = false
+
+[tasks.build-taosx]
+command = "cargo"
+args = ["build", "--release"]
+
+[tasks.build-taosx-agent]
+command = "cargo"
+args = ["build", "--release", "-p", "taosx-agent"]
+
+[tasks.build-plugins]
+dependencies = [
+  "build-taosx-influxdb",
+  "build-taosx-mqtt",
+  "build-taosx-opc",
+]
+
+[tasks.build-taosx-influxdb]
+command = "mvn"
+args = ["package", "-f", "plugins/influxdb/pom.xml"]
+
+[tasks.build-taosx-mqtt]
+command = "go"
+args = ["build", "-C", "plugins/mqtt", "-o", "target/taosx-mqtt"]
+
+[tasks.build-taosx-opc]
+command = "go"
+args = ["build", "-C", "plugins/opc", "-o", "target/taosx-opc"]
+
+[tasks.package]
+command = "sh"
+args = ["-c", "scripts/package.sh"]
+dependencies = ["build-all"]
+
+[tasks.install]
+cwd = "target/package/"
+script = { file = "./install.sh" }
+dependencies = ["package"]
+
+[tasks.build-all]
+dependencies = [
+  "build-taosx",
+  "build-taosx-agent",
+  "build-plugins",
+]

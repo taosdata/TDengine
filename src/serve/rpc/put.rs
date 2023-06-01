@@ -145,11 +145,15 @@ impl PutStream {
                 )
                 .unwrap();
                 dbg!(&task);
-                let parser :Option<Parser> = task.parser.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap());
+                let parser: Option<Parser> = task
+                    .parser
+                    .as_ref()
+                    .map(|v| serde_json::from_value(v.clone()).unwrap());
                 loop {
                     if let Ok(a) = rx.recv() {
                         log::info!("Start writing records: {a:?}");
-                        if let Err(err) = worker.process_record(&mut stmt, a, parser.as_ref()).await {
+                        if let Err(err) = worker.process_record(&mut stmt, a, parser.as_ref()).await
+                        {
                             log::warn!("Write stream error: {err}");
                         }
                     } else {

@@ -4,7 +4,8 @@ use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
         Int16Array, Int32Array, Int64Array, Int8Array, ListArray, StringArray, StructArray,
-        TimestampMillisecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, TimestampMicrosecondArray, TimestampNanosecondArray,
+        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema, SchemaRef},
     error::ArrowError,
@@ -978,7 +979,7 @@ pub fn parse_column_view_with_types(
                                 .collect();
                             ColumnView::from_micros_timestamp(values)
                         }
-                    },
+                    }
                     arrow::datatypes::TimeUnit::Nanosecond => {
                         let a = column
                             .as_any()
@@ -993,7 +994,7 @@ pub fn parse_column_view_with_types(
                                 .collect();
                             ColumnView::from_nanos_timestamp(values)
                         }
-                    },
+                    }
                 },
                 DataType::Date32 => todo!(),
                 DataType::Date64 => todo!(),
