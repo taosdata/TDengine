@@ -1,7 +1,7 @@
 <template>
   <div>
     <p class="title">
-      <span>{{ $t('dataIn.dataSources') }}</span>
+      <span>{{ $t("dataIn.dataSources") }}</span>
     </p>
     <div class="data-source">
       <div class="flexEnd">
@@ -13,7 +13,12 @@
           >{{ $t("datasource.addsource") }}</el-button
         >
       </div>
-      <el-table style="margin-top: 20px" :data="topicList" size="mini" max-height="250">
+      <el-table
+        style="margin-top: 20px"
+        :data="topicList"
+        size="mini"
+        max-height="250"
+      >
         <el-table-column
           :label="$t('datasource.name')"
           prop="localname"
@@ -35,7 +40,7 @@
           prop="via"
         ></el-table-column>
         <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
-  
+
         <el-table-column :label="$t('datasource.status')" prop="status">
           <template slot-scope="scope">
             <div class="status-operation">
@@ -103,8 +108,8 @@
               type="primay"
               size="small"
               :disabled="
-                (scope.row.from_detail === undefined ||
-                scope.row.status.toLowerCase() == 'running') ||
+                scope.row.from_detail === undefined ||
+                scope.row.status.toLowerCase() == 'running' ||
                 !getEditStatus(scope.row.labels)
               "
               @click="edit(scope.row)"
@@ -120,7 +125,12 @@
         </el-table-column>
       </el-table>
       <div v-if="dialog">
-        <AddDialog :typeList="typeList" @closeDialog="closeDialog" @addAgent="addAgent" @showMqttDialog="showMqttDialog"></AddDialog>
+        <AddDialog
+          :typeList="typeList"
+          @closeDialog="closeDialog"
+          @addAgent="addAgent"
+          @showMqttDialog="showMqttDialog"
+        ></AddDialog>
       </div>
       <el-pagination
         class="pagination"
@@ -132,11 +142,11 @@
         @current-change="handlePageChange"
       ></el-pagination>
     </div>
-    <div class="agent" style="margin-top: 20px;">
-      <Agents ref="agents"/>
+    <div class="agent" style="margin-top: 20px">
+      <Agents ref="agents" />
     </div>
     <div v-if="mqttdialog">
-      <MqttParserDialog @closeMqttDialog='closeMqttDialog'></MqttParserDialog>
+      <MqttParserDialog @closeMqttDialog="closeMqttDialog"></MqttParserDialog>
     </div>
   </div>
 </template>
@@ -146,10 +156,11 @@ import { getDatain } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import MqttParserDialog from "../components/mqttConnector.vue";
-import Agents from '../components/agents.vue'
+import Agents from "../components/agents.vue";
+import { deepClone } from "@/utils";
 export default {
   name: "DataSource",
-  components: { AddDialog, Agents, MqttParserDialog},
+  components: { AddDialog, Agents, MqttParserDialog },
   props: {
     sourceList: {
       type: Array,
@@ -165,7 +176,7 @@ export default {
 
   data() {
     return {
-      disable:true,
+      disable: true,
       typeList: [],
       mqttdialog: false,
       dbsource: null,
@@ -177,12 +188,11 @@ export default {
     };
   },
   methods: {
-    
-    closeMqttDialog(){
-      this.mqttdialog=false
+    closeMqttDialog() {
+      this.mqttdialog = false;
     },
-    showMqttDialog(){
-      this.mqttdialog=true
+    showMqttDialog() {
+      this.mqttdialog = true;
     },
     handlePageChange() {},
     //非root用户不能修改root下创建的数据源
@@ -227,9 +237,9 @@ export default {
     edit(data) {
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
-        if(data.from_expand&&data.from_expand.id=='mqtt'){
-           this.$store.commit('app/SET_MQTT_PARSER',data.parser)
-           this.$parent.parserobj=data.parser
+        if (data.from_expand && data.from_expand.id == "mqtt") {
+          this.$store.commit("app/SET_MQTT_PARSER", data.parser);
+          this.$parent.parserobj = deepClone(data.parser);
         }
         let dbname =
           data.to_expand && data.to_expand.subject
@@ -255,7 +265,10 @@ export default {
               item["localname"] = item.name ? item.name : "tmq+" + item.id;
               item["localtype"] = item.from_detail ? item.from_detail.name : "";
               item["target"] = item.to_expand ? item.to_expand.subject : "";
-              item['created_at']=item.created_at?item.created_at.replace(/(?<=\.)\S+$/,'').replace('.','')+'Z':''
+              item["created_at"] = item.created_at
+                ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
+                  "Z"
+                : "";
               return item;
             });
           }
@@ -314,8 +327,8 @@ export default {
     },
     // 显示添加代理弹框
     addAgent() {
-      this.$refs.agents.add()
-    }
+      this.$refs.agents.add();
+    },
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
@@ -348,23 +361,23 @@ export default {
 ::v-deep.input.el-input__inner {
   width: 172px !important;
 }
-.title{
-    background-color: #ecf8ff;
-    border-left-color: #50bfff;
-    color: #333;
-    border-left-width: 5px;
-    border-left-style: solid;
-    border-radius: 4px;
-    font-size: 16px;
-    margin: 10px 0;
-    padding: 8px 16px;
+.title {
+  background-color: #ecf8ff;
+  border-left-color: #50bfff;
+  color: #333;
+  border-left-width: 5px;
+  border-left-style: solid;
+  border-radius: 4px;
+  font-size: 16px;
+  margin: 10px 0;
+  padding: 8px 16px;
 }
-.flexEnd{
+.flexEnd {
   position: absolute;
-  top:15px;
+  top: 15px;
   z-index: 9999;
   right: 10px;
-  .el-button{
+  .el-button {
     border: none;
     background: transparent;
   }

@@ -87,7 +87,13 @@
                 <template v-if="at.name == 'plain'">
                   <div class="plain">
                     <div class="plain-item">
-                      <span class="label">{{ at.username.display }}</span>
+                      <span
+                        :class="[
+                          'label',
+                          at.username.required ? 'required' : '',
+                        ]"
+                        >{{ at.username.display }}</span
+                      >
                       <div style="flex: 1">
                         <el-input
                           style="margin-bottom: 8px"
@@ -101,7 +107,13 @@
                     </div>
 
                     <div class="plain-item">
-                      <span class="label">{{ at.password.display }}</span>
+                      <span
+                        :class="[
+                          'label',
+                          at.password.required ? 'required' : '',
+                        ]"
+                        >{{ at.password.display }}</span
+                      >
                       <div style="flex: 1">
                         <el-input
                           type="password"
@@ -632,6 +644,20 @@ export default {
             dns += `:${data.authentication.alternatives[1].password.value}`;
           }
           dns += `@`;
+          if (this.tagName == "mqtt") {
+            let currentAuth = data.authentication.alternatives.filter(
+              (item) => item.name == "plain"
+            );
+            if (!currentAuth[0].username.value) {
+              Message({
+                type: "warning",
+                message:
+                  this.$t("datasource.msg") +
+                  ":"+`${currentAuth[0].username.display} `,
+              });
+              return;
+            }
+          }
         } else {
           dns += `://`;
         }
@@ -653,20 +679,19 @@ export default {
         dns = dns.replace(reg, "").trim();
         let querystr = "";
         for (let index = 0; index < data.groups.length; index++) {
-          //   for (let j = 0; j < data.groups[index].params.length; j++) {
-          for (let g of Object.keys(data.groups[index].params)) {
+          for (let g=0;g< data.groups[index].params.length;g++) {
             if (
               Object.hasOwnProperty.call(
                 data.groups[index].params[g],
                 "required"
               ) &&
-              data.groups[index].params[g]["value"] == ""
+              data.groups[index].params[g]["value"]==undefined
             ) {
               Message({
                 type: "warning",
                 message:
                   this.$t("datasource.msg") +
-                  ":"`${data.groups[index].params[g].name} `,
+                  ":"+`${data.groups[index].params[g].display} `,
               });
               return;
             } else {
@@ -685,7 +710,7 @@ export default {
               }
             }
           }
-          //   }
+         
         }
 
         if (data.authentication.value == "certificates") {
@@ -759,6 +784,7 @@ export default {
             return;
           }
         }
+        this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +

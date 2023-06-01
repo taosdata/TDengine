@@ -21,7 +21,8 @@ import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
 import { getUIData } from "@/api/explorer/datain";
-import parserobj from "./mqttparser.json";
+import constparser from "./mqttparser.json";
+ import { deepClone } from "@/utils";
 export default {
   name: "DbSource",
   components: {
@@ -31,7 +32,7 @@ export default {
   },
   data() {
     return {
-      parserobj,
+      parserobj:constparser,
       protocol: "ua", //只针对opc的ua/da
       tagName: "datasource",
       currentName: "",
@@ -42,9 +43,11 @@ export default {
       isEditable: false,
       agentID: "",
       mqttParser: null,
+      staticParser:null
     };
   },
   created() {
+    this.staticParser=deepClone(constparser)
     this.getData();
   },
   methods: {
@@ -71,7 +74,7 @@ export default {
         let data = this.sourceList.filter((item) => item.id === type);
         if (type == "mqtt") {
           this.uidata = this.deepClone(data);
-
+          this.parserobj=deepClone(this.staticParser)
           this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
           this.uidata = type == "opc" ? data : this.deepClone(data);
@@ -218,6 +221,8 @@ export default {
     "$store.state.app.mqttParser": {
       deep: true,
       handler(val) {
+        this.parserobj=val
+
       },
     },
   },
