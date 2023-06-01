@@ -1230,7 +1230,7 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
 
     mInfo("topic:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, subType:%d sql:%s",
           pTopic->name, stbFullName, suid, colId, pTopic->subType, pTopic->sql);
-    if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
+    if (pTopic->ast == NULL) {
       sdbRelease(pSdb, pTopic);
       continue;
     }
@@ -2272,7 +2272,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
       }
     }
 
-    if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
+    if (pTopic->ast == NULL) {
       sdbRelease(pSdb, pTopic);
       continue;
     }
