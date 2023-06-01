@@ -613,7 +613,7 @@ fn exe_path() -> PathBuf {
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     let path = exe_path();
     let output = std::process::Command::new(&path)
-        .arg("--version")
+        .arg("version")
         .output()?;
     Ok((
         "opc",
