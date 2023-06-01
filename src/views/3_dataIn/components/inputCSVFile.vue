@@ -126,7 +126,7 @@ export default {
                 this.requestIng = false;
               }).catch(err=>{
                 console.log(err,'结果');
-                err.desc&&Message.error(err.desc)
+                err&&Message.error(err.desc || err)
               });
           } else {
             return false;

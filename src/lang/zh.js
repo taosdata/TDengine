@@ -172,6 +172,13 @@ export default {
     dsurlError: "数据源URL格式不正确，比如: http://localhost:6041",
     enterTip: "请输入"
   },
+  replication: {
+    theTaskWithId: "任务 {id}",
+    backupTip: "你确定{operate}备份任务 {id}?",
+    backupDel: "你确定删除任务 {id}?",
+    stop: "停止",
+    start: "开启",
+  },
   route: {
     dataIn: "数据写入",
     board: "面板",

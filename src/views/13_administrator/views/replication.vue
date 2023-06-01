@@ -187,15 +187,18 @@ export default {
       this.ruleForm.target = "";
     },
     del(data) {
-      this.$confirm("Are you sure  to delete " + data.source + "?", "Warning", {
-        confirmButtonText: "Ok",
-        cancelButtonText: "Cancel",
+      this.$confirm(
+        this.$t("replication.backupDel").replace("{id}",data.id), 
+        this.$t("warning"),
+      {
+        confirmButtonText: this.$t("confirm"),
+        cancelButtonText: this.$t("cancel"),
         type: "warning",
       }).then(async () => {
         await excuteDel(data.id).then(() => {
           Message({
             type: "success",
-            message: "Deleted Successfully",
+            message: this.$t('delSucc'),
           });
           this.getReplication();
         });
@@ -221,12 +224,13 @@ export default {
         };
         await addReplicationData(id, params).then((res) => {
           if (res) {
-            Message.success("Created Successfully!");
+            Message.success(this.$t('createSucc'));
             this.getReplication();
           }
           this.dialog = false;
         });
       } catch (err) {
+        Message.error(err?.message);
         return Promise.reject(err);
       }
     },
@@ -238,7 +242,7 @@ export default {
     async start(val, data) {
       try {
         await excuteStart(data.id).then((res) => {
-          Message.success("Operation Successfully Completed!");
+          Message.success(this.$t('operateSucc'));
           this.getReplication();
         });
       } catch (err) {
@@ -248,7 +252,7 @@ export default {
     async stop(val, data) {
       try {
         await excuteStop(data.id).then(() => {
-          Message.success("Operation Successfully Completed!");
+          Message.success(this.$t('operateSucc'));
           this.getReplication();
         });
       } catch (err) {
@@ -257,7 +261,7 @@ export default {
     },
     switchOperation(val, data) {
       this.$confirm(
-        `${this.$t(val ? "Start" : "Stop")} ${this.$t(
+        `${this.$t(val ? this.$t('replication.start') : this.$t('replication.stop'))} ${this.$t(
           "replication.theTaskWithId"
         ).replace("{id}", data.id)}?`,
         this.$t("warning"),

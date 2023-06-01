@@ -363,7 +363,6 @@ import { mapState } from "vuex";
 import { dataType, tagType } from "../../utils";
 import { changeStableStruct } from "@/api/gateway/data/stables";
 import { VariableTableColumnType } from "@/const";
-import { validDatabaseName } from "@/utils/validate";
 Array.prototype.insert = function (index, item) {
   this.splice(index, 0, item);
 };
@@ -420,9 +419,7 @@ export default {
           {
             validator: (_, value, callback) => {
               callback(
-                validDatabaseName(value)
-                  ? undefined
-                  : new Error(this.$t("data.nameTip").replace('/name/',this.$t('dashboard.stables')))
+                value.indexOf('.') != -1 ? new Error(this.$t("formatWrong")) : undefined
               );
             },
             trigger: "blur",
@@ -539,7 +536,7 @@ export default {
         .then(() => {
           this.$message.success(this.$t("operateSucc"));
         })
-        .catch(() => false);
+        .catch(err => this.$message.error(err.desc));
       // 无论修改成功或失败都应该刷新数据
       await this.$store
         .dispatch("stables/getStatleStruct", this.stable_form.name)
