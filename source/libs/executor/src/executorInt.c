@@ -827,7 +827,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      uint32_t newSize = pBlock->info.rows + pRow->numOfRows + (numOfRows - i) > 1 ? 1 : 0;
+      uint32_t newSize = pBlock->info.rows + pRow->numOfRows + ((numOfRows - i) > 1 ? 1 : 0);
       blockDataEnsureCapacity(pBlock, newSize);
       qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s",
              newSize, pBlock->info.capacity, GET_TASKID(pTaskInfo));
