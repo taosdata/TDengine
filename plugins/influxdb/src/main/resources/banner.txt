@@ -1,0 +1,1 @@
+${application.title}${application.formatted-version} (built jdk-1.8.0_271 2023-05-31 15:02:21 +08:00)

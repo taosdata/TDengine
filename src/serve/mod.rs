@@ -28,7 +28,7 @@ use controller::*;
 use data_sources::*;
 
 use crate::serve::controller::agent::{
-    Agent, AgentConnectors, AgentProps, AgentStatus, AgentUpdates, AgentWithToken, AgentToken,
+    Agent, AgentConnectors, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
 };
 
 use self::{
@@ -97,7 +97,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(update_agent)
             .service(delete_agent)
             .service(get_agents)
-            .service(get_cluster_connector_transferred);
+            .service(get_cluster_connector_transferred)
+            .service(get_task_activities_by_id);
     }
 }
 impl Cli {
@@ -115,6 +116,7 @@ impl Cli {
                     UpdateTask,
                     Labels,
                     Task,
+                    TaskActivity,
                     Failed,
                     DataSourceInput,
                     DataSourceDefinition,
@@ -160,6 +162,7 @@ impl Cli {
                 task::stop_task,
                 task::get_task_by_id,
                 task::get_task_offsets_by_id,
+                task::get_task_activities_by_id,
 
                 metrics::metrics_exporter,
 

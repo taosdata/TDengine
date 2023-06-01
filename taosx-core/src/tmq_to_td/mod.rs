@@ -256,6 +256,7 @@ async fn sync(
     cancel: CancellationToken,
     metrics: Arc<TmqMetrics>,
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    version: String,
 ) -> Result<()> {
     log::info!("[{id}] task start");
     let mut stream = consumer.stream();
@@ -272,7 +273,18 @@ async fn sync(
                 break;
             }
             next = stream.try_next() => {
-                let assignments = consumer.assignments().await.unwrap();
+                let (a, b, c, _) = version
+                .split('.')
+                .map(|x| x.parse::<i32>().unwrap())
+                .collect_tuple()
+                .unwrap();
+                log::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
+                let assignments = if a >= 3 && b >= 0 && c >= 5 {
+                    consumer.assignments().await.unwrap()
+                } else {
+                    vec![]
+                };
+                
                 log::debug!("assignment: {:?}", assignments);
                 for (topic, assignment) in assignments {
                     offsets.insert(topic, assignment);
@@ -323,6 +335,8 @@ pub async fn tmq_to_td(
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
 ) -> Result<()> {
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
+
+    let version = builder.server_version().await?.to_owned();
 
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
@@ -530,6 +544,7 @@ pub async fn tmq_to_td(
             let metrics = metrics.clone();
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
+            let version = version.clone();
             let handle = tokio::spawn(async move {
                 sync(
                     task_id,
@@ -541,6 +556,7 @@ pub async fn tmq_to_td(
                     cancellation,
                     metrics,
                     offsets,
+                    version,
                 )
                 .await
             });

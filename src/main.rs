@@ -110,10 +110,33 @@ struct Args {
     slop: Vec<String>,
 }
 
+const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
+const ENV_TAOSX_PLUGINS_HOME: &'static str = concatcp!(build::CUS_PROMPT, "_PLUGINS_HOME");
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let args = Args::parse();
     println!("taosx version: {CLAP_SHORT_VERSION}");
+
+    let plugins_home = std::env::var(ENV_PLUGINS_HOME).or(std::env::var(ENV_TAOSX_PLUGINS_HOME));
+    match plugins_home {
+        Ok(home) => std::env::set_var(ENV_PLUGINS_HOME, home),
+        Err(_) => {
+            #[cfg(unix)]
+            {
+                let default = "/usr/local/taosx/plugins";
+                let path = std::path::Path::new(default);
+                if path.exists() {
+                    std::env::set_var(ENV_PLUGINS_HOME, default);
+                } else {
+                    let default = "/usr/local/taos/xplugins";
+                    let path = std::path::Path::new(default);
+                    if path.exists() {
+                        std::env::set_var(ENV_PLUGINS_HOME, default);
+                    }
+                }
+            }
+        }
+    }
 
     let mut builder = pretty_env_logger::formatted_timed_builder();
     builder.filter_level(args.globals.verbose.log_level_filter());

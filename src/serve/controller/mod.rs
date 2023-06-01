@@ -385,6 +385,7 @@ impl TaskController {
 
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         let id = task.id;
+        let now = Utc::now();
 
         let mut remove_finished_task = false;
         {
@@ -392,6 +393,17 @@ impl TaskController {
             if let Some(h) = self.tasks.read().await.get(&id) {
                 if !h.0.is_finished() {
                     log::info!("try start task {id} but it is running");
+                    let context = format!("try start task {id} but it is running");
+
+                    sqlx::query!(
+                        "INSERT INTO task_activities values(?, ?, ?, ?)",
+                        id,
+                        now,
+                        "start",
+                        context
+                    )
+                    .execute(&self.pool)
+                    .await?;
                     return Ok(());
                 } else {
                     remove_finished_task = true;
@@ -469,8 +481,16 @@ impl TaskController {
         } else {
             None
         };
-        dbg!(&agent_task_worker);
-
+        // dbg!(&agent_task_worker);
+        sqlx::query!(
+            "INSERT INTO task_activities values(?, ?, ?, ?)",
+            id,
+            now,
+            "start",
+            None::<String>
+        )
+        .execute(&self.pool)
+        .await?;
         let pool = self.pool.clone();
         let task_handler = async move {
             let now = Utc::now();
@@ -494,12 +514,23 @@ impl TaskController {
                     log::debug!("cancel task {id}");
                     let now = Utc::now();
                     let status = Status::Cancelled;
+                    sqlx::query!(
+                        "INSERT INTO task_activities values(?, ?, ?, ?)",
+                        id,
+                        now,
+                        "cancel",
+                        None::<String>
+                    )
+                    .execute(&pool)
+                    .await?;
+
                     match opts.from.driver.as_str() {
                         "opc" | "opcua" | "opcda" | "pi" => {
                             let _ = sqlx::query!(
-                                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status not in (?, ?)",
+                                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND status not in (?, ?)",
                                 now,
                                 status,
+                                None::<String>,
                                 id,
                                 Status::Stopped, Status::Failed
                             )
@@ -508,9 +539,10 @@ impl TaskController {
                         },
                         _ => {
                             let _ = sqlx::query!(
-                                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status not in (?, ?, ?)",
+                                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND status not in (?, ?, ?)",
                                 now,
                                 status,
+                                None::<String>,
                                 id,
                                 Status::Completed, Status::Stopped, Status::Failed
                             )
@@ -526,18 +558,27 @@ impl TaskController {
                         let mut last_restart_time = Instant::now();
                         loop {
                             let now = Utc::now();
+                            let none: Option<String> = None;
                             let _ = sqlx::query!(
-                                "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                                "UPDATE tasks SET last_modified_at = ?, status = ?, reason = ? WHERE id = ?",
                                 now,
                                 Status::Running,
+                                none,
                                 id
                             )
                             .execute(&pool)
                             .await?;
                             if restarts > 0 {
                                 log::info!("resume task {id} as {restarts} restarts");
+
+                                sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
+                                    id, now, "resume", none
+                                ).execute(&pool).await?;
                                 last_restart_time = Instant::now();
                             } else {
+                                sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
+                                    id, now, "start", none
+                                ).execute(&pool).await?;
                                 log::info!("start task {id}");
                             }
                             let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
@@ -545,13 +586,17 @@ impl TaskController {
                                 Ok(_) => {
                                     let now = Utc::now();
                                     let _ = sqlx::query!(
-                                        "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                                        "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
                                         now,
                                         Status::Interrupted,
+                                        none,
                                         id
                                     )
                                     .execute(&pool)
                                     .await?;
+                                    sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
+                                        id, now, "completed", none
+                                    ).execute(&pool).await?;
                                 }
                                 Err(err) => {
                                     let err_string = err.to_string();
@@ -573,6 +618,10 @@ impl TaskController {
                                             )
                                             .execute(&pool)
                                             .await?;
+
+                                            sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
+                                                id, now, "failed", err
+                                            ).execute(&pool).await?;
                                             break;
                                         }
                                         e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") => {
@@ -603,6 +652,9 @@ impl TaskController {
                                             )
                                             .execute(&pool)
                                             .await?;
+                                            sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
+                                                id, now, "failed", err
+                                            ).execute(&pool).await?;
                                             break;
                                         }
                                     }
@@ -622,9 +674,10 @@ impl TaskController {
                     } else {
                         let now = Utc::now();
                         let _ = sqlx::query!(
-                            "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                            "UPDATE tasks SET last_modified_at = ?, status = ?, reason = ? WHERE id = ?",
                             now,
                             Status::Running,
+                            None::<String>,
                             id
                         )
                         .execute(&pool)
@@ -643,14 +696,18 @@ impl TaskController {
                                 let now = Utc::now();
                                 let status = Status::Completed;
                                 let _ = sqlx::query!(
-                                    "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                                    "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
                                     now,
                                     status,
+                                    None::<String>,
                                     id
                                 )
                                 .execute(&pool)
                                 .await?;
 
+                                sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
+                                    id, now, "completed", None::<String>
+                                ).execute(&pool).await?;
                             }
                             Err(err) => {
                                 log::error!("run task {id} failed: {err}");
@@ -666,6 +723,9 @@ impl TaskController {
                                 )
                                 .execute(&pool)
                                 .await?;
+                                sqlx::query!("INSERT INTO task_activities values(?, ?, ?, ?)",
+                                    id, now, "failed", err
+                                ).execute(&pool).await?;
                             }
                         }
                     }
@@ -739,6 +799,7 @@ impl TaskController {
             }
         }
         task.patch_labels();
+        let now = chrono::Utc::now();
         let res = sqlx::query(
             "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
                  `created_at`, `status`, `after_delete`, `trigger`, `via`, `parser`) \
@@ -750,7 +811,7 @@ impl TaskController {
         .bind(&task.to)
         .bind(&task.jobs)
         .bind(&task.compression_level)
-        .bind(&chrono::Utc::now().to_rfc3339())
+        .bind(&now)
         .bind(&Status::Created)
         .bind(&task.after_delete)
         .bind(&task.trigger)
@@ -760,7 +821,7 @@ impl TaskController {
         .await?;
         let id = res.last_insert_rowid();
 
-        if let Some(labels) = task.labels {
+        if let Some(labels) = &task.labels {
             let values = labels
                 .iter()
                 .map(|label| match label.split_once("::") {
@@ -772,6 +833,17 @@ impl TaskController {
                 .execute(&self.pool)
                 .await?;
         }
+
+        let context = serde_json::to_string_pretty(&task).unwrap();
+        sqlx::query!(
+            "INSERT INTO task_activities values(?, ?, ?, ?)",
+            id,
+            now,
+            "create",
+            context
+        )
+        .execute(&self.pool)
+        .await?;
 
         // let opts = taosx::TaskOpts::try_from(task.clone())?;
         let mut task = self.get(id).await?.unwrap();
@@ -818,6 +890,18 @@ impl TaskController {
         bind_fields!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
 
         let res = query.execute(&self.pool).await?;
+
+        let now = chrono::Utc::now();
+        let context = serde_json::to_string_pretty(&task).unwrap();
+        sqlx::query!(
+            "INSERT INTO task_activities values(?, ?, ?, ?)",
+            id,
+            now,
+            "update",
+            context
+        )
+        .execute(&self.pool)
+        .await?;
 
         if res.rows_affected() == 1 {
             let task = self.get(id).await?.unwrap();
@@ -914,6 +998,7 @@ impl TaskController {
         sqlx::query!("DELETE FROM tasks where id = ?", id)
             .execute(&self.pool)
             .await?;
+
         Ok(Some(task.into()))
     }
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
@@ -942,7 +1027,28 @@ impl TaskController {
         if res.rows_affected() == 1 {
             log::info!("successfully stop task by id {id}");
         }
+
+        sqlx::query!(
+            "INSERT INTO task_activities values(?, ?, ?, ?)",
+            id,
+            now,
+            "stop",
+            None::<String>
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(Some(()))
+    }
+
+    pub async fn task_activities(&self, id: i64) -> anyhow::Result<Vec<TaskActivity>> {
+        sqlx::query_as_unchecked!(
+            TaskActivity,
+            "SELECT * FROM task_activities where id = ?",
+            id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(Into::into)
     }
 
     pub async fn stop_all(&self) -> anyhow::Result<()> {
@@ -961,6 +1067,16 @@ impl TaskController {
                 Status::Cancelled,
                 id,
                 Status::Completed, Status::Stopped, Status::Failed
+            )
+            .execute(&self.pool)
+            .await?;
+
+            sqlx::query!(
+                "INSERT INTO task_activities values(?, ?, ?, ?)",
+                id,
+                now,
+                "stop",
+                None::<String>
             )
             .execute(&self.pool)
             .await?;
@@ -1110,6 +1226,13 @@ impl TaskController {
     pub async fn delete_agent(&self, agent_id: i64) -> anyhow::Result<()> {
         let mut conn = self.pool.acquire().await?;
         let trans = self.pool.begin().await?;
+        let ids = sqlx::query_as::<_, (i64,)>("select id from tasks where via = ?")
+            .bind(agent_id)
+            .fetch_all(&mut conn)
+            .await?;
+        if !ids.is_empty() {
+            anyhow::bail!("should delete associated tasks before delete agent");
+        }
 
         sqlx::query("delete from agent_activities where id = ?")
             .bind(agent_id)
@@ -1122,15 +1245,6 @@ impl TaskController {
             .execute(&mut conn)
             .await?;
         trans.commit().await?;
-        let ids = sqlx::query_as::<_, (i64,)>("select id from tasks where via = ?")
-            .bind(agent_id)
-            .fetch_all(&mut conn)
-            .await?;
-
-        for (id,) in ids {
-            log::info!("Delete task {id} since agent {agent_id} deleted");
-            let _ = self.delete(id).await;
-        }
 
         Ok(())
     }
@@ -1408,6 +1522,23 @@ pub struct Task {
     #[sqlx(try_from = "String", default)]
     // #[serde(deserialize_with = "labels_serde::deserialize")]
     labels: Labels,
+}
+/// Task Activity
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::FromRow)]
+pub struct TaskActivity {
+    /// Task id.
+    #[schema(read_only)]
+    id: i64,
+    /// Stopped time.
+    #[schema(read_only)]
+    #[serde(with = "datetime_format")]
+    at: DateTime<Utc>,
+    /// Activity
+    #[schema(read_only)]
+    activity: String,
+    /// Context
+    #[schema(read_only)]
+    context: Option<String>,
 }
 
 lazy_static::lazy_static! {

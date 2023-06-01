@@ -79,6 +79,9 @@ impl PutStream {
             };
 
             let license: Option<ConnectorLicense> = if let Some(connector) = connector {
+                #[cfg(feature = "disable-enterprise-connector-validation")]
+                let license: Option<ConnectorLicense> = None;
+                #[cfg(not(feature = "disable-enterprise-connector-validation"))]
                 let license: Option<ConnectorLicense> = taos
                     .query_one::<_, String>(&format!(
                         "select {connector} from information_schema.ins_grants"
@@ -145,11 +148,15 @@ impl PutStream {
                 )
                 .unwrap();
                 dbg!(&task);
-                let parser :Option<Parser> = task.parser.as_ref().map(|v| serde_json::from_value(v.clone()).unwrap());
+                let parser: Option<Parser> = task
+                    .parser
+                    .as_ref()
+                    .map(|v| serde_json::from_value(v.clone()).unwrap());
                 loop {
                     if let Ok(a) = rx.recv() {
                         log::info!("Start writing records: {a:?}");
-                        if let Err(err) = worker.process_record(&mut stmt, a, parser.as_ref()).await {
+                        if let Err(err) = worker.process_record(&mut stmt, a, parser.as_ref()).await
+                        {
                             log::warn!("Write stream error: {err}");
                         }
                     } else {

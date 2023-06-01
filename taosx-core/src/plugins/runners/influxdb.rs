@@ -1,4 +1,4 @@
-use std::{io::prelude::*, sync::Arc, time::Duration};
+use std::{io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -6,6 +6,8 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 
 use crate::{plugins::sink, utils::port_pool::PortPool, Action, Transferred};
+
+use super::get_plugin_dir;
 
 #[derive(Debug, serde::Serialize)]
 struct InfluxdbConfig {
@@ -18,6 +20,7 @@ struct InfluxdbConfig {
 
     // others
     #[serde(skip)]
+    #[allow(dead_code)]
     td_database: String,
     #[serde(skip)]
     ipc_stream: String,
@@ -30,7 +33,7 @@ struct InfluxConfig {
     #[serde(rename = "token")]
     influx_token: String,
     #[serde(rename = "orgId")]
-    influx_orgId: String,
+    influx_org_id: String,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -45,12 +48,12 @@ struct TaosxConfig {
 struct TaskConfig {
     #[serde(rename = "mode")]
     task_mode: String,
-    #[serde(rename = "buckets")]
-    task_buckets: Vec<String>,
+    #[serde(rename = "bucket")]
+    task_bucket: String,
     #[serde(rename = "beginTime")]
-    task_beginTime: String,
+    task_begin_time: String,
     #[serde(rename = "endTime")]
-    task_endTime: Option<String>,
+    task_end_time: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -63,6 +66,8 @@ pub enum InfluxdbError {
     InfluxOrgIdIsRequired(Dsn),
     #[error("The data begin time is required: {0}")]
     TaskBeginTimeIsRequired(Dsn),
+    #[error("The bucket is required: {0}")]
+    TaskBucketIsRequired(Dsn),
 }
 
 impl InfluxdbConfig {
@@ -83,7 +88,7 @@ impl InfluxdbConfig {
         let influx_token = dsn
             .remove("token")
             .ok_or_else(|| InfluxdbError::InfluxTokenIsRequired(dsn.clone()))?;
-        let influx_orgId = dsn
+        let influx_org_id = dsn
             .remove("orgId")
             .ok_or_else(|| InfluxdbError::InfluxOrgIdIsRequired(dsn.clone()))?;
 
@@ -93,18 +98,13 @@ impl InfluxdbConfig {
 
         // the task config
         let task_mode = dsn.remove("mode").unwrap_or("normal".to_string());
-        let task_buckets = dsn
-            .remove("buckets")
-            .unwrap_or_default()
-            .split(',')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        let task_beginTime = dsn
+        let task_bucket = dsn
+            .remove("bucket")
+            .ok_or_else(|| InfluxdbError::TaskBucketIsRequired(dsn.clone()))?;
+        let task_begin_time = dsn
             .remove("beginTime")
             .ok_or_else(|| InfluxdbError::TaskBeginTimeIsRequired(dsn.clone()))?;
-        let task_endTime = dsn.remove("endTime");
+        let task_end_ime = dsn.remove("endTime");
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -112,7 +112,7 @@ impl InfluxdbConfig {
         let influx = InfluxConfig {
             influx_url,
             influx_token,
-            influx_orgId,
+            influx_org_id,
         };
 
         let taosx = TaosxConfig {
@@ -122,9 +122,9 @@ impl InfluxdbConfig {
 
         let task = TaskConfig {
             task_mode,
-            task_buckets,
-            task_beginTime,
-            task_endTime,
+            task_bucket,
+            task_begin_time,
+            task_end_time: task_end_ime,
         };
 
         Ok(Self {
@@ -137,12 +137,32 @@ impl InfluxdbConfig {
     }
 }
 
+const EXE: &'static str = "taosx-influxdb.jar";
+
+fn influxdb_jar_path() -> PathBuf {
+    get_plugin_dir("influxdb").join(EXE)
+}
+
+pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
+    let path = influxdb_jar_path();
+    let output = std::process::Command::new("java")
+        .arg("-jar")
+        .arg(&path)
+        .arg("-version")
+        .output()?;
+    Ok((
+        "influxdb",
+        path,
+        String::from_utf8_lossy(&output.stdout).trim().to_string(),
+    ))
+}
+
 /// InfluxDB DSN example: "influxdb://127.0.0.1:8086/?token=abc&orgId=def&mode=normal&beginTime=2023-05-01&endTime="
 pub async fn influxdb_to_taos(
     from: Dsn,
-    actions: Vec<Action>,
+    _actions: Vec<Action>,
     to: Dsn,
-    jobs: usize,
+    _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
@@ -184,16 +204,12 @@ pub async fn influxdb_to_taos(
     )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
-    let connectorPath = if cfg!(target_os = "windows") {
-        "C:\\TDengine\\xplugins\\influxdb\\taosx-influxdb.jar"
-    } else {
-        "/usr/local/taos/xplugins/influxdb/taosx-influxdb.jar"
-    };
+    let connector_path = influxdb_jar_path();
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     let child = command
         .arg("-jar")
-        .arg(&connectorPath)
+        .arg(&connector_path)
         .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());

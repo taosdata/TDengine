@@ -7,7 +7,7 @@
     <ProjectGuid>{07CC0037-853B-4417-B42D-C3A211F77FB5}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>TDBackfill</RootNamespace>
-    <AssemblyName>TDBackfill</AssemblyName>
+    <AssemblyName>taosx-pi-backfill</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>

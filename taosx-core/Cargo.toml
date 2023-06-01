@@ -55,6 +55,7 @@ serde_json = { version = "1.0", features = ["raw_value"] }
 # utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 
 # lru = "0.7.5"
+cfg-if = "1.0.0"
 const_format = "0.2.30"
 metrics = "0.20.1"
 metrics-exporter-prometheus = { version = "0.11.0", default-features = false, features = ["push-gateway"] }
@@ -94,6 +95,7 @@ sys = ["taos/native"]
 rustls = ["taos/ws-rustls"]
 native-tls = ["taos/ws-native-tls"]
 disable-enterprise-only-validation = []
+disable-enterprise-connector-validation = []
 
 [build-dependencies]
 dotenv = "0.15.0"

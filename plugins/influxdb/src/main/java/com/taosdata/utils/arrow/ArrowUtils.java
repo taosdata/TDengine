@@ -74,7 +74,7 @@ public class ArrowUtils {
     private ArrowInitDto getArrowInit(InfluxdbMeasurementEntity influxdbMeasurementEntity) {
         ArrowInitDto arrowInitDto = new ArrowInitDto();
         // name
-        arrowInitDto.setName(influxdbMeasurementEntity.getBucket() + "_" + influxdbMeasurementEntity.getMeasurement());
+        arrowInitDto.setName(influxdbMeasurementEntity.getMeasurement());
         // columns
         List<ArrowInitDto.Column> columns = new ArrayList<>();
         columns.add(arrowInitDto.new Column("time", "timestamp"));
