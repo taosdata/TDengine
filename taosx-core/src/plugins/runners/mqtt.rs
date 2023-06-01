@@ -54,6 +54,8 @@ enum MqttConfigError {
     DatabaseIsRequired(Dsn),
     #[error("Mqtt ca config read error, cause: {0}")]
     CAConfigReadError(String),
+    #[error("Mqtt config parse error, cause: {0}")]
+    MqttConfigParseError(String),
 }
 
 impl MqttConfig {
@@ -85,6 +87,9 @@ impl MqttConfig {
         let mut topics = HashMap::new();
         for i in 0..topics_vec.len() {
             let pair = topics_vec[i].split("::").collect_vec();
+            if pair.len() != 2 {
+                return Err(MqttConfigError::MqttConfigParseError(format!("topic config error: {}", topics_vec[i])));
+            }
             let topic = String::from(pair[0]);
             let qos = pair[1]
                 .parse::<u8>()
@@ -101,8 +106,8 @@ impl MqttConfig {
                 address,
                 version: dsn.remove("version").unwrap_or("3.0".to_string()),
                 client_id: dsn.remove("client_id").unwrap_or("".to_string()),
-                username: dsn.remove("username").unwrap_or("".to_string()),
-                password: dsn.remove("password").unwrap_or("".to_string()),
+                username: dsn.username.clone().unwrap_or("".to_string()),
+                password: dsn.password.clone().unwrap_or("".to_string()),
                 keep_alive: dsn
                     .remove("keep_alive")
                     .map(|v| {
