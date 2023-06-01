@@ -37,7 +37,7 @@ typedef union {
 } SDelRecord;
 
 typedef union {
-  TARRAY2(int64_t) aData[DEL_RECORD_NUM_ELEM];
+  TARRAY2(int64_t) dataArr[DEL_RECORD_NUM_ELEM];
   struct {
     TARRAY2(int64_t) suid[1];
     TARRAY2(int64_t) uid[1];
@@ -74,9 +74,9 @@ typedef union {
     int64_t suid;
     int64_t uid;
     int64_t firstKey;
-    int64_t firstVer;
+    int64_t firstKeyVer;
     int64_t lastKey;
-    int64_t lastVer;
+    int64_t lastKeyVer;
     int64_t minVer;
     int64_t maxVer;
     int64_t count;
@@ -84,29 +84,29 @@ typedef union {
 } STbStatisRecord;
 
 typedef union {
-  TARRAY2(int64_t) aData[STATIS_RECORD_NUM_ELEM];
+  TARRAY2(int64_t) dataArr[STATIS_RECORD_NUM_ELEM];
   struct {
     TARRAY2(int64_t) suid[1];
     TARRAY2(int64_t) uid[1];
     TARRAY2(int64_t) firstKey[1];
-    TARRAY2(int64_t) firstVer[1];
+    TARRAY2(int64_t) firstKeyVer[1];
     TARRAY2(int64_t) lastKey[1];
-    TARRAY2(int64_t) lastVer[1];
+    TARRAY2(int64_t) lastKeyVer[1];
     TARRAY2(int64_t) minVer[1];
     TARRAY2(int64_t) maxVer[1];
-    TARRAY2(int64_t) aCount[1];
+    TARRAY2(int64_t) count[1];
   };
 } STbStatisBlock;
 
-typedef struct STbStatisBlk {
+typedef struct SStatisBlk {
   int32_t   numRec;
   int32_t   size[STATIS_RECORD_NUM_ELEM];
-  TABLEID   minTid;
-  TABLEID   maxTid;
+  TABLEID   minTbid;
+  TABLEID   maxTbid;
   int64_t   minVer;
   int64_t   maxVer;
   SFDataPtr dp[1];
-} STbStatisBlk;
+} SStatisBlk;
 
 #define STATIS_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
 

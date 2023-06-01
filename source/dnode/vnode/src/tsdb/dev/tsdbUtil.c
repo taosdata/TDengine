@@ -17,29 +17,29 @@
 
 // SDelBlock ----------
 int32_t tDelBlockInit(SDelBlock *delBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->aData); ++i) {
-    TARRAY2_INIT(&delBlock->aData[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
+    TARRAY2_INIT(&delBlock->dataArr[i]);
   }
   return 0;
 }
 
 int32_t tDelBlockFree(SDelBlock *delBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->aData); ++i) {
-    TARRAY2_FREE(&delBlock->aData[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
+    TARRAY2_FREE(&delBlock->dataArr[i]);
   }
   return 0;
 }
 
 int32_t tDelBlockClear(SDelBlock *delBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->aData); ++i) {
-    TARRAY2_CLEAR(&delBlock->aData[i], NULL);
+  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
+    TARRAY2_CLEAR(&delBlock->dataArr[i], NULL);
   }
   return 0;
 }
 
 int32_t tDelBlockPut(SDelBlock *delBlock, const SDelRecord *delRecord) {
-  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->aData); ++i) {
-    int32_t code = TARRAY2_APPEND(&delBlock->aData[i], delRecord->aData[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
+    int32_t code = TARRAY2_APPEND(&delBlock->dataArr[i], delRecord->aData[i]);
     if (code) return code;
   }
   return 0;
@@ -57,29 +57,29 @@ int32_t tDelBlockDecode(const void *buf, SDelBlock *delBlock) {
 
 // STbStatisBlock ----------
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->aData); ++i) {
-    TARRAY2_INIT(&statisBlock->aData[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
+    TARRAY2_INIT(&statisBlock->dataArr[i]);
   }
   return 0;
 }
 
 int32_t tStatisBlockFree(STbStatisBlock *statisBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->aData); ++i) {
-    TARRAY2_FREE(&statisBlock->aData[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
+    TARRAY2_FREE(&statisBlock->dataArr[i]);
   }
   return 0;
 }
 
 int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->aData); ++i) {
-    TARRAY2_CLEAR(&statisBlock->aData[i], NULL);
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
+    TARRAY2_CLEAR(&statisBlock->dataArr[i], NULL);
   }
   return 0;
 }
 
 int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *statisRecord) {
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->aData); ++i) {
-    int32_t code = TARRAY2_APPEND(&statisBlock->aData[i], statisRecord->aData[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
+    int32_t code = TARRAY2_APPEND(&statisBlock->dataArr[i], statisRecord->aData[i]);
     if (code) return code;
   }
   return 0;
