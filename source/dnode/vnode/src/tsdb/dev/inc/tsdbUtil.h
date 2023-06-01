@@ -48,7 +48,7 @@ typedef union {
 } SDelBlock;
 
 typedef struct SDelBlk {
-  int32_t   nRow;
+  int32_t   numRec;
   int32_t   size[DEL_RECORD_NUM_ELEM];
   TABLEID   minTid;
   TABLEID   maxTid;

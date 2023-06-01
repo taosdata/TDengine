@@ -44,9 +44,9 @@ int32_t tsdbSttFileReadSttBlk(SSttSegReader *reader, const TSttBlkArray **sttBlk
 int32_t tsdbSttFileReadStatisBlk(SSttSegReader *reader, const TStatisBlkArray **statisBlkArray);
 int32_t tsdbSttFileReadDelBlk(SSttSegReader *reader, const TDelBlkArray **delBlkArray);
 
-int32_t tsdbSttFileReadSttBlock(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData);
-int32_t tsdbSttFileReadDelBlock(SSttSegReader *reader, const SDelBlk *delBlk, SDelBlock *dData);
+int32_t tsdbSttFileReadDataBlock(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData);
 int32_t tsdbSttFileReadStatisBlock(SSttSegReader *reader, const SStatisBlk *statisBlk, STbStatisBlock *sData);
+int32_t tsdbSttFileReadDelBlock(SSttSegReader *reader, const SDelBlk *delBlk, SDelBlock *dData);
 
 struct SSttFileReaderConfig {
   STsdb    *tsdb;
@@ -54,7 +54,7 @@ struct SSttFileReaderConfig {
   STFile    file[1];
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
-  uint8_t **aBuf;
+  uint8_t **bufArr;
 };
 
 // SSttFileWriter ==========================================
