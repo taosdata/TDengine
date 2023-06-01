@@ -775,19 +775,15 @@ int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
   }
 
   // row to col conversion
-  if (key->version <= writer->config->compactVersion) {
-    if (writer->bData->nRow > 0  //
-        && (writer->bData->uid   //
-                ? writer->bData->uid
-                : writer->bData->aUid[writer->bData->nRow - 1]) == row->uid  //
-        && writer->bData->aTSKEY[writer->bData->nRow - 1] == key->ts         //
-    ) {
-      code = tBlockDataUpdateRow(writer->bData, &row->row, writer->config->skmRow->pTSchema);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    } else {
-      code = tBlockDataAppendRow(writer->bData, &row->row, writer->config->skmRow->pTSchema, row->uid);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+  if (key->version <= writer->config->compactVersion                       //
+      && writer->bData->nRow > 0                                           //
+      && (writer->bData->uid                                               //
+              ? writer->bData->uid                                         //
+              : writer->bData->aUid[writer->bData->nRow - 1]) == row->uid  //
+      && writer->bData->aTSKEY[writer->bData->nRow - 1] == key->ts         //
+  ) {
+    code = tBlockDataUpdateRow(writer->bData, &row->row, writer->config->skmRow->pTSchema);
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     if (writer->bData->nRow >= writer->config->maxRow) {
       code = tsdbSttFileDoWriteTSDataBlock(writer);

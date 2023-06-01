@@ -440,6 +440,8 @@ _exit:
   return code;
 }
 int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *writer, SBlockData *bData) {
+  if (bData->nRow == 0) return 0;
+
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(writer->config->tsdb->pVnode);
@@ -467,4 +469,16 @@ _exit:
     TSDB_ERROR_LOG(vid, lino, code);
   }
   return code;
+}
+
+int32_t tsdbDataFileWriteTSData(SDataFileWriter *writer, SRowInfo *row) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
+
+int32_t tsdbDataFileFLushTSDataBlock(SDataFileWriter *writer) {
+  // TODO
+  ASSERT(0);
+  return 0;
 }
