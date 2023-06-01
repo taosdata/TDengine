@@ -212,7 +212,7 @@ def build_and_install_pi(mode):
 
     backfill_path = os.path.join(pi_connector_path, "TDBackfill", "bin", f"{mode}")
     for filename in os.listdir(backfill_path):
-        if filename.startswith("TDBackfill"):
+        if filename.startswith("taosx-pi-backfill"):
             filepath = os.path.join(backfill_path, filename)
             if os.path.isfile(filepath):
                 shutil.copy2(filepath, pi_install_path)
