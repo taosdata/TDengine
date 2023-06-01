@@ -57,7 +57,7 @@ static int32_t tsdbMergerOpen(SMerger *merger) {
   merger->szPage = merger->tsdb->pVnode->config.tsdbPageSize;
   merger->cmprAlg = merger->tsdb->pVnode->config.tsdbCfg.compression;
   merger->compactVersion = INT64_MAX;
-  tsdbFSAllocEid(merger->tsdb->pFS, &merger->cid);
+  merger->cid = tsdbFSAllocEid(merger->tsdb->pFS);
   merger->ctx->opened = true;
   return 0;
 }
@@ -273,7 +273,7 @@ static int32_t tsdbMergeFileSetBeginOpenIter(SMerger *merger) {
     }
   }
 
-  code = tsdbIterMergerInit(merger->iterArr, &merger->iterMerger);
+  code = tsdbIterMergerOpen(merger->iterArr, &merger->iterMerger);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -444,7 +444,7 @@ _exit:
 }
 
 static int32_t tsdbMergeFileSetEndCloseIter(SMerger *merger) {
-  tsdbIterMergerClear(&merger->iterMerger);
+  tsdbIterMergerClose(&merger->iterMerger);
   TARRAY2_CLEAR(merger->iterArr, tsdbIterClose);
   return 0;
 }
@@ -566,5 +566,5 @@ _exit:
   } else if (merger->ctx->opened) {
     tsdbDebug("vgId:%d %s done", vid, __func__);
   }
-  return 0;
+  return code;
 }

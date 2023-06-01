@@ -348,7 +348,7 @@ struct SIterMerger {
   SRBTree    iterTree[1];
 };
 
-int32_t tsdbIterMergerInit(const TTsdbIterArray *iterArray, SIterMerger **merger) {
+int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger) {
   STsdbIter   *iter;
   SRBTreeNode *node;
 
@@ -365,7 +365,7 @@ int32_t tsdbIterMergerInit(const TTsdbIterArray *iterArray, SIterMerger **merger
   return tsdbIterMergerNext(merger[0]);
 }
 
-int32_t tsdbIterMergerClear(SIterMerger **merger) {
+int32_t tsdbIterMergerClose(SIterMerger **merger) {
   if (merger[0]) {
     taosMemoryFree(merger[0]);
     merger[0] = NULL;

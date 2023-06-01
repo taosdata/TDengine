@@ -52,7 +52,7 @@ int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *f
 // max commit id
 int64_t tsdbTFileSetMaxCid(const STFileSet *fset);
 // get
-SSttLvl *tsdbTFileSetGetLvl(STFileSet *fset, int32_t level);
+SSttLvl *tsdbTFileSetGetSttLvl(STFileSet *fset, int32_t level);
 // is empty
 bool tsdbTFileSetIsEmpty(const STFileSet *fset);
 

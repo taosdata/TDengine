@@ -53,8 +53,8 @@ int32_t tsdbIterClose(STsdbIter **iter);
 int32_t tsdbIterNext(STsdbIter *iter);
 
 // SIterMerger ===============
-int32_t   tsdbIterMergerInit(const TTsdbIterArray *iterArray, SIterMerger **merger);
-int32_t   tsdbIterMergerClear(SIterMerger **merger);
+int32_t   tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger);
+int32_t   tsdbIterMergerClose(SIterMerger **merger);
 int32_t   tsdbIterMergerNext(SIterMerger *merger);
 SRowInfo *tsdbIterMergerGet(SIterMerger *merger);
 int32_t   tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid);

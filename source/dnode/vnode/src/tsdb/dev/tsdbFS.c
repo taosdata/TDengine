@@ -538,9 +538,11 @@ int32_t tsdbCloseFS(STFileSystem **ppFS) {
   return 0;
 }
 
-int32_t tsdbFSAllocEid(STFileSystem *pFS, int64_t *eid) {
-  eid[0] = ++pFS->neid;  // TODO: use atomic operation
-  return 0;
+int64_t tsdbFSAllocEid(STFileSystem *fs) {
+  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  int64_t cid = ++fs->neid;
+  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+  return cid;
 }
 
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype) {

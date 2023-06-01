@@ -52,8 +52,6 @@ struct SSttFileReaderConfig {
   STsdb    *tsdb;
   int32_t   szPage;
   STFile    file[1];
-  SSkmInfo *skmTb;
-  SSkmInfo *skmRow;
   uint8_t **bufArr;
 };
 

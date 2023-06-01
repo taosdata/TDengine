@@ -28,6 +28,7 @@ struct SSttFileReader {
   SSttFileReaderConfig config[1];
   TSttSegReaderArray   readerArray[1];
   STsdbFD             *fd;
+  uint8_t             *bufArr[5];
 };
 
 struct SSttSegReader {
@@ -87,6 +88,7 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   if (reader[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   reader[0]->config[0] = config[0];
+  if (!reader[0]->config->bufArr) reader[0]->config->bufArr = reader[0]->bufArr;
 
   // open file
   code = tsdbOpenFile(fname, config->szPage, TD_FILE_READ, &reader[0]->fd);
@@ -118,6 +120,9 @@ _exit:
 
 int32_t tsdbSttFileReaderClose(SSttFileReader **reader) {
   if (reader[0]) {
+    for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->bufArr); ++i) {
+      tFree(reader[0]->bufArr[i]);
+    }
     tsdbCloseFile(&reader[0]->fd);
     TARRAY2_CLEAR_FREE(reader[0]->readerArray, tsdbSttSegReaderClose);
     taosMemoryFree(reader[0]);
