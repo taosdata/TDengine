@@ -126,14 +126,12 @@ int32_t streamTaskEnqueueBlocks(SStreamTask* pTask, const SStreamDispatchReq* pR
   if (pBlock == NULL) {
     streamTaskInputFail(pTask);
     status = TASK_INPUT_STATUS__FAILED;
-    qDebug("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
+    qError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
            pTask->id.idStr);
   } else {
     int32_t code = tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pBlock);
     // input queue is full, upstream is blocked now
     status = (code == TSDB_CODE_SUCCESS)? TASK_INPUT_STATUS__NORMAL:TASK_INPUT_STATUS__BLOCKED;
-
-
   }
 
   // rsp by input status
@@ -235,12 +233,11 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 }
 
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code) {
-  ASSERT(pRsp->inputStatus == TASK_OUTPUT_STATUS__NORMAL || pRsp->inputStatus == TASK_OUTPUT_STATUS__BLOCKED);
-  qDebug("s-task:%s receive dispatch rsp, code: %x", pTask->id.idStr, code);
+  qDebug("s-task:%s receive dispatch rsp, output status:%d code:%d", pTask->id.idStr, pRsp->inputStatus, code);
 
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     int32_t leftRsp = atomic_sub_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
-    qDebug("task %d is shuffle, left waiting rsp %d", pTask->id.taskId, leftRsp);
+    qDebug("s-task:%s is shuffle, left waiting rsp %d", pTask->id.idStr, leftRsp);
     if (leftRsp > 0) {
       return 0;
     }
@@ -248,13 +245,20 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   int8_t old = atomic_exchange_8(&pTask->outputStatus, pRsp->inputStatus);
   ASSERT(old == TASK_OUTPUT_STATUS__WAIT);
+
+  // the input queue of the (down stream) task that receive the output data is full, so the TASK_INPUT_STATUS_BLOCKED is rsp
+  // todo we need to send EMPTY PACKAGE to detect if the input queue is available for output of upstream task, every 50 ms.
   if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
     // TODO: init recover timer
-    ASSERT(0);
+    qError("s-task:%s inputQ of downstream task:0x%x is full, need to block output", pTask->id.idStr, pRsp->downstreamTaskId);
+
+    atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
+    qError("s-task:%s ignore error, and reset task output status:%d", pTask->id.idStr, pTask->outputStatus);
+
     return 0;
   }
 
-  // continue dispatch one block to down stream in pipeline
+  // otherwise, continue dispatch the first block to down stream task in pipeline
   streamDispatchStreamBlock(pTask);
   return 0;
 }
@@ -304,23 +308,32 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
       return -1;
     }
 
-    taosWriteQitem(pTask->inputQueue->queue, pItem);
+    int32_t code = taosWriteQitem(pTask->inputQueue->queue, pItem);
+    if (code != TSDB_CODE_SUCCESS) {
+      streamDataSubmitDestroy(px);
+      taosFreeQitem(pItem);
+      return code;
+    }
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
-    if ((pTask->taskLevel == TASK_LEVEL__SOURCE) && (tInputQueueIsFull(pTask))) {
+    if (/*(pTask->taskLevel == TASK_LEVEL__SOURCE) && */(tInputQueueIsFull(pTask))) {
       qError("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
              pTask->id.idStr, STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE, total,
              size);
       destroyStreamDataBlock((SStreamDataBlock*) pItem);
-      taosFreeQitem(pItem);
       return -1;
     }
 
     qDebug("s-task:%s data block enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
-    taosWriteQitem(pTask->inputQueue->queue, pItem);
+    int32_t code = taosWriteQitem(pTask->inputQueue->queue, pItem);
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyStreamDataBlock((SStreamDataBlock*) pItem);
+      return code;
+    }
   } else if (type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (type == STREAM_INPUT__GET_RES) {
+    // use the default memory limit, refactor later.
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     qDebug("s-task:%s data res enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
   }
