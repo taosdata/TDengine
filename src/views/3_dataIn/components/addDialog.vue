@@ -45,6 +45,7 @@
         <el-input
           v-model="ruleForm.name"
           :placeholder="$t('datasource.nametip')"
+          :maxlength=20
         ></el-input>
       </el-form-item>
     </el-form>

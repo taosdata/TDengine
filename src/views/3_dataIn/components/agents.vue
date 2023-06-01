@@ -140,7 +140,7 @@
         class="demo-ruleForm"
       >
         <el-form-item prop="name" :label="$t('taosagents.name')">
-          <el-input v-model.trim="ruleForm.name"></el-input>
+          <el-input v-model.trim="ruleForm.name" :maxlength=20></el-input>
         </el-form-item>
 
         <el-form-item :label="$t('taosagents.connectors')" prop="connectors">
