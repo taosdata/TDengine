@@ -814,6 +814,9 @@ async fn ipc_process<R: Read, W: Write>(
     let taos = pool.get().await?;
 
     let license: Option<ConnectorLicense> = if let Some(connector) = connector {
+        #[cfg(feature = "disable-enterprise-connector-validation")]
+        let license: Option<ConnectorLicense> = None;
+        #[cfg(not(feature = "disable-enterprise-connector-validation"))]
         let license: Option<ConnectorLicense> = taos
             .query_one::<_, String>(&format!(
                 "select {connector} from information_schema.ins_grants"
