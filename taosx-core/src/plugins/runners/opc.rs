@@ -607,7 +607,7 @@ const EXE: &'static str = {
 };
 
 fn exe_path() -> PathBuf {
-    super::get_plugin_dir("mqtt").join(EXE)
+    super::get_plugin_dir("opc").join(EXE)
 }
 
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
