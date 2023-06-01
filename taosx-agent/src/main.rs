@@ -3,7 +3,11 @@ use std::{path::PathBuf, time::Duration};
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::{
+    format::FmtSpan, 
+    time::LocalTime
+};
+use time::macros::format_description;
 use twelf::{config, Layer};
 
 use tracing::{log::LevelFilter, Level};
@@ -175,18 +179,40 @@ fn main() -> anyhow::Result<()> {
         args.endpoint, args.token
     );
 
+    let file_appender = tracing_appender::rolling::daily(
+        "./logs", 
+        "agent.log"
+    );
+    
+    let (
+        non_blocking, 
+        _guard
+    ) = tracing_appender::non_blocking(
+        file_appender
+    );
+
+    let timer = LocalTime::new(
+        format_description!(
+            "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
+        )
+    );
+
     let subscriber = tracing_subscriber::fmt()
         .with_level(true)
         .with_thread_ids(true)
         .with_thread_names(true)
         .with_span_events(FmtSpan::ACTIVE)
         .with_max_level(args.log_level)
+        .with_timer(timer)
+        .with_writer(non_blocking)
         .compact();
-    if atty::is(atty::Stream::Stdout) {
-        subscriber.pretty().init();
-    } else {
-        subscriber.with_ansi(false).init();
-    }
+    // if atty::is(atty::Stream::Stdout) {
+    //     subscriber.pretty().init();
+    // } else {
+    //     subscriber.with_ansi(false).init();
+    // }
+    subscriber.with_ansi(false).init();
+
     log::info!("Start");
 
     // todo: arrow flight rpc client.
