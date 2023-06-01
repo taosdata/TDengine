@@ -367,16 +367,22 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
         tdbFree(pKey);
         tdbFree(pVal);
         tdbTbcClose(pCur);
+        taosMemoryFree(pTask);
         return -1;
       }
       taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
     } else {
+      tdbFree(pKey);
+      tdbFree(pVal);
+      tdbTbcClose(pCur);
+      taosMemoryFree(pTask);
       continue;
     }
     if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);
+      taosMemoryFree(pTask);
       return -1;
     }
 
