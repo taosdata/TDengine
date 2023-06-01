@@ -211,7 +211,7 @@ restore qnode on dnode <dnode_id>；# 恢复dnode上的qnode
 
 ### 通过 SQL 命令管理 license
 
-可以通过命令 `alter dnode` 来设置指定数据节点或全部数据节点的授权码; 设置完成后，可以通过 `show dnodes` 命令查看数据节点的授权码; 执行 `drop dnode` 后，需要重新设置。
+可以通过 `alter dnode` 命令来设置指定数据节点或全部数据节点的授权码; 设置完成后，可以通过 `show dnodes` 命令查看数据节点的授权码; 执行 `drop dnode` 后，需要重新设置。
 
 
 ```sql
