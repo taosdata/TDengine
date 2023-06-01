@@ -2331,7 +2331,7 @@ static int32_t checkHavingGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect)
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == getGroupByList(pCxt) && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow) {
     return code;
-  }  
+  }
   if (NULL != pSelect->pHaving) {
     code = checkExprForGroupBy(pCxt, &pSelect->pHaving);
   }
@@ -2342,7 +2342,7 @@ static int32_t checkHavingGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pOrderByList) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pOrderByList);
   }
-*/  
+*/
   return code;
 }
 
@@ -2650,7 +2650,7 @@ static int32_t replaceTbName(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SNode** pNode = NULL;
   SRewriteTbNameContext pRewriteCxt = {0};
   pRewriteCxt.pTbName = pTable->table.tableName;
-  
+
   nodesRewriteExprPostOrder(&pSelect->pWhere, doTranslateTbName, &pRewriteCxt);
 
   return pRewriteCxt.errCode;
@@ -3146,7 +3146,7 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pProjectionList);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateFillValues(pCxt, pSelect);
   }
@@ -4931,6 +4931,14 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableSchema(pCxt, pStmt);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (createStable && pStmt->pOptions->ttl != 0) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                     "Only supported for create non-super table in databases "
+                                     "configured with the 'TTL' option");
+    }
+  }
+
   return code;
 }
 

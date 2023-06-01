@@ -1005,7 +1005,7 @@ TEST_F(ParserInitialCTest, createTable) {
         ASSERT_EQ(pReq->flags, pExpect->flags);
         ASSERT_EQ(std::string(pReq->name), std::string(pExpect->name));
         ASSERT_EQ(pReq->uid, pExpect->uid);
-        ASSERT_EQ(pReq->ctime, pExpect->ctime);
+        ASSERT_EQ(pReq->btime, pExpect->btime);
         ASSERT_EQ(pReq->ttl, pExpect->ttl);
         ASSERT_EQ(pReq->commentLen, pExpect->commentLen);
         ASSERT_EQ(std::string(pReq->comment), std::string(pExpect->comment));
