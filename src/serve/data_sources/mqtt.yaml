@@ -96,14 +96,14 @@ groups:
     params:
       - name: version
         display: Mqtt protocol version
-        value: "3.0"
+        value: "3.1"
         required: true
         description: |-
           MQTT protocol version.
         hint:
           type: str
           choices:
-            - "3.0"
+            - "3.1"
             - "3.1.1"
             - "5.0"
       - name: client_id
@@ -161,16 +161,16 @@ groups:
 parser:
   display: MQTT Payload Parser
   description: |
-    MQTT will report exactly four fields of data for each data stream:
+    MQTT will report exactly four fields of data for each data stream:<br>
 
-    - **ts**: the collect timestamp.
-    - **topic**: the topic name to subscribe.
-    - **qos**: the QoS of the message, usually 0, 1, 2.
-    - **payload**: the data payload of the message.
+    - **ts**: the collect timestamp.<br>
+    - **topic**: the topic name to subscribe.<br>
+    - **qos**: the QoS of the message, usually 0, 1, 2.<br>
+    - **payload**: the data payload of the message.<br>
 
-    taosX could parse the payload with JSON extractor and let users to specify the
-    data model in the database, for example, the table name pattern and stable name pattern,
-    field names as tags or field names as columns.
+    taosX could parse the payload with JSON extractor and let users to specify the<br>
+    data model in the database, for example, the table name pattern and stable name<br>
+    pattern, field names as tags or field names as columns.
   fields:
   - name: ts
     description: Timestamp.
