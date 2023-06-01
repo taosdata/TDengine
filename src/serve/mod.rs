@@ -28,7 +28,7 @@ use controller::*;
 use data_sources::*;
 
 use crate::serve::controller::agent::{
-    Agent, AgentConnectors, AgentProps, AgentStatus, AgentUpdates, AgentWithToken, AgentToken,
+    Agent, AgentConnectors, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
 };
 
 use self::{

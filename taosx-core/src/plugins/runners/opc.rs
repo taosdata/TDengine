@@ -1,23 +1,18 @@
 use std::{
-    collections::HashMap, f32::consts::E, io::prelude::*, num::ParseIntError, str::FromStr,
+    collections::HashMap, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr,
     sync::Arc, time::Duration,
 };
 
 use anyhow::Context;
 use itertools::Itertools;
 use taos::{
-    taos_query::{block_in_place_or_global, helpers::ColumnMeta},
-    AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, Taos, TaosBuilder, Ty,
+    taos_query::helpers::ColumnMeta, AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty,
 };
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::{
-    plugins::sink,
-    utils::{port_pool::PortPool, stop_thread},
-    Action, DataSet, DataSetsReq, Transferred,
-};
+use crate::{plugins::sink, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -601,18 +596,34 @@ fn process_table_info(
     };
 }
 
-const OPC_CONNECTOR_PATH: &str = {
-    #[cfg(all(target_os = "windows"))]
-    {
-        "C:\\TDengine\\xplugins\\opc\\opc-collector.exe"
-    }
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        "/usr/local/taos/xplugins/opc/opc-collector"
+const EXE: &'static str = {
+    cfg_if::cfg_if! {
+        if #[cfg(windows)] {
+            "taosx-opc.exe"
+        } else {
+            "taosx-opc"
+        }
     }
 };
 
-pub async fn opc_config_from(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OpcTableConfig> {
+fn exe_path() -> PathBuf {
+    super::get_plugin_dir("opc").join(EXE)
+}
+
+pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
+    let path = exe_path();
+    let output = std::process::Command::new(&path).arg("version").output()?;
+    Ok((
+        "opc",
+        path,
+        String::from_utf8_lossy(&output.stdout).trim().to_string(),
+    ))
+}
+pub(crate) async fn opc_config_from(
+    taos: &Taos,
+    dsn: &Dsn,
+    port: u16,
+) -> anyhow::Result<OpcTableConfig> {
     let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
     config.parse_tables_with(taos).await
 }
@@ -687,7 +698,7 @@ pub async fn opc_to_taos(
     };
 
     let port_pool = port_pool.clone();
-    let mut command = tokio::process::Command::new(OPC_CONNECTOR_PATH);
+    let mut command = tokio::process::Command::new(exe_path());
     let child = command
         .arg("collect")
         .arg(format!("--conf={}", &config_path.display()))
@@ -786,7 +797,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     // } else {
     //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
     // };
-    let mut command = async_process::Command::new(OPC_CONNECTOR_PATH);
+    let mut command = async_process::Command::new(exe_path());
     let output = command
         .arg("points")
         .arg(format!("--conf={}", &config_path.display()))
@@ -966,6 +977,7 @@ batch_timeout = 100
 }
 #[tokio::test]
 async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
+    use taos::IntoDsn;
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
     let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
         .map_err(|s| OpcError::FileParseFound(s))?;

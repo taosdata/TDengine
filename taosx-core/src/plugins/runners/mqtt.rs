@@ -2,17 +2,21 @@ use std::{
     collections::HashMap,
     io::{BufRead, Write},
     num::ParseIntError,
+    path::PathBuf,
     str::ParseBoolError,
     sync::Arc,
     time::Duration,
 };
 
-use anyhow::Context;
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 
-use crate::{plugins::sink, utils::port_pool::PortPool, Action, Parser, TaskOpts, Transferred};
+use crate::{
+    plugins::{runners::get_plugin_dir, sink},
+    utils::port_pool::PortPool,
+    Parser, Transferred,
+};
 
 #[derive(Debug, serde::Serialize)]
 struct MqttConfig {
@@ -84,7 +88,10 @@ impl MqttConfig {
         for i in 0..topics_vec.len() {
             let pair = topics_vec[i].split("::").collect_vec();
             if pair.len() != 2 {
-                return Err(MqttConfigError::MqttConfigParseError(format!("topic config error: {}", topics_vec[i])));
+                return Err(MqttConfigError::MqttConfigParseError(format!(
+                    "topic config error: {}",
+                    topics_vec[i]
+                )));
             }
             let topic = String::from(pair[0]);
             let qos = pair[1]
@@ -129,11 +136,35 @@ impl MqttConfig {
     }
 }
 
+const EXE: &'static str = {
+    cfg_if::cfg_if! {
+        if #[cfg(windows)] {
+            "taosx-mqtt.exe"
+        } else {
+            "taosx-mqtt"
+        }
+    }
+};
+
+fn mqtt_exe_path() -> PathBuf {
+    get_plugin_dir("mqtt").join(EXE)
+}
+pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
+    let path = mqtt_exe_path();
+    let output = std::process::Command::new(&path)
+        .arg("--version")
+        .output()?;
+    Ok((
+        "mqtt",
+        path,
+        String::from_utf8_lossy(&output.stderr).trim().to_string(),
+    ))
+}
 pub async fn mqtt_to_taos(
     from: Dsn,
     parser: Option<Parser>,
     to: Dsn,
-    jobs: usize,
+    _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
@@ -143,9 +174,9 @@ pub async fn mqtt_to_taos(
     if to.subject.is_none() {
         Err(MqttConfigError::DatabaseIsRequired(to.clone()))?;
     }
-    let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
-    let taos = target_pool.get().await?;
-    let target_pool_for_ipc = target_pool.clone();
+    // let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
+    // let taos = target_pool.get().await?;
+    // let target_pool_for_ipc = target_pool.clone();
 
     let ipc_port = port_pool
         .get()
@@ -185,12 +216,7 @@ pub async fn mqtt_to_taos(
             with_agent.unwrap(),
         )?
     };
-    let mqtt = if cfg!(target_os = "windows") {
-        "C:\\TDengine\\xplugins\\mqtt\\taosmqtt.exe"
-    } else {
-        "/usr/local/taos/xplugins/mqtt/taosmqtt"
-        // "mqtt-fake"
-    };
+    let mqtt = mqtt_exe_path();
     let mut command = tokio::process::Command::new(mqtt);
     let mut child = command
         .arg("-c")
@@ -287,28 +313,35 @@ pub(super) fn get_string_from_param_or_file(
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_mqtt_parser() {
-    std::env::set_var("RUST_LOG", "debug,tokio=warn");
-    pretty_env_logger::init();
-    let transferred = Arc::new(Transferred::default());
-    let metrics = transferred.clone();
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(200));
-        loop {
-            interval.tick().await;
-            dbg!(&metrics);
-        }
-    });
-    let opts = TaskOpts {
-        transform: vec![],
-        from: "mqtt://192.168.0.201:11883?topics=topic-1::1"
-            .parse()
-            .unwrap(),
-        to: "taos:///mqtt".parse().unwrap(),
-        parser: Some(
-            serde_json::from_str(
-                r#"
+#[cfg(test)]
+mod tests {
+    use taos::IntoDsn;
+
+    use super::*;
+    use crate::TaskOpts;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_mqtt_parser() {
+        std::env::set_var("RUST_LOG", "debug,tokio=warn");
+        pretty_env_logger::init();
+        let transferred = Arc::new(Transferred::default());
+        let metrics = transferred.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(200));
+            loop {
+                interval.tick().await;
+                dbg!(&metrics);
+            }
+        });
+        let opts = TaskOpts {
+            transform: vec![],
+            from: "mqtt://192.168.0.201:11883?topics=topic-1::1"
+                .parse()
+                .unwrap(),
+            to: "taos:///mqtt".parse().unwrap(),
+            parser: Some(
+                serde_json::from_str(
+                    r#"
                 {
                     "parse": { "payload": { "json": [
                         { "name": "pre", "alias": "value" }
@@ -321,88 +354,88 @@ async fn test_mqtt_parser() {
                     }
                 }
                 "#,
-            )
-            .unwrap(),
-        ),
-        jobs: 0,
-        compression_level: None,
-        force: false,
-        cancel: CancellationToken::new(),
-        // port_pool: ONCE,
-        with_agent: None,
-        offsets: Default::default(),
-        transferred: Some(transferred),
-    };
-    opts.run(&PortPool::default()).await.unwrap();
-}
+                )
+                .unwrap(),
+            ),
+            jobs: 0,
+            compression_level: None,
+            force: false,
+            cancel: CancellationToken::new(),
+            // port_pool: ONCE,
+            with_agent: None,
+            offsets: Default::default(),
+            transferred: Some(transferred),
+        };
+        opts.run(&PortPool::default()).await.unwrap();
+    }
 
-#[test]
-fn test_mqtt_config() {
-    let log_level = "debug".to_string();
-    let remote = "127.0.0.1:62307".to_string();
-    let address = "tcp://127.0.0.1:1883".to_string();
-    let version = String::from("3.0");
-    // let client_id = Some("12123".to_string());
-    let client_id = "".to_string();
-    let username = "mqtt_test".to_string();
-    let password = "123456".to_string();
-    let keep_alive = 60 as usize;
-    let clean_session = true;
-    let ca = r#"-----BEGIN CERTIFICATE-----
+    #[test]
+    fn test_mqtt_config() {
+        let log_level = "debug".to_string();
+        let remote = "127.0.0.1:62307".to_string();
+        let address = "tcp://127.0.0.1:1883".to_string();
+        let version = String::from("3.0");
+        // let client_id = Some("12123".to_string());
+        let client_id = "".to_string();
+        let username = "mqtt_test".to_string();
+        let password = "123456".to_string();
+        let keep_alive = 60 as usize;
+        let clean_session = true;
+        let ca = r#"-----BEGIN CERTIFICATE-----
 MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt
 -----END CERTIFICATE-----"#
-        .to_string();
-    let cert = r#"-----BEGIN CERTIFICATE-----
+            .to_string();
+        let cert = r#"-----BEGIN CERTIFICATE-----
 MIIDEzCCAfugAwIBAgIBATANBgkqhkiG9w0BAQsFADA
 -----END CERTIFICATE-----"#
-        .to_string();
-    let cert_key = r#"-----BEGIN CERTIFICATE-----
+            .to_string();
+        let cert_key = r#"-----BEGIN CERTIFICATE-----
 MIIEpAIBAAKCAQEAzLiGiSwpxkENtjrzS7pNLblTnWe4HUUFwYyUX0H
 -----END RSA PRIVATE KEY-----"#
-        .to_string();
-    let mut topics = HashMap::new();
-    topics.insert("topic-1".to_string(), 1);
-    let mqtt_config = MqttConfig {
-        log_level,
-        remote,
-        mqtt: MqttConnectConfig {
-            address,
-            version,
-            client_id,
-            username,
-            password,
-            keep_alive,
-            clean_session,
-            ca,
-            cert,
-            cert_key,
-        },
-        topics,
-    };
-    let toml = toml::to_string(&mqtt_config).unwrap();
-    println!("{}", toml);
-}
+            .to_string();
+        let mut topics = HashMap::new();
+        topics.insert("topic-1".to_string(), 1);
+        let mqtt_config = MqttConfig {
+            log_level,
+            remote,
+            mqtt: MqttConnectConfig {
+                address,
+                version,
+                client_id,
+                username,
+                password,
+                keep_alive,
+                clean_session,
+                ca,
+                cert,
+                cert_key,
+            },
+            topics,
+        };
+        let toml = toml::to_string(&mqtt_config).unwrap();
+        println!("{}", toml);
+    }
 
-#[test]
-fn test_get_string_from_param_or_file() -> anyhow::Result<()> {
-    let ca = "-----BEGIN CERTIFICATE-----
+    #[test]
+    fn test_get_string_from_param_or_file() -> anyhow::Result<()> {
+        let ca = "-----BEGIN CERTIFICATE-----
 MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
 -----END CERTIFICATE-----";
-    let mut config_file = tempfile::NamedTempFile::new()?;
-    write!(config_file, "{}", ca)?;
-    let config_path = config_file.path().to_path_buf();
-    let temp_path = config_file.into_temp_path();
-    let mut dsn = format!(
-        "mqtt:///?ca=123,456,@{},@{}",
-        &config_path.display(),
-        &config_path.display()
-    )
-    .into_dsn()?;
-    let result = get_string_from_param_or_file(&mut dsn, "ca", true, None)
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        "123
+        let mut config_file = tempfile::NamedTempFile::new()?;
+        write!(config_file, "{}", ca)?;
+        let config_path = config_file.path().to_path_buf();
+        let temp_path = config_file.into_temp_path();
+        let mut dsn = format!(
+            "mqtt:///?ca=123,456,@{},@{}",
+            &config_path.display(),
+            &config_path.display()
+        )
+        .into_dsn()?;
+        let result = get_string_from_param_or_file(&mut dsn, "ca", true, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            "123
 456
 -----BEGIN CERTIFICATE-----
 MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
@@ -410,30 +443,31 @@ MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
 -----BEGIN CERTIFICATE-----
 MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
 -----END CERTIFICATE-----",
-        result
-    );
+            result
+        );
 
-    let mut dsn = format!(
-        "mqtt:///?ca=123,456,@{},@{}",
-        &config_path.display(),
-        &config_path.display()
-    )
-    .into_dsn()?;
-    let result = get_string_from_param_or_file(&mut dsn, "ca", false, None)
-        .unwrap()
-        .unwrap();
-    assert_eq!("123456-----BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE----------BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE-----", result);
+        let mut dsn = format!(
+            "mqtt:///?ca=123,456,@{},@{}",
+            &config_path.display(),
+            &config_path.display()
+        )
+        .into_dsn()?;
+        let result = get_string_from_param_or_file(&mut dsn, "ca", false, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!("123456-----BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE----------BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE-----", result);
 
-    let mut dsn = format!(
-        "mqtt:///?ca=123,456,@{},@{}",
-        &config_path.display(),
-        &config_path.display()
-    )
-    .into_dsn()?;
-    let result = get_string_from_param_or_file(&mut dsn, "ca", false, Some(","))
-        .unwrap()
-        .unwrap();
-    assert_eq!("123,456,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----", result);
-    temp_path.close()?;
-    Ok(())
+        let mut dsn = format!(
+            "mqtt:///?ca=123,456,@{},@{}",
+            &config_path.display(),
+            &config_path.display()
+        )
+        .into_dsn()?;
+        let result = get_string_from_param_or_file(&mut dsn, "ca", false, Some(","))
+            .unwrap()
+            .unwrap();
+        assert_eq!("123,456,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----", result);
+        temp_path.close()?;
+        Ok(())
+    }
 }
