@@ -924,13 +924,12 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
       SStbObj *pStb = mndAcquireStb(pMnode, pTopic->stbName);
       if (pStb == NULL) {
-        terrno = TSDB_CODE_MND_STB_NOT_EXIST;
-        taosMemoryFree(schemaJson);
-        return -1;
+        STR_TO_VARSTR(schemaJson, "NULL");
+        mError("mndRetrieveTopic mndAcquireStb null stbName:%s", pTopic->stbName);
+      }else{
+        schemaToJson(pStb->pColumns, pStb->numOfColumns, schemaJson);
+        mndReleaseStb(pMnode, pStb);
       }
-      schemaToJson(pStb->pColumns, pStb->numOfColumns, schemaJson);
-
-      mndReleaseStb(pMnode, pStb);
     }else{
       STR_TO_VARSTR(schemaJson, "NULL");
     }
