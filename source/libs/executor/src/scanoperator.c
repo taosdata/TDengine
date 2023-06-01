@@ -55,6 +55,7 @@ typedef struct STableMergeScanSortSourceParam {
   SSDataBlock*   inputBlock;
   bool           multiReader;
   STsdbReader*   dataReader;
+  bool           exhausted;
 } STableMergeScanSortSourceParam;
 
 typedef struct STableCountScanOperatorInfo {
@@ -2830,9 +2831,11 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     param.pOperator = pOperator;
     param.multiReader = (numOfTable <= MULTI_READER_MAX_TABLE_NUM) ? true : false;
     param.inputBlock = createOneDataBlock(pInfo->pResBlock, false);
+    param.exhausted = false;
     blockDataEnsureCapacity(param.inputBlock, pOperator->resultInfo.capacity);
 
     taosArrayPush(pInfo->sortSourceParams, &param);
+    taosArrayPush(pInfo->aReaderIdx, &i);
 
     SQueryTableDataCond cond;
     dumpQueryTableCond(&pInfo->base.cond, &cond);
@@ -2847,6 +2850,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     tsortAddSource(pInfo->pSortHandle, ps);
   }
 
+  pInfo->exhaustedBeginIdx = taosArrayGetSize(pInfo->aReaderIdx);
   //int32_t code = tsortOpen(pInfo->pSortHandle);
   int32_t code = TSDB_CODE_SUCCESS;
   if (code != TSDB_CODE_SUCCESS) {
@@ -2877,6 +2881,7 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
     param->dataReader = NULL;
   }
   taosArrayClear(pInfo->sortSourceParams);
+  taosArrayClear(pInfo->aReaderIdx);
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
@@ -2930,12 +2935,27 @@ SSDataBlock* getTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock* pResB
   
   blockDataCleanup(pResBlock);
 
-  while (pInfo->groupIndex <= pInfo->tableEndIndex) {
-    STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, pInfo->groupIndex - pInfo->tableStartIndex);
-    blockDataCleanup(param->inputBlock);
+  // while (pInfo->exhaustedBeginIdx > 0) {
+  //   int32_t r = taosRand() % pInfo->exhaustedBeginIdx;
+  //   int32_t groupIndex = *(int32_t*)taosArrayGet(pInfo->aReaderIdx, r);
+  //   STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, groupIndex - pInfo->tableStartIndex);
+  //   pBlock = getTableDataBlockImpl(param);
+  //   if (pBlock == NULL) {
+  //     --pInfo->exhaustedBeginIdx;
+  //     int32_t idx = *(int32_t*)taosArrayGet(pInfo->aReaderIdx, pInfo->exhaustedBeginIdx);
+  //     *(int32_t*)taosArrayGet(pInfo->aReaderIdx, pInfo->exhaustedBeginIdx) = r;
+  //     *(int32_t*)taosArrayGet(pInfo->aReaderIdx, r) = idx;
+  //   } else {
+  //     copyDataBlock(pResBlock, pBlock);
+  //     break;
+  //   }
+  // }
+
+while (pInfo->groupIndex <= pInfo->tableEndIndex) {
+  STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, pInfo->groupIndex - pInfo->tableStartIndex);
     pBlock = getTableDataBlockImpl(param);
     if (pBlock == NULL) {
-      ++pInfo->groupIndex;
+    ++pInfo->groupIndex;
     } else {
       copyDataBlock(pResBlock, pBlock);
       break;
@@ -3006,7 +3026,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   return pBlock;
 }
 
-void destroyTableMergeScanOperatorInfo(void* param) {
+void destroyTableMergeScanOperatorInfo(void* param){ 
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
   cleanupQueryTableDataCond(&pTableScanInfo->base.cond);
 
@@ -3023,6 +3043,7 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   pTableScanInfo->base.dataReader = NULL;
 
   taosArrayDestroy(pTableScanInfo->sortSourceParams);
+  taosArrayDestroy(pTableScanInfo->aReaderIdx);
   tsortDestroySortHandle(pTableScanInfo->pSortHandle);
   pTableScanInfo->pSortHandle = NULL;
 
@@ -3114,6 +3135,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
 
   pInfo->sortSourceParams = taosArrayInit(64, sizeof(STableMergeScanSortSourceParam));
+  pInfo->aReaderIdx = taosArrayInit(64, sizeof(int32_t));
 
   pInfo->pSortInfo = generateSortByTsInfo(pInfo->base.matchInfo.pList, pInfo->base.cond.order);
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);

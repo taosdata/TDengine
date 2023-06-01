@@ -858,23 +858,23 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
   STableUidList* pList = &pReader->status.uidList;
 
   int32_t i = 0, j = 0;
-  if (numOfTables == 1) {
-    SBlockIdx idx = {.suid = pReader->suid, .uid = pList->tableUidList[0]};
-    pBlockIdx = taosArraySearch(aBlockIdx, &idx, tCmprBlockIdx, TD_EQ);
-    if (pBlockIdx != NULL){
-      STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
-      if (pScanInfo == NULL) {
-        tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
-        return terrno;
-      }
+  // if (numOfTables == 1) {
+  //   SBlockIdx idx = {.suid = pReader->suid, .uid = pList->tableUidList[0]};
+  //   pBlockIdx = taosArraySearch(aBlockIdx, &idx, tCmprBlockIdx, TD_EQ);
+  //   if (pBlockIdx != NULL){
+  //     STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
+  //     if (pScanInfo == NULL) {
+  //       tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
+  //       return terrno;
+  //     }
 
-      if (pScanInfo->pBlockList == NULL) {
-        pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBlockIndex));
-      }
+  //     if (pScanInfo->pBlockList == NULL) {
+  //       pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBlockIndex));
+  //     }
 
-      taosArrayPush(pIndexList, pBlockIdx);
-    }
-  } else 
+  //     taosArrayPush(pIndexList, pBlockIdx);
+  //   }
+  // } else 
   {
     while (i < num && j < numOfTables) {
       pBlockIdx = (SBlockIdx*)taosArrayGet(aBlockIdx, i);
