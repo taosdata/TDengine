@@ -148,7 +148,7 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     let output = std::process::Command::new("java")
         .arg("-jar")
         .arg(&path)
-        .arg("--version")
+        .arg("-version")
         .output()?;
     Ok((
         "influxdb",
