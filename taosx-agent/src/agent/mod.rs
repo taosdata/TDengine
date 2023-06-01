@@ -27,7 +27,7 @@ use taosx_core::{list_datasets_from, DataSet, DataSetsReq, Fail, ListResponse, R
 use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
 
-use crate::runner::Action;
+use crate::runner::{Action, TaskStatus};
 
 #[derive(Debug)]
 pub struct Client {
@@ -151,6 +151,9 @@ impl Client {
             client,
             agent,
         })
+    }
+    pub async fn push_status(&self, status: &TaskStatus) -> Result<()> {
+
     }
 
     pub async fn wait_tasks(&mut self, sender: flume::Sender<Action>) -> Result<()> {

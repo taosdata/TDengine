@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use taosx_core::TaskOpts;
 use tokio::task::JoinHandle;
@@ -12,6 +13,19 @@ use crate::agent::Task;
 pub enum Action {
     Run(Task),
     Cancel(i64),
+}
+
+pub struct TaskStatus {
+    id: i64,
+    at: DateTime<Utc>,
+    action: String,
+    message: Option<String>,
+    context: Option<String>,
+}
+
+pub enum Push {
+    Heartbeat(String),
+    TaskStatus(TaskStatus),
 }
 
 struct Worker {
@@ -33,8 +47,13 @@ impl Worker {
 pub fn spawn_runner(
     endpoint: impl Display,
     token: impl Display,
-) -> (JoinHandle<Result<()>>, flume::Sender<Action>) {
+) -> (
+    JoinHandle<Result<()>>,
+    flume::Sender<Action>,
+    flume::Receiver<TaskStatus>,
+) {
     let (tx, rx) = flume::bounded(1);
+    let (status_tx, status_rx) = flume::unbounded();
     let endpoint = endpoint.to_string();
     let token = token.to_string();
     (
@@ -78,7 +97,23 @@ pub fn spawn_runner(
                                 transferred: None,
                             };
                             let pool = port_pool.clone();
-                            let handle = tokio::spawn(async move { opts.run(&pool).await });
+                            let status_tx = status_tx.clone();
+                            let handle = tokio::spawn(async move {
+                                if let Err(err) = opts.run(&pool).await {
+                                    use itertools::Itertools;
+                                    let status = TaskStatus {
+                                        id: task.id,
+                                        at: Utc::now(),
+                                        action: "failed".to_string(),
+                                        message: Some(err.to_string()),
+                                        context: Some(err.chain().join("\n")),
+                                    };
+                                    let _ = status_tx.send_async(status).await;
+                                    Err(err)
+                                } else {
+                                    Ok(())
+                                }
+                            });
                             tasks.insert(
                                 task.id,
                                 Worker {
@@ -116,5 +151,6 @@ pub fn spawn_runner(
             }
         }),
         tx,
+        status_rx,
     )
 }

@@ -143,7 +143,7 @@ mod runner;
 async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let ctrl_c = tokio::signal::ctrl_c();
     let mut client = agent::Client::new(&args.endpoint, &args.token).await?;
-    let (runner, sender) = runner::spawn_runner(&args.endpoint, &args.token);
+    let (runner, sender, status) = runner::spawn_runner(&args.endpoint, &args.token);
 
     tokio::select! {
         _ = ctrl_c => {
@@ -163,6 +163,20 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
             // Ok::<_, anyhow::Error>(())
          } => {
             tracing::info!("Task listener stopped");
+        }
+        _ = async {
+            loop {
+                match status.recv_async().await {
+                    Ok(status) => {
+
+                    },
+                    Err(err) => {
+                        tracing::error!("Status channel is disconnected: {err}");
+                    }
+                }
+            }
+        } => {
+            tracing::info!("")
         }
     }
     Ok(())
