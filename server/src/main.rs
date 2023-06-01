@@ -13,17 +13,17 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use actix_embed::Embed;
 use actix_web::{
     error::{self, PayloadError},
-    http::header::{ContentType, AUTHORIZATION},
+    http::{header::{ContentType, AUTHORIZATION}, },
     middleware::{self, Logger},
     post,
     web::{self},
-    App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
+    App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder, HttpResponseBuilder,
 };
 use awc::Client;
 
 use clap::Parser;
 use rust_embed::RustEmbed;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, };
 
 fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
     match level {
@@ -254,12 +254,21 @@ async fn x_api(
     let client = client
         .request(method.clone(), url)
         .timeout(Duration::from_secs(std::u64::MAX));
-    let mut resp = client
+    let resp = client
         .content_type(req.content_type())
         .send_body(bytes)
-        .await?;
-    Ok(HttpResponse::Ok().body(resp.body().await?))
+        .await;
+    match resp {
+        Ok(mut ok) => 
+            match ok.body().limit(1024 * 1024 * 1024).await {
+                Ok(data) => Ok(HttpResponseBuilder::new(ok.status()).body(data)),
+                Err(err) => Err(Error::PayloadError(err)),
+            },
+        Err(err) => Err(Error::XError(err)),
+    }
+    // Ok(HttpResponse::Ok().body(resp.body().await?))
 }
+
 async fn x_api_doc(
     req: HttpRequest,
     args: web::Data<Args>,
