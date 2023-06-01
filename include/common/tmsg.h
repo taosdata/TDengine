@@ -945,7 +945,7 @@ int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 
 typedef struct {
-  int32_t timestamp;
+  int32_t timestampSec;
 } SVDropTtlTableReq;
 
 int32_t tSerializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq* pReq);
@@ -2261,7 +2261,7 @@ typedef struct SVCreateTbReq {
   int32_t  flags;
   char*    name;
   tb_uid_t uid;
-  int64_t  ctime;
+  int64_t  btime;
   int32_t  ttl;
   int32_t  commentLen;
   char*    comment;
@@ -2398,10 +2398,12 @@ typedef struct {
   int32_t newTTL;
   int32_t newCommentLen;
   char*   newComment;
+  int64_t ctimeMs; // fill by vnode
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
+int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
 
 typedef struct {
   int32_t        code;
@@ -3405,6 +3407,7 @@ typedef struct SDeleteRes {
   int64_t  affectedRows;
   char     tableFName[TSDB_TABLE_NAME_LEN];
   char     tsColName[TSDB_COL_NAME_LEN];
+  int64_t  ctimeMs; // fill by vnode
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
@@ -3423,10 +3426,12 @@ int32_t tDecodeSSingleDeleteReq(SDecoder* pCoder, SSingleDeleteReq* pReq);
 typedef struct {
   int64_t suid;
   SArray* deleteReqs;  // SArray<SSingleDeleteReq>
+  int64_t ctimeMs;     // fill by vnode
 } SBatchDeleteReq;
 
 int32_t tEncodeSBatchDeleteReq(SEncoder* pCoder, const SBatchDeleteReq* pReq);
 int32_t tDecodeSBatchDeleteReq(SDecoder* pCoder, SBatchDeleteReq* pReq);
+int32_t tDecodeSBatchDeleteReqSetCtime(SDecoder* pDecoder, SBatchDeleteReq* pReq, int64_t ctimeMs);
 
 typedef struct {
   int32_t msgIdx;
@@ -3496,6 +3501,7 @@ typedef struct {
     SArray* aRowP;
     SArray* aCol;
   };
+  int64_t        ctimeMs;
 } SSubmitTbData;
 
 typedef struct {
