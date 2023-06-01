@@ -65,7 +65,9 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
     }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
     if (tDecodeI64(pDecoder, &pHandle->execHandle.execTb.suid) < 0) return -1;
-    if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execTb.qmsg) < 0) return -1;
+    if (!tDecodeIsEnd(pDecoder)){
+      if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execTb.qmsg) < 0) return -1;
+    }
   }
   tEndDecode(pDecoder);
   return 0;
