@@ -384,6 +384,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateStreamStmt));
     case QUERY_NODE_DROP_STREAM_STMT:
       return makeNode(type, sizeof(SDropStreamStmt));
+    case QUERY_NODE_PAUSE_STREAM_STMT:
+      return makeNode(type, sizeof(SPauseStreamStmt));
+    case QUERY_NODE_RESUME_STREAM_STMT:
+      return makeNode(type, sizeof(SResumeStreamStmt));
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return makeNode(type, sizeof(SBalanceVgroupStmt));
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
@@ -455,6 +459,11 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SInsertStmt));
     case QUERY_NODE_QUERY:
       return makeNode(type, sizeof(SQuery));
+    case QUERY_NODE_RESTORE_DNODE_STMT:
+    case QUERY_NODE_RESTORE_QNODE_STMT:
+    case QUERY_NODE_RESTORE_MNODE_STMT:
+    case QUERY_NODE_RESTORE_VNODE_STMT:
+      return makeNode(type, sizeof(SRestoreComponentNodeStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -946,6 +955,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_DROP_STREAM_STMT:            // no pointer field
+    case QUERY_NODE_PAUSE_STREAM_STMT:           // no pointer field
+    case QUERY_NODE_RESUME_STREAM_STMT:          // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:         // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:  // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:           // no pointer field
@@ -1052,6 +1063,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pQuery->pPrepareRoot);
       break;
     }
+    case QUERY_NODE_RESTORE_DNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_QNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_MNODE_STMT:   // no pointer field
+    case QUERY_NODE_RESTORE_VNODE_STMT:   // no pointer field
+      break;
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -1561,6 +1577,7 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY:
       return (void*)pNode->datum.p;
     default:
       break;
@@ -1623,6 +1640,7 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY:
       pNode->datum.p = (char*)value;
       break;
     default:
@@ -1680,7 +1698,8 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
     }
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY: {
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       int32_t bufSize = varDataLen(pNode->datum.p) + 2 + 1;
       void*   buf = taosMemoryMalloc(bufSize);
       if (NULL == buf) {
@@ -2116,6 +2135,7 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       pVal->pz = taosMemoryMalloc(pVal->nLen + 1);
       memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
       pVal->pz[pVal->nLen] = 0;

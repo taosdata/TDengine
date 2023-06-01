@@ -111,7 +111,7 @@ Active: inactive (dead)
 
 #### 配置文件启动
 
-执行以下命令即可快速体验 taosKeeper。当不指定 taosKeeper 配置文件时，优先使用 `/etc/taos/keeper.toml` 配置，否则将使用默认配置。
+执行以下命令即可快速体验 taosKeeper。当不指定 taosKeeper 配置文件时，优先使用 `/etc/taos/taoskeeper.toml` 配置，否则将使用默认配置。
 
 ```shell
 $ taoskeeper -c <keeper config file>
@@ -156,6 +156,10 @@ database = "log"
 
 # 指定需要监控的普通表
 tables = []
+
+# database options for db storing metrics data
+[metrics.databaseoptions]
+cachemodel = "none"
 ```
 
 ### 获取监控指标
@@ -206,7 +210,7 @@ taos_cluster_info_dnodes_total{cluster_id="5981392874047724755"} 1
 taos_cluster_info_first_ep{cluster_id="5981392874047724755",value="hlb:6030"} 1
 ```
 
-### check_health 
+### check\_health 
 
 ```
 $ curl -i http://127.0.0.1:6043/check_health
@@ -222,3 +226,29 @@ Content-Length: 19
 
 {"version":"1.0.0"}
 ```
+
+### 集成 Prometheus
+
+taoskeeper 提供了 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine 的目的。
+
+#### 抽取配置
+
+Prometheus 提供了 `scrape_configs` 配置如何从 endpoint 抽取监控数据，通常只需要修改 `static_configs` 中的 targets 配置为 taoskeeper 的 endpoint 地址，更多配置信息请参考 [Prometheus 配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)。
+
+```
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  - job_name: "taoskeeper"
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+    static_configs:
+      - targets: ["localhost:6043"]
+```
+
+#### Dashboard
+
+我们提供了 `TaosKeeper Prometheus Dashboard for 3.x` dashboard，提供了和 TDinsight 类似的监控 dashboard。
+
+在 Grafana Dashboard 菜单点击 `import`，dashboard ID 填写 `18587`，点击 `Load` 按钮即可导入 `TaosKeeper Prometheus Dashboard for 3.x` dashboard。
+

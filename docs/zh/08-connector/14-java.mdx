@@ -36,23 +36,110 @@ REST 连接支持所有能运行 Java 的平台。
 
 请参考[版本支持列表](../#版本支持)
 
+## 最近更新记录
+
+| taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |
+| :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: |
+|        3.2.1         | 新增功能：WebSocket 连接支持 schemaless 与 prepareStatement 写入。变更：consumer poll 返回结果集为 ConsumerRecord，可通过 value() 获取指定结果集数据。 |
+|        3.2.0         |                                                                存在连接问题，不推荐使用                                                                |
+|        3.1.0         |                                                               WebSocket 连接支持订阅功能                                                               |
+|    3.0.1 - 3.0.4     |                             修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本                             |
+|        3.0.0         |                                                                   支持 TDengine 3.0                                                                    |
+|        2.0.42        |                                                        修在 WebSocket 连接中 wasNull 接口返回值                                                        |
+|        2.0.41        |                                                          修正 REST 连接中用户名和密码转码方式                                                          |
+|   2.0.39 - 2.0.40    |                                                              增加 REST 连接/请求 超时设置                                                              |
+|        2.0.38        |                                                             JDBC REST 连接增加批量拉取功能                                                             |
+|        2.0.37        |                                                                  增加对 json tag 支持                                                                  |
+|        2.0.36        |                                                               增加对 schemaless 写入支持                                                               |
+
+**注**：REST 连接中增加 `batchfetch` 参数并设置为 true，将开启 WebSocket 连接。
+
+## 处理异常
+
+在报错后，通过 SQLException 可以获取到错误的信息和错误码：
+
+```java
+try (Statement statement = connection.createStatement()) {
+    // executeQuery
+    ResultSet resultSet = statement.executeQuery(sql);
+    // print result
+    printResult(resultSet);
+} catch (SQLException e) {
+    System.out.println("ERROR Message: " + e.getMessage());
+    System.out.println("ERROR Code: " + e.getErrorCode());
+    e.printStackTrace();
+}
+```
+
+JDBC 连接器可能报错的错误码包括 4 种：
+
+- JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间）
+- 原生连接方法的报错（错误码在 0x2351 到 0x2360 之间）
+- 数据订阅的报错（错误码在 0x2371 到 0x2380 之间）
+- TDengine 其他功能模块的报错。
+
+具体的错误码请参考：
+
+| Error Code | Description                                                     | Suggested Actions                                                                       |
+| ---------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 0x2301     | connection already closed                                       | 连接已经关闭，检查连接情况，或重新创建连接去执行相关指令。                              |
+| 0x2302     | this operation is NOT supported currently!                      | 当前使用接口不支持，可以更换其他连接方式。                                              |
+| 0x2303     | invalid variables                                               | 参数不合法，请检查相应接口规范，调整参数类型及大小。                                    |
+| 0x2304     | statement is closed                                             | statement 已经关闭，请检查 statement 是否关闭后再次使用，或是连接是否正常。             |
+| 0x2305     | resultSet is closed                                             | resultSet 结果集已经释放，请检查 resultSet 是否释放后再次使用。                         |
+| 0x2306     | Batch is empty!                                                 | prepareStatement 添加参数后再执行 executeBatch。                                        |
+| 0x2307     | Can not issue data manipulation statements with executeQuery()  | 更新操作应该使用 executeUpdate()，而不是 executeQuery()。                               |
+| 0x2308     | Can not issue SELECT via executeUpdate()                        | 查询操作应该使用 executeQuery()，而不是 executeUpdate()。                               |
+| 0x230d     | parameter index out of range                                    | 参数越界，请检查参数的合理范围。                                                        |
+| 0x230e     | connection already closed                                       | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。                  |
+| 0x230f     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                                 |
+| 0x2310     | can't register JDBC-JNI driver                                  | 不能注册 JNI 驱动，请检查 url 是否填写正确。                                            |
+| 0x2312     | url is not set                                                  | 请检查 REST 连接 url 是否填写正确。                                                     |
+| 0x2314     | numeric value out of range                                      | 请检查获取结果集中数值类型是否使用了正确的接口。                                        |
+| 0x2315     | unknown taos type in tdengine                                   | 在 TDengine 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine 数据类型。        |
+| 0x2317     |                                                                 | REST 连接中使用了错误的请求类型。                                                       |
+| 0x2318     |                                                                 | REST 连接中出现了数据传输异常，请检查网络情况并重试。                                   |
+| 0x2319     | user is required                                                | 创建连接时缺少用户名信息                                                                |
+| 0x231a     | password is required                                            | 创建连接时缺少密码信息                                                                  |
+| 0x231c     | httpEntity is null, sql:                                        | REST 连接中执行出现异常                                                                 |
+| 0x2350     | unknown error                                                   | 未知异常，请在 github 反馈给开发人员。                                                  |
+| 0x2352     | Unsupported encoding                                            | 本地连接下指定了不支持的字符编码集                                                      |
+| 0x2353     | internal error of database, please see taoslog for more details | 本地连接执行 prepareStatement 时出现错误，请检查 taos log 进行问题定位。                |
+| 0x2354     | JNI connection is NULL                                          | 本地连接执行命令时，Connection 已经关闭。请检查与 TDengine 的连接情况。                 |
+| 0x2355     | JNI result set is NULL                                          | 本地连接获取结果集，结果集异常，请检查连接情况，并重试。                                |
+| 0x2356     | invalid num of fields                                           | 本地连接获取结果集的 meta 信息不匹配。                                                  |
+| 0x2357     | empty sql string                                                | 填写正确的 SQL 进行执行。                                                               |
+| 0x2359     | JNI alloc memory failed, please see taoslog for more details    | 本地连接分配内存错误，请检查 taos log 进行问题定位。                                    |
+| 0x2371     | consumer properties must not be null!                           | 创建订阅时参数为空，请填写正确的参数。                                                  |
+| 0x2372     | configs contain empty key, failed to set consumer property      | 参数 key 中包含空值，请填写正确的参数。                                                 |
+| 0x2373     | failed to set consumer property,                                | 参数 value 中包含空值，请填写正确的参数。                                               |
+| 0x2375     | topic reference has been destroyed                              | 创建数据订阅过程中，topic 引用被释放。请检查与 TDengine 的连接情况。                    |
+| 0x2376     | failed to set consumer topic, topic name is empty               | 创建数据订阅过程中，订阅 topic 名称为空。请检查指定的 topic 名称是否填写正确。          |
+| 0x2377     | consumer reference has been destroyed                           | 订阅数据传输通道已经关闭，请检查与 TDengine 的连接情况。                                |
+| 0x2378     | consumer create error                                           | 创建数据订阅失败，请根据错误信息检查 taos log 进行问题定位。                            |
+| -          | can't create connection with server within                      | 通过增加参数 httpConnectTimeout 增加连接耗时，或是请检查与 taosAdapter 之间的连接情况。 |
+| -          | failed to complete the task within the specified time           | 通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况。 |
+
+- [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
+<!-- - [TDengine_ERROR_CODE](../error-code) -->
+
 ## TDengine DataType 和 Java DataType
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | JDBCType  |
-| ----------------- | ---------------------------------- |
-| TIMESTAMP         | java.sql.Timestamp                 |
-| INT               | java.lang.Integer                  |
-| BIGINT            | java.lang.Long                     |
-| FLOAT             | java.lang.Float                    |
-| DOUBLE            | java.lang.Double                   |
-| SMALLINT          | java.lang.Short                    |
-| TINYINT           | java.lang.Byte                     |
-| BOOL              | java.lang.Boolean                  |
-| BINARY            | byte array                         |
-| NCHAR             | java.lang.String                   |
-| JSON              | java.lang.String                   |
+| TDengine DataType | JDBCType           |
+| ----------------- | ------------------ |
+| TIMESTAMP         | java.sql.Timestamp |
+| INT               | java.lang.Integer  |
+| BIGINT            | java.lang.Long     |
+| FLOAT             | java.lang.Float    |
+| DOUBLE            | java.lang.Double   |
+| SMALLINT          | java.lang.Short    |
+| TINYINT           | java.lang.Byte     |
+| BOOL              | java.lang.Boolean  |
+| BINARY            | byte array         |
+| NCHAR             | java.lang.String   |
+| JSON              | java.lang.String   |
 
 **注意**：JSON 类型仅在 tag 中支持。
 
@@ -82,7 +169,7 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.0.0</version>
+  <version>3.2.1</version>
 </dependency>
 ```
 
@@ -97,7 +184,7 @@ cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
 
-编译后，在 target 目录下会产生 taos-jdbcdriver-3.0.*-dist.jar 的 jar 包，并自动将编译的 jar 文件放在本地的 Maven 仓库中。
+编译后，在 target 目录下会产生 taos-jdbcdriver-3.2.\*-dist.jar 的 jar 包，并自动将编译的 jar 文件放在本地的 Maven 仓库中。
 
 </TabItem>
 </Tabs>
@@ -230,7 +317,7 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFra
 **注意**：
 
 - 应用中设置的 client parameter 为进程级别的，即如果要更新 client 的参数，需要重启应用。这是因为 client parameter 是全局参数，仅在应用程序的第一次设置生效。
-- 以下示例代码基于 taos-jdbcdriver-3.0.0。
+- 以下示例代码基于 taos-jdbcdriver-3.1.0。
 
 ```java
 public Connection getConn() throws Exception{
@@ -272,7 +359,7 @@ properties 中的配置参数如下：
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 5000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 3000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
-此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
+  此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
 
 ### 配置参数的优先级
 
@@ -336,30 +423,6 @@ while(resultSet.next()){
 
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
 
-### 处理异常
-
-在报错后，通过 SQLException 可以获取到错误的信息和错误码：
-
-```java
-try (Statement statement = connection.createStatement()) {
-    // executeQuery
-    ResultSet resultSet = statement.executeQuery(sql);
-    // print result
-    printResult(resultSet);
-} catch (SQLException e) {
-    System.out.println("ERROR Message: " + e.getMessage());
-    System.out.println("ERROR Code: " + e.getErrorCode());
-    e.printStackTrace();
-}
-```
-
-JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间），原生连接方法的报错（错误码在 0x2351 到 0x2400 之间），TDengine 其他功能模块的报错。
-
-具体的错误码请参考：
-
-- [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
-<!-- - [TDengine_ERROR_CODE](../error-code) -->
-
 ### 通过参数绑定写入数据
 
 TDengine 的 JDBC 原生连接实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
@@ -367,9 +430,12 @@ TDengine 的 JDBC 原生连接实现大幅改进了参数绑定方式对数据�
 **注意**：
 
 - JDBC REST 连接目前不支持参数绑定
-- 以下示例代码基于 taos-jdbcdriver-3.0.0
+- 以下示例代码基于 taos-jdbcdriver-3.2.1
 - binary 类型数据需要调用 setString 方法，nchar 类型数据需要调用 setNString 方法
-- setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
+- 预处理语句中指定数据库与子表名称不要使用 `db.?`，应直接使用 `?`，然后在 setTableName 中指定数据库，如：`prepareStatement.setTableName("db.t1")`。
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
 
 ```java
 public class ParameterBindingDemo {
@@ -597,21 +663,7 @@ public class ParameterBindingDemo {
 }
 ```
 
-用于设定 TAGS 取值的方法总共有：
-
-```java
-public void setTagNull(int index, int type)
-public void setTagBoolean(int index, boolean value)
-public void setTagInt(int index, int value)
-public void setTagByte(int index, byte value)
-public void setTagShort(int index, short value)
-public void setTagLong(int index, long value)
-public void setTagTimestamp(int index, long value)
-public void setTagFloat(int index, float value)
-public void setTagDouble(int index, double value)
-public void setTagString(int index, String value)
-public void setTagNString(int index, String value)
-```
+**注**：setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
 
 用于设定 VALUES 数据列的取值的方法总共有：
 
@@ -628,17 +680,203 @@ public void setString(int columnIndex, ArrayList<String> list, int size) throws 
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
 
+</TabItem>
+<TabItem value="rest" label="WebSocket 连接">
+
+```java
+public class ParameterBindingDemo {
+    private static final String host = "127.0.0.1";
+    private static final Random random = new Random(System.currentTimeMillis());
+    private static final int BINARY_COLUMN_SIZE = 30;
+    private static final String[] schemaList = {
+            "create table stable1(ts timestamp, f1 tinyint, f2 smallint, f3 int, f4 bigint) tags(t1 tinyint, t2 smallint, t3 int, t4 bigint)",
+            "create table stable2(ts timestamp, f1 float, f2 double) tags(t1 float, t2 double)",
+            "create table stable3(ts timestamp, f1 bool) tags(t1 bool)",
+            "create table stable4(ts timestamp, f1 binary(" + BINARY_COLUMN_SIZE + ")) tags(t1 binary(" + BINARY_COLUMN_SIZE + "))",
+            "create table stable5(ts timestamp, f1 nchar(" + BINARY_COLUMN_SIZE + ")) tags(t1 nchar(" + BINARY_COLUMN_SIZE + "))"
+    };
+    private static final int numOfSubTable = 10, numOfRow = 10;
+
+    public static void main(String[] args) throws SQLException {
+
+        String jdbcUrl = "jdbc:TAOS-RS://" + host + ":6041/?batchfetch=true";
+        Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata");
+
+        init(conn);
+
+        bindInteger(conn);
+
+        bindFloat(conn);
+
+        bindBoolean(conn);
+
+        bindBytes(conn);
+
+        bindString(conn);
+
+        conn.close();
+    }
+
+    private static void init(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("drop database if exists test_ws_parabind");
+            stmt.execute("create database if not exists test_ws_parabind");
+            stmt.execute("use test_ws_parabind");
+            for (int i = 0; i < schemaList.length; i++) {
+                stmt.execute(schemaList[i]);
+            }
+        }
+    }
+
+    private static void bindInteger(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable1 tags(?,?,?,?) values(?,?,?,?,?)";
+
+        try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
+
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t1_" + i);
+                // set tags
+                pstmt.setTagByte(1, Byte.parseByte(Integer.toString(random.nextInt(Byte.MAX_VALUE))));
+                pstmt.setTagShort(2, Short.parseShort(Integer.toString(random.nextInt(Short.MAX_VALUE))));
+                pstmt.setTagInt(3, random.nextInt(Integer.MAX_VALUE));
+                pstmt.setTagLong(4, random.nextLong());
+                // set columns
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++) {
+                    pstmt.setTimestamp(1, new Timestamp(current + j));
+                    pstmt.setByte(2, Byte.parseByte(Integer.toString(random.nextInt(Byte.MAX_VALUE))));
+                    pstmt.setShort(3, Short.parseShort(Integer.toString(random.nextInt(Short.MAX_VALUE))));
+                    pstmt.setInt(4, random.nextInt(Integer.MAX_VALUE));
+                    pstmt.setLong(5, random.nextLong());
+                    pstmt.addBatch();
+                }
+                pstmt.executeBatch();
+            }
+        }
+    }
+
+    private static void bindFloat(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable2 tags(?,?) values(?,?,?)";
+
+        try(TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
+
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t2_" + i);
+                // set tags
+                pstmt.setTagFloat(1, random.nextFloat());
+                pstmt.setTagDouble(2, random.nextDouble());
+                // set columns
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++) {
+                    pstmt.setTimestamp(1, new Timestamp(current + j));
+                    pstmt.setFloat(2, random.nextFloat());
+                    pstmt.setDouble(3, random.nextDouble());
+                    pstmt.addBatch();
+                }
+                pstmt.executeBatch();
+            }
+        }
+    }
+
+    private static void bindBoolean(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable3 tags(?) values(?,?)";
+
+        try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t3_" + i);
+                // set tags
+                pstmt.setTagBoolean(1, random.nextBoolean());
+                // set columns
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++) {
+                    pstmt.setTimestamp(1, new Timestamp(current + j));
+                    pstmt.setBoolean(2, random.nextBoolean());
+                    pstmt.addBatch();
+                }
+                pstmt.executeBatch();
+            }
+        }
+    }
+
+    private static void bindBytes(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable4 tags(?) values(?,?)";
+
+        try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
+
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t4_" + i);
+                // set tags
+                pstmt.setTagString(1, new String("abc"));
+
+                // set columns
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++) {
+                    pstmt.setTimestamp(1, new Timestamp(current + j));
+                    pstmt.setString(2, "abc");
+                    pstmt.addBatch();
+                }
+                pstmt.executeBatch();
+            }
+        }
+    }
+
+    private static void bindString(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable5 tags(?) values(?,?)";
+
+        try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
+
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t5_" + i);
+                // set tags
+                pstmt.setTagNString(1, "California.SanFrancisco");
+
+                // set columns
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++) {
+                    pstmt.setTimestamp(0, new Timestamp(current + j));
+                    pstmt.setNString(1, "California.SanFrancisco");
+                    pstmt.addBatch();
+                }
+                pstmt.executeBatch();
+            }
+        }
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+用于设定 TAGS 取值的方法总共有：
+
+```java
+public void setTagNull(int index, int type)
+public void setTagBoolean(int index, boolean value)
+public void setTagInt(int index, int value)
+public void setTagByte(int index, byte value)
+public void setTagShort(int index, short value)
+public void setTagLong(int index, long value)
+public void setTagTimestamp(int index, long value)
+public void setTagFloat(int index, float value)
+public void setTagDouble(int index, double value)
+public void setTagString(int index, String value)
+public void setTagNString(int index, String value)
+```
+
 ### 无模式写入
 
 TDengine 支持无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](../../reference/schemaless/)。
 
-**注意**：
-
-- JDBC REST 连接目前不支持无模式写入
-- 以下示例代码基于 taos-jdbcdriver-3.0.0
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
 
 ```java
-public class SchemalessInsertTest {
+public class SchemalessJniTest {
     private static final String host = "127.0.0.1";
     private static final String lineDemo = "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000";
     private static final String telnetDemo = "stb0_0 1626006833 4 host=host0 interface=eth0";
@@ -666,6 +904,41 @@ public class SchemalessInsertTest {
 }
 ```
 
+</TabItem>
+<TabItem value="ws" label="WebSocket 连接">
+
+```java
+public class SchemalessWsTest {
+    private static final String host = "127.0.0.1";
+    private static final String lineDemo = "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000";
+    private static final String telnetDemo = "stb0_0 1626006833 4 host=host0 interface=eth0";
+    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1626846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}";
+
+    public static void main(String[] args) throws SQLException {
+        final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata&batchfetch=true";
+        Connection connection = DriverManager.getConnection(url);
+        init(connection);
+
+        SchemalessWriter writer = new SchemalessWriter(connection, "test_ws_schemaless");
+        writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+        writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
+        writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
+        System.exit(0);
+    }
+
+    private static void init(Connection connection) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("drop database if exists test_ws_schemaless");
+            stmt.executeUpdate("create database if not exists test_ws_schemaless keep 36500");
+            stmt.executeUpdate("use test_ws_schemaless");
+        }
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
 ### 数据订阅
 
 TDengine Java 连接器支持订阅功能，应用 API 如下：
@@ -689,6 +962,7 @@ statement.executeUpdate("create topic if not exists topic_speed as select ts, sp
 
 ```java
 Properties config = new Properties();
+config.setProperty("bootstrap.servers", "localhost:6030");
 config.setProperty("enable.auto.commit", "true");
 config.setProperty("group.id", "group1");
 config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ResultDeserializer");
@@ -696,21 +970,24 @@ config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.Res
 TaosConsumer consumer = new TaosConsumer<>(config);
 ```
 
+- bootstrap.servers: TDengine 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
 - enable.auto.commit: 是否允许自动提交。
 - group.id: consumer: 所在的 group。
 - value.deserializer: 结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
 - td.connect.type: 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
-- httpConnectTimeout：创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
-- messageWaitTimeout：数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
-其他参数请参考：[Consumer 参数列表](../../../develop/tmq#创建-consumer-以及consumer-group)
+- httpConnectTimeout: 创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
+- messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
+- httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。
+  其他参数请参考：[Consumer 参数列表](../../../develop/tmq#创建-consumer-以及consumer-group)
 
 #### 订阅消费数据
 
 ```java
 while(true) {
     ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
-        for (ResultBean record : records) {
-            process(record);
+        for (ConsumerRecord<ResultBean> record : records) {
+            ResultBean bean = record.value();
+            process(bean);
         }
 }
 ```
@@ -742,10 +1019,19 @@ public abstract class ConsumerLoop {
 
     public ConsumerLoop() throws SQLException {
         Properties config = new Properties();
+        config.setProperty("td.connect.type", "jni");
+        config.setProperty("bootstrap.servers", "localhost:6030");
+        config.setProperty("td.connect.user", "root");
+        config.setProperty("td.connect.pass", "taosdata");
+        config.setProperty("auto.offset.reset", "earliest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
+        config.setProperty("auto.commit.interval.ms", "1000");
         config.setProperty("group.id", "group1");
+        config.setProperty("client.id", "1");
         config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
+        config.setProperty("value.deserializer.encoding", "UTF-8");
+        config.setProperty("experimental.snapshot.enable", "true");
 
         this.consumer = new TaosConsumer<>(config);
         this.topics = Collections.singletonList("topic_speed");
@@ -761,8 +1047,9 @@ public abstract class ConsumerLoop {
 
             while (!shutdown.get()) {
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
-                for (ResultBean record : records) {
-                    process(record);
+                for (ConsumerRecord<ResultBean> record : records) {
+                    ResultBean bean = record.value();
+                    process(bean);
                 }
             }
             consumer.unsubscribe();
@@ -818,12 +1105,19 @@ public abstract class ConsumerLoop {
 
     public ConsumerLoop() throws SQLException {
         Properties config = new Properties();
-        config.setProperty("bootstrap.servers", "localhost:6041");
         config.setProperty("td.connect.type", "ws");
+        config.setProperty("bootstrap.servers", "localhost:6041");
+        config.setProperty("td.connect.user", "root");
+        config.setProperty("td.connect.pass", "taosdata");
+        config.setProperty("auto.offset.reset", "earliest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
+        config.setProperty("auto.commit.interval.ms", "1000");
         config.setProperty("group.id", "group2");
+        config.setProperty("client.id", "1");
         config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
+        config.setProperty("value.deserializer.encoding", "UTF-8");
+        config.setProperty("experimental.snapshot.enable", "true");
 
         this.consumer = new TaosConsumer<>(config);
         this.topics = Collections.singletonList("topic_speed");
@@ -839,8 +1133,9 @@ public abstract class ConsumerLoop {
 
             while (!shutdown.get()) {
                 ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
-                for (ResultBean record : records) {
-                    process(record);
+                for (ConsumerRecord<ResultBean> record : records) {
+                    ResultBean bean = record.value();
+                    process(bean);
                 }
             }
             consumer.unsubscribe();
@@ -966,20 +1261,6 @@ public static void main(String[] args) throws Exception {
 
 请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/3.0/examples/JDBC)
 
-## 最近更新记录
-
-| taos-jdbcdriver 版本 |            主要变化            |
-| :------------------: | :----------------------------: |
-|       3.1.0           |   WebSocket 连接支持订阅功能      |
-|       3.0.1 - 3.0.4        |  修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本    |
-|       3.0.0        |   支持 TDengine 3.0    |
-|       2.0.42        |   修在 WebSocket 连接中 wasNull 接口返回值  |
-|       2.0.41        |   修正 REST 连接中用户名和密码转码方式    |
-|   2.0.39 - 2.0.40    |  增加 REST 连接/请求 超时设置  |
-|        2.0.38        | JDBC REST 连接增加批量拉取功能 |
-|        2.0.37        |      增加对 json tag 支持      |
-|        2.0.36        |   增加对 schemaless 写入支持   |
-
 ## 常见问题
 
 1. 使用 Statement 的 `addBatch()` 和 `executeBatch()` 来执行“批量写入/更新”，为什么没有带来性能上的提升？
@@ -1002,9 +1283,9 @@ public static void main(String[] args) throws Exception {
 
 4. java.lang.NoSuchMethodError: setByteArray
 
-**原因**：taos-jdbcdriver 3.* 版本仅支持 TDengine 3.0 及以上版本。
+**原因**：taos-jdbcdriver 3.\* 版本仅支持 TDengine 3.0 及以上版本。
 
-**解决方法**： 使用 taos-jdbcdriver 2.* 版本连接 TDengine 2.* 版本。
+**解决方法**： 使用 taos-jdbcdriver 2.\* 版本连接 TDengine 2.\* 版本。
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 

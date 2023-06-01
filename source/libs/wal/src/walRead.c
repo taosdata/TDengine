@@ -108,6 +108,32 @@ int32_t walNextValidMsg(SWalReader *pReader) {
 
 int64_t walReaderGetCurrentVer(const SWalReader *pReader) { return pReader->curVersion; }
 int64_t walReaderGetValidFirstVer(const SWalReader *pReader) { return walGetFirstVer(pReader->pWal); }
+void    walReaderSetSkipToVersion(SWalReader *pReader, int64_t ver) { atomic_store_64(&pReader->skipToVersion, ver); }
+
+// this function is NOT multi-thread safe, and no need to be.
+int64_t walReaderGetSkipToVersion(SWalReader *pReader) {
+  int64_t newVersion = pReader->skipToVersion;
+  pReader->skipToVersion = 0;
+  return newVersion;
+}
+
+void walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever) {
+  *sver = walGetFirstVer(pReader->pWal);
+  int64_t lastVer = walGetLastVer(pReader->pWal);
+  int64_t committedVer = walGetCommittedVer(pReader->pWal);
+  *ever = pReader->cond.scanUncommited ? lastVer : committedVer;
+}
+
+void walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal* pOffset){
+  // if offset version is small than first version , let's seek to first version
+  taosThreadMutexLock(&pWalReader->pWal->mutex);
+  int64_t firstVer = walGetFirstVer((pWalReader)->pWal);
+  taosThreadMutexUnlock(&pWalReader->pWal->mutex);
+
+  if (pOffset->version + 1 < firstVer){
+    pOffset->version = firstVer - 1;
+  }
+}
 
 static int64_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int64_t ver) {
   int64_t ret = 0;
@@ -190,6 +216,7 @@ int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
+
   if (pReader->curFileFirstVer != pRet->firstVer) {
     // error code was set inner
     if (walReadChangeFile(pReader, pRet->firstVer) < 0) {

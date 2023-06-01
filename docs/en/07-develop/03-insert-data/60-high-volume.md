@@ -49,7 +49,7 @@ If the data source is Kafka, then the application program is a consumer of Kafka
 
 On the server side, database configuration parameter `vgroups` needs to be set carefully to maximize the system performance. If it's set too low, the system capability can't be utilized fully; if it's set too big, unnecessary resource competition may be produced. A normal recommendation for `vgroups` parameter is 2 times of the number of CPU cores. However, depending on the actual system resources, it may still need to tuned.
 
-For more configuration parameters, please refer to [Database Configuration](../../../taos-sql/database) and [Server Configuration](../../../reference/config)。
+For more configuration parameters, please refer to [Database Configuration](../../../taos-sql/database) and [Server Configuration](../../../reference/config).
 
 ## Sample Programs
 
@@ -98,7 +98,7 @@ The main Program is responsible for:
 3. Start reading threads
 4. Output writing speed every 10 seconds
 
-The main program provides 4 parameters for tuning：
+The main program provides 4 parameters for tuning:
 
 1. The number of reading threads, default value is 1
 2. The number of writing threads, default value is 2
@@ -192,7 +192,7 @@ TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
 
 If you want to launch the sample program on a remote server, please follow below steps:
 
-1. Package the sample programs. Execute below command under directory `TDengine/docs/examples/java` ：
+1. Package the sample programs. Execute below command under directory `TDengine/docs/examples/java`:
    ```
    mvn package
    ```
@@ -385,7 +385,7 @@ SQLWriter class encapsulates the logic of composing SQL and writing data. Please
    pip3 install faster-fifo
    ```
 
-3. Click the "Copy" in the above sample programs to copy `fast_write_example.py` 、 `sql_writer.py` and `mockdatasource.py`.
+3. Click the "Copy" in the above sample programs to copy `fast_write_example.py`, `sql_writer.py`, and `mockdatasource.py`.
 
 4. Execute the program
 

@@ -12,17 +12,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_QUERYUTIL_H
-#define TDENGINE_QUERYUTIL_H
+#ifndef TDENGINE_EXECUTIL_H
+#define TDENGINE_EXECUTIL_H
 
+#include "executor.h"
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
+#include "storageapi.h"
 #include "tcommon.h"
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
-#include "vnode.h"
-#include "executor.h"
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
@@ -37,7 +37,7 @@
     memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
-#define GET_RES_WINDOW_KEY_LEN(_l)     ((_l) + sizeof(uint64_t))
+#define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 
 typedef struct SGroupResInfo {
   int32_t index;
@@ -65,7 +65,7 @@ typedef struct SResultRowPosition {
 typedef struct SResKeyPos {
   SResultRowPosition pos;
   uint64_t           groupId;
-  char key[];
+  char               key[];
 } SResKeyPos;
 
 typedef struct SResultRowInfo {
@@ -88,7 +88,6 @@ typedef struct SColMatchInfo {
 
 typedef struct SExecTaskInfo SExecTaskInfo;
 
-
 typedef struct STableListIdInfo {
   uint64_t suid;
   uint64_t uid;
@@ -109,7 +108,8 @@ typedef struct STableListInfo {
 struct SqlFunctionCtx;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo);
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
+                                SExecTaskInfo* pTaskInfo);
 
 STableListInfo* tableListCreate();
 void*           tableListDestroy(STableListInfo* pTableListInfo);
@@ -158,7 +158,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
-int32_t  getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
+int32_t  getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId, SStorageAPI* pAPI);
 size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
 SArray* createSortInfo(SNodeList* pNodeList);
@@ -170,7 +170,7 @@ void       createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
 void       createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 
-SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset);
+SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset, SFunctionStateStore* pStore);
 void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
 void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
 
@@ -182,11 +182,11 @@ void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
-int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
+int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI *pAPI);
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag);
 
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
 void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 
-#endif  // TDENGINE_QUERYUTIL_H
+#endif  // TDENGINE_EXECUTIL_H

@@ -120,6 +120,9 @@ Provides information about user-defined functions.
 | 5   | create_time | TIMESTAMP    | Creation time       |
 | 6   |  code_len   | INT          | Length of the source code       |
 | 7   |   bufsize   | INT          | Buffer size    |
+| 8   | func_language | BINARY(31) | UDF programming language |
+| 9   | func_body     | BINARY(16384) | UDF function body |
+| 10  | func_version  | INT           | UDF function version. starting from 0. Increasing by 1 each time it is updated|
 
 ## INS_INDEXES
 
@@ -181,7 +184,7 @@ Provides information about standard tables and subtables.
 
 ## INS_COLUMNS
 
-| #   |  **列名**   | **数据类型**  | **说明**               |
+| #   |  **Column**   | **Data Type**  | **Description**               |
 | --- | :---------: | ------------- | ---------------------- |
 | 1   | table_name  | BINARY(192)   | Table name                   |
 | 2   |   db_name   | BINARY(64)    | Database name |

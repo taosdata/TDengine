@@ -27,29 +27,28 @@
 // equal =
 #define IS_EQUAL(sql) (*(sql) == EQUAL && *((sql)-1) != SLASH)
 // quote "
-//#define IS_QUOTE(sql) (*(sql) == QUOTE && *((sql)-1) != SLASH)
+// #define IS_QUOTE(sql) (*(sql) == QUOTE && *((sql)-1) != SLASH)
 // SLASH
 
-#define IS_SLASH_LETTER_IN_FIELD_VALUE(sql)                                                           \
-  (*((sql)-1) == SLASH && (*(sql) == QUOTE || *(sql) == SLASH))
+#define IS_SLASH_LETTER_IN_FIELD_VALUE(sql) (*((sql)-1) == SLASH && (*(sql) == QUOTE || *(sql) == SLASH))
 
-#define IS_SLASH_LETTER_IN_TAG_FIELD_KEY(sql)                                                         \
+#define IS_SLASH_LETTER_IN_TAG_FIELD_KEY(sql) \
   (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE || *(sql) == EQUAL))
 
-#define PROCESS_SLASH_IN_FIELD_VALUE(key, keyLen)           \
-  for (int i = 1; i < keyLen; ++i) {                        \
-    if (IS_SLASH_LETTER_IN_FIELD_VALUE(key + i)) {          \
-      MOVE_FORWARD_ONE(key + i, keyLen - i); \
-      keyLen--;                              \
-    }                                        \
+#define PROCESS_SLASH_IN_FIELD_VALUE(key, keyLen)  \
+  for (int i = 1; i < keyLen; ++i) {               \
+    if (IS_SLASH_LETTER_IN_FIELD_VALUE(key + i)) { \
+      MOVE_FORWARD_ONE(key + i, keyLen - i);       \
+      keyLen--;                                    \
+    }                                              \
   }
 
-#define PROCESS_SLASH_IN_TAG_FIELD_KEY(key, keyLen)           \
-  for (int i = 1; i < keyLen; ++i) {         \
-    if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(key + i)) {          \
-      MOVE_FORWARD_ONE(key + i, keyLen - i); \
-      keyLen--;                              \
-    }                                        \
+#define PROCESS_SLASH_IN_TAG_FIELD_KEY(key, keyLen)  \
+  for (int i = 1; i < keyLen; ++i) {                 \
+    if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(key + i)) { \
+      MOVE_FORWARD_ONE(key + i, keyLen - i);         \
+      keyLen--;                                      \
+    }                                                \
   }
 
 #define BINARY_ADD_LEN 2  // "binary"   2 means " "
@@ -152,15 +151,15 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
 
       SSmlSTableMeta *sMeta = NULL;
       if (unlikely(tmp == NULL)) {
-        char* measure = currElement->measure;
+        char *measure = currElement->measure;
         int   measureLen = currElement->measureLen;
-        if(currElement->measureEscaped){
-          measure = (char*)taosMemoryMalloc(currElement->measureLen);
+        if (currElement->measureEscaped) {
+          measure = (char *)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
         }
         STableMeta *pTableMeta = smlGetMeta(info, measure, measureLen);
-        if(currElement->measureEscaped){
+        if (currElement->measureEscaped) {
           taosMemoryFree(measure);
         }
         if (pTableMeta == NULL) {
@@ -169,11 +168,19 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           return TSDB_CODE_SUCCESS;
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
+        if(sMeta == NULL){
+          taosMemoryFreeClear(pTableMeta);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         sMeta->tableMeta = pTableMeta;
         taosHashPut(info->superTables, currElement->measure, currElement->measureLen, &sMeta, POINTER_BYTES);
-        for(int i = pTableMeta->tableInfo.numOfColumns; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++){
+        for (int i = pTableMeta->tableInfo.numOfColumns;
+             i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++) {
           SSchema *tag = pTableMeta->schema + i;
-          SSmlKv kv = {.key = tag->name, .keyLen = strlen(tag->name), .type = tag->type, .length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE };
+          SSmlKv   kv = {.key = tag->name,
+                         .keyLen = strlen(tag->name),
+                         .type = tag->type,
+                         .length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE};
           taosArrayPush(sMeta->tags, &kv);
         }
         tmp = &sMeta;
@@ -248,19 +255,25 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
     }
 
-    if (keyEscaped){
-      char *tmp = (char*)taosMemoryMalloc(keyLen);
+    if (keyEscaped) {
+      char *tmp = (char *)taosMemoryMalloc(keyLen);
       memcpy(tmp, key, keyLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, keyLen);
       key = tmp;
     }
-    if (valueEscaped){
-      char *tmp = (char*)taosMemoryMalloc(valueLen);
+    if (valueEscaped) {
+      char *tmp = (char *)taosMemoryMalloc(valueLen);
       memcpy(tmp, value, valueLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, valueLen);
       value = tmp;
     }
-    SSmlKv kv = {.key = key, .keyLen = keyLen, .type = TSDB_DATA_TYPE_NCHAR, .value = value, .length = valueLen, .keyEscaped = keyEscaped, .valueEscaped = valueEscaped};
+    SSmlKv kv = {.key = key,
+                 .keyLen = keyLen,
+                 .type = TSDB_DATA_TYPE_NCHAR,
+                 .value = value,
+                 .length = valueLen,
+                 .keyEscaped = keyEscaped,
+                 .valueEscaped = valueEscaped};
     taosArrayPush(preLineKV, &kv);
     if (info->dataFormat) {
       if (unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)) {
@@ -305,10 +318,10 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   tinfo->tags = taosArrayDup(preLineKV, NULL);
-  for(size_t i = 0; i < taosArrayGetSize(preLineKV); i++){
+  for (size_t i = 0; i < taosArrayGetSize(preLineKV); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGet(preLineKV, i);
-    if(kv->keyEscaped)kv->key = NULL;
-    if(kv->valueEscaped)kv->value = NULL;
+    if (kv->keyEscaped) kv->key = NULL;
+    if (kv->valueEscaped) kv->value = NULL;
   }
 
   smlSetCTableName(tinfo);
@@ -317,7 +330,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     info->currSTableMeta->uid = tinfo->uid;
     tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
     if (tinfo->tableDataCtx == NULL) {
-      smlDestroyTableInfo(info, tinfo);
+      smlDestroyTableInfo(&tinfo);
       smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
       return TSDB_CODE_SML_INVALID_DATA;
     }
@@ -330,7 +343,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
 
 static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLineInfo *currElement, bool isSameMeasure,
                              bool isSameCTable) {
-  int     cnt = 0;
+  int cnt = 0;
   if (info->dataFormat) {
     if (unlikely(!isSameCTable)) {
       SSmlTableInfo **oneTable =
@@ -346,15 +359,15 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       SSmlSTableMeta **tmp =
           (SSmlSTableMeta **)taosHashGet(info->superTables, currElement->measure, currElement->measureLen);
       if (unlikely(tmp == NULL)) {
-        char* measure = currElement->measure;
+        char *measure = currElement->measure;
         int   measureLen = currElement->measureLen;
-        if(currElement->measureEscaped){
-          measure = (char*)taosMemoryMalloc(currElement->measureLen);
+        if (currElement->measureEscaped) {
+          measure = (char *)taosMemoryMalloc(currElement->measureLen);
           memcpy(measure, currElement->measure, currElement->measureLen);
           PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
         }
         STableMeta *pTableMeta = smlGetMeta(info, measure, measureLen);
-        if(currElement->measureEscaped){
+        if (currElement->measureEscaped) {
           taosMemoryFree(measure);
         }
         if (pTableMeta == NULL) {
@@ -363,15 +376,19 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
           return TSDB_CODE_SUCCESS;
         }
         *tmp = smlBuildSTableMeta(info->dataFormat);
+        if(*tmp == NULL){
+          taosMemoryFreeClear(pTableMeta);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         (*tmp)->tableMeta = pTableMeta;
         taosHashPut(info->superTables, currElement->measure, currElement->measureLen, tmp, POINTER_BYTES);
 
-        for(int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++){
+        for (int i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
           SSchema *tag = pTableMeta->schema + i;
-          SSmlKv kv = {.key = tag->name, .keyLen = strlen(tag->name), .type = tag->type };
-          if(tag->type == TSDB_DATA_TYPE_NCHAR){
+          SSmlKv   kv = {.key = tag->name, .keyLen = strlen(tag->name), .type = tag->type};
+          if (tag->type == TSDB_DATA_TYPE_NCHAR) {
             kv.length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-          }else if(tag->type == TSDB_DATA_TYPE_BINARY){
+          } else if (tag->type == TSDB_DATA_TYPE_BINARY) {
             kv.length = tag->bytes - VARSTR_HEADER_SIZE;
           }
           taosArrayPush((*tmp)->cols, &kv);
@@ -459,16 +476,16 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       return ret;
     }
 
-    if (keyEscaped){
-      char *tmp = (char*)taosMemoryMalloc(kv.keyLen);
+    if (keyEscaped) {
+      char *tmp = (char *)taosMemoryMalloc(kv.keyLen);
       memcpy(tmp, key, kv.keyLen);
       PROCESS_SLASH_IN_TAG_FIELD_KEY(tmp, kv.keyLen);
       kv.key = tmp;
       kv.keyEscaped = keyEscaped;
     }
 
-    if (valueEscaped){
-      char *tmp = (char*)taosMemoryMalloc(kv.length);
+    if (valueEscaped) {
+      char *tmp = (char *)taosMemoryMalloc(kv.length);
       memcpy(tmp, kv.value, kv.length);
       PROCESS_SLASH_IN_FIELD_VALUE(tmp, kv.length);
       kv.value = tmp;
@@ -643,9 +660,13 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   if (info->dataFormat) {
     uDebug("SML:0x%" PRIx64 " smlParseInfluxString format true, ts:%" PRId64, info->id, ts);
     ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 0);
-    if(ret != TSDB_CODE_SUCCESS){return ret;}
+    if (ret != TSDB_CODE_SUCCESS) {
+      return ret;
+    }
     ret = smlBuildRow(info->currTableDataCtx);
-    if(ret != TSDB_CODE_SUCCESS){return ret;}
+    if (ret != TSDB_CODE_SUCCESS) {
+      return ret;
+    }
     clearColValArray(info->currTableDataCtx->pValues);
   } else {
     uDebug("SML:0x%" PRIx64 " smlParseInfluxString format false, ts:%" PRId64, info->id, ts);

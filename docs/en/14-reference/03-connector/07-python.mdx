@@ -255,7 +255,7 @@ The `connect()` function returns a `taos.TaosConnection` instance. In client-sid
 
 All arguments to the `connect()` function are optional keyword arguments. The following are the connection parameters specified.
 
-- `url`： The URL of taosAdapter REST service. The default is <http://localhost:6041>.
+- `url`: The URL of taosAdapter REST service. The default is <http://localhost:6041>.
 - `user`: TDengine user name. The default is `root`.
 - `password`: TDengine user password. The default is `taosdata`.
 - `timeout`: HTTP request timeout. Enter a value in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Usually, no configuration is needed.
@@ -362,7 +362,7 @@ By using the optional req_id parameter, you can specify a request ID that can be
 
 ##### TaosConnection class
 
-The `TaosConnection` class contains both an implementation of the PEP249 Connection interface (e.g., the `cursor()` method and the `close()` method) and many extensions (e.g., the `execute()`, `query()`, `schemaless_insert()`, and `subscribe()` methods).
+As the way to connect introduced above but add `req_id` argument.
 
 ```python title="execute method"
 {{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:insert}}
@@ -372,13 +372,9 @@ The `TaosConnection` class contains both an implementation of the PEP249 Connect
 {{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:query}}
 ```
 
-:::tip
-The queried results can only be fetched once. For example, only one of `fetch_all()` and `fetch_all_into_dict()` can be used in the example above. Repeated fetches will result in an empty list.
-:::
-
 ##### Use of TaosResult class
 
-In the above example of using the `TaosConnection` class, we have shown two ways to get the result of a query: `fetch_all()` and `fetch_all_into_dict()`. In addition, `TaosResult` also provides methods to iterate through the result set by rows (`rows_iter`) or by data blocks (`blocks_iter`). Using these two methods will be more efficient in scenarios where the query has a large amount of data.
+As the way to fetch data introduced above but add `req_id` argument.
 
 ```python title="blocks_iter method"
 {{#include docs/examples/python/result_set_with_req_id_examples.py}}
@@ -391,17 +387,12 @@ The `TaosConnection` class and the `TaosResult` class already implement all the 
 {{#include docs/examples/python/cursor_usage_native_reference_with_req_id.py}}
 ```
 
-:::note
-The TaosCursor class uses native connections for write and query operations. In a client-side multi-threaded scenario, this cursor instance must remain thread exclusive and cannot be shared across threads for use, otherwise, it will result in errors in the returned results.
-
-:::
-
 </TabItem>
 <TabItem value="rest" label="REST connection">
 
 ##### Use of TaosRestCursor class
 
-The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
+As the way to connect introduced above but add `req_id` argument.
 
 ```python title="Use of TaosRestCursor"
 {{#include docs/examples/python/connect_rest_with_req_id_examples.py:basic}}
@@ -421,7 +412,10 @@ The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-ap
 For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
 </TabItem>
+
 <TabItem value="websocket" label="WebSocket connection">
+
+As the way to connect introduced above but add `req_id` argument.
 
 ```python
 {{#include docs/examples/python/connect_websocket_with_req_id_examples.py:basic}}
@@ -454,6 +448,56 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 
 ```python
 {{#include docs/examples/python/conn_websocket_pandas.py}}
+```
+
+</TabItem>
+</Tabs>
+
+### Schemaless Insert
+
+Connector support schemaless insert.
+
+<Tabs defaultValue="list">
+<TabItem value="list" label="List Insert">
+
+Simple insert
+
+```python
+{{#include docs/examples/python/schemaless_insert.py}}
+```
+
+Insert with ttl argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_ttl.py}}
+```
+
+Insert with req_id argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_req_id.py}}
+```
+
+</TabItem>
+
+<TabItem value="raw" label="Raw Insert">
+
+Simple insert
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw.py}}
+```
+
+Insert with ttl argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
+```
+
+Insert with req_id argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
 ```
 
 </TabItem>

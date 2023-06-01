@@ -17,7 +17,7 @@
 #include "ttypes.h"
 #include "tcompression.h"
 
-const int32_t TYPE_BYTES[16] = {
+const int32_t TYPE_BYTES[17] = {
     -1,                      // TSDB_DATA_TYPE_NULL
     CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
     CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
@@ -34,6 +34,7 @@ const int32_t TYPE_BYTES[16] = {
     INT_BYTES,               // TSDB_DATA_TYPE_UINT
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
     TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
+    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_GEOMETRY
 };
 
 tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
@@ -56,6 +57,7 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_UINT, 12, INT_BYTES, "INT UNSIGNED", 0, UINT32_MAX, tsCompressInt, tsDecompressInt},
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint},
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString},
+    {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString},
 };
 
 static float  floatMin = -FLT_MAX, floatMax = FLT_MAX;
@@ -125,6 +127,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       *((int64_t *)val) = GET_INT64_VAL(src);
       break;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       varDataCopy(val, src);
       break;
     case TSDB_DATA_TYPE_NCHAR:

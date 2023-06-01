@@ -37,6 +37,7 @@
 #include "tglobal.h"
 #include "trpc.h"
 #include "tvariant.h"
+#include "ttimer.h"
 
 namespace {
 
@@ -150,6 +151,7 @@ void ctgTestInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
+  tmrDebugFlag = 159;
   strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
   ctgdEnableDebug("api", true);
@@ -1745,6 +1747,8 @@ TEST(tableMeta, updateStbMeta) {
   ctgTestBuildSTableMetaRsp(&rsp);
 
   code = catalogUpdateTableMeta(pCtg, &rsp);
+  ASSERT_EQ(code, 0);
+  code = catalogAsyncUpdateTableMeta(pCtg, &rsp);
   ASSERT_EQ(code, 0);
   taosMemoryFreeClear(rsp.pSchemas);
 

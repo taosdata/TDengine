@@ -24,6 +24,11 @@
 extern "C" {
 #endif
 
+#define SLOW_LOG_TYPE_QUERY  0x1
+#define SLOW_LOG_TYPE_INSERT 0x2
+#define SLOW_LOG_TYPE_OTHERS 0x4
+#define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -118,6 +123,9 @@ extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
 extern int32_t tsMaxRetryWaitTime;
 extern bool    tsUseAdapter;
+extern int32_t tsMetaCacheMaxSize;
+extern int32_t tsSlowLogThreshold;
+extern int32_t tsSlowLogScope;
 
 // client
 extern int32_t tsMinSlidingTime;
@@ -168,7 +176,11 @@ extern int32_t tsUptimeInterval;
 extern int32_t tsRpcRetryLimit;
 extern int32_t tsRpcRetryInterval;
 
-extern bool tsDisableStream;
+extern bool    tsDisableStream;
+extern int64_t tsStreamBufferSize;
+extern int64_t tsCheckpointInterval;
+extern bool    tsFilterScalarMode;
+extern int32_t tsMaxStreamBackendCache;
 
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
@@ -183,7 +195,7 @@ struct SConfig *taosGetCfg();
 
 void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
 void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
-int32_t taosSetCfg(SConfig *pCfg, char *name);
+int32_t taosApplyLocalCfg(SConfig *pCfg, char *name);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 
 #ifdef __cplusplus

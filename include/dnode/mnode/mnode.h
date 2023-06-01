@@ -20,6 +20,7 @@
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "trpc.h"
+#include "sync.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,8 +34,11 @@ typedef struct {
   bool     deploy;
   int8_t   selfIndex;
   int8_t   numOfReplicas;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  int8_t   numOfTotalReplicas;
+  SReplica replicas[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  int32_t  nodeRoles[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   SMsgCb   msgCb;
+  int64_t  lastIndex;
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */
@@ -68,6 +72,9 @@ int32_t mndStart(SMnode *pMnode);
  * @param pMnode The mnode object.
  */
 void mndStop(SMnode *pMnode);
+
+int32_t mndIsCatchUp(SMnode *pMnode);
+ESyncRole mndGetRole(SMnode *pMnode);
 
 /**
  * @brief Get mnode monitor info.

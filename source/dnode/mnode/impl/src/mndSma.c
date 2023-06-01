@@ -1114,6 +1114,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
       return code;
     }
 
+    rsp->indexSize += sizeof(info) + pSma->exprLen + 1;
     *exist = true;
 
     sdbRelease(pSdb, pSma);

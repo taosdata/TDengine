@@ -305,6 +305,7 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
     dst[j] = src[k];
     j++;
   }
+  if (j >= dlen) j = dlen - 1;
   dst[j] = '\0';
   return j;
 }
@@ -415,7 +416,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
 end:
   taosHashCleanup(keyHash);
   if (retCode == TSDB_CODE_SUCCESS) {
-    tTagNew(pTagVals, 1, true, ppTag);
+    retCode = tTagNew(pTagVals, 1, true, ppTag);
   }
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);

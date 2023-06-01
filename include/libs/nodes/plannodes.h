@@ -186,6 +186,7 @@ typedef struct SMergeLogicNode {
   int32_t    numOfChannels;
   int32_t    srcGroupId;
   bool       groupSort;
+  bool       ignoreGroupId;
 } SMergeLogicNode;
 
 typedef enum EWindowType {
@@ -446,6 +447,7 @@ typedef struct SMergePhysiNode {
   int32_t    numOfChannels;
   int32_t    srcGroupId;
   bool       groupSort;
+  bool       ignoreGroupId;
 } SMergePhysiNode;
 
 typedef struct SWindowPhysiNode {

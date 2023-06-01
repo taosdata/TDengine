@@ -547,7 +547,10 @@ int32_t ctgdShowStatInfo(void) {
   CTG_API_ENTER();
 
   SCtgCacheStat cache;
+  uint64_t cacheSize = 0;
+  
   ctgGetGlobalCacheStat(&cache);
+  ctgGetGlobalCacheSize(&cacheSize);
 
   qDebug("## Global Stat Info %s ##", "begin");
   qDebug("##            \t%s \t%s \t%s ##", "Num", "Hit", "Nhit");
@@ -555,6 +558,7 @@ int32_t ctgdShowStatInfo(void) {
     qDebug("#  %s \t%" PRIu64 " \t%" PRIu64 " \t%" PRIu64 " #", gCtgStatItem[i].name, cache.cacheNum[i], cache.cacheHit[i], cache.cacheNHit[i]);
   }
   qDebug("## Global Stat Info %s ##", "end");
+  qDebug("## Global Cache Size: %" PRIu64, cacheSize);
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
