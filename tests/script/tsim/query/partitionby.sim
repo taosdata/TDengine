@@ -121,7 +121,7 @@ sql select count(*) from (select ts from $mt1 where ts is not null partition by 
 if $rows != 1 then
   return -1
 endi
-if $data00 != 2 then
+if $data00 != 4 then
   return -1
 endi
 
@@ -129,7 +129,7 @@ sql select count(*) from (select ts from $mt1 where ts is not null partition by 
 if $rows != 1 then
   return -1
 endi
-if $data00 != 8 then
+if $data00 != 16 then
   return -1
 endi
 

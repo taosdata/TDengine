@@ -139,6 +139,12 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   }
 
   SOperatorInfo* pDownstream = pOperator->pDownstream[0];
+
+  // the scan order may be different from the output result order for agg interval operator.
+  if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL) {
+    order = ((SIntervalAggOperatorInfo*) pDownstream->info)->resultTsOrder;
+  }
+
   while (1) {
     SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
     if (pBlock == NULL) {
@@ -162,11 +168,24 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         pInfo->curGroupId = pInfo->pRes->info.id.groupId;  // the first data block
         pInfo->totalInputRows += pInfo->pRes->info.rows;
 
-        if (order == pInfo->pFillInfo->order) {
+        if (order == TSDB_ORDER_ASC) {
+          int64_t skey = pBlock->info.window.skey;
+          if (skey < pInfo->pFillInfo->start) {  // the start key may be smaller than the
+            ASSERT( taosFillNotStarted(pInfo->pFillInfo));
+            taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);
+          }
+
           taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, pBlock->info.window.ekey);
         } else {
+          int64_t ekey = pBlock->info.window.ekey;
+          if (ekey > pInfo->pFillInfo->start) {
+            ASSERT( taosFillNotStarted(pInfo->pFillInfo));
+            taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, ekey);
+          }
+
           taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, pBlock->info.window.skey);
         }
+
         taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
       } else if (pInfo->curGroupId != pBlock->info.id.groupId) {  // the new group data block
         pInfo->existNewGroupBlock = pBlock;
@@ -256,11 +275,8 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
                             const char* id, SInterval* pInterval, int32_t fillType, int32_t order) {
   SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols, pValNode);
 
-  STimeWindow w = {0};
-  int64_t     startKey = (order == TSDB_ORDER_ASC) ? win.skey : win.ekey;
-
-  getInitialStartTimeWindow(pInterval, startKey, &w, order == TSDB_ORDER_ASC);
-  pInfo->pFillInfo = taosCreateFillInfo(w.skey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
+  int64_t startKey = (order == TSDB_ORDER_ASC) ? win.skey : win.ekey;
+  pInfo->pFillInfo = taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, capacity, pInterval, fillType, pColInfo,
                                         pInfo->primaryTsCol, order, id);
 
   if (order == TSDB_ORDER_ASC) {
