@@ -42,8 +42,7 @@ go build -C plugins/opc \
 """
 
 [tasks.package]
-command = "sh"
-args = ["-c", "scripts/package.sh"]
+script = { file = "./scripts/package.sh" }
 dependencies = ["build-all"]
 
 [tasks.install]
