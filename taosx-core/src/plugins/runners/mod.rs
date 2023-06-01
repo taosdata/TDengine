@@ -43,3 +43,9 @@ pub fn get_plugins_info() -> Vec<(&'static str, PathBuf, String)> {
     }
     plugins
 }
+
+#[test]
+fn info() {
+    let info = get_plugins_info();
+    dbg!(info);
+}

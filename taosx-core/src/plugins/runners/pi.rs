@@ -1,4 +1,6 @@
-use std::{io::prelude::*, num::ParseIntError, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
+};
 
 use anyhow::Context;
 use chrono::{Local, NaiveDateTime};
@@ -228,9 +230,13 @@ impl PiConfig {
     }
 }
 
-const PI_CONNECTOR_PATH: &'static str = "C:\\TDengine\\xplugins\\pi\\TDPIConnector.Service.exe";
-const PI_BACKFILL_PATH: &'static str = "C:\\TDengine\\xplugins\\pi\\TDBackfill.exe";
+fn pi_exe_path() -> PathBuf {
+    super::get_plugin_dir("pi").join("taosx-pi.exe")
+}
 
+fn pi_backfill_exe_path() -> PathBuf {
+    super::get_plugin_dir("pi").join("taosx-pi-backfill.exe")
+}
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 pub async fn pi_to_taos(
     from: Dsn,
@@ -305,7 +311,7 @@ pub async fn pi_to_taos(
     let child_command;
     match driver.as_str() {
         "pi" => {
-            let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
+            let mut command = async_process::Command::new(pi_exe_path());
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
@@ -315,7 +321,7 @@ pub async fn pi_to_taos(
                 .context("Start PI collector error")?;
         }
         "pibackfill" => {
-            let mut command = async_process::Command::new(PI_BACKFILL_PATH);
+            let mut command = async_process::Command::new(pi_backfill_exe_path());
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
@@ -413,7 +419,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
+    let mut command = async_process::Command::new(pi_exe_path());
     let point_filter = if let Some(pf) = data.pattern.clone() {
         pf
     } else {

@@ -153,7 +153,7 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     Ok((
         "influxdb",
         path,
-        String::from_utf8_lossy(&output.stdout).to_string(),
+        String::from_utf8_lossy(&output.stdout).trim().to_string(),
     ))
 }
 

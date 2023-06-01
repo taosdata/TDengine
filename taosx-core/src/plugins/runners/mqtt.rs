@@ -88,7 +88,10 @@ impl MqttConfig {
         for i in 0..topics_vec.len() {
             let pair = topics_vec[i].split("::").collect_vec();
             if pair.len() != 2 {
-                return Err(MqttConfigError::MqttConfigParseError(format!("topic config error: {}", topics_vec[i])));
+                return Err(MqttConfigError::MqttConfigParseError(format!(
+                    "topic config error: {}",
+                    topics_vec[i]
+                )));
             }
             let topic = String::from(pair[0]);
             let qos = pair[1]
@@ -148,11 +151,13 @@ fn mqtt_exe_path() -> PathBuf {
 }
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     let path = mqtt_exe_path();
-    let output = std::process::Command::new(&path).arg("version").output()?;
+    let output = std::process::Command::new(&path)
+        .arg("--version")
+        .output()?;
     Ok((
         "mqtt",
         path,
-        String::from_utf8_lossy(&output.stdout).to_string(),
+        String::from_utf8_lossy(&output.stderr).trim().to_string(),
     ))
 }
 pub async fn mqtt_to_taos(

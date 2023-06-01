@@ -612,16 +612,18 @@ fn exe_path() -> PathBuf {
 
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     let path = exe_path();
-    let output = std::process::Command::new(&path)
-        .arg("version")
-        .output()?;
+    let output = std::process::Command::new(&path).arg("version").output()?;
     Ok((
         "opc",
         path,
-        String::from_utf8_lossy(&output.stdout).to_string(),
+        String::from_utf8_lossy(&output.stdout).trim().to_string(),
     ))
 }
-pub(crate) async fn opc_config_from(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OpcTableConfig> {
+pub(crate) async fn opc_config_from(
+    taos: &Taos,
+    dsn: &Dsn,
+    port: u16,
+) -> anyhow::Result<OpcTableConfig> {
     let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect)?;
     config.parse_tables_with(taos).await
 }
