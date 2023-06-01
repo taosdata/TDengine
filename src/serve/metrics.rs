@@ -78,7 +78,7 @@ impl Metrics {
         // }
         let recorder = if let Some(push) = self.push {
             let interval = self.push_interval.unwrap_or(Duration::from_secs(30));
-            exporter = exporter.with_push_gateway(push, interval)?;
+            exporter = exporter.with_push_gateway(push, interval, None, None)?;
 
             let (recorder, exporter) = exporter.build()?;
             tokio::spawn(exporter);
