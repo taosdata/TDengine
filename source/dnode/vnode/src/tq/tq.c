@@ -633,7 +633,16 @@ int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   int ret = 0;
   SMqRebVgReq req = {0};
-  tDecodeSMqRebVgReq(msg, &req);
+  SDecoder       dc = {0};
+
+  tDecoderInit(&dc, msg, msgLen);
+
+  // decode req
+  if (tDecodeSMqRebVgReq(&dc, &req) < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
+    return -1;
+  }
 
   SVnode* pVnode = pTq->pVnode;
   int32_t vgId = TD_VID(pVnode);
@@ -680,8 +689,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     pHandle->snapshotVer = ver;
 
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      pHandle->execHandle.execCol.qmsg = req.qmsg;
-      req.qmsg = NULL;
+      pHandle->execHandle.execCol.qmsg = taosStrdup(req.qmsg);;
 
       pHandle->execHandle.task = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, vgId,
                                                           &pHandle->execHandle.numOfCols, req.newConsumerId);
@@ -701,8 +709,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       pHandle->pWalReader = walOpenReader(pVnode->pWal, NULL);
       pHandle->execHandle.execTb.suid = req.suid;
-      pHandle->execHandle.execTb.qmsg = req.qmsg;
-      req.qmsg = NULL;
+      pHandle->execHandle.execTb.qmsg = taosStrdup(req.qmsg);
 
       if(strcmp(pHandle->execHandle.execTb.qmsg, "") != 0) {
         if (nodesStringToNode(pHandle->execHandle.execTb.qmsg, &pHandle->execHandle.execTb.node) != 0) {
@@ -766,7 +773,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
 end:
   taosWUnLockLatch(&pTq->lock);
-  taosMemoryFree(req.qmsg);
+  tDecoderClear(&dc);
   return ret;
 }
 
