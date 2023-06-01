@@ -2,8 +2,7 @@ use std::{
     collections::HashMap, f32::consts::E, io::prelude::*, num::ParseIntError, str::FromStr,
     sync::Arc, time::Duration,
     fs,
-    fs::File,
-    path::Path,
+    path::PathBuf,
     process::Stdio,
 };
 
@@ -632,11 +631,11 @@ const LOG_PATH: &str = {
 const LOG_FILE: &str = {
     #[cfg(all(target_os = "windows"))]
     {
-        "\\opc.log"
+        "opc.log"
     }
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        "/opc.log"
+        "opc.log"
     }
 };
 
@@ -717,17 +716,20 @@ pub async fn opc_to_taos(
     let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(OPC_CONNECTOR_PATH);
 
-    fs::create_dir_all(LOG_PATH)?;
+    let mut log_path = PathBuf::from(LOG_PATH);
 
-    let log_file_name = format!("{LOG_PATH}{LOG_FILE}");
+    fs::create_dir_all(&log_path)?;
 
-    if !Path::new(&log_file_name).exists() {
-        File::create(&log_file_name)?;
-    }
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
     
     let log_file = fs::OpenOptions::new()
     .append(true)
-    .open(&log_file_name)
+    .create(true)
+    .open(&log_path)
     .unwrap();
     let log_io = Stdio::from(log_file);
 
