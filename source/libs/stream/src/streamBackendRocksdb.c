@@ -719,7 +719,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
     qDebug("succ to open rocksdb cf");
   }
   // close default cf
-  rocksdb_column_family_handle_destroy(cfHandle[0]);
+  if (((rocksdb_column_family_handle_t**)cfHandle)[0] != 0) rocksdb_column_family_handle_destroy(cfHandle[0]);
   rocksdb_options_destroy(cfOpts[0]);
   handle->db = db;
 

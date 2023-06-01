@@ -205,24 +205,25 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 
 // add to the ready tasks hash map, not the restored tasks hash map
 int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
-  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
-    tFreeStreamTask(pTask);
-    return -1;
-  }
-
-  if (streamMetaSaveTask(pMeta, pTask) < 0) {
-    tFreeStreamTask(pTask);
-    return -1;
-  }
-
-  if (streamMetaCommit(pMeta) < 0) {
-    tFreeStreamTask(pTask);
-    return -1;
-  }
-
   void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
   if (p == NULL) {
+    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
+      tFreeStreamTask(pTask);
+      return -1;
+    }
+
+    if (streamMetaSaveTask(pMeta, pTask) < 0) {
+      tFreeStreamTask(pTask);
+      return -1;
+    }
+
+    if (streamMetaCommit(pMeta) < 0) {
+      tFreeStreamTask(pTask);
+      return -1;
+    }
     taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+  } else {
+    return 0;
   }
 
   taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, POINTER_BYTES);
@@ -359,18 +360,19 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     tDecodeStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
 
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.version) < 0) {
-      tdbFree(pKey);
-      tdbFree(pVal);
-      tdbTbcClose(pCur);
-      return -1;
-    }
-
+    // remove duplicate
     void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
     if (p == NULL) {
+      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.version) < 0) {
+        tdbFree(pKey);
+        tdbFree(pVal);
+        tdbTbcClose(pCur);
+        return -1;
+      }
       taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+    } else {
+      continue;
     }
-
     if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
