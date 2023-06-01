@@ -417,7 +417,7 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
     SDataFileWriterConfig config = {
         .tsdb = merger->tsdb,
         .maxRow = merger->maxRow,
-        .f =
+        .of =
             {
                 [0] =
                     {

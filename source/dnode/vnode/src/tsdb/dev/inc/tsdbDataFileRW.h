@@ -47,9 +47,17 @@ int32_t tsdbDataFileReadDelData(SDataFileReader *reader, const SDelBlk *delBlk, 
 // SDataFileWriter =============================================
 typedef struct SDataFileWriter SDataFileWriter;
 typedef struct SDataFileWriterConfig {
-  STsdb  *tsdb;
-  STFile  f[TSDB_FTYPE_MAX];
-  int32_t maxRow;
+  STsdb    *tsdb;
+  bool      hasOldFile;
+  STFile    of[TSDB_FTYPE_MAX];
+  int32_t   maxRow;
+  int32_t   szPage;
+  int64_t   cid;
+  SDiskID   did[1];
+  int64_t   compactVersion;
+  SSkmInfo *skmTb;
+  SSkmInfo *skmRow;
+  uint8_t **bufArr;
 } SDataFileWriterConfig;
 
 int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer);

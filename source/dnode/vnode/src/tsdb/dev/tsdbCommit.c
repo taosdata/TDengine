@@ -118,23 +118,19 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
 
   // stt writer
   if (!committer->ctx->fset) {
-    code = tsdbCommitOpenNewSttWriter(committer);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    return tsdbCommitOpenNewSttWriter(committer);
   }
 
   const SSttLvl *lvl0 = tsdbTFileSetGetSttLvl(committer->ctx->fset, 0);
   if (lvl0 == NULL || TARRAY2_SIZE(lvl0->fobjArr) == 0) {
-    code = tsdbCommitOpenNewSttWriter(committer);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    return tsdbCommitOpenNewSttWriter(committer);
   }
 
   STFileObj *fobj = TARRAY2_LAST(lvl0->fobjArr);
   if (fobj->f->stt->nseg >= committer->sttTrigger) {
-    code = tsdbCommitOpenNewSttWriter(committer);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    return tsdbCommitOpenNewSttWriter(committer);
   } else {
-    code = tsdbCommitOpenExistSttWriter(committer, fobj->f);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    return tsdbCommitOpenExistSttWriter(committer, fobj->f);
   }
 
   // data writer
@@ -142,10 +138,6 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
     // TODO
   }
 
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
-  }
   return code;
 }
 
