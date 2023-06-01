@@ -95,6 +95,7 @@ sys = ["taos/native"]
 rustls = ["taos/ws-rustls"]
 native-tls = ["taos/ws-native-tls"]
 disable-enterprise-only-validation = []
+disable-enterprise-connector-validation = []
 
 [build-dependencies]
 dotenv = "0.15.0"
