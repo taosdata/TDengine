@@ -176,7 +176,7 @@ static int32_t tsdbMergeToDataTableBegin(SMerger *merger) {
 
   merger->ctx->bDataIdx = 0;
   for (int32_t i = 0; i < ARRAY_SIZE(merger->ctx->bData); i++) {
-    code = tBlockDataInit(merger->ctx->bData, merger->ctx->tbid, merger->skmTb->pTSchema, NULL, 0);
+    code = tBlockDataInit(merger->ctx->bData + i, merger->ctx->tbid, merger->skmTb->pTSchema, NULL, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

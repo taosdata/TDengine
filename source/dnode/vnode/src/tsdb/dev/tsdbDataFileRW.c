@@ -456,7 +456,7 @@ static int32_t tsdbDataFileWriteDataBlock(SDataFileWriter *writer, SBlockData *b
   code = TARRAY2_APPEND_PTR(writer->dataBlkArray, dataBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tBlockDataClear(writer->bData);
+  tBlockDataClear(bData);
 
 _exit:
   if (code) {
