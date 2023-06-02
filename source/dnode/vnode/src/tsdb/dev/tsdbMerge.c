@@ -127,7 +127,7 @@ static int32_t tsdbMergeToDataTableEnd(SMerger *merger) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tsdbDataFileFLushTSDataBlock(merger->dataWriter);
+    code = tsdbDataFileFlushTSDataBlock(merger->dataWriter);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     for (int32_t i = numRow; i < merger->ctx->bData[pidx].nRow; i++) {
@@ -406,54 +406,35 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
   }
 
   if (merger->ctx->toData) {
-    // TODO
-    SDiskID did[1];
+    SDiskID did;
     int32_t level = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now);
-    if (tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, did) < 0) {
+
+    if (tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, &did) < 0) {
       code = TSDB_CODE_FS_NO_VALID_DISK;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    SDataFileWriterConfig config = {
+    SDataFileWriterConfig config[1] = {{
         .tsdb = merger->tsdb,
+        .cmprAlg = merger->cmprAlg,
         .maxRow = merger->maxRow,
-        .of =
-            {
-                [0] =
-                    {
-                        .type = TSDB_FTYPE_HEAD,
-                        .did = did[0],
-                        .fid = merger->ctx->fset->fid,
-                        .cid = merger->cid,
-                        .size = 0,
-                    },
-                [1] =
-                    {
-                        .type = TSDB_FTYPE_DATA,
-                        .did = did[0],
-                        .fid = merger->ctx->fset->fid,
-                        .cid = merger->cid,
-                        .size = 0,
-                    },
-                [2] =
-                    {
-                        .type = TSDB_FTYPE_SMA,
-                        .did = did[0],
-                        .fid = merger->ctx->fset->fid,
-                        .cid = merger->cid,
-                        .size = 0,
-                    },
-                [3] =
-                    {
-                        .type = TSDB_FTYPE_TOMB,
-                        .did = did[0],
-                        .fid = merger->ctx->fset->fid,
-                        .cid = merger->cid,
-                        .size = 0,
-                    },
-            },
-    };
-    code = tsdbDataFileWriterOpen(&config, &merger->dataWriter);
+        .szPage = merger->szPage,
+        .fid = merger->ctx->fset->fid,
+        .cid = merger->cid,
+        .did = did,
+        .compactVersion = merger->compactVersion,
+    }};
+
+    for (int32_t i = 0; i < TSDB_FTYPE_MAX; i++) {
+      if (merger->ctx->fset->farr[i]) {
+        config->files[i].exist = true;
+        config->files[i].file = merger->ctx->fset->farr[i]->f[0];
+      } else {
+        config->files[i].exist = false;
+      }
+    }
+
+    code = tsdbDataFileWriterOpen(config, &merger->dataWriter);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

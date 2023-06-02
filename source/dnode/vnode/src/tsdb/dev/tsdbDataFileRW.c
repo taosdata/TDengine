@@ -24,66 +24,197 @@ typedef struct {
 struct SDataFileReader {
   struct SDataFileReaderConfig config[1];
 
+  uint8_t *bufArr[5];
+
   struct {
-    bool blockIdxLoaded;
+    bool    footerLoaded;
+    bool    blockIdxLoaded;
+    TABLEID tbid[1];
   } ctx[1];
 
-  STsdbFD       *fd[TSDB_FTYPE_MAX];
+  STsdbFD *fd[TSDB_FTYPE_MAX];
+
+  SDataFooter    footer[1];
   TBlockIdxArray blockIdxArray[1];
+  TDataBlkArray  dataBlkArray[1];
 };
+
+static int32_t tsdbDataFileReadFooter(SDataFileReader *reader) {
+  if (!reader->config->files[TSDB_FTYPE_HEAD].exist  //
+      || reader->ctx->footerLoaded) {
+    return 0;
+  }
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code =
+      tsdbReadFile(reader->fd[TSDB_FTYPE_HEAD], reader->config->files[TSDB_FTYPE_HEAD].file.size - sizeof(SDataFooter),
+                   (uint8_t *)reader->footer, sizeof(SDataFooter));
+  TSDB_CHECK_CODE(code, lino, _exit);
+  reader->ctx->footerLoaded = true;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
 
 int32_t tsdbDataFileReaderOpen(const char *fname[], const SDataFileReaderConfig *config, SDataFileReader **reader) {
   int32_t code = 0;
-  int32_t lino;
-  int32_t vid = TD_VID(config->tsdb->pVnode);
+  int32_t lino = 0;
 
-  reader[0] = taosMemoryCalloc(1, sizeof(SDataFileReader));
+  reader[0] = taosMemoryCalloc(1, sizeof(**reader));
   if (!reader[0]) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   reader[0]->config[0] = config[0];
+  if (!reader[0]->config->bufArr) {
+    reader[0]->config->bufArr = reader[0]->bufArr;
+  }
 
-  for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
-    if (fname[i]) {
+  if (fname) {
+    for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
+      if (fname[i] == NULL) continue;
+
       code = tsdbOpenFile(fname[i], config->szPage, TD_FILE_READ, &reader[0]->fd[i]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  } else {
+    for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
+      if (!config->files[i].exist) continue;
+
+      char fname1[TSDB_FILENAME_LEN];
+      tsdbTFileName(config->tsdb, &config->files[i].file, fname1);
+      code = tsdbOpenFile(fname1, config->szPage, TD_FILE_READ, &reader[0]->fd[i]);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
-  // TODO
-
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(config->tsdb->pVnode), lino, code);
   }
   return code;
 }
 
-int32_t tsdbDataFileReaderClose(SDataFileReader *reader) {
-  // TODO
+int32_t tsdbDataFileReaderClose(SDataFileReader **reader) {
+  if (reader[0] == NULL) return 0;
+
+  TARRAY2_FREE(reader[0]->dataBlkArray);
+  TARRAY2_FREE(reader[0]->blockIdxArray);
+
+  for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
+    tsdbCloseFile(&reader[0]->fd[i]);
+  }
+
+  for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->bufArr); ++i) {
+    tFree(reader[0]->bufArr[i]);
+  }
+  taosMemoryFree(reader[0]);
+  reader[0] = NULL;
+
   return 0;
 }
 
 int32_t tsdbDataFileReadBlockIdx(SDataFileReader *reader, const TBlockIdxArray **blockIdxArray) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tsdbDataFileReadFooter(reader);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   if (!reader->ctx->blockIdxLoaded) {
-    // TODO
+    TARRAY2_CLEAR(reader->blockIdxArray, NULL);
+
+    if (reader->config->files[TSDB_FTYPE_HEAD].exist  //
+        && reader->footer->blockIdxPtr->size) {
+      code = tRealloc(&reader->config->bufArr[0], reader->footer->blockIdxPtr->size);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tsdbReadFile(reader->fd[TSDB_FTYPE_HEAD], reader->footer->blockIdxPtr->offset, reader->config->bufArr[0],
+                          reader->footer->blockIdxPtr->size);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      int32_t size = reader->footer->blockIdxPtr->size / sizeof(SBlockIdx);
+      for (int32_t i = 0; i < size; ++i) {
+        code = TARRAY2_APPEND_PTR(reader->blockIdxArray, ((SBlockIdx *)reader->config->bufArr[0]) + i);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    }
+
     reader->ctx->blockIdxLoaded = true;
   }
+
   blockIdxArray[0] = reader->blockIdxArray;
-  return 0;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+  }
+  return code;
 }
 
 int32_t tsdbDataFileReadDataBlk(SDataFileReader *reader, const SBlockIdx *blockIdx,
                                 const TDataBlkArray **dataBlkArray) {
-  // TODO
-  return 0;
+  ASSERT(reader->ctx->footerLoaded);
+
+  if (reader->ctx->tbid->suid == blockIdx->suid && reader->ctx->tbid->uid == blockIdx->uid) {
+    dataBlkArray[0] = reader->dataBlkArray;
+    return 0;
+  }
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  reader->ctx->tbid->suid = blockIdx->suid;
+  reader->ctx->tbid->uid = blockIdx->uid;
+
+  TARRAY2_CLEAR(reader->dataBlkArray, NULL);
+
+  code = tRealloc(&reader->config->bufArr[0], blockIdx->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbReadFile(reader->fd[TSDB_FTYPE_HEAD], blockIdx->offset, reader->config->bufArr[0], blockIdx->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  int32_t size = blockIdx->size / sizeof(SDataBlk);
+  for (int32_t i = 0; i < size; ++i) {
+    code = TARRAY2_APPEND_PTR(reader->dataBlkArray, ((SDataBlk *)reader->config->bufArr[0]) + i);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  dataBlkArray[0] = reader->dataBlkArray;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+  }
+  return code;
 }
 
 int32_t tsdbDataFileReadDataBlock(SDataFileReader *reader, const SDataBlk *dataBlk, SBlockData *bData) {
-  // TODO
-  return 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tRealloc(&reader->config->bufArr[0], dataBlk->aSubBlock->szBlock);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbReadFile(reader->fd[TSDB_FTYPE_DATA], dataBlk->aSubBlock->offset, reader->config->bufArr[0],
+                      dataBlk->aSubBlock->szBlock);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tDecmprBlockData(reader->config->bufArr[0], dataBlk->aSubBlock->szBlock, bData, &reader->config->bufArr[1]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+  }
+  return code;
 }
 
 // SDataFileWriter =============================================
@@ -104,11 +235,10 @@ struct SDataFileWriter {
     int32_t               dataBlkArrayIdx;
     SBlockData            bData[1];
     int32_t               iRow;
-
-    TABLEID tbid[1];
+    TABLEID               tbid[1];
   } ctx[1];
 
-  STFile   file[TSDB_FTYPE_MAX];
+  STFile   files[TSDB_FTYPE_MAX];
   STsdbFD *fd[TSDB_FTYPE_MAX];
 
   SDataFooter    footer[1];
@@ -123,14 +253,14 @@ static int32_t tsdbDataFileWriteBlockIdx(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  writer->footer->blockIdxPtr->offset = writer->file[TSDB_FTYPE_HEAD].size;
+  writer->footer->blockIdxPtr->offset = writer->files[TSDB_FTYPE_HEAD].size;
   writer->footer->blockIdxPtr->size = TARRAY2_DATA_LEN(writer->blockIdxArray);
 
   if (writer->footer->blockIdxPtr->size) {
     code = tsdbWriteFile(writer->fd[TSDB_FTYPE_HEAD], writer->footer->blockIdxPtr->offset,
                          (void *)TARRAY2_DATA(writer->blockIdxArray), writer->footer->blockIdxPtr->size);
     TSDB_CHECK_CODE(code, lino, _exit);
-    writer->file[TSDB_FTYPE_HEAD].size += writer->footer->blockIdxPtr->size;
+    writer->files[TSDB_FTYPE_HEAD].size += writer->footer->blockIdxPtr->size;
   }
 
 _exit:
@@ -150,6 +280,39 @@ static int32_t tsdbDataFileWriterDoClose(SDataFileWriter *writer) {
   return 0;
 }
 
+static int32_t tsdbDataFileWriterDoOpenReader(SDataFileWriter *writer) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
+    if (writer->config->files[i].exist) {
+      SDataFileReaderConfig config[1] = {{
+          .tsdb = writer->config->tsdb,
+          .szPage = writer->config->szPage,
+      }};
+
+      for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
+        config->files[i].exist = writer->config->files[i].exist;
+        config->files[i].file = writer->config->files[i].file;
+      }
+
+      code = tsdbDataFileReaderOpen(NULL, config, &writer->ctx->reader);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      break;
+    }
+  }
+
+  code = tsdbDataFileReadBlockIdx(writer->ctx->reader, &writer->ctx->blockIdxArray);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
 static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -159,31 +322,48 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
   if (!writer->config->bufArr) writer->config->bufArr = writer->bufArr;
 
   // open reader
-  if (writer->config->hasOldFile) {
-    // TODO
+  code = tsdbDataFileWriterDoOpenReader(writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // .head
+  writer->files[TSDB_FTYPE_HEAD] = (STFile){
+      .type = TSDB_FTYPE_HEAD,
+      .did = writer->config->did,
+      .fid = writer->config->fid,
+      .cid = writer->config->cid,
+      .size = 0,
+  };
+
+  // .data
+  if (writer->config->files[TSDB_FTYPE_DATA].exist) {
+    writer->files[TSDB_FTYPE_DATA] = writer->config->files[TSDB_FTYPE_DATA].file;
+  } else {
+    writer->files[TSDB_FTYPE_DATA] = writer->files[TSDB_FTYPE_HEAD];
+    writer->files[TSDB_FTYPE_DATA].type = TSDB_FTYPE_DATA;
   }
 
-  // open writer
-  for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
-    char fname[TSDB_FILENAME_LEN];
-
-    tsdbTFileName(writer->config->tsdb, writer->file + i, fname);
-    int32_t flag = TD_FILE_WRITE;  // TODO
-
-    code = tsdbOpenFile(fname, writer->config->szPage, flag, &writer->fd[i]);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    // writer header
-    if (0) {
-      // TODO
-    }
+  // .sma
+  if (writer->config->files[TSDB_FTYPE_SMA].exist) {
+    writer->files[TSDB_FTYPE_SMA] = writer->config->files[TSDB_FTYPE_SMA].file;
+  } else {
+    writer->files[TSDB_FTYPE_SMA] = writer->files[TSDB_FTYPE_HEAD];
+    writer->files[TSDB_FTYPE_SMA].type = TSDB_FTYPE_SMA;
   }
 
-  writer->ctx->opened = true;
+  // .tomb (todo)
+  writer->files[TSDB_FTYPE_TOMB] = (STFile){
+      .type = TSDB_FTYPE_TOMB,
+      .did = writer->config->did,
+      .fid = writer->config->fid,
+      .cid = writer->config->cid,
+      .size = 0,
+  };
 
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  } else {
+    writer->ctx->opened = true;
   }
   return code;
 }
@@ -228,16 +408,16 @@ static int32_t tsdbDataFileWriteDataBlock(SDataFileWriter *writer, SBlockData *b
   code = tCmprBlockData(bData, writer->config->cmprAlg, NULL, NULL, writer->config->bufArr, sizeArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  dataBlk->aSubBlock->offset = writer->file[TSDB_FTYPE_DATA].size;
+  dataBlk->aSubBlock->offset = writer->files[TSDB_FTYPE_DATA].size;
   dataBlk->aSubBlock->szKey = sizeArr[3] + sizeArr[2];
   dataBlk->aSubBlock->szBlock = dataBlk->aSubBlock->szKey + sizeArr[1] + sizeArr[0];
 
   for (int32_t i = 3; i >= 0; --i) {
     if (sizeArr[i]) {
-      code = tsdbWriteFile(writer->fd[TSDB_FTYPE_DATA], writer->file[TSDB_FTYPE_DATA].size, writer->config->bufArr[i],
+      code = tsdbWriteFile(writer->fd[TSDB_FTYPE_DATA], writer->files[TSDB_FTYPE_DATA].size, writer->config->bufArr[i],
                            sizeArr[i]);
       TSDB_CHECK_CODE(code, lino, _exit);
-      writer->file[TSDB_FTYPE_DATA].size += sizeArr[i];
+      writer->files[TSDB_FTYPE_DATA].size += sizeArr[i];
     }
   }
 
@@ -260,14 +440,14 @@ static int32_t tsdbDataFileWriteDataBlock(SDataFileWriter *writer, SBlockData *b
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  dataBlk->smaInfo.offset = writer->file[TSDB_FTYPE_SMA].size;
+  dataBlk->smaInfo.offset = writer->files[TSDB_FTYPE_SMA].size;
   dataBlk->smaInfo.size = TARRAY2_DATA_LEN(smaArr);
 
   if (dataBlk->smaInfo.size) {
     code = tsdbWriteFile(writer->fd[TSDB_FTYPE_SMA], dataBlk->smaInfo.offset, (const uint8_t *)TARRAY2_DATA(smaArr),
                          dataBlk->smaInfo.size);
     TSDB_CHECK_CODE(code, lino, _exit);
-    writer->file[TSDB_FTYPE_SMA].size += dataBlk->smaInfo.size;
+    writer->files[TSDB_FTYPE_SMA].size += dataBlk->smaInfo.size;
   }
 
   TARRAY2_FREE(smaArr);
@@ -276,9 +456,7 @@ static int32_t tsdbDataFileWriteDataBlock(SDataFileWriter *writer, SBlockData *b
   code = TARRAY2_APPEND_PTR(writer->dataBlkArray, dataBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (bData == writer->bData) {
-    tBlockDataClear(writer->bData);
-  }
+  tBlockDataClear(writer->bData);
 
 _exit:
   if (code) {
@@ -296,13 +474,13 @@ static int32_t tsdbDataFileWriteDataBlk(SDataFileWriter *writer, const TDataBlkA
   SBlockIdx blockIdx[1];
   blockIdx->suid = writer->ctx->tbid->suid;
   blockIdx->uid = writer->ctx->tbid->uid;
-  blockIdx->offset = writer->file[TSDB_FTYPE_HEAD].size;
+  blockIdx->offset = writer->files[TSDB_FTYPE_HEAD].size;
   blockIdx->size = TARRAY2_DATA_LEN(dataBlkArray);
 
   code = tsdbWriteFile(writer->fd[TSDB_FTYPE_HEAD], blockIdx->offset, (const uint8_t *)TARRAY2_DATA(dataBlkArray),
                        blockIdx->size);
   TSDB_CHECK_CODE(code, lino, _exit);
-  writer->file[TSDB_FTYPE_HEAD].size += blockIdx->size;
+  writer->files[TSDB_FTYPE_HEAD].size += blockIdx->size;
 
   code = TARRAY2_APPEND_PTR(writer->blockIdxArray, blockIdx);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -351,7 +529,6 @@ _exit:
 static int32_t tsdbDataFileDoWriteTSData(SDataFileWriter *writer, TSDBROW *row) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = TD_VID(writer->config->tsdb->pVnode);
 
   while (writer->ctx->tbHasOldData) {
     for (; writer->ctx->iRow < writer->ctx->bData->nRow; writer->ctx->iRow++) {
@@ -406,7 +583,7 @@ _do_write:
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
   return code;
 }
@@ -520,10 +697,10 @@ static int32_t tsdbDataFileWriteFooter(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbWriteFile(writer->fd[TSDB_FTYPE_HEAD], writer->file[TSDB_FTYPE_HEAD].size, (const uint8_t *)writer->footer,
-                       sizeof(SDataFooter));
+  code = tsdbWriteFile(writer->fd[TSDB_FTYPE_HEAD], writer->files[TSDB_FTYPE_HEAD].size,
+                       (const uint8_t *)writer->footer, sizeof(SDataFooter));
   TSDB_CHECK_CODE(code, lino, _exit);
-  writer->file[TSDB_FTYPE_HEAD].size += sizeof(SDataFooter);
+  writer->files[TSDB_FTYPE_HEAD].size += sizeof(SDataFooter);
 
 _exit:
   if (code) {
@@ -549,22 +726,71 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, STFileOp *
   code = tsdbDataFileWriteFooter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
-    if (writer->fd[i]) {
-      code = tsdbFsyncFile(writer->fd[i]);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      tsdbCloseFile(&writer->fd[i]);
-    }
-  }
-
   // .head
+  int32_t ftype = TSDB_FTYPE_HEAD;
+  op[ftype] = (STFileOp){
+      .optype = TSDB_FOP_CREATE,
+      .fid = writer->config->fid,
+      .nf = writer->files[ftype],
+  };
 
   // .data
+  ftype = TSDB_FTYPE_DATA;
+  if (writer->fd[ftype]) {
+    if (!writer->config->files[ftype].exist) {
+      op[ftype] = (STFileOp){
+          .optype = TSDB_FOP_CREATE,
+          .fid = writer->config->fid,
+          .nf = writer->files[ftype],
+      };
+    } else if (writer->config->files[ftype].file.size == writer->files[ftype].size) {
+      op[ftype].optype = TSDB_FOP_NONE;
+    } else {
+      op[ftype] = (STFileOp){
+          .optype = TSDB_FOP_MODIFY,
+          .fid = writer->config->fid,
+          .of = writer->config->files[ftype].file,
+          .nf = writer->files[ftype],
+      };
+    }
+  } else {
+    op[ftype].optype = TSDB_FOP_NONE;
+  }
 
   // .sma
+  ftype = TSDB_FTYPE_SMA;
+  if (writer->fd[ftype]) {
+    if (!writer->config->files[ftype].exist) {
+      op[ftype] = (STFileOp){
+          .optype = TSDB_FOP_CREATE,
+          .fid = writer->config->fid,
+          .nf = writer->files[ftype],
+      };
+    } else if (writer->config->files[ftype].file.size == writer->files[ftype].size) {
+      op[ftype].optype = TSDB_FOP_NONE;
+    } else {
+      op[ftype] = (STFileOp){
+          .optype = TSDB_FOP_MODIFY,
+          .fid = writer->config->fid,
+          .of = writer->config->files[ftype].file,
+          .nf = writer->files[ftype],
+      };
+    }
+  } else {
+    op[ftype].optype = TSDB_FOP_NONE;
+  }
 
   // .tomb
+  op[TSDB_FTYPE_TOMB] = (STFileOp){
+      .optype = TSDB_FOP_NONE,
+  };
+
+  for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
+    if (!writer->fd[i]) continue;
+    code = tsdbFsyncFile(writer->fd[i]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    tsdbCloseFile(&writer->fd[i]);
+  }
 
 _exit:
   if (code) {
@@ -578,7 +804,6 @@ int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWri
   if (!writer[0]) return TSDB_CODE_OUT_OF_MEMORY;
 
   writer[0]->config[0] = config[0];
-  writer[0]->ctx->opened = false;
   return 0;
 }
 
@@ -610,12 +835,51 @@ _exit:
   return code;
 }
 
+static int32_t tsdbDataFileWriterOpenDataFD(SDataFileWriter *writer) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  for (int32_t i = 0; i < TSDB_FTYPE_TOMB /* TODO */; ++i) {
+    char    fname[TSDB_FILENAME_LEN];
+    int32_t flag = TD_FILE_READ | TD_FILE_WRITE;
+
+    if (writer->files[i].size == 0) {
+      flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
+    }
+
+    tsdbTFileName(writer->config->tsdb, &writer->files[i], fname);
+    code = tsdbOpenFile(fname, writer->config->szPage, flag, &writer->fd[i]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (writer->files[i].size == 0) {
+      uint8_t hdr[TSDB_FHDR_SIZE] = {0};
+
+      code = tsdbWriteFile(writer->fd[i], 0, hdr, TSDB_FHDR_SIZE);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      writer->files[i].size += TSDB_FHDR_SIZE;
+    }
+  }
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
 int32_t tsdbDataFileWriteTSData(SDataFileWriter *writer, SRowInfo *row) {
   int32_t code = 0;
   int32_t lino = 0;
 
   if (!writer->ctx->opened) {
     code = tsdbDataFileWriterDoOpen(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // open FD
+  if (!writer->fd[TSDB_FTYPE_DATA]) {
+    code = tsdbDataFileWriterOpenDataFD(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -643,23 +907,38 @@ int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *writer, SBlockData *bData)
   int32_t code = 0;
   int32_t lino = 0;
 
-  // ASSERT(bData->uid);
+  ASSERT(bData->uid);
 
-  // if (!writer->ctx->opened) {
-  //   code = tsdbDataFileWriterDoOpen(writer);
-  //   TSDB_CHECK_CODE(code, lino, _exit);
-  // }
+  if (!writer->ctx->opened) {
+    code = tsdbDataFileWriterDoOpen(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
-  // if (bData->uid != writer->ctx->tbid->uid) {
-  //   code = tsdbDataFileWriteTableDataEnd(writer);
-  //   TSDB_CHECK_CODE(code, lino, _exit);
+  if (!writer->fd[TSDB_FTYPE_DATA]) {
+    code = tsdbDataFileWriterOpenDataFD(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
-  //   code = tsdbDataFileWriteTableDataBegin(writer, (TABLEID *)bData);
-  //   TSDB_CHECK_CODE(code, lino, _exit);
-  // }
+  if (bData->uid != writer->ctx->tbid->uid) {
+    code = tsdbDataFileWriteTableDataEnd(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-  // code = tsdbDataFileDoWriteTableDataBlock(writer, bData);
-  // TSDB_CHECK_CODE(code, lino, _exit);
+    code = tsdbDataFileWriteTableDataBegin(writer, (TABLEID *)bData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (!writer->ctx->tbHasOldData   //
+      && writer->bData->nRow == 0  //
+  ) {
+    code = tsdbDataFileWriteDataBlock(writer, bData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    for (int32_t i = 0; i < bData->nRow; ++i) {
+      TSDBROW row[1] = {tsdbRowFromBlockData(bData, i)};
+      code = tsdbDataFileDoWriteTSData(writer, row);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  }
 
 _exit:
   if (code) {
@@ -668,8 +947,11 @@ _exit:
   return code;
 }
 
-int32_t tsdbDataFileFLushTSDataBlock(SDataFileWriter *writer) {
-  // if (writer->bData->nRow == 0) return 0;
-  // return tsdbDataFileDoWriteTableDataBlock(writer, writer->bData);
-  return 0;
+int32_t tsdbDataFileFlushTSDataBlock(SDataFileWriter *writer) {
+  ASSERT(writer->ctx->opened);
+
+  if (writer->bData->nRow == 0) return 0;
+  if (writer->ctx->tbHasOldData) return 0;
+
+  return tsdbDataFileWriteDataBlock(writer, writer->bData);
 }

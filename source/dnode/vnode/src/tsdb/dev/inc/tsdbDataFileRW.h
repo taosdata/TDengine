@@ -32,31 +32,36 @@ typedef TARRAY2(SColumnDataAgg) TColumnDataAggArray;
 typedef struct SDataFileReader SDataFileReader;
 typedef struct SDataFileReaderConfig {
   STsdb  *tsdb;
-  STFile  f[TSDB_FTYPE_MAX];
   int32_t szPage;
+  struct {
+    bool   exist;
+    STFile file;
+  } files[TSDB_FTYPE_MAX];
+  uint8_t **bufArr;
 } SDataFileReaderConfig;
 
 int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
                                SDataFileReader **reader);
-int32_t tsdbDataFileReaderClose(SDataFileReader *reader);
+int32_t tsdbDataFileReaderClose(SDataFileReader **reader);
 int32_t tsdbDataFileReadBlockIdx(SDataFileReader *reader, const TBlockIdxArray **blockIdxArray);
 int32_t tsdbDataFileReadDataBlk(SDataFileReader *reader, const SBlockIdx *blockIdx, const TDataBlkArray **dataBlkArray);
-
 int32_t tsdbDataFileReadDataBlock(SDataFileReader *reader, const SDataBlk *dataBlk, SBlockData *bData);
-int32_t tsdbDataFileReadDelData(SDataFileReader *reader, const SDelBlk *delBlk, SDelData *dData);
 
 // SDataFileWriter =============================================
 typedef struct SDataFileWriter SDataFileWriter;
 typedef struct SDataFileWriterConfig {
-  STsdb    *tsdb;
-  bool      hasOldFile;
-  STFile    of[TSDB_FTYPE_MAX];
-  int8_t    cmprAlg;
-  int32_t   maxRow;
-  int32_t   szPage;
-  int64_t   cid;
-  SDiskID   did[1];
-  int64_t   compactVersion;
+  STsdb  *tsdb;
+  int8_t  cmprAlg;
+  int32_t maxRow;
+  int32_t szPage;
+  int32_t fid;
+  int64_t cid;
+  SDiskID did;
+  int64_t compactVersion;
+  struct {
+    bool   exist;
+    STFile file;
+  } files[TSDB_FTYPE_MAX];
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
   uint8_t **bufArr;
@@ -66,7 +71,7 @@ int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWri
 int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, STFileOp op[/*TSDB_FTYPE_MAX*/]);
 int32_t tsdbDataFileWriteTSData(SDataFileWriter *writer, SRowInfo *row);
 int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *writer, SBlockData *bData);
-int32_t tsdbDataFileFLushTSDataBlock(SDataFileWriter *writer);
+int32_t tsdbDataFileFlushTSDataBlock(SDataFileWriter *writer);
 
 #ifdef __cplusplus
 }
