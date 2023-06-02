@@ -101,8 +101,11 @@ int32_t tqUnregisterPushHandle(STQ* pTq, void *handle) {
   STqHandle *pHandle = (STqHandle*)handle;
   int32_t    vgId = TD_VID(pTq->pVnode);
 
+  if(taosHashGetSize(pTq->pPushMgr) <= 0) {
+    return 0;
+  }
   int32_t ret = taosHashRemove(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey));
-  tqError("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
+  tqDebug("vgId:%d remove pHandle:%p,ret:%d consumer Id:0x%" PRIx64, vgId, pHandle, ret, pHandle->consumerId);
 
   if(pHandle->msg != NULL) {
     tqPushDataRsp(pHandle, vgId);

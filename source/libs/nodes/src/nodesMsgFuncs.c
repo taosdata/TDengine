@@ -2319,7 +2319,8 @@ enum {
   PHY_SORT_MERGE_JOIN_CODE_MERGE_CONDITION,
   PHY_SORT_MERGE_JOIN_CODE_ON_CONDITIONS,
   PHY_SORT_MERGE_JOIN_CODE_TARGETS,
-  PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER
+  PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER,
+  PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS
 };
 
 static int32_t physiJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2341,7 +2342,9 @@ static int32_t physiJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER, pNode->inputTsOrder);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS, nodeToMsg, pNode->pColEqualOnConditions);
+  }
   return code;
 }
 
@@ -2369,6 +2372,9 @@ static int32_t msgToPhysiJoinNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER:
         code = tlvDecodeEnum(pTlv, &pNode->inputTsOrder, sizeof(pNode->inputTsOrder));
+        break;
+      case PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pColEqualOnConditions);
         break;
       default:
         break;
@@ -2642,7 +2648,7 @@ enum {
 };
 
 static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const SWinodwPhysiNode* pNode = (const SWinodwPhysiNode*)pObj;
+  const SWindowPhysiNode* pNode = (const SWindowPhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_WINDOW_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2683,7 +2689,7 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
 }
 
 static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
-  SWinodwPhysiNode* pNode = (SWinodwPhysiNode*)pObj;
+  SWindowPhysiNode* pNode = (SWindowPhysiNode*)pObj;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;

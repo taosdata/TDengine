@@ -2504,7 +2504,7 @@ _exit:
   return code;
 }
 
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen) {
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
@@ -2516,6 +2516,9 @@ int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
       if (pBind->is_null && pBind->is_null[i]) {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
+      } else if (pBind->length[i] > buffMaxLen) {
+        uError("var data length too big, len:%d, max:%d", pBind->length[i], buffMaxLen);
+        return TSDB_CODE_INVALID_PARA;
       } else {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](
             pColData, (uint8_t *)pBind->buffer + pBind->buffer_length * i, pBind->length[i]);
@@ -3523,6 +3526,43 @@ static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum
   }
 }
 
+static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                int16_t *numOfNull) {
+  *(uint64_t *)sum = 0;
+  *(uint64_t *)max = 0;
+  *(uint64_t *)min = 0;
+  *numOfNull = 0;
+
+  switch (pColData->flag) {
+    case HAS_NONE:
+    case HAS_NULL:
+    case (HAS_NONE | HAS_NULL):
+      *numOfNull = pColData->nVal;
+      break;
+    case HAS_VALUE:
+      *numOfNull = 0;
+      break;
+    case (HAS_VALUE | HAS_NULL):
+    case (HAS_VALUE | HAS_NONE):
+      for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+        if (GET_BIT1(pColData->pBitMap, iVal) == 0) {
+          (*numOfNull)++;
+        }
+      }
+      break;
+    case (HAS_VALUE | HAS_NONE | HAS_NULL):
+      for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+        if (GET_BIT2(pColData->pBitMap, iVal) != 2) {
+          (*numOfNull)++;
+        }
+      }
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
+}
+
 void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull) = {
     NULL,
     tColDataCalcSMABool,           // TSDB_DATA_TYPE_BOOL
@@ -3532,14 +3572,14 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
     tColDataCalcSMABigInt,         // TSDB_DATA_TYPE_BIGINT
     tColDataCalcSMAFloat,          // TSDB_DATA_TYPE_FLOAT
     tColDataCalcSMADouble,         // TSDB_DATA_TYPE_DOUBLE
-    NULL,                          // TSDB_DATA_TYPE_VARCHAR
+    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_VARCHAR
     tColDataCalcSMABigInt,         // TSDB_DATA_TYPE_TIMESTAMP
-    NULL,                          // TSDB_DATA_TYPE_NCHAR
+    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_NCHAR
     tColDataCalcSMAUTinyInt,       // TSDB_DATA_TYPE_UTINYINT
     tColDataCalcSMATinyUSmallInt,  // TSDB_DATA_TYPE_USMALLINT
     tColDataCalcSMAUInt,           // TSDB_DATA_TYPE_UINT
     tColDataCalcSMAUBigInt,        // TSDB_DATA_TYPE_UBIGINT
-    NULL,                          // TSDB_DATA_TYPE_JSON
+    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_JSON
     NULL,                          // TSDB_DATA_TYPE_VARBINARY
     NULL,                          // TSDB_DATA_TYPE_DECIMAL
     NULL,                          // TSDB_DATA_TYPE_BLOB

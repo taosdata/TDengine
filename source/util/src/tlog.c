@@ -253,15 +253,15 @@ static void taosKeepOldLog(char *oldName) {
 
   (void)taosRenameFile(oldName, fileName);
 
-  if (tsLogKeepDays < 0) {
-    char compressFileName[LOG_FILE_NAME_LEN + 20];
-    snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
-    if (taosCompressFile(fileName, compressFileName) == 0) {
-      (void)taosRemoveFile(fileName);
-    }
+  char compressFileName[LOG_FILE_NAME_LEN + 20];
+  snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
+  if (taosCompressFile(fileName, compressFileName) == 0) {
+    (void)taosRemoveFile(fileName);
   }
 
-  taosRemoveOldFiles(tsLogDir, TABS(tsLogKeepDays));
+  if (tsLogKeepDays > 0) {
+    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  }
 }
 
 static void *taosThreadToOpenNewFile(void *param) {

@@ -523,7 +523,7 @@ static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, 
   for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
-    if ((!pColData->smaOn) || IS_VAR_DATA_TYPE(pColData->type) || ((pColData->flag & HAS_VALUE) == 0)) continue;
+    if ((!pColData->smaOn) || ((pColData->flag & HAS_VALUE) == 0)) continue;
 
     SColumnDataAgg sma = {.colId = pColData->cid};
     tColDataCalcSMA[pColData->type](pColData, &sma.sum, &sma.max, &sma.min, &sma.numOfNull);
