@@ -1122,12 +1122,12 @@ impl TaskController {
 
     pub async fn find_agent_by_name_and_userid(&self, name: &str, user_id: Option<&str>, id: Option<usize>) -> anyhow::Result<Vec<Agent>> {
         let mut sql = if id.is_some() {
-            format!("select * from agents where name = {}", name)
+            format!("select * from agents where name = '{}' and id != '{}'", name, id.unwrap())
         } else {
-            format!("select * from agents where name = {} and id != {}", name, id.unwrap())
+            format!("select * from agents where name = '{}'", name)
         };
         if user_id.is_some() {
-            sql.push_str(format!(" and user_id = {}", user_id.unwrap()).as_str());
+            sql.push_str(format!(" and user_id = '{}'", user_id.unwrap()).as_str());
         }
         let result: Vec<Agent> = sqlx::query_as(sql.as_str()).fetch_all(&self.pool).await?;
         Ok(result)
