@@ -1086,34 +1086,15 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
       }
     } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       if (isAdd) {
-        SArray*     qa = taosArrayInit(4, sizeof(tb_uid_t));
-        SMetaReader mr = {0};
-        metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
-        for (int32_t i = 0; i < taosArrayGetSize(tbUidList); ++i) {
-          uint64_t* id = (uint64_t*)taosArrayGet(tbUidList, i);
-
-          int32_t code = metaReaderGetTableEntryByUidCache(&mr, *id);
-          if (code != TSDB_CODE_SUCCESS) {
-            tqError("failed to get table meta, uid:%" PRIu64 " code:%s", *id, tstrerror(terrno));
-            continue;
-          }
-
-          tDecoderClear(&mr.coder);
-          if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pTqHandle->execHandle.execTb.suid) {
-            tqDebug("table uid %" PRId64 " does not add to tq handle", *id);
-            continue;
-          }
-
-          tqDebug("table uid %" PRId64 " add to tq handle", *id);
-          taosArrayPush(qa, id);
+        SArray* list = NULL;
+        int ret = qGetTableList(pTqHandle->execHandle.execTb.suid, pTq->pVnode, pTqHandle->execHandle.execTb.node, &list, pTqHandle->execHandle.task);
+        if(ret != TDB_CODE_SUCCESS) {
+          tqError("qGetTableList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey, pTqHandle->consumerId);
+          taosArrayDestroy(list);
+          return ret;
         }
-
-        metaReaderClear(&mr);
-        if (taosArrayGetSize(qa) > 0) {
-          tqReaderAddTbUidList(pTqHandle->execHandle.pTqReader, qa);
-        }
-
-        taosArrayDestroy(qa);
+        tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
+        taosArrayDestroy(list);
       } else {
         tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
       }

@@ -355,6 +355,11 @@ static int32_t collectMetaKeyFromCreateTopic(SCollectMetaKeyCxt* pCxt, SCreateTo
   if (NULL != pStmt->pQuery) {
     return collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
   }
+  if (NULL != pStmt->pWhere) {
+    int32_t code = collectMetaKeyFromRealTableImpl(pCxt, pStmt->subDbName, pStmt->subSTbName,
+                                                    AUTH_TYPE_READ);
+    return code;
+  }
   return TSDB_CODE_SUCCESS;
 }
 

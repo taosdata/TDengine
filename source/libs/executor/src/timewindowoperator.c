@@ -1623,7 +1623,7 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamInt
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup.parentType = type;
   pScanInfo->windowSup.pIntervalAggSup = &pInfo->aggSup;
-  if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
+  if (!pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = pAPI->updateInfoInitP(&pInfo->interval, pInfo->twAggSup.waterMark);
   }
 
@@ -2150,28 +2150,29 @@ static void doBuildPullDataBlock(SArray* array, int32_t* pIndex, SSDataBlock* pB
 }
 
 void processPullOver(SSDataBlock* pBlock, SHashObj* pMap, SInterval* pInterval) {
-  SColumnInfoData* pStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  SColumnInfoData* pStartCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   TSKEY*           tsData = (TSKEY*)pStartCol->pData;
-  SColumnInfoData* pEndCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  SColumnInfoData* pEndCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
   TSKEY*           tsEndData = (TSKEY*)pEndCol->pData;
   SColumnInfoData* pGroupCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   uint64_t*        groupIdData = (uint64_t*)pGroupCol->pData;
   int32_t          chId = getChildIndex(pBlock);
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
     TSKEY winTs = tsData[i];
-    while (winTs < tsEndData[i]) {
+    while (winTs <= tsEndData[i]) {
       SWinKey winRes = {.ts = winTs, .groupId = groupIdData[i]};
       void*   chIds = taosHashGet(pMap, &winRes, sizeof(SWinKey));
       if (chIds) {
         SArray* chArray = *(SArray**)chIds;
         int32_t index = taosArraySearchIdx(chArray, &chId, compareInt32Val, TD_EQ);
         if (index != -1) {
-          qDebug("===stream===window %" PRId64 " delete child id %d", winRes.ts, chId);
+          qDebug("===stream===retrive window %" PRId64 " delete child id %d", winRes.ts, chId);
           taosArrayRemove(chArray, index);
           if (taosArrayGetSize(chArray) == 0) {
             // pull data is over
             taosArrayDestroy(chArray);
             taosHashRemove(pMap, &winRes, sizeof(SWinKey));
+            qDebug("===stream===retrive pull data over.window %" PRId64 , winRes.ts);
           }
         }
       }
@@ -2903,7 +2904,7 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
   pScanInfo->pState = pAggSup->pState;
-  if ((!pScanInfo->igCheckUpdate || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) && !pScanInfo->pUpdateInfo) {
+  if (!pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = pAggSup->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark);
   }
   pScanInfo->twAggSup = *pTwSup;

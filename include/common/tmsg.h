@@ -2009,10 +2009,8 @@ typedef struct {
   int8_t withMeta;
   char*  sql;
   char   subDbName[TSDB_DB_FNAME_LEN];
-  union {
-    char* ast;
-    char  subStbName[TSDB_TABLE_FNAME_LEN];
-  };
+  char*  ast;
+  char   subStbName[TSDB_TABLE_FNAME_LEN];
 } SCMCreateTopicReq;
 
 int32_t tSerializeSCMCreateTopicReq(void* buf, int32_t bufLen, const SCMCreateTopicReq* pReq);
@@ -2822,6 +2820,7 @@ static FORCE_INLINE int32_t tEncodeSMqRebVgReq(void** buf, const SMqRebVgReq* pR
     tlen += taosEncodeString(buf, pReq->qmsg);
   } else if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
     tlen += taosEncodeFixedI64(buf, pReq->suid);
+    tlen += taosEncodeString(buf, pReq->qmsg);
   }
   return tlen;
 }
@@ -2838,6 +2837,7 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
     buf = taosDecodeString(buf, &pReq->qmsg);
   } else if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
     buf = taosDecodeFixedI64(buf, &pReq->suid);
+    buf = taosDecodeString(buf, &pReq->qmsg);
   }
   return (void*)buf;
 }

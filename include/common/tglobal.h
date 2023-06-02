@@ -29,7 +29,6 @@ extern "C" {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
 
-
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -181,6 +180,7 @@ extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern int64_t tsCheckpointInterval;
 extern bool    tsFilterScalarMode;
+extern int32_t tsMaxStreamBackendCache;
 
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
