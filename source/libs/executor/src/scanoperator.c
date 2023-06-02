@@ -2308,7 +2308,8 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   SArray*          pColIds = NULL;
   SStreamScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamScanInfo));
   SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
+  const char* idstr = pTaskInfo->id.str;
 
   if (pInfo == NULL || pOperator == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -2419,7 +2420,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     // set the extract column id to streamHandle
     pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds);
     SArray* tableIdList = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo);
-    code = pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList);
+    code = pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList, idstr);
     if (code != 0) {
       taosArrayDestroy(tableIdList);
       goto _error;

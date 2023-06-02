@@ -344,8 +344,9 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
         int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
         tqDebug("vgId:%d, idx %d, uid:%" PRId64, vgId, i, tbUid);
       }
+
       handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
-      tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList);
+      tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList, NULL);
       taosArrayDestroy(tbUidList);
 
       buildSnapContext(reader.vnode, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,

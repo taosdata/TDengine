@@ -133,7 +133,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 
     taosArrayPush(pRes, &block);
 
-    qDebug("s-task:%s (child %d) executed and get block, total blocks:%d, size:%.2fMiB", pTask->id.idStr,
+    qDebug("s-task:%s (child %d) executed and get %d result blocks, size:%.2fMiB", pTask->id.idStr,
            pTask->selfChildId, numOfBlocks, size / 1048576.0);
 
     // current output should be dispatched to down stream nodes
@@ -371,7 +371,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
           streamQueueProcessSuccess(pTask->inputQueue);
 
           if (batchSize > MAX_STREAM_EXEC_BATCH_NUM) {
-            qDebug("s-task:%s maximum batch limit:%d reached, processing this batch of blocks", id,
+            qDebug("s-task:%s batch size limit:%d reached, start to process blocks", id,
                    MAX_STREAM_EXEC_BATCH_NUM);
             break;
           }

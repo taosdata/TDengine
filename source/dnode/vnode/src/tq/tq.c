@@ -708,8 +708,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
         tqDebug("vgId:%d, idx %d, uid:%" PRId64, vgId, i, tbUid);
       }
+
       pHandle->execHandle.pTqReader = tqReaderOpen(pVnode);
-      tqReaderSetTbUidList(pHandle->execHandle.pTqReader, tbUidList);
+      tqReaderSetTbUidList(pHandle->execHandle.pTqReader, tbUidList, NULL);
       taosArrayDestroy(tbUidList);
 
       buildSnapContext(handle.vnode, handle.version, req.suid, pHandle->execHandle.subType, pHandle->fetchMeta,
