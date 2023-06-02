@@ -84,7 +84,7 @@ groups:
 
 datasets:
   name: Data Sets
-  description: PI System template and points
+  description: PI 系统模板和点位。
   categories:
   - category: PointList
     display: 监测点集合

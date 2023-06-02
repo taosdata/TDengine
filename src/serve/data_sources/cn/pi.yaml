@@ -76,7 +76,7 @@ datasets:
       editable: true
       selectable: true
   - category: TemplateForPIPoint
-    display: AF 模板集合
+    display: Template For PI Point
     description: |
       point 模式监测的 AF 模板集合。
     target:
