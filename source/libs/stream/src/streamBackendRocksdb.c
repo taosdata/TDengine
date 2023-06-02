@@ -1056,7 +1056,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     rocksdb_readoptions_t* opts = pState->pTdbState->readOpts;                                                         \
     size_t                 len = 0;                                                                                    \
     char*                  val = rocksdb_get_cf(db, opts, pHandle, (const char*)buf, klen, (size_t*)&len, &err);       \
-    if (val == NULL) {                                                                                                 \
+    if (val == NULL || len == 0) {                                                                                     \
       if (err == NULL) {                                                                                               \
         qTrace("streamState str: %s failed to read from %s_%s, err: not exist", toString, pState->pTdbState->idstr,    \
                funcname);                                                                                              \
@@ -1069,7 +1069,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     } else {                                                                                                           \
       char*   p = NULL;                                                                                                \
       int32_t len = ginitDict[i].deValueFunc(val, len, NULL, (char**)pVal);                                            \
-      if (len < 0) {                                                                                                   \
+      if (len <= 0) {                                                                                                  \
         qError("streamState str: %s failed to read from %s_%s, err: already ttl ", toString, pState->pTdbState->idstr, \
                funcname);                                                                                              \
         code = -1;                                                                                                     \

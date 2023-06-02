@@ -416,7 +416,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     int32_t len = 0;
     memcpy(buf, taskKey, strlen(taskKey));
     code = streamDefaultGet_rocksdb(pFileState->pFileStore, buf, &val, &len);
-    if (code != 0) {
+    if (code != 0 || len == 0 || val == NULL) {
       return TSDB_CODE_FAILED;
     }
     sscanf(val, "%" PRId64 "", &maxCheckPointId);
