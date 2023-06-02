@@ -572,11 +572,10 @@ int32_t decodeValueFunc(void* value, int32_t vlen, int64_t* ttl, char** dest) {
     *dest = NULL;
     return -1;
   }
-  int64_t now = taosGetTimestampMs();
   p = taosDecodeFixedI64(p, &key.unixTimestamp);
   p = taosDecodeFixedI32(p, &key.len);
   if (vlen != sizeof(int64_t) + sizeof(int32_t) + key.len) {
-    *dest = NULL;
+    if (dest != NULL) *dest = NULL;
     return -1;
   }
 
@@ -587,6 +586,7 @@ int32_t decodeValueFunc(void* value, int32_t vlen, int64_t* ttl, char** dest) {
   }
 
   if (ttl != NULL) {
+    int64_t now = taosGetTimestampMs();
     *ttl = key.unixTimestamp == 0 ? 0 : key.unixTimestamp - now;
   }
   if (dest != NULL) {
