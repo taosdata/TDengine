@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
+
 #include "executorInt.h"
 #include "filter.h"
 #include "function.h"
@@ -2444,6 +2446,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     int32_t len = 0;
     pAPI->stateStore.streamStateGetInfo(pTaskInfo->streamInfo.pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), &buff, &len);
     streamScanOperatorDecode(buff, len, pInfo);
+    taosMemoryFree(buff);
   }
 
   setOperatorInfo(pOperator, STREAM_SCAN_OP_NAME, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
@@ -3458,3 +3461,5 @@ static void destoryTableCountScanOperator(void* param) {
   taosArrayDestroy(pTableCountScanInfo->stbUidList);
   taosMemoryFreeClear(param);
 }
+
+// clang-format on
