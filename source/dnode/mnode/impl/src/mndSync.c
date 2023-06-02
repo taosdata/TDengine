@@ -192,6 +192,8 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
+    code = 0;
+    pMeta->code = terrno;
     goto _OUT;
   }
 

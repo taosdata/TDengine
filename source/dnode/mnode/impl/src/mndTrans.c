@@ -511,7 +511,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
            pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
            pNew->createdTime);
     // only occured while sync timeout
-    terrno = TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT;
+    terrno = TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
     return -1;
   }
 
@@ -937,7 +937,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
       if (code == TSDB_CODE_SYN_TIMEOUT) {
-        code = TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT;
+        code = TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
       }
 
       if (i != 0 && code == 0) {
