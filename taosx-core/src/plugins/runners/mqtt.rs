@@ -230,12 +230,12 @@ pub async fn mqtt_to_taos(
         tokio::select! {
             status = child.wait() => {
                 let status = status?;
-                log::info!("mqtt exit with status {status}");
+                log::info!("mqtt exit with {status}");
                 if !status.success() {
                     let _ = ipc.send(());
                     temp_path.close().unwrap();
                     port_pool.put(ipc_port);
-                    anyhow::bail!("mqtt exit with status {status}");
+                    anyhow::bail!("mqtt exit with {status}");
                     // let mut stdout = child.stdout.take().unwrap();
                     // let mut stdout_string = String::new();
                     // let _ = stdout.read_to_string(&mut stdout_string).await;

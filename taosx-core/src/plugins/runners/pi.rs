@@ -331,7 +331,7 @@ pub async fn pi_to_taos(
                 .context("Start PI Backfill error")?;
         }
         _ => {
-            anyhow::bail!("wrong driver configed");
+            anyhow::bail!("wrong driver configured");
         }
     }
 

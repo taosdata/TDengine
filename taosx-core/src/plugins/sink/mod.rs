@@ -18,7 +18,7 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
-    task::Poll,
+    task::Poll, time::Duration,
 };
 use taos::{
     taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, Dsn, Itertools,
@@ -1220,6 +1220,7 @@ pub fn listen_tcp_socket_with_agent(
                         if let Err(err) = res {
                             // panic!("{err:?}");
                             log::error!("ipc read err: {}", err);
+                            tokio::time::sleep(Duration::from_millis(100)).await;
                             let _ = se.send(err.to_string()).await;
                         } else {
                             log::info!("IPC reader stopped for client {client}",);

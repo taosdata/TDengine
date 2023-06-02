@@ -25,11 +25,6 @@ pub struct TaskStatus {
     context: Option<String>,
 }
 
-pub enum Push {
-    Heartbeat(String),
-    TaskStatus(TaskStatus),
-}
-
 struct Worker {
     handle: JoinHandle<Result<()>>,
     cancellation: CancellationToken,

@@ -23,7 +23,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use flume::Receiver;
 use futures::{FutureExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
-use taosx_core::{list_datasets_from, DataSet, DataSetsReq, Fail, ListResponse, RespAction};
+use taosx_core::{list_datasets_from, DataSetsReq, Fail, ListResponse, RespAction};
 use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
 
@@ -143,7 +143,6 @@ impl Client {
             .handshake(token.to_string())
             .await
             .with_context(|| anyhow::format_err!("Handshake error with token"))?;
-        dbg!(&result);
         let agent: Agent = serde_json::from_slice(&result)?;
 
         Ok(Self {

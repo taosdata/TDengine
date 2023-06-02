@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
@@ -122,11 +123,13 @@ pub enum AgentAction {
 pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
 pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;
 pub type AgentTasksError = tokio::sync::broadcast::error::SendError<AgentAction>;
+// pub type AgentStatusChannel
 pub struct AgentTasks {
     pub current: Arc<DashSet<i64>>,
     pub datasets: Arc<DashMap<DataSetsReq, AgentDataSetsSender>>,
     pub sender: AgentTasksSender,
     pub receiver: AgentTasksReceiver,
+    pub alive: AtomicBool,
 }
 
 impl AgentTasks {
@@ -137,6 +140,7 @@ impl AgentTasks {
             datasets: Arc::new(DashMap::new()),
             sender,
             receiver,
+            alive: AtomicBool::new(false),
         }
     }
     pub fn spawn_listener(&self) -> JoinHandle<()> {
@@ -256,7 +260,7 @@ impl TaskControllerRef {
     }
     pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
-            "select * from task_with_labels where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
+            "select * from task_with_labels where via is NULL and status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
             .bind(Status::Completed)
             .bind(Status::Failed)
             .bind(Status::Stopped)
@@ -474,8 +478,9 @@ impl TaskController {
         };
         // dbg!(&opts);
         let agent_task_worker = if let Some(id) = task.via {
-            // self.init_agent_worker(id)?;
-            self.init_agent_worker(id).await;
+            if !self.agent_alive(id).await {
+                anyhow::bail!("Agent {id} is not alive");
+            }
             Some((
                 task.id,
                 self.agent_tasks
@@ -1245,6 +1250,10 @@ impl TaskController {
             write.insert(agent_id, AgentTasks::new(vec![]));
             write.get(&agent_id).unwrap().spawn_listener();
         }
+    }
+
+    pub async fn agent_alive(&self, agent_id: i64) -> bool {
+        self.agent_tasks.read().await.contains_key(&agent_id)
     }
 
     pub async fn agent_connected_with_token(
