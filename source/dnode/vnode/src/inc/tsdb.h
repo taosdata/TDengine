@@ -297,7 +297,8 @@ int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter);
 // SDelFReader
 int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
-int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer);
+int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer);
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
 int32_t tsdbTakeReadSnap(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
