@@ -266,7 +266,7 @@ async fn x_api(
     //         },
     //     Err(err) => Err(Error::XError(err)),
     // }
-    Ok(HttpResponse::Ok().body(resp.body().await?))
+    Ok(HttpResponse::Ok().content_type(ContentType::json()).body(resp.body().await?))
 }
 
 async fn x_api_doc(
