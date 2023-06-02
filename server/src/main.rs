@@ -254,19 +254,19 @@ async fn x_api(
     let client = client
         .request(method.clone(), url)
         .timeout(Duration::from_secs(std::u64::MAX));
-    let resp = client
+    let mut resp = client
         .content_type(req.content_type())
         .send_body(bytes)
-        .await;
-    match resp {
-        Ok(mut ok) => 
-            match ok.body().limit(1024 * 1024 * 1024).await {
-                Ok(data) => Ok(HttpResponseBuilder::new(ok.status()).body(data)),
-                Err(err) => Err(Error::PayloadError(err)),
-            },
-        Err(err) => Err(Error::XError(err)),
-    }
-    // Ok(HttpResponse::Ok().body(resp.body().await?))
+        .await?;
+    // match resp {
+    //     Ok(mut ok) => 
+    //         match ok.body().limit(1024 * 1024 * 1024).await {
+    //             Ok(data) => Ok(HttpResponseBuilder::new(ok.status()).body(data)),
+    //             Err(err) => Err(Error::PayloadError(err)),
+    //         },
+    //     Err(err) => Err(Error::XError(err)),
+    // }
+    Ok(HttpResponse::Ok().body(resp.body().await?))
 }
 
 async fn x_api_doc(
