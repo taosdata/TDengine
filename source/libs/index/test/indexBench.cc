@@ -87,7 +87,7 @@ SIndexTerm *indexTermCreateT(int64_t suid, SIndexOperOnColumn oper, uint8_t colT
   int16_t sz = nColVal;
   memcpy(buf, (uint16_t *)&sz, 2);
   memcpy(buf + 2, colVal, nColVal);
-  if (colType == TSDB_DATA_TYPE_BINARY) {
+  if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_GEOMETRY) {
     return indexTermCreate(suid, oper, colType, colName, nColName, buf, sizeof(buf));
   } else {
     return indexTermCreate(suid, oper, colType, colName, nColName, colVal, nColVal);

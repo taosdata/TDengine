@@ -929,7 +929,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->walRetentionSize = pDb->cfg.walRetentionSize;
   cfgRsp->walSegmentSize = pDb->cfg.walSegmentSize;
   cfgRsp->numOfRetensions = pDb->cfg.numOfRetensions;
-  cfgRsp->pRetensions = pDb->cfg.pRetensions;
+  cfgRsp->pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
   cfgRsp->schemaless = pDb->cfg.schemaless;
   cfgRsp->sstTrigger = pDb->cfg.sstTrigger;
 }
@@ -971,6 +971,8 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   code = 0;
 
 _OVER:
+
+  tFreeSDbCfgRsp(&cfgRsp);
 
   if (code != 0) {
     mError("db:%s, failed to get cfg since %s", cfgReq.db, terrstr());
@@ -1541,6 +1543,13 @@ const char *mndGetDbStr(const char *src) {
   if (pos != NULL) ++pos;
   if (pos == NULL) return src;
   return pos;
+}
+
+const char *mndGetStableStr(const char *src) {
+  char *pos = strstr(src, TS_PATH_DELIMITER);
+  if (pos != NULL) ++pos;
+  if (pos == NULL) return src;
+  return mndGetDbStr(pos);
 }
 
 static int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {

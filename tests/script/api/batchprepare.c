@@ -16,8 +16,8 @@
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
-int32_t optrIdxList[] = {0, 7};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_NCHAR};
+int32_t optrIdxList[] = {5, 11};
 
 typedef struct {
   char*   oper;
@@ -123,6 +123,7 @@ int insertAUTOTest3(TAOS_STMT *stmt, TAOS *taos);
 int queryColumnTest(TAOS_STMT *stmt, TAOS *taos);
 int queryMiscTest(TAOS_STMT *stmt, TAOS *taos);
 int insertNonExistsTb(TAOS_STMT *stmt, TAOS *taos);
+int insertVarLenErr(TAOS_STMT *stmt, TAOS *taos);
 
 enum {
   TTYPE_INSERT = 1,
@@ -190,6 +191,7 @@ CaseCfg gCase[] = {
   {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
 
   {"query:NG-TBNEXISTS",tListLen(fullColList), fullColList, TTYPE_INSERT_NG,0, false, false, insertNonExistsTb, 10, 10, 1, 3, 0, 0, 1, -1},
+  {"query:NG-VARLENERR",tListLen(fullColList), fullColList, TTYPE_INSERT_NG,0, false, true, insertVarLenErr, 10, 10, 1, 3, 0, 0, 1, -1},
 
 //  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
 //  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
@@ -319,7 +321,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
 
 #if 0
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
-  .bindNullNum = 1,
+  .bindNullNum = 0,
   .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
@@ -329,18 +331,19 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .bindTagNum = 0,
   .bindRowNum = 0,
   .bindColTypeNum = 0,
-  .bindColTypeList = NULL,
+  .bindColTypeList = bindColTypeList,
   .optrIdxListNum = 0,
-  .optrIdxList = NULL,
+  .optrIdxList = optrIdxList,
   .checkParamNum = false,
   .printRes = true,
   .runTimes = 0,
   .caseRunIdx = -1,
-  //.optrIdxListNum = tListLen(optrIdxList),
-  //.optrIdxList = optrIdxList,
-  //.bindColTypeNum = tListLen(bindColTypeList),
-  //.bindColTypeList = bindColTypeList,
-  .caseIdx = 8,
+  .optrIdxListNum = tListLen(optrIdxList),
+  .optrIdxList = optrIdxList,
+  .bindColTypeNum = tListLen(bindColTypeList),
+  .bindColTypeList = bindColTypeList,
+  .caseRunIdx = -1,
+  .caseIdx = 24,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -453,6 +456,9 @@ void generateInsertSQL(BindData *data) {
           case TSDB_DATA_TYPE_UBIGINT:
             len += sprintf(data->sql + len, "tubigdata");
             break;
+          case TSDB_DATA_TYPE_GEOMETRY:
+            len += sprintf(data->sql + len, "tgeometrydata");
+            break;
           default:
             printf("!!!invalid tag type:%d", data->pTags[c].buffer_type);
             exit(1);
@@ -521,6 +527,9 @@ void generateInsertSQL(BindData *data) {
         case TSDB_DATA_TYPE_UBIGINT:
           len += sprintf(data->sql + len, "ubigdata");
           break;
+        case TSDB_DATA_TYPE_GEOMETRY:
+          len += sprintf(data->sql + len, "tgeometrydata");
+          break;
         default:
           printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
           exit(1);
@@ -550,7 +559,7 @@ void bpAppendOperatorParam(BindData *data, int32_t *len, int32_t dataType, int32
   if (gCaseCtrl.optrIdxListNum > 0) {
     pInfo = &operInfo[gCaseCtrl.optrIdxList[idx]];
   } else {
-    if (TSDB_DATA_TYPE_VARCHAR == dataType || TSDB_DATA_TYPE_NCHAR == dataType) {
+    if (TSDB_DATA_TYPE_VARCHAR == dataType || TSDB_DATA_TYPE_NCHAR == dataType || TSDB_DATA_TYPE_GEOMETRY == dataType) {
       pInfo = &operInfo[varoperatorList[rand() % tListLen(varoperatorList)]];
     } else {
       pInfo = &operInfo[operatorList[rand() % tListLen(operatorList)]];
@@ -634,6 +643,9 @@ int32_t bpAppendColumnName(BindData *data, int32_t type, int32_t len) {
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       return sprintf(data->sql + len, "ubigdata");
+      break;
+    case TSDB_DATA_TYPE_GEOMETRY:
+      len += sprintf(data->sql + len, "tgeometrydata");
       break;
     default:
       printf("!!!invalid col type:%d", type);
@@ -868,6 +880,7 @@ int32_t prepareColData(BP_BIND_TYPE bType, BindData *data, int32_t bindIdx, int3
       pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       pBase[bindIdx].buffer_length = gVarCharSize;
       pBase[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
       pBase[bindIdx].length = data->binaryLen;
@@ -1210,6 +1223,7 @@ int32_t bpAppendValueString(char *buf, int type, void *value, int32_t valueLen, 
 
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       buf[*len] = '\'';
       ++(*len);
       memcpy(buf + *len, value, valueLen);
@@ -1355,7 +1369,7 @@ void bpCheckColTagFields(TAOS_STMT *stmt, int32_t fieldNum, TAOS_FIELD_E* pField
       exit(1);
     }
 
-    if (pFields[i].type == TSDB_DATA_TYPE_BINARY) {
+    if (pFields[i].type == TSDB_DATA_TYPE_BINARY || pFields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pFields[i].bytes != (pBind[i].buffer_length + 2)) {
         printf("!!!%s %dth field len %d mis-match expect len %d\n", BP_BIND_TYPE_STR(type), i, pFields[i].bytes, (pBind[i].buffer_length + 2));
         exit(1);
@@ -1439,14 +1453,17 @@ void bpShowBindParam(TAOS_MULTI_BIND *bind, int32_t num) {
   }
 }
 
-int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
+int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, bool expectFail) {
   static int32_t n = 0;
 
-  bpCheckColFields(stmt, bind);
+  if (!expectFail) {
+    bpCheckColFields(stmt, bind);
+  }
   
   if (gCurCase->bindRowNum > 1) {
     if (0 == (n++%2)) {
       if (taos_stmt_bind_param_batch(stmt, bind)) {
+        if (expectFail) return 0;
         printf("!!!taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
         bpShowBindParam(bind, gCurCase->bindColNum);
         exit(1);
@@ -1454,6 +1471,7 @@ int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
     } else {
       for (int32_t i = 0; i < gCurCase->bindColNum; ++i) {
         if (taos_stmt_bind_single_param_batch(stmt, bind+i, i)) {
+          if (expectFail) continue;
           printf("!!!taos_stmt_bind_single_param_batch %d error:%s\n", taos_stmt_errstr(stmt), i);
           bpShowBindParam(bind, gCurCase->bindColNum);
           exit(1);
@@ -1463,12 +1481,14 @@ int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   } else {
     if (0 == (n++%2)) {
       if (taos_stmt_bind_param_batch(stmt, bind)) {
+        if (expectFail) return 0;
         printf("!!!taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
         bpShowBindParam(bind, gCurCase->bindColNum);
         exit(1);
       }
     } else {
       if (taos_stmt_bind_param(stmt, bind)) {
+        if (expectFail) return 0;
         printf("!!!taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
         bpShowBindParam(bind, gCurCase->bindColNum);        
         exit(1);
@@ -1531,7 +1551,7 @@ int insertMBSETest1(TAOS_STMT *stmt, TAOS *taos) {
     }
     
     for (int32_t b = 0; b <bindTimes; ++b) {
-      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
         exit(1);
       }
       
@@ -1583,7 +1603,7 @@ int insertMBSETest2(TAOS_STMT *stmt, TAOS *taos) {
         }  
       }
     
-      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
         exit(1);
       }
 
@@ -1641,7 +1661,7 @@ int insertMBMETest1(TAOS_STMT *stmt, TAOS *taos) {
     }
     
     for (int32_t b = 0; b <bindTimes; ++b) {
-      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
         exit(1);
       }
       
@@ -1691,7 +1711,7 @@ int insertMBMETest2(TAOS_STMT *stmt, TAOS *taos) {
     }
     
     for (int32_t b = 0; b <bindTimes; ++b) {
-      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
         exit(1);
       }
 
@@ -1759,7 +1779,7 @@ int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos) {
         }  
       }
       
-      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
         exit(1);
       }
       
@@ -1811,7 +1831,7 @@ int insertMBMETest4(TAOS_STMT *stmt, TAOS *taos) {
         }  
       }
     
-      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+      if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
         exit(1);
       }
 
@@ -1872,7 +1892,7 @@ int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos) {
       }
       
       for (int32_t b = 0; b <bindTimes; ++b) {
-        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
           exit(1);
         }
         
@@ -1938,7 +1958,7 @@ int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos) {
       }
       
       for (int32_t b = 0; b <bindTimes; ++b) {
-        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
           exit(1);
         }
         
@@ -2005,7 +2025,7 @@ int insertAUTOTest2(TAOS_STMT *stmt, TAOS *taos) {
         if (gCaseCtrl.checkParamNum) {
           bpCheckParamNum(stmt);
         }
-        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
           exit(1);
         }
         
@@ -2065,7 +2085,7 @@ int insertAUTOTest3(TAOS_STMT *stmt, TAOS *taos) {
           bpCheckParamNum(stmt);
         }
         
-        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum, false)) {
           exit(1);
         }
         
@@ -2119,7 +2139,7 @@ int queryColumnTest(TAOS_STMT *stmt, TAOS *taos) {
         bpCheckParamNum(stmt);
       }
       
-      if (bpBindParam(stmt, data.pBind + n * gCurCase->bindColNum)) {
+      if (bpBindParam(stmt, data.pBind + n * gCurCase->bindColNum, false)) {
         exit(1);
       }
 
@@ -2167,7 +2187,7 @@ int queryMiscTest(TAOS_STMT *stmt, TAOS *taos) {
         bpCheckParamNum(stmt);
       }
       
-      if (bpBindParam(stmt, data.pBind + n * gCurCase->bindColNum)) {
+      if (bpBindParam(stmt, data.pBind + n * gCurCase->bindColNum, false)) {
         exit(1);
       }
 
@@ -2234,6 +2254,42 @@ int insertNonExistsTb(TAOS_STMT *stmt, TAOS *taos) {
   return 0;
 }
 
+void bpAddWrongVarBuffLen(TAOS_MULTI_BIND* pBind) {
+  for (int32_t i = 0; i < gCurCase->bindColNum; ++i) {
+    if (pBind[i].buffer_type == TSDB_DATA_TYPE_BINARY || pBind[i].buffer_type == TSDB_DATA_TYPE_NCHAR) {
+      *pBind[i].length += 100;
+    }
+  }
+}
+
+int insertVarLenErr(TAOS_STMT *stmt, TAOS *taos) {
+  BindData data = {0};
+  prepareInsertData(&data);
+
+  int code = taos_stmt_prepare(stmt, data.sql, 0);
+  if (code != 0){
+    printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+
+  bpCheckIsInsert(stmt, 1);
+
+  code = bpSetTableNameTags(&data, 0, "t0", stmt);
+  if (code != 0){
+    printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }  
+  
+  bpAddWrongVarBuffLen(data.pBind);
+
+  if (bpBindParam(stmt, data.pBind, true)) {
+    exit(1);
+  }
+
+  destroyData(&data);
+
+  return 0;
+}
 
 
 int errorSQLTest1(TAOS_STMT *stmt, TAOS *taos) {
@@ -2499,6 +2555,9 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "ubigdata bigint unsigned");
           break;
+        case TSDB_DATA_TYPE_GEOMETRY:
+          blen += sprintf(buf + blen, "geometrydata geometry(%d)", gVarCharSize);
+          break;
         default:
           printf("invalid col type:%d", colList[c]);
           exit(1);
@@ -2557,13 +2616,16 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "tubigdata bigint unsigned");
           break;
+        case TSDB_DATA_TYPE_GEOMETRY:
+          blen += sprintf(buf + blen, "tgeometrydata geometry(%d)", gVarCharSize);
+          break;
         default:
           printf("invalid col type:%d", colList[c]);
           exit(1);
-      }      
+      }
     }
 
-    blen += sprintf(buf + blen, ")");    
+    blen += sprintf(buf + blen, ")");
   }
 
   if (3 == tableType) {
@@ -2614,6 +2676,9 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
           break;
         case TSDB_DATA_TYPE_UBIGINT:
           blen += sprintf(buf + blen, "%d", rand() % 128);
+          break;
+        case TSDB_DATA_TYPE_GEOMETRY:
+          blen += sprintf(buf + blen, "'geo%d'", rand() % 128);
           break;
         default:
           printf("invalid col type:%d", colList[c]);

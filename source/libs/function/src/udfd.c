@@ -600,9 +600,9 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
       return udf;
     } else {
       (*pUdfHash)->expired = true;
-      taosHashRemove(global.udfsHash, udfName, strlen(udfName));
       fnInfo("udfd expired, check for new version. existing udf %s udf version %d, udf created time %" PRIx64,
              (*pUdfHash)->name, (*pUdfHash)->version, (*pUdfHash)->createdTime);
+      taosHashRemove(global.udfsHash, udfName, strlen(udfName));
     }
   }
 

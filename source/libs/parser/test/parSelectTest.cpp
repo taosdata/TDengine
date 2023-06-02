@@ -485,6 +485,8 @@ TEST_F(ParserSelectTest, joinSemanticCheck) {
 
   run("SELECT * FROM (SELECT tag1, SUM(c1) s FROM st1 GROUP BY tag1) t1, st1 t2 where t1.tag1 = t2.tag1",
       TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
+
+  run("SELECT count(*) FROM t1 a join t1 b on a.ts=b.ts where a.ts=b.ts");
 }
 
 }  // namespace ParserTest

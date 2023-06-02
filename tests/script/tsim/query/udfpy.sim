@@ -15,6 +15,7 @@ system sh/prepare_pyudf.sh
 system mkdir -p /tmp/pyudf
 system cp sh/pybitand.py /tmp/pyudf/
 system cp sh/pyl2norm.py /tmp/pyudf/
+system cp sh/pycumsum.py /tmp/pyudf/
 system ls /tmp/pyudf
 
 sql create database udf vgroups 3;
@@ -279,6 +280,18 @@ endi
 if $data20 != 8.000000000 then
   return -1
 endi
+
+#sql create aggregate function pycumsum as '/tmp/pyudf/pycumsum.py' outputtype double bufSize 128 language 'python';
+#sql select pycumsum(f2) from udf.t2
+#print ======= pycumsum
+#print $rows $data00
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data00 != 20.000000000 then
+#  return -1
+#endi
+#sql drop function pycumsum
 
 sql create or replace function bit_and as '/tmp/udf/libbitand.so' outputtype int
 sql select func_version from information_schema.ins_functions where name='bit_and'

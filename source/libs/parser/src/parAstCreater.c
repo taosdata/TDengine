@@ -259,8 +259,19 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       strcpy(pExpr->userAlias, ((SColumnNode*)pExpr)->colName);
     } else {
       int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
-      strncpy(pExpr->aliasName, pRawExpr->p, len);
-      pExpr->aliasName[len] = '\0';
+
+      // See TS-3398.
+      // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
+      // If aliasName is truncated, hash value of aliasName could be the same.
+      T_MD5_CTX ctx;
+      tMD5Init(&ctx);
+      tMD5Update(&ctx, (uint8_t*)pRawExpr->p, pRawExpr->n);
+      tMD5Final(&ctx);
+      char* p = pExpr->aliasName;
+      for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
+        sprintf(p, "%02x", ctx.digest[i]);
+        p += 2;
+      }
       strncpy(pExpr->userAlias, pRawExpr->p, len);
       pExpr->userAlias[len] = '\0';
     }
@@ -498,7 +509,7 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_OUT_OF_MEM(func);
   strcpy(func->functionName, "cast");
   func->node.resType = dt;
-  if (TSDB_DATA_TYPE_VARCHAR == dt.type) {
+  if (TSDB_DATA_TYPE_VARCHAR == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type) {
     func->node.resType.bytes = func->node.resType.bytes + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
@@ -822,16 +833,9 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
 
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable) {
   CHECK_PARSER_STATUS(pCxt);
-  SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
+  SNode* select = createSelectStmtImpl(isDistinct, pProjectionList, pTable);
   CHECK_OUT_OF_MEM(select);
-  select->isDistinct = isDistinct;
-  select->pProjectionList = pProjectionList;
-  select->pFromTable = pTable;
-  sprintf(select->stmtName, "%p", select);
-  select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
-  select->onlyHasKeepOrderFunc = true;
-  select->timeRange = TSWINDOW_INITIALIZER;
-  return (SNode*)select;
+  return select;  
 }
 
 static void setSubquery(SNode* pStmt) {
@@ -1712,7 +1716,7 @@ SNode* createCreateTopicStmtUseDb(SAstCreateContext* pCxt, bool ignoreExists, ST
 }
 
 SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pRealTable,
-                                     bool withMeta) {
+                                     bool withMeta, SNode* pWhere) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTopicName(pCxt, pTopicName)) {
     return NULL;
@@ -1722,6 +1726,8 @@ SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists,
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   pStmt->ignoreExists = ignoreExists;
   pStmt->withMeta = withMeta;
+  pStmt->pWhere = pWhere;
+
   strcpy(pStmt->subDbName, ((SRealTableNode*)pRealTable)->table.dbName);
   strcpy(pStmt->subSTbName, ((SRealTableNode*)pRealTable)->table.tableName);
   nodesDestroyNode(pRealTable);
