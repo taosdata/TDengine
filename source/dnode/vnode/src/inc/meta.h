@@ -162,6 +162,12 @@ typedef struct {
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
                         STagIdxKey** ppTagIdxKey, int32_t* nTagIdxKey);
 
+// TODO, refactor later
+int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *param, SArray *results);
+int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *parm, SArray *pUids);
+int32_t metaFilterTableName(void *pVnode, SMetaFltParam *param, SArray *pUids);
+int32_t metaFilterTtl(void *pVnode, SMetaFltParam *param, SArray *pUids);
+
 #ifndef META_REFACT
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);

@@ -156,7 +156,7 @@ void           destroyOperator(SOperatorInfo* pOperator);
 
 SOperatorInfo* extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char* id);
 int32_t        getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag, bool inheritUsOrder);
-int32_t        stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr);
+int32_t        stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SStorageAPI* pAPI);
 int32_t        getOperatorExplainExecInfo(struct SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 
 #ifdef __cplusplus

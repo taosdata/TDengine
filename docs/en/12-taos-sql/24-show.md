@@ -4,7 +4,7 @@ sidebar_label: SHOW Statement
 description: This document describes how to use the SHOW statement in TDengine.
 ---
 
-`SHOW` command can be used to get brief system information. To get details about metadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
+`SHOW` command can be used to get brief system information. To get details about metadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`.
 
 ## SHOW APPS
 
@@ -129,6 +129,14 @@ SHOW QNODES;
 
 Shows information about qnodes in the system.
 
+## SHOW QUERIES
+
+```sql
+SHOW QUERIES;
+```
+
+Shows the queries in progress in the system.
+
 ## SHOW SCORES
 
 ```sql
@@ -179,10 +187,10 @@ SHOW TABLE DISTRIBUTED table_name;
 
 Shows how table data is distributed.
 
-Examples： Below is an example of this command to display the block distribution of table `d0` in detailed format.
+Examples: Below is an example of this command to display the block distribution of table `d0` in detailed format.
 
 ```sql
-show table distributed d0\G;   
+show table distributed d0\G;
 ```
 
 <details>
@@ -193,31 +201,31 @@ _block_dist: Total_Blocks=[5] Total_Size=[93.65 KB] Average_size=[18.73 KB] Comp
 
 Total_Blocks :  Table `d0` contains total 5 blocks
 
-Total_Size:  The total size of all the data blocks in table `d0` is 93.65 KB 
+Total_Size:  The total size of all the data blocks in table `d0` is 93.65 KB
 
 Average_size:  The average size of each block is 18.73 KB
 
 Compression_Ratio: The data compression rate is 23.98%
- 
+
 *************************** 2.row ***************************
 _block_dist: Total_Rows=[20000] Inmem_Rows=[0] MinRows=[3616] MaxRows=[4096] Average_Rows=[4000]
 
 Total_Rows: Table `d0` contains 20,000 rows
 
-Inmem_Rows： The rows still in memory, i.e. not committed in disk, is 0, i.e. none such rows
+Inmem_Rows: The rows still in memory, i.e. not committed in disk, is 0, i.e. none such rows
 
-MinRows：  The minimum number of rows in a block is 3,616 
+MinRows: The minimum number of rows in a block is 3,616
 
-MaxRows： The maximum number of rows in a block is 4,096B
+MaxRows: The maximum number of rows in a block is 4,096B
 
-Average_Rows： The average number of rows in a block is 4,000
+Average_Rows: The average number of rows in a block is 4,000
 
 *************************** 3.row ***************************
 _block_dist: Total_Tables=[1] Total_Files=[2]
 
-Total_Tables:  The number of child tables, 1 in this example
+Total_Tables: The number of child tables, 1 in this example
 
-Total_Files：   The number of files storing the table's data, 2 in this example
+Total_Files: The number of files storing the table's data, 2 in this example
 
 *************************** 4.row ***************************
 
@@ -353,7 +361,7 @@ SHOW VARIABLES;
 SHOW DNODE dnode_id VARIABLES;
 ```
 
-Shows the working configuration of the parameters that must be the same on each node. You can also specify a dnode to show the working configuration for that node. 
+Shows the working configuration of the parameters that must be the same on each node. You can also specify a dnode to show the working configuration for that node.
 
 ## SHOW VGROUPS
 
@@ -361,7 +369,7 @@ Shows the working configuration of the parameters that must be the same on each 
 SHOW [db_name.]VGROUPS;
 ```
 
-Shows information about all vgroups in the current database. 
+Shows information about all vgroups in the current database.
 
 ## SHOW VNODES
 

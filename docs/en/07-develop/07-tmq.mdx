@@ -23,7 +23,7 @@ By subscribing to a topic, a consumer can obtain the latest data in that topic i
 
 To implement these features, TDengine indexes its write-ahead log (WAL) file for fast random access and provides configurable methods for replacing and retaining this file. You can define a retention period and size for this file. For information, see the CREATE DATABASE statement. In this way, the WAL file is transformed into a persistent storage engine that remembers the order in which events occur. However, note that configuring an overly long retention period for your WAL files makes database compression inefficient. TDengine then uses the WAL file instead of the time-series database as its storage engine for queries in the form of topics. TDengine reads the data from the WAL file; uses a unified query engine instance to perform filtering, transformations, and other operations; and finally pushes the data to consumers.
 
-Tips:The default data subscription is to consume data from the wal. If the wal is deleted, the consumed data will be incomplete. At this time, you can set the parameter experimental.snapshot.enable to true to obtain all data from the tsdb, but in this way, the consumption order of the data cannot be guaranteed. Therefore, it is recommended to set a reasonable retention policy for WAL based on your consumption situation to ensure that you can subscribe all data from WAL.
+Tips: Data subscription is to consume data from the wal. If some wal files are deleted according to WAL retention policy, the deleted data can't be consumed any more. So you need to set a reasonable value for parameter `WAL_RETENTION_PERIOD` or `WAL_RETENTION_SIZE` when creating the database and make sure your application consume the data in a timely way to make sure there is no data loss. This behavior is similar to Kafka and other widely used message queue products.
 
 ## Data Schema and API
 
@@ -222,7 +222,7 @@ A database including one supertable and two subtables is created as follows:
 
 ```sql
 DROP DATABASE IF EXISTS tmqdb;
-CREATE DATABASE tmqdb;
+CREATE DATABASE tmqdb WAL_RETENTION_PERIOD 3600;
 CREATE TABLE tmqdb.stb (ts TIMESTAMP, c1 INT, c2 FLOAT, c3 VARCHAR(16)) TAGS(t1 INT, t3 VARCHAR(16));
 CREATE TABLE tmqdb.ctb0 USING tmqdb.stb TAGS(0, "subtable0");
 CREATE TABLE tmqdb.ctb1 USING tmqdb.stb TAGS(1, "subtable1");       
@@ -285,16 +285,15 @@ You configure the following parameters when creating a consumer:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
 | :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`         | string  | Used in establishing a connection; same as `taos_connect`                          |  Only valid for establishing native connection                                           |
-|        `td.connect.user`         | string  | Used in establishing a connection; same as `taos_connect`                          |   Only valid for establishing native connection                                          |
-|        `td.connect.pass`         | string  | Used in establishing a connection; same as `taos_connect`                          |     Only valid for establishing native connection                                        |
-|        `td.connect.port`         | string  | Used in establishing a connection; same as `taos_connect`                          |       Only valid for establishing native connection                                      |
+|        `td.connect.ip`         | string  | IP address of the server side                          |  |
+|        `td.connect.user`         | string  | User Name                          |  |
+|        `td.connect.pass`         | string  | Password                        |   |
+|        `td.connect.port`         | string  | Port of the server side            |   |
 |           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
 |          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
 |      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
 |      `enable.auto.commit`      | boolean | Commit automatically; true: user application doesn't need to explicitly commit; false: user application need to handle commit by itself                                           | Default value is true                  |
 |   `auto.commit.interval.ms`    | integer | Interval for automatic commits, in milliseconds                           |
-| `experimental.snapshot.enable` | boolean | Specify whether to consume data in TSDB; true: both data in WAL and in TSDB can be consumed; false: only data in WAL can be consumed                   |     default value: false                                        |
 |     `msg.with.table.name`      | boolean | Specify whether to deserialize table names from messages                                 | default value: false
 
 The method of specifying these parameters depends on the language used:
@@ -312,7 +311,6 @@ tmq_conf_set(conf, "group.id", "cgrpName");
 tmq_conf_set(conf, "td.connect.user", "root");
 tmq_conf_set(conf, "td.connect.pass", "taosdata");
 tmq_conf_set(conf, "auto.offset.reset", "earliest");
-tmq_conf_set(conf, "experimental.snapshot.enable", "true");
 tmq_conf_set(conf, "msg.with.table.name", "true");
 tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -327,6 +325,7 @@ Java programs use the following parameters:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
 | ----------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `td.connect.type` | string | connection type: "jni" means native connection, "ws" means websocket connection, the default is "jni" |
 | `bootstrap.servers`           | string |Connection address, such as `localhost:6030`                                                                                                 |
 | `value.deserializer`          | string | Value deserializer; to use this method, implement the `com.taosdata.jdbc.tmq.Deserializer` interface or inherit the `com.taosdata.jdbc.tmq.ReferenceDeserializer` type |
 | `value.deserializer.encoding` | string | Specify the encoding for string deserialization                                                                                                        |  |
@@ -368,7 +367,6 @@ conf := &tmq.ConfigMap{
  "td.connect.port":              "6030",
  "client.id":                    "test_tmq_c",
  "enable.auto.commit":           "false",
- "experimental.snapshot.enable": "true",
  "msg.with.table.name":          "true",
 }
 consumer, err := NewConsumer(conf)
@@ -401,23 +399,6 @@ from taos.tmq import Consumer
 # Example:
 consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 ```
-
-Python programs use the following parameters:
-
-| Parameter | Type | Description | Remarks |
-|:---------:|:----:|:-----------:|:-------:|
-| `td.connect.ip` | string | Used in establishing a connection||
-| `td.connect.user` | string | Used in establishing a connection||
-| `td.connect.pass` | string | Used in establishing a connection||
-| `td.connect.port` | string | Used in establishing a connection||
-| `group.id` | string | Consumer group ID; consumers with the same ID are in the same group | **Required**. Maximum length: 192 |
-| `client.id` | string | Client ID | Maximum length: 192 |
-| `msg.with.table.name` | string | Specify whether to deserialize table names from messages | pecify `true` or `false` |
-| `enable.auto.commit` | string | Commit automatically | pecify `true` or `false` |
-| `auto.commit.interval.ms` | string | Interval for automatic commits, in milliseconds | |
-| `auto.offset.reset` | string | Initial offset for the consumer group | Specify `earliest`, `latest`, or `none`(default) |
-| `experimental.snapshot.enable` | string | Specify whether it's allowed to consume messages from the WAL or from TSDB | Specify `true` or `false` |
-| `enable.heartbeat.background` | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time | Specify `true` or `false` |
 
 </TabItem>
 

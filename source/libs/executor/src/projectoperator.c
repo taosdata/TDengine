@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "tdatablock.h"
 
 typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
@@ -114,7 +115,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState);
+                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -369,7 +370,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   if (pPhyNode->pExprs != NULL) {
     int32_t    num = 0;
     SExprInfo* pSExpr = createExprInfo(pPhyNode->pExprs, NULL, &num);
-    int32_t    code = initExprSupp(&pInfo->scalarSup, pSExpr, num);
+    int32_t    code = initExprSupp(&pInfo->scalarSup, pSExpr, num, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -391,7 +392,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   blockDataEnsureCapacity(pResBlock, numOfRows);
 
   int32_t code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str,
-                            pTaskInfo->streamInfo.pState);
+                            pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

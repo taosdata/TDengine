@@ -103,4 +103,34 @@ sql select * from (select _wstart as ts, count(*) from $mt1 interval(1s) order b
 sql select diff(a) from (select _wstart as ts, count(*) a from $mt1 interval(1s) order by _wstart);
 sql select diff(a) from (select _wstart as ts, count(*) a from $mt1 partition by tag1 interval(1s) order by _wstart);
 
+sql insert into tb0 values (now, 0);
+sql insert into tb1 values (now, 1);
+sql insert into tb2 values (now, 2);
+sql insert into tb3 values (now, 3);
+sql insert into tb4 values (now, 4);
+sql insert into tb5 values (now, 5);
+sql insert into tb6 values (now, 6);
+sql insert into tb7 values (now, 7);
+
+sql select * from (select 1 from $mt1 where ts is not null partition by tbname limit 1);
+if $rows != 8 then
+  return -1
+endi
+
+sql select count(*) from (select ts from $mt1 where ts is not null partition by tbname slimit 2);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+
+sql select count(*) from (select ts from $mt1 where ts is not null partition by tbname limit 2);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 16 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

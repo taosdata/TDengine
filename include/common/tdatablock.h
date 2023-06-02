@@ -215,7 +215,7 @@ void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void blockDataCleanup(SSDataBlock* pDataBlock);
 void blockDataEmpty(SSDataBlock* pDataBlock);
 
-size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
+size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize);
 
 int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
 int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);

@@ -47,6 +47,8 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter);
+static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq);
+static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq);
 
 int32_t mndInitStream(SMnode *pMnode) {
   SSdbTable table = {
@@ -65,10 +67,15 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_PAUSE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_RESUME_RSP, mndTransProcessRsp);
 
   // mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
   // mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_REPORT_CHECKPOINT, mndTransProcessRsp);
+
+  mndSetMsgHandle(pMnode, TDMT_MND_PAUSE_STREAM, mndProcessPauseStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RESUME_STREAM, mndProcessResumeStreamReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
@@ -226,6 +233,8 @@ static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {
     strcpy(dst, "failed");
   } else if (status == STREAM_STATUS__RECOVER) {
     strcpy(dst, "recover");
+  } else if (status == STREAM_STATUS__PAUSE) {
+    strcpy(dst, "pause");
   }
 }
 
@@ -691,6 +700,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       if (pStream->sourceDbUid == streamObj.sourceDbUid) {
         ++numOfStream;
       }
+
       sdbRelease(pMnode->pSdb, pStream);
       if (numOfStream > MND_STREAM_MAX_NUM) {
         mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
@@ -714,6 +724,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     pDb = NULL;
     goto _OVER;
   }
+
   mndReleaseDb(pMnode, pDb);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
@@ -1268,4 +1279,234 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 static void mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+static int32_t mndPauseStreamTask(STrans *pTrans, SStreamTask *pTask) {
+  SVPauseStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVPauseStreamTaskReq));
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pReq->head.vgId = htonl(pTask->nodeId);
+  pReq->taskId = pTask->id.taskId;
+  STransAction action = {0};
+  memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
+  action.pCont = pReq;
+  action.contLen = sizeof(SVPauseStreamTaskReq);
+  action.msgType = TDMT_STREAM_TASK_PAUSE;
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFree(pReq);
+    return -1;
+  }
+  return 0;
+}
+
+int32_t mndPauseAllStreamTasks(STrans *pTrans, SStreamObj *pStream) {
+  int32_t size = taosArrayGetSize(pStream->tasks);
+  for (int32_t i = 0; i < size; i++) {
+    SArray *pTasks = taosArrayGetP(pStream->tasks, i);
+    int32_t sz = taosArrayGetSize(pTasks);
+    for (int32_t j = 0; j < sz; j++) {
+      SStreamTask *pTask = taosArrayGetP(pTasks, j);
+      if (pTask->taskLevel != TASK_LEVEL__SINK && mndPauseStreamTask(pTrans, pTask) < 0) {
+        return -1;
+      }
+    }
+  }
+  return 0;
+}
+
+static int32_t mndPersistStreamLog(STrans *pTrans, const SStreamObj *pStream, int8_t status) {
+  SStreamObj streamObj = {0};
+  memcpy(streamObj.name, pStream->name, TSDB_STREAM_FNAME_LEN);
+  streamObj.status = status;
+
+  SSdbRaw *pCommitRaw = mndStreamActionEncode(&streamObj);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  return 0;
+}
+
+static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SStreamObj *pStream = NULL;
+
+  SMPauseStreamReq pauseReq = {0};
+  if (tDeserializeSMPauseStreamReq(pReq->pCont, pReq->contLen, &pauseReq) < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  pStream = mndAcquireStream(pMnode, pauseReq.name);
+
+  if (pStream == NULL) {
+    if (pauseReq.igNotExists) {
+      mInfo("stream:%s, not exist, if exist is set", pauseReq.name);
+      sdbRelease(pMnode->pSdb, pStream);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+      return -1;
+    }
+  }
+
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "pause-stream");
+  if (pTrans == NULL) {
+    mError("stream:%s, failed to pause stream since %s", pauseReq.name, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+  mInfo("trans:%d, used to pause stream:%s", pTrans->id, pauseReq.name);
+
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  // pause all tasks
+  if (mndPauseAllStreamTasks(pTrans, pStream) < 0) {
+    mError("stream:%s, failed to drop task since %s", pauseReq.name, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  // pause stream
+  if (mndPersistStreamLog(pTrans, pStream, STREAM_STATUS__PAUSE) < 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare pause stream trans since %s", pTrans->id, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  sdbRelease(pMnode->pSdb, pStream);
+  mndTransDrop(pTrans);
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
+
+static int32_t mndResumeStreamTask(STrans *pTrans, SStreamTask *pTask, int8_t igUntreated) {
+  SVResumeStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVResumeStreamTaskReq));
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pReq->head.vgId = htonl(pTask->nodeId);
+  pReq->taskId = pTask->id.taskId;
+  pReq->igUntreated = igUntreated;
+  STransAction action = {0};
+  memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
+  action.pCont = pReq;
+  action.contLen = sizeof(SVResumeStreamTaskReq);
+  action.msgType = TDMT_STREAM_TASK_RESUME;
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFree(pReq);
+    return -1;
+  }
+  return 0;
+}
+
+int32_t mndResumeAllStreamTasks(STrans *pTrans, SStreamObj *pStream, int8_t igUntreated) {
+  int32_t size = taosArrayGetSize(pStream->tasks);
+  for (int32_t i = 0; i < size; i++) {
+    SArray *pTasks = taosArrayGetP(pStream->tasks, i);
+    int32_t sz = taosArrayGetSize(pTasks);
+    for (int32_t j = 0; j < sz; j++) {
+      SStreamTask *pTask = taosArrayGetP(pTasks, j);
+      if (pTask->taskLevel != TASK_LEVEL__SINK && mndResumeStreamTask(pTrans, pTask, igUntreated) < 0) {
+        return -1;
+      }
+    }
+  }
+  return 0;
+}
+
+static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SStreamObj *pStream = NULL;
+
+  SMResumeStreamReq pauseReq = {0};
+  if (tDeserializeSMResumeStreamReq(pReq->pCont, pReq->contLen, &pauseReq) < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  pStream = mndAcquireStream(pMnode, pauseReq.name);
+
+  if (pStream == NULL) {
+    if (pauseReq.igNotExists) {
+      mInfo("stream:%s, not exist, if exist is set", pauseReq.name);
+      sdbRelease(pMnode->pSdb, pStream);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+      return -1;
+    }
+  }
+
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "pause-stream");
+  if (pTrans == NULL) {
+    mError("stream:%s, failed to pause stream since %s", pauseReq.name, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
+  }
+  mInfo("trans:%d, used to pause stream:%s", pTrans->id, pauseReq.name);
+
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  // resume all tasks
+  if (mndResumeAllStreamTasks(pTrans, pStream, pauseReq.igUntreated) < 0) {
+    mError("stream:%s, failed to drop task since %s", pauseReq.name, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  // resume stream
+  if (mndPersistStreamLog(pTrans, pStream, STREAM_STATUS__NORMAL) < 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare pause stream trans since %s", pTrans->id, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  sdbRelease(pMnode->pSdb, pStream);
+  mndTransDrop(pTrans);
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
 }

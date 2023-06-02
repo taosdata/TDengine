@@ -20,7 +20,7 @@ sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
-sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 into target.streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
+sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into target.streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
 
 sleep 1000
 
@@ -64,7 +64,7 @@ $loop_count = 0
 loop1:
 sql select * from target.streamtST1;
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1

@@ -112,6 +112,7 @@ typedef struct SStreamFillInfo {
   int32_t                pos;
   SArray*                delRanges;
   int32_t                delIndex;
+  uint64_t               curGroupId;
 } SStreamFillInfo;
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
@@ -119,6 +120,8 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t 
 void          taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 void          taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
 void          taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
+void          taosFillUpdateStartTimestampInfo(SFillInfo* pFillInfo, int64_t ts);
+bool          taosFillNotStarted(const SFillInfo* pFillInfo);
 SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr,
                                 int32_t numOfNotFillCols, const struct SNodeListNode* val);
 bool          taosFillHasMoreResults(struct SFillInfo* pFillInfo);

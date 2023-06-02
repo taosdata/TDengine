@@ -491,7 +491,8 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
     pResInfo->userFields[i].bytes = pSchema[i].bytes;
     pResInfo->userFields[i].type = pSchema[i].type;
 
-    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR ||
+        pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
       pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
@@ -815,7 +816,7 @@ int32_t handleAlterTbExecRes(void* res, SCatalog* pCatalog) {
 }
 
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog) {
-  return catalogUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
+  return catalogAsyncUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
 }
 
 int32_t handleQueryExecRsp(SRequestObj* pRequest) {
@@ -1248,6 +1249,11 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     return NULL;
   }
 
+  pRequest->sqlstr = taosStrdup("taos_connect");
+  if (pRequest->sqlstr) {
+    pRequest->sqlLen = strlen(pRequest->sqlstr);
+  }
+
   SMsgSendInfo* body = buildConnectMsg(pRequest);
 
   int64_t transporterId = 0;
@@ -1257,7 +1263,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
         (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
-    fprintf(stderr, "failed to connect to server, reason: %s\n\n", errorMsg);
+    tscError("failed to connect to server, reason: %s", errorMsg);
 
     terrno = pRequest->code;
     destroyRequest(pRequest);
@@ -1751,6 +1757,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
+  taosMemoryFreeClear(pResultInfo->convertJson);
   pResultInfo->convertJson = taosMemoryCalloc(1, dataLen);
   if (pResultInfo->convertJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   char* p1 = pResultInfo->convertJson;

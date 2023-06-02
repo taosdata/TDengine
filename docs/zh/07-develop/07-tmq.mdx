@@ -25,7 +25,8 @@ import CDemo from "./_sub_c.mdx";
 
 本文档不对消息队列本身的基础知识做介绍，如果需要了解，请自行搜索。
 
-注意：默认是从wal消费数据，如果wal被删除，消费到的数据会不全，此时可以将参数 experimental.snapshot.enable 设置为true，从tsdb获取全部数据，但是这样的话就不能保证数据的消费顺序。所以建议根据自己的消费情况合理的设置wal的保留策略，保证可以从wal里订阅到全部数据。
+注意：数据订阅是从 WAL 消费数据，如果一些 WAL 文件被基于 WAL 保留策略删除，则已经删除的 WAL 文件中的数据就无法再消费到。需要根据业务需要在创建数据库时合理设置 `WAL_RETENTION_PERIOD` 或 `WAL_RETENTION_SIZE` ，并确保应用及时消费数据，这样才不会产生数据丢失的现象。数据订阅的行为与 Kafka 等广泛使用的消息队列类产品的行为相似。
+
 ## 主要数据结构和 API
 
 不同语言下， TMQ 订阅相关的 API 及数据结构如下：
@@ -221,7 +222,7 @@ void Close()
 
 ```sql
 DROP DATABASE IF EXISTS tmqdb;
-CREATE DATABASE tmqdb;
+CREATE DATABASE tmqdb WAL_RETENTION_PERIOD 3600;
 CREATE TABLE tmqdb.stb (ts TIMESTAMP, c1 INT, c2 FLOAT, c3 VARCHAR(16)) TAGS(t1 INT, t3 VARCHAR(16));
 CREATE TABLE tmqdb.ctb0 USING tmqdb.stb TAGS(0, "subtable0");
 CREATE TABLE tmqdb.ctb1 USING tmqdb.stb TAGS(1, "subtable1");       
@@ -284,16 +285,15 @@ CREATE TOPIC topic_name AS DATABASE db_name;
 
 |            参数名称            |  类型   | 参数说明                                                 | 备注                                        |
 | :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`         | string  | 用于创建连接，同 `taos_connect`                          |     仅用于建立原生连接                                        |
-|       `td.connect.user`        | string  | 用于创建连接，同 `taos_connect`                          |   仅用于建立原生连接                                          |
-|       `td.connect.pass`        | string  | 用于创建连接，同 `taos_connect`                          |  仅用于建立原生连接                                           |
-|       `td.connect.port`        | integer | 用于创建连接，同 `taos_connect`                          |    仅用于建立原生连接                                         |
+|        `td.connect.ip`         | string  | 服务端的 IP 地址                          |                                          |
+|       `td.connect.user`        | string  | 用户名                         |    |
+|       `td.connect.pass`        | string  | 密码                          |  |
+|       `td.connect.port`        | integer | 服务端的端口号                         |  |
 |           `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                        | **必填项**。最大长度：192。                 |
 |          `client.id`           | string  | 客户端 ID                                                | 最大长度：192。                             |
 |      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | <br />`earliest`: default;从头开始订阅; <br/>`latest`: 仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
 |      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit     | 默认值为 true                   |
 |   `auto.commit.interval.ms`    | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒           | 默认值为 5000                                |
-| `experimental.snapshot.enable` | boolean | 是否允许从 TSDB 消费数据。当其关闭时，只能消费依据 WAL 保留策略仍然在WAL中的数据；当其打开时，除WAL中的数据以外，也能够消费已经从WAL中删除但落盘到TSDB中的数据                              | 实验功能，默认关闭                          |
 |     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               |默认关闭 |
 
 对于不同编程语言，其设置方式如下：
@@ -311,7 +311,6 @@ tmq_conf_set(conf, "group.id", "cgrpName");
 tmq_conf_set(conf, "td.connect.user", "root");
 tmq_conf_set(conf, "td.connect.pass", "taosdata");
 tmq_conf_set(conf, "auto.offset.reset", "earliest");
-tmq_conf_set(conf, "experimental.snapshot.enable", "true");
 tmq_conf_set(conf, "msg.with.table.name", "true");
 tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -322,10 +321,11 @@ tmq_conf_destroy(conf);
 </TabItem>
 <TabItem value="java" label="Java">
 
-对于 Java 程序，使用如下配置项：
+对于 Java 程序，还可以使用如下配置项：
 
 | 参数名称                      | 类型   | 参数说明                                                                                                                      |
 | ----------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `td.connect.type` | string | 连接类型，"jni" 指原生连接，"ws" 指 websocket 连接，默认值为 "jni" |
 | `bootstrap.servers`           | string | 连接地址，如 `localhost:6030`                                                                                                 |
 | `value.deserializer`          | string | 值解析方法，使用此方法应实现 `com.taosdata.jdbc.tmq.Deserializer` 接口或继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer` 类 |
 | `value.deserializer.encoding` | string | 指定字符串解析的字符集                                                                                                        |  |
@@ -367,7 +367,6 @@ conf := &tmq.ConfigMap{
  "td.connect.port":              "6030",
  "client.id":                    "test_tmq_c",
  "enable.auto.commit":           "false",
- "experimental.snapshot.enable": "true",
  "msg.with.table.name":          "true",
 }
 consumer, err := NewConsumer(conf)
@@ -402,22 +401,6 @@ from taos.tmq import Consumer
 # Example:
 consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 ```
-
-其中，`configs` 为 dict 类型，传递创建 Consumer 的参数。可以配置的参数有：
-
-| 参数名称 | 类型 | 参数说明 | 备注 |
-|:------:|:----:|:-------:|:---:|
-| `td.connect.ip` | string | 用于创建连接||
-| `td.connect.user` | string | 用于创建连接||
-| `td.connect.pass` | string | 用于创建连接||
-| `td.connect.port` | string | 用于创建连接||
-| `group.id` | string | 消费组 ID，同一消费组共享消费进度 | **必填项**。最大长度：192 |
-| `client.id` | string | 客户端 ID | 最大长度：192 |
-| `msg.with.table.name` | string | 是否允许从消息中解析表名,不适用于列订阅 | 合法值：`true`, `false` |
-| `enable.auto.commit` | string | 启用自动提交 | 合法值：`true`, `false` |
-| `auto.commit.interval.ms` | string | 以毫秒为单位的自动提交时间间隔 | 默认值：5000 ms |
-| `auto.offset.reset` | string | 消费组订阅的初始位置 | 可选：`earliest`(default), `latest`, `none` |
-| `experimental.snapshot.enable` | string | 是否允许从 TSDB 消费数据 | 合法值：`true`, `false` |
 
 </TabItem>
 

@@ -161,6 +161,7 @@ static int l_query(lua_State *L){
 	case TSDB_DATA_TYPE_JSON:
 	case TSDB_DATA_TYPE_BINARY:
 	case TSDB_DATA_TYPE_NCHAR:
+	case TSDB_DATA_TYPE_GEOMETRY:
 	  //printf("type:%d, max len:%d, current len:%d\n",fields[i].type, fields[i].bytes, length[i]);
 	  lua_pushlstring(L,(char *)row[i], length[i]);
 	  break;

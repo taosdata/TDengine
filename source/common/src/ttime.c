@@ -738,6 +738,7 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
     ekey = skey;
     skey = tmp;
   }
+
   if (unit != 'n' && unit != 'y') {
     return (int32_t)((ekey - skey) / interval);
   }

@@ -587,7 +587,7 @@ SUdf *udfdNewUdf(const char *udfName) {
 SUdf *udfdGetOrCreateUdf(const char *udfName) {
   uv_mutex_lock(&global.udfsMutex);
   SUdf  **pUdfHash = taosHashGet(global.udfsHash, udfName, strlen(udfName));
-  int64_t currTime = taosGetTimestampSec();
+  int64_t currTime = taosGetTimestampMs();
   bool    expired = false;
   if (pUdfHash) {
     expired = currTime - (*pUdfHash)->lastFetchTime > 10 * 1000;  // 10s
@@ -600,9 +600,9 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
       return udf;
     } else {
       (*pUdfHash)->expired = true;
-      taosHashRemove(global.udfsHash, udfName, strlen(udfName));
       fnInfo("udfd expired, check for new version. existing udf %s udf version %d, udf created time %" PRIx64,
              (*pUdfHash)->name, (*pUdfHash)->version, (*pUdfHash)->createdTime);
+      taosHashRemove(global.udfsHash, udfName, strlen(udfName));
     }
   }
 
@@ -684,6 +684,8 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       output.colMeta.type = udf->outputType;
       output.colMeta.precision = 0;
       output.colMeta.scale = 0;
+      udfColEnsureCapacity(&output, call->block.info.rows);
+
       SUdfDataBlock input = {0};
       convertDataBlockToUdfDataBlock(&call->block, &input);
       code = udf->scriptPlugin->udfScalarProcFunc(&input, &output, udf->scriptUdfCtx);
@@ -838,7 +840,7 @@ void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
 
 int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   if (!osDataSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
+    terrno = TSDB_CODE_NO_DISKSPACE;
     fnError("udfd create shared library failed since %s", terrstr(terrno));
     return terrno;
   }

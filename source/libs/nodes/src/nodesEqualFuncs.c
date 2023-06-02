@@ -107,6 +107,7 @@ static bool valueNodeEqual(const SValueNode* a, const SValueNode* b) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       COMPARE_VARDATA_FIELD(datum.p);
       break;
     case TSDB_DATA_TYPE_JSON:

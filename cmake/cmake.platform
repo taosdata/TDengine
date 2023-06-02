@@ -56,7 +56,17 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
 
         SET(TD_DARWIN TRUE)
         SET(OSTYPE "macOS")
+        execute_process(COMMAND geos-config --cflags OUTPUT_VARIABLE GEOS_CFLAGS)
+        execute_process(COMMAND geos-config --ldflags OUTPUT_VARIABLE GEOS_LDFLAGS)
+        string(SUBSTRING ${GEOS_CFLAGS} 2 -1 GEOS_CFLAGS)
+        string(REGEX REPLACE "\n" "" GEOS_CFLAGS ${GEOS_CFLAGS})
+        string(SUBSTRING ${GEOS_LDFLAGS} 2 -1 GEOS_LDFLAGS)
+        string(REGEX REPLACE "\n" "" GEOS_LDFLAGS ${GEOS_LDFLAGS})
+        MESSAGE("GEOS_CFLAGS "${GEOS_CFLAGS})
+        MESSAGE("GEOS_LDFLAGS "${GEOS_LDFLAGS})
         ADD_DEFINITIONS("-DDARWIN -Wno-tautological-pointer-compare")
+        INCLUDE_DIRECTORIES(${GEOS_CFLAGS})
+        LINK_DIRECTORIES(${GEOS_LDFLAGS})
 
         IF (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
             MESSAGE("Current system arch is arm64")
@@ -161,6 +171,14 @@ ELSE ()
     MESSAGE(STATUS "input cpuType unknown " ${CPUTYPE})
   ENDIF ()
 ENDIF ()
+
+IF(APPLE)
+    set(CMAKE_THREAD_LIBS_INIT "-lpthread")
+    set(CMAKE_HAVE_THREADS_LIBRARY 1)
+    set(CMAKE_USE_WIN32_THREADS_INIT 0)
+    set(CMAKE_USE_PTHREADS 1)
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+ENDIF()
 
 MESSAGE(STATUS "Platform arch:" ${PLATFORM_ARCH_STR})
 

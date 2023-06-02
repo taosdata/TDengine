@@ -134,6 +134,11 @@ if(${BUILD_ADDR2LINE})
     endif(NOT ${TD_WINDOWS})
 endif(${BUILD_ADDR2LINE})
 
+# geos
+if(${BUILD_GEOS})
+    cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -223,12 +228,56 @@ endif(${BUILD_WITH_LEVELDB})
 # rocksdb
 # To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
 if(${BUILD_WITH_ROCKSDB})
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+    if(${TD_LINUX})
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=unused-function -Wno-errno=unused-private-field -Wno-error=unused-result")
+    endif(${TD_LINUX})
+    MESSAGE(STATUS "CXXXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
+
+    if(${TD_DARWIN})
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+    endif(${TD_DARWIN})
+
+    if (${TD_DARWIN_ARM64})
+        set(HAS_ARMV8_CRC true)
+    endif(${TD_DARWIN_ARM64})
+
+    if (${TD_WINDOWS})
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819")  
+    endif(${TD_WINDOWS})
+
+
+    if(${TD_DARWIN})
+        option(HAVE_THREAD_LOCAL "" OFF)
+        option(WITH_IOSTATS_CONTEXT "" OFF)
+        option(WITH_PERF_CONTEXT "" OFF)
+    endif(${TD_DARWIN})
+
+    if(${TD_WINDOWS})
+	    option(WITH_JNI "" OFF)
+    endif(${TD_WINDOWS})
+
+    if(${TD_WINDOWS})
+        option(WITH_MD_LIBRARY "build with MD" OFF)
+        set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
+    endif(${TD_WINDOWS})
+    
+    
+    option(WITH_FALLOCATE "" OFF)
+    option(WITH_JEMALLOC "" OFF)
+    option(WITH_GFLAGS "" OFF)
+    option(PORTABLE "" OFF)
+    option(WITH_LIBURING "" OFF)
+    option(FAIL_ON_WARNINGS OFF)
+
     option(WITH_TESTS "" OFF)
     option(WITH_BENCHMARK_TOOLS "" OFF)
     option(WITH_TOOLS "" OFF)
     option(WITH_LIBURING "" OFF)
+    IF (TD_LINUX) 
+    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" ON)
+    ELSE()
     option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
+    ENDIF()
     add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
     target_include_directories(
         rocksdb
@@ -434,6 +483,15 @@ if(${BUILD_ADDR2LINE})
     endif(NOT ${TD_WINDOWS})
 endif(${BUILD_ADDR2LINE})
 
+# geos
+if(${BUILD_GEOS})
+    option(BUILD_SHARED_LIBS "Build GEOS with shared libraries" OFF)
+    add_subdirectory(geos EXCLUDE_FROM_ALL)
+    target_include_directories(
+        geos_c
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/geos/include>
+    )
+endif(${BUILD_GEOS})
 
 # ================================================================================================
 # Build test

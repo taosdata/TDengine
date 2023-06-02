@@ -237,6 +237,23 @@ static void mndBecomeFollower(const SSyncFSM *pFsm) {
   taosThreadMutexUnlock(&pMgmt->lock);
 }
 
+static void mndBecomeLearner(const SSyncFSM *pFsm) {
+  SMnode    *pMnode = pFsm->data;
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  mInfo("vgId:1, become learner");
+
+  taosThreadMutexLock(&pMgmt->lock);
+  if (pMgmt->transId != 0) {
+    mInfo("vgId:1, become learner and post sem, trans:%d, failed to propose since not leader", pMgmt->transId);
+    pMgmt->transId = 0;
+    pMgmt->transSec = 0;
+    pMgmt->transSeq = 0;
+    pMgmt->errCode = TSDB_CODE_SYN_NOT_LEADER;
+    tsem_post(&pMgmt->syncSem);
+  }
+  taosThreadMutexUnlock(&pMgmt->lock);
+}
+
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
   mInfo("vgId:1, become leader");
   SMnode *pMnode = pFsm->data;
@@ -278,6 +295,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpReConfigCb = NULL;
   pFsm->FpBecomeLeaderCb = mndBecomeLeader;
   pFsm->FpBecomeFollowerCb = mndBecomeFollower;
+  pFsm->FpBecomeLearnerCb = mndBecomeLearner;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   pFsm->FpGetSnapshotInfo = mndSyncGetSnapshotInfo;
   pFsm->FpSnapshotStartRead = mndSnapshotStartRead;
@@ -317,13 +335,16 @@ int32_t mndInitSync(SMnode *pMnode) {
 
   mInfo("vgId:1, start to open sync, replica:%d selfIndex:%d", pMgmt->numOfReplicas, pMgmt->selfIndex);
   SSyncCfg *pCfg = &syncInfo.syncCfg;
+  pCfg->totalReplicaNum = pMgmt->numOfTotalReplicas;
   pCfg->replicaNum = pMgmt->numOfReplicas;
   pCfg->myIndex = pMgmt->selfIndex;
-  for (int32_t i = 0; i < pMgmt->numOfReplicas; ++i) {
+  pCfg->lastIndex = pMgmt->lastIndex;
+  for (int32_t i = 0; i < pMgmt->numOfTotalReplicas; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     pNode->nodeId = pMgmt->replicas[i].id;
     pNode->nodePort = pMgmt->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodeRole = pMgmt->nodeRoles[i];
     (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     mInfo("vgId:1, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId,
           pNode->clusterId);
