@@ -608,7 +608,7 @@ static void destroyPhysiNode(SPhysiNode* pNode) {
   nodesDestroyNode(pNode->pSlimit);
 }
 
-static void destroyWinodwPhysiNode(SWinodwPhysiNode* pNode) {
+static void destroyWinodwPhysiNode(SWindowPhysiNode* pNode) {
   destroyPhysiNode((SPhysiNode*)pNode);
   nodesDestroyList(pNode->pExprs);
   nodesDestroyList(pNode->pFuncs);
@@ -1089,6 +1089,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyNode(pLogicNode->pMergeCondition);
       nodesDestroyNode(pLogicNode->pOnConditions);
+      nodesDestroyNode(pLogicNode->pColEqualOnConditions);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
@@ -1221,6 +1222,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pMergeCondition);
       nodesDestroyNode(pPhyNode->pOnConditions);
       nodesDestroyList(pPhyNode->pTargets);
+      nodesDestroyNode(pPhyNode->pColEqualOnConditions);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
@@ -1258,7 +1260,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-      destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL: {
@@ -1274,19 +1276,19 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
-      destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE: {
       SStateWinodwPhysiNode* pPhyNode = (SStateWinodwPhysiNode*)pNode;
-      destroyWinodwPhysiNode((SWinodwPhysiNode*)pPhyNode);
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStateKey);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT: {
       SEventWinodwPhysiNode* pPhyNode = (SEventWinodwPhysiNode*)pNode;
-      destroyWinodwPhysiNode((SWinodwPhysiNode*)pPhyNode);
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStartCond);
       nodesDestroyNode(pPhyNode->pEndCond);
       break;
@@ -2074,7 +2076,7 @@ char* nodesGetNameFromColumnNode(SNode* pNode) {
     return "NULL";
   }
 
-  return ((SColumnNode*)pNode)->colName;
+  return ((SColumnNode*)pNode)->node.userAlias;
 }
 
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {

@@ -1,0 +1,30 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+
+sql drop database if exists db1;
+sql create database db1;
+sql use db1;
+
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql insert into tba1 values ('2022-04-26 15:15:08', 1, "a");
+sql insert into tba1 values ('2022-04-26 15:15:07', 1, "b");
+sql insert into tba1 values ('2022-04-26 15:15:06', 1, "a");
+sql insert into tba1 values ('2022-04-26 15:15:05', 1, "b");
+sql insert into tba1 values ('2022-04-26 15:15:04', 1, "c");
+sql insert into tba1 values ('2022-04-26 15:15:03', 1, "c");
+sql insert into tba1 values ('2022-04-26 15:15:02', 1, "d");
+sql insert into tba1 values ('2022-04-26 15:15:01', 1, "d");
+sql select distinct avg(f1) as avgv from sta group by f2;
+if $rows != 1 then
+  return -1
+endi
+sql select distinct avg(f1) as avgv from sta group by f2 limit 1,10;
+if $rows != 0 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

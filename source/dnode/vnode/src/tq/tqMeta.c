@@ -366,9 +366,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       taosArrayDestroy(tbUidList);
     }
     tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, vgId);
-    taosWLockLatch(&pTq->lock);
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));
-    taosWUnLockLatch(&pTq->lock);
   }
 
 end:

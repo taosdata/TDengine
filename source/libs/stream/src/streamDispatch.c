@@ -157,7 +157,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
     tEncodeStreamRetrieveReq(&encoder, &req);
     tEncoderClear(&encoder);
 
-    SRpcMsg rpcMsg = { .code = 0, .msgType = TDMT_STREAM_RETRIEVE, .pCont = buf, .contLen = sizeof(SMsgHead) + len };
+    SRpcMsg rpcMsg = {.code = 0, .msgType = TDMT_STREAM_RETRIEVE, .pCont = buf, .contLen = sizeof(SMsgHead) + len};
     if (tmsgSendReq(&pEpInfo->epSet, &rpcMsg) < 0) {
       ASSERT(0);
       goto CLEAR;

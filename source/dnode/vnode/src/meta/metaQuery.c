@@ -317,42 +317,6 @@ _query:
       tDecoderClear(&dc);
       goto _exit;
     }
-    {  // Traverse to find the previous qualified data
-      TBC *pCur;
-      tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
-      STbDbKey key = {.version = sver, .uid = INT64_MAX};
-      int      c = 0;
-      tdbTbcMoveTo(pCur, &key, sizeof(key), &c);
-      if (c < 0) {
-        tdbTbcMoveToPrev(pCur);
-      }
-
-      void *pKey = NULL;
-      void *pVal = NULL;
-      int   vLen = 0, kLen = 0;
-      while (1) {
-        int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, &pVal, &vLen);
-        if (ret < 0) break;
-
-        STbDbKey *tmp = (STbDbKey *)pKey;
-        if (tmp->uid != uid) {
-          continue;
-        }
-        SDecoder   dcNew = {0};
-        SMetaEntry meNew = {0};
-        tDecoderInit(&dcNew, pVal, vLen);
-        metaDecodeEntry(&dcNew, &meNew);
-        pSchema = tCloneSSchemaWrapper(&meNew.stbEntry.schemaRow);
-        tDecoderClear(&dcNew);
-        tdbTbcClose(pCur);
-        tdbFree(pKey);
-        tdbFree(pVal);
-        goto _exit;
-      }
-      tdbFree(pKey);
-      tdbFree(pVal);
-      tdbTbcClose(pCur);
-    }
   } else if (me.type == TSDB_CHILD_TABLE) {
     uid = me.ctbEntry.suid;
     tDecoderClear(&dc);
@@ -377,7 +341,6 @@ _query:
   tDecoderClear(&dc);
 
 _exit:
-  tDecoderClear(&dc);
   if (lock) {
     metaULock(pMeta);
   }
@@ -385,7 +348,6 @@ _exit:
   return pSchema;
 
 _err:
-  tDecoderClear(&dc);
   if (lock) {
     metaULock(pMeta);
   }

@@ -423,6 +423,7 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqPollReq req = {0};
+  int code = 0;
   if (tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
     tqError("tDeserializeSMqPollReq %d failed", pMsg->contLen);
     terrno = TSDB_CODE_INVALID_MSG;
@@ -433,38 +434,45 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t      reqEpoch = req.epoch;
   STqOffsetVal reqOffset = req.reqOffset;
   int32_t      vgId = TD_VID(pTq->pVnode);
+  STqHandle*   pHandle = NULL;
 
-  taosWLockLatch(&pTq->lock);
-  // 1. find handle
-  STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
-  if (pHandle == NULL) {
-    tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", consumerId, vgId, req.subKey);
-    terrno = TSDB_CODE_INVALID_MSG;
+  while (1) {
+    taosWLockLatch(&pTq->lock);
+    // 1. find handle
+    pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
+    if (pHandle == NULL) {
+      tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d subkey %s not found", consumerId, vgId, req.subKey);
+      terrno = TSDB_CODE_INVALID_MSG;
+      taosWUnLockLatch(&pTq->lock);
+      return -1;
+    }
+
+    // 2. check re-balance status
+    if (pHandle->consumerId != consumerId) {
+      tqError("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+              consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
+      terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+      taosWUnLockLatch(&pTq->lock);
+      return -1;
+    }
+
+    bool exec = tqIsHandleExec(pHandle);
+    if(!exec) {
+      tqSetHandleExec(pHandle);
+//      qSetTaskCode(pHandle->execHandle.task, TDB_CODE_SUCCESS);
+      tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, set handle exec, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
+      taosWUnLockLatch(&pTq->lock);
+      break;
+    }
     taosWUnLockLatch(&pTq->lock);
-    return -1;
-  }
 
-  while (tqIsHandleExec(pHandle)) {
-    tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", consumerId, vgId, req.subKey);
-    taosMsleep(5);
+    tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, subscription is executing, wait for 10ms and retry, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
+    taosMsleep(10);
   }
-
-  // 2. check re-balance status
-  if (pHandle->consumerId != consumerId) {
-    tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
-            consumerId, vgId, req.subKey, pHandle->consumerId);
-    terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
-    taosWUnLockLatch(&pTq->lock);
-    return -1;
-  }
-  tqSetHandleExec(pHandle);
-  taosWUnLockLatch(&pTq->lock);
 
   // 3. update the epoch value
-  int32_t savedEpoch = pHandle->epoch;
-  if (savedEpoch < reqEpoch) {
-    tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, savedEpoch,
-            reqEpoch);
+  if (pHandle->epoch < reqEpoch) {
+    tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, pHandle->epoch, reqEpoch);
     pHandle->epoch = reqEpoch;
   }
 
@@ -473,8 +481,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, reqId:0x%" PRIx64,
           consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
 
-  int code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);
+  code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);
   tqSetHandleIdle(pHandle);
+
+  tqDebug("tmq poll: consumer:0x%" PRIx64 "vgId:%d, topic:%s, , set handle idle, pHandle:%p", consumerId, vgId, req.subKey, pHandle);
   return code;
 }
 
@@ -571,8 +581,8 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   STqHandle* pHandle = taosHashGet(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
   if (pHandle) {
     while (tqIsHandleExec(pHandle)) {
-      tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
-      taosMsleep(5);
+      tqDebug("vgId:%d, topic:%s, subscription is executing, wait for 10ms and retry, pHandle:%p", vgId, pHandle->subKey, pHandle);
+      taosMsleep(10);
     }
 
     if (pHandle->pRef) {
@@ -641,7 +651,6 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   tqDebug("vgId:%d, tq process sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pVnode->config.vgId, req.subKey,
           req.oldConsumerId, req.newConsumerId);
 
-  taosWLockLatch(&pTq->lock);
   STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
@@ -735,37 +744,35 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
     goto end;
   } else {
-    while (tqIsHandleExec(pHandle)) {
-      tqDebug("sub req vgId:%d, topic:%s, subscription is executing, wait for 5ms and retry", vgId, pHandle->subKey);
-      taosMsleep(5);
-    }
+    taosWLockLatch(&pTq->lock);
 
     if (pHandle->consumerId == req.newConsumerId) {  // do nothing
-      tqInfo("vgId:%d consumer:0x%" PRIx64 " remains, no switch occurs", req.vgId, req.newConsumerId);
-      atomic_add_fetch_32(&pHandle->epoch, 1);
-
+      tqInfo("vgId:%d consumer:0x%" PRIx64 " remains, no switch occurs, should not reach here", req.vgId, req.newConsumerId);
     } else {
       tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
              req.newConsumerId);
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
-      atomic_store_32(&pHandle->epoch, 0);
     }
+//    atomic_add_fetch_32(&pHandle->epoch, 1);
+
     // kill executing task
-    qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
-    if (pTaskInfo != NULL) {
-      qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
-    }
-    if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      qStreamCloseTsdbReader(pTaskInfo);
-    }
+//    if(tqIsHandleExec(pHandle)) {
+//      qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
+//      if (pTaskInfo != NULL) {
+//        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
+//      }
+
+//      if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+//        qStreamCloseTsdbReader(pTaskInfo);
+//      }
+//    }
     // remove if it has been register in the push manager, and return one empty block to consumer
     tqUnregisterPushHandle(pTq, pHandle);
+    taosWUnLockLatch(&pTq->lock);
     ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
-    goto end;
   }
 
 end:
-  taosWUnLockLatch(&pTq->lock);
   taosMemoryFree(req.qmsg);
   return ret;
 }
