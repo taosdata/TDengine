@@ -828,7 +828,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
   sprintf(select->stmtName, "%p", select);
-  select->timeLineResMode = TIME_LINE_GLOBAL;
+  select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
   select->onlyHasKeepOrderFunc = true;
   select->timeRange = TSWINDOW_INITIALIZER;
   return (SNode*)select;
