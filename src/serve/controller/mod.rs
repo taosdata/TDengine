@@ -1619,30 +1619,56 @@ pub struct TaskActivity {
 lazy_static::lazy_static! {
     pub static ref DATA_SOURCE_DEFINITIONS_VEC: Vec<DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def
+    };
+    pub static ref DATA_SOURCE_DEFINITIONS_VEC_CN: Vec<DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
         def
     };
     /// This is an example for using doc comment attributes
     pub static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opc.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
+    };
+    pub static ref DATA_SOURCE_DEFINITIONS_CN: BTreeMap<String, DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
 }
 
+#[test]
+fn test_ds() {
+    DATA_SOURCE_DEFINITIONS_VEC.as_slice();
+    DATA_SOURCE_DEFINITIONS_VEC_CN.as_slice();
+}
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct ExpandedDsn {
     pub id: String,

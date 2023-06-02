@@ -1,0 +1,201 @@
+---
+id: opcua
+name: OPC-UA
+description: |
+  OPC 是工业自动化领域和其他行业中安全可靠地交换数据的互操作标准之一。
+
+  OPC UA是经典OPC规范的下一代标准，是一个平台无关的面向服务的架构规范，集成了现有 OPC Classic 规范的所有功能，提供了一条迁移到更安全和可扩展解决方案的路径。
+
+  如果想了解更多关于 OPC UA 的信息，可以阅读OPC Foundation网站和一些有用的博客，例如：
+  1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
+  2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).
+
+  taosX 使用 OPC 连接器从 OPC 服务器拉取或订阅数据。
+type: uri
+
+options:
+  endpoint:
+    display: 服务地址
+    required: true
+    description: |
+      OPC-UA 服务器端点，如：`127.0.0.1:6666/OPCUA/ServerPath`。
+    placeholder: 127.0.0.1:6666/OPCUA/ServerPath
+
+strict: false
+
+authentication:
+  display: 认证
+  description: OPC 可选择使用多种认证方式。
+  value: anonymous
+  alternatives:
+    - name: anonymous
+      display: 匿名访问
+      description: Logging in anonymously without any configurations (if available).
+      value: true
+      params: []
+
+    - name: plain
+      display: 用户名
+      description: 使用用户名和密码访问 OPC 服务器。
+      username:
+        display: 用户名
+        description: OPC 服务登录用户名。
+        placeholder: username
+        required: true
+      password:
+        display: 密码
+        description: OPC 服务登录密码.
+        placeholder: password
+        required: true
+    - name: certificates
+      display: 证书访问
+      description: 使用私钥及证书反问 OPC 服务器。
+      params:
+        - name: certificate
+          display: 证书
+          description: 证书文件。当 security mode or policy isn't "None".
+          hint:
+            type: file
+        - name: private_key
+          display: 私钥
+          description: 私钥文件. Required when security mode or policy isn't "None"
+          hint:
+            type: file
+        - name: security_mode
+          display: 安全模式
+          description: |
+            Security mode（安全模式）是OPC UA协议中用于保护通信安全的一种机制。安全模式定义了如何加密和验证通信数据，以防止未经授权的访问和篡改。
+
+            OPC UA支持以下几种安全模式：
+            - **None（无）**: 不进行任何加密或身份验证，通信数据以明文形式传输。这种模式只适用于测试和开发环境，不建议在生产环境中使用。
+            - **Sign（签名）**: 使用数字签名对通信数据进行验证，以确保数据的完整性和真实性，但不进行加密。这种模式适用于需要保护数据完整性的场景，如数据采集和监控。
+            - **SingAndEncrypt（签名和加密）**: 使用数字签名对通信数据进行验证，并使用加密算法对数据进行加密，以保证数据的完整性、真实性和保密性。这种模式适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
+          hint:
+            type: str
+            choices:
+              - None
+              - Sign
+              - SignAndEncrypt
+        - name: security_policy
+          display: 安全策略
+          description: |
+            Security Policy（安全策略）是OPC UA协议中用于定义安全机制的一种机制。安全策略定义了如何实现安全模式中的加密和验证机制，包括使用的加密算法、密钥长度、数字证书等。
+
+            OPC UA支持以下几种安全策略：
+            1. **None**（无）：不进行任何加密或身份验证，通信数据以明文形式传输。这种策略只适用于测试和开发环境，不建议在生产环境中使用。
+            2. **Basic128Rsa15**：使用RSA算法和128位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
+            3. **Basic256**：使用AES算法和256位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
+            4. **Basic256Sha256**：使用AES算法和256位的密钥长度，并使用SHA-256算法对数字签名进行加密，以保证数据的完整性、真实性和保密性。这种策略适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
+
+          hint:
+            type: str
+            choices:
+              - None
+              - Basic128Rsa15
+              - Basic256
+              - Basic256Sha256
+datasets:
+  name: Data Sets
+  description: Data points in OPC server to collect.
+  categories:
+  - category: nodes
+    display: Nodes
+    description: Node id list separated by a ','.
+    target:
+      name: ua.nodes
+      description: Node id list separated by a ','.
+      required: false
+      multiple: true
+      editable: true
+      selectable: true
+
+groups:
+
+  - name: 连接配置
+    display_order: 2
+    description: 连接相关配置。
+    params:
+      - name: connect_timeout
+        display: 连接超时
+        description: |-
+          连接超时间隔，单位为：秒 (s)。
+        placeholder: 10
+        hint:
+          type: integer
+          min: 1
+          max: 60
+      - name: request_timeout
+        display: 采集超时
+        hint:
+          type: integer
+          min: 1
+          max: 60
+        description: 数据采集请求超时间隔，单位为：秒 (s)。
+        placeholder: 10
+
+  - name: 采集配置
+    display_order: 3
+    description: 数据采集相关配置项。
+    params:
+      - name: interval
+        display: 采集间隔
+        description: |-
+          数据点位采集间隔，单位为：秒。
+        hint:
+          type: integer
+          min: 1
+          max: 60
+
+      - name: limit
+        display: 点位限制
+        description: |-
+          同一请求下的最大采集点位数量限制。
+        hint:
+          type: integer
+          min: 0
+          max: 1000
+
+      - name: collect_mode
+        display: 采集模式
+        description: |-
+          `observe` 模式（读取点位最新值上报）或 `subscribe`（订阅模式，变更时上报）。默认为 `observe`。
+        placeholder: observe
+        hint:
+          type: str
+          choices:
+            - observe
+            - subscribe
+
+  - name: 其他
+    display_order: 4
+    description: 其他配置项。
+    params:
+      - name: concurrent
+        display: 并行度
+        description: 采集并行度。
+        hint:
+          type: integer
+          min: 1
+          max: 100
+      - name: batch_size
+        display: 批次大小
+        hint:
+          type: integer
+          min: 1
+          max: 10000
+        description: 每次采集上报的最大数据量。
+        placeholder: 100
+      - name: batch_timeout
+        display: 上报超时
+        hint:
+          type: integer
+          min: 1
+          max: 60
+        description: 每批次采集数据上报的超时时间间隔，单位为：秒 (s)。
+        placeholder: 20
+      - name: use_received_time
+        display: 使用本地时间
+        hint:
+          type: bool
+        description: 使用采集器本地时间替换服务器时间。
+
