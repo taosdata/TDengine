@@ -112,9 +112,11 @@ fi
 if [ "$osType" == "Darwin" ]; then
     lib_files="${build_dir}/lib/libtaos.${version}.dylib"
     wslib_files="${build_dir}/lib/libtaosws.dylib"
+    rocksdb_lib_files="${build_dir}/lib/librocksdb.dylib.8.1.1"
 else
     lib_files="${build_dir}/lib/libtaos.so.${version}"
     wslib_files="${build_dir}/lib/libtaosws.so"
+    rocksdb_lib_files="${build_dir}/lib/librocksdb.so.8.1.1"
 fi
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
 
@@ -337,6 +339,7 @@ fi
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
 [ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
+[ -f ${rocksdb_lib_files} ] && cp ${rocksdb_lib_files} ${install_dir}/driver || :
 
 # Copy connector
 if [ "$verMode" == "cluster" ]; then
