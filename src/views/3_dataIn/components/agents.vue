@@ -39,7 +39,18 @@
       <el-table-column
         :label="$t('taosagents.expire_date')"
         prop="expire_date"
-      ></el-table-column>
+      >
+      <template slot-scope="scope">
+        <template v-if="((new Date(scope.row.expire_date))<Date.now())">
+          <el-tooltip effect="light" :content="$t('datasource.expired')" placement="right-end">
+
+          <span style="color:red;">{{scope.row.expire_date}}</span>
+          </el-tooltip>
+        </template>
+        <span v-else>{{scope.row.expire_date}}</span>
+      </template>
+      
+      </el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.last_modified_at')"
         prop="last_modified_at"

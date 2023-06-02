@@ -19,7 +19,7 @@
         </el-select>
       </el-form-item>
       <el-form-item :label="$t('database')" prop="roles">
-        <el-checkbox-group v-model="checkList" class="check-role">
+        <el-checkbox-group v-model="checkList" class="check-role" :min="1">
           <el-checkbox label="Read"></el-checkbox>
           <el-checkbox label="Write"></el-checkbox>
           <!-- <el-checkbox label="Database Admin"></el-checkbox> -->
@@ -51,7 +51,7 @@ export default {
   },
   data() {
     return {
-      checkList: [],
+      checkList: ['Read'],
       info: {
         user_name: "",
         roles: [],
