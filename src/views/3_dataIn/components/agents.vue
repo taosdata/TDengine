@@ -1,17 +1,18 @@
 <template>
   <div class="dnode-block">
-    <div style="font-size: 18px">
+    <div style="font-size: 18px;" v-if="agentList?.length > 0">
       <p class="title">
         <span>{{ $t("topic.agent") }}</span>
       </p>
     </div>
-    <el-table
-      style="margin-top: 20px"
-      :data="agentList"
-      size="mini"
-      max-height="250"
+    <el-table 
+      v-if="agentList?.length > 0"
+      style="margin-top: 20px" 
+      :data="agentList" 
+      size="mini" 
+      max-height="250" 
     >
-      <el-table-column label="ID" prop="id"></el-table-column>
+      <el-table-column label="ID" prop="id" ></el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.cluster_id')"
         prop="cluster_id"
