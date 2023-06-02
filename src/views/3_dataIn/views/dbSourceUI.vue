@@ -592,7 +592,7 @@
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
-        <span class="label required">Target Database</span>
+        <span class="label required">{{this.$t('datasource.targtedb')}}</span>
         <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
@@ -792,8 +792,13 @@ export default {
       }
     },
     //处理空值和‘undefined’字符值
-    handleEmptyValue(val){
-      return !Object.is(val,null)&&!Object.is(val,undefined)&&!Object.is(val,'')&&!Object.is(val,'undefined')
+    handleEmptyValue(val) {
+      return (
+        !Object.is(val, null) &&
+        !Object.is(val, undefined) &&
+        !Object.is(val, "") &&
+        !Object.is(val, "undefined")
+      );
     },
     async submit() {
       let dns = "";
@@ -826,26 +831,26 @@ export default {
             )[0];
             let username = window.encodeURIComponent(userinfo.username.value);
             let pwd = window.encodeURIComponent(userinfo.password.value);
-            dns +=`://`
+            dns += `://`;
             if (this.handleEmptyValue(username)) {
-              dns += `${username}`
+              dns += `${username}`;
             }
             if (this.handleEmptyValue(pwd)) {
-              dns += `:${pwd}`
+              dns += `:${pwd}`;
             }
-            
           } else if (data.authentication.value == "token") {
             let userinfo = data.authentication.alternatives.filter(
               (item) => item.name == "token"
             )[0];
             let token = window.encodeURIComponent(userinfo.params[0].value);
             if (this.handleEmptyValue(token)) {
-              dns += `${token}`
+              dns += `${token}`;
             }
           }
+          dns += dns.includes('://')?dns:dns+'://'
           // if(this.handleEmptyValue(data.options.host.value)){
-              dns += `@${data.options.host.value?data.options.host.value:''}`
-            // }
+          dns += `@${data.options.host.value ? data.options.host.value : ""}`;
+          // }
         } else {
           if (this.tagName == "influxdb") {
             if (data.options.host.value && !this.isIP) {
@@ -1206,6 +1211,11 @@ export default {
     white-space: pre-wrap;
   }
   .left-ui {
+    min-width: 800px;
+    .description {
+      max-width: 500px;
+      overflow: auto;
+    }
     section:not(:first-child) {
       border: 1px solid #ececef;
       margin-bottom: 20px;

@@ -291,6 +291,10 @@ export default {
           }
         ).then(async () => {
           await excuteStart(data.id).then((res) => {
+            if(res&&res.message){
+              Message.error(res.message)
+              return
+            }
             this.refresh();
           });
         });

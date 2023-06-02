@@ -891,6 +891,7 @@ export default {
   },
 
   datasource: {
+    targtedb:'目标数据库',
     expired:'已过期',
     payloadtip:'请选择mqtt payload',
     keep:'Keep',
