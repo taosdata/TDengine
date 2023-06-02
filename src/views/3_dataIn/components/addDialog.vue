@@ -188,7 +188,7 @@ export default {
         this.agentList = this.agentList.map(agent => {
           return {
             value: agent.id,
-            label: agent.id + '.' + agent.name,
+            label: agent.id + '.' + agent.name + ((new Date(agent.expire_date)<Date.now())?'（'+this.$t('datasource.expired')+'）':''),
             disabled:new Date(agent.expire_date)<Date.now(),
             ...agent
           }

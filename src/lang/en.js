@@ -1108,6 +1108,7 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
+    expired:'Expired',
     payloadtip:'Please select mqtt payload',
     keep:'Keep',
     agentexpiretip:'The expiration time must be greater than the current time',
