@@ -73,10 +73,30 @@ taosX 是进行数据同步与复制的核心组件，以下运行模式指 taos
 
 #### 从 TDengine 到 TDengine 的数据同步
 
-1. 3.0 -> 3.0
-2. 2.4(2.6) -> 3.0
+##### TDengine 3.0 -> TDengine 3.0
 
-@chenyang，请在此补充详细的命令行参数，及示例（含 Linux 和 Windows），按如下结构 (下同)
+在两个相同版本 （都是 3.0.x.y）的 TDengine 集群之间将源集群中的存量及增量数据同步到目标集群中。
+
+参数说明：
+
+| 参数名称  | 说明                                                             | 默认值                     |
+|-----------|------------------------------------------------------------------|----------------------------|
+| group.id  | 订阅使用的分组ID                                                 | 若为空则使用 hash 生成一个 |
+| client.id | 订阅使用的客户端ID                                               | taosx                      |
+| timeout   | 监听数据的超时时间，当设置为 never 表示 taosx 不会停止持续监听。 | 500ms                      |
+
+示例：
+```shell
+taosx run -f 'tmq://root:taosdata@localhost:6030/db1?group.id=taosx1&client.id=taosx&timeout=never' -t 'taos://root:taosdata@another.com:6030/db2'
+```
+以上示例中的参数表示：
+
+
+##### TDengine 2.4(2.6) -> TDengine 3.0
+
+将 2.4（2.6） 版本 TDengine 集群中的数据迁移到 3.0 版本 TDengine 集群。
+
+
 
 1. 参数列表及其含义
 2. Linux/Windows 示例
@@ -100,7 +120,25 @@ taosX 是进行数据同步与复制的核心组件，以下运行模式指 taos
 
 #### 从 Pi 同步数据到 TDengine (Windows)
 
-@chenyang
+在 taosX CLI 运行时支持的参数如下：
+- PISystemName：连接配置 PI 系统服务名，默认值与 PIServerName 一致
+- MaxWaitLen：数据最大缓冲条数，默认值为1000
+- UpdateInterval：PI System 取数据频率，默认值为10000（毫秒：ms）
+
+应用示例：
+
+```shell
+taosx run \
+    -f "pi://WIN-2OA23UM12TN/Met1?TemplateForPIPoint=template1,template2&TemplateForAFElement=template3,template4" \
+    -t "taos://tdengine:6030/pi"
+```
+
+以上示例的PI参数：
+- PIServerName：PI 连接配置主机名 ，此示例中为 WIN-2OA23UM12TN
+- AFDatabaseName：指定连接的 PI 数据库，此示例中为 Met1
+- TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 ，按照 element 的每个 Arrtribution 作为子表导入到 TDengine 服务器 tdengine 的 pi 库中
+- TemplateForAFElement：使用 AF Point 模式将模板template3 ，template4 ，按照 element 的 Attribution 集合作为一个子表导入到 TDengine 服务器 tdengine的 pi 库中
+
 
 ### 从 InfluxDB 同步数据到 TDengine
 
