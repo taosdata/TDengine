@@ -574,7 +574,7 @@ int32_t decodeValueFunc(void* value, int32_t vlen, int64_t* ttl, char** dest) {
   }
   p = taosDecodeFixedI64(p, &key.unixTimestamp);
   p = taosDecodeFixedI32(p, &key.len);
-  if (vlen != sizeof(int64_t) + sizeof(int32_t) + key.len) {
+  if (vlen != (sizeof(int64_t) + sizeof(int32_t) + key.len)) {
     if (dest != NULL) *dest = NULL;
     qError("vlen: %d, read len: %d", vlen, key.len);
     return -1;
