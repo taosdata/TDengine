@@ -80,4 +80,5 @@ fi
 
 # there can not libtaos.so*, otherwise ln -s  error
 ${csudo}rm -f ${install_main_dir}/driver/libtaos.*   || :
+[ -f ${install_main_dir}/driver/librocksdb.* ] && ${csudo}rm -f ${install_main_dir}/driver/librocksdb.*  || :
 [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}rm -f ${install_main_dir}/driver/libtaosws.so   || :
