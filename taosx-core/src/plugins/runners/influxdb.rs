@@ -251,10 +251,10 @@ pub async fn influxdb_to_taos(
                 // application exit with error code
                 status = child.wait() => {
                     let status = status?;
-                    log::info!("InfluxDB exit with status {}", status);
+                    log::info!("InfluxDB exit with {}", status);
                     if !status.success() {
                         let _ = ipc.send(());
-                        anyhow::bail!("InfluxDB exist with status {}", status);
+                        anyhow::bail!("InfluxDB exist with {}", status);
                     }
                 },
                 err = receiver.recv() => {

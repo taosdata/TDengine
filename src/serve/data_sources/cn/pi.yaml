@@ -1,0 +1,115 @@
+---
+id: pi
+name: PI
+description: |
+  PI 系统是一套用于数据收集、查找、分析、传递和可视化的软件产品，可以作为管理实时数据和事件的企业级系统的基础架构。
+
+  PI 系统这个术语通常用来指代PI服务器，但这两者并不相同。PI系统指的是所有 OSIsoft 软件产品，而 PI 服务器是 PI 系统的核心产品。数据可以自动从许多来源（控制系统、实验室设备、计算、手动输入或定制软件）收集。
+
+  taosX 可以通过 PI 连接器插件从 PI 系统中提取实时数据。
+type: uri
+options:
+  host:
+    display: 服务地址
+    description: PI 服务器地址（通常使用主机名）。
+    placeholder: server
+    required: true
+  subject:
+    required: true
+    display: AFDatabaseName
+    description: AF 数据库名
+    placeholder: '如: Met1'
+strict: false
+groups:
+- name: PI 系统设置
+  display_order: 2
+  description: PI 系统相关配置项。
+  params:
+  - name: PISystemName
+    display: PI 系统名称
+    description: |-
+      PI 系统名称，留空以使用服务器地址。
+    hint:
+      type: str
+  - name: PIDataPipesInstances
+    display: PI Data Pipes Instances
+    hint:
+      type: integer
+    description: |
+      Default 1.
+    placeholder: 1
+  - name: AFDataPipesInstances
+    display: AF Data Pipes Instances
+    hint:
+      type: integer
+    description: |
+      Default 1.
+    placeholder: 1
+
+- name: Data Queue
+  display_order: 3
+  description: Other configurations.
+  params:
+  - name: MaxWaitLen
+    display: Max Wait Length
+    description: |-
+      Message Wait queue max length
+    hint:
+      type: integer
+      min: 1
+      max: 10000
+  - name: UpdateInterval
+    display: Update Interval (in ms)
+    hint:
+      type: integer
+      min: 100
+      max: 60000
+    description: Pull Data from PI System Interval in `ms`.
+    placeholder: 10000
+  - name: MaxBackfillRangeDays
+    display: Max Backfill Range(in days)
+    hint:
+      type: integer
+    description: Max backfill time range in days.
+    placeholder: 1
+
+datasets:
+  name: Data Sets
+  description: PI System template and points
+  categories:
+  - category: PointList
+    display: Point List
+    description: |
+      # Title
+      The point names exists in pi system.
+    target:
+      name: PointList
+      description: Pi System Point List
+      required: false
+      multiple: true
+      editable: true
+      selectable: true
+  - category: TemplateForPIPoint
+    display: Template For PI Point
+    description: |
+      # Title
+      The template names exists in pi system.
+    target:
+      name: TemplateForPIPoint
+      description: Database datasets.
+      required: false
+      multiple: true
+      editable: true
+      selectable: true
+  - category: TemplateForAFElement
+    display: Template For AF Element
+    description: |
+      # Title
+      The template names exists in pi system.
+    target:
+      name: TemplateForAFElement
+      description: Database datasets.
+      required: false
+      multiple: true
+      editable: true
+      selectable: true

@@ -16,6 +16,7 @@ log = { version = "0.4", features = ["serde"] }
 shadow-rs = "0.21.0"
 thiserror = "1"
 twelf = { version = "0.10.0", default-features = false, features = ["toml", "env", "clap"] }
+itertools = "0.10.5"
 
 chrono = "0.4.24"
 chrono-tz = "0.8.2"

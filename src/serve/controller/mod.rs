@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
@@ -122,11 +123,13 @@ pub enum AgentAction {
 pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
 pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;
 pub type AgentTasksError = tokio::sync::broadcast::error::SendError<AgentAction>;
+// pub type AgentStatusChannel
 pub struct AgentTasks {
     pub current: Arc<DashSet<i64>>,
     pub datasets: Arc<DashMap<DataSetsReq, AgentDataSetsSender>>,
     pub sender: AgentTasksSender,
     pub receiver: AgentTasksReceiver,
+    pub alive: AtomicBool,
 }
 
 impl AgentTasks {
@@ -137,6 +140,7 @@ impl AgentTasks {
             datasets: Arc::new(DashMap::new()),
             sender,
             receiver,
+            alive: AtomicBool::new(false),
         }
     }
     pub fn spawn_listener(&self) -> JoinHandle<()> {
@@ -177,6 +181,15 @@ impl AgentTasks {
 }
 
 use taos::taos_query::tmq::Assignment;
+
+#[derive(Debug, Deserialize)]
+pub struct TaskStatus {
+    id: i64,
+    at: DateTime<Utc>,
+    action: String,
+    message: Option<String>,
+    context: Option<String>,
+}
 
 pub(super) struct TaskController {
     pub pool: SqlitePool,
@@ -247,7 +260,7 @@ impl TaskControllerRef {
     }
     pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
-            "select * from task_with_labels where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
+            "select * from task_with_labels where via is NULL and status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
             .bind(Status::Completed)
             .bind(Status::Failed)
             .bind(Status::Stopped)
@@ -465,8 +478,9 @@ impl TaskController {
         };
         // dbg!(&opts);
         let agent_task_worker = if let Some(id) = task.via {
-            // self.init_agent_worker(id)?;
-            self.init_agent_worker(id).await;
+            if !self.agent_alive(id).await {
+                anyhow::bail!("Agent {id} is not alive");
+            }
             Some((
                 task.id,
                 self.agent_tasks
@@ -1051,6 +1065,63 @@ impl TaskController {
         .map_err(Into::into)
     }
 
+    pub async fn push_task_status(&self, status: &TaskStatus) -> anyhow::Result<()> {
+        let id = status.id;
+        match status.action.as_str() {
+            "failed" => {
+                log::error!(
+                    "run task {id} failed with: {:?}, please check the task information",
+                    status.message
+                );
+                // let err = err.to_string();
+                let at = status.at;
+                let _ = sqlx::query!(
+                    "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
+                    at,
+                    Status::Failed,
+                    status.message,
+                    id
+                )
+                .execute(&self.pool)
+                .await?;
+                sqlx::query!(
+                    "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    id,
+                    at,
+                    "failed",
+                    status.message
+                )
+                .execute(&self.pool)
+                .await?;
+                if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
+                    log::error!("Cancel task by id {id}");
+                    token.cancel();
+                    let _ = handle.await?;
+                    // handle.abort();
+                    // if !handle.is_finished() {
+                    //     // token.cancel();
+                    //     log::error!("Cancel task by id {id}");
+                    //     let _ = handle.await;
+                    // }
+                }
+                Ok(())
+            }
+            action => {
+                sqlx::query!(
+                    "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    id,
+                    status.at,
+                    action,
+                    status.message
+                )
+                .execute(&self.pool)
+                .await?;
+                tracing::error!("Invalid task action: {action}");
+                Ok(())
+            }
+        }
+    }
+
     pub async fn stop_all(&self) -> anyhow::Result<()> {
         for (id, (handle, token)) in self.tasks.write().await.drain() {
             token.cancel();
@@ -1120,7 +1191,25 @@ impl TaskController {
         Ok(offsets)
     }
 
+    pub async fn find_agent_by_name_and_userid(&self, name: &str, cluster_id: Option<&str>, id: Option<usize>) -> anyhow::Result<Vec<Agent>> {
+        let mut sql = if id.is_some() {
+            format!("select * from agents where name = '{}' and id != '{}'", name, id.unwrap())
+        } else {
+            format!("select * from agents where name = '{}'", name)
+        };
+        if cluster_id.is_some() {
+            sql.push_str(format!(" and cluster_id = '{}'", cluster_id.unwrap()).as_str());
+        }
+        let result: Vec<Agent> = sqlx::query_as(sql.as_str()).fetch_all(&self.pool).await?;
+        Ok(result)
+    }
+
     pub async fn create_agent(&self, agent: AgentProps) -> anyhow::Result<AgentWithToken> {
+        let result = self.find_agent_by_name_and_userid(&agent.name, Some(&agent.cluster_id), None).await?;
+        if result.len() > 0 {
+            anyhow::bail!("agent name has existed");
+        }
+
         let res = sqlx::query(
             "INSERT INTO agents (`dsn`, `name`, `cluster_id`, `user_id`, \
             `expire_date`, `connectors`, created_at) \
@@ -1181,6 +1270,10 @@ impl TaskController {
         }
     }
 
+    pub async fn agent_alive(&self, agent_id: i64) -> bool {
+        self.agent_tasks.read().await.contains_key(&agent_id)
+    }
+
     pub async fn agent_connected_with_token(
         &self,
         token: &AgentToken,
@@ -1207,6 +1300,13 @@ impl TaskController {
         agent_id: i64,
         update: AgentUpdates,
     ) -> anyhow::Result<Option<AgentWithToken>> {
+        let name = update.name.clone();
+        if name.is_some() {
+            let result = self.find_agent_by_name_and_userid(name.unwrap().as_str(), None, Some(agent_id as usize)).await?;
+            if result.len() > 0 {
+                anyhow::bail!("agent name has existed");
+            }
+        }
         if let Some(sql) = update.update_agent_with(agent_id) {
             sqlx::query(&sql).execute(&self.pool).await?;
             let secret = self.jwt_secret().await?;
@@ -1544,30 +1644,56 @@ pub struct TaskActivity {
 lazy_static::lazy_static! {
     pub static ref DATA_SOURCE_DEFINITIONS_VEC: Vec<DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def
+    };
+    pub static ref DATA_SOURCE_DEFINITIONS_VEC_CN: Vec<DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
         def
     };
     /// This is an example for using doc comment attributes
     pub static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opc.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
+    };
+    pub static ref DATA_SOURCE_DEFINITIONS_CN: BTreeMap<String, DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
 }
 
+#[test]
+fn test_ds() {
+    DATA_SOURCE_DEFINITIONS_VEC.as_slice();
+    DATA_SOURCE_DEFINITIONS_VEC_CN.as_slice();
+}
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct ExpandedDsn {
     pub id: String,

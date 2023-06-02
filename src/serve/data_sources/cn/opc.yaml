@@ -1,0 +1,188 @@
+---
+id: opc
+name: OPC-UA/DA
+description: |
+  OPC是工业自动化领域和其他行业中安全可靠地交换数据的互操作标准之一。
+
+  OPC DA（数据访问）是一种经典的基于COM的规范，仅适用于Windows。尽管OPC DA不是最新和最高效的数据通信规范，但它被广泛使用。这主要是因为一些旧设备只支持OPC DA。
+
+  OPC UA是经典OPC规范的下一代标准，是一个平台无关的面向服务的架构规范，集成了现有OPC Classic规范的所有功能，提供了一条迁移到更安全和可扩展解决方案的路径。
+
+  如果想了解更多关于OPC UA/DA的信息，可以阅读OPC Foundation网站和一些有用的博客，例如：
+  1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
+  2. [What is OPC DA](https://plcynergy.com/opc-da/),
+  3. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).
+  4. [WHEN TO USE OPC-UA VS OPC-DA](https://www.vertech.com/blog/opc-ua-vs-opc-da).
+
+  taosX 使用 OPC 连接器从 OPC 服务器拉取或订阅数据。
+type: uri
+protocol:
+  display: Protocol
+  description: 选择 OPC 协议
+  choices:
+    - name: ua
+      display: UA
+      description: 使用 OPC-UA 协议。
+    - name: da
+      display: DA
+      description: 使用 OPC-DA 协议（需要在 Windows 上使用或配合 Agent 使用）。
+options:
+  endpoint:
+    display: 服务器
+    required: true
+    description: |
+      OPC 服务器地址。
+
+      - OPC-UA 示例：`127.0.0.1:6666/OPCUA/ServerPath`.
+      - OPC-DA 示例：`Matrikon.OPC.Simulation.1?nodes=localhost`.
+    placeholder: 127.0.0.1:6666/OPCUA/ServerPath
+
+strict: false
+
+authentication:
+  display: 认证
+  description: OPC 可选择使用多种认证方式。
+  value: anonymous
+  alternatives:
+    - name: anonymous
+      display: 匿名访问
+      description: Logging in anonymously without any configurations (if available).
+      value: true
+      params: []
+
+    - name: plain
+      display: 用户名密码访问
+      description: 使用用户名和密码访问 OPC 服务器。
+      username:
+        display: 用户名
+        description: OPC 服务登录用户名。
+        placeholder: username
+        required: true
+      password:
+        display: 密码
+        description: OPC 服务登录密码.
+        placeholder: password
+        required: true
+    - name: certificates
+      display: 证书访问
+      description: 使用私钥及证书反问 OPC 服务器。
+      params:
+        - name: certificate
+          display: 证书
+          description: 证书文件。当 security mode or policy isn't "None".
+          hint:
+            type: file
+        - name: private_key
+          display: 私钥
+          description: 私钥文件. Required when security mode or policy isn't "None"
+          hint:
+            type: file
+        - name: security_mode
+          display: 安全模式
+          description: |
+            Security mode（安全模式）是OPC UA协议中用于保护通信安全的一种机制。安全模式定义了如何加密和验证通信数据，以防止未经授权的访问和篡改。
+
+            OPC UA支持以下几种安全模式：
+            - **None（无）**: 不进行任何加密或身份验证，通信数据以明文形式传输。这种模式只适用于测试和开发环境，不建议在生产环境中使用。
+            - **Sign（签名）**: 使用数字签名对通信数据进行验证，以确保数据的完整性和真实性，但不进行加密。这种模式适用于需要保护数据完整性的场景，如数据采集和监控。
+            - **SingAndEncrypt（签名和加密）**: 使用数字签名对通信数据进行验证，并使用加密算法对数据进行加密，以保证数据的完整性、真实性和保密性。这种模式适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
+          hint:
+            type: str
+            choices:
+              - None
+              - Sign
+              - SignAndEncrypt
+        - name: security_policy
+          display: 安全策略
+          description: |
+            Security Policy（安全策略）是OPC UA协议中用于定义安全机制的一种机制。安全策略定义了如何实现安全模式中的加密和验证机制，包括使用的加密算法、密钥长度、数字证书等。
+
+            OPC UA支持以下几种安全策略：
+            1. **None**（无）：不进行任何加密或身份验证，通信数据以明文形式传输。这种策略只适用于测试和开发环境，不建议在生产环境中使用。
+            2. **Basic128Rsa15**：使用RSA算法和128位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
+            3. **Basic256**：使用AES算法和256位的密钥长度对通信数据进行加密和身份验证。这种策略适用于需要保护数据完整性和真实性的场景，如数据采集和监控。
+            4. **Basic256Sha256**：使用AES算法和256位的密钥长度，并使用SHA-256算法对数字签名进行加密，以保证数据的完整性、真实性和保密性。这种策略适用于需要保护数据完整性和保密性的场景，如敏感数据的传输和存储。
+
+          hint:
+            type: str
+            choices:
+              - None
+              - Basic128Rsa15
+              - Basic256
+              - Basic256Sha256
+
+groups:
+  - name: Data Sets
+    display_order: 1
+    description: "Data points in OPC server to collect."
+    params:
+      - name: ua.nodes
+        display: Nodes
+        description: Node id list separated by a ','.
+        placeholder: ns=2;i=2, ns=2;i=3
+        hint:
+          type: str
+        if: protocol.ua
+
+      - name: nodes
+        display: DA Nodes
+        description: A OPC DA node list separated by ','.
+        hint:
+          type: str
+        placeholder: localhost
+        if: protocol.da
+      - name: da.tags
+        display: DA Tags
+        description: A OPC DA tags list separated by ','.
+        placeholder: ns=2;i=2, ns=2;i=3
+        hint:
+          type: str
+        if: protocol.da
+
+  - name: Connection
+    display_order: 2
+    description: Some configurations used in connecting step.
+    params:
+      - name: connect_timeout
+        display: Connect Timeout
+        description: |-
+          Timeout for connect to endpoint in seconds.
+        placeholder: 10
+        hint:
+          type: integer
+
+      - name: request_timeout
+        display: Request Timeout
+        hint:
+          type: integer
+        description: Timeout for a request in seconds.
+        placeholder: 10
+
+
+
+  - name: Others
+    display_order: 4
+    description: Other configurations.
+    params:
+      - name: concurrent
+        display: Concurrency
+        description: Number of concurrency while collecting.
+        hint:
+          type: integer
+      - name: batch_size
+        display: Batch Size
+        hint:
+          type: integer
+        description: Max batch size for each record batch while reporting to target.
+        placeholder: 100
+      - name: batch_timeout
+        display: Batch Timeout
+        hint:
+          type: integer
+        description: Reporting timeout for a batch in seconds.
+        placeholder: 20
+      - name: use_received_time
+        display: use_received_time
+        hint:
+          type: bool
+        description: use data received time as timestamp not server time
