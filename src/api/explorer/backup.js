@@ -1,10 +1,10 @@
 import { request } from "@/utils/request";
-
+let language=window.navigator.language.includes('en')?'en':'zh'
 //获取backup列表
 export function getBackupList(id) {
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url: `/tasks?detail=true&labels=type::backup,cluster-id::${id}`,
+        url: `/tasks?lang=${language}&detail=true&labels=type::backup,cluster-id::${id}`,
         method: "get"
     });
 }
@@ -16,7 +16,7 @@ export function addBackupData(clusterID,data) {
         headers:{
             "Content-Type":"application/json"
         },
-        url: `/tasks?labels=type::backup,cluster-id::${clusterID}`,
+        url: `/tasks?lang=${language}&labels=type::backup,cluster-id::${clusterID}`,
         method: "post",
         data
     });

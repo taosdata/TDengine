@@ -1108,6 +1108,7 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
+    targtedb:'Target Database',
     expired:'Expired',
     payloadtip:'Please select mqtt payload',
     keep:'Keep',

@@ -432,7 +432,7 @@
         </div>
       </section>
       <section class="choose-db">
-        <span class="label required">Target Database</span>
+        <span class="label required">{{datasource.targtedb}}</span>
         <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
@@ -806,8 +806,8 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
-        if(this.tagName=='mqtt'){
-          piParams['parser']=this.$store.state.app.mqttParser
+        if (this.tagName == "mqtt") {
+          piParams["parser"] = this.$store.state.app.mqttParser;
         }
         if (this.$parent.agentID) {
           piParams["via"] = this.$parent.agentID;
@@ -976,12 +976,10 @@ export default {
 };
 </script>
 <style  >
-
-  .el-select-dropdown__item {
-    font-family: "element-icons" !important;
-    font-weight:500;
-  }
-
+.el-select-dropdown__item {
+  font-family: "element-icons" !important;
+  font-weight: 500;
+}
 </style>
 <style lang="scss" scoped>
 .source-ui {
@@ -1008,6 +1006,11 @@ export default {
   }
   .left-ui {
     overflow: auto;
+    min-width: 800px;
+    .description {
+      max-width: 500px;
+      overflow: auto;
+    }
     section:not(:first-child) {
       border: 1px solid #e3e4e6;
       margin-bottom: 20px;
