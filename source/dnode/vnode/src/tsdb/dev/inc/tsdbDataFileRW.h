@@ -26,6 +26,7 @@ extern "C" {
 
 typedef TARRAY2(SBlockIdx) TBlockIdxArray;
 typedef TARRAY2(SDataBlk) TDataBlkArray;
+typedef TARRAY2(SColumnDataAgg) TColumnDataAggArray;
 
 // SDataFileReader =============================================
 typedef struct SDataFileReader SDataFileReader;
@@ -50,6 +51,7 @@ typedef struct SDataFileWriterConfig {
   STsdb    *tsdb;
   bool      hasOldFile;
   STFile    of[TSDB_FTYPE_MAX];
+  int8_t    cmprAlg;
   int32_t   maxRow;
   int32_t   szPage;
   int64_t   cid;
