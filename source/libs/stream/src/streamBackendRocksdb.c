@@ -87,8 +87,6 @@ void* streamBackendInit(const char* path) {
   pHandle->cfInst = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
-  rocksdb_env_set_low_priority_background_threads(env, 4);
-  rocksdb_env_set_high_priority_background_threads(env, 2);
 
   rocksdb_cache_t* cache = rocksdb_cache_create_lru(64 << 20);
 
@@ -577,6 +575,11 @@ int32_t decodeValueFunc(void* value, int32_t vlen, int64_t* ttl, char** dest) {
   int64_t now = taosGetTimestampMs();
   p = taosDecodeFixedI64(p, &key.unixTimestamp);
   p = taosDecodeFixedI32(p, &key.len);
+  if (vlen != sizeof(int64_t) + sizeof(int32_t) + key.len) {
+    *dest = NULL;
+    return -1;
+  }
+
   if (key.len == 0) {
     key.data = NULL;
   } else {
