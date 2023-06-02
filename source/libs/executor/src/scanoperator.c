@@ -1897,6 +1897,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         printDataBlock(pInfo->pCreateTbRes, "recover createTbl");
         return pInfo->pCreateTbRes;
       }
+
       qDebug("stream recover scan get block, rows %" PRId64, pInfo->pRecoverRes->info.rows);
       printDataBlock(pInfo->pRecoverRes, "scan recover");
       return pInfo->pRecoverRes;
@@ -2089,10 +2090,13 @@ FETCH_NEXT_BLOCK:
 
       while (pAPI->tqReaderFn.tqNextBlockImpl(pInfo->tqReader, id)) {
         SSDataBlock* pRes = NULL;
+
         int32_t code = pAPI->tqReaderFn.tqRetrieveBlock(pInfo->tqReader, &pRes, id);
+        qDebug("retrieve data from submit completed code:%s, rows:%" PRId64 " %s",
+               tstrerror(code), pRes->info.rows, id);
 
         if (code != TSDB_CODE_SUCCESS || pRes->info.rows == 0) {
-          qDebug("failed to retrieve data from block, code:%s, rows:%"PRId64 " try next block in submit block", tstrerror(code), pRes->info.rows);
+          qDebug("retrieve data failed, try next block in submit block, %s", id);
           continue;
         }
 
@@ -2100,6 +2104,7 @@ FETCH_NEXT_BLOCK:
 
         if (pInfo->pCreateTbRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
+          qDebug("create table res exists, rows:%"PRId64" return from stream scan, %s", pInfo->pCreateTbRes->info.rows, id);
           return pInfo->pCreateTbRes;
         }
 
