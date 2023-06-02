@@ -137,7 +137,7 @@ void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
   SListNode* pNode = NULL;
   while ((pNode = tdListNext(&iter)) != NULL) {
     SRowBuffPos* pPos = *(SRowBuffPos**)(pNode->data);
-    if (all || (pFileState->getTs(pPos->pKey) < ts)) {
+    if (all || (pFileState->getTs(pPos->pKey) < ts && !pPos->beUsed)) {
       ASSERT(pPos->pRowBuff != NULL);
       tdListAppend(pFileState->freeBuffs, &(pPos->pRowBuff));
       pPos->pRowBuff = NULL;
