@@ -84,8 +84,10 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     qStreamSetOpen(task);
 
     tqDebug("consumer:0x%" PRIx64 " vgId:%d, tmq one task start execute", pHandle->consumerId, vgId);
-    if (qExecTask(task, &pDataBlock, &ts) != TSDB_CODE_SUCCESS) {
-      tqError("consumer:0x%" PRIx64 " vgId:%d, task exec error since %s", pHandle->consumerId, vgId, terrstr());
+    code = qExecTask(task, &pDataBlock, &ts);
+    if (code != TSDB_CODE_SUCCESS) {
+      tqError("consumer:0x%" PRIx64 " vgId:%d, task exec error since %s", pHandle->consumerId, vgId, tstrerror(code));
+      terrno = code;
       return -1;
     }
 
@@ -128,8 +130,10 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
     tqDebug("tmqsnap task start to execute");
-    if (qExecTask(task, &pDataBlock, &ts) < 0) {
-      tqError("vgId:%d, task exec error since %s", pTq->pVnode->config.vgId, terrstr());
+    int code = qExecTask(task, &pDataBlock, &ts);
+    if (code != 0) {
+      tqError("vgId:%d, task exec error since %s", pTq->pVnode->config.vgId, tstrerror(code));
+      terrno = code;
       return -1;
     }
 

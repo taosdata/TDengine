@@ -82,6 +82,7 @@ static int32_t parseLocaltime(char* timestr, int32_t len, int64_t* utime, int32_
 static int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim);
 static char*   forwardToTimeStringEnd(char* str);
 static bool    checkTzPresent(const char* str, int32_t len);
+static int32_t parseTimezone(char* str, int64_t* tzOffset);
 
 static int32_t (*parseLocaltimeFp[])(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim) = {
     parseLocaltime, parseLocaltimeDst};
@@ -92,13 +93,13 @@ int32_t taosParseTime(const char* timestr, int64_t* utime, int32_t len, int32_t 
     if (checkTzPresent(timestr, len)) {
       return parseTimeWithTz(timestr, utime, timePrec, 'T');
     } else {
-      return (*parseLocaltimeFp[day_light])((char*)timestr, len, utime, timePrec, 'T');
+      return parseLocaltimeDst((char*)timestr, len, utime, timePrec, 'T');
     }
   } else {
     if (checkTzPresent(timestr, len)) {
       return parseTimeWithTz(timestr, utime, timePrec, 0);
     } else {
-      return (*parseLocaltimeFp[day_light])((char*)timestr, len, utime, timePrec, 0);
+      return parseLocaltimeDst((char*)timestr, len, utime, timePrec, 0);
     }
   }
 }
@@ -713,16 +714,12 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
     return t;
   }
 
-  if (unit != 'n' && unit != 'y') {
+  if (!IS_CALENDAR_TIME_DURATION(unit)) {
     return t + duration;
   }
 
   // The following code handles the y/n time duration
-  int64_t numOfMonth = duration;
-  if (unit == 'y') {
-    numOfMonth *= 12;
-  }
-
+  int64_t numOfMonth = (unit == 'y')? duration*12:duration;
   int64_t fraction = t % TSDB_TICK_PER_SECOND(precision);
 
   struct tm tm;
@@ -741,6 +738,7 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
     ekey = skey;
     skey = tmp;
   }
+
   if (unit != 'n' && unit != 'y') {
     return (int32_t)((ekey - skey) / interval);
   }
@@ -764,13 +762,16 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
   return (emon - smon) / (int32_t)interval;
 }
 
-int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision) {
+int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   if (pInterval->sliding == 0 && pInterval->interval == 0) {
-    return t;
+    return ts;
   }
 
-  int64_t start = t;
-  if (pInterval->slidingUnit == 'n' || pInterval->slidingUnit == 'y') {
+  int64_t start = ts;
+  int32_t precision = pInterval->precision;
+
+  if (IS_CALENDAR_TIME_DURATION(pInterval->slidingUnit)) {
+
     start /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
     struct tm tm;
     time_t    tt = (time_t)start;
@@ -792,44 +793,72 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
 
     start = (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision));
   } else {
-    int64_t delta = t - pInterval->interval;
-    int32_t factor = (delta >= 0) ? 1 : -1;
+    if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit)) {
+      int64_t news = (ts / pInterval->sliding) * pInterval->sliding;
+      ASSERT(news <= ts);
 
-    start = (delta / pInterval->sliding + factor) * pInterval->sliding;
+      if (news <= ts) {
+        int64_t prev = news;
+        int64_t newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision) - 1;
 
-    if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-      /*
-       * here we revised the start time of day according to the local time zone,
-       * but in case of DST, the start time of one day need to be dynamically decided.
-       */
-      // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS) && _MSC_VER >= 1900
-      // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
-      int64_t timezone = _timezone;
-      int32_t daylight = _daylight;
-      char**  tzname = _tzname;
-#endif
+        if (newe < ts) {  // move towards the greater endpoint
+          while(newe < ts && news < ts) {
+            news += pInterval->sliding;
+            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+          }
 
-      start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
-    }
-
-    int64_t end = 0;
-
-    // not enough time range
-    if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-      end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
-      while (end < t) {  // move forward to the correct time window
-        start += pInterval->sliding;
-
-        if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-          end = start + pInterval->interval - 1;
+          prev = news;
         } else {
-          end = INT64_MAX;
-          break;
+          while (newe >= ts) {
+            prev = news;
+            news -= pInterval->sliding;
+            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+          }
         }
+
+        return prev;
       }
     } else {
-      end = INT64_MAX;
+      int64_t delta = ts - pInterval->interval;
+      int32_t factor = (delta >= 0) ? 1 : -1;
+
+      start = (delta / pInterval->sliding + factor) * pInterval->sliding;
+
+      if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
+        /*
+         * here we revised the start time of day according to the local time zone,
+         * but in case of DST, the start time of one day need to be dynamically decided.
+         */
+        // todo refactor to extract function that is available for Linux/Windows/Mac platform
+#if defined(WINDOWS) && _MSC_VER >= 1900
+        // see
+        // https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
+        int64_t timezone = _timezone;
+        int32_t daylight = _daylight;
+        char**  tzname = _tzname;
+#endif
+
+        start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
+      }
+
+      int64_t end = 0;
+
+      // not enough time range
+      if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
+        end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+        while (end < ts) {  // move forward to the correct time window
+          start += pInterval->sliding;
+
+          if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
+            end = start + pInterval->interval - 1;
+          } else {
+            end = INT64_MAX;
+            break;
+          }
+        }
+      } else {
+        end = INT64_MAX;
+      }
     }
   }
 
@@ -841,10 +870,10 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     // try to move current window to the left-hande-side, due to the offset effect.
     int64_t end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision) - 1;
 
-    int64_t newEnd = end;
-    while (newEnd >= t) {
-      end = newEnd;
-      newEnd = taosTimeAdd(newEnd, -pInterval->sliding, pInterval->slidingUnit, precision);
+    int64_t newe = end;
+    while (newe >= ts) {
+      end = newe;
+      newe = taosTimeAdd(newe, -pInterval->sliding, pInterval->slidingUnit, precision);
     }
 
     start = taosTimeAdd(end, -pInterval->interval, pInterval->intervalUnit, precision) + 1;

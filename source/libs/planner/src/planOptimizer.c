@@ -740,6 +740,85 @@ static int32_t pushDownCondOptJoinExtractMergeCond(SOptimizeContext* pCxt, SJoin
   return code;
 }
 
+static bool pushDownCondOptIsTableColumn(SNode* pNode, SNodeList* pTableCols) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return false;
+  }
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  return pushDownCondOptBelongThisTable(pNode, pTableCols);
+}
+
+static bool pushDownCondOptIsColEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+  SOperatorNode* pOper = (SOperatorNode*)pCond;
+  if (OP_TYPE_EQUAL != pOper->opType) {
+    return false;
+  }
+  if (QUERY_NODE_COLUMN != nodeType(pOper->pLeft) || QUERY_NODE_COLUMN != nodeType(pOper->pRight)) {
+    return false;
+  }
+  SColumnNode* pLeft = (SColumnNode*)(pOper->pLeft);
+  SColumnNode* pRight = (SColumnNode*)(pOper->pRight);
+  //TODO: add cast to operator and remove this restriction of optimization
+  if (pLeft->node.resType.type != pRight->node.resType.type || pLeft->node.resType.bytes != pRight->node.resType.bytes) {
+    return false;
+  }
+  SNodeList* pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
+  SNodeList* pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
+  if (pushDownCondOptIsTableColumn(pOper->pLeft, pLeftCols)) {
+    return pushDownCondOptIsTableColumn(pOper->pRight, pRightCols);
+  } else if (pushDownCondOptIsTableColumn(pOper->pLeft, pRightCols)) {
+    return pushDownCondOptIsTableColumn(pOper->pRight, pLeftCols);
+  }
+  return false;
+}
+
+static int32_t pushDownCondOptJoinExtractColEqualOnLogicCond(SJoinLogicNode* pJoin) {
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pJoin->pOnConditions);
+
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pEqualOnConds = NULL;
+  SNode*     pCond = NULL;
+  FOREACH(pCond, pLogicCond->pParameterList) {
+    if (pushDownCondOptIsColEqualOnCond(pJoin, pCond)) {
+      code = nodesListMakeAppend(&pEqualOnConds, nodesCloneNode(pCond));
+    }
+  }
+
+  SNode* pTempTagEqCond = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesMergeConds(&pTempTagEqCond, &pEqualOnConds);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pJoin->pColEqualOnConditions = pTempTagEqCond;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    nodesDestroyList(pEqualOnConds);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t pushDownCondOptJoinExtractColEqualOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+  if (NULL == pJoin->pOnConditions) {
+    pJoin->pColEqualOnConditions = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)(pJoin->pOnConditions))->condType) {
+    return pushDownCondOptJoinExtractColEqualOnLogicCond(pJoin);
+  }
+
+  if (pushDownCondOptIsColEqualOnCond(pJoin, pJoin->pOnConditions)) {
+    pJoin->pColEqualOnConditions = nodesCloneNode(pJoin->pOnConditions);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
@@ -772,6 +851,10 @@ static int32_t pushDownCondOptDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* p
 
   if (TSDB_CODE_SUCCESS == code) {
     code = pushDownCondOptJoinExtractMergeCond(pCxt, pJoin);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = pushDownCondOptJoinExtractColEqualOnCond(pCxt, pJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1259,8 +1342,8 @@ static bool smaIndexOptEqualInterval(SScanLogicNode* pScan, SWindowLogicNode* pW
                           .sliding = pIndex->sliding,
                           .slidingUnit = pIndex->slidingUnit,
                           .precision = pScan->node.precision};
-    return (pScan->scanRange.skey == taosTimeTruncate(pScan->scanRange.skey, &interval, pScan->node.precision)) &&
-           (pScan->scanRange.ekey + 1 == taosTimeTruncate(pScan->scanRange.ekey + 1, &interval, pScan->node.precision));
+    return (pScan->scanRange.skey == taosTimeTruncate(pScan->scanRange.skey, &interval)) &&
+           (pScan->scanRange.ekey + 1 == taosTimeTruncate(pScan->scanRange.ekey + 1, &interval));
   }
   return true;
 }
@@ -2234,7 +2317,7 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
       if (QUERY_NODE_COLUMN == nodeType(pPar)) {
         SColumnNode* pCol = (SColumnNode*)pPar;
         if (pCol->colType != COLUMN_TYPE_COLUMN) {
-          return false;      
+          return false;
         }
       }
       if (hasSelectFunc || QUERY_NODE_VALUE == nodeType(nodesListGetNode(pAggFunc->pParameterList, 0))) {
