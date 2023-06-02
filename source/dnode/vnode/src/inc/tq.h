@@ -98,18 +98,17 @@ typedef enum tq_handle_status {
 } tq_handle_status;
 
 typedef struct {
-  char        subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t     consumerId;
-  int32_t     epoch;
-  int8_t      fetchMeta;
-  int64_t     snapshotVer;
-  SWalReader* pWalReader;
-  SWalRef*    pRef;
-  //  STqPushHandle pushHandle;    // push
-  STqExecHandle    execHandle;  // exec
-  SRpcMsg*         msg;
-  int32_t          noDataPollCnt;
-  tq_handle_status status;
+  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t       consumerId;
+  int32_t       epoch;
+  int8_t        fetchMeta;
+  int64_t       snapshotVer;
+  SWalReader*   pWalReader;
+  SWalRef*      pRef;
+//  STqPushHandle pushHandle;    // push
+  STqExecHandle execHandle;    // exec
+  SRpcMsg*      msg;
+  tq_handle_status        status;
 } STqHandle;
 
 struct STQ {

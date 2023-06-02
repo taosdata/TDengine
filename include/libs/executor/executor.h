@@ -92,6 +92,8 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList
  */
 void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 
+//void qSetTaskCode(qTaskInfo_t tinfo, int32_t code);
+
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
 
 // todo refactor
@@ -188,7 +190,17 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len);
 
-STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
+void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
+STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key);
+/**
+ * return the scan info, in the form of tuple of two items, including table uid and current timestamp
+ * @param tinfo
+ * @param uid
+ * @param ts
+ * @return
+ */
+int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts);
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo);
 

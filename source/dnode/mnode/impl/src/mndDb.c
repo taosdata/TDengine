@@ -929,7 +929,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->walRetentionSize = pDb->cfg.walRetentionSize;
   cfgRsp->walSegmentSize = pDb->cfg.walSegmentSize;
   cfgRsp->numOfRetensions = pDb->cfg.numOfRetensions;
-  cfgRsp->pRetensions = pDb->cfg.pRetensions;
+  cfgRsp->pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
   cfgRsp->schemaless = pDb->cfg.schemaless;
   cfgRsp->sstTrigger = pDb->cfg.sstTrigger;
 }
@@ -971,6 +971,8 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   code = 0;
 
 _OVER:
+
+  tFreeSDbCfgRsp(&cfgRsp);
 
   if (code != 0) {
     mError("db:%s, failed to get cfg since %s", cfgReq.db, terrstr());

@@ -88,39 +88,6 @@ static void switchCtxOrder(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 }
 
-static void getNextTimeWindow(SInterval* pInterval, STimeWindow* tw, int32_t order) {
-  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
-  if (pInterval->intervalUnit != 'n' && pInterval->intervalUnit != 'y') {
-    tw->skey += pInterval->sliding * factor;
-    tw->ekey = tw->skey + pInterval->interval - 1;
-    return;
-  }
-
-  int64_t key = tw->skey, interval = pInterval->interval;
-  // convert key to second
-  key = convertTimePrecision(key, pInterval->precision, TSDB_TIME_PRECISION_MILLI) / 1000;
-
-  if (pInterval->intervalUnit == 'y') {
-    interval *= 12;
-  }
-
-  struct tm tm;
-  time_t    t = (time_t)key;
-  taosLocalTime(&t, &tm, NULL);
-
-  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + interval * factor);
-  tm.tm_year = mon / 12;
-  tm.tm_mon = mon % 12;
-  tw->skey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000LL, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
-
-  mon = (int)(mon + interval);
-  tm.tm_year = mon / 12;
-  tm.tm_mon = mon % 12;
-  tw->ekey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000LL, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
-
-  tw->ekey -= 1;
-}
-
 static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockInfo, int32_t order) {
   STimeWindow w = {0};
 
@@ -130,7 +97,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
   }
 
   if (order == TSDB_ORDER_ASC) {
-    w = getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey);
+    w = getAlignQueryTimeWindow(pInterval, pBlockInfo->window.skey);
     ASSERT(w.ekey >= pBlockInfo->window.skey);
 
     if (w.ekey < pBlockInfo->window.ekey) {
@@ -149,7 +116,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
       }
     }
   } else {
-    w = getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.ekey);
+    w = getAlignQueryTimeWindow(pInterval, pBlockInfo->window.ekey);
     ASSERT(w.skey <= pBlockInfo->window.ekey);
 
     if (w.skey > pBlockInfo->window.skey) {
@@ -206,7 +173,7 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  
+
   taosHashPut(pTableScanInfo->pIgnoreTables, &uid, sizeof(uid), &pTableScanInfo->scanTimes, sizeof(pTableScanInfo->scanTimes));
 
   return TSDB_CODE_SUCCESS;
@@ -215,7 +182,7 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
 static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo* pBlockInfo, uint32_t* status) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   if (pTableScanInfo->base.pdInfo.pExprSup == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -267,12 +234,13 @@ static bool doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, 
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
   bool    allColumnsHaveAgg = true;
-  int32_t code = pAPI->tsdReader.tsdReaderRetrieveBlockSMAInfo(pTableScanInfo->dataReader, pBlock, &allColumnsHaveAgg);
+  bool    hasNullSMA = false;
+  int32_t code = pAPI->tsdReader.tsdReaderRetrieveBlockSMAInfo(pTableScanInfo->dataReader, pBlock, &allColumnsHaveAgg, &hasNullSMA);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  if (!allColumnsHaveAgg) {
+  if (!allColumnsHaveAgg || hasNullSMA) {
     return false;
   }
   return true;
@@ -751,7 +719,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
-  
+
   // The read handle is not initialized yet, since no qualified tables exists
   if (pTableScanInfo->base.dataReader == NULL || pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -1651,6 +1619,10 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
   qDebug("start to exec queue scan, %s", id);
 
+  if (isTaskKilled(pTaskInfo)) {
+    return NULL;
+  }
+
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
@@ -1663,7 +1635,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
-    
+
     pTSInfo->base.dataReader = NULL;
     qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
     if (pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {

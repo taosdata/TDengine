@@ -705,6 +705,9 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
                          pJoinLogicNode->pOnConditions, &pJoin->pOnConditions);
   }
 
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColEqualOnConditions) {
+    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pColEqualOnConditions, &pJoin->pColEqualOnConditions);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pJoinLogicNode, (SPhysiNode*)pJoin);
   }
@@ -1147,7 +1150,7 @@ static int32_t createExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogicNo
   }
 }
 
-static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWinodwPhysiNode* pWindow,
+static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowPhysiNode* pWindow,
                                              SWindowLogicNode* pWindowLogicNode) {
   pWindow->triggerType = pWindowLogicNode->triggerType;
   pWindow->watermark = pWindowLogicNode->watermark;
@@ -1643,6 +1646,9 @@ static int32_t createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, 
     code = createPhysiNode(pCxt, (SLogicNode*)pLogicChild, pSubplan, &pChild);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pChildren, (SNode*)pChild);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
     }
   }
 
