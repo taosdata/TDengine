@@ -356,6 +356,14 @@ curl --location 'localhost:6050/tasks' \
 }'
 ```
 
+返回消费进度
+
+```shell
+curl -X 'GET' \
+  'http://localhost:6050/tasks/{id}/offsets' \
+  -H 'accept: text/plain'
+```
+
 ## 数据备份和恢复
 
 数据备份是从当前所连接的 TDengine 集群中定时或按需触发数据备份，并能够从备份中恢复。
