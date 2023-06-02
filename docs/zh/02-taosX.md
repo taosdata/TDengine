@@ -19,10 +19,10 @@ description:  "为了能够方便地将各种数据源中的数据导入 TDengin
 
 ### Linux 安装
 
-下载需要的 taosX 安装包，下文以安装包"taosX-0.5.1-Linux-x64.tar.gz"为例展示如何安装：
+下载需要的 taosX 安装包，下文以安装包 `taosX-0.5.1-Linux-x64.tar.gz` 为例展示如何安装：
 
 ``` bash
-# 解压文件
+# 在任意目录下解压文件
 tar -zxf taosX-0.5.1-Linux-x64.tar.gz
 cd taosX-0.5.1-Linux-x64
 
@@ -41,17 +41,19 @@ sudo rmtaox
 
 ```
 
-#### FAQ: 
-1. 安装后都会有哪些文件被复制到了哪个安装目录？
-    * 复制 bin/taosx 、bin/taosx-agent 到 /usr/local/taosX/bin
-    * 复制 plugins/influxdb、plugins/mqtt、plugins/opc 等到 /usr/local/taosX/plugins
-    * 复制 scripts/taosx.service、script/taosx-agent.service 到 /usr/local/taosX/script
-    * 复制 install.sh、rmtaosX.sh 到 /usr/local/taosX 
-    * 复制 config/agent.example.toml 到 /usr/local/taosX/config 和 /etc/taosX
+**常见问题:**
+
+1. 安装后系统中增加了哪些文件？
+    * /usr/local/taosX/bin: taosx, taosx-agent
+    * /usr/local/taosX/plugins: taosx-influxdb, taosx-mqtt, taosx-opc, taosx-pi, taosx-pi-backfill
+    * /usr/local/taosX/scripts:taosx.service, taosx-agent.service
+    * /usr/local/taosX: install.sh, rmtaosX.sh 
+    * /usr/local/taosX/config: config/agent.example.toml
+    * /etc/taosX: config/agent.example.toml
 
 2. taosX -V 提示 "Command not found" 应该如何解决？
     * 检验问题1，保证所有的文件都被复制到对应的目录
-    * 创建软连接
+    * 如下创建软链接，或者确保 /usr/local/taosX/bin 被添加到系统环境变量 PATH 中
     ``` bash
     ln -s /usr/local/taosX/bin/taosx /usr/bin/taosx
     ln -s /usr/local/taosX/bin/taosx-agent /usr/bin/taosx-agent
@@ -60,8 +62,33 @@ sudo rmtaox
 
 ### Windows 安装
 
-@xinsheng，请在此补充详细的 Linux 安装过程
-
+- 下载需要的 taosX 安装包，例如 taosx-{version}-windows-installer.exe，执行安装
+- 可使用 uninstall_taosx.exe 进行卸载
+- 命令行执行 ```sc start/stop taosx``` 启动/停止 taosx 服务
+- 命令行执行 ```sc start/stop taosx-ageent``` 启动/停止 taosx-agent 服务
+- windows 默认安装在```C:\Program Files\taosX```,目录结构如下：
+~~~
+├── bin
+│   ├── taosx.exe
+│   ├── taosx-agent.exe
+├── plugins
+│   ├── influxdb
+│   │   └── taosx-inflxdb.jar
+│   ├── mqtt
+│   │   └── taosx-mqtt.exe
+│   └── opc
+│       └── taosx-opc.exe
+│   ├── influxdb
+│   │   └── taosx-inflxdb.exe
+│   └── pi
+│       └── taosx-pi.exe
+│       └── taosx-pi-backfill.exe
+│       └── ...
+└── config
+│   ├── agent.example.toml
+├── uninstall_taosx.exe
+├── uninstall_taosx.dat
+~~~
 
 ## 运行模式
 
@@ -330,12 +357,20 @@ driver 为 tmq 参数说明：
 | group.id  | 订阅使用的分组ID                                                 | 若为空则使用 hash 生成一个 |
 | client.id | 订阅使用的客户端ID                                               | taosx                      |
 | timeout   | 监听数据的超时时间，当设置为 never 表示 taosx 不会停止持续监听。 | 500ms                      |
+| offset    | 从指定的 offset 开始订阅，格式为 `<vgroup_id>:<offset>`，若有多个 vgroup 则用半角逗号隔开 | 若为空则从 0 开始订阅  |
+
 
 
 **工具模式**
 
 ```shell
 taosx run -f 'tmq://root:taosdata@localhost:6030/db1?timeout=never' -t 'taos://root:taosdata@another.com:6030/db2'
+```
+
+从指定 offset 开始订阅：
+
+```shell
+taosx run -f 'tmq://root:taosdata@localhost:6030/db1?offset=2:17,3:20' -t 'taos://root:taosdata@another.com:6030/db2'
 ```
 
 **服务模式**
@@ -347,6 +382,25 @@ curl --location 'localhost:6050/tasks' \
     "from": "tmq+ws://root:taosdata@localhost:6041/db1?timeout=never",
     "to": "taos+ws://root:taosdata@another.com:6041/db2"
 }'
+```
+
+从指定 offset 开始订阅：
+
+```shell
+curl --location 'localhost:6050/tasks' \
+--header 'Content-Type: application/json' \
+--data '{
+    "from": "tmq+ws://root:taosdata@localhost:6041/db1?offset=2:17,3:20",
+    "to": "taos+ws://root:taosdata@another.com:6041/db2"
+}'
+```
+
+返回消费进度
+
+```shell
+curl -X 'GET' \
+  'http://localhost:6050/tasks/{id}/offsets' \
+  -H 'accept: text/plain'
 ```
 
 ## 数据备份和恢复

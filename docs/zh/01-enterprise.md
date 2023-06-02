@@ -208,3 +208,15 @@ restore qnode on dnode <dnode_id>；# 恢复dnode上的qnode
 **限制**
 - 该功能是基于已有的复制功能的恢复，不是灾难恢复或者备份恢复，所以对于要恢复的 mnode 和 vnode来说，使用该命令的前提是还存在该 mnode 或 vnode 的其它两个副本仍然能够正常工作。
 - 该命令不能修复数据目录中的个别文件的损坏或者丢失。例如，如果某个 mnode 或者 vnode 中的个别文件或数据损坏，无法单独恢复损坏的某个文件或者某块数据。此时，可以选择将该  mnode/vnode 的数据全部清空再进行恢复。
+
+### 管理 license
+
+可以通过 `alter dnode` 命令来设置指定数据节点或全部数据节点的授权码; 设置完成后，可以通过 `show dnodes` 命令查看数据节点的授权码; 执行 `drop dnode` 后，需要重新设置。
+
+
+```sql
+alter {dnode <dnode_id>|all dnodes} {'activeCode'|'cActiveCode'} ['value']；# 设置指定数据节点或全部数据节点的授权码。
+```
+**注意**
+- activeCode 为 TDengine cluster 的授权码，其 value 的有效长度为：0 或 108；cActiveCode 为 TDengine connectors 的授权码，其 value 的有效长度为： 0 或 [108,254]。
+- 集群的授权信息是所有数据节点授权信息的并集：如果任意一项指标变大，则授权信息在 1 分钟内生效；如果授权指标减少，则在 1 小时内生效。集群授权信息通过 `show grants` 命令查看。
