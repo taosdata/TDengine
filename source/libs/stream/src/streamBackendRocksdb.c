@@ -128,7 +128,9 @@ void* streamBackendInit(const char* path) {
     */
     streamStateOpenBackendCf(pHandle, (char*)path, cfs, nCf);
   }
-  rocksdb_list_column_families_destroy(cfs, nCf);
+  if (cfs != NULL) {
+    rocksdb_list_column_families_destroy(cfs, nCf);
+  }
 
   return (void*)pHandle;
 _EXIT:
