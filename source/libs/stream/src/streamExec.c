@@ -236,11 +236,11 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       taosFreeQitem(qRes);
       return code;
     }
-
-    if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-      qDebug("s-task:%s scan exec dispatch blocks:%d", pTask->id.idStr, batchCnt);
-      streamDispatchStreamBlock(pTask);
-    }
+//
+//    if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+//      qDebug("s-task:%s scan exec dispatch blocks:%d", pTask->id.idStr, batchCnt);
+//      streamDispatchStreamBlock(pTask);
+//    }
 
     if (finished) {
       break;
@@ -438,7 +438,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
         SArray* pBlockList = pMerged->submits;
         int32_t numOfBlocks = taosArrayGetSize(pBlockList);
-        qDebug("s-task:%s %p set submit input (merged), batch num:%d", id, pTask, numOfBlocks);
+        qDebug("s-task:%s %p set (merged) submit blocks as a batch, numOfBlocks:%d", id, pTask, numOfBlocks);
         qSetMultiStreamInput(pExecutor, pBlockList->pData, numOfBlocks, STREAM_INPUT__MERGED_SUBMIT);
       } else if (pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
         const SStreamRefDataBlock* pRefBlock = (const SStreamRefDataBlock*)pInput;
