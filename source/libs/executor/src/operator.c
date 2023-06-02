@@ -307,6 +307,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
 
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->base.readRecorder;
+      qInfo("zsl: table scan operator: %p", pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
       STableListInfo*           pTableListInfo = tableListCreate();
@@ -336,6 +337,7 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
 
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->base.readRecorder;
+      qInfo("zsl: table merge scan operator: %p", pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       pOperator = createExchangeOperatorInfo(pHandle ? pHandle->pMsgCb->clientRpc : NULL, (SExchangePhysiNode*)pPhyNode,
                                              pTaskInfo);
@@ -534,12 +536,12 @@ void destroyOperator(SOperatorInfo* pOperator) {
 
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* info = (STableScanInfo*)(pOperator->info);
-    qInfo("table scan operator %p total time: %"PRId64, pOperator, info->opTime);
+    qInfo("zsl: table scan operator %p total time: %"PRId64, pOperator, info->opTime);
   }
 
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
     STableMergeScanInfo* info = (STableMergeScanInfo*)(pOperator->info);
-    qInfo("table merge scan operator %p total time: %"PRId64, pOperator, info->opTime);
+    qInfo("zsl: table merge scan operator %p total time: %"PRId64, pOperator, info->opTime);
   }
 
   if (pOperator->fpSet.closeFn != NULL) {
