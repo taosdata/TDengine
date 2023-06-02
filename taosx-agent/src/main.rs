@@ -12,6 +12,10 @@ use twelf::{config, Layer};
 
 use tracing::{log::LevelFilter, Level};
 
+use taosx_core::get_log_dir;
+
+const LOG_FILE: &str = "agent.log";
+
 shadow_rs::shadow!(build);
 
 fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
@@ -179,9 +183,11 @@ fn main() -> anyhow::Result<()> {
         args.endpoint, args.token
     );
 
+    let log_dir = get_log_dir("agent");
+
     let file_appender = tracing_appender::rolling::daily(
-        "./logs", 
-        "agent.log"
+        log_dir, 
+        LOG_FILE
     );
     
     let (

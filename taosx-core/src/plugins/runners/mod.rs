@@ -49,7 +49,7 @@ pub fn get_logs_home_dir() -> PathBuf {
 }
 
 #[inline]
-pub(crate) fn get_log_dir(plugin: &str) -> PathBuf {
+pub fn get_log_dir(plugin: &str) -> PathBuf {
     get_logs_home_dir().join(plugin)
 }
 
