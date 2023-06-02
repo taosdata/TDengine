@@ -1924,17 +1924,17 @@ int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, voi
 
 int32_t streamDefaultPut_rocksdb(SStreamState* pState, const void* key, void* pVal, int32_t pVLen) {
   int code = 0;
-  STREAM_STATE_PUT_ROCKSDB(pState, "default", &key, pVal, pVLen);
+  STREAM_STATE_PUT_ROCKSDB(pState, "default", key, pVal, pVLen);
   return code;
 }
 int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** pVal, int32_t* pVLen) {
   int code = 0;
-  STREAM_STATE_GET_ROCKSDB(pState, "default", &key, pVal, pVLen);
+  STREAM_STATE_GET_ROCKSDB(pState, "default", key, pVal, pVLen);
   return code;
 }
 int32_t streamDefaultDel_rocksdb(SStreamState* pState, const void* key) {
   int code = 0;
-  STREAM_STATE_DEL_ROCKSDB(pState, "default", &key);
+  STREAM_STATE_DEL_ROCKSDB(pState, "default", key);
   return code;
 }
 
