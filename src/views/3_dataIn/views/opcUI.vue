@@ -432,7 +432,7 @@
         </div>
       </section>
       <section class="choose-db">
-        <span class="label required">Target Database</span>
+        <span class="label required">{{datasource.targtedb}}</span>
         <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
@@ -653,7 +653,8 @@ export default {
                 type: "warning",
                 message:
                   this.$t("datasource.msg") +
-                  ":"+`${currentAuth[0].username.display} `,
+                  ":" +
+                  `${currentAuth[0].username.display} `,
               });
               return;
             }
@@ -679,19 +680,20 @@ export default {
         dns = dns.replace(reg, "").trim();
         let querystr = "";
         for (let index = 0; index < data.groups.length; index++) {
-          for (let g=0;g< data.groups[index].params.length;g++) {
+          for (let g = 0; g < data.groups[index].params.length; g++) {
             if (
               Object.hasOwnProperty.call(
                 data.groups[index].params[g],
                 "required"
               ) &&
-              data.groups[index].params[g]["value"]==undefined
+              data.groups[index].params[g]["value"] == undefined
             ) {
               Message({
                 type: "warning",
                 message:
                   this.$t("datasource.msg") +
-                  ":"+`${data.groups[index].params[g].display} `,
+                  ":" +
+                  `${data.groups[index].params[g].display} `,
               });
               return;
             } else {
@@ -710,7 +712,6 @@ export default {
               }
             }
           }
-         
         }
 
         if (data.authentication.value == "certificates") {
@@ -794,7 +795,6 @@ export default {
             //     : "+"
             //   : "") +
             dns,
-          parser: this.$store.state.app.mqttParser,
           name: localStorage.getItem("datainName"),
           to:
             "taos+" +
@@ -806,6 +806,9 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
+        if (this.tagName == "mqtt") {
+          piParams["parser"] = this.$store.state.app.mqttParser;
+        }
         if (this.$parent.agentID) {
           piParams["via"] = this.$parent.agentID;
         }
@@ -972,6 +975,12 @@ export default {
   },
 };
 </script>
+<style  >
+.el-select-dropdown__item {
+  font-family: "element-icons" !important;
+  font-weight: 500;
+}
+</style>
 <style lang="scss" scoped>
 .source-ui {
   padding-left: 20px;
@@ -997,6 +1006,11 @@ export default {
   }
   .left-ui {
     overflow: auto;
+    min-width: 800px;
+    .description {
+      max-width: 500px;
+      overflow: auto;
+    }
     section:not(:first-child) {
       border: 1px solid #e3e4e6;
       margin-bottom: 20px;

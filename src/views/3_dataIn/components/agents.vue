@@ -40,7 +40,18 @@
       <el-table-column
         :label="$t('taosagents.expire_date')"
         prop="expire_date"
-      ></el-table-column>
+      >
+      <template slot-scope="scope">
+        <template v-if="((new Date(scope.row.expire_date))<Date.now())">
+          <el-tooltip effect="light" :content="$t('datasource.expired')" placement="right-end">
+
+          <span style="color:red;">{{scope.row.expire_date}}</span>
+          </el-tooltip>
+        </template>
+        <span v-else>{{scope.row.expire_date}}</span>
+      </template>
+      
+      </el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.last_modified_at')"
         prop="last_modified_at"
@@ -143,7 +154,7 @@
         class="demo-ruleForm"
       >
         <el-form-item prop="name" :label="$t('taosagents.name')">
-          <el-input v-model.trim="ruleForm.name" :maxlength=20></el-input>
+          <el-input v-model.trim="ruleForm.name" :maxlength="20"></el-input>
         </el-form-item>
 
         <el-form-item :label="$t('taosagents.connectors')" prop="connectors">
@@ -219,14 +230,14 @@ import {
 import { copy } from "@/utils/index";
 import { getUIData } from "@/api/explorer/datain";
 import { format } from "date-fns";
-import {Message} from 'element-ui'
+import { Message } from "element-ui";
 export default {
   name: "Agent",
   data() {
     return {
       expireTimeOPtion: {
         disabledDate(time) {
-          return time.getTime() < Date.now() - 24 * 3600 * 1000;
+          return time.getTime() < Date.now();
         },
       },
 
@@ -310,11 +321,18 @@ export default {
           type: "warning",
         }
       ).then(async () => {
-        await deleteAgent(data.id).catch((err) => {
-          err.response.data &&
-            err.response.data.message &&
-            Message.error(err.response.data.message);
-        });
+        try {
+          deleteAgent(data.id).then(res=>{
+            console.log(res,'200的提示');
+            res&&res.message&&Message.error(res.message)
+          }).catch((err) => {
+            console.log(err.response, "删除的错误提示--500");
+            err.response.data &&
+              err.response.data.message &&
+              Message.error(err.response.data.message);
+          });
+        } catch (error) {console.log(error);}
+
         this.getAgents();
       });
     },
@@ -385,7 +403,7 @@ export default {
       try {
         let params = {
           connectors: this.ruleForm.connectors,
-          expire_date: this.ruleForm.expire_date,
+          expire_date: format(this.ruleForm.expire_date, "yyyy-MM-dd"),
           name: this.ruleForm.name,
         };
         let result = await editAgent(this.currentRow.id, params);

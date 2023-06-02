@@ -1,18 +1,19 @@
 import { request } from "@/utils/request";
-
+let language=window.navigator.language.includes('en')?'en':'zh'
 export function getDatain(id){
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url: `/tasks?detail=true&labels=type::datain,cluster-id::${id}`,
+        url: `/tasks?lang=${language}&detail=true&labels=type::datain,cluster-id::${id}`,
         method: "get"
     });
 }
 
 
 export function getUIData(){
+    let language=window.navigator.language.includes('en')?'en':'zh'
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url:'/ds/in',
+        url:`/ds/in?lang=${language}`,
         method:'get'
     })
 }
