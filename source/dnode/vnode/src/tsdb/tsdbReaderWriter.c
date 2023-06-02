@@ -1488,6 +1488,10 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
   return code;
 }
 
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData) {
+    return tsdbReadDelDatav1(pReader, pDelIdx, aDelData, INT64_MAX);
+}
+
 int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer) {
   int32_t code = 0;
   int64_t offset = pDelIdx->offset;
