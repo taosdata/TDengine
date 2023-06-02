@@ -26,29 +26,65 @@ options:
     description: MQTT Broker 密码。
     placeholder: password
 
+authentication:
+  display: Authentication
+  description: 认证方式
+  value: anonymous
+  alternatives:
+    - name: anonymous
+      display: 匿名
+      description: 匿名登录
+      value: true
+      params: []
+
+    - name: plain
+      display: 用户名密码
+      description: 使用用户名和密码登录
+      username:
+        display: 用户名
+        description: MQTT Broker 用户名.
+        placeholder: 用户名
+        required: true
+      password:
+        display: 密码
+        description: MQTT Broker 密码.
+        placeholder: 密码
+    - name: certificates
+      display: 证书配置
+      description: 使用证书和私钥建立连接
+      params:
+        - name: ca
+          display: CA
+          description: CA 证书文件内容。
+          required: true
+          hint:
+            type: file
+        - name: cert
+          display: 客户端证书
+          description: .cert 文件内容
+          required: true
+          hint:
+            type: file
+        - name: cert_key
+          display: 客户端私钥
+          description: 私钥文件内容
+          required: true
+          hint:
+            type: file
+        - name: username
+          display: 用户名
+          description: MQTT Broker 用户名.
+          placeholder: username
+          hint:
+            type: str
+        - name: password
+          display: 密码
+          description: MQTT Broker 密码.
+          placeholder: 密码
+          hint:
+            type: str
 
 groups:
-  - name: 证书
-    description: 使用证书和私钥登录。
-    params:
-      - name: ca
-        display: CA
-        description: CA 证书文件内容。
-        required: true
-        hint:
-          type: file
-      - name: cert
-        display: 客户端证书
-        description: .cert 文件内容。
-        required: true
-        hint:
-          type: file
-      - name: cert_key
-        display: 客户端私钥
-        description: 私钥文件内容。
-        required: true
-        hint:
-          type: file
   - name: 连接
     display_order: 1
     description: MQTT Broker 连接配置
