@@ -67,10 +67,10 @@
           </div>
         </div>
       </section>
-      <section class="authentication" v-if="dbsource[0].authentication.display">
+      <section class="authentication" v-if="dbsource[0].authentication?.display">
         <div>
           <div class="block-title">
-            <span>{{ dbsource[0].authentication.display }}</span>
+            <span>{{ dbsource[0].authentication?.display }}</span>
           </div>
           <div
             class="description"
@@ -390,7 +390,7 @@
       <section v-if="tagName == 'mqtt'" class="mqtt-config">
         <div class="header">
           <div class="block-title">
-            <span>{{ dbsource[0].parser.display }}</span>
+            <span>{{ dbsource[0].parser?.display }}</span>
           </div>
           <div
             class="description"
@@ -432,7 +432,7 @@
         </div>
       </section>
       <section class="choose-db">
-        <span class="label required">{{datasource.targtedb}}</span>
+        <span class="label required">{{ $t('datasource.targtedb')}}</span>
         <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
