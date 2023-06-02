@@ -1072,6 +1072,7 @@ static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t grou
 
 void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint64_t ver) {
   pTableScanInfo->base.cond.twindows = *pWin;
+  pTableScanInfo->base.cond.startVersion = 0;
   pTableScanInfo->base.cond.endVersion = ver;
   pTableScanInfo->scanTimes = 0;
   pTableScanInfo->currentGroupId = -1;
@@ -1194,6 +1195,7 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   }
 
   STableScanInfo* pTScanInfo = pInfo->pTableScanOp->info;
+  qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRIu64, win.skey, win.ekey, pInfo->pUpdateInfo->maxDataVersion);
   resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
   pInfo->pTableScanOp->status = OP_OPENED;
   return true;
@@ -1889,6 +1891,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
           TSKEY maxTs = pAPI->stateStore.updateInfoFillBlockData(pInfo->pUpdateInfo, pInfo->pRecoverRes, pInfo->primaryTsIndex);
           pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
         } else {
+          pInfo->pUpdateInfo->maxDataVersion = pTaskInfo->streamInfo.fillHistoryVer2;
           doCheckUpdate(pInfo, pInfo->pRecoverRes->info.window.ekey, pInfo->pRecoverRes);
         }
       }
