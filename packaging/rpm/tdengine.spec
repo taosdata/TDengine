@@ -45,6 +45,7 @@ echo buildroot: %{buildroot}
 
 libfile="libtaos.so.%{_version}"
 wslibfile="libtaosws.so"
+rocksdblib="librocksdb.so.8"
 
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
@@ -92,6 +93,7 @@ if [ -f %{_compiledir}/build/bin/taosadapter ]; then
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 [ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
+[ -f %{_compiledir}/build/lib/${rocksdblib} ] && cp %{_compiledir}/build/lib/${rocksdblib}            %{buildroot}%{homepath}/driver ||:
 cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
