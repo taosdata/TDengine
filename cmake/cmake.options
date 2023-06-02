@@ -80,7 +80,7 @@ ENDIF ()
 option(
         BUILD_GEOS
         "If build geos on Windows"
-        OFF
+        ON
     )
 
 option(
