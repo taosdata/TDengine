@@ -43,7 +43,7 @@ groups:
     hint:
       type: bool
   - name: ToTDengineFirstTime
-    display: 已TDengine已有数据结束
+    display: 以TDengine已有数据结束
     hint:
       type: bool
     description: |
