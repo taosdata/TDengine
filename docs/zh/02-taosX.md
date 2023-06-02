@@ -19,10 +19,10 @@ description:  "为了能够方便地将各种数据源中的数据导入 TDengin
 
 ### Linux 安装
 
-下载需要的 taosX 安装包，下文以安装包"taosX-0.5.1-Linux-x64.tar.gz"为例展示如何安装：
+下载需要的 taosX 安装包，下文以安装包 `taosX-0.5.1-Linux-x64.tar.gz` 为例展示如何安装：
 
 ``` bash
-# 解压文件
+# 在任意目录下解压文件
 tar -zxf taosX-0.5.1-Linux-x64.tar.gz
 cd taosX-0.5.1-Linux-x64
 
@@ -41,17 +41,19 @@ sudo rmtaox
 
 ```
 
-#### FAQ: 
-1. 安装后都会有哪些文件被复制到了哪个安装目录？
-    * 复制 bin/taosx 、bin/taosx-agent 到 /usr/local/taosX/bin
-    * 复制 plugins/influxdb、plugins/mqtt、plugins/opc 等到 /usr/local/taosX/plugins
-    * 复制 scripts/taosx.service、script/taosx-agent.service 到 /usr/local/taosX/script
-    * 复制 install.sh、rmtaosX.sh 到 /usr/local/taosX 
-    * 复制 config/agent.example.toml 到 /usr/local/taosX/config 和 /etc/taosX
+**常见问题:**
+
+1. 安装后系统中增加了哪些文件？
+    * /usr/local/taosX/bin: taosx, taosx-agent
+    * /usr/local/taosX/plugins: taosx-influxdb, taosx-mqtt, taosx-opc, taosx-pi, taosx-pi-backfill
+    * /usr/local/taosX/scripts:taosx.service, taosx-agent.service
+    * /usr/local/taosX: install.sh, rmtaosX.sh 
+    * /usr/local/taosX/config: config/agent.example.toml
+    * /etc/taosX: config/agent.example.toml
 
 2. taosX -V 提示 "Command not found" 应该如何解决？
     * 检验问题1，保证所有的文件都被复制到对应的目录
-    * 创建软连接
+    * 如下创建软链接，或者确保 /usr/local/taosX/bin 被添加到系统环境变量 PATH 中
     ``` bash
     ln -s /usr/local/taosX/bin/taosx /usr/bin/taosx
     ln -s /usr/local/taosX/bin/taosx-agent /usr/bin/taosx-agent
@@ -64,7 +66,6 @@ sudo rmtaox
 - 可使用 uninstall_taosx.exe 进行卸载
 - 命令行执行 ```sc start/stop taosx``` 启动/停止 taosx 服务
 - 命令行执行 ```sc start/stop taosx-ageent``` 启动/停止 taosx-agent 服务
-- 其他 connector，安装在 plugins 下，会由 taosx-agent 调用
 - windows 默认安装在```C:\Program Files\taosX```,目录结构如下：
 ~~~
 ├── bin
