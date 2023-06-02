@@ -607,30 +607,15 @@ const EXE: &'static str = {
         }
     }
 };
-const LOG_PATH: &str = {
-    #[cfg(all(target_os = "windows"))]
-    {
-        ".\\logs\\opc"
-    }
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        "./logs/opc"
-    }
-};
-
-const LOG_FILE: &str = {
-    #[cfg(all(target_os = "windows"))]
-    {
-        "opc.log"
-    }
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        "opc.log"
-    }
-};
 
 fn exe_path() -> PathBuf {
     super::get_plugin_dir("opc").join(EXE)
+}
+
+const LOG_FILE: &str = "opc.log";
+
+fn log_path() -> PathBuf {
+    super::get_log_dir("opc")
 }
 
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
@@ -723,7 +708,7 @@ pub async fn opc_to_taos(
     let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(exe_path());
 
-    let mut log_path = PathBuf::from(LOG_PATH);
+    let mut log_path = log_path();
 
     fs::create_dir_all(&log_path)?;
 
