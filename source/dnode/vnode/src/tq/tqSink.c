@@ -294,6 +294,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
 
       char* ctbName = pDataBlock->info.parTbName;
       if (!ctbName[0]) {
+        memset(ctbName, 0, TSDB_TABLE_NAME_LEN);
         if (res == TSDB_CODE_SUCCESS) {
           memcpy(ctbName, pTableSinkInfo->tbName, strlen(pTableSinkInfo->tbName));
         } else {
