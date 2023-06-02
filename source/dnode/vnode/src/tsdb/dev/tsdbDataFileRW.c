@@ -299,12 +299,12 @@ static int32_t tsdbDataFileWriterDoOpenReader(SDataFileWriter *writer) {
       code = tsdbDataFileReaderOpen(NULL, config, &writer->ctx->reader);
       TSDB_CHECK_CODE(code, lino, _exit);
 
+      code = tsdbDataFileReadBlockIdx(writer->ctx->reader, &writer->ctx->blockIdxArray);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
       break;
     }
   }
-
-  code = tsdbDataFileReadBlockIdx(writer->ctx->reader, &writer->ctx->blockIdxArray);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -709,7 +709,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, STFileOp *op) {
+static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArray *opArr) {
   int32_t code = 0;
   int32_t lino = 0;
   TABLEID tbid[1] = {{INT64_MAX, INT64_MAX}};
@@ -726,64 +726,81 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, STFileOp *
   code = tsdbDataFileWriteFooter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  STFileOp op;
+  int32_t  ftype;
+
   // .head
-  int32_t ftype = TSDB_FTYPE_HEAD;
-  op[ftype] = (STFileOp){
+  ftype = TSDB_FTYPE_HEAD;
+  if (writer->config->files[ftype].exist) {
+    op = (STFileOp){
+        .optype = TSDB_FOP_REMOVE,
+        .fid = writer->config->fid,
+        .of = writer->config->files[ftype].file,
+    };
+
+    code = TARRAY2_APPEND(opArr, op);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  op = (STFileOp){
       .optype = TSDB_FOP_CREATE,
       .fid = writer->config->fid,
       .nf = writer->files[ftype],
   };
+  code = TARRAY2_APPEND(opArr, op);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // .data
   ftype = TSDB_FTYPE_DATA;
   if (writer->fd[ftype]) {
     if (!writer->config->files[ftype].exist) {
-      op[ftype] = (STFileOp){
+      op = (STFileOp){
           .optype = TSDB_FOP_CREATE,
           .fid = writer->config->fid,
           .nf = writer->files[ftype],
       };
-    } else if (writer->config->files[ftype].file.size == writer->files[ftype].size) {
-      op[ftype].optype = TSDB_FOP_NONE;
-    } else {
-      op[ftype] = (STFileOp){
+
+      code = TARRAY2_APPEND(opArr, op);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } else if (writer->config->files[ftype].file.size != writer->files[ftype].size) {
+      op = (STFileOp){
           .optype = TSDB_FOP_MODIFY,
           .fid = writer->config->fid,
           .of = writer->config->files[ftype].file,
           .nf = writer->files[ftype],
       };
+
+      code = TARRAY2_APPEND(opArr, op);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
-  } else {
-    op[ftype].optype = TSDB_FOP_NONE;
   }
 
   // .sma
   ftype = TSDB_FTYPE_SMA;
   if (writer->fd[ftype]) {
     if (!writer->config->files[ftype].exist) {
-      op[ftype] = (STFileOp){
+      op = (STFileOp){
           .optype = TSDB_FOP_CREATE,
           .fid = writer->config->fid,
           .nf = writer->files[ftype],
       };
-    } else if (writer->config->files[ftype].file.size == writer->files[ftype].size) {
-      op[ftype].optype = TSDB_FOP_NONE;
-    } else {
-      op[ftype] = (STFileOp){
+
+      code = TARRAY2_APPEND(opArr, op);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } else if (writer->config->files[ftype].file.size != writer->files[ftype].size) {
+      op = (STFileOp){
           .optype = TSDB_FOP_MODIFY,
           .fid = writer->config->fid,
           .of = writer->config->files[ftype].file,
           .nf = writer->files[ftype],
       };
+
+      code = TARRAY2_APPEND(opArr, op);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
-  } else {
-    op[ftype].optype = TSDB_FOP_NONE;
   }
 
-  // .tomb
-  op[TSDB_FTYPE_TOMB] = (STFileOp){
-      .optype = TSDB_FOP_NONE,
-  };
+  // .tomb (TODO)
+  ftype = TSDB_FTYPE_TOMB;
 
   for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
     if (!writer->fd[i]) continue;
@@ -807,25 +824,21 @@ int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWri
   return 0;
 }
 
-int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, STFileOp op[/*TSDB_FTYPE_MAX*/]) {
+int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, TFileOpArray *opArr) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (!writer[0]->ctx->opened) {
-    for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
-      op[i].optype = TSDB_FOP_NONE;
-    }
-  } else {
+  if (writer[0]->ctx->opened) {
     if (abort) {
       code = tsdbDataFileWriterCloseAbort(writer[0]);
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
-      code = tsdbDataFileWriterCloseCommit(writer[0], op);
+      code = tsdbDataFileWriterCloseCommit(writer[0], opArr);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     tsdbDataFileWriterDoClose(writer[0]);
   }
-  taosMemoryFree(writer);
+  taosMemoryFree(writer[0]);
   writer[0] = NULL;
 
 _exit:

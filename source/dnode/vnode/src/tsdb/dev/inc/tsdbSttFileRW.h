@@ -60,7 +60,7 @@ typedef struct SSttFileWriter       SSttFileWriter;
 typedef struct SSttFileWriterConfig SSttFileWriterConfig;
 
 int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer);
-int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, STFileOp *op);
+int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArray *opArray);
 int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row);
 int32_t tsdbSttFileWriteTSDataBlock(SSttFileWriter *writer, SBlockData *pBlockData);
 int32_t tsdbSttFileWriteDLData(SSttFileWriter *writer, TABLEID *tbid, SDelData *pDelData);

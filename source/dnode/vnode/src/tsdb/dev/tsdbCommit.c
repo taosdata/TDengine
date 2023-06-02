@@ -299,14 +299,8 @@ static int32_t tsdbCommitFileSetEnd(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  STFileOp op[1];
-  code = tsdbSttFileWriterClose(&committer->sttWriter, 0, op);
+  code = tsdbSttFileWriterClose(&committer->sttWriter, 0, committer->fopArray);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  if (op->optype != TSDB_FOP_NONE) {
-    code = TARRAY2_APPEND_PTR(committer->fopArray, op);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
 
   tsdbIterMergerClose(&committer->iterMerger);
   TARRAY2_CLEAR(committer->iterArray, tsdbIterClose);

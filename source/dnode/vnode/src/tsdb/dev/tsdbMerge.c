@@ -270,7 +270,16 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
 
   merger->ctx->toData = true;
   merger->ctx->level = 0;
-  TARRAY2_FOREACH(merger->ctx->fset->lvlArr, merger->ctx->lvl) {
+
+  // TARRAY2_FOREACH(merger->ctx->fset->lvlArr, merger->ctx->lvl) {
+
+  for (int32_t i = 0;; ++i) {
+    if (i >= TARRAY2_SIZE(merger->ctx->fset->lvlArr)) {
+      merger->ctx->lvl = NULL;
+      break;
+    }
+
+    merger->ctx->lvl = TARRAY2_GET(merger->ctx->fset->lvlArr, i);
     if (merger->ctx->lvl->level != merger->ctx->level || TARRAY2_SIZE(merger->ctx->lvl->fobjArr) == 0) {
       merger->ctx->toData = false;
       merger->ctx->lvl = NULL;
@@ -486,25 +495,12 @@ static int32_t tsdbMergeFileSetEndCloseWriter(SMerger *merger) {
   int32_t lino = 0;
   int32_t vid = TD_VID(merger->tsdb->pVnode);
 
-  STFileOp op[TSDB_FTYPE_MAX];
-
-  code = tsdbSttFileWriterClose(&merger->sttWriter, 0, op);
+  code = tsdbSttFileWriterClose(&merger->sttWriter, 0, merger->fopArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (op->optype != TSDB_FOP_NONE) {
-    code = TARRAY2_APPEND_PTR(merger->fopArr, op);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
   if (merger->ctx->toData) {
-    // TODO
-    code = tsdbDataFileWriterClose(&merger->dataWriter, 0, op);
+    code = tsdbDataFileWriterClose(&merger->dataWriter, 0, merger->fopArr);
     TSDB_CHECK_CODE(code, lino, _exit);
-
-    if (op->optype != TSDB_FOP_NONE) {
-      code = TARRAY2_APPEND_PTR(merger->fopArr, op);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
   }
 
 _exit:

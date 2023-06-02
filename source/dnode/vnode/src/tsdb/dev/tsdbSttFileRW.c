@@ -621,7 +621,7 @@ static int32_t tsdbSttFileDoUpdateHeader(SSttFileWriter *writer) {
   return 0;
 }
 
-static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, STFileOp *op) {
+static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *opArray) {
   int32_t lino;
   int32_t code;
   int32_t vid = TD_VID(writer->config->tsdb->pVnode);
@@ -656,10 +656,15 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, STFileOp *op) {
   tsdbCloseFile(&writer->fd);
 
   ASSERT(writer->config->file.size < writer->file->size);
-  op->optype = writer->config->file.size ? TSDB_FOP_MODIFY : TSDB_FOP_CREATE;
-  op->fid = writer->config->file.fid;
-  op->of = writer->config->file;
-  op->nf = writer->file[0];
+  STFileOp op = {
+      .optype = writer->config->file.size ? TSDB_FOP_MODIFY : TSDB_FOP_CREATE,
+      .fid = writer->config->file.fid,
+      .of = writer->config->file,
+      .nf = writer->file[0],
+  };
+
+  code = TARRAY2_APPEND(opArray, op);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -694,19 +699,17 @@ int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter
   return 0;
 }
 
-int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, STFileOp *op) {
+int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArray *opArray) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t vid = TD_VID(writer[0]->config->tsdb->pVnode);
 
-  if (!writer[0]->ctx->opened) {
-    if (op) op->optype = TSDB_FOP_NONE;
-  } else {
+  if (writer[0]->ctx->opened) {
     if (abort) {
       code = tsdbSttFWriterCloseAbort(writer[0]);
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
-      code = tsdbSttFWriterCloseCommit(writer[0], op);
+      code = tsdbSttFWriterCloseCommit(writer[0], opArray);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     tsdbSttFWriterDoClose(writer[0]);
