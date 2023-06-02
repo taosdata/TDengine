@@ -33,19 +33,19 @@ groups:
     params:
       - name: ca
         display: CA
-        description: CA 证书。
+        description: CA 证书文件内容。
         required: true
         hint:
           type: file
       - name: cert
         display: 客户端证书
-        description: .cert 文件路径。
+        description: .cert 文件内容。
         required: true
         hint:
           type: file
       - name: cert_key
         display: 客户端私钥
-        description: 私钥文件路径。
+        description: 私钥文件内容。
         required: true
         hint:
           type: file

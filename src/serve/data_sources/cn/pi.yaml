@@ -10,12 +10,12 @@ description: |
 type: uri
 options:
   host:
-    display: 服务地址
+    display: PI服务名
     description: PI 服务器地址（通常使用主机名）。
     placeholder: server
     required: true
   subject:
-    required: true
+    required: true 
     display: AFDatabaseName
     description: AF 数据库名
     placeholder: '如: Met1'
@@ -26,77 +26,62 @@ groups:
   description: PI 系统相关配置项。
   params:
   - name: PISystemName
-    display: PI 系统名称
+    display: AF-SERVER-NAME
     description: |-
-      PI 系统名称，留空以使用服务器地址。
+      AF-SERVER-NAME，留空以使用服务器地址。
     hint:
       type: str
-  - name: PIDataPipesInstances
-    display: PI Data Pipes Instances
-    hint:
-      type: integer
-    description: |
-      Default 1.
-    placeholder: 1
-  - name: AFDataPipesInstances
-    display: AF Data Pipes Instances
-    hint:
-      type: integer
-    description: |
-      Default 1.
-    placeholder: 1
+
 
 - name: Data Queue
   display_order: 3
   description: Other configurations.
   params:
   - name: MaxWaitLen
-    display: Max Wait Length
+    display: 消息队列缓存数
     description: |-
-      Message Wait queue max length
+      超过该数字消息会立即发送
     hint:
       type: integer
       min: 1
       max: 10000
   - name: UpdateInterval
-    display: Update Interval (in ms)
+    display: 采集间隔（单位：毫秒）
     hint:
       type: integer
       min: 100
       max: 60000
-    description: Pull Data from PI System Interval in `ms`.
+    description: 每隔该 ms 数从 PI 拉取数据。
     placeholder: 10000
   - name: MaxBackfillRangeDays
-    display: Max Backfill Range(in days)
+    display: 重启补偿时间
     hint:
       type: integer
-    description: Max backfill time range in days.
+    description: 每次重启服务时向前补偿该天数的数据，如果缺失的话。
     placeholder: 1
 
 datasets:
-  name: Data Sets
-  description: PI System template and points
+  name: 监测点集
+  description: PI 系统中的模板和点位。
   categories:
   - category: PointList
-    display: Point List
+    display: 监测点集合
     description: |
-      # Title
-      The point names exists in pi system.
+      point 模式监测点集合
     target:
       name: PointList
-      description: Pi System Point List
+      description: point 模式监测点集合
       required: false
       multiple: true
       editable: true
       selectable: true
   - category: TemplateForPIPoint
-    display: Template For PI Point
+    display: AF 模板集合
     description: |
-      # Title
-      The template names exists in pi system.
+      point 模式监测的 AF 模板集合。
     target:
       name: TemplateForPIPoint
-      description: Database datasets.
+      description: point 模式监测的 AF 模板集合。
       required: false
       multiple: true
       editable: true
@@ -104,11 +89,10 @@ datasets:
   - category: TemplateForAFElement
     display: Template For AF Element
     description: |
-      # Title
-      The template names exists in pi system.
+      AF 模式监测的 AF 模板集合。
     target:
       name: TemplateForAFElement
-      description: Database datasets.
+      description: AF 模式监测的 AF 模板集合。
       required: false
       multiple: true
       editable: true
