@@ -3,6 +3,7 @@ import "highlight.js/styles/atom-one-light.css"; //样式
 import * as utils from "@/utils";
 import { PermissionMap } from "@/const";
 import store from "@/store";
+import i18n from "@/lang";
 //长按
 const longpress = {
   bind: function (el, binding) {
@@ -242,7 +243,7 @@ const highlight = {
     // 给pre标签添加复制按钮 如果没有code标签就不添加
     if (el.hljsBlock && !noCopy) {
       let btn = document.createElement("button");
-      btn.innerHTML = "<i class='el-icon-copy-document'></i> Copy";
+      btn.innerHTML = `<i class='el-icon-copy-document'></i> ${i18n.t('copy')}`;
       btn.classList.add("copy-btn");
       el.classList.add("pre-code");
       btn.onclick = e => {
