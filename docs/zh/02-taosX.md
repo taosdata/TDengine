@@ -60,8 +60,34 @@ sudo rmtaox
 
 ### Windows 安装
 
-@xinsheng，请在此补充详细的 Linux 安装过程
-
+- 下载需要的 taosX 安装包，例如 taosx-{version}-windows-installer.exe，执行安装
+- 可使用 uninstall_taosx.exe 进行卸载
+- 命令行执行 ```sc start/stop taosx``` 启动/停止 taosx 服务
+- 命令行执行 ```sc start/stop taosx-ageent``` 启动/停止 taosx-agent 服务
+- 其他 connector，安装在 plugins 下，会由 taosx-agent 调用
+- windows 默认安装在```C:\Program Files\taosX```,目录结构如下：
+~~~
+├── bin
+│   ├── taosx.exe
+│   ├── taosx-agent.exe
+├── plugins
+│   ├── influxdb
+│   │   └── taosx-inflxdb.jar
+│   ├── mqtt
+│   │   └── taosx-mqtt.exe
+│   └── opc
+│       └── taosx-opc.exe
+│   ├── influxdb
+│   │   └── taosx-inflxdb.exe
+│   └── pi
+│       └── taosx-pi.exe
+│       └── taosx-pi-backfill.exe
+│       └── ...
+└── config
+│   ├── agent.example.toml
+├── uninstall_taosx.exe
+├── uninstall_taosx.dat
+~~~
 
 ## 运行模式
 
