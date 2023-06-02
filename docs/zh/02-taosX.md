@@ -53,7 +53,7 @@ sudo rmtaox
 
 2. taosX -V 提示 "Command not found" 应该如何解决？
     * 检验问题1，保证所有的文件都被复制到对应的目录
-    * 如下创建软连接，或者确保 /usr/local/taosX/bin /usr/local/taosX/plugins 被添加到系统环境变量 PATH 中
+    * 如下创建软链接，或者确保 /usr/local/taosX/bin 被添加到系统环境变量 PATH 中
     ``` bash
     ln -s /usr/local/taosX/bin/taosx /usr/bin/taosx
     ln -s /usr/local/taosX/bin/taosx-agent /usr/bin/taosx-agent
