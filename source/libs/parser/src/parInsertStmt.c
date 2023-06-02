@@ -267,7 +267,10 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
       pBind = bind + c;
     }
 
-    tColDataAddValueByBind(pCol, pBind);
+    code = tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE: -1);
+    if (code) {
+      goto _return;
+    }
   }
 
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
@@ -310,7 +313,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
     pBind = bind;
   }
 
-  tColDataAddValueByBind(pCol, pBind);
+  tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE: -1);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 

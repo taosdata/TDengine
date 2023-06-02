@@ -78,7 +78,6 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
 
     // todo remove this
     if (offset.val.type == TMQ_OFFSET__LOG) {
-      taosWLockLatch(&pStore->pTq->lock);
       STqHandle* pHandle = taosHashGet(pStore->pTq->pHandle, offset.subKey, strlen(offset.subKey));
       if (pHandle) {
         if (walSetRefVer(pHandle->pRef, offset.val.version) < 0) {
@@ -86,7 +85,6 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
 //                  offset.val.version);
         }
       }
-      taosWUnLockLatch(&pStore->pTq->lock);
     }
 
     taosMemoryFree(pMemBuf);

@@ -37,7 +37,9 @@ int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
     }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
     if (tEncodeI64(pEncoder, pHandle->execHandle.execTb.suid) < 0) return -1;
-    if (tEncodeCStr(pEncoder, pHandle->execHandle.execTb.qmsg) < 0) return -1;
+    if (pHandle->execHandle.execTb.qmsg != NULL){
+      if (tEncodeCStr(pEncoder, pHandle->execHandle.execTb.qmsg) < 0) return -1;
+    }
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -65,7 +67,9 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
     }
   } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
     if (tDecodeI64(pDecoder, &pHandle->execHandle.execTb.suid) < 0) return -1;
-    if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execTb.qmsg) < 0) return -1;
+    if (!tDecodeIsEnd(pDecoder)){
+      if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.execTb.qmsg) < 0) return -1;
+    }
   }
   tEndDecode(pDecoder);
   return 0;
@@ -339,7 +343,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
 
-      if(strcmp(handle.execHandle.execTb.qmsg, "") != 0) {
+      if(handle.execHandle.execTb.qmsg != NULL && strcmp(handle.execHandle.execTb.qmsg, "") != 0) {
         if (nodesStringToNode(handle.execHandle.execTb.qmsg, &handle.execHandle.execTb.node) != 0) {
           tqError("nodesStringToNode error in sub stable, since %s", terrstr());
           return -1;
@@ -362,9 +366,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       taosArrayDestroy(tbUidList);
     }
     tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, vgId);
-    taosWLockLatch(&pTq->lock);
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));
-    taosWUnLockLatch(&pTq->lock);
   }
 
 end:

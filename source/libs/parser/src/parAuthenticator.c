@@ -175,7 +175,7 @@ static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
   SNode* pTagCond = NULL;
   // todo check tag condition for subtable
-  return checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_READ, &pTagCond);
+  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ, &pTagCond);
 }
 
 static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {

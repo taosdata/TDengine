@@ -1722,12 +1722,14 @@ class TaskCreateDb(StateTransitionTask):
         vg_nums = random.randint(1, 8)
         cache_model = Dice.choice(['none', 'last_row', 'last_value', 'both'])
         buffer = random.randint(3, 128)
+        walRetentionPeriod = random.randint(1, 10000)
         dbName = self._db.getName()
-        self.execWtSql(wt, "create database {} {} {} vgroups {} cachemodel '{}' buffer {}  ".format(dbName, repStr,
+        self.execWtSql(wt, "create database {} {} {} vgroups {} cachemodel '{}' buffer {} wal_retention_period {}  ".format(dbName, repStr,
                                                                                                     updatePostfix,
                                                                                                     vg_nums,
                                                                                                     cache_model,
-                                                                                                    buffer))
+                                                                                                    buffer,
+                                                                                                    walRetentionPeriod))
         if dbName == "db_0" and Config.getConfig().use_shadow_db:
             self.execWtSql(wt, "create database {} {} {} ".format("db_s", repStr, updatePostfix))
 
@@ -2041,18 +2043,19 @@ class TdSuperTable:
             for topic in current_topic_list:
                 topic_list.append(topic)
 
-            consumer.subscribe(topic_list)
-
-            # consumer with random work life 
-            time_start = time.time()
-            while 1:
-                res = consumer.poll(1)
-                consumer.commit(res)
-                if time.time() - time_start > random.randint(5, 50):
-                    break
             try:
+                consumer.subscribe(topic_list)
+
+                # consumer with random work life
+                time_start = time.time()
+                while 1:
+                    res = consumer.poll(1)
+                    consumer.commit(res)
+                    if time.time() - time_start > random.randint(5, 50):
+                        break
                 consumer.unsubscribe()
-            except TmqError as e:
+                consumer.close()
+            except TmqError as err: # topic deleted by other threads
                 pass
             return
 

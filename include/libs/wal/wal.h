@@ -212,7 +212,8 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead);
 int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead);
 int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead);
 
-SWalRef *walRefFirstVer(SWal *, SWalRef *);
+void walRefFirstVer(SWal *, SWalRef *);
+void walRefLastVer(SWal *, SWalRef *);
 SWalRef *walRefCommittedVer(SWal *);
 
 SWalRef *walOpenRef(SWal *);

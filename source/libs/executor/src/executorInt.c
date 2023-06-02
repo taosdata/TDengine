@@ -442,15 +442,15 @@ void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock* pB
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key) {
+STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key) {
   STimeWindow win = {0};
-  win.skey = taosTimeTruncate(key, pInterval, precision);
+  win.skey = taosTimeTruncate(key, pInterval);
 
   /*
    * if the realSkey > INT64_MAX - pInterval->interval, the query duration between
    * realSkey and realEkey must be less than one interval.Therefore, no need to adjust the query ranges.
    */
-  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   if (win.ekey < win.skey) {
     win.ekey = INT64_MAX;
   }
@@ -726,7 +726,8 @@ void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultR
           pCtx[j].resultInfo->numOfRes = pRow->numOfRows;
         }
       }
-
+      
+      blockDataEnsureCapacity(pBlock, pBlock->info.rows + pCtx[j].resultInfo->numOfRes);
       int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
       if (TAOS_FAILED(code)) {
         qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
@@ -827,7 +828,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      uint32_t newSize = pBlock->info.rows + pRow->numOfRows + (numOfRows - i) > 1 ? 1 : 0;
+      uint32_t newSize = pBlock->info.rows + pRow->numOfRows + ((numOfRows - i) > 1 ? 1 : 0);
       blockDataEnsureCapacity(pBlock, newSize);
       qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s",
              newSize, pBlock->info.capacity, GET_TASKID(pTaskInfo));
