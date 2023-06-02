@@ -1,4 +1,7 @@
-use std::{io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
+use std::{io::prelude::*, path::PathBuf, sync::Arc, time::Duration,
+    fs,
+    process::Stdio,
+};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -143,6 +146,12 @@ fn influxdb_jar_path() -> PathBuf {
     get_plugin_dir("influxdb").join(EXE)
 }
 
+const LOG_FILE: &str = "influxdb.log";
+
+fn log_path() -> PathBuf {
+    super::get_log_dir("influxdb")
+}
+
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     let path = influxdb_jar_path();
     let output = std::process::Command::new("java")
@@ -207,12 +216,30 @@ pub async fn influxdb_to_taos(
     let connector_path = influxdb_jar_path();
     // startup the connector
     let mut command = tokio::process::Command::new("java");
+
+    let mut log_path = log_path();
+
+    fs::create_dir_all(&log_path)?;
+
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
+    
+    let log_file = fs::OpenOptions::new()
+    .append(true)
+    .create(true)
+    .open(&log_path)
+    .unwrap();
+    let log_io = Stdio::from(log_file);
+
     let child = command
         .arg("-jar")
         .arg(&connector_path)
         .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit());
+        .stderr(log_io);
 
     let port_pool = port_pool.clone();
     {
