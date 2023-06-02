@@ -17,7 +17,7 @@ use arrow_flight::FlightClient;
 use arrow_flight::{
     encode::{FlightDataEncoder, FlightDataEncoderBuilder},
     error::FlightError,
-    FlightData,
+    Action as FlightAction, FlightData,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use flume::Receiver;
@@ -152,8 +152,13 @@ impl Client {
             agent,
         })
     }
-    pub async fn push_status(&self, status: &TaskStatus) -> Result<()> {
-
+    pub async fn push_status(&mut self, status: &TaskStatus) -> Result<()> {
+        tracing::info!("Push status {status:?} to server");
+        let status_bytes = serde_json::to_vec(status)?;
+        let action = FlightAction::new("TaskStatus", status_bytes);
+        let resp: Vec<_> = self.client.do_action(action).await?.try_collect().await?;
+        dbg!(&resp);
+        Ok(())
     }
 
     pub async fn wait_tasks(&mut self, sender: flume::Sender<Action>) -> Result<()> {

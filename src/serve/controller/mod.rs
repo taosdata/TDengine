@@ -178,6 +178,15 @@ impl AgentTasks {
 
 use taos::taos_query::tmq::Assignment;
 
+#[derive(Debug, Deserialize)]
+pub struct TaskStatus {
+    id: i64,
+    at: DateTime<Utc>,
+    action: String,
+    message: Option<String>,
+    context: Option<String>,
+}
+
 pub(super) struct TaskController {
     pub pool: SqlitePool,
     pub runtime: Option<Runtime>,
@@ -1049,6 +1058,63 @@ impl TaskController {
         .fetch_all(&self.pool)
         .await
         .map_err(Into::into)
+    }
+
+    pub async fn push_task_status(&self, status: &TaskStatus) -> anyhow::Result<()> {
+        let id = status.id;
+        match status.action.as_str() {
+            "failed" => {
+                log::error!(
+                    "run task {id} failed with: {:?}, please check the task information",
+                    status.message
+                );
+                // let err = err.to_string();
+                let at = status.at;
+                let _ = sqlx::query!(
+                    "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
+                    at,
+                    Status::Failed,
+                    status.message,
+                    id
+                )
+                .execute(&self.pool)
+                .await?;
+                sqlx::query!(
+                    "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    id,
+                    at,
+                    "failed",
+                    status.message
+                )
+                .execute(&self.pool)
+                .await?;
+                if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
+                    log::error!("Cancel task by id {id}");
+                    token.cancel();
+                    let _ = handle.await?;
+                    // handle.abort();
+                    // if !handle.is_finished() {
+                    //     // token.cancel();
+                    //     log::error!("Cancel task by id {id}");
+                    //     let _ = handle.await;
+                    // }
+                }
+                Ok(())
+            }
+            action => {
+                sqlx::query!(
+                    "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    id,
+                    status.at,
+                    action,
+                    status.message
+                )
+                .execute(&self.pool)
+                .await?;
+                tracing::error!("Invalid task action: {action}");
+                Ok(())
+            }
+        }
     }
 
     pub async fn stop_all(&self) -> anyhow::Result<()> {

@@ -34,7 +34,10 @@ use arrow_flight::{
 };
 
 use crate::serve::{
-    controller::agent::{Agent, AgentToken},
+    controller::{
+        agent::{Agent, AgentToken},
+        TaskStatus,
+    },
     rpc::put::PutStream,
 };
 
@@ -504,9 +507,25 @@ impl FlightService for FlightServiceImpl {
 
     async fn do_action(
         &self,
-        _request: Request<Action>,
+        request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
-        Err(Status::unimplemented("Implement do_action"))
+        let (meta, part, action) = request.into_parts();
+        dbg!(&meta, &part);
+        match action.r#type.as_str() {
+            "TaskStatus" => {
+                // task.
+
+                let status: TaskStatus = serde_json::from_slice(&action.body)
+                    .map_err(|err| Status::invalid_argument(format!("{:?}", action.body)))?;
+
+                self.controller
+                    .push_task_status(&status)
+                    .await
+                    .map_err(|err| Status::internal(err.to_string()))?;
+                Ok(Response::new(Box::pin(futures::stream::iter([]))))
+            }
+            s => Err(Status::unimplemented(format!("Unknown action: {}", s))),
+        }
     }
 
     type ListActionsStream =

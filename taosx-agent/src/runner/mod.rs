@@ -3,6 +3,7 @@ use std::fmt::Display;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
 use taosx_core::TaskOpts;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -15,6 +16,7 @@ pub enum Action {
     Cancel(i64),
 }
 
+#[derive(Debug, Deserialize, Serialize)]
 pub struct TaskStatus {
     id: i64,
     at: DateTime<Utc>,

@@ -221,8 +221,8 @@ pub async fn mqtt_to_taos(
     let mut child = command
         .arg("-c")
         .arg(&config_path)
-        .stdout(async_process::Stdio::inherit())
-        .stderr(async_process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
         .spawn()
         .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
     let port_pool = port_pool.clone();
@@ -233,13 +233,36 @@ pub async fn mqtt_to_taos(
                 log::info!("mqtt exit with status {status}");
                 if !status.success() {
                     let _ = ipc.send(());
+                    temp_path.close().unwrap();
+                    port_pool.put(ipc_port);
                     anyhow::bail!("mqtt exit with status {status}");
+                    // let mut stdout = child.stdout.take().unwrap();
+                    // let mut stdout_string = String::new();
+                    // let _ = stdout.read_to_string(&mut stdout_string).await;
+                    // let stdout = if stdout_string.len() > 1000 {
+                    //     stdout_string[stdout_string.len() - 1000..].to_string()
+                    // } else {
+                    //     stdout_string
+                    // };
+
+
+                    // let mut stderr = child.stderr.take().unwrap();
+                    // let mut stderr_string = String::new();
+                    // let _ = stderr.read_to_string(&mut stderr_string).await;
+                    // let stderr = if stderr_string.len() > 1000 {
+                    //     stderr_string[stderr_string.len() - 1000..].to_string()
+                    // } else {
+                    //     stderr_string
+                    // };
+                    // anyhow::bail!("mqtt exit with status {status}: \nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}");
                 }
             },
             err = receiver.recv() => {
                 log::info!("have received worker thread panicked message, terminate child process");
                 if let Some(err) = err {
                     let _ = ipc.send(());
+                    temp_path.close().unwrap();
+                    port_pool.put(ipc_port);
                     anyhow::bail!("mqtt writer error: {err}");
                 }
             },
