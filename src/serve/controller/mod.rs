@@ -1120,21 +1120,21 @@ impl TaskController {
         Ok(offsets)
     }
 
-    pub async fn find_agent_by_name_and_userid(&self, name: &str, user_id: Option<&str>, id: Option<usize>) -> anyhow::Result<Vec<Agent>> {
+    pub async fn find_agent_by_name_and_userid(&self, name: &str, cluster_id: Option<&str>, id: Option<usize>) -> anyhow::Result<Vec<Agent>> {
         let mut sql = if id.is_some() {
             format!("select * from agents where name = '{}' and id != '{}'", name, id.unwrap())
         } else {
             format!("select * from agents where name = '{}'", name)
         };
-        if user_id.is_some() {
-            sql.push_str(format!(" and user_id = '{}'", user_id.unwrap()).as_str());
+        if cluster_id.is_some() {
+            sql.push_str(format!(" and cluster_id = '{}'", cluster_id.unwrap()).as_str());
         }
         let result: Vec<Agent> = sqlx::query_as(sql.as_str()).fetch_all(&self.pool).await?;
         Ok(result)
     }
 
     pub async fn create_agent(&self, agent: AgentProps) -> anyhow::Result<AgentWithToken> {
-        let result = self.find_agent_by_name_and_userid(&agent.name, Some(&agent.user_id), None).await?;
+        let result = self.find_agent_by_name_and_userid(&agent.name, Some(&agent.cluster_id), None).await?;
         if result.len() > 0 {
             anyhow::bail!("agent name has existed");
         }
