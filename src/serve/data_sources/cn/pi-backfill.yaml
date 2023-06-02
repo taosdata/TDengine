@@ -2,132 +2,97 @@
 id: pibackfill
 name: PIBACKFILL
 description: |
-  The PI System is a suite of software products that are used  
-  for data collection, historicizing, finding, analyzing,  
-  delivering, and visualizing. It is marketed as an enterprise  
-  infrastructure for management of real-time data and  
-  events.  
-  The term PI System is often used to refer to the PI Server 
-  but the two are not the same. The PI  System refers to all  
-  OSIsoft software products whereas the PI Server is the  
-  core product of the PI System. Data can be automatically  
-  collected from many sources (control systems, lab  
-  equipment, calculations, manual entry or custom  
-  software).
+  PI 系统是一套用于数据收集、查找、分析、传递和可视化的软件产品，可以作为管理实时数据和事件的企业级系统的基础架构。
 
-  taosX could pull history data from PI System by a PIBACKFILL  
-  connector plugin.
+  PI 系统这个术语通常用来指代PI服务器，但这两者并不相同。PI系统指的是所有 OSIsoft 软件产品，而 PI 服务器是 PI 系统的核心产品。数据可以自动从许多来源（控制系统、实验室设备、计算、手动输入或定制软件）收集。
+
+  taosX 可以通过 PI BACKFILL 连接器插件从 PI 系统中提取历史数据。
 type: uri
 options:
   host:
-    display: Server
-    description: PI server name (hostname).
+    display: PI服务名
+    description: PI 服务器地址（通常使用主机名）。
     placeholder: server
     required: true
   subject:
     required: true
     display: AFDatabaseName
-    description: AF database name
+    description: AF 数据库名
     placeholder: 'Example: Met1'
 strict: false
 groups:
 - name: PI System
   display_order: 2
-  description: PI system configurations.
+  description: PI 系统相关配置项。
   params:
   - name: PISystemName
-    display: PI System Name
+    display: AF-SERVER-NAME
     description: |-
-      PI System name, leave it empty to use the same hostname with **Server**.
+      AF-SERVER-NAME，留空以使用服务器地址。
     hint:
       type: str
-  - name: PIDataPipesInstances
-    display: PI Data Pipes Instances
-    hint:
-      type: integer
-    description: |
-      Default 1.
-    placeholder: 1
-  - name: AFDataPipesInstances
-    display: AF Data Pipes Instances
-    hint:
-      type: integer
-    description: |
-      Default 1.
-    placeholder: 1
 
 - name: Backfill
   display_order: 3
-  description: TDBackfill param set.
+  description: TDBackfill 参数设置
   params:
   - name: FromTDengineLastTime
-    display: From TDengine Last Time
+    display: 从TDenine已有数据开始
     description: |-
-      Backfill from the last recorded value in TDengine.
+      是否从TDengine已有的最后一条数据时间戳开始进行历史数据导入。
     hint:
       type: bool
   - name: ToTDengineFirstTime
-    display: To TDengine First Time
+    display: 以TDengine已有数据结束
     hint:
       type: bool
     description: |
-      Backfill up to the first recorded value in TDengine.
+      是否以TDengine已有的第一条数据时间戳作为历史数据导入的结束时间。
   - name: BackfillStartTime
-    display: Backfill Start Time
+    display: Backfill 开始时间
     hint:
       type: time
     description: |
-      The start time for backfilling data. If not provided, the start  
-      time will be the earliest time available.
+      从该时间开始导入历史数据
     placeholder: "YYYY-MM-DD HH:mm:ss"
   - name: BackfillEndTime
-    display: Backfill End Time
+    display: Backfill 结束时间
     hint:
       type: time
     description: |
-      The start time for backfilling data. If not provided, the start  
-      time will be the earliest time available.
+      导入历史数据以该时间结束
     placeholder: "YYYY-MM-DD HH:mm:ss"
 
 - name: Data Queue
   display_order: 4
-  description: Other configurations.
+  description: 其他配置
   params:
   - name: MaxWaitLen
-    display: Max Wait Length
+    display: 消息队列缓存数
     description: |-
-      Message Wait queue max length
+      超过该数字消息会立即发送
     hint:
       type: integer
       min: 1
       max: 10000
-  - name: UpdateInterval
-    display: Update Interval (in ms)
-    hint:
-      type: integer
-      min: 100
-      max: 60000
-    description: Pull Data from PI System Interval in `ms`.
-    placeholder: 10000
   - name: MaxBackfillRangeDays
-    display: Max Backfill Range(in days)
+    display: 重启补偿时间
     hint:
       type: integer
-    description: Max backfill time range in days.
+    description: 每次重启服务时向前补偿该天数的数据，如果缺失的话。
     placeholder: 1
 
 datasets:
   name: Data Sets
-  description: PI System template and points
+  description: PI 系统模板和点位。
   categories:
   - category: PointList
-    display: Point List
+    display: 监测点集合
     description: |
-      # Title
-      The point names exists in pi system.
+      point 模式监测点集合
     target:
       name: PointList
-      description: Pi System Point List
+      description: point 模式监测点集合
       required: false
       multiple: true
       editable: true
@@ -135,11 +100,10 @@ datasets:
   - category: TemplateForPIPoint
     display: Template For PI Point
     description: |
-      # Title
-      The template names exists in pi system.
+      point 模式监测的 AF 模板集合。
     target:
       name: TemplateForPIPoint
-      description: Database datasets.
+      description: point 模式监测的 AF 模板集合。
       required: false
       multiple: true
       editable: true
@@ -147,11 +111,10 @@ datasets:
   - category: TemplateForAFElement
     display: Template For AF Element
     description: |
-      # Title
-      The template names exists in pi system.
+      AF 模式监测的 AF 模板集合。
     target:
       name: TemplateForAFElement
-      description: Database datasets.
+      description: AF 模式监测的 AF 模板集合。
       required: false
       multiple: true
       editable: true

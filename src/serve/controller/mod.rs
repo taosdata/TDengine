@@ -1800,24 +1800,56 @@ impl TaskDetail {
         }
     }
 
-    pub fn expand_detail(self) -> Self {
+    pub fn expand_detail(self, lang: Option<String>) -> Self {
         let value = self.task;
         let parser = value.parser.clone();
         let from_dsn: Dsn = value.from.as_str().parse().unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
-        TaskDetail {
-            from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-            from_detail: DATA_SOURCE_DEFINITIONS
-                .get(&from_dsn.driver)
-                .map(|d| d.clone().values_from(from_dsn)),
-            to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-            to_detail: DATA_SOURCE_DEFINITIONS
-                .get(&to_dsn.driver)
-                .map(|d| d.clone().values_from(to_dsn)),
-            task: value,
-            agent: None,
-            parser,
+        if lang.is_some() {
+            match lang.unwrap().as_str() {
+                "zh" => TaskDetail {
+                    from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+                    from_detail: DATA_SOURCE_DEFINITIONS_CN
+                        .get(&from_dsn.driver)
+                        .map(|d| d.clone().values_from(from_dsn)),
+                    to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+                    to_detail: DATA_SOURCE_DEFINITIONS_CN
+                        .get(&to_dsn.driver)
+                        .map(|d| d.clone().values_from(to_dsn)),
+                    task: value,
+                    agent: None,
+                    parser,
+                },
+                _ => TaskDetail {
+                    from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+                    from_detail: DATA_SOURCE_DEFINITIONS
+                        .get(&from_dsn.driver)
+                        .map(|d| d.clone().values_from(from_dsn)),
+                    to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+                    to_detail: DATA_SOURCE_DEFINITIONS
+                        .get(&to_dsn.driver)
+                        .map(|d| d.clone().values_from(to_dsn)),
+                    task: value,
+                    agent: None,
+                    parser,
+                }
+            }
+        } else {
+            TaskDetail {
+                from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+                from_detail: DATA_SOURCE_DEFINITIONS
+                    .get(&from_dsn.driver)
+                    .map(|d| d.clone().values_from(from_dsn)),
+                to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+                to_detail: DATA_SOURCE_DEFINITIONS
+                    .get(&to_dsn.driver)
+                    .map(|d| d.clone().values_from(to_dsn)),
+                task: value,
+                agent: None,
+                parser,
+            }
         }
+        
     }
 
     pub fn expand(mut self) -> Self {
@@ -1844,7 +1876,7 @@ impl TaskDetail {
 
     pub fn decorate(self, decorator: &TaskDecorator) -> Self {
         if decorator.detail.is_some() {
-            self.expand_detail()
+            self.expand_detail(decorator.lang.clone())
         } else if decorator.expand.unwrap_or_default() {
             self.expand()
         } else {
@@ -2201,6 +2233,7 @@ pub(super) struct TaskFilter {
 pub struct TaskDecorator {
     expand: Option<bool>,
     detail: Option<bool>,
+    lang: Option<String>,
 }
 
 impl TaskFilter {
