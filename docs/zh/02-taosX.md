@@ -319,12 +319,20 @@ driver 为 tmq 参数说明：
 | group.id  | 订阅使用的分组ID                                                 | 若为空则使用 hash 生成一个 |
 | client.id | 订阅使用的客户端ID                                               | taosx                      |
 | timeout   | 监听数据的超时时间，当设置为 never 表示 taosx 不会停止持续监听。 | 500ms                      |
+| offset    | 从指定的 offset 开始订阅，格式为 `<vgroup_id>:<offset>`，若有多个 vgroup 则用半角逗号隔开 | 若为空则从 0 开始订阅  |
+
 
 
 **工具模式**
 
 ```shell
 taosx run -f 'tmq://root:taosdata@localhost:6030/db1?timeout=never' -t 'taos://root:taosdata@another.com:6030/db2'
+```
+
+从指定 offset 开始订阅：
+
+```shell
+taosx run -f 'tmq://root:taosdata@localhost:6030/db1?offset=2:17,3:20' -t 'taos://root:taosdata@another.com:6030/db2'
 ```
 
 **服务模式**
@@ -336,6 +344,25 @@ curl --location 'localhost:6050/tasks' \
     "from": "tmq+ws://root:taosdata@localhost:6041/db1?timeout=never",
     "to": "taos+ws://root:taosdata@another.com:6041/db2"
 }'
+```
+
+从指定 offset 开始订阅：
+
+```shell
+curl --location 'localhost:6050/tasks' \
+--header 'Content-Type: application/json' \
+--data '{
+    "from": "tmq+ws://root:taosdata@localhost:6041/db1?offset=2:17,3:20",
+    "to": "taos+ws://root:taosdata@another.com:6041/db2"
+}'
+```
+
+返回消费进度
+
+```shell
+curl -X 'GET' \
+  'http://localhost:6050/tasks/{id}/offsets' \
+  -H 'accept: text/plain'
 ```
 
 ## 数据备份和恢复
