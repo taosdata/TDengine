@@ -174,6 +174,7 @@ fi
 
 # there can not libtaos.so*, otherwise ln -s  error
 ${csudo}rm -f %{homepath}/driver/libtaos*   || :
+${csudo}rm -f %{homepath}/driver/librocksdb*   || :
 
 #Scripts executed after installation
 %post
@@ -219,6 +220,7 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosudf.h     || :    
     ${csudo}rm -f ${lib_link_dir}/libtaos.*  || :
+    ${csudo}rm -f ${lib_link_dir}/librocksdb.*  || :
 
     ${csudo}rm -f ${log_link_dir}            || :
     ${csudo}rm -f ${data_link_dir}           || :
