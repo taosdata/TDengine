@@ -135,6 +135,10 @@ struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t i
 
 static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos, bool forUpdate) {
   SFilePage* bufPage = (SFilePage*)getBufPage(pBuf, pos->pageId);
+  if (!bufPage) {
+    uFatal("failed to get the buffer page:%d since %s", pos->pageId, terrstr());
+    return NULL;
+  }
   if (forUpdate) {
     setBufPageDirty(bufPage, true);
   }
@@ -181,5 +185,8 @@ int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI *pAPI);
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag);
+
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
+void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 
 #endif  // TDENGINE_EXECUTIL_H

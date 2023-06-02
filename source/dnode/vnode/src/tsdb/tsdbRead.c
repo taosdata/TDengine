@@ -5030,7 +5030,8 @@ int32_t tsdbNextDataBlock(STsdbReader* pReader, bool* hasNext) {
   return code;
 }
 
-static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols, SColumnDataAgg* pTsAgg) {
+static bool doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols, SColumnDataAgg* pTsAgg) {
+  bool hasNullSMA = false;
   // do fill all null column value SMA info
   int32_t i = 0, j = 0;
   int32_t size = (int32_t)taosArrayGetSize(pSup->pColAgg);
@@ -5050,6 +5051,7 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
         taosArrayInsert(pSup->pColAgg, i, &nullColAgg);
         i += 1;
         size++;
+        hasNullSMA = true;
       }
       j += 1;
     }
@@ -5060,12 +5062,15 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
       SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
       taosArrayInsert(pSup->pColAgg, i, &nullColAgg);
       i += 1;
+      hasNullSMA = true;
     }
     j++;
   }
+
+  return hasNullSMA;
 }
 
-int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave) {
+int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave, bool *hasNullSMA) {
   SColumnDataAgg*** pBlockSMA = &pDataBlock->pBlockAgg;
 
   int32_t code = 0;
@@ -5129,7 +5134,10 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
   }
 
   // do fill all null column value SMA info
-  doFillNullColSMA(pSup, pBlock->nRow, numOfCols, pTsAgg);
+  if (doFillNullColSMA(pSup, pBlock->nRow, numOfCols, pTsAgg)) {
+    *hasNullSMA = true;
+    return TSDB_CODE_SUCCESS;
+  }
   size_t size = taosArrayGetSize(pSup->pColAgg);
 
   int32_t i = 0, j = 0;
@@ -5296,6 +5304,9 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
 }
 
 static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows, int32_t numOfBucket) {
+  if (numOfRows < startRow) {
+    return 0;
+  }
   int32_t bucketIndex = ((numOfRows - startRow) / bucketRange);
   if (bucketIndex == numOfBucket) {
     bucketIndex -= 1;
