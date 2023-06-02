@@ -146,6 +146,8 @@ impl Cli {
                     DataSetsReq,
                     ConnectorTransferred,
                     DatasetsDefinition,
+                    LangQuery,
+                    Lang,
                     // DataSet,
 
                 ),

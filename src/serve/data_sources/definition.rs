@@ -476,8 +476,8 @@ impl DataSourceDefinition {
 #[test]
 fn test() {
     use std::str::FromStr;
-    let json = include_str!("tmq.json");
-    let mut def: Vec<DataSourceDefinition> = serde_json::from_str(json).unwrap();
+    let json = include_str!("en/tmq.yaml");
+    let mut def: Vec<DataSourceDefinition> = serde_yaml::from_str(json).unwrap();
     let json2 = serde_json::to_string(&def).unwrap();
     dbg!(&json2);
     let toml = toml::to_string_pretty(&def[0]).unwrap();
@@ -492,7 +492,7 @@ fn test() {
 #[test]
 fn opc() {
     use std::str::FromStr;
-    let json = include_str!("opc.yaml");
+    let json = include_str!("cn/opc.yaml");
     let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
     let json2 = serde_yaml::to_string(&def).unwrap();
     dbg!(&json2);
@@ -500,6 +500,22 @@ fn opc() {
     println!("{}", &toml);
 
     let dsn = "opc+ua://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let dsn = def.values_from(dsn);
+    dbg!(&dsn);
+}
+#[test]
+fn influxdb() {
+    use std::str::FromStr;
+    let json = include_str!("cn/influxdb.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "influxdb://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
     let dsn = Dsn::from_str(&dsn).unwrap();
     // let tmq = &mut def[0];
     let dsn = def.values_from(dsn);
