@@ -710,10 +710,10 @@ pub async fn opc_to_taos(
             tokio::select! {
                 status = child.wait() => {
                     let status = status?;
-                    log::info!("OPC exit with status {}", status);
+                    log::info!("OPC exit with {}", status);
                     if !status.success() {
                         let _ = ipc.send(());
-                        anyhow::bail!("OPC exist with status {}", status);
+                        anyhow::bail!("OPC exist with {}", status);
                         // anyhow::bail!("OPC error: {}", child.stderr.map(|err| String::from_utf8_lossy(&err) ).unwrap_or("".into()));
                     }
                 },

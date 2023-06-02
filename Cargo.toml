@@ -12,8 +12,8 @@ parquet = "38.0.0"
 
 tonic = "0.9"
 
-taos = { version = "0.8.5", default-features = false, features = ["ws", "deadpool"] }
-taos-query = { version = "0.8.5", default-features = false, features = ["deadpool"] }
+taos = { version = "0.8.8", default-features = false, features = ["ws", "deadpool"] }
+taos-query = { version = "0.8.8", default-features = false, features = ["deadpool"] }
 
 [package]
 name = "taosx"
@@ -31,7 +31,7 @@ arrow = { workspace = true }
 arrow-flight = { workspace = true }
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
-bitflags = "1"
+bitflags = "2"
 chrono = "0.4"
 clap = { version = "4.0.11", features = ["default", "derive"] }
 clap-verbosity-flag = "2.0.0"
@@ -71,11 +71,11 @@ tonic = { workspace = true, features = ["tls", "tls-roots"] }
 
 # lru = "0.7.5"
 const_format = "0.2.30"
-metrics = "0.20.1"
-metrics-exporter-prometheus = { version = "0.11.0", default-features = false, features = ["push-gateway"] }
+metrics = "0.21.0"
+metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = ["push-gateway"] }
 # palaver = "0.2.8"
 shadow-rs = "0.21.0"
-sysinfo = "0.28.0"
+sysinfo = "0.29.0"
 
 async-backtrace = "0.2.2"
 dotenv = "0.15.0"
@@ -84,7 +84,7 @@ tracing = "0.1"
 flume = "0.10"
 futures-util = "0.3"
 r2d2 = "0.8.10"
-serde_with = "2.3.1"
+serde_with = "3"
 tokio-cron-scheduler = "0.9.4"
 
 async-process = "1.6"
@@ -123,3 +123,4 @@ sys = ["taos/native", "taosx-core/sys"]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls", "taosx-core/rustls"]
 native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls", "taosx-core/native-tls"]
 disable-enterprise-only-validation = ["taosx-core/disable-enterprise-only-validation"]
+disable-enterprise-connector-validation = ["taosx-core/disable-enterprise-connector-validation"]

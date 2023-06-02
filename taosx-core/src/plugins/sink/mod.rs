@@ -18,7 +18,7 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
-    task::Poll,
+    task::Poll, time::Duration,
 };
 use taos::{
     taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, Dsn, Itertools,
@@ -814,6 +814,9 @@ async fn ipc_process<R: Read, W: Write>(
     let taos = pool.get().await?;
 
     let license: Option<ConnectorLicense> = if let Some(connector) = connector {
+        #[cfg(feature = "disable-enterprise-connector-validation")]
+        let license: Option<ConnectorLicense> = None;
+        #[cfg(not(feature = "disable-enterprise-connector-validation"))]
         let license: Option<ConnectorLicense> = taos
             .query_one::<_, String>(&format!(
                 "select {connector} from information_schema.ins_grants"
@@ -1217,6 +1220,7 @@ pub fn listen_tcp_socket_with_agent(
                         if let Err(err) = res {
                             // panic!("{err:?}");
                             log::error!("ipc read err: {}", err);
+                            tokio::time::sleep(Duration::from_millis(100)).await;
                             let _ = se.send(err.to_string()).await;
                         } else {
                             log::info!("IPC reader stopped for client {client}",);

@@ -17,17 +17,17 @@ use arrow_flight::FlightClient;
 use arrow_flight::{
     encode::{FlightDataEncoder, FlightDataEncoderBuilder},
     error::FlightError,
-    FlightData,
+    Action as FlightAction, FlightData,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use flume::Receiver;
 use futures::{FutureExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
-use taosx_core::{list_datasets_from, DataSet, DataSetsReq, Fail, ListResponse, RespAction};
+use taosx_core::{list_datasets_from, DataSetsReq, Fail, ListResponse, RespAction};
 use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
 
-use crate::runner::Action;
+use crate::runner::{Action, TaskStatus};
 
 #[derive(Debug)]
 pub struct Client {
@@ -143,7 +143,6 @@ impl Client {
             .handshake(token.to_string())
             .await
             .with_context(|| anyhow::format_err!("Handshake error with token"))?;
-        dbg!(&result);
         let agent: Agent = serde_json::from_slice(&result)?;
 
         Ok(Self {
@@ -151,6 +150,14 @@ impl Client {
             client,
             agent,
         })
+    }
+    pub async fn push_status(&mut self, status: &TaskStatus) -> Result<()> {
+        tracing::info!("Push status {status:?} to server");
+        let status_bytes = serde_json::to_vec(status)?;
+        let action = FlightAction::new("TaskStatus", status_bytes);
+        let resp: Vec<_> = self.client.do_action(action).await?.try_collect().await?;
+        dbg!(&resp);
+        Ok(())
     }
 
     pub async fn wait_tasks(&mut self, sender: flume::Sender<Action>) -> Result<()> {
