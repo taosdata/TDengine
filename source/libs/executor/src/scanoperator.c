@@ -2092,8 +2092,8 @@ FETCH_NEXT_BLOCK:
         SSDataBlock* pRes = NULL;
 
         int32_t code = pAPI->tqReaderFn.tqRetrieveBlock(pInfo->tqReader, &pRes, id);
-        qDebug("retrieve data from submit completed code:%s, rows:%" PRId64 " %s",
-               tstrerror(code), pRes->info.rows, id);
+        qDebug("retrieve data from submit completed code:%s, rows:%" PRId64 " %s", tstrerror(code), pRes->info.rows,
+               id);
 
         if (code != TSDB_CODE_SUCCESS || pRes->info.rows == 0) {
           qDebug("retrieve data failed, try next block in submit block, %s", id);
