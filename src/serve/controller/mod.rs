@@ -1191,7 +1191,25 @@ impl TaskController {
         Ok(offsets)
     }
 
+    pub async fn find_agent_by_name_and_userid(&self, name: &str, cluster_id: Option<&str>, id: Option<usize>) -> anyhow::Result<Vec<Agent>> {
+        let mut sql = if id.is_some() {
+            format!("select * from agents where name = '{}' and id != '{}'", name, id.unwrap())
+        } else {
+            format!("select * from agents where name = '{}'", name)
+        };
+        if cluster_id.is_some() {
+            sql.push_str(format!(" and cluster_id = '{}'", cluster_id.unwrap()).as_str());
+        }
+        let result: Vec<Agent> = sqlx::query_as(sql.as_str()).fetch_all(&self.pool).await?;
+        Ok(result)
+    }
+
     pub async fn create_agent(&self, agent: AgentProps) -> anyhow::Result<AgentWithToken> {
+        let result = self.find_agent_by_name_and_userid(&agent.name, Some(&agent.cluster_id), None).await?;
+        if result.len() > 0 {
+            anyhow::bail!("agent name has existed");
+        }
+
         let res = sqlx::query(
             "INSERT INTO agents (`dsn`, `name`, `cluster_id`, `user_id`, \
             `expire_date`, `connectors`, created_at) \
@@ -1282,6 +1300,13 @@ impl TaskController {
         agent_id: i64,
         update: AgentUpdates,
     ) -> anyhow::Result<Option<AgentWithToken>> {
+        let name = update.name.clone();
+        if name.is_some() {
+            let result = self.find_agent_by_name_and_userid(name.unwrap().as_str(), None, Some(agent_id as usize)).await?;
+            if result.len() > 0 {
+                anyhow::bail!("agent name has existed");
+            }
+        }
         if let Some(sql) = update.update_agent_with(agent_id) {
             sqlx::query(&sql).execute(&self.pool).await?;
             let secret = self.jwt_secret().await?;
