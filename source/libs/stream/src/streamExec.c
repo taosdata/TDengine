@@ -20,7 +20,7 @@
 #define MIN_STREAM_EXEC_BATCH_NUM 4
 #define MAX_STREAM_RESULT_DUMP_THRESHOLD  100
 
-static int32_t updateCheckPointInfo (SStreamTask* pTask);
+static int32_t updateCheckPointInfo(SStreamTask* pTask);
 
 bool streamTaskShouldStop(const SStreamStatus* pStatus) {
   int32_t status = atomic_load_8((int8_t*)&pStatus->taskStatus);
@@ -49,10 +49,11 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
       return -1;
     }
 
-    qDebug("s-task:%s dump stream result data blocks, num:%d, size:%.2fMiB", pTask->id.idStr, numOfBlocks, size/1048576.0);
+    qDebug("s-task:%s dump stream result data blocks, num:%d, size:%.2fMiB", pTask->id.idStr, numOfBlocks,
+           size / 1048576.0);
 
     code = streamTaskOutputResultBlock(pTask, pStreamBlocks);
-    if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) { // back pressure and record position
+    if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {  // back pressure and record position
       destroyStreamDataBlock(pStreamBlocks);
       return -1;
     }
@@ -66,7 +67,8 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks) {
+static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize,
+                                  int32_t* totalBlocks) {
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pExecutor = pTask->exec.pExecutor;
 
@@ -83,7 +85,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     }
 
     if (streamTaskShouldStop(&pTask->status)) {
-      taosArrayDestroy(pRes); // memory leak
+      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       return 0;
     }
 
@@ -100,9 +102,8 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 
     if (output == NULL) {
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
-        SSDataBlock block = {0};
-
-        const SStreamDataBlock* pRetrieveBlock = (const SStreamDataBlock*) pItem;
+        SSDataBlock             block = {0};
+        const SStreamDataBlock* pRetrieveBlock = (const SStreamDataBlock*)pItem;
         ASSERT(taosArrayGetSize(pRetrieveBlock->blocks) == 1);
 
         assignOneDataBlock(&block, taosArrayGet(pRetrieveBlock->blocks, 0));
@@ -154,7 +155,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     ASSERT(numOfBlocks == taosArrayGetSize(pRes));
     code = doDumpResult(pTask, pItem, pRes, size, totalSize, totalBlocks);
   } else {
-    taosArrayDestroy(pRes);
+    taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
   }
 
   return code;
@@ -287,7 +288,7 @@ int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
 }
 #endif
 
-int32_t updateCheckPointInfo (SStreamTask* pTask) {
+int32_t updateCheckPointInfo(SStreamTask* pTask) {
   int64_t ckId = 0;
   int64_t dataVer = 0;
   qGetCheckpointVersion(pTask->exec.pExecutor, &dataVer, &ckId);
@@ -295,7 +296,8 @@ int32_t updateCheckPointInfo (SStreamTask* pTask) {
   SCheckpointInfo* pCkInfo = &pTask->chkInfo;
   if (ckId > pCkInfo->id) {  // save it since the checkpoint is updated
     qDebug("s-task:%s exec end, start to update check point, ver from %" PRId64 " to %" PRId64
-           ", checkPoint id:%" PRId64 " -> %" PRId64, pTask->id.idStr, pCkInfo->version, dataVer, pCkInfo->id, ckId);
+           ", checkPoint id:%" PRId64 " -> %" PRId64,
+           pTask->id.idStr, pCkInfo->version, dataVer, pCkInfo->id, ckId);
 
     pTask->chkInfo = (SCheckpointInfo){.version = dataVer, .id = ckId, .currentVer = pCkInfo->currentVer};
 

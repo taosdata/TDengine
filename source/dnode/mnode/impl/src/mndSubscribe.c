@@ -111,7 +111,14 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
   req.suid = pSub->stbUid;
   tstrncpy(req.subKey, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
 
-  int32_t tlen = sizeof(SMsgHead) + tEncodeSMqRebVgReq(NULL, &req);
+  int32_t tlen = 0;
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSMqRebVgReq, &req, tlen, ret);
+  if (ret < 0) {
+    return -1;
+  }
+
+  tlen += sizeof(SMsgHead);
   void   *buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -123,8 +130,14 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
   pMsgHead->contLen = htonl(tlen);
   pMsgHead->vgId = htonl(pRebVg->pVgEp->vgId);
 
-  void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tEncodeSMqRebVgReq(&abuf, &req);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, POINTER_SHIFT(buf, sizeof(SMsgHead)), tlen);
+  if (tEncodeSMqRebVgReq(&encoder, &req) < 0) {
+    taosMemoryFreeClear(buf);
+    tEncoderClear(&encoder);
+    return -1;
+  }
+  tEncoderClear(&encoder);
   *pBuf = buf;
   *pLen = tlen;
 
