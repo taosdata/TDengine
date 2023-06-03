@@ -157,7 +157,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
     tEncodeStreamRetrieveReq(&encoder, &req);
     tEncoderClear(&encoder);
 
-    SRpcMsg rpcMsg = { .code = 0, .msgType = TDMT_STREAM_RETRIEVE, .pCont = buf, .contLen = sizeof(SMsgHead) + len };
+    SRpcMsg rpcMsg = {.code = 0, .msgType = TDMT_STREAM_RETRIEVE, .pCont = buf, .contLen = sizeof(SMsgHead) + len};
     if (tmsgSendReq(&pEpInfo->epSet, &rpcMsg) < 0) {
       ASSERT(0);
       goto CLEAR;
@@ -283,7 +283,7 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
   msg.info.noResp = 1;
 
   tmsgSendReq(pEpSet, &msg);
-  qDebug("s-task:%s dispatch recover finish msg to taskId:%d node %d: recover finish msg", pTask->id.idStr,
+  qDebug("s-task:%s dispatch recover finish msg to downstream taskId:0x%x node %d: recover finish msg", pTask->id.idStr,
          pReq->taskId, vgId);
 
   return 0;
@@ -318,7 +318,7 @@ int32_t doSendDispatchMsg(SStreamTask* pTask, const SStreamDispatchReq* pReq, in
   msg.pCont = buf;
   msg.msgType = pTask->dispatchMsgType;
 
-  qDebug("dispatch from s-task:%s to taskId:0x%x vgId:%d data msg", pTask->id.idStr, pReq->taskId, vgId);
+  qDebug("s-task:%s dispatch msg to taskId:0x%x vgId:%d data msg", pTask->id.idStr, pReq->taskId, vgId);
   tmsgSendReq(pEpSet, &msg);
 
   code = 0;
@@ -414,7 +414,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
 
     req.taskId = downstreamTaskId;
 
-    qDebug("s-task:%s (child taskId:%d) fix-dispatch blocks:%d to down stream s-task:%d in vgId:%d", pTask->id.idStr,
+    qDebug("s-task:%s (child taskId:%d) fix-dispatch %d block(s) to down stream s-task:0x%x in vgId:%d", pTask->id.idStr,
            pTask->selfChildId, numOfBlocks, downstreamTaskId, vgId);
 
     code = doSendDispatchMsg(pTask, &req, vgId, pEpSet);
@@ -514,7 +514,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     return 0;
   }
 
-  qDebug("s-task:%s start to dispatch msg, output status:%d", pTask->id.idStr, pTask->outputStatus);
+  qDebug("s-task:%s start to dispatch msg, set output status:%d", pTask->id.idStr, pTask->outputStatus);
 
   SStreamDataBlock* pDispatchedBlock = streamQueueNextItem(pTask->outputQueue);
   if (pDispatchedBlock == NULL) {

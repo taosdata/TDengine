@@ -2967,7 +2967,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
     SDelIdx* pIdx = taosArraySearch(pReader->pDelIdx, &idx, tCmprDelIdx, TD_EQ);
 
     if (pIdx != NULL) {
-      code = tsdbReadDelData(pReader->pDelFReader, pIdx, pDelData);
+      code = tsdbReadDelDatav1(pReader->pDelFReader, pIdx, pDelData, pReader->verRange.maxVer);
     }
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
@@ -2978,7 +2978,10 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   if (pMemTbData != NULL) {
     p = pMemTbData->pHead;
     while (p) {
-      taosArrayPush(pDelData, p);
+      if (p->version <= pReader->verRange.maxVer) {
+        taosArrayPush(pDelData, p);
+      }
+
       p = p->pNext;
     }
   }
@@ -2986,7 +2989,9 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   if (piMemTbData != NULL) {
     p = piMemTbData->pHead;
     while (p) {
-      taosArrayPush(pDelData, p);
+      if (p->version <= pReader->verRange.maxVer) {
+        taosArrayPush(pDelData, p);
+      }
       p = p->pNext;
     }
   }
@@ -4558,7 +4563,11 @@ int32_t tsdbReaderOpen(void* pVnode, SQueryTableDataCond* pCond, void* pTableLis
 
   pReader->pIgnoreTables = pIgnoreTables;
 
-  tsdbDebug("%p total numOfTable:%d in this query %s", pReader, numOfTables, pReader->idStr);
+  tsdbDebug("%p total numOfTable:%d, window:%" PRId64 " - %" PRId64 ", verRange:%" PRId64 " - %" PRId64
+            " in this query %s",
+            pReader, numOfTables, pReader->window.skey, pReader->window.ekey, pReader->verRange.minVer,
+            pReader->verRange.maxVer, pReader->idStr);
+
   return code;
 
 _err:

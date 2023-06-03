@@ -93,7 +93,7 @@ if [ -f %{_compiledir}/build/bin/taosadapter ]; then
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 [ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
-[ -f %{_compiledir}/build/lib/${rocksdblib} ] && cp %{_compiledir}/build/lib/${rocksdblib} %{buildroot}%{homepath}/driver ||:
+[ -f %{_compiledir}/build/lib/${rocksdblib} ] && cp %{_compiledir}/build/lib/${rocksdblib}            %{buildroot}%{homepath}/driver ||:
 cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
@@ -176,7 +176,7 @@ fi
 
 # there can not libtaos.so*, otherwise ln -s  error
 ${csudo}rm -f %{homepath}/driver/libtaos*   || :
-${csudo}rm -f %{homepath}/driver/librocksdb* || :
+${csudo}rm -f %{homepath}/driver/librocksdb*   || :
 
 #Scripts executed after installation
 %post
@@ -222,7 +222,8 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosudf.h     || :    
     ${csudo}rm -f ${lib_link_dir}/libtaos.*  || :
-    ${csudo}rm -f ${lib_link_dir}/librocksdb.* || :
+    ${csudo}rm -f ${lib_link_dir}/librocksdb.*  || :
+
     ${csudo}rm -f ${log_link_dir}            || :
     ${csudo}rm -f ${data_link_dir}           || :
 

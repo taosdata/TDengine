@@ -333,7 +333,7 @@ static int32_t walFetchBodyNew(SWalReader *pReader) {
     return -1;
   }
 
-  wDebug("vgId:%d, index:%" PRId64 " is fetched, cursor advance", pReader->pWal->cfg.vgId, ver);
+  wDebug("vgId:%d, index:%" PRId64 " is fetched, type:%d, cursor advance", pReader->pWal->cfg.vgId, ver, pReader->pHead->head.msgType);
   pReader->curVersion = ver + 1;
   return 0;
 }

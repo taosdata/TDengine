@@ -960,6 +960,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
   SScalarParam output = {0};
+  SArray*      pUidTagList = NULL;
 
   tagFilterAssist ctx = {0};
   ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
@@ -979,7 +980,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
   //  int64_t stt = taosGetTimestampUs();
-  SArray* pUidTagList = taosArrayInit(10, sizeof(STUidTagInfo));
+  pUidTagList = taosArrayInit(10, sizeof(STUidTagInfo));
   copyExistedUids(pUidTagList, pUidList);
 
   FilterCondType condType = checkTagCond(pTagCond);
@@ -1148,6 +1149,21 @@ _end:
   }
 
   taosArrayDestroy(pUidList);
+  return code;
+}
+
+int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList, void* pTaskInfo){
+  SSubplan *pSubplan = (SSubplan *)node;
+  SScanPhysiNode pNode = {0};
+  pNode.suid = suid;
+  pNode.uid = suid;
+  pNode.tableType = TSDB_SUPER_TABLE;
+  STableListInfo* pTableListInfo = tableListCreate();
+  uint8_t digest[17] = {0};
+  int code = getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL, pTableListInfo, digest, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI);
+  *tableList = pTableListInfo->pTableList;
+  pTableListInfo->pTableList = NULL;
+  tableListDestroy(pTableListInfo);
   return code;
 }
 

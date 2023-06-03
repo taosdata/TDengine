@@ -202,6 +202,10 @@ function install_lib() {
     log_print "start install lib from ${lib_dir} to ${lib_link_dir}"
     ${csudo}rm -f ${lib_link_dir}/libtaos* || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos* || :
+    
+    #rocksdb
+    [ -f ${lib_link_dir}/librocksdb* ] && ${csudo}rm -f ${lib_link_dir}/librocksdb* || :
+    [ -f ${lib64_link_dir}/librocksdb* ] && ${csudo}rm -f ${lib64_link_dir}/librocksdb* || :
 
     #rocksdb
     [ -f ${lib_link_dir}/librocksdb* ] && ${csudo}rm -f ${lib_link_dir}/librocksdb* || :

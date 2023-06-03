@@ -2439,6 +2439,15 @@ static inline int winPosCmprImpl(const void* pKey1, const void* pKey2) {
   return 0;
 }
 
+static void resetUnCloseWinInfo(SSHashObj* winMap) {
+  void*   pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(winMap, pIte, &iter)) != NULL) {
+    SRowBuffPos* pPos = *(SRowBuffPos**)pIte;
+    pPos->beUsed = true;
+  }
+}
+
 static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
@@ -2470,6 +2479,11 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     if (pInfo->binfo.pRes->info.rows != 0) {
       printDataBlock(pInfo->binfo.pRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
       return pInfo->binfo.pRes;
+    }
+
+    if (pInfo->recvGetAll) {
+      pInfo->recvGetAll = false;
+      resetUnCloseWinInfo(pInfo->aggSup.pResultRowHashTable);
     }
 
     setOperatorCompleted(pOperator);
@@ -2565,6 +2579,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
 
       break;
     } else if (pBlock->info.type == STREAM_GET_ALL && IS_FINAL_OP(pInfo)) {
+      pInfo->recvGetAll = true;
       getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pInfo->pUpdatedMap);
       continue;
     } else if (pBlock->info.type == STREAM_RETRIEVE && !IS_FINAL_OP(pInfo)) {
@@ -2773,6 +2788,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
                                                   compareTs, pInfo->pState, pInfo->twAggSup.deleteMark);
   pInfo->dataVersion = 0;
   pInfo->statestore = pTaskInfo->storageAPI.stateStore;
+  pInfo->recvGetAll = false;
 
   pOperator->operatorType = pPhyNode->type;
   pOperator->blocking = true;
@@ -2867,7 +2883,7 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
   pScanInfo->pState = pAggSup->pState;
-  if ((!pScanInfo->igCheckUpdate || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) && !pScanInfo->pUpdateInfo) {
+  if (!pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = pAggSup->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark);
   }
   pScanInfo->twAggSup = *pTwSup;
@@ -4751,6 +4767,12 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       printDataBlock(pInfo->binfo.pRes, "single interval");
       return pInfo->binfo.pRes;
     }
+
+    if (pInfo->recvGetAll) {
+      pInfo->recvGetAll = false;
+      resetUnCloseWinInfo(pInfo->aggSup.pResultRowHashTable);
+    }
+
     setOperatorCompleted(pOperator);
     if (pInfo->twAggSup.maxTs > 0 &&
         pInfo->twAggSup.maxTs - pInfo->twAggSup.checkPointInterval > pInfo->twAggSup.checkPointTs) {
@@ -4790,6 +4812,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       continue;
     } else if (pBlock->info.type == STREAM_GET_ALL) {
       qDebug("===stream===single interval recv|block type STREAM_GET_ALL");
+      pInfo->recvGetAll = true;
       getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pInfo->pUpdatedMap);
       continue;
     } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
@@ -4960,6 +4983,8 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
                                          destroyStreamFinalIntervalOperatorInfo, optrDefaultBufFn, NULL);
 
   pInfo->statestore = pTaskInfo->storageAPI.stateStore;
+  pInfo->recvGetAll = false;
+
   initIntervalDownStream(downstream, pPhyNode->type, pInfo);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
