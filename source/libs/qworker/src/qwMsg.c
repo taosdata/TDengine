@@ -8,7 +8,6 @@
 #include "tcommon.h"
 #include "tmsg.h"
 #include "tname.h"
-#include "tgrant.h"
 
 int32_t qwMallocFetchRsp(int8_t rpcMalloc, int32_t length, SRetrieveTableRsp **rsp) {
   int32_t msgSize = sizeof(SRetrieveTableRsp) + length;
@@ -366,7 +365,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  if (chkGrant && (!TEST_SHOW_REWRITE_MASK(msg.msgMask)) && (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS)) {
+  if (chkGrant && (!TEST_SHOW_REWRITE_MASK(msg.msgMask)) && taosExpired()) {
     QW_ELOG("query failed cause of grant expired, msgMask:%d", msg.msgMask);
     tFreeSSubQueryMsg(&msg);
     QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
