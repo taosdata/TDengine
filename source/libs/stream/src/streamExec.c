@@ -84,7 +84,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     }
 
     if (streamTaskShouldStop(&pTask->status)) {
-      taosArrayDestroy(pRes);  // memory leak
+      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
       return 0;
     }
 
