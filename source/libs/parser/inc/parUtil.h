@@ -115,6 +115,7 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
 int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput);
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);
 void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
+SNode*  createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
 
 #ifdef __cplusplus
 }

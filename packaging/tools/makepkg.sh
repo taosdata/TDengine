@@ -111,7 +111,7 @@ fi
 if [ "$osType" == "Darwin" ]; then
     lib_files="${build_dir}/lib/libtaos.${version}.dylib"
     wslib_files="${build_dir}/lib/libtaosws.dylib"
-    rocksdb_lib_files="${build_dir}/lib/librocksdb.so.8.1.1"
+    rocksdb_lib_files="${build_dir}/lib/librocksdb.dylib.8.1.1"
 else
     lib_files="${build_dir}/lib/libtaos.so.${version}"
     wslib_files="${build_dir}/lib/libtaosws.so"
