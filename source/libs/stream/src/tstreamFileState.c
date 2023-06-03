@@ -16,12 +16,12 @@
 #include "tstreamFileState.h"
 
 #include "query.h"
+#include "storageapi.h"
 #include "streamBackendRocksdb.h"
 #include "taos.h"
 #include "tcommon.h"
 #include "thash.h"
 #include "tsimplehash.h"
-#include "storageapi.h"
 
 #define FLUSH_RATIO                    0.5
 #define FLUSH_NUM                      4
@@ -416,10 +416,13 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     int32_t len = 0;
     memcpy(buf, taskKey, strlen(taskKey));
     code = streamDefaultGet_rocksdb(pFileState->pFileStore, buf, &val, &len);
-    if (code != 0) {
+    if (code != 0 || len == 0 || val == NULL) {
       return TSDB_CODE_FAILED;
     }
-    sscanf(val, "%" PRId64 "", &maxCheckPointId);
+    memcpy(val, buf, len);
+    buf[len] = 0;
+    maxCheckPointId = atol((char*)buf);
+    taosMemoryFree(val);
   }
   for (int64_t i = maxCheckPointId; i > 0; i--) {
     char    buf[128] = {0};
@@ -430,13 +433,16 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     if (code != 0) {
       return TSDB_CODE_FAILED;
     }
+    memcpy(val, buf, len);
+    buf[len] = 0;
+    taosMemoryFree(val);
+
     TSKEY ts;
-    sscanf(val, "%" PRId64 "", &ts);
+    ts = atol((char*)buf);
     if (ts < mark) {
       // statekey winkey.ts < mark
       forceRemoveCheckpoint(pFileState, i);
       break;
-    } else {
     }
   }
   return code;
