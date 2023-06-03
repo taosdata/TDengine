@@ -750,7 +750,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       tqDebug("tq try to get ctb for stb subscribe, vgId:%d, subkey:%s consumer:0x%" PRIx64 " suid:%" PRId64,
               pVnode->config.vgId, req.subKey, pHandle->consumerId, req.suid);
       pHandle->execHandle.pTqReader = tqReaderOpen(pVnode);
-      tqReaderSetTbUidList(pHandle->execHandle.pTqReader, tbUidList);
+      tqReaderSetTbUidList(pHandle->execHandle.pTqReader, tbUidList, NULL);
       taosArrayDestroy(tbUidList);
     }
 
@@ -1120,7 +1120,8 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
     return -1;
   }
 
-  qDebug("s-task:%s set the start wal offset to be:%" PRId64, pTask->id.idStr, sversion);
+  qDebug("s-task:%s set start wal scan start ver:%"PRId64, pTask->id.idStr, sversion);
+
   walReaderSeekVer(pTask->exec.pWalReader, sversion);
   pTask->chkInfo.currentVer = sversion;
 

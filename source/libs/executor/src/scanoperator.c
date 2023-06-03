@@ -1874,6 +1874,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         printDataBlock(pInfo->pCreateTbRes, "recover createTbl");
         return pInfo->pCreateTbRes;
       }
+
       qDebug("stream recover scan get block, rows %" PRId64, pInfo->pRecoverRes->info.rows);
       printDataBlock(pInfo->pRecoverRes, "scan recover");
       return pInfo->pRecoverRes;
@@ -1982,7 +1983,7 @@ FETCH_NEXT_BLOCK:
     // printDataBlock(pBlock, "stream scan recv");
     return pBlock;
   } else if (pInfo->blockType == STREAM_INPUT__DATA_SUBMIT) {
-    qDebug("scan mode %d", pInfo->scanMode);
+    qDebug("stream scan mode:%d, %s", pInfo->scanMode, id);
     switch (pInfo->scanMode) {
       case STREAM_SCAN_FROM_RES: {
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -2066,8 +2067,13 @@ FETCH_NEXT_BLOCK:
 
       while (pAPI->tqReaderFn.tqNextBlockImpl(pInfo->tqReader, id)) {
         SSDataBlock* pRes = NULL;
+
         int32_t code = pAPI->tqReaderFn.tqRetrieveBlock(pInfo->tqReader, &pRes, id);
+        qDebug("retrieve data from submit completed code:%s, rows:%" PRId64 " %s", tstrerror(code), pRes->info.rows,
+               id);
+
         if (code != TSDB_CODE_SUCCESS || pRes->info.rows == 0) {
+          qDebug("retrieve data failed, try next block in submit block, %s", id);
           continue;
         }
 
@@ -2075,6 +2081,7 @@ FETCH_NEXT_BLOCK:
 
         if (pInfo->pCreateTbRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
+          qDebug("create table res exists, rows:%"PRId64" return from stream scan, %s", pInfo->pCreateTbRes->info.rows, id);
           return pInfo->pCreateTbRes;
         }
 
@@ -2083,6 +2090,8 @@ FETCH_NEXT_BLOCK:
         pBlock->info.dataLoad = 1;
         blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
 
+        qDebug("%" PRId64 " rows in datablock, update res:%" PRId64 " %s", pBlockInfo->rows,
+               pInfo->pUpdateDataRes->info.rows, id);
         if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
           break;
         }
@@ -2099,7 +2108,7 @@ FETCH_NEXT_BLOCK:
     pInfo->numOfExec++;
     pOperator->resultInfo.totalRows += pBlockInfo->rows;
 
-    qDebug("stream scan get source rows:%" PRId64", %s", pBlockInfo->rows, id);
+    qDebug("stream scan completed, and return source rows:%" PRId64", %s", pBlockInfo->rows, id);
     if (pBlockInfo->rows > 0) {
       return pBlock;
     }
@@ -2285,7 +2294,8 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   SArray*          pColIds = NULL;
   SStreamScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamScanInfo));
   SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
+  const char* idstr = pTaskInfo->id.str;
 
   if (pInfo == NULL || pOperator == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -2396,7 +2406,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     // set the extract column id to streamHandle
     pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds);
     SArray* tableIdList = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo);
-    code = pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList);
+    code = pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList, idstr);
     if (code != 0) {
       taosArrayDestroy(tableIdList);
       goto _error;

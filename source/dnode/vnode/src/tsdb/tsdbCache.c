@@ -1454,7 +1454,7 @@ static int32_t getTableDelDataFromDelIdx(SDelFReader *pDelReader, SDelIdx *pDelI
   int32_t code = 0;
 
   if (pDelIdx) {
-    code = tsdbReadDelData(pDelReader, pDelIdx, aDelData);
+    code = tsdbReadDelDatav1(pDelReader, pDelIdx, aDelData, INT64_MAX);
   }
 
   return code;
