@@ -188,7 +188,6 @@ echo "=======================new version number: ${verNumber}, compatible versio
 build_time=$(date +"%F %R")
 
 # get TDinternal git commit id
-
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   enterprise_dir="${top_dir}/enterprise"
   cd ${enterprise_dir}
