@@ -187,7 +187,7 @@ echo "=======================new version number: ${verNumber}, compatible versio
 
 build_time=$(date +"%F %R")
 
-
+# get TDinternal git commit id
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   enterprise_dir="${top_dir}/enterprise"
   cd ${enterprise_dir}
@@ -207,6 +207,7 @@ fi
 
 cd "${curr_dir}"
 
+
 # 2. cmake executable file
 compile_dir="${top_dir}/community/debug"
 if [ -d ${compile_dir} ]; then
@@ -215,7 +216,8 @@ fi
 
 mkdir -p ${compile_dir}
 cd ${compile_dir}
- 
+
+
 if [[ "$allocator" == "jemalloc" ]]; then
    allocator_macro="-DJEMALLOC_ENABLED=true"
 else
@@ -348,9 +350,9 @@ if [ "$osType" != "Darwin" ]; then
   ${csudo}./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}
   if [[ "$verMode" == "cloud" ]]; then
     echo "No need to make client for TDengine Cloud."
-  else 
+  else
     echo "${csudo}./makeclient.sh ${compile_dir} ${verNumber} \"${build_time}\" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}"
-    ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}  
+    ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}
   fi
 else
     echo "No need to run release.sh on macOS"

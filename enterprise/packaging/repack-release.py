@@ -204,6 +204,10 @@ def repack_tar(args, pkg, output_dir):
     if os.path.exists(examples_dir):
         shutil.rmtree(examples_dir)
 
+    connector_dir =  extract_dir + "/connector"
+    if os.path.exists(connector_dir):
+        shutil.rmtree(connector_dir)
+
     package_file = extract_dir + "/package.tar.gz"
     package_tar = tarfile.open(package_file)
     package_tar.extractall(extract_dir+"/tmp")
@@ -239,7 +243,8 @@ if __name__ == "__main__":
     args = parse.parse_args()
     print(args.name, args.prompt, args.email, args.dir, args.version)
 
-    output_dir = args.dir + "/release/"
+    print("### Current dir: " + os.getcwd())
+    output_dir = os.getcwd() + "/" + args.dir +"/"
 
     repack_tar(args, "server", output_dir)
     repack_tar(args, "client", output_dir)

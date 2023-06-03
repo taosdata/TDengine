@@ -116,6 +116,15 @@ RenameFile(ExpandConstant('{code:GetCustomPath}\taosadapter.exe'), ExpandConstan
 if FileExists(ExpandConstant('{code:GetCustomPath}\taos-explorer.exe')) then
 DeleteFile(ExpandConstant('{code:GetCustomPath}\') + MyPromtName + '-explorer.exe');
 RenameFile(ExpandConstant('{code:GetCustomPath}\taos-explorer.exe'), ExpandConstant('{code:GetCustomPath}\') + MyPromtName + '-explorer.exe');
+
+if FileExists(ExpandConstant('{code:GetCustomPath}\cfg\taos.cfg')) then
+DeleteFile(ExpandConstant('{code:GetCustomPath}\cfg\') + MyPromtName + '.cfg');
+RenameFile(ExpandConstant('{code:GetCustomPath}\cfg\taos.cfg'), ExpandConstant('{code:GetCustomPath}\cfg\') + MyPromtName + '.cfg');
+
+if FileExists(ExpandConstant('{code:GetCustomPath}\cfg\taosadapter.toml')) then
+DeleteFile(ExpandConstant('{code:GetCustomPath}\cfg\') + MyPromtName + 'adapter.toml');
+DeleteFile(ExpandConstant('{code:GetCustomPath}\cfg\taosadapter.toml'));
+
 end;
 end;
 
