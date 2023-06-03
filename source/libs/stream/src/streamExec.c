@@ -101,8 +101,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 
     if (output == NULL) {
       if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
-        SSDataBlock block = {0};
-
+        SSDataBlock             block = {0};
         const SStreamDataBlock* pRetrieveBlock = (const SStreamDataBlock*)pItem;
         ASSERT(taosArrayGetSize(pRetrieveBlock->blocks) == 1);
 
