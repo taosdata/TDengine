@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "tgrant.h"
@@ -73,6 +74,7 @@ int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
 int64_t tsMndLogRetention = 2000;
+int8_t  tsGrant = 1;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -1522,3 +1524,5 @@ void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, rewrite);
   uInfo("all debug flag are set to %d", flag);
 }
+
+int8_t taosGranted() { return atomic_load_8(&tsGrant); }
