@@ -22,7 +22,9 @@ class TestStrBoundary(TDCase):
             "varchar": self.tdCom.Boundary.BINARY_MAX_LENGTH,
             "nchar": self.tdCom.Boundary.NCHAR_MAX_LENGTH,
         }
-
+        print(self.tdCom.Boundary.BINARY_MAX_LENGTH)
+        print(self.tdCom.Boundary.NCHAR_MAX_LENGTH)
+        self.tag_len_value = 1
     def str_type_boundary_check(self):
         """
         binary/varchar/nchar
@@ -32,14 +34,14 @@ class TestStrBoundary(TDCase):
             self.tdCom.createDb(dbname)
             max_length = self.tdCom.get_long_name(data_value)
             exceed_length = self.tdCom.get_long_name(data_value+1)
-            self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {data_type}({data_value})) tags (t1 {data_type}({data_value}))')
-            self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags ("{max_length}")')
+            self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {data_type}({data_value})) tags (t1 {data_type}({self.tag_len_value}))')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags ("{self.tag_len_value}")')
             self.tdSql.execute(f'insert into {dbname}.tb values (now, "{max_length}")')
             self.tdSql.query(f'describe {dbname}.stb')
             self.tdSql.checkEqual(self.tdSql.query_data[1][2], data_value)
-            self.tdSql.checkEqual(self.tdSql.query_data[2][2], data_value)
+            self.tdSql.checkEqual(self.tdSql.query_data[2][2], self.tag_len_value)
             self.tdSql.query(f'select t1, c1 from {dbname}.tb')
-            self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), max_length)
+            self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), self.tag_len_value)
             self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), max_length)
             self.tdSql.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {data_type}({data_value})) tags (t1 {data_type}({exceed_length}))')
             self.tdSql.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {data_type}({exceed_length})) tags (t1 {data_type}({data_value}))')

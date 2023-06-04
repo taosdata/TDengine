@@ -33,7 +33,8 @@ class CreateStreamPerftest(TDCase):
         self.thread_count = 40
         self.childtable_count_list = [10000]
         self.vgroups_list = [40]
-        self.stream_count = 60
+        self.fill_history_value_list = [0, 1]
+        self.stream_count = 60 
         self.insert_rows = 0
         self.stbname = "stb"
         self.dbname = "db"
@@ -93,7 +94,7 @@ class CreateStreamPerftest(TDCase):
             "name": "groupId"
           },
         ]
-        for fill_history_value in [0, 1]:
+        for fill_history_value in self.fill_history_value_list:
             for stream_sql in self.stream_sql_list:
                 for vgroups in self.vgroups_list:
                     for childtable_count in self.childtable_count_list:
