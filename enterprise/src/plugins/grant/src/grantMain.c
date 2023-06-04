@@ -542,9 +542,9 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   taosArrayDestroy(pDnodeInfo);
 
   if (grantCheck(TSDB_GRANT_TIME) == TSDB_CODE_SUCCESS) {
-    atomic_store_8(&tsExpired, 0);
+    atomic_store_8(&tsGrant, 1);
   } else {
-    atomic_store_8(&tsExpired, 1);
+    atomic_store_8(&tsGrant, 0);
   }
 
   return 0;
