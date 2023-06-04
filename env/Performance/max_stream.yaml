@@ -11,7 +11,7 @@ settings:
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
-            qDebugFlag: 131
+            debugFlag: 131
             supportVnodes: 1024
             # logKeepDays:  -1
             # numOfRpcSessions: 20000

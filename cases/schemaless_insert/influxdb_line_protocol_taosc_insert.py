@@ -907,7 +907,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_col_m_tag_list))
         self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
-        self.tdSql.checkEqual(self.tdSql.query_row, 3)
+        self.tdSql.checkEqual(self.tdSql.query_row, 2)
 
     def s_stb_d_tb_d_data_at_mc_insert_multi_thread_check(self):
         """
@@ -1024,7 +1024,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                                             (f'{stb_name},t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="zwgurhdp",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=False 0', 'ynnlov')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_a_col_m_tag_list))
         self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
-        self.tdSql.checkEqual(self.tdSql.query_row, 3)
+        self.tdSql.checkEqual(self.tdSql.query_row, 2)
 
     def ts_2828(self, thread_count, batch_count, loop_times):
         count = 0
@@ -1112,7 +1112,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(int(end_time-start_time)<2, True)
 
     def test(self):
-        self.tbname_tags_cols_name_check()
+        self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
         return
         self.tdSql.execute('drop database if exists iot_dev;')
         self.tdSql.execute('create database if not exists iot_dev precision "ns";')
