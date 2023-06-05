@@ -122,9 +122,9 @@ localhost:6030 表示数据源的地址和端口，db1 表示具体的数据库�
 
 
 ```
-##### 从 TDengine 到 TDengine 的数据同步
+#### 从 TDengine 到 TDengine 的数据同步
 
-###### TDengine 3.0 -> TDengine 3.0
+##### TDengine 3.0 -> TDengine 3.0
 
 在两个相同版本 （都是 3.0.x.y）的 TDengine 集群之间将源集群中的存量及增量数据同步到目标集群中。
 
@@ -145,7 +145,7 @@ taosx run -f 'tmq://root:taosdata@localhost:6030/db1?group.id=taosx1&client.id=t
 
 
 
-###### TDengine 2.4(2.6) -> TDengine 3.0
+##### TDengine 2.4(2.6) -> TDengine 3.0
 
 将 2.4（2.6） 版本 TDengine 集群中的数据迁移到 3.0 版本 TDengine 集群。
 
@@ -177,33 +177,55 @@ taosx run -f 'taos://td2:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all' -t
 ```
 
 常见错误排查：
+1.
 
-1. 参数列表及其含义
-2. Linux/Windows 示例
-3. 常见错误排查
 
 ##### 从 TDengine 备份数据文件到本地
 
 示例：
 ```shell
-taosx run -f 'tmq://this/db1' -t 'local:/path/to/backup/directory'
+taosx run -f 'tmq://root:taosdata@td1:6030/db1' -t 'local:/path_directory/'
 
 ```
-参数说明：
+以上示例执行的结果：
+
+将集群 td1 中的数据库 db1 的所有数据，备份到 taosx 所在设备的 /path_directory 路径下。
+
+常见错误排查
+
 
 
 ##### 从本地数据文件恢复到 TDengine
 
 示例：
 ```shell
-taosx run -f 'local:/path/to/backups/of/one' -t 'taos://root:taosdata@another.com:6030/db1'
+taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?assert'
 ```
-参数说明：
 
+以上示例执行的结果：
+
+将 taosx 所在设备 /path_directory 路径下已备份的数据文件，恢复到集群 td2 的数据库 db1 中，如果 db1 不存在，则自动建库。
 
 ##### 从 OPC-UA 同步数据到 TDengine
 
-@chenyang
+可配置参数如下：
+| connect_timeout | int    | timeout for connect to endpoint in second                                   |
+|-----------------|--------|-----------------------------------------------------------------------------|
+| request_timeout | int    | timeout for a request in second                                             |
+| security_policy | string | None/Basic128Rsa15/Basic256/Basic256Sha256                                  |
+| security_mode   | string | None/Sign/SignAndEncrypt                                                    |
+| certificate     | string | Path to cert.pem. Required when security mode or policy isn't "None"        |
+| private_key     | string | Path to private key.pem. Required when security mode or policy isn't "None" |
+
+示例：
+
+```shell
+taosx run \
+    -f "opc+ua://uauser:uapass@localhost:4840?ua.nodes=ns=2;i=2::meters::current::double" \
+    -t "taos://tdengine:6030/opc"
+```
+以上示例的执行结果：
+采集localhost中nodeid为ns=2;i=2测点的数据，将其写入到集群tdengine中opc中，并以meters为表名，current为列名，double为列类型的schema来创建表。
 
 ##### 从 OPC-DA 同步数据到 TDengine (Windows)
 
