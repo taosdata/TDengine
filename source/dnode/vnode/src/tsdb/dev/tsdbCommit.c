@@ -225,6 +225,7 @@ static int32_t tsdbCommitDelData(SCommitter2 *committer) {
       || (committer->ctx->fset == NULL      //
           && committer->sttWriter == NULL)  //
   ) {
+    committer->ctx->nextKey = committer->ctx->maxKey + 1;
     goto _exit;
   }
 
