@@ -219,6 +219,56 @@ class TDTestCase:
         tdSql.checkData(2, 0, 12)
         tdSql.checkData(3, 0, 12)
 
+        ## test fill value with scalar expression
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + 2)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1.0 + 2.0)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + 2.5)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + '2')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + '2.0')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, '3' + 'abc')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
+        tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, '2' + '1abc')")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
         tdLog.printNoPrefix("==========step5:fill prev")
 
         ## {. . .}
@@ -1835,6 +1885,84 @@ class TDTestCase:
         tdSql.checkData(55, 1, None) #
         tdSql.checkData(56, 1, 123)
         tdSql.checkData(59, 1, 123)
+        tdSql.checkData(60, 1, 60)   #
+
+        tdSql.query(f"select interp(c0),interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:01:00') every(1s) fill(value, 123 + 123)")
+        tdSql.checkRows(61)
+        tdSql.checkCols(2)
+        tdSql.checkData(0,  0, 0)    #
+        tdSql.checkData(1,  0, 246)
+        tdSql.checkData(4,  0, 246)
+        tdSql.checkData(5,  0, None) #
+        tdSql.checkData(6,  0, 246)
+        tdSql.checkData(9,  0, 246)
+        tdSql.checkData(10, 0, 10)   #
+        tdSql.checkData(11, 0, 246)
+        tdSql.checkData(14, 0, 246)
+        tdSql.checkData(15, 0, None) #
+        tdSql.checkData(16, 0, 246)
+        tdSql.checkData(19, 0, 246)
+        tdSql.checkData(20, 0, 20)   #
+        tdSql.checkData(21, 0, 246)
+        tdSql.checkData(24, 0, 246)
+        tdSql.checkData(25, 0, None) #
+        tdSql.checkData(26, 0, 246)
+        tdSql.checkData(29, 0, 246)
+        tdSql.checkData(30, 0, 30)   #
+        tdSql.checkData(31, 0, 246)
+        tdSql.checkData(34, 0, 246)
+        tdSql.checkData(35, 0, 35)   #
+        tdSql.checkData(36, 0, 246)
+        tdSql.checkData(39, 0, 246)
+        tdSql.checkData(40, 0, 40)   #
+        tdSql.checkData(41, 0, 246)
+        tdSql.checkData(44, 0, 246)
+        tdSql.checkData(45, 0, None) #
+        tdSql.checkData(46, 0, 246)
+        tdSql.checkData(49, 0, 246)
+        tdSql.checkData(50, 0, 50)   #
+        tdSql.checkData(51, 0, 246)
+        tdSql.checkData(54, 0, 246)
+        tdSql.checkData(55, 0, None) #
+        tdSql.checkData(59, 0, 246)
+        tdSql.checkData(60, 0, 55)   #
+
+        tdSql.checkData(0,  1, None) #
+        tdSql.checkData(1,  1, 246)
+        tdSql.checkData(4,  1, 246)
+        tdSql.checkData(5,  1, None) #
+        tdSql.checkData(6,  1, 246)
+        tdSql.checkData(9,  1, 246)
+        tdSql.checkData(10, 1, 10)   #
+        tdSql.checkData(11, 1, 246)
+        tdSql.checkData(14, 1, 246)
+        tdSql.checkData(15, 1, None) #
+        tdSql.checkData(16, 1, 246)
+        tdSql.checkData(19, 1, 246)
+        tdSql.checkData(20, 1, None) #
+        tdSql.checkData(21, 1, 246)
+        tdSql.checkData(24, 1, 246)
+        tdSql.checkData(25, 1, None) #
+        tdSql.checkData(26, 1, 246)
+        tdSql.checkData(29, 1, 246)
+        tdSql.checkData(30, 1, 30)   #
+        tdSql.checkData(31, 1, 246)
+        tdSql.checkData(34, 1, 246)
+        tdSql.checkData(35, 1, None) #
+        tdSql.checkData(36, 1, 246)
+        tdSql.checkData(39, 1, 246)
+        tdSql.checkData(40, 1, 40)   #
+        tdSql.checkData(41, 1, 246)
+        tdSql.checkData(44, 1, 246)
+        tdSql.checkData(45, 1, 45)   #
+        tdSql.checkData(46, 1, 246)
+        tdSql.checkData(49, 1, 246)
+        tdSql.checkData(50, 1, None) #
+        tdSql.checkData(51, 1, 246)
+        tdSql.checkData(54, 1, 246)
+        tdSql.checkData(55, 1, None) #
+        tdSql.checkData(56, 1, 246)
+        tdSql.checkData(59, 1, 246)
         tdSql.checkData(60, 1, 60)   #
 
         # test fill prev
