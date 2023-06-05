@@ -358,14 +358,13 @@ _exit:
 static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = TD_VID(tsdb->pVnode);
+
+  SMemTable *mem = tsdb->imem;
 
   memset(committer, 0, sizeof(committer[0]));
-
   committer->tsdb = tsdb;
   code = tsdbFSCreateCopySnapshot(tsdb->pFS, &committer->fsetArr);
   TSDB_CHECK_CODE(code, lino, _exit);
-
   committer->minutes = tsdb->keepCfg.days;
   committer->precision = tsdb->keepCfg.precision;
   committer->minRow = info->info.config.tsdbCfg.minRows;
@@ -374,16 +373,27 @@ static int32_t tsdbOpenCommitter(STsdb *tsdb, SCommitInfo *info, SCommitter2 *co
   committer->sttTrigger = info->info.config.sttTrigger;
   committer->szPage = info->info.config.tsdbPageSize;
   committer->compactVersion = INT64_MAX;
-
   committer->ctx->cid = tsdbFSAllocEid(tsdb->pFS);
   committer->ctx->now = taosGetTimestampSec();
-  committer->ctx->nextKey = tsdb->imem->minKey;  // TODO
-
   TARRAY2_INIT(committer->fopArray);
+
+  committer->ctx->nextKey = tsdb->imem->minKey;
+  if (mem->nDel > 0) {
+    SRBTreeIter iter[1] = {tRBTreeIterCreate(mem->tbDataTree, 1)};
+    for (SRBTreeNode *node = tRBTreeIterNext(iter); node; node = tRBTreeIterNext(iter)) {
+      STbData *tbData = TCONTAINER_OF(node, STbData, rbtn);
+
+      for (SDelData *delData = tbData->pHead; delData; delData = delData->pNext) {
+        if (delData->sKey < committer->ctx->nextKey) {
+          committer->ctx->nextKey = delData->sKey;
+        }
+      }
+    }
+  }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
   } else {
     tsdbDebug("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
   }
