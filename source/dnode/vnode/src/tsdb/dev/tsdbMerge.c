@@ -76,8 +76,13 @@ static int32_t tsdbMergerClose(SMerger *merger) {
   code = tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  taosThreadRwlockWrlock(&merger->tsdb->rwLock);
   code = tsdbFSEditCommit(merger->tsdb->pFS);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (code) {
+    taosThreadRwlockUnlock(&merger->tsdb->rwLock);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  taosThreadRwlockUnlock(&merger->tsdb->rwLock);
 
   ASSERT(merger->dataWriter == NULL);
   ASSERT(merger->sttWriter == NULL);
