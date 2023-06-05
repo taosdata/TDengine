@@ -82,7 +82,7 @@ const char* comparePartagKeyName(void* name);
 
 void* streamBackendInit(const char* path) {
   qDebug("start to init stream backend at %s", path);
-  SBackendHandle* pHandle = calloc(1, sizeof(SBackendHandle));
+  SBackendHandle* pHandle = taosMemoryCalloc(1, sizeof(SBackendHandle));
   pHandle->list = tdListNew(sizeof(SCfComparator));
   taosThreadMutexInit(&pHandle->mutex, NULL);
   taosThreadMutexInit(&pHandle->cfMutex, NULL);
@@ -121,6 +121,7 @@ void* streamBackendInit(const char* path) {
     if (err != NULL) {
       qError("failed to open rocksdb, path:%s, reason:%s", path, err);
       taosMemoryFreeClear(err);
+      goto _EXIT;
     }
   } else {
     /*
@@ -887,7 +888,7 @@ void streamStateCloseBackend(SStreamState* pState, bool remove) {
   taosThreadMutexUnlock(&pHandle->cfMutex);
 
   char* status[] = {"close", "drop"};
-  qInfo("start to %s state %p on backend %p 0x%" PRIx64 "-%d", status[remove == false ? 0 : 1], pState, pHandle,
+  qInfo("start to close %s state %p on backend %p 0x%" PRIx64 "-%d", status[remove == false ? 0 : 1], pState, pHandle,
         pState->streamId, pState->taskId);
   if (pState->pTdbState->rocksdb == NULL) {
     return;

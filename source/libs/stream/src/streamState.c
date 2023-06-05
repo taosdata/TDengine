@@ -222,9 +222,7 @@ _err:
 void streamStateClose(SStreamState* pState, bool remove) {
   SStreamTask* pTask = pState->pTdbState->pOwner;
 #ifdef USE_ROCKSDB
-  // streamStateCloseBackend(pState);
   streamStateDestroy(pState, remove);
-  //taosReleaseRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
 #else
   tdbCommit(pState->pTdbState->db, pState->pTdbState->txn);
   tdbPostCommit(pState->pTdbState->db, pState->pTdbState->txn);
