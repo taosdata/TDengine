@@ -135,10 +135,11 @@ localhost:6030 表示数据源的地址和端口，db1 表示具体的数据库�
 | group.id  | 订阅使用的分组ID                                                 | 若为空则使用 hash 生成一个 |
 | client.id | 订阅使用的客户端ID                                               | taosx                      |
 | timeout   | 监听数据的超时时间，当设置为 never 表示 taosx 不会停止持续监听。 | 500ms                      |
+| offset    | 从指定的 offset 开始订阅，格式为 `<vgroup_id>:<offset>`，若有多个 vgroup 则用半角逗号隔开 | 若为空则从 0 开始订阅  |
 
 示例：
 ```shell
-taosx run -f 'tmq://root:taosdata@localhost:6030/db1?group.id=taosx1&client.id=taosx&timeout=never' -t 'taos://root:taosdata@another.com:6030/db2'
+taosx run -f 'tmq://root:taosdata@localhost:6030/db1?group.id=taosx1&client.id=taosx&timeout=never&offset=2:10' -t 'taos://root:taosdata@another.com:6030/db2'
 ```
 
 常见错误排查：
