@@ -16,8 +16,8 @@
 #include "streamInc.h"
 #include "ttimer.h"
 
-#define STREAM_TASK_INPUT_QUEUEU_CAPACITY         20480
-#define STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE (50)
+#define STREAM_TASK_INPUT_QUEUE_CAPACITY          20480
+#define STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE  (50)
 #define ONE_MB_F                                  (1048576.0)
 #define QUEUE_MEM_SIZE_IN_MB(_q)                  (taosQueueMemorySize(_q) / ONE_MB_F)
 
@@ -36,6 +36,7 @@ int32_t streamInit() {
     }
     atomic_store_8(&streamEnv.inited, 1);
   }
+
   return 0;
 }
 
@@ -284,9 +285,9 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
 }
 
 bool tInputQueueIsFull(const SStreamTask* pTask) {
-  bool   isFull = taosQueueItemSize((pTask->inputQueue->queue)) >= STREAM_TASK_INPUT_QUEUEU_CAPACITY;
+  bool   isFull = taosQueueItemSize((pTask->inputQueue->queue)) >= STREAM_TASK_INPUT_QUEUE_CAPACITY;
   double size = QUEUE_MEM_SIZE_IN_MB(pTask->inputQueue->queue);
-  return (isFull || size >= STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE);
+  return (isFull || size >= STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE);
 }
 
 int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
@@ -298,7 +299,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
     SStreamDataSubmit* px = (SStreamDataSubmit*)pItem;
     if ((pTask->taskLevel == TASK_LEVEL__SOURCE) && tInputQueueIsFull(pTask)) {
       qError("s-task:%s input queue is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) stop to push data",
-             pTask->id.idStr, STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE, total,
+             pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total,
              size);
       streamDataSubmitDestroy(px);
       taosFreeQitem(pItem);
@@ -318,7 +319,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     if ((pTask->taskLevel == TASK_LEVEL__SOURCE) && (tInputQueueIsFull(pTask))) {
       qError("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
-             pTask->id.idStr, STREAM_TASK_INPUT_QUEUEU_CAPACITY, STREAM_TASK_INPUT_QUEUEU_CAPACITY_IN_SIZE, total,
+             pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total,
              size);
       destroyStreamDataBlock((SStreamDataBlock*) pItem);
       return -1;

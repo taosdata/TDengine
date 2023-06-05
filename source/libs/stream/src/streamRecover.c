@@ -53,7 +53,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask) {
   return 0;
 }
 
-// checkstatus
+// check status
 int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t ver) {
   qDebug("s-task:%s in fill history stage, ver:%"PRId64, pTask->id.idStr, ver);
 
