@@ -1896,7 +1896,7 @@ static bool isCleanFileDataBlock(STsdbReader* pReader, SFileDataBlockInfo* pBloc
   SDataBlockToLoadInfo info = {0};
   getBlockToLoadInfo(&info, pBlockInfo, pBlock, pScanInfo, keyInBuf, pLastBlockReader, pReader);
   bool isCleanFileBlock = !(info.overlapWithNeighborBlock || info.hasDupTs || info.overlapWithKeyInBuf ||
-                            info.overlapWithDelInfo || info.overlapWithLastBlock || info.partiallyRequired);
+                            info.overlapWithDelInfo || info.overlapWithLastBlock);
   return isCleanFileBlock;
 }
 
@@ -2857,7 +2857,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
     // it is a clean block, load it directly
     if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pBlockScanInfo, keyInBuf, pLastBlockReader) &&
         pBlock->nRow <= pReader->resBlockInfo.capacity) {
-      if (asc || ((!asc) && (!hasDataInLastBlock(pLastBlockReader)))) {
+      if (asc || (!hasDataInLastBlock(pLastBlockReader))) {
         code = copyBlockDataToSDataBlock(pReader);
         if (code) {
           goto _end;
@@ -2876,7 +2876,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
     }
   }
 
-  SBlockData*         pBlockData = &pReader->status.fileBlockData;
+  SBlockData* pBlockData = &pReader->status.fileBlockData;
 
   while (1) {
     bool hasBlockData = false;
@@ -2890,7 +2890,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
         pDumpInfo->rowIndex += step;
 
-        SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
+        pBlock = getCurrentBlock(&pReader->status.blockIter);
         if (pDumpInfo->rowIndex >= pBlock->nRow || pDumpInfo->rowIndex < 0) {
           pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);  // NOTE: get the new block info
 
@@ -2918,7 +2918,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
     // currently loaded file data block is consumed
     if ((pBlockData->nRow > 0) && (pDumpInfo->rowIndex >= pBlockData->nRow || pDumpInfo->rowIndex < 0)) {
-      SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
+      pBlock = getCurrentBlock(&pReader->status.blockIter);
       setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
       break;
     }
@@ -2967,7 +2967,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
     SDelIdx* pIdx = taosArraySearch(pReader->pDelIdx, &idx, tCmprDelIdx, TD_EQ);
 
     if (pIdx != NULL) {
-      code = tsdbReadDelData(pReader->pDelFReader, pIdx, pDelData);
+      code = tsdbReadDelDatav1(pReader->pDelFReader, pIdx, pDelData, pReader->verRange.maxVer);
     }
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
@@ -2978,7 +2978,10 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   if (pMemTbData != NULL) {
     p = pMemTbData->pHead;
     while (p) {
-      taosArrayPush(pDelData, p);
+      if (p->version <= pReader->verRange.maxVer) {
+        taosArrayPush(pDelData, p);
+      }
+
       p = p->pNext;
     }
   }
@@ -2986,7 +2989,9 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   if (piMemTbData != NULL) {
     p = piMemTbData->pHead;
     while (p) {
-      taosArrayPush(pDelData, p);
+      if (p->version <= pReader->verRange.maxVer) {
+        taosArrayPush(pDelData, p);
+      }
       p = p->pNext;
     }
   }
@@ -4558,7 +4563,11 @@ int32_t tsdbReaderOpen(void* pVnode, SQueryTableDataCond* pCond, void* pTableLis
 
   pReader->pIgnoreTables = pIgnoreTables;
 
-  tsdbDebug("%p total numOfTable:%d in this query %s", pReader, numOfTables, pReader->idStr);
+  tsdbDebug("%p total numOfTable:%d, window:%" PRId64 " - %" PRId64 ", verRange:%" PRId64 " - %" PRId64
+            " in this query %s",
+            pReader, numOfTables, pReader->window.skey, pReader->window.ekey, pReader->verRange.minVer,
+            pReader->verRange.maxVer, pReader->idStr);
+
   return code;
 
 _err:
@@ -5030,7 +5039,8 @@ int32_t tsdbNextDataBlock(STsdbReader* pReader, bool* hasNext) {
   return code;
 }
 
-static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols, SColumnDataAgg* pTsAgg) {
+static bool doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols, SColumnDataAgg* pTsAgg) {
+  bool hasNullSMA = false;
   // do fill all null column value SMA info
   int32_t i = 0, j = 0;
   int32_t size = (int32_t)taosArrayGetSize(pSup->pColAgg);
@@ -5050,6 +5060,7 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
         taosArrayInsert(pSup->pColAgg, i, &nullColAgg);
         i += 1;
         size++;
+        hasNullSMA = true;
       }
       j += 1;
     }
@@ -5060,12 +5071,15 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
       SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
       taosArrayInsert(pSup->pColAgg, i, &nullColAgg);
       i += 1;
+      hasNullSMA = true;
     }
     j++;
   }
+
+  return hasNullSMA;
 }
 
-int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave) {
+int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave, bool *hasNullSMA) {
   SColumnDataAgg*** pBlockSMA = &pDataBlock->pBlockAgg;
 
   int32_t code = 0;
@@ -5129,7 +5143,10 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
   }
 
   // do fill all null column value SMA info
-  doFillNullColSMA(pSup, pBlock->nRow, numOfCols, pTsAgg);
+  if (doFillNullColSMA(pSup, pBlock->nRow, numOfCols, pTsAgg)) {
+    *hasNullSMA = true;
+    return TSDB_CODE_SUCCESS;
+  }
   size_t size = taosArrayGetSize(pSup->pColAgg);
 
   int32_t i = 0, j = 0;
@@ -5296,6 +5313,9 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
 }
 
 static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows, int32_t numOfBucket) {
+  if (numOfRows < startRow) {
+    return 0;
+  }
   int32_t bucketIndex = ((numOfRows - startRow) / bucketRange);
   if (bucketIndex == numOfBucket) {
     bucketIndex -= 1;

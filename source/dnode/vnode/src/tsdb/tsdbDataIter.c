@@ -412,7 +412,7 @@ static int32_t tsdbTombFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
           }
         }
 
-        code = tsdbReadDelData(pIter->tIter.pReader, pDelIdx, pIter->tIter.aDelData);
+        code = tsdbReadDelDatav1(pIter->tIter.pReader, pDelIdx, pIter->tIter.aDelData, INT64_MAX);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         pIter->delInfo.suid = pDelIdx->suid;

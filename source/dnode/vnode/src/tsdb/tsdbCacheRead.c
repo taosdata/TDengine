@@ -201,6 +201,9 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
 void* tsdbCacherowsReaderClose(void* pReader) {
   SCacheRowsReader* p = pReader;
+  if (p == NULL) {
+    return NULL;
+  }
 
   if (p->pSchema != NULL) {
     for (int32_t i = 0; i < p->pSchema->numOfCols; ++i) {

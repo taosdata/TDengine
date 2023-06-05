@@ -28,7 +28,7 @@
 #include "parser.h"
 #include "tname.h"
 
-#define MND_TOPIC_VER_NUMBER   2
+#define MND_TOPIC_VER_NUMBER   3
 #define MND_TOPIC_RESERVE_SIZE 64
 
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic);
@@ -170,7 +170,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto TOPIC_DECODE_OVER;
 
-  if (sver != 1 && sver != 2) {
+  if (sver < 1 || sver > MND_TOPIC_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto TOPIC_DECODE_OVER;
   }
@@ -197,7 +197,9 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pTopic->withMeta, TOPIC_DECODE_OVER);
 
   SDB_GET_INT64(pRaw, dataPos, &pTopic->stbUid, TOPIC_DECODE_OVER);
-  SDB_GET_BINARY(pRaw, dataPos, pTopic->stbName, TSDB_TABLE_FNAME_LEN, TOPIC_DECODE_OVER);
+  if (sver >= 3) {
+    SDB_GET_BINARY(pRaw, dataPos, pTopic->stbName, TSDB_TABLE_FNAME_LEN, TOPIC_DECODE_OVER);
+  }
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
   pTopic->sql = taosMemoryCalloc(pTopic->sqlLen, sizeof(char));
   if (pTopic->sql == NULL) {
@@ -422,6 +424,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       mError("failed to create topic:%s since %s", pCreate->name, terrstr());
       taosMemoryFree(topicObj.ast);
       taosMemoryFree(topicObj.sql);
+      nodesDestroyNode(pAst);
       return -1;
     }
 
@@ -429,6 +432,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     if (topicObj.ntbColIds == NULL) {
       taosMemoryFree(topicObj.ast);
       taosMemoryFree(topicObj.sql);
+      nodesDestroyNode(pAst);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
@@ -444,6 +448,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
       taosMemoryFree(topicObj.ast);
       taosMemoryFree(topicObj.sql);
+      nodesDestroyNode(pAst);
       return -1;
     }
 
@@ -465,6 +470,11 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     strcpy(topicObj.stbName, pCreate->subStbName);
     topicObj.stbUid = pStb->uid;
     mndReleaseStb(pMnode, pStb);
+    if(pCreate->ast != NULL){
+      qDebugL("topic:%s ast %s", topicObj.name, pCreate->ast);
+      topicObj.ast = taosStrdup(pCreate->ast);
+      topicObj.astLen = strlen(pCreate->ast) + 1;
+    }
   }
   /*} else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {*/
   /*topicObj.ast = NULL;*/
@@ -914,13 +924,12 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }else if(pTopic->subType == TOPIC_SUB_TYPE__TABLE){
       SStbObj *pStb = mndAcquireStb(pMnode, pTopic->stbName);
       if (pStb == NULL) {
-        terrno = TSDB_CODE_MND_STB_NOT_EXIST;
-        taosMemoryFree(schemaJson);
-        return -1;
+        STR_TO_VARSTR(schemaJson, "NULL");
+        mError("mndRetrieveTopic mndAcquireStb null stbName:%s", pTopic->stbName);
+      }else{
+        schemaToJson(pStb->pColumns, pStb->numOfColumns, schemaJson);
+        mndReleaseStb(pMnode, pStb);
       }
-      schemaToJson(pStb->pColumns, pStb->numOfColumns, schemaJson);
-
-      mndReleaseStb(pMnode, pStb);
     }else{
       STR_TO_VARSTR(schemaJson, "NULL");
     }
