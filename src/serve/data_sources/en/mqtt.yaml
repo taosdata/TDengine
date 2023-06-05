@@ -61,19 +61,19 @@ authentication:
       params:
         - name: ca
           display: CA
-          description: CA file path
+          description: CA file content
           required: true
           hint:
             type: file
         - name: cert
           display: Client certificate file
-          description: Path to Client certificate file.
+          description: Client certificate file content.
           required: true
           hint:
             type: file
         - name: cert_key
           display: Client key file
-          description: Path to Client certificate file.
+          description: Client key file content.
           required: true
           hint:
             type: file

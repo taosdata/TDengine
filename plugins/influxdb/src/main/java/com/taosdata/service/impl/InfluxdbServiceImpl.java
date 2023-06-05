@@ -15,6 +15,9 @@ import com.taosdata.service.InfluxdbService;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.exception.ArtificialException;
 import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -28,6 +31,8 @@ import java.util.*;
  */
 @Service
 public class InfluxdbServiceImpl implements InfluxdbService {
+
+    protected Logger logger = LoggerFactory.getLogger(getClass());
 
     @Resource
     InfluxdbPoolAutoConfig influxdbPool;
@@ -67,7 +72,8 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             }
             return influxdbBucketEntityList;
         } catch (Exception e) {
-            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), new Exception());
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
             if (influxDBClient != null) {
                 influxdbPool.getPool().returnObject(influxDBClient);
@@ -108,7 +114,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     }
                 }
             } catch (Exception e) {
-                // 忽略
+                handlerException(e);
             }
             // 遍历measurement列表
             for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
@@ -124,7 +130,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                         }
                     }
                 } catch (Exception e) {
-                    // 忽略
+                    handlerException(e);
                 }
                 // 查询所有tag
                 try {
@@ -138,11 +144,12 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                         }
                     }
                 } catch (Exception e) {
-                    // 忽略
+                    handlerException(e);
                 }
             }
             return influxdbMeasurementEntityList;
         } catch (Exception e) {
+            handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
             if (influxDBClient != null) {
@@ -213,11 +220,34 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             }
             return influxdbBucketDataEntityList;
         } catch (Exception e) {
+            handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
             if (influxDBClient != null) {
                 influxdbPool.getPool().returnObject(influxDBClient);
             }
+        }
+    }
+
+    /**
+     * 异常处理
+     *
+     * @param e
+     */
+    private void handlerException(Exception e) {
+        String errMsg = e.getMessage();
+        if (StringUtils.isNotEmpty(errMsg) && (errMsg.contains("Failed to connect") || errMsg.contains("Unable to validate object"))) {
+            // url错误
+            logger.error("The application will exit soon: {}", e.getMessage());
+            System.exit(101);
+        } else if (StringUtils.isNotEmpty(errMsg) && errMsg.contains("unauthorized access")) {
+            // token错误
+            logger.error("The application will exit soon: {}", e.getMessage());
+            System.exit(102);
+        } else if (StringUtils.isNotEmpty(errMsg) && errMsg.contains("organization not found")) {
+            // organization错误
+            logger.error("The application will exit soon: {}", e.getMessage());
+            System.exit(103);
         }
     }
 }

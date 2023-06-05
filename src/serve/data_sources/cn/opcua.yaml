@@ -96,21 +96,20 @@ authentication:
               - Basic256Sha256
 datasets:
   name: Data Sets
-  description: Data points in OPC server to collect.
+  description: OPC 采集数据点位列表。
   categories:
   - category: nodes
     display: Nodes
-    description: Node id list separated by a ','.
+    description: 点位配置列表，使用英文逗号分隔。
     target:
       name: ua.nodes
-      description: Node id list separated by a ','.
+      description: 点位配置列表，使用英文逗号分隔。
       required: false
       multiple: true
       editable: true
       selectable: true
 
 groups:
-
   - name: 连接配置
     display_order: 2
     description: 连接相关配置。

@@ -245,6 +245,12 @@ public class PreLoading implements CommandLineRunner {
                     logger.error("初始化influxdb及相关线程过程中发生异常", e);
                 }
             });
+            // 没有bucket则报错退出
+            if (BucketCache.bucketMap.size() == 0) {
+                // bucket错误
+                logger.error("The application will exit soon: bucket not found");
+                System.exit(104);
+            }
             // 估算任务量
             StatisticCache.totalReadTaskEstimated = estimateTaskAmount();
             // 启动ScheduleThread
