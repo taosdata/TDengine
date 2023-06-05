@@ -15,7 +15,7 @@
 
 #include "streamInc.h"
 
-int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
+int32_t streamTaskLaunchRecover(SStreamTask* pTask) {
   qDebug("s-task:%s at node %d launch recover", pTask->id.idStr, pTask->nodeId);
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
@@ -23,7 +23,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
     qDebug("s-task:%s set task status:%d and start to recover", pTask->id.idStr, pTask->status.taskStatus);
 
     streamSetParamForRecover(pTask);
-    streamSourceRecoverPrepareStep1(pTask, version);
+    streamSourceRecoverPrepareStep1(pTask, pTask->dataRange.range.maxVer, pTask->dataRange.window.ekey);
 
     SStreamRecoverStep1Req req;
     streamBuildSourceRecover1Req(pTask, &req);
@@ -54,8 +54,8 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
 }
 
 // checkstatus
-int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
-  qDebug("s-task:%s in fill history stage, ver:%"PRId64, pTask->id.idStr, version);
+int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t ver) {
+  qDebug("s-task:%s in fill history stage, ver:%"PRId64, pTask->id.idStr, ver);
 
   SStreamTaskCheckReq req = {
       .streamId = pTask->id.streamId,
@@ -88,13 +88,13 @@ int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
       taosArrayPush(pTask->checkReqIds, &req.reqId);
       req.downstreamNodeId = pVgInfo->vgId;
       req.downstreamTaskId = pVgInfo->taskId;
-      qDebug("s-task:%s at node %d check downstream task:0x%x at node %d (shuffle)", pTask->id.idStr, pTask->nodeId,
+      qDebug("s-task:%s (vgId:%d) check downstream task:0x%x at node %d (shuffle)", pTask->id.idStr, pTask->nodeId,
              req.downstreamTaskId, req.downstreamNodeId);
       streamDispatchCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
   } else {
-    qDebug("s-task:%s at node %d direct launch recover since no downstream", pTask->id.idStr, pTask->nodeId);
-    streamTaskLaunchRecover(pTask, version);
+    qDebug("s-task:%s (vgId:%d) direct launch recover since no downstream", pTask->id.idStr, pTask->nodeId);
+    streamTaskLaunchRecover(pTask);
   }
 
   return 0;
@@ -135,7 +135,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask) {
   return atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__NORMAL? 1:0;
 }
 
-int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t version) {
+int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t ver) {
   ASSERT(pTask->id.taskId == pRsp->upstreamTaskId);
 
   qDebug("s-task:%s at node %d recv check rsp from task:0x%x at node %d: status %d", pTask->id.idStr,
@@ -166,14 +166,14 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
         pTask->checkReqIds = NULL;
 
         qDebug("s-task:%s all %d downstream tasks are ready, now enter into recover stage", pTask->id.idStr, numOfReqs);
-        streamTaskLaunchRecover(pTask, version);
+        streamTaskLaunchRecover(pTask);
       }
     } else if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
       if (pRsp->reqId != pTask->checkReqId) {
         return -1;
       }
 
-      streamTaskLaunchRecover(pTask, version);
+      streamTaskLaunchRecover(pTask);
     } else {
       ASSERT(0);
     }
@@ -204,9 +204,9 @@ int32_t streamSetStatusNormal(SStreamTask* pTask) {
 }
 
 // source
-int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, int64_t ver) {
+int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, int64_t ver, int64_t ekey) {
   void* exec = pTask->exec.pExecutor;
-  return qStreamSourceRecoverStep1(exec, ver);
+  return qStreamSourceRecoverStep1(exec, ver, ekey);
 }
 
 int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq) {

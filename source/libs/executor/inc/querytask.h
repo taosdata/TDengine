@@ -65,6 +65,7 @@ typedef struct {
   int8_t               recoverScanFinished;
   SQueryTableDataCond  tableCond;
   int64_t              fillHistoryVer1;
+  int64_t              fillHisotryeKey1;
   int64_t              fillHistoryVer2;
   SStreamState*        pState;
   int64_t              dataVersion;

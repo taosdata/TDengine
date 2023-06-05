@@ -299,6 +299,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->smaId = 0;
 
   pObj->uid = mndGenerateUid(pObj->name, strlen(pObj->name));
+
+  char p[TSDB_STREAM_FNAME_LEN + 32] = {0};
+  snprintf(p, tListLen(p), "%s_%s", pObj->name, "fillhistory");
+
+  pObj->hTaskUid = mndGenerateUid(pObj->name, strlen(pObj->name));
   pObj->status = 0;
 
   pObj->conf.igExpired = pCreate->igExpired;

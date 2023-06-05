@@ -553,7 +553,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
 // recover and fill history
 int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version);
-int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version);
+int32_t streamTaskLaunchRecover(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask);
 int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t version);
 
@@ -562,7 +562,7 @@ int32_t streamSetParamForRecover(SStreamTask* pTask);
 int32_t streamRestoreParam(SStreamTask* pTask);
 int32_t streamSetStatusNormal(SStreamTask* pTask);
 // source level
-int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, int64_t ver);
+int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, int64_t ver, int64_t ekey);
 int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq);
 int32_t streamSourceRecoverScanStep1(SStreamTask* pTask);
 int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req* pReq);

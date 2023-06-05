@@ -1027,13 +1027,36 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
   taosWUnLockLatch(&pStreamMeta->lock);
 
-  // 3.go through recover steps to fill history
+  // 3. for fill history task, do nothing. wait for the main task to start it
   if (pTask->fillHistory) {
-    streamTaskCheckDownstream(pTask, sversion);
+    tqDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
+  } else {
+    if (pTask->historyTaskId.taskId != 0) {
+      // todo fix the bug: 1. maybe failed to located the fill history task, since it is not built yet. 2. race condition
+
+      // an fill history task needs to be started.
+      // Set the execute conditions, including the query time window and the version range
+      SStreamTask* pHTask = taosHashGet(pStreamMeta->pTasks, &pTask->historyTaskId.taskId, sizeof(pTask->historyTaskId.taskId));
+
+      pHTask->dataRange.range.minVer = 0;
+      pHTask->dataRange.range.maxVer = sversion;
+
+      pHTask->dataRange.window.skey = INT64_MIN;
+      pHTask->dataRange.window.ekey = 1000000;
+
+      tqDebug("s-task:%s set the launch condition for fill history task:%s, window:%" PRId64 " - %" PRId64
+              " verrange:%" PRId64 " - %" PRId64,
+              pTask->id.idStr, pHTask->id.idStr, pHTask->dataRange.window.skey, pHTask->dataRange.window.ekey,
+              pHTask->dataRange.range.minVer, pHTask->dataRange.range.maxVer);
+
+      // check if downstream tasks have been ready
+      streamTaskCheckDownstream(pHTask, sversion);
+    }
   }
 
   tqDebug("vgId:%d s-task:%s is deployed and add meta from mnd, status:%d, total:%d", vgId, pTask->id.idStr,
           pTask->status.taskStatus, numOfTasks);
+
   return 0;
 }
 

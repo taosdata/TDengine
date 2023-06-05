@@ -312,11 +312,11 @@ static SArray* addNewTaskList(SArray* pTasksList) {
 // set the history task id
 static void setHTasksId(SArray* pTaskList, const SArray* pHTaskList) {
   for(int32_t i = 0; i < taosArrayGetSize(pTaskList); ++i) {
-    SStreamTask* pStreamTask = taosArrayGet(pTaskList, i);
-    SStreamTask* pHTask = taosArrayGet(pHTaskList, i);
+    SStreamTask** pStreamTask = taosArrayGet(pTaskList, i);
+    SStreamTask** pHTask = taosArrayGet(pHTaskList, i);
 
-    pStreamTask->historyTaskId.taskId = pHTask->id.taskId;
-    pStreamTask->historyTaskId.streamId = pHTask->id.streamId;
+    (*pStreamTask)->historyTaskId.taskId = (*pHTask)->id.taskId;
+    (*pStreamTask)->historyTaskId.streamId = (*pHTask)->id.streamId;
   }
 }
 
@@ -359,7 +359,7 @@ static int32_t addSourceTasksForSingleLevelStream(SMnode* pMnode, const SQueryPl
     // new stream task
     SArray** pSinkTaskList = taosArrayGet(pStream->tasks, SINK_NODE_LEVEL);
     int32_t code = addSourceStreamTask(pMnode, pVgroup, pTaskList, *pSinkTaskList, pStream, plan, pStream->uid,
-                                       pStream->conf.fillHistory, hasExtraSink);
+                                       0, hasExtraSink);
     if (code != TSDB_CODE_SUCCESS) {
       sdbRelease(pSdb, pVgroup);
       return -1;
@@ -367,7 +367,7 @@ static int32_t addSourceTasksForSingleLevelStream(SMnode* pMnode, const SQueryPl
 
     if (pStream->conf.fillHistory) {
       SArray** pHSinkTaskList = taosArrayGet(pStream->pHTasksList, SINK_NODE_LEVEL);
-      code = addSourceStreamTask(pMnode, pVgroup, pHTaskList, *pHSinkTaskList, pStream, plan, pStream->hTaskUid, 0,
+      code = addSourceStreamTask(pMnode, pVgroup, pHTaskList, *pHSinkTaskList, pStream, plan, pStream->hTaskUid, pStream->conf.fillHistory,
                                  hasExtraSink);
       setHTasksId(pTaskList, pHTaskList);
     }
