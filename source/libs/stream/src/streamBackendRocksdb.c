@@ -16,7 +16,9 @@
 #include "streamBackendRocksdb.h"
 #include "executor.h"
 #include "query.h"
+#include "streamInc.h"
 #include "tcommon.h"
+#include "tref.h"
 
 typedef struct SCompactFilteFactory {
   void* status;
@@ -79,7 +81,7 @@ const char* compareParKeyName(void* name);
 const char* comparePartagKeyName(void* name);
 
 void* streamBackendInit(const char* path) {
-  qDebug("init stream backend");
+  qDebug("start to init stream backend at %s", path);
   SBackendHandle* pHandle = calloc(1, sizeof(SBackendHandle));
   pHandle->list = tdListNew(sizeof(SCfComparator));
   taosThreadMutexInit(&pHandle->mutex, NULL);
@@ -129,6 +131,7 @@ void* streamBackendInit(const char* path) {
   if (cfs != NULL) {
     rocksdb_list_column_families_destroy(cfs, nCf);
   }
+  qDebug("succ to init stream backend at %s, backend:%p", path, pHandle);
 
   return (void*)pHandle;
 _EXIT:
@@ -141,6 +144,7 @@ _EXIT:
   rocksdb_compactionfilterfactory_destroy(pHandle->filterFactory);
   tdListFree(pHandle->list);
   free(pHandle);
+  qDebug("failed to init stream backend at %s", path);
   return NULL;
 }
 void streamBackendCleanup(void* arg) {
@@ -180,7 +184,7 @@ void streamBackendCleanup(void* arg) {
   taosThreadMutexDestroy(&pHandle->cfMutex);
 
   taosMemoryFree(pHandle);
-
+  qDebug("destroy stream backend backend:%p", pHandle);
   return;
 }
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
@@ -803,7 +807,8 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
   return 0;
 }
 int streamStateOpenBackend(void* backend, SStreamState* pState) {
-  qInfo("start to open backend, %p 0x%" PRIx64 "-%d", pState, pState->streamId, pState->taskId);
+  qInfo("start to open state %p on backend %p 0x%" PRIx64 "-%d", pState, backend, pState->streamId, pState->taskId);
+  taosAcquireRef(streamBackendId, pState->streamBackendRid);
   SBackendHandle* handle = backend;
 
   sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-%d", pState->streamId, pState->taskId);
@@ -866,7 +871,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   SCfComparator compare = {.comp = pCompare, .numOfComp = cfLen};
   pState->pTdbState->pComparNode = streamBackendAddCompare(handle, &compare);
   // rocksdb_writeoptions_disable_WAL(pState->pTdbState->writeOpts, 1);
-  qInfo("succ to open backend, %p, 0x%" PRIx64 "-%d", pState, pState->streamId, pState->taskId);
+  qInfo("succ to open state %p on backend, %p, 0x%" PRIx64 "-%d", pState, handle, pState->streamId, pState->taskId);
   return 0;
 }
 
@@ -882,8 +887,8 @@ void streamStateCloseBackend(SStreamState* pState, bool remove) {
   taosThreadMutexUnlock(&pHandle->cfMutex);
 
   char* status[] = {"close", "drop"};
-  qInfo("start to %s backend, %p, 0x%" PRIx64 "-%d", status[remove == false ? 0 : 1], pState, pState->streamId,
-        pState->taskId);
+  qInfo("start to %s state %p on backend %p 0x%" PRIx64 "-%d", status[remove == false ? 0 : 1], pState, pHandle,
+        pState->streamId, pState->taskId);
   if (pState->pTdbState->rocksdb == NULL) {
     return;
   }
@@ -938,6 +943,7 @@ void streamStateCloseBackend(SStreamState* pState, bool remove) {
 
   taosThreadRwlockDestroy(&pState->pTdbState->rwLock);
   pState->pTdbState->rocksdb = NULL;
+  taosReleaseRef(streamBackendId, pState->streamBackendRid);
 }
 void streamStateDestroyCompar(void* arg) {
   SCfComparator* comp = (SCfComparator*)arg;

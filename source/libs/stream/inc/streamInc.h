@@ -36,8 +36,9 @@ static SStreamGlobalEnv streamEnv;
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
 
 SStreamDataBlock* createStreamDataFromDispatchMsg(const SStreamDispatchReq* pReq, int32_t blockType, int32_t srcVg);
-SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize, SArray* pRes);
-void    destroyStreamDataBlock(SStreamDataBlock* pBlock);
+SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamTask* pTask, int64_t resultSize,
+                                               SArray* pRes);
+void              destroyStreamDataBlock(SStreamDataBlock* pBlock);
 
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData);
 int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* data);
@@ -52,6 +53,8 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
                                           SEpSet* pEpSet);
 
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
+
+extern int32_t streamBackendId;
 
 #ifdef __cplusplus
 }
