@@ -3041,7 +3041,7 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
   return code;
 }
 
-static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
+static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList, bool isInterpFill) {
   if (FILL_MODE_VALUE != pFill->mode && FILL_MODE_VALUE_F != pFill->mode) {
     return TSDB_CODE_SUCCESS;
   }
@@ -3058,10 +3058,13 @@ static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeL
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
-      ++fillNo;
+
+      if (!isInterpFill) {
+        ++fillNo;
+      }
     }
   }
-  if (fillNo != LIST_LENGTH(pFillValues->pNodeList)) {
+  if (!isInterpFill && fillNo != LIST_LENGTH(pFillValues->pNodeList)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   }
   return TSDB_CODE_SUCCESS;
@@ -3072,7 +3075,7 @@ static int32_t translateFillValues(STranslateContext* pCxt, SSelectStmt* pSelect
       NULL == ((SIntervalWindowNode*)pSelect->pWindow)->pFill) {
     return TSDB_CODE_SUCCESS;
   }
-  return checkFillValues(pCxt, (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill, pSelect->pProjectionList);
+  return checkFillValues(pCxt, (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill, pSelect->pProjectionList, false);
 }
 
 static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
@@ -3522,7 +3525,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList);
+    code = checkFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList, true);
   }
 
   return code;
