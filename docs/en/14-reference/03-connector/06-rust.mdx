@@ -501,7 +501,7 @@ The TMQ is of [futures::Stream](https://docs.rs/futures/latest/futures/stream/in
 
 Get assignments：
 
-Version requirements connector-rust >= v0.8.8， TDengine >= 3.0.5.0
+Version requirements connector-rust >= v0.8.8, TDengine >= 3.0.5.0
 
 ```rust
 let assignments = consumer.assignments().await.unwrap();
@@ -509,7 +509,7 @@ let assignments = consumer.assignments().await.unwrap();
 
 Seek offset：
 
-Version requirements connector-rust >= v0.8.8， TDengine >= 3.0.5.0
+Version requirements connector-rust >= v0.8.8, TDengine >= 3.0.5.0
 
 ```rust
 consumer.offset_seek(topic, vgroup_id, offset).await;
