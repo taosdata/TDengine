@@ -440,51 +440,62 @@ _exit:
 }
 
 static int32_t tsdbSttFileDoWriteDelBlock(SSttFileWriter *writer) {
-  return 0;
-#if 0
-  if (writer->dData->nRow == 0) return 0;
+  if (DEL_BLOCK_SIZE(writer->dData) == 0) return 0;
 
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
 
-  SDelBlk delBlk[1];
+  SDelBlk delBlk[1] = {{
+      .numRec = DEL_BLOCK_SIZE(writer->dData),
+      .minTid =
+          {
+              .suid = TARRAY2_FIRST(writer->dData->suid),
+              .uid = TARRAY2_FIRST(writer->dData->uid),
+          },
+      .maxTid =
+          {
+              .suid = TARRAY2_LAST(writer->dData->suid),
+              .uid = TARRAY2_LAST(writer->dData->uid),
+          },
+      .minVer = TARRAY2_FIRST(writer->dData->version),
+      .maxVer = TARRAY2_FIRST(writer->dData->version),
+      .dp[0] =
+          {
+              .offset = writer->file->size,
+              .size = 0,
+          },
+  }};
 
-  delBlk->nRow = writer->sData->nRow;
-  delBlk->minTid.suid = writer->sData->aData[0][0];
-  delBlk->minTid.uid = writer->sData->aData[1][0];
-  delBlk->maxTid.suid = writer->sData->aData[0][writer->sData->nRow - 1];
-  delBlk->maxTid.uid = writer->sData->aData[1][writer->sData->nRow - 1];
-  delBlk->minVer = delBlk->maxVer = delBlk->maxVer = writer->sData->aData[2][0];
-  for (int32_t iRow = 1; iRow < writer->sData->nRow; iRow++) {
-    if (delBlk->minVer > writer->sData->aData[2][iRow]) delBlk->minVer = writer->sData->aData[2][iRow];
-    if (delBlk->maxVer < writer->sData->aData[2][iRow]) delBlk->maxVer = writer->sData->aData[2][iRow];
+  for (int32_t i = 1; i < DEL_BLOCK_SIZE(writer->dData); i++) {
+    delBlk->minVer = TMIN(delBlk->minVer, TARRAY2_GET(writer->dData->version, i));
+    delBlk->maxVer = TMAX(delBlk->maxVer, TARRAY2_GET(writer->dData->version, i));
   }
 
-  delBlk->dp.offset = writer->file->size;
-  delBlk->dp.size = 0;  // TODO
-
-  int64_t tsize = sizeof(int64_t) * writer->dData->nRow;
-  for (int32_t i = 0; i < ARRAY_SIZE(writer->dData->aData); i++) {
-    code = tsdbWriteFile(writer->fd, writer->file->size, (const uint8_t *)writer->dData->aData[i], tsize);
+  for (int32_t i = 0; i < ARRAY_SIZE(writer->dData->dataArr); i++) {
+    int32_t size;
+    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&writer->dData->dataArr[i]),
+                        TARRAY2_DATA_LEN(&writer->dData->dataArr[i]), TSDB_DATA_TYPE_BIGINT, writer->config->cmprAlg,
+                        &writer->config->aBuf[0], 0, &size, &writer->config->aBuf[1]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    delBlk->dp.size += tsize;
-    writer->file->size += tsize;
+    code = tsdbWriteFile(writer->fd, writer->file->size, writer->config->aBuf[0], size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    delBlk->size[i] = size;
+    delBlk->dp[0].size += size;
+    writer->file->size += size;
   }
-  tDelBlockDestroy(writer->dData);
 
   code = TARRAY2_APPEND_PTR(writer->delBlkArray, delBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  tDelBlockClear(writer->dData);
+
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, lino,
-              tstrerror(code));
-  } else {
-    // tsdbTrace();
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
   return code;
-#endif
 }
 
 static int32_t tsdbSttFileDoWriteSttBlk(SSttFileWriter *writer) {
@@ -531,7 +542,7 @@ _exit:
 
 static int32_t tsdbSttFileDoWriteDelBlk(SSttFileWriter *writer) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
 
   writer->footer->delBlkPtr->offset = writer->file->size;
   writer->footer->delBlkPtr->size = TARRAY2_DATA_LEN(writer->delBlkArray);
@@ -545,8 +556,7 @@ static int32_t tsdbSttFileDoWriteDelBlk(SSttFileWriter *writer) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(writer->config->tsdb->pVnode), __func__, lino,
-              tstrerror(code));
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
   return code;
 }
@@ -624,7 +634,6 @@ static int32_t tsdbSttFileDoUpdateHeader(SSttFileWriter *writer) {
 static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *opArray) {
   int32_t lino;
   int32_t code;
-  int32_t vid = TD_VID(writer->config->tsdb->pVnode);
 
   code = tsdbSttFileDoWriteTSDataBlock(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -668,7 +677,7 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
   return code;
 }
@@ -837,42 +846,39 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFileWriteDLData(SSttFileWriter *writer, TABLEID *tbid, SDelData *pDelData) {
-  ASSERTS(0, "TODO: Not implemented yet");
-
+int32_t tsdbSttFileWriteDelRecord(SSttFileWriter *writer, const SDelRecord *record) {
   int32_t code;
   int32_t lino;
-  int32_t vid = TD_VID(writer->config->tsdb->pVnode);
 
   if (!writer->ctx->opened) {
     code = tsdbSttFWriterDoOpen(writer);
     return code;
   }
 
-  code = tsdbSttFileDoWriteTSDataBlock(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbSttFileDoWriteStatisBlock(writer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-#if 0
-  writer->dData[0].aData[0][writer->dData[0].nRow] = tbid->suid;         // suid
-  writer->dData[0].aData[1][writer->dData[0].nRow] = tbid->uid;          // uid
-  writer->dData[0].aData[2][writer->dData[0].nRow] = pDelData->version;  // version
-  writer->dData[0].aData[3][writer->dData[0].nRow] = pDelData->sKey;     // skey
-  writer->dData[0].aData[4][writer->dData[0].nRow] = pDelData->eKey;     // ekey
-  writer->dData[0].nRow++;
-
-  if (writer->dData[0].nRow >= writer->config->maxRow) {
-    return tsdbSttFileDoWriteDelBlock(writer);
-  } else {
-    return 0;
+  // end time-series data write
+  if (writer->bData->nRow > 0) {
+    code = tsdbSttFileDoWriteTSDataBlock(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-#endif
+
+  if (STATIS_BLOCK_SIZE(writer->sData) > 0) {
+    code = tsdbSttFileDoWriteStatisBlock(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // write SDelRecord
+  code = tDelBlockPut(writer->dData, record);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // write SDelBlock if need
+  if (DEL_BLOCK_SIZE(writer->dData) >= writer->config->maxRow) {
+    code = tsdbSttFileDoWriteDelBlock(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
   return code;
 }

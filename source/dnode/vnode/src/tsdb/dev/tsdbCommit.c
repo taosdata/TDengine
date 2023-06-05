@@ -217,45 +217,47 @@ _exit:
 
 static int32_t tsdbCommitDelData(SCommitter2 *committer) {
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
 
-  return 0;
+  SMemTable *mem = committer->tsdb->imem;
 
-#if 0
-  ASSERTS(0, "TODO: Not implemented yet");
+  if (mem->nDel == 0) goto _exit;
 
-  int64_t    nDel = 0;
-  SMemTable *pMem = committer->tsdb->imem;
+  SRBTreeIter iter[1] = {tRBTreeIterCreate(committer->tsdb->imem->tbDataTree, 1)};
 
-  if (pMem->nDel == 0) {  // no del data
-    goto _exit;
-  }
+  for (SRBTreeNode *node = tRBTreeIterNext(iter); node; node = tRBTreeIterNext(iter)) {
+    STbData   *tbData = TCONTAINER_OF(node, STbData, rbtn);
+    SDelRecord record[1] = {{
+        .suid = tbData->suid,
+        .uid = tbData->uid,
+    }};
 
-  for (int32_t iTbData = 0; iTbData < taosArrayGetSize(committer->aTbDataP); iTbData++) {
-    STbData *pTbData = (STbData *)taosArrayGetP(committer->aTbDataP, iTbData);
-
-    for (SDelData *pDelData = pTbData->pHead; pDelData; pDelData = pDelData->pNext) {
-      if (pDelData->eKey < committer->ctx->minKey) continue;
-      if (pDelData->sKey > committer->ctx->maxKey) {
-        committer->ctx->nextKey = TMIN(committer->ctx->nextKey, pDelData->sKey);
+    for (SDelData *delData = tbData->pHead; delData; delData = delData->pNext) {
+      if (delData->eKey < committer->ctx->minKey) continue;
+      if (delData->sKey > committer->ctx->maxKey) {
+        committer->ctx->nextKey = TMIN(committer->ctx->nextKey, delData->sKey);
         continue;
       }
 
-      code = tsdbCommitWriteDelData(committer, pTbData->suid, pTbData->uid, pDelData->version,
-                                    pDelData->sKey /* TODO */, pDelData->eKey /* TODO */);
+      record->version = delData->version;
+      record->skey = TMAX(delData->sKey, committer->ctx->minKey);
+      if (delData->eKey > committer->ctx->maxKey) {
+        committer->ctx->nextKey = TMIN(committer->ctx->nextKey, committer->ctx->maxKey + 1);
+        record->ekey = committer->ctx->maxKey;
+      } else {
+        record->ekey = delData->eKey;
+      }
+
+      code = tsdbSttFileWriteDelRecord(committer->sttWriter, record); // TODO
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d failed at line %d since %s", TD_VID(committer->tsdb->pVnode), lino, tstrerror(code));
-  } else {
-    tsdbDebug("vgId:%d %s done, fid:%d nDel:%" PRId64, TD_VID(committer->tsdb->pVnode), __func__, committer->ctx->fid,
-              pMem->nDel);
+    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
   }
   return code;
-#endif
 }
 
 static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {

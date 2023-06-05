@@ -45,16 +45,6 @@ int32_t tDelBlockPut(SDelBlock *delBlock, const SDelRecord *delRecord) {
   return 0;
 }
 
-int32_t tDelBlockEncode(SDelBlock *delBlock, void *buf, int32_t size) {
-  // TODO
-  return 0;
-}
-
-int32_t tDelBlockDecode(const void *buf, SDelBlock *delBlock) {
-  // TODO
-  return 0;
-}
-
 // STbStatisBlock ----------
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {

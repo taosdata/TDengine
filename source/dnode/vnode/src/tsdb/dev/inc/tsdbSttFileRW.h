@@ -63,7 +63,7 @@ int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter
 int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArray *opArray);
 int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row);
 int32_t tsdbSttFileWriteTSDataBlock(SSttFileWriter *writer, SBlockData *pBlockData);
-int32_t tsdbSttFileWriteDLData(SSttFileWriter *writer, TABLEID *tbid, SDelData *pDelData);
+int32_t tsdbSttFileWriteDelRecord(SSttFileWriter *writer, const SDelRecord *record);
 
 struct SSttFileWriterConfig {
   STsdb    *tsdb;

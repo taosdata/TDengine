@@ -63,8 +63,6 @@ int32_t tDelBlockInit(SDelBlock *delBlock);
 int32_t tDelBlockFree(SDelBlock *delBlock);
 int32_t tDelBlockClear(SDelBlock *delBlock);
 int32_t tDelBlockPut(SDelBlock *delBlock, const SDelRecord *delRecord);
-int32_t tDelBlockEncode(SDelBlock *delBlock, void *buf, int32_t size);
-int32_t tDelBlockDecode(const void *buf, SDelBlock *delBlock);
 
 // STbStatisBlock ----------
 #define STATIS_RECORD_NUM_ELEM 9
