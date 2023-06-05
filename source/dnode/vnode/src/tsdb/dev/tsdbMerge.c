@@ -611,10 +611,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbMerge(STsdb *tsdb) {
+int32_t tsdbMerge(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = TD_VID(tsdb->pVnode);
+  STsdb  *tsdb = (STsdb *)arg;
 
   SMerger merger[1] = {{
       .tsdb = tsdb,
@@ -631,9 +631,9 @@ int32_t tsdbMerge(STsdb *tsdb) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
   } else if (merger->ctx->opened) {
-    tsdbDebug("vgId:%d %s done", vid, __func__);
+    tsdbDebug("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
   }
   return code;
 }

@@ -53,6 +53,7 @@ struct STFileSystem {
   int32_t       state;
   int64_t       neid;
   EFEditT       etype;
+  bool          mergeTaskOn;
   TFileSetArray fSetArr[1];
   TFileSetArray fSetArrTmp[1];
 };

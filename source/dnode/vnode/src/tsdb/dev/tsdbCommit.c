@@ -473,10 +473,6 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
   taosThreadRwlockUnlock(&tsdb->rwLock);
   tsdbUnrefMemTable(pMemTable, NULL, true);
 
-  // TODO: make this call async
-  code = tsdbMerge(tsdb);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);

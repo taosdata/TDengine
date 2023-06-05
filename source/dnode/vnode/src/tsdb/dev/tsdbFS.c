@@ -15,6 +15,8 @@
 
 #include "inc/tsdbFS.h"
 
+extern int vnodeScheduleTask(int (*execute)(void *), void *arg);
+
 #define TSDB_FS_EDIT_MIN TSDB_FEDIT_COMMIT
 #define TSDB_FS_EDIT_MAX (TSDB_FEDIT_MERGE + 1)
 
@@ -45,6 +47,7 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   tsem_init(&fs[0]->canEdit, 0, 1);
   fs[0]->state = TSDB_FS_STATE_NONE;
   fs[0]->neid = 0;
+  fs[0]->mergeTaskOn = false;
   TARRAY2_INIT(fs[0]->fSetArr);
   TARRAY2_INIT(fs[0]->fSetArrTmp);
 
@@ -584,8 +587,46 @@ _exit:
 }
 
 int32_t tsdbFSEditCommit(STFileSystem *fs) {
-  int32_t code = commit_edit(fs);
-  tsem_post(&fs->canEdit);
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // commit
+  code = commit_edit(fs);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (fs->etype == TSDB_FEDIT_MERGE) {
+    ASSERT(fs->mergeTaskOn);
+    fs->mergeTaskOn = false;
+  }
+
+  // check if need to merge
+  if (fs->mergeTaskOn == false) {
+    STFileSet *fset;
+    TARRAY2_FOREACH_REVERSE(fs->fSetArr, fset) {
+      if (TARRAY2_SIZE(fset->lvlArr) == 0) continue;
+
+      SSttLvl *lvl0 = TARRAY2_FIRST(fset->lvlArr);
+      if (lvl0->level != 0 || TARRAY2_SIZE(lvl0->fobjArr) == 0) continue;
+
+      STFileObj *fobj = TARRAY2_FIRST(lvl0->fobjArr);
+
+      if (fobj->f->stt->nseg < fs->tsdb->pVnode->config.sttTrigger) continue;
+
+      code = vnodeScheduleTask(tsdbMerge, fs->tsdb);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      fs->mergeTaskOn = true;
+
+      break;
+    }
+  }
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(fs->tsdb->pVnode), lino, code);
+  } else {
+    tsem_post(&fs->canEdit);
+  }
   return code;
 }
 

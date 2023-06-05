@@ -304,7 +304,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 int32_t tsdbTakeReadSnap(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
 void    tsdbUntakeReadSnap(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 // tsdbMerge.c ==============================================================================================
-int32_t tsdbMerge(STsdb *pTsdb);
+int32_t tsdbMerge(void *arg);
 
 // tsdbDiskData ==============================================================================================
 int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
