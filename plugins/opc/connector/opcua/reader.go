@@ -169,31 +169,9 @@ func (r *reader) initNodeMetricMapping() error {
 		}
 
 		r.nodes = append(r.nodes, &uaNode{nodeID: nid, name: r.nodeToPoint(ctx, r.client.Node(nid)).Name, valueType: vt})
+		r.nodesToRead = append(r.nodesToRead, &ua.ReadValueID{NodeID: nid})
 	}
 
-	if err := r.registerNodes(); err != nil {
-		return fmt.Errorf("register nodes error %v", err)
-	}
-
-	return nil
-}
-
-func (r *reader) registerNodes() error {
-	if len(r.nodes) > 0 {
-		nodeToRegister := make([]*ua.NodeID, len(r.nodes))
-		for i, v := range r.nodes {
-			nodeToRegister[i] = v.nodeID
-		}
-		regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: nodeToRegister})
-		if err != nil {
-			return fmt.Errorf("register node failed: %w", err)
-		}
-		nodesToRead := make([]*ua.ReadValueID, len(regResp.RegisteredNodeIDs))
-		for i, v := range regResp.RegisteredNodeIDs {
-			nodesToRead[i] = &ua.ReadValueID{NodeID: v}
-		}
-		r.nodesToRead = nodesToRead
-	}
 	return nil
 }
 
@@ -260,6 +238,10 @@ func (r *reader) observeValue(ctx context.Context) ([]*common.NodeValue, error) 
 	for i, item := range res.Results {
 		node := r.nodes[i]
 		identifier := node.nodeID.String()
+		if item == nil || item.Value == nil {
+			logger.Error("## observe opc ua item is nil", "identifier", identifier, "item", item)
+			continue
+		}
 		logger.DebugF("## observe opc ua identifier [%s] value [%v] type [%v]", identifier, item.Value.Value(),
 			item.Value.Type())
 
@@ -349,7 +331,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 
 				v, ok := value.Value.(*ua.DataChangeNotification)
 				if !ok {
-					logger.WarnF("what's this publish result? %#v", value)
+					logger.WarnF("## subscribe data type is not *ua.DataChangeNotification, got %T", value.Value)
 					continue
 				}
 				if r.debug {
@@ -374,7 +356,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 
 					status := item.Value.Status
 					if status != ua.StatusOK && !r.containsBad {
-						logger.WarnF("## observe data for identifier [%q] status [%v] is not ok(0x0) ", id, status)
+						logger.WarnF("## subscribe data for identifier [%q] status [%v] is not ok(0x0) ", id, status)
 						continue
 					}
 

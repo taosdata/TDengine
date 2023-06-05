@@ -116,7 +116,7 @@ func (w *ArrowWriter) doWrite(ctx context.Context, values []*common.NodeValue) e
 	}
 
 	if err = w.writeRecord(ctx, record); err != nil {
-		logger.ErrorF("## write record error %v", "error", err)
+		logger.ErrorF("## write record error %v", err)
 		return err
 	}
 	return nil
