@@ -406,7 +406,7 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   int32_t        code = 0;
 
   if (isAdd) {
-    qDebug("add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), id);
+    qDebug("try to add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), id);
   }
 
   // traverse to the stream scanner node to add this table id

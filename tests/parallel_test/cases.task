@@ -564,7 +564,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
-#,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
+,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
 ,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
@@ -820,6 +820,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tagFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts_3398.py -N 3 -n 3
+
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode2mnode.py -N 5
