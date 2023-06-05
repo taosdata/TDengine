@@ -74,9 +74,6 @@ pub struct Agent {
     pub name: String,
     pub cluster_id: String,
     pub user_id: String,
-    pub expire_date: Option<NaiveDate>,
-    #[sqlx(try_from = "String")]
-    pub connectors: AgentConnectors,
 
     created_at: DateTime<Utc>,
     last_modified_at: Option<DateTime<Utc>>,
@@ -88,11 +85,6 @@ impl Agent {
         AgentClaims {
             sub: self.id,
             iat: self.created_at.timestamp(),
-            exp: self
-                .expire_date
-                .as_ref()
-                .map(|c| c.and_hms_opt(0, 0, 0).unwrap().timestamp())
-                .unwrap_or(NaiveDate::MAX.and_hms_opt(0, 0, 0).unwrap().timestamp()),
         }
     }
     pub fn jwt_encode(&self, secret: impl AsRef<[u8]>) -> String {
@@ -115,38 +107,16 @@ pub struct AgentProps {
     pub name: String,
     pub cluster_id: String,
     pub user_id: String,
-    pub expire_date: Option<NaiveDate>,
-    pub connectors: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, IntoParams)]
 pub struct AgentUpdates {
-    pub name: Option<String>,
-    pub expire_date: Option<NaiveDate>,
-    pub connectors: Option<Vec<String>>,
+    pub name: String,
 }
 
 impl AgentUpdates {
-    pub fn update_agent_with(&self, id: i64) -> Option<String> {
-        let name = self.name.as_ref().map(|v| format!("`name` = \"{}\"", v));
-        let exp = self
-            .expire_date
-            .as_ref()
-            .map(|v| format!("`expire_date` = \"{}\"", v.format("%Y-%m-%d")));
-        let connectors = self
-            .connectors
-            .as_ref()
-            .map(|v| format!("`connectors` = '{}'", serde_json::to_string(&v).unwrap()));
-
-        let s = name.into_iter().chain(exp).chain(connectors).join(",");
-
-        // log::debug!("update agent with {}", s);
-
-        if s.is_empty() {
-            None
-        } else {
-            Some(format!("UPDATE agents SET {s} WHERE id = {id}"))
-        }
+    pub fn update_agent_with(&self, id: i64) -> String {
+        format!("UPDATE agents SET `name` = {} WHERE id = {id}", self.name)
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
@@ -155,8 +125,6 @@ pub struct AgentClaims {
     pub sub: i64,
     /// Unix epoch in seconds for created time.
     pub iat: i64,
-    /// Unix epoch in seconds for expire time.
-    pub exp: i64,
 }
 
 impl AgentClaims {
