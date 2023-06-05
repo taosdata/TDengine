@@ -909,15 +909,11 @@ class StreamComputingTest(TDCase):
                 self.tdCom.delete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
             self.date_time += 1
             if tag_value:
-                print(tag_value)
-                time.sleep(2)
                 if subtable == "constant":
                     self.tdSql.query(f'select {tag_value} from {self.ext_ctb_stream_des_table}')
                 else:
                     self.tdSql.query(f'select {tag_value} from {self.stb_name}')
                 tag_value_list = self.tdSql.query_data
-                print(tag_value_list)
-                time.sleep(2)
             if not fill_value:
                 if stb_field_name_value == self.partitial_stb_filter_des_select_elm:
                     self.tdCom.check_query_data(f'select {self.partitial_stb_filter_des_select_elm } from ext_{self.stb_name}{self.des_table_suffix} order by ts', f'select _wstart AS wstart, {partitial_tb_source_str}  from {self.stb_name} partition by {partition} interval({self.dataDict["interval"]}s) order by wstart', sorted=True)
