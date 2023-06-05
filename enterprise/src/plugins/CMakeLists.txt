@@ -230,12 +230,8 @@ IF(TD_BULID_EXPLORER)
             BUILD_ALWAYS        off
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
             # COMMAND cargo update
             BUILD_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
             COMMAND yarn --version || npm install -g yarn
             COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && yarn && yarn build && cargo build --release
             COMMAND git checkout .
@@ -251,11 +247,7 @@ IF(TD_BULID_EXPLORER)
             BUILD_ALWAYS        off
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
             BUILD_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
             COMMAND yarn --version || npm install -g yarn
             COMMAND yarn && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} yarn build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
             COMMAND git checkout .
