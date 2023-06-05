@@ -504,11 +504,16 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 
 获取消费进度：
 
+版本要求 connector-rust >= v0.8.8， TDengine >= 3.0.5.0
+
 ```rust
 let assignments = consumer.assignments().await.unwrap();
 ```
 
 按照指定的进度消费：
+
+版本要求 connector-rust >= v0.8.8， TDengine >= 3.0.5.0
+
 
 ```rust
 consumer.offset_seek(topic, vgroup_id, offset).await;
