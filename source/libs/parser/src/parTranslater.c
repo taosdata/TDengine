@@ -3034,7 +3034,7 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
     code = scalarCalculateConstants(pCaseFunc, &pCell->pNode);
   }
   if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE != nodeType(pCell->pNode)) {
-    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Fill value is just a constant");
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Fill value can only accept constant");
   } else if (TSDB_CODE_SUCCESS != code) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled data type mismatch");
   }
