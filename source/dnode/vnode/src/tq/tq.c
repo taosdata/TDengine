@@ -264,7 +264,7 @@ int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq*
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
 
-  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, reqId:0x%" PRIx64, vgId,
+  tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, reqId:0x%" PRIx64, vgId,
           pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
 
   return 0;
@@ -418,6 +418,35 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
     }
   }
 
+  return 0;
+}
+
+int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
+  int32_t vgId = TD_VID(pTq->pVnode);
+  taosWLockLatch(&pTq->lock);
+  if (taosHashGetSize(pTq->pPushMgr) > 0) {
+    void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
+
+    while (pIter) {
+      STqHandle* pHandle = *(STqHandle**)pIter;
+      tqDebug("vgId:%d start set submit for pHandle:%p, consumer:0x%" PRIx64, vgId, pHandle, pHandle->consumerId);
+
+      if (ASSERT(pHandle->msg != NULL)) {
+        tqError("pHandle->msg should not be null");
+        break;
+      }else{
+        SRpcMsg msg = {.msgType = TDMT_VND_TMQ_CONSUME, .pCont = pHandle->msg->pCont, .contLen = pHandle->msg->contLen, .info = pHandle->msg->info};
+        tmsgPutToQueue(&pTq->pVnode->msgCb, QUERY_QUEUE, &msg);
+        taosMemoryFree(pHandle->msg);
+        pHandle->msg = NULL;
+      }
+
+      pIter = taosHashIterate(pTq->pPushMgr, pIter);
+    }
+
+    taosHashClear(pTq->pPushMgr);
+  }
+  taosWLockLatch(&pTq->lock);
   return 0;
 }
 

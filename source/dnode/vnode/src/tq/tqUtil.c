@@ -176,24 +176,20 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST && dataRsp.blockNum == 0) {
     // lock
     taosWLockLatch(&pTq->lock);
-    code = tqRegisterPushHandle(pTq, pHandle, pMsg);
-    taosWUnLockLatch(&pTq->lock);
-    tDeleteMqDataRsp(&dataRsp);
-    return code;
+    int64_t ver = walGetCommittedVer(pHandle->pWalReader->pWal);
+    if (pOffset->version >= ver || dataRsp.rspOffset.version >= ver){   //check if there are data again to avoid lost data
+      code = tqRegisterPushHandle(pTq, pHandle, pMsg);
+      taosWUnLockLatch(&pTq->lock);
+      goto end;
+    }else{
+      taosWUnLockLatch(&pTq->lock);
+    }
   }
 
-  // NOTE: this pHandle->consumerId may have been changed already.
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP, vgId);
 
-end : {
-  char buf[80] = {0};
-  tFormatOffset(buf, 80, &dataRsp.rspOffset);
-  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, reqId:0x%" PRIx64
-          " code:%d",
-          consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
+end :
   tDeleteMqDataRsp(&dataRsp);
-}
-
   return code;
 }
 
