@@ -1,0 +1,12 @@
+name: Release workflows for TDengine
+type: workflow
+
+tasks:
+  - task: td_release_cfg/lite.yaml
+  - task: td_release_cfg/community.yaml
+  - task: td_release_cfg/enterprise.yaml
+  - task: td_release_cfg/oem.yaml
+  # - task: td_release_cfg/windows.yaml
+  # - task: td_release_cfg/mac_x64.yaml
+  # - task: td_release_cfg/mac_arm64.yaml
+

@@ -1,0 +1,234 @@
+name: Release Power OEM enterprise
+type: feature
+logfile: logs/
+
+prepareActions:
+  enable: false
+  actions:
+    - pullTDinternal:
+        - python3
+        - new_release/pullRepo.py
+        - --repo taosdata/TDinternal
+        - --target main
+        - --path .
+    - pullTDengine:
+        - python3
+        - new_release/pullRepo.py
+        - --repo taosdata/TDengine
+        - --path ../../community
+        # - --target 373c128a7add2132e7b253ad71932c91f86548f6
+        - --target main
+
+postActions:
+  enable: true
+  actions:
+    - repack:
+        - python3
+        - repack-release.py
+        - -n PowerDB
+        - -p power
+        - -e support@powerdb.com
+        - -d ../../community/release
+        - -v 3.0.4.0
+
+
+parameters:
+  logfile: log.txt
+  verMode: cluster
+  dockerMode: "no" # push|latest|no
+  dockerProject: "tdengine"
+  pagMode: full
+
+  buildOptions:
+    OSTYPE: Linux
+    CPUTYPE: x64
+    WEBSOCKET: true
+    BUILD_TAOSX: true
+    SOMODE: dynamic
+    DBNAME: taos
+    VERTYPE: stable
+    VERDATE: true
+    GITINFO: community/$(git rev-parse --verify HEAD)
+    GITINFOI: enterprise/$(git rev-parse --verify HEAD)
+    VERNUMBER: 3.0.3.0
+    VERCOMPATIBLE: 3.0.0.0
+    BUILD_HTTP: internal
+    BUILD_TOOLS: true
+    BUILD_EXPLORER: true
+    JEMALLOC_ENABLED: true
+    CUS_NAME: TDengine
+    CUS_PROMPT: taos
+    CUS_EMAIL: support@taosdata.com
+    GRANT_VALUE: 60
+
+  OEMFLAG:
+   enable:
+       true
+   CUS_NAME:
+       PowerDB 
+   CUS_PROMPT:
+       power
+   CUS_EMAIL: 
+       suppoert@power.com
+
+  allBins:
+   - &remove communityScriptDir/remove.sh
+   - &set_core communityScriptDir/set_core.sh
+   - &startPre communityScriptDir/startPre.sh
+   - &clientName buildDir/bin/taos
+   - &taosadapter buildDir/bin/taosadapter
+   - &serverName buildDir/bin/taosd
+   - &taosd-dump-cfg communityScriptDir/taosd-dump-cfg.gdb
+   - &taos-explorer buildDir/bin/power-explorer
+   - &taoskeeper releaseDir/build-taoskeeper/taoskeeper
+   - &udfd buildDir/bin/udfd
+   - &get_client  communityScriptDir/get_client.sh
+   - &remove_client communityScriptDir/remove_client.sh
+   - &install_client communityScriptDir/install_client.sh
+   - &install_server communityScriptDir/install.sh
+
+  taosxBins:
+   - &taosx buildDir/bin/taosx
+  taosToolsBins:
+   - &taosdump buildDir/bin/taosdump
+   - &taosBenchmark buildDir/bin/taosBenchmark
+   - &tdengine-datasource_zip buildDir/bin/tdengine-datasource.zip
+   - &tdengine-datasource_zip_md5sum buildDir/bin/tdengine-datasource.zip.md5sum
+   - &TDinsight buildDir/bin/TDinsight.sh
+  libs:
+    - &libtaos  buildDir/lib/libtaos.so.
+    - &libtaows buildDir/lib/libtaosws.so
+  configs:
+    - &keeper releaseDir/build-taoskeeper/config/taoskeeper.toml
+    - &keeper_serice releaseDir/build-taoskeeper/taoskeeper.service
+    - &taosadapter_service compileDir/test/cfg/taosadapter.service
+    - &taosAdapter_toml compileDir/test/cfg/taosadapter.toml
+    - &taos_cfg communityCfgDir/taos.cfg
+    - &taos_service communityCfgDir/taosd.service
+    - &nginxd_service communityCfgDir/nginxd.service
+  headers:
+    - &taos_h communityDir/include/client/taos.h
+    - &taosdef_h communityDir/include/common/taosdef.h
+    - &taoserror_h communityDir/include/util/taoserror.h
+    - &taosudf_h communityDir/include/libs/function/taosudf.h
+    - &taosws_h buildDir/include/taosws.h
+  init.d:
+    - &rpm_server communityDir/packaging/rpm/taosd
+    - &deb_server communityDir/packaging/deb/taosd
+
+  TDenginePackages:
+    enable: true
+    tar.gz:
+      enable: true
+      server:
+        enable: true
+        component:
+          package.tar.gz:
+            comparessed: true
+            bin:
+              - *remove
+              - *serverName
+              - *clientName
+              - *set_core
+              - *startPre
+              - *taosadapter
+              - *taosBenchmark
+              - *taosd-dump-cfg
+              - *taosdump
+              - *taos-explorer
+              - *taoskeeper
+              - *taosx
+              - *tdengine-datasource_zip
+              - *tdengine-datasource_zip_md5sum
+              - *TDinsight
+              - *udfd
+            cfg:
+              - *keeper
+              - *keeper_serice
+              - *taosAdapter_toml
+              - *taosadapter_service
+              - *taos_cfg
+              - *taos_service
+            inc:
+              - *taos_h
+              - *taosdef_h
+              - *taoserror_h
+              - *taosudf_h
+              - *taosws_h
+            init.d:
+              - *rpm_server
+              - *deb_server
+            jemalloc: folder
+          driver:
+            - *libtaos
+            - *libtaows
+            - vercomp.txt
+          install.sh: *install_server
+          share: 
+            - admin:
+               folder: true
+               src: webDir/admin
+            - etc:
+               folder: true
+               src: buildDir/share/etc
+            - srv:
+               folder: true
+               src: buildDir/share/srv
+            - admin/images:
+                src: webDir/png/taos.png
+
+      client:
+        enable: true
+        component:
+          package.tar.gz:
+            bin:
+              - *clientName
+              - *get_client
+              - *set_core
+              - *remove_client
+            cfg:
+              - *taos_cfg
+            inc:
+              - *taos_h
+              - *taosdef_h
+              - *taoserror_h
+              - *taosudf_h
+              - *taosws_h
+            jemalloc:  true
+          driver:
+            - *libtaos
+            - *libtaows
+            - vercomp.txt
+          install_client.sh: *install_client
+    deb:
+      enable: false
+      server:
+        enable: true
+      client:
+        enable: false
+    rpm:
+      enable: false
+      server:
+        enable: true
+      client:
+        enable: false
+
+  taosToolsPackages:
+    enable: true
+    tar.gz:
+      enable: true
+      avro:
+        - lib
+      bin:
+        - *taosBenchmark
+        - *taosdump
+        - *tdengine-datasource_zip
+        - *tdengine-datasource_zip_md5sum
+        - *TDinsight
+      install-tools.sh: true
+      uninstall-tools.sh: true
+    deb:
+      enable: false
+    rpm:
+      enable: false
+

@@ -1,11 +1,11 @@
 ## =========================== Install taosKeeper ======================================
-echo "Install taoskeeper as a standalone service"
+echo "Install keeper as a standalone service"
 exists=$(tar -tf $tarName | grep bin/taoskeeper)
 if [ "$exists" = "" ]; then
   exit
 else
-  ${csudo}tar -x --strip-components 2 -C ${bin_link_dir} --overwrite -f $tarName ./bin/taoskeeper
-  ${csudo}tar -x --strip-components 2 -C ${service_config_dir}/ --overwrite -f $tarName ./cfg/taoskeeper.service
+  ${csudo}tar -C ${bin_link_dir} --strip-components 2 -xzf $tarName ./bin/taoskeeper > /dev/null
+  ${csudo}tar -C ${service_config_dir}/ --strip-components 2 -xzf $tarName ./cfg/taoskeeper.service > /dev/null
   if [ -f "${configDir}/keeper.toml" ]; then
     echo "The file keeper.toml will be renamed to taoskeeper.toml"
     ${csudo}tar -C /tmp --strip-components 2 -xzf $tarName ./cfg/taoskeeper.toml > /dev/null

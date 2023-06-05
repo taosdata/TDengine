@@ -31,8 +31,10 @@ LIST(APPEND LIB_SRC ./src/grantMain.c)
 
 IF (BUILD_WITH_CFG_GRANTS)
   ADD_DEFINITIONS(-DGRANTS_CFG)
-  ADD_LIBRARY(grant STATIC ${LIB_SRC} ./src/wmachine.c)
-ELSE ()
+  #ADD_LIBRARY(grant STATIC ${LIB_SRC} ./src/wmachine.c)
+ENDIF ()
+
+IF(TD_ENTERPRISE)
   IF (TD_LINUX_64)
     IF (TD_NINGSI)
       ADD_LIBRARY(grant STATIC ${LIB_SRC} ${TD_SOURCE_DIR}/enterprise/contrib/grant-lib/machine_ningsi.o)
