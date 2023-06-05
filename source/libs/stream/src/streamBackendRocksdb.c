@@ -173,15 +173,16 @@ void streamBackendCleanup(void* arg) {
   rocksdb_env_destroy(pHandle->env);
   rocksdb_cache_destroy(pHandle->cache);
 
-  taosThreadMutexDestroy(&pHandle->mutex);
   SListNode* head = tdListPopHead(pHandle->list);
   while (head != NULL) {
     streamStateDestroyCompar(head->data);
     taosMemoryFree(head);
     head = tdListPopHead(pHandle->list);
   }
-  // rocksdb_compactionfilterfactory_destroy(pHandle->filterFactory);
+
   tdListFree(pHandle->list);
+  taosThreadMutexDestroy(&pHandle->mutex);
+
   taosThreadMutexDestroy(&pHandle->cfMutex);
 
   taosMemoryFree(pHandle);
