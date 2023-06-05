@@ -433,6 +433,9 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
       .size = 0,
   };
 
+  // TODO: init footer
+  // writer->footer->blockIdxPtr->offset = 0;
+
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
@@ -983,25 +986,29 @@ static int32_t tsdbDataFileWriterOpenDataFD(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  for (int32_t i = 0; i < TSDB_FTYPE_TOMB /* TODO */; ++i) {
+  int32_t ftypes[] = {TSDB_FTYPE_HEAD, TSDB_FTYPE_DATA, TSDB_FTYPE_SMA};
+
+  for (int32_t i = 0; i < ARRAY_SIZE(ftypes); ++i) {
+    int32_t ftype = ftypes[i];
+
     char    fname[TSDB_FILENAME_LEN];
     int32_t flag = TD_FILE_READ | TD_FILE_WRITE;
 
-    if (writer->files[i].size == 0) {
+    if (writer->files[ftype].size == 0) {
       flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
     }
 
-    tsdbTFileName(writer->config->tsdb, &writer->files[i], fname);
+    tsdbTFileName(writer->config->tsdb, &writer->files[ftype], fname);
     code = tsdbOpenFile(fname, writer->config->szPage, flag, &writer->fd[i]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (writer->files[i].size == 0) {
+    if (writer->files[ftype].size == 0) {
       uint8_t hdr[TSDB_FHDR_SIZE] = {0};
 
-      code = tsdbWriteFile(writer->fd[i], 0, hdr, TSDB_FHDR_SIZE);
+      code = tsdbWriteFile(writer->fd[ftype], 0, hdr, TSDB_FHDR_SIZE);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      writer->files[i].size += TSDB_FHDR_SIZE;
+      writer->files[ftype].size += TSDB_FHDR_SIZE;
     }
   }
 
@@ -1132,6 +1139,43 @@ int32_t tsdbDataFileFlushTSDataBlock(SDataFileWriter *writer) {
   return tsdbDataFileWriteDataBlock(writer, writer->bData);
 }
 
+static int32_t tsdbDataFileWriterOpenTombFD(SDataFileWriter *writer) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  char    fname[TSDB_FILENAME_LEN];
+  int32_t ftypes[2] = {TSDB_FTYPE_HEAD, TSDB_FTYPE_TOMB};
+
+  for (int32_t i = 0; i < ARRAY_SIZE(ftypes); ++i) {
+    int32_t ftype = ftypes[i];
+
+    if (writer->fd[ftype]) continue;
+
+    int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+
+    tsdbTFileName(writer->config->tsdb, writer->files + ftype, fname);
+    code = tsdbOpenFile(fname, writer->config->szPage, flag, &writer->fd[ftype]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (writer->files[ftype].size == 0) {
+      uint8_t hdr[TSDB_FHDR_SIZE] = {0};
+
+      code = tsdbWriteFile(writer->fd[i], 0, hdr, TSDB_FHDR_SIZE);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      writer->files[i].size += TSDB_FHDR_SIZE;
+    }
+  }
+
+  // Open iter (TODO)
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
 int32_t tsdbDataFileWriteTombRecord(SDataFileWriter *writer, const STombRecord *record) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1142,8 +1186,9 @@ int32_t tsdbDataFileWriteTombRecord(SDataFileWriter *writer, const STombRecord *
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (writer->fd[TSDB_FTYPE_TOMB] == NULL) {
-    // TODO
+  if (!writer->fd[TSDB_FTYPE_TOMB]) {
+    code = tsdbDataFileWriterOpenTombFD(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 #endif
 
