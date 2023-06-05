@@ -98,13 +98,37 @@ taosX 是进行数据同步与复制的核心组件，以下运行模式指 taos
 
 可以直接在命令行上添加必要的参数直接启动 taosX 即为命令行模式运行。当命令行参数所指定的任务完成后 taosX 会自动停止。taosX 在运行中如果出现错误也会自动停止。也可以在任意时刻使用 ctrl+c 停止 taosX 的运行。本节介绍如何使用 taosX 的各种使用场景下的命令行。
 
-#### 从 TDengine 到 TDengine 的数据同步
+#### DSN (Data Source Name)
 
-##### TDengine 3.0 -> TDengine 3.0
+Taosx 命令行模式使用 DSN 来表示一个数据源（来源或目的源），典型的 DSN 如下：
+
+```bash
+# url-like
+<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<object>][?<p1>=<v1>[&<p2>=<v2>]]
+|------|------------|---|-----------|-----------|------|------|----------|-----------------------|
+|driver|   protocol |   | username  | password  | host | port |  object  |  params               |
+
+
+[] 中的数据都为可选参数。
+// url 示例
+tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
+驱动（driver）分别有 taos，tmq，local几个选项。
+taos：使用连接 TDengine 的数据源
+tmq：启用数据订阅从 TDengine 中获取数据
+local：数据备份或恢复
+
+localhost:6030 表示数据源的地址和端口，db1 表示具体的数据库，root 和 taosdata 表示该数据源的用户名和密码，问号后则是这个 dsn 的参数。不同的驱动（driver）拥有不同的参数。
++ws 表示使用 rest 获取数据，不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
+
+
+```
+##### 从 TDengine 到 TDengine 的数据同步
+
+###### TDengine 3.0 -> TDengine 3.0
 
 在两个相同版本 （都是 3.0.x.y）的 TDengine 集群之间将源集群中的存量及增量数据同步到目标集群中。
 
-参数说明：
+命令行模式下支持的参数如下：
 
 | 参数名称  | 说明                                                             | 默认值                     |
 |-----------|------------------------------------------------------------------|----------------------------|
@@ -116,36 +140,76 @@ taosX 是进行数据同步与复制的核心组件，以下运行模式指 taos
 ```shell
 taosx run -f 'tmq://root:taosdata@localhost:6030/db1?group.id=taosx1&client.id=taosx&timeout=never' -t 'taos://root:taosdata@another.com:6030/db2'
 ```
-以上示例中的参数表示：
+
+常见错误排查：
 
 
-##### TDengine 2.4(2.6) -> TDengine 3.0
+
+###### TDengine 2.4(2.6) -> TDengine 3.0
 
 将 2.4（2.6） 版本 TDengine 集群中的数据迁移到 3.0 版本 TDengine 集群。
 
+命令行模式下支持的参数如下：
 
+| 参数名称           | 说明                                                                                                                                                                                                                                      | 默认值                                 |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|
+| libraryPath        | 在 option 模式下指定 taos 库路径                                                                                                                                                                                                          | 无                                     |
+| configDir          | 指定 taos.cfg 配置文件路径                                                                                                                                                                                                                | 无                                     |
+| mode               | 数据源参数。 history 表示历史数据。 realtime 表示实时同步。 all 表示以上两种。                                                                                                                                                            | history                                |
+| restro             | 数据源参数。 在同步实时数据前回溯指定时间长度的数据进行同步。 restro=10m 表示回溯最近 10 分钟的数据以后，启动实时同步。                                                                                                                   | 无                                     |
+| interval           | 数据源参数。 轮询间隔 ，mode=realtime&interval=5s 指定轮询间隔为 5s                                                                                                                                                                       | 无                                     |
+| excursion          | 数据源参数。 允许一段时间的乱序数据                                                                                                                                                                                                       | 500ms                                  |
+| stables            | 数据源参数。 仅同步指定超级表的数据，多个超级表名用英文逗号 ,分隔                                                                                                                                                                         | 无                                     |
+| tables             | 数据源参数。 仅同步指定子表的数据，表名格式为 {stable}.{table} 或 {table}，多个表名用英文逗号 , 分隔，支持 @filepath 的方式输入一个文件，每行视为一个表名，如 tables=@./tables.txt 表示从 ./tables.txt 中按行读取每个表名，空行将被忽略。 | 无                                     |
+| select-from-stable | 数据源参数。 从超级表获取 select {columns} from stable where tbname in ({tbnames}) ，这种情况 tables 使用 {stable}.{table} 数据格式，如 meters.d0 表示 meters 超级表下面的 d0 子表。                                                      | 默认使用 select \* from table 获取数据 |
+| assert             | 目标源参数。 taos:///db1?assert 将检测数据库是否存在，如不存在，将自动创建目标数据库。                                                                                                                                                    | 默认不自动创建库。                     |
+| force-stmt         | 目标源参数。 当 TDengine 版本大于 3.0 时，仍然使用 STMT 方式写入。                                                                                                                                                                        | 默认为 raw block 写入方式              |
+| batch-size         | 目标源参数。 设置 STMT 写入模式下的最大批次插入条数。                                                                                                                                                                                     |                                        |
+| interval           | 目标源参数。 每批次写入后的休眠时间。                                                                                                                                                                                                     | 无                                     |
+| max-sql-length     | 目标源参数。 用于建表的 SQL 最大长度，单位为 bytes。                                                                                                                                                                                      | 默认 800_000 字节。                    |
+| failes-to          | 目标源参数。 添加此参数，值为文件路径，将写入错误的表及其错误原因写入该文件，正常执行其他表的同步任务。                                                                                                                                   | 默认写入错误立即退出。                 |
+| timeout-per-table  | 目标源参数。 为子表或普通表同步任务添加超时。                                                                                                                                                                                             | 无                                     |
+| update-tags        | 目标源参数。 检查子表存在与否，不存在时正常建表，存在时检查标签值是否一致，不一致则更新。                                                                                                                                                 | 无                                     |
+
+示例：
+```shell
+taosx run -f 'taos://td2:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all' -t 'taos://td3:6030/db2?libraryPath=./libtaos.so.3.0.1.8' -v
+```
+
+常见错误排查：
 
 1. 参数列表及其含义
 2. Linux/Windows 示例
 3. 常见错误排查
 
-#### 从 TDengine 备份数据文件到本地
+##### 从 TDengine 备份数据文件到本地
+
+示例：
+```shell
+taosx run -f 'tmq://this/db1' -t 'local:/path/to/backup/directory'
+
+```
+参数说明：
+
+
+##### 从本地数据文件恢复到 TDengine
+
+示例：
+```shell
+taosx run -f 'local:/path/to/backups/of/one' -t 'taos://root:taosdata@another.com:6030/db1'
+```
+参数说明：
+
+
+##### 从 OPC-UA 同步数据到 TDengine
 
 @chenyang
 
-#### 从本地数据文件恢复到 TDengine
-
-@chenyang
-
-#### 从 OPC-UA 同步数据到 TDengine
-
-@chenyang
-
-#### 从 OPC-DA 同步数据到 TDengine (Windows)
+##### 从 OPC-DA 同步数据到 TDengine (Windows)
 
 @zhengqin
 
-#### 从 Pi 同步数据到 TDengine (Windows)
+##### 从 Pi 同步数据到 TDengine (Windows)
 
 在 taosX CLI 运行时支持的参数如下：
 - PISystemName：连接配置 PI 系统服务名，默认值与 PIServerName 一致
@@ -166,12 +230,15 @@ taosx run \
 - TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 ，按照 element 的每个 Arrtribution 作为子表导入到 TDengine 服务器 tdengine 的 pi 库中
 - TemplateForAFElement：使用 AF Point 模式将模板template3 ，template4 ，按照 element 的 Attribution 集合作为一个子表导入到 TDengine 服务器 tdengine的 pi 库中
 
+常见错误排查：
 
-### 从 InfluxDB 同步数据到 TDengine
+
+
+#### 从 InfluxDB 同步数据到 TDengine
 
 @zhengqin
 
-### 从 MQTT 同步数据到 TDengine
+#### 从 MQTT 同步数据到 TDengine
 
 @xuwang
 
