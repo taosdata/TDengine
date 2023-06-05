@@ -379,6 +379,15 @@ Note: `tmq.TopicPartition` is reserved for compatibility purpose
 
 Commit information.
 
+* `func (c *Consumer) Assignment() (partitions []tmq.TopicPartition, err error)`
+
+Get Assignment(TDengine >= 3.0.5.0 and driver-go >= v3.5.0 are required).
+
+* `func (c *Consumer) Seek(partition tmq.TopicPartition, ignoredTimeoutMs int) error`
+Note: `ignoredTimeoutMs` is reserved for compatibility purpose
+
+Seek offset(TDengine >= 3.0.5.0 and driver-go >= v3.5.0 are required).
+
 * `func (c *Consumer) Unsubscribe() error`
 
 Unsubscribe.
@@ -468,6 +477,15 @@ Note: `tmq.TopicPartition` is reserved for compatibility purpose
 
 Commit information.
 
+* `func (c *Consumer) Assignment() (partitions []tmq.TopicPartition, err error)`
+
+Get Assignment(TDengine >= 3.0.5.0 and driver-go >= v3.5.0 are required).
+
+* `func (c *Consumer) Seek(partition tmq.TopicPartition, ignoredTimeoutMs int) error`
+Note: `ignoredTimeoutMs` is reserved for compatibility purpose
+
+Seek offset(TDengine >= 3.0.5.0 and driver-go >= v3.5.0 are required).
+
 * `func (c *Consumer) Unsubscribe() error`
 
 Unsubscribe.
@@ -476,7 +494,7 @@ Unsubscribe.
 
 Close consumer.
 
-For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
+For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/main/examples/tmqoverws/main.go)
 
 ### parameter binding via WebSocket
 
@@ -524,7 +542,7 @@ For a complete example see [GitHub sample file](https://github.com/taosdata/driv
 
   Closes the parameter binding.
 
-For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/stmtoverws/main.go)
+For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/main/examples/stmtoverws/main.go)
 
 ## API Reference
 
