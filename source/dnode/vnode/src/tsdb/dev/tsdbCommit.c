@@ -221,7 +221,12 @@ static int32_t tsdbCommitDelData(SCommitter2 *committer) {
 
   SMemTable *mem = committer->tsdb->imem;
 
-  if (mem->nDel == 0) goto _exit;
+  if (mem->nDel == 0                        //
+      || (committer->ctx->fset == NULL      //
+          && committer->sttWriter == NULL)  //
+  ) {
+    goto _exit;
+  }
 
   SRBTreeIter iter[1] = {tRBTreeIterCreate(committer->tsdb->imem->tbDataTree, 1)};
 
@@ -248,7 +253,12 @@ static int32_t tsdbCommitDelData(SCommitter2 *committer) {
         record->ekey = delData->eKey;
       }
 
-      code = tsdbSttFileWriteDelRecord(committer->sttWriter, record); // TODO
+      if (!committer->sttWriter) {
+        code = tsdbCommitOpenWriter(committer);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+
+      code = tsdbSttFileWriteDelRecord(committer->sttWriter, record);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }

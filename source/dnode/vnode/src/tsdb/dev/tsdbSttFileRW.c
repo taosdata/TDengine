@@ -262,6 +262,11 @@ int32_t tsdbSttFileReadDelBlock(SSttSegReader *reader, const SDelBlk *delBlk, SD
                           &reader->reader->config->bufArr[2]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
+    for (int32_t j = 0; j < delBlk->numRec; ++j) {
+      code = TARRAY2_APPEND(&dData->dataArr[i], ((int64_t *)(reader->reader->config->bufArr[1]))[j]);
+      continue;
+    }
+
     size += delBlk->size[i];
   }
 
@@ -474,7 +479,7 @@ static int32_t tsdbSttFileDoWriteDelBlock(SSttFileWriter *writer) {
   for (int32_t i = 0; i < ARRAY_SIZE(writer->dData->dataArr); i++) {
     int32_t size;
     code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&writer->dData->dataArr[i]),
-                        TARRAY2_DATA_LEN(&writer->dData->dataArr[i]), TSDB_DATA_TYPE_BIGINT, writer->config->cmprAlg,
+                        TARRAY2_DATA_LEN(&writer->dData->dataArr[i]), TSDB_DATA_TYPE_BIGINT, TWO_STAGE_COMP,
                         &writer->config->aBuf[0], 0, &size, &writer->config->aBuf[1]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
