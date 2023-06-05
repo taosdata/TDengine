@@ -552,10 +552,11 @@ bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
 // recover and fill history
-int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version);
+int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask);
 int32_t streamTaskLaunchRecover(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask);
-int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t version);
+int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp);
+int32_t streamTaskStartHistoryTask(SStreamTask* pTask, int64_t ver);
 
 // common
 int32_t streamSetParamForRecover(SStreamTask* pTask);
@@ -570,7 +571,6 @@ int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver);
 int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask);
 // agg level
 int32_t streamAggRecoverPrepare(SStreamTask* pTask);
-// int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask);
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId);
 
 void         streamMetaInit();

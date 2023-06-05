@@ -238,16 +238,17 @@ int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* p
   return 0;
 }
 
-static int32_t mndScheduleFillHistoryStreamTask(SMnode* pMnode, SStreamObj* pStream) {
-  return 0;
-}
-
 static int32_t addSourceStreamTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTaskList, SArray* pSinkTaskList,
                                    SStreamObj* pStream, SSubplan* plan, uint64_t uid, int8_t fillHistory,
                                    bool hasExtraSink) {
   SStreamTask* pTask = tNewStreamTask(uid, TASK_LEVEL__SOURCE, fillHistory, pStream->conf.triggerParam, pTaskList);
   if (pTask == NULL) {
     return terrno;
+  }
+
+  if (fillHistory) { // todo set the correct ts, which should be last key of queried table.
+    pTask->dataRange.window.skey = INT64_MIN;
+    pTask->dataRange.window.ekey = taosGetTimestampMs();
   }
 
   // sink or dispatch

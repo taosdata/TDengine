@@ -31,7 +31,7 @@ typedef struct {
   void*  timer;
 } SStreamGlobalEnv;
 
-static SStreamGlobalEnv streamEnv;
+extern SStreamGlobalEnv streamEnv;
 
 int32_t streamDispatchStreamBlock(SStreamTask* pTask);
 

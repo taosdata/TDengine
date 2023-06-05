@@ -387,9 +387,10 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     }
 
     // todo handle the fill history task
+    ASSERT(0);
     if (pTask->fillHistory) {
       ASSERT(pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM);
-      streamTaskCheckDownstream(pTask, ver);
+      streamTaskCheckDownstreamTasks(pTask);
     }
   }
 

@@ -14,6 +14,7 @@
  */
 
 #include "streamInc.h"
+#include "ttimer.h"
 
 int32_t streamTaskLaunchRecover(SStreamTask* pTask) {
   qDebug("s-task:%s at node %d launch recover", pTask->id.idStr, pTask->nodeId);
@@ -54,8 +55,9 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask) {
 }
 
 // check status
-int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t ver) {
-  qDebug("s-task:%s in fill history stage, ver:%"PRId64, pTask->id.idStr, ver);
+int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
+  qDebug("s-task:%s in fill history stage, ver:%"PRId64" ekey:%"PRId64, pTask->id.idStr, pTask->dataRange.range.maxVer,
+      pTask->dataRange.window.ekey);
 
   SStreamTaskCheckReq req = {
       .streamId = pTask->id.streamId,
@@ -135,7 +137,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask) {
   return atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__NORMAL? 1:0;
 }
 
-int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t ver) {
+int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp) {
   ASSERT(pTask->id.taskId == pRsp->upstreamTaskId);
 
   qDebug("s-task:%s at node %d recv check rsp from task:0x%x at node %d: status %d", pTask->id.idStr,
@@ -295,6 +297,64 @@ int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId) {
     }
   }
   return 0;
+}
+
+static void doCheckDownstreamStatus(SStreamTask* pTask, SStreamTask* pHTask) {
+  pHTask->dataRange.range.minVer = 0;
+  pHTask->dataRange.range.maxVer = pTask->chkInfo.currentVer;
+
+  qDebug("s-task:%s set the launch condition for fill history task:%s, window:%" PRId64 " - %" PRId64
+             " verrange:%" PRId64 " - %" PRId64,
+         pTask->id.idStr, pHTask->id.idStr, pHTask->dataRange.window.skey, pHTask->dataRange.window.ekey,
+         pHTask->dataRange.range.minVer, pHTask->dataRange.range.maxVer);
+
+  // check if downstream tasks have been ready
+  streamTaskCheckDownstreamTasks(pHTask);
+}
+
+static void tryLaunchHistoryTask(void* param, void* tmrId) {
+  SStreamTask* pTask = param;
+
+  SStreamMeta* pMeta = pTask->pMeta;
+  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, &pTask->historyTaskId.taskId, sizeof(pTask->historyTaskId.taskId));
+  if (pHTask == NULL) {
+    qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it is not built yet", pTask->id.idStr,
+          pMeta->vgId, pTask->historyTaskId.taskId);
+
+    taosTmrReset(tryLaunchHistoryTask, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->timer);
+    return;
+  }
+
+  doCheckDownstreamStatus(pTask, *pHTask);
+}
+
+// todo fix the bug: 2. race condition
+// an fill history task needs to be started.
+int32_t streamTaskStartHistoryTask(SStreamTask* pTask, int64_t ver) {
+  SStreamMeta* pMeta = pTask->pMeta;
+  if (pTask->historyTaskId.taskId == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Set the execute conditions, including the query time window and the version range
+  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, &pTask->historyTaskId.taskId, sizeof(pTask->historyTaskId.taskId));
+  if (pHTask == NULL) {
+    qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it is not built yet", pTask->id.idStr,
+          pMeta->vgId, pTask->historyTaskId.taskId);
+
+    if (pTask->timer == NULL) {
+      pTask->timer = taosTmrStart(tryLaunchHistoryTask,  100, pTask, streamEnv.timer);
+      if (pTask->timer == NULL) {
+        // todo failed to create timer
+      }
+    }
+
+    // try again in 500ms
+    return TSDB_CODE_SUCCESS;
+  }
+
+  doCheckDownstreamStatus(pTask, *pHTask);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tEncodeSStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq) {

@@ -588,6 +588,40 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   }
 }
 
+int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
+  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
+       pMsg->msgType == TDMT_VND_BATCH_META) &&
+      !syncIsReadyForRead(pVnode->sync)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
+
+  switch (pMsg->msgType) {
+    case TDMT_STREAM_TASK_RUN:
+      return tqProcessTaskRunReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_DISPATCH:
+      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
+    case TDMT_STREAM_TASK_CHECK:
+      return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_DISPATCH_RSP:
+      return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RETRIEVE:
+      return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RETRIEVE_RSP:
+      return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE:
+      return tqProcessTaskRecover1Req(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RECOVER_FINISH:
+      return tqProcessTaskRecoverFinishReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RECOVER_FINISH_RSP:
+      return tqProcessTaskRecoverFinishRsp(pVnode->pTq, pMsg);
+    default:
+      vError("unknown msg type:%d in fetch queue", pMsg->msgType);
+      return TSDB_CODE_APP_ERROR;
+  }
+}
+
 // TODO: remove the function
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO

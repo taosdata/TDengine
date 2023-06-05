@@ -21,6 +21,8 @@
 #define ONE_MB_F                                  (1048576.0)
 #define QUEUE_MEM_SIZE_IN_MB(_q)                  (taosQueueMemorySize(_q) / ONE_MB_F)
 
+SStreamGlobalEnv streamEnv;
+
 int32_t streamInit() {
   int8_t old;
   while (1) {
