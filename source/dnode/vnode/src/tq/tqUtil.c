@@ -176,7 +176,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST && dataRsp.blockNum == 0) {
     // lock
     taosWLockLatch(&pTq->lock);
-    int64_t ver = walGetCommittedVer(pHandle->pWalReader->pWal);
+    int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);
     if (pOffset->version >= ver || dataRsp.rspOffset.version >= ver){   //check if there are data again to avoid lost data
       code = tqRegisterPushHandle(pTq, pHandle, pMsg);
       taosWUnLockLatch(&pTq->lock);
