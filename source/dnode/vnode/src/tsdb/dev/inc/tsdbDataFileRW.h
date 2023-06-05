@@ -75,6 +75,7 @@ int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, TFileOpArr
 int32_t tsdbDataFileWriteTSData(SDataFileWriter *writer, SRowInfo *row);
 int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *writer, SBlockData *bData);
 int32_t tsdbDataFileFlushTSDataBlock(SDataFileWriter *writer);
+int32_t tsdbDataFileWriteTombRecord(SDataFileWriter *writer, const STombRecord *record);
 
 #ifdef __cplusplus
 }

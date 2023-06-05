@@ -17,6 +17,7 @@
 
 typedef struct {
   SFDataPtr blockIdxPtr[1];
+  SFDataPtr tombBlkPtr[1];  // TODO: keep footer here
   SFDataPtr rsrvd[2];
 } SDataFooter;
 
@@ -29,6 +30,7 @@ struct SDataFileReader {
   struct {
     bool    footerLoaded;
     bool    blockIdxLoaded;
+    bool    tombBlkLoaded;
     TABLEID tbid[1];
   } ctx[1];
 
@@ -37,6 +39,7 @@ struct SDataFileReader {
   SDataFooter    footer[1];
   TBlockIdxArray blockIdxArray[1];
   TDataBlkArray  dataBlkArray[1];
+  TTombBlkArray  tombBlkArray[1];
 };
 
 static int32_t tsdbDataFileReadFooter(SDataFileReader *reader) {
@@ -221,6 +224,34 @@ int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **t
   int32_t code = 0;
   int32_t lino = 0;
 
+  if (!reader->ctx->tombBlkLoaded) {
+    if (!reader->ctx->footerLoaded) {
+      code = tsdbDataFileReadFooter(reader);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    TARRAY2_CLEAR(reader->tombBlkArray, NULL);
+
+    if (reader->footer->tombBlkPtr->size) {
+      code = tRealloc(&reader->config->bufArr[0], reader->footer->tombBlkPtr->size);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tsdbReadFile(reader->fd[TSDB_FTYPE_TOMB], reader->footer->tombBlkPtr->offset, reader->config->bufArr[0],
+                          reader->footer->tombBlkPtr->size);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      int32_t size = reader->footer->tombBlkPtr->size / sizeof(STombBlk);
+      for (int32_t i = 0; i < size; ++i) {
+        code = TARRAY2_APPEND_PTR(reader->tombBlkArray, ((STombBlk *)reader->config->bufArr[0]) + i);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    }
+
+    reader->ctx->tombBlkLoaded = true;
+  }
+
+  tombBlkArray[0] = reader->tombBlkArray;
+
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
@@ -231,6 +262,26 @@ _exit:
 int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombBlk, STombBlock *tData) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  code = tRealloc(&reader->config->bufArr[0], tombBlk->dp->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbReadFile(reader->fd[TSDB_FTYPE_TOMB], tombBlk->dp->offset, reader->config->bufArr[0], tombBlk->dp->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  tTombBlockClear(tData);
+
+  int32_t size = 0;
+  for (int32_t i = 0; i < ARRAY_SIZE(tData->dataArr); ++i) {
+    code = tsdbDecmprData(reader->config->bufArr[0] + size, tombBlk->size[i], TSDB_DATA_TYPE_BIGINT, TWO_STAGE_COMP,
+                          &reader->config->bufArr[1], 0, &reader->config->bufArr[2]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    for (int32_t j = 0; j < tombBlk->numRec; j++) {
+      code = TARRAY2_APPEND_PTR(tData->dataArr + i, ((int64_t *)reader->config->bufArr[1]) + j);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+  }
 
 _exit:
   if (code) {
@@ -266,9 +317,10 @@ struct SDataFileWriter {
   SDataFooter    footer[1];
   TBlockIdxArray blockIdxArray[1];
   TDataBlkArray  dataBlkArray[1];
+  TTombBlkArray  tombBlkArray[1];
   SBlockData     bData[1];
-  SDelData       dData[1];
   STbStatisBlock sData[1];
+  STombBlock     tData[1];
 };
 
 static int32_t tsdbDataFileWriteBlockIdx(SDataFileWriter *writer) {
@@ -731,6 +783,89 @@ _exit:
   return code;
 }
 
+static int32_t tsdbDataFileDoWriteTombBlock(SDataFileWriter *writer) {
+  if (TOMB_BLOCK_SIZE(writer->tData) == 0) return 0;
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STombBlk tombBlk[1] = {{
+      .numRec = TOMB_BLOCK_SIZE(writer->tData),
+      .minTid =
+          {
+              .suid = TARRAY2_FIRST(writer->tData->suid),
+              .uid = TARRAY2_FIRST(writer->tData->uid),
+          },
+      .maxTid =
+          {
+              .suid = TARRAY2_LAST(writer->tData->suid),
+              .uid = TARRAY2_LAST(writer->tData->uid),
+          },
+      .minVer = TARRAY2_FIRST(writer->tData->version),
+      .maxVer = TARRAY2_FIRST(writer->tData->version),
+      .dp[0] =
+          {
+              .offset = writer->files[TSDB_FTYPE_TOMB].size,
+              .size = 0,
+          },
+  }};
+
+  for (int32_t i = 1; i < TOMB_BLOCK_SIZE(writer->tData); i++) {
+    tombBlk->minVer = TMIN(tombBlk->minVer, TARRAY2_GET(writer->tData->version, i));
+    tombBlk->maxVer = TMAX(tombBlk->maxVer, TARRAY2_GET(writer->tData->version, i));
+  }
+
+  for (int32_t i = 0; i < ARRAY_SIZE(writer->tData->dataArr); i++) {
+    int32_t size;
+    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&writer->tData->dataArr[i]),
+                        TARRAY2_DATA_LEN(&writer->tData->dataArr[i]), TSDB_DATA_TYPE_BIGINT, TWO_STAGE_COMP,
+                        &writer->config->bufArr[0], 0, &size, &writer->config->bufArr[1]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tsdbWriteFile(writer->fd[TSDB_FTYPE_TOMB], writer->files[TSDB_FTYPE_TOMB].size, writer->config->bufArr[0],
+                         size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    tombBlk->size[i] = size;
+    tombBlk->dp[0].size += size;
+    writer->files[TSDB_FTYPE_TOMB].size += size;
+  }
+
+  code = TARRAY2_APPEND_PTR(writer->tombBlkArray, tombBlk);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  tTombBlockClear(writer->tData);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+static int32_t tsdbDataFileDoWriteTombBlk(SDataFileWriter *writer) {
+  if (writer->fd[TSDB_FTYPE_TOMB] == NULL) return 0;
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  writer->footer->tombBlkPtr->offset = writer->files[TSDB_FTYPE_TOMB].size;
+  writer->footer->tombBlkPtr->size = TARRAY2_DATA_LEN(writer->tombBlkArray);
+
+  if (writer->footer->tombBlkPtr->size) {
+    code = tsdbWriteFile(writer->fd[TSDB_FTYPE_TOMB], writer->footer->tombBlkPtr->offset,
+                         (const uint8_t *)TARRAY2_DATA(writer->tombBlkArray), writer->footer->tombBlkPtr->size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    writer->files[TSDB_FTYPE_TOMB].size += writer->footer->tombBlkPtr->size;
+  }
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
 static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArray *opArr) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -743,6 +878,12 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbDataFileWriteBlockIdx(writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbDataFileDoWriteTombBlock(writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbDataFileDoWriteTombBlk(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbDataFileWriteFooter(writer);
@@ -838,38 +979,6 @@ _exit:
   return code;
 }
 
-int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer) {
-  writer[0] = taosMemoryCalloc(1, sizeof(SDataFileWriter));
-  if (!writer[0]) return TSDB_CODE_OUT_OF_MEMORY;
-
-  writer[0]->config[0] = config[0];
-  return 0;
-}
-
-int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, TFileOpArray *opArr) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  if (writer[0]->ctx->opened) {
-    if (abort) {
-      code = tsdbDataFileWriterCloseAbort(writer[0]);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    } else {
-      code = tsdbDataFileWriterCloseCommit(writer[0], opArr);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-    tsdbDataFileWriterDoClose(writer[0]);
-  }
-  taosMemoryFree(writer[0]);
-  writer[0] = NULL;
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(writer[0]->config->tsdb->pVnode), lino, code);
-  }
-  return code;
-}
-
 static int32_t tsdbDataFileWriterOpenDataFD(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -899,6 +1008,38 @@ static int32_t tsdbDataFileWriterOpenDataFD(SDataFileWriter *writer) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer) {
+  writer[0] = taosMemoryCalloc(1, sizeof(SDataFileWriter));
+  if (!writer[0]) return TSDB_CODE_OUT_OF_MEMORY;
+
+  writer[0]->config[0] = config[0];
+  return 0;
+}
+
+int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, TFileOpArray *opArr) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (writer[0]->ctx->opened) {
+    if (abort) {
+      code = tsdbDataFileWriterCloseAbort(writer[0]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } else {
+      code = tsdbDataFileWriterCloseCommit(writer[0], opArr);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    tsdbDataFileWriterDoClose(writer[0]);
+  }
+  taosMemoryFree(writer[0]);
+  writer[0] = NULL;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(writer[0]->config->tsdb->pVnode), lino, code);
   }
   return code;
 }
@@ -989,4 +1130,34 @@ int32_t tsdbDataFileFlushTSDataBlock(SDataFileWriter *writer) {
   if (writer->ctx->tbHasOldData) return 0;
 
   return tsdbDataFileWriteDataBlock(writer, writer->bData);
+}
+
+int32_t tsdbDataFileWriteTombRecord(SDataFileWriter *writer, const STombRecord *record) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+#if 1
+  if (!writer->ctx->opened) {
+    code = tsdbDataFileWriterDoOpen(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (writer->fd[TSDB_FTYPE_TOMB] == NULL) {
+    // TODO
+  }
+#endif
+
+  code = tTombBlockPut(writer->tData, record);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (TOMB_BLOCK_SIZE(writer->tData) >= writer->config->maxRow) {
+    code = tsdbDataFileDoWriteTombBlock(writer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
+  }
+  return code;
 }
