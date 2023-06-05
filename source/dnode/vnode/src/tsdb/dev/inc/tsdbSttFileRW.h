@@ -46,7 +46,7 @@ int32_t tsdbSttFileReadTombBlk(SSttSegReader *reader, const TTombBlkArray **delB
 
 int32_t tsdbSttFileReadDataBlock(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData);
 int32_t tsdbSttFileReadStatisBlock(SSttSegReader *reader, const SStatisBlk *statisBlk, STbStatisBlock *sData);
-int32_t tsdbSttFileReadDelBlock(SSttSegReader *reader, const STombBlk *delBlk, STombBlock *dData);
+int32_t tsdbSttFileReadTombBlock(SSttSegReader *reader, const STombBlk *delBlk, STombBlock *dData);
 
 struct SSttFileReaderConfig {
   STsdb    *tsdb;

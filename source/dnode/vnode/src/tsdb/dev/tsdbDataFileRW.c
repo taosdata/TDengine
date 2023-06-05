@@ -217,6 +217,28 @@ _exit:
   return code;
 }
 
+int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **tombBlkArray) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombBlk, STombBlock *tData) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
 // SDataFileWriter =============================================
 struct SDataFileWriter {
   SDataFileWriterConfig config[1];

@@ -15,6 +15,7 @@
 
 #include "tsdbDef.h"
 #include "tsdbFSet.h"
+#include "tsdbSttFileRW.h"
 #include "tsdbUtil.h"
 
 #ifndef _TSDB_DATA_FILE_RW_H
@@ -46,6 +47,8 @@ int32_t tsdbDataFileReaderClose(SDataFileReader **reader);
 int32_t tsdbDataFileReadBlockIdx(SDataFileReader *reader, const TBlockIdxArray **blockIdxArray);
 int32_t tsdbDataFileReadDataBlk(SDataFileReader *reader, const SBlockIdx *blockIdx, const TDataBlkArray **dataBlkArray);
 int32_t tsdbDataFileReadDataBlock(SDataFileReader *reader, const SDataBlk *dataBlk, SBlockData *bData);
+int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **tombBlkArray);
+int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombBlk, STombBlock *tData);
 
 // SDataFileWriter =============================================
 typedef struct SDataFileWriter SDataFileWriter;

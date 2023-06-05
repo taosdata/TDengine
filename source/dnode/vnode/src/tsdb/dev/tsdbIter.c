@@ -20,7 +20,10 @@ struct STsdbIter {
   struct {
     bool noMoreData;
   } ctx[1];
-  SRowInfo    row[1];
+  union {
+    SRowInfo    row[1];
+    STombRecord record[1];
+  };
   SRBTreeNode node[1];
   EIterType   type;
   union {
@@ -47,6 +50,26 @@ struct STsdbIter {
       STbData    *tbData;
       STbDataIter tbIter[1];
     } memt[1];
+    struct {
+      SSttSegReader       *reader;
+      const TTombBlkArray *tombBlkArray;
+      int32_t              tombBlkArrayIdx;
+      STombBlock           tData[1];
+      int32_t              iRow;
+    } sttTomb[1];
+    struct {
+      SDataFileReader     *reader;
+      const TTombBlkArray *tombBlkArray;
+      int32_t              tombBlkArrayIdx;
+      STombBlock           tData[1];
+      int32_t              iRow;
+    } dataTomb[1];
+    struct {
+      SMemTable  *memt;
+      SRBTreeIter iter[1];
+      STbData    *tbData;
+      STbDataIter tbIter[1];
+    } memtTomb[1];
   };
 };
 
@@ -197,6 +220,55 @@ _exit:
   return 0;
 }
 
+static int32_t tsdbDataTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
+  while (!iter->ctx->noMoreData) {
+    for (; iter->dataTomb->iRow < TOMB_BLOCK_SIZE(iter->dataTomb->tData); iter->dataTomb->iRow++) {
+      iter->record->suid = TARRAY2_GET(iter->dataTomb->tData->suid, iter->dataTomb->iRow);
+      iter->record->uid = TARRAY2_GET(iter->dataTomb->tData->uid, iter->dataTomb->iRow);
+
+      if (tbid && iter->record->suid == tbid->suid && iter->record->uid == tbid->uid) {
+        continue;
+      }
+
+      iter->record->version = TARRAY2_GET(iter->dataTomb->tData->version, iter->dataTomb->iRow);
+      iter->record->skey = TARRAY2_GET(iter->dataTomb->tData->skey, iter->dataTomb->iRow);
+      iter->record->ekey = TARRAY2_GET(iter->dataTomb->tData->ekey, iter->dataTomb->iRow);
+      iter->dataTomb->iRow++;
+      goto _exit;
+    }
+
+    if (iter->dataTomb->tombBlkArrayIdx >= TARRAY2_SIZE(iter->dataTomb->tombBlkArray)) {
+      iter->ctx->noMoreData = true;
+      break;
+    }
+
+    for (; iter->dataTomb->tombBlkArrayIdx < TARRAY2_SIZE(iter->dataTomb->tombBlkArray);
+         iter->dataTomb->tombBlkArrayIdx++) {
+      const STombBlk *tombBlk = TARRAY2_GET_PTR(iter->dataTomb->tombBlkArray, iter->dataTomb->tombBlkArrayIdx);
+
+      if (tbid && tbid->suid == tombBlk->minTid.suid && tbid->uid == tombBlk->minTid.uid &&
+          tbid->suid == tombBlk->maxTid.suid && tbid->uid == tombBlk->maxTid.uid) {
+        continue;
+      }
+
+      int32_t code = tsdbDataFileReadTombBlock(iter->dataTomb->reader, tombBlk, iter->dataTomb->tData);
+      if (code) return code;
+
+      iter->dataTomb->iRow = 0;
+      iter->dataTomb->tombBlkArrayIdx++;
+      break;
+    }
+  }
+
+_exit:
+  return 0;
+}
+
+static int32_t tsdbMemTableTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
+  ASSERTS(0, "Not implemented yet!");
+  return 0;
+}
+
 static int32_t tsdbSttIterOpen(STsdbIter *iter) {
   int32_t code;
 
@@ -249,12 +321,92 @@ static int32_t tsdbSttIterClose(STsdbIter *iter) {
   return 0;
 }
 
+static int32_t tsdbDataTombIterOpen(STsdbIter *iter) {
+  int32_t code;
+
+  code = tsdbDataFileReadTombBlk(iter->dataTomb->reader, &iter->dataTomb->tombBlkArray);
+  if (code) return code;
+
+  if (TARRAY2_SIZE(iter->dataTomb->tombBlkArray) == 0) {
+    iter->ctx->noMoreData = true;
+    return 0;
+  }
+  iter->data->blockIdxArrayIdx = 0;
+
+  tTombBlockInit(iter->dataTomb->tData);
+  iter->dataTomb->iRow = 0;
+
+  return tsdbDataTombIterNext(iter, NULL);
+}
+
 static int32_t tsdbDataIterClose(STsdbIter *iter) {
   tBlockDataDestroy(iter->data->bData);
   return 0;
 }
 
 static int32_t tsdbMemTableIterClose(STsdbIter *iter) { return 0; }
+
+static int32_t tsdbSttTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
+  while (!iter->ctx->noMoreData) {
+    for (; iter->sttTomb->iRow < TOMB_BLOCK_SIZE(iter->sttTomb->tData); iter->sttTomb->iRow++) {
+      iter->record->suid = TARRAY2_GET(iter->sttTomb->tData->suid, iter->sttTomb->iRow);
+      iter->record->uid = TARRAY2_GET(iter->sttTomb->tData->uid, iter->sttTomb->iRow);
+
+      if (tbid && iter->record->suid == tbid->suid && iter->record->uid == tbid->uid) {
+        continue;
+      }
+
+      iter->record->version = TARRAY2_GET(iter->sttTomb->tData->version, iter->sttTomb->iRow);
+      iter->record->skey = TARRAY2_GET(iter->sttTomb->tData->skey, iter->sttTomb->iRow);
+      iter->record->ekey = TARRAY2_GET(iter->sttTomb->tData->ekey, iter->sttTomb->iRow);
+      iter->sttTomb->iRow++;
+      goto _exit;
+    }
+
+    if (iter->sttTomb->tombBlkArrayIdx >= TARRAY2_SIZE(iter->sttTomb->tombBlkArray)) {
+      iter->ctx->noMoreData = true;
+      break;
+    }
+
+    for (; iter->sttTomb->tombBlkArrayIdx < TARRAY2_SIZE(iter->sttTomb->tombBlkArray);
+         iter->sttTomb->tombBlkArrayIdx++) {
+      const STombBlk *tombBlk = TARRAY2_GET_PTR(iter->sttTomb->tombBlkArray, iter->sttTomb->tombBlkArrayIdx);
+
+      if (tbid && tbid->suid == tombBlk->minTid.suid && tbid->uid == tombBlk->minTid.uid &&
+          tbid->suid == tombBlk->maxTid.suid && tbid->uid == tombBlk->maxTid.uid) {
+        continue;
+      }
+
+      int32_t code = tsdbSttFileReadTombBlock(iter->sttTomb->reader, tombBlk, iter->sttTomb->tData);
+      if (code) return code;
+
+      iter->sttTomb->iRow = 0;
+      iter->sttTomb->tombBlkArrayIdx++;
+      break;
+    }
+  }
+
+_exit:
+  return 0;
+}
+
+static int32_t tsdbSttTombIterOpen(STsdbIter *iter) {
+  int32_t code;
+
+  code = tsdbSttFileReadTombBlk(iter->sttTomb->reader, &iter->sttTomb->tombBlkArray);
+  if (code) return code;
+
+  if (TARRAY2_SIZE(iter->sttTomb->tombBlkArray) == 0) {
+    iter->ctx->noMoreData = true;
+    return 0;
+  }
+
+  iter->sttTomb->tombBlkArrayIdx = 0;
+  tTombBlockInit(iter->sttTomb->tData);
+  iter->sttTomb->iRow = 0;
+
+  return tsdbSttTombIterNext(iter, NULL);
+}
 
 int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
   int32_t code;
@@ -278,8 +430,19 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
       iter[0]->memt->from[0] = config->from[0];
       code = tsdbMemTableIterOpen(iter[0]);
       break;
+    case TSDB_ITER_TYPE_STT_TOMB:
+      iter[0]->sttTomb->reader = config->sttReader;
+      code = tsdbSttTombIterOpen(iter[0]);
+      break;
+    case TSDB_ITER_TYPE_DATA_TOMB:
+      iter[0]->dataTomb->reader = config->dataReader;
+      code = tsdbDataTombIterOpen(iter[0]);
+      break;
+    case TSDB_ITER_TYPE_MEMT_TOMB:
+      ASSERTS(0, "Not implemented");
+      break;
     default:
-      ASSERT(false);
+      ASSERTS(false, "Not implemented");
   }
 
   if (code) {
@@ -287,6 +450,16 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
     iter[0] = NULL;
   }
   return code;
+}
+
+static int32_t tsdbSttTombIterClose(STsdbIter *iter) {
+  tTombBlockFree(iter->sttTomb->tData);
+  return 0;
+}
+
+static int32_t tsdbDataTombIterClose(STsdbIter *iter) {
+  tTombBlockFree(iter->dataTomb->tData);
+  return 0;
 }
 
 int32_t tsdbIterClose(STsdbIter **iter) {
@@ -299,6 +472,15 @@ int32_t tsdbIterClose(STsdbIter **iter) {
       break;
     case TSDB_ITER_TYPE_MEMT:
       tsdbMemTableIterClose(iter[0]);
+      break;
+    case TSDB_ITER_TYPE_STT_TOMB:
+      tsdbSttTombIterClose(iter[0]);
+      break;
+    case TSDB_ITER_TYPE_DATA_TOMB:
+      tsdbDataTombIterClose(iter[0]);
+      break;
+    case TSDB_ITER_TYPE_MEMT_TOMB:
+      ASSERTS(false, "Not implemented");
       break;
     default:
       ASSERT(false);
@@ -316,6 +498,12 @@ int32_t tsdbIterNext(STsdbIter *iter) {
       return tsdbDataIterNext(iter, NULL);
     case TSDB_ITER_TYPE_MEMT:
       return tsdbMemTableIterNext(iter, NULL);
+    case TSDB_ITER_TYPE_STT_TOMB:
+      return tsdbSttTombIterNext(iter, NULL);
+    case TSDB_ITER_TYPE_DATA_TOMB:
+      return tsdbDataTombIterNext(iter, NULL);
+    case TSDB_ITER_TYPE_MEMT_TOMB:
+      return tsdbMemTableTombIterNext(iter, NULL);
     default:
       ASSERT(false);
   }
@@ -342,20 +530,49 @@ static int32_t tsdbIterCmprFn(const SRBTreeNode *n1, const SRBTreeNode *n2) {
   return tRowInfoCmprFn(&iter1->row, &iter2->row);
 }
 
+static int32_t tsdbTombIterCmprFn(const SRBTreeNode *n1, const SRBTreeNode *n2) {
+  STsdbIter *iter1 = TCONTAINER_OF(n1, STsdbIter, node);
+  STsdbIter *iter2 = TCONTAINER_OF(n2, STsdbIter, node);
+
+  if (iter1->record->suid < iter2->record->suid) {
+    return -1;
+  } else if (iter1->record->suid > iter2->record->suid) {
+    return 1;
+  }
+
+  if (iter1->record->uid < iter2->record->uid) {
+    return -1;
+  } else if (iter1->record->uid > iter2->record->uid) {
+    return 1;
+  }
+
+  if (iter1->record->version < iter2->record->version) {
+    return -1;
+  } else if (iter1->record->version > iter2->record->version) {
+    return 1;
+  }
+
+  return 0;
+}
+
 // SIterMerger ================
 struct SIterMerger {
   STsdbIter *iter;
   SRBTree    iterTree[1];
 };
 
-int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger) {
+int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger, bool isTomb) {
   STsdbIter   *iter;
   SRBTreeNode *node;
 
   merger[0] = taosMemoryCalloc(1, sizeof(*merger[0]));
   if (!merger[0]) return TSDB_CODE_OUT_OF_MEMORY;
 
-  tRBTreeCreate(merger[0]->iterTree, tsdbIterCmprFn);
+  if (isTomb) {
+    tRBTreeCreate(merger[0]->iterTree, tsdbTombIterCmprFn);
+  } else {
+    tRBTreeCreate(merger[0]->iterTree, tsdbIterCmprFn);
+  }
   TARRAY2_FOREACH(iterArray, iter) {
     if (iter->ctx->noMoreData) continue;
     node = tRBTreePut(merger[0]->iterTree, iter->node);
@@ -385,7 +602,7 @@ int32_t tsdbIterMergerNext(SIterMerger *merger) {
     if (merger->iter->ctx->noMoreData) {
       merger->iter = NULL;
     } else if ((node = tRBTreeMin(merger->iterTree))) {
-      c = tsdbIterCmprFn(merger->iter->node, node);
+      c = merger->iterTree->cmprFn(merger->iter->node, node);
       ASSERT(c);
       if (c > 0) {
         node = tRBTreePut(merger->iterTree, merger->iter->node);
@@ -402,7 +619,8 @@ int32_t tsdbIterMergerNext(SIterMerger *merger) {
   return 0;
 }
 
-SRowInfo *tsdbIterMergerGet(SIterMerger *merger) { return merger->iter ? merger->iter->row : NULL; }
+SRowInfo    *tsdbIterMergerGet(SIterMerger *merger) { return merger->iter ? merger->iter->row : NULL; }
+STombRecord *tsdbIterMergerGetTombRecord(SIterMerger *merger) { return merger->iter ? merger->iter->record : NULL; }
 
 int32_t tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid) {
   int32_t      code;
@@ -416,7 +634,7 @@ int32_t tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid) {
     if (merger->iter->ctx->noMoreData) {
       merger->iter = NULL;
     } else if ((node = tRBTreeMin(merger->iterTree))) {
-      c = tsdbIterCmprFn(merger->iter->node, node);
+      c = merger->iterTree->cmprFn(merger->iter->node, node);
       ASSERT(c);
       if (c > 0) {
         node = tRBTreePut(merger->iterTree, merger->iter->node);

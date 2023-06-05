@@ -174,7 +174,7 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
   code = TARRAY2_APPEND(committer->iterArray, iter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbIterMergerOpen(committer->iterArray, &committer->iterMerger);
+  code = tsdbIterMergerOpen(committer->iterArray, &committer->iterMerger, false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // loop iter

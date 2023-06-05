@@ -24,9 +24,9 @@ extern "C" {
 
 // SDelBlock ----------
 
-#define DEL_RECORD_NUM_ELEM 5
+#define TOMB_RECORD_NUM_ELEM 5
 typedef union {
-  int64_t aData[DEL_RECORD_NUM_ELEM];
+  int64_t aData[TOMB_RECORD_NUM_ELEM];
   struct {
     int64_t suid;
     int64_t uid;
@@ -37,7 +37,7 @@ typedef union {
 } STombRecord;
 
 typedef union {
-  TARRAY2(int64_t) dataArr[DEL_RECORD_NUM_ELEM];
+  TARRAY2(int64_t) dataArr[TOMB_RECORD_NUM_ELEM];
   struct {
     TARRAY2(int64_t) suid[1];
     TARRAY2(int64_t) uid[1];
@@ -49,7 +49,7 @@ typedef union {
 
 typedef struct {
   int32_t   numRec;
-  int32_t   size[DEL_RECORD_NUM_ELEM];
+  int32_t   size[TOMB_RECORD_NUM_ELEM];
   TABLEID   minTid;
   TABLEID   maxTid;
   int64_t   minVer;

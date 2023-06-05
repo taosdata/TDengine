@@ -33,17 +33,20 @@ typedef enum {
   TSDB_ITER_TYPE_STT = 1,
   TSDB_ITER_TYPE_DATA,
   TSDB_ITER_TYPE_MEMT,
+  TSDB_ITER_TYPE_STT_TOMB,
+  TSDB_ITER_TYPE_DATA_TOMB,
+  TSDB_ITER_TYPE_MEMT_TOMB,
 } EIterType;
 
 typedef struct {
   EIterType type;
   union {
-    SSttSegReader   *sttReader;
-    SDataFileReader *dataReader;
+    SSttSegReader   *sttReader;   //  TSDB_ITER_TYPE_STT || TSDB_ITER_TYPE_STT_TOMB
+    SDataFileReader *dataReader;  // TSDB_ITER_TYPE_DATA || TSDB_ITER_TYPE_DATA_TOMB
     struct {
       SMemTable *memt;
       TSDBKEY    from[1];
-    };
+    };  // TSDB_ITER_TYPE_MEMT || TSDB_ITER_TYPE_MEMT_TOMB
   };
 } STsdbIterConfig;
 
@@ -53,11 +56,12 @@ int32_t tsdbIterClose(STsdbIter **iter);
 int32_t tsdbIterNext(STsdbIter *iter);
 
 // SIterMerger ===============
-int32_t   tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger);
-int32_t   tsdbIterMergerClose(SIterMerger **merger);
-int32_t   tsdbIterMergerNext(SIterMerger *merger);
-SRowInfo *tsdbIterMergerGet(SIterMerger *merger);
-int32_t   tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid);
+int32_t      tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger, bool isTomb);
+int32_t      tsdbIterMergerClose(SIterMerger **merger);
+int32_t      tsdbIterMergerNext(SIterMerger *merger);
+SRowInfo    *tsdbIterMergerGet(SIterMerger *merger);
+STombRecord *tsdbIterMergerGetTombRecord(SIterMerger *merger);
+int32_t      tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid);
 
 #ifdef __cplusplus
 }

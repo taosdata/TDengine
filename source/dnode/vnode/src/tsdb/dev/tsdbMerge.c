@@ -360,7 +360,7 @@ static int32_t tsdbMergeFileSetBeginOpenIter(SMerger *merger) {
     }
   }
 
-  code = tsdbIterMergerOpen(merger->iterArr, &merger->iterMerger);
+  code = tsdbIterMergerOpen(merger->iterArr, &merger->iterMerger, false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

@@ -243,7 +243,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFileReadDelBlock(SSttSegReader *reader, const STombBlk *tombBlk, STombBlock *dData) {
+int32_t tsdbSttFileReadTombBlock(SSttSegReader *reader, const STombBlk *tombBlk, STombBlock *dData) {
   int32_t code = 0;
   int32_t lino = 0;
 
