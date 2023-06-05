@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
@@ -1191,9 +1191,18 @@ impl TaskController {
         Ok(offsets)
     }
 
-    pub async fn find_agent_by_name_and_userid(&self, name: &str, cluster_id: Option<&str>, id: Option<usize>) -> anyhow::Result<Vec<Agent>> {
+    pub async fn find_agent_by_name_and_cluster_id(
+        &self,
+        name: &str,
+        cluster_id: Option<&str>,
+        id: Option<usize>,
+    ) -> anyhow::Result<Vec<Agent>> {
         let mut sql = if id.is_some() {
-            format!("select * from agents where name = '{}' and id != '{}'", name, id.unwrap())
+            format!(
+                "select * from agents where name = '{}' and id != '{}'",
+                name,
+                id.unwrap()
+            )
         } else {
             format!("select * from agents where name = '{}'", name)
         };
@@ -1205,22 +1214,21 @@ impl TaskController {
     }
 
     pub async fn create_agent(&self, agent: AgentProps) -> anyhow::Result<AgentWithToken> {
-        let result = self.find_agent_by_name_and_userid(&agent.name, Some(&agent.cluster_id), None).await?;
+        let result = self
+            .find_agent_by_name_and_cluster_id(&agent.name, Some(&agent.cluster_id), None)
+            .await?;
         if result.len() > 0 {
             anyhow::bail!("agent name has existed");
         }
 
         let res = sqlx::query(
-            "INSERT INTO agents (`dsn`, `name`, `cluster_id`, `user_id`, \
-            `expire_date`, `connectors`, created_at) \
-            VALUES(?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO agents (`dsn`, `name`, `cluster_id`, `user_id`, created_at) \
+            VALUES(?, ?, ?, ?, ?)",
         )
         .bind(&agent.dsn)
         .bind(&agent.name)
         .bind(&agent.cluster_id)
         .bind(&agent.user_id)
-        .bind(&agent.expire_date)
-        .bind(&serde_json::to_string(&agent.connectors).unwrap())
         .bind(Utc::now())
         .execute(&self.pool)
         .await?;
@@ -1300,27 +1308,20 @@ impl TaskController {
         agent_id: i64,
         update: AgentUpdates,
     ) -> anyhow::Result<Option<AgentWithToken>> {
-        let name = update.name.clone();
-        if name.is_some() {
-            let result = self.find_agent_by_name_and_userid(name.unwrap().as_str(), None, Some(agent_id as usize)).await?;
-            if result.len() > 0 {
-                anyhow::bail!("agent name has existed");
-            }
+        let name = update.name.as_str();
+        let result = self
+            .find_agent_by_name_and_cluster_id(name, None, Some(agent_id as usize))
+            .await?;
+        if result.len() > 0 {
+            anyhow::bail!("agent name has existed");
         }
-        if let Some(sql) = update.update_agent_with(agent_id) {
-            sqlx::query(&sql).execute(&self.pool).await?;
-            let secret = self.jwt_secret().await?;
-            Ok(self
-                .get_agent_by_id(agent_id)
-                .await?
-                .map(|a| a.with_token(&secret)))
-        } else {
-            let secret = self.jwt_secret().await?;
-            Ok(self
-                .get_agent_by_id(agent_id)
-                .await?
-                .map(|a| a.with_token(&secret)))
-        }
+        let sql = update.update_agent_with(agent_id);
+        sqlx::query(&sql).execute(&self.pool).await?;
+        let secret = self.jwt_secret().await?;
+        Ok(self
+            .get_agent_by_id(agent_id)
+            .await?
+            .map(|a| a.with_token(&secret)))
     }
 
     pub async fn delete_agent(&self, agent_id: i64) -> anyhow::Result<()> {
@@ -1832,7 +1833,7 @@ impl TaskDetail {
                     task: value,
                     agent: None,
                     parser,
-                }
+                },
             }
         } else {
             TaskDetail {
@@ -1849,7 +1850,6 @@ impl TaskDetail {
                 parser,
             }
         }
-        
     }
 
     pub fn expand(mut self) -> Self {
