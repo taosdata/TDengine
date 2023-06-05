@@ -25,7 +25,7 @@ extern "C" {
 
 typedef TARRAY2(SSttBlk) TSttBlkArray;
 typedef TARRAY2(SStatisBlk) TStatisBlkArray;
-typedef TARRAY2(SDelBlk) TDelBlkArray;
+typedef TARRAY2(STombBlk) TTombBlkArray;
 
 // SSttFileReader ==========================================
 typedef struct SSttFileReader       SSttFileReader;
@@ -42,11 +42,11 @@ int32_t tsdbSttFileReaderGetSegReader(SSttFileReader *reader, const TSttSegReade
 // SSttSegReader
 int32_t tsdbSttFileReadSttBlk(SSttSegReader *reader, const TSttBlkArray **sttBlkArray);
 int32_t tsdbSttFileReadStatisBlk(SSttSegReader *reader, const TStatisBlkArray **statisBlkArray);
-int32_t tsdbSttFileReadDelBlk(SSttSegReader *reader, const TDelBlkArray **delBlkArray);
+int32_t tsdbSttFileReadTombBlk(SSttSegReader *reader, const TTombBlkArray **delBlkArray);
 
 int32_t tsdbSttFileReadDataBlock(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData);
 int32_t tsdbSttFileReadStatisBlock(SSttSegReader *reader, const SStatisBlk *statisBlk, STbStatisBlock *sData);
-int32_t tsdbSttFileReadDelBlock(SSttSegReader *reader, const SDelBlk *delBlk, SDelBlock *dData);
+int32_t tsdbSttFileReadDelBlock(SSttSegReader *reader, const STombBlk *delBlk, STombBlock *dData);
 
 struct SSttFileReaderConfig {
   STsdb    *tsdb;
@@ -63,7 +63,7 @@ int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter
 int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArray *opArray);
 int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row);
 int32_t tsdbSttFileWriteTSDataBlock(SSttFileWriter *writer, SBlockData *pBlockData);
-int32_t tsdbSttFileWriteDelRecord(SSttFileWriter *writer, const SDelRecord *record);
+int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *record);
 
 struct SSttFileWriterConfig {
   STsdb    *tsdb;

@@ -231,8 +231,8 @@ static int32_t tsdbCommitDelData(SCommitter2 *committer) {
   SRBTreeIter iter[1] = {tRBTreeIterCreate(committer->tsdb->imem->tbDataTree, 1)};
 
   for (SRBTreeNode *node = tRBTreeIterNext(iter); node; node = tRBTreeIterNext(iter)) {
-    STbData   *tbData = TCONTAINER_OF(node, STbData, rbtn);
-    SDelRecord record[1] = {{
+    STbData    *tbData = TCONTAINER_OF(node, STbData, rbtn);
+    STombRecord record[1] = {{
         .suid = tbData->suid,
         .uid = tbData->uid,
     }};
@@ -258,7 +258,7 @@ static int32_t tsdbCommitDelData(SCommitter2 *committer) {
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
-      code = tsdbSttFileWriteDelRecord(committer->sttWriter, record);
+      code = tsdbSttFileWriteTombRecord(committer->sttWriter, record);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }

@@ -34,7 +34,7 @@ typedef union {
     int64_t skey;
     int64_t ekey;
   };
-} SDelRecord;
+} STombRecord;
 
 typedef union {
   TARRAY2(int64_t) dataArr[DEL_RECORD_NUM_ELEM];
@@ -45,9 +45,9 @@ typedef union {
     TARRAY2(int64_t) skey[1];
     TARRAY2(int64_t) ekey[1];
   };
-} SDelBlock;
+} STombBlock;
 
-typedef struct SDelBlk {
+typedef struct {
   int32_t   numRec;
   int32_t   size[DEL_RECORD_NUM_ELEM];
   TABLEID   minTid;
@@ -55,14 +55,14 @@ typedef struct SDelBlk {
   int64_t   minVer;
   int64_t   maxVer;
   SFDataPtr dp[1];
-} SDelBlk;
+} STombBlk;
 
-#define DEL_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
+#define TOMB_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
 
-int32_t tDelBlockInit(SDelBlock *delBlock);
-int32_t tDelBlockFree(SDelBlock *delBlock);
-int32_t tDelBlockClear(SDelBlock *delBlock);
-int32_t tDelBlockPut(SDelBlock *delBlock, const SDelRecord *delRecord);
+int32_t tTombBlockInit(STombBlock *delBlock);
+int32_t tTombBlockFree(STombBlock *delBlock);
+int32_t tTombBlockClear(STombBlock *delBlock);
+int32_t tTombBlockPut(STombBlock *delBlock, const STombRecord *delRecord);
 
 // STbStatisBlock ----------
 #define STATIS_RECORD_NUM_ELEM 9

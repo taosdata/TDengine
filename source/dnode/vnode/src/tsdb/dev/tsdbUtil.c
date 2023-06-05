@@ -16,28 +16,28 @@
 #include "dev.h"
 
 // SDelBlock ----------
-int32_t tDelBlockInit(SDelBlock *delBlock) {
+int32_t tTombBlockInit(STombBlock *delBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
     TARRAY2_INIT(&delBlock->dataArr[i]);
   }
   return 0;
 }
 
-int32_t tDelBlockFree(SDelBlock *delBlock) {
+int32_t tTombBlockFree(STombBlock *delBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
     TARRAY2_FREE(&delBlock->dataArr[i]);
   }
   return 0;
 }
 
-int32_t tDelBlockClear(SDelBlock *delBlock) {
+int32_t tTombBlockClear(STombBlock *delBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
     TARRAY2_CLEAR(&delBlock->dataArr[i], NULL);
   }
   return 0;
 }
 
-int32_t tDelBlockPut(SDelBlock *delBlock, const SDelRecord *delRecord) {
+int32_t tTombBlockPut(STombBlock *delBlock, const STombRecord *delRecord) {
   for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
     int32_t code = TARRAY2_APPEND(&delBlock->dataArr[i], delRecord->aData[i]);
     if (code) return code;
