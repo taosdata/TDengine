@@ -541,7 +541,7 @@ void destroyOperator(SOperatorInfo* pOperator) {
 
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
     STableMergeScanInfo* info = (STableMergeScanInfo*)(pOperator->info);
-    qInfo("zsl: table merge scan operator %p total time: %"PRId64, pOperator, info->opTime);
+    qInfo("zsl: table merge scan operator %p total time: %"PRId64 " %"PRId64, pOperator, info->opTime, info->opTime2);
   }
 
   if (pOperator->fpSet.closeFn != NULL) {

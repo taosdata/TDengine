@@ -2971,6 +2971,7 @@ while (pInfo->groupIndex <= pInfo->tableEndIndex) {
 }
 
 SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
+  int64_t startTs = taosGetTimestampUs();
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -2989,6 +2990,10 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
 
     if (tableListSize == 0) {
       setOperatorCompleted(pOperator);
+      {
+        int64_t endTs = taosGetTimestampUs();
+        pInfo->opTime2 += (endTs - startTs);
+      }
       return NULL;
     }
     pInfo->tableStartIndex = 0;
@@ -3007,6 +3012,10 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
     if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->groupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
+      {
+        int64_t endTs = taosGetTimestampUs();
+        pInfo->opTime2 += (endTs - startTs);
+      }
       return pBlock;
     } else {
       // Data of this group are all dumped, let's try the next group
@@ -3022,7 +3031,10 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
   }
-
+  {
+    int64_t endTs = taosGetTimestampUs();
+    pInfo->opTime2 += (endTs - startTs);
+  }
   return pBlock;
 }
 

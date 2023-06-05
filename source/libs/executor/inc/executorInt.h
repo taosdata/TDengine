@@ -253,6 +253,8 @@ typedef struct STableMergeScanInfo {
   SSortExecInfo   sortExecInfo;
   int64_t         opTime;
   int32_t         groupIndex;
+
+  int64_t         opTime2;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
