@@ -144,7 +144,7 @@ _EXIT:
   taosHashCleanup(pHandle->cfInst);
   rocksdb_compactionfilterfactory_destroy(pHandle->filterFactory);
   tdListFree(pHandle->list);
-  free(pHandle);
+  taosMemoryFree(pHandle);
   qDebug("failed to init stream backend at %s", path);
   return NULL;
 }
