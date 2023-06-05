@@ -51,8 +51,6 @@ pub struct Agent {
     pub name: String,
     pub cluster_id: String,
     pub user_id: String,
-    pub expire_date: Option<NaiveDate>,
-    pub connectors: Vec<String>,
 
     #[allow(dead_code)]
     created_at: DateTime<Utc>,
@@ -174,7 +172,7 @@ impl Client {
                 mut self: std::pin::Pin<&mut Self>,
                 cx: &mut std::task::Context<'_>,
             ) -> std::task::Poll<Option<Self::Item>> {
-                info!("polled");
+                // info!("polled");
                 match self.3.recv_async().poll_unpin(cx) {
                     Poll::Ready(Ok(action)) => match action {
                         RespAction::Heartbeat => {
