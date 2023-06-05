@@ -1313,10 +1313,14 @@ impl TaskController {
             .find_agent_by_name_and_cluster_id(name, None, Some(agent_id as usize))
             .await?;
         if result.len() > 0 {
-            anyhow::bail!("agent name has existed");
+            anyhow::bail!("Agent name {} exists", name);
         }
-        let sql = update.update_agent_with(agent_id);
-        sqlx::query(&sql).execute(&self.pool).await?;
+        // let sql = update.update_agent_with(agent_id);
+        sqlx::query("UPDATE agents SET `name` = ? WHERE id = ?")
+            .bind(name)
+            .bind(agent_id)
+            .execute(&self.pool)
+            .await?;
         let secret = self.jwt_secret().await?;
         Ok(self
             .get_agent_by_id(agent_id)
