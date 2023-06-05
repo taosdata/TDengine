@@ -210,8 +210,9 @@ taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?asse
 ##### 从 OPC-UA 同步数据到 TDengine
 
 可配置参数如下：
-| connect_timeout | int    | timeout for connect to endpoint in second                                   |
+| 参数名称 | 类型    | 描述                                   |
 |-----------------|--------|-----------------------------------------------------------------------------|
+| connect_timeout | int    | timeout for connect to endpoint in second                                   |
 | request_timeout | int    | timeout for a request in second                                             |
 | security_policy | string | None/Basic128Rsa15/Basic256/Basic256Sha256                                  |
 | security_mode   | string | None/Sign/SignAndEncrypt                                                    |
