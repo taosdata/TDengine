@@ -265,7 +265,7 @@ if(${BUILD_WITH_ROCKSDB})
     option(WITH_FALLOCATE "" OFF)
     option(WITH_JEMALLOC "" OFF)
     option(WITH_GFLAGS "" OFF)
-    option(PORTABLE "" OFF)
+    option(PORTABLE "" ON)
     option(WITH_LIBURING "" OFF)
     option(FAIL_ON_WARNINGS OFF)
 
