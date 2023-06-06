@@ -18,7 +18,8 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
-    task::Poll, time::Duration,
+    task::Poll,
+    time::Duration,
 };
 use taos::{
     taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, Dsn, Itertools,
@@ -480,6 +481,9 @@ async fn consume_flat_record(
                 crate::plugins::transform::Message::ChildTables(_) => todo!(),
                 crate::plugins::transform::Message::Records(message) => {
                     for records in message {
+                        if records.records.num_rows() == 0 {
+                            continue;
+                        }
                         // dbg!(&records);
                         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
                             &records.records,

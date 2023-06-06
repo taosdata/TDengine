@@ -617,9 +617,13 @@ impl TransformExt for Parser {
             Message::Records(records) => {
                 let mut new = vec![];
                 for records in records {
+                    let batch = self.transform_record_batch(&records.records)?;
+                    if batch.num_rows() == 0 {
+                        continue;
+                    }
                     let item = MessageArrowRecords {
                         table: records.table.clone(),
-                        records: self.transform_record_batch(&records.records)?,
+                        records: batch,
                     };
                     new.push(item);
                 }
