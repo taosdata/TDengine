@@ -858,23 +858,23 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
   STableUidList* pList = &pReader->status.uidList;
 
   int32_t i = 0, j = 0;
-  // if (numOfTables == 1) {
-  //   SBlockIdx idx = {.suid = pReader->suid, .uid = pList->tableUidList[0]};
-  //   pBlockIdx = taosArraySearch(aBlockIdx, &idx, tCmprBlockIdx, TD_EQ);
-  //   if (pBlockIdx != NULL){
-  //     STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
-  //     if (pScanInfo == NULL) {
-  //       tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
-  //       return terrno;
-  //     }
+  if (numOfTables == 1) {
+    SBlockIdx idx = {.suid = pReader->suid, .uid = pList->tableUidList[0]};
+    pBlockIdx = taosArraySearch(aBlockIdx, &idx, tCmprBlockIdx, TD_EQ);
+    if (pBlockIdx != NULL){
+      STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
+      if (pScanInfo == NULL) {
+        tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
+        return terrno;
+      }
 
-  //     if (pScanInfo->pBlockList == NULL) {
-  //       pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBlockIndex));
-  //     }
+      if (pScanInfo->pBlockList == NULL) {
+        pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBlockIndex));
+      }
 
-  //     taosArrayPush(pIndexList, pBlockIdx);
-  //   }
-  // } else 
+      taosArrayPush(pIndexList, pBlockIdx);
+    }
+  } else 
   {
     while (i < num && j < numOfTables) {
       pBlockIdx = (SBlockIdx*)taosArrayGet(aBlockIdx, i);
@@ -986,7 +986,22 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
     }
 
     SDataBlk block = {0};
-    for (int32_t j = 0; j < pScanInfo->mapData.nItem; ++j) {
+    int low = 0;
+    {
+      int mid;
+      int high = pScanInfo->mapData.nItem;
+
+      while (low < high) {
+        mid = low + (high - low) / 2;
+        tGetDataBlk(pScanInfo->mapData.pData + pScanInfo->mapData.aOffset[mid], &block);
+        if (w.skey > block.maxKey.ts) {
+          low = mid + 1;
+        } else {
+          high = mid;
+        }
+      }
+    }
+    for (int32_t j = low; j < pScanInfo->mapData.nItem; ++j) {
       tGetDataBlk(pScanInfo->mapData.pData + pScanInfo->mapData.aOffset[j], &block);
 
       // 1. time range check
