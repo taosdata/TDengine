@@ -6,6 +6,8 @@ use std::{
     str::ParseBoolError,
     sync::Arc,
     time::Duration,
+    fs,
+    process::Stdio,
 };
 
 use itertools::Itertools;
@@ -149,6 +151,13 @@ const EXE: &'static str = {
 fn mqtt_exe_path() -> PathBuf {
     get_plugin_dir("mqtt").join(EXE)
 }
+
+const LOG_FILE: &str = "mqtt.log";
+
+fn log_path() -> PathBuf {
+    super::get_log_dir("mqtt")
+}
+
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     let path = mqtt_exe_path();
     let output = std::process::Command::new(&path)
@@ -218,11 +227,29 @@ pub async fn mqtt_to_taos(
     };
     let mqtt = mqtt_exe_path();
     let mut command = tokio::process::Command::new(mqtt);
+
+    let mut log_path = log_path();
+
+    fs::create_dir_all(&log_path)?;
+
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
+    
+    let log_file = fs::OpenOptions::new()
+    .append(true)
+    .create(true)
+    .open(&log_path)
+    .unwrap();
+    let log_io = Stdio::from(log_file);
+
     let mut child = command
         .arg("-c")
         .arg(&config_path)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stdout(async_process::Stdio::inherit())
+        .stderr(log_io)
         .spawn()
         .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
     let port_pool = port_pool.clone();
