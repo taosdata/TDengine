@@ -3,9 +3,9 @@ use std::{str::FromStr, sync::Arc};
 use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, Float32Array, Float64Array, Int16Array, Int32Array,
-        Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, TimestampMicrosecondArray, TimestampNanosecondArray, TimestampMillisecondArray,
     },
-    datatypes::{DataType, Schema},
+    datatypes::{DataType, Schema, TimeUnit},
     record_batch::RecordBatch,
 };
 use itertools::Itertools;
@@ -383,12 +383,31 @@ impl Parse for Json {
                     let array: ArrayRef = Arc::new(BinaryArray::from_iter(values));
                     arrays.push((f.name(), array));
                 }
+                DataType::Timestamp(time_unit, _) => {
+                    let values = json_values
+                        .iter()
+                        .map(|(_, v)| {
+                            if let Some(v) = v.as_ref().and_then(getter) {
+                                v.as_i64()
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec();
+                    let array: ArrayRef = match time_unit {
+                        TimeUnit::Second => todo!(),
+                        TimeUnit::Millisecond => Arc::new(TimestampMillisecondArray::from_iter(values)),
+                        TimeUnit::Microsecond => Arc::new(TimestampMicrosecondArray::from_iter(values)),
+                        TimeUnit::Nanosecond => Arc::new(TimestampNanosecondArray::from_iter(values)),
+                    };
+                    arrays.push((f.name(), array));
+                }
                 _ => todo!(),
             }
         }
 
         let records = RecordBatch::try_from_iter(arrays).unwrap();
-
+        let records = records.with_schema(Arc::new(schema)).unwrap();
         let indices = if self.flatten {
             Some(json_values.iter().map(|(i, _)| *i).collect_vec())
         } else {

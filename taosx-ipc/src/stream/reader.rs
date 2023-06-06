@@ -514,6 +514,7 @@ pub struct LushMessageInsert {
 }
 
 mod arrow_to_taos {
+    use arrow::datatypes::TimeUnit;
     use taos_query::prelude::{ColumnView, Itertools};
 
     use crate::prelude::IpcDataType;
@@ -676,7 +677,7 @@ mod arrow_to_taos {
                     .try_collect::<_, Vec<_>, _>()?;
                 ColumnView::from_doubles(v)
             }
-            crate::prelude::IpcDataType::Timestamp => {
+            crate::prelude::IpcDataType::Timestamp(time_unit) => {
                 let v = data
                     .into_iter()
                     .map(|v| {
@@ -687,7 +688,13 @@ mod arrow_to_taos {
                         .transpose()
                     })
                     .try_collect::<_, Vec<_>, _>()?;
-                ColumnView::from_millis_timestamp(v)
+                match time_unit {
+                    TimeUnit::Second => todo!(),
+                    TimeUnit::Millisecond => ColumnView::from_millis_timestamp(v),
+                    TimeUnit::Microsecond => ColumnView::from_micros_timestamp(v),
+                    TimeUnit::Nanosecond => ColumnView::from_nanos_timestamp(v),
+                }
+                
             }
             crate::prelude::IpcDataType::VarChar(_) => {
                 ColumnView::from_varchar::<&str, _, _, _>(data)
@@ -1216,8 +1223,36 @@ pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
                         ColumnView::from_millis_timestamp(values)
                     }
                 }
-                arrow::datatypes::TimeUnit::Microsecond => todo!(),
-                arrow::datatypes::TimeUnit::Nanosecond => todo!(),
+                arrow::datatypes::TimeUnit::Microsecond => {
+                    let a = column
+                        .as_any()
+                        .downcast_ref::<TimestampMicrosecondArray>()
+                        .unwrap();
+                    if a.null_count() == 0 {
+                        let v = a.values();
+                        ColumnView::from_micros_timestamp(v.to_vec())
+                    } else {
+                        let values = (0..a.len())
+                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                            .collect();
+                        ColumnView::from_micros_timestamp(values)
+                    }
+                },
+                arrow::datatypes::TimeUnit::Nanosecond => {
+                    let a = column
+                        .as_any()
+                        .downcast_ref::<TimestampNanosecondArray>()
+                        .unwrap();
+                    if a.null_count() == 0 {
+                        let v = a.values();
+                        ColumnView::from_nanos_timestamp(v.to_vec())
+                    } else {
+                        let values = (0..a.len())
+                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                            .collect();
+                        ColumnView::from_millis_timestamp(values)
+                    }
+                },
             },
             DataType::Date32 => todo!(),
             DataType::Date64 => todo!(),
