@@ -1,20 +1,20 @@
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
-let oem=process.env.VUE_APP_CUS_NAME &&
-process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_NAME:'TDengine'
-let grafanagds=process.env.VUE_APP_CUS_NAME &&
-process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
-let taosname=process.env.VUE_APP_CUS_NAME &&
-process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
+let oem = process.env.VUE_APP_CUS_NAME &&
+  process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_NAME : 'TDengine'
+let grafanagds = process.env.VUE_APP_CUS_NAME &&
+  process.env.VUE_APP_CUS_NAME !== "TDengine" ? '' : 'TDengine'
+let taosname = process.env.VUE_APP_CUS_NAME &&
+  process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_PROMPT : 'taos'
 export default {
   //通用部分
-  disbleagent:'Disable agent',
-  enableagent:'Enable agent',
-  database:'Database',
-  warning:'Warning',
-  ok:'OK',
-  changepwdtip:'Password is successfully changed, please log in again',
+  disbleagent: 'Disable agent',
+  enableagent: 'Enable agent',
+  database: 'Database',
+  warning: 'Warning',
+  ok: 'OK',
+  changepwdtip: 'Password is successfully changed, please log in again',
   systemTitle: "TDengine Management system",
-  copyright:'Copyright (c) 2022 by TDengine, All Rights Reserved.',
+  copyright: 'Copyright (c) 2022 by TDengine, All Rights Reserved.',
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",
@@ -56,7 +56,7 @@ export default {
   save: "Save",
   error: "Error",
   copy: "Copy",
-  copyagent:"Copy the token to Agent's configuration file",
+  copyagent: "Copy the token to Agent's configuration file",
   share: "Share",
   shareSucc: "Share success",
   shareFail: "Failed to share",
@@ -260,7 +260,7 @@ export default {
     cluster: 'Cluster'
   },
   login: {
-    versiontip:'Only enterprise edition is supported!',
+    versiontip: 'Only enterprise edition is supported!',
     signin: 'Sign In',
     taosxtip: `Please configure Taosx in /etc/${taosname}/explorer.toml first`,
     loginTitle: 'Log in Explorer',
@@ -493,6 +493,7 @@ export default {
     renameColumn: 'Change column name'
   },
   dataIn: {
+    dataSources:'Data Source',
     connector: "Connectors",
     connectorTip: `Use the programming language of your choice - The main way to get data in to TDengine  is <a href="https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql " target="_blank">using SQL to insert</a> data`,
     thirdParty: "Third Party",
@@ -748,7 +749,7 @@ export default {
     connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
     toolsTip: "Data Dump - use taosDump to write a table, a portion of a table, or a super table to a file.",
     subscriptionTitle: `Subscribe to data updates using`,
-    subscriptions:'data subscriptions'
+    subscriptions: 'data subscriptions'
   },
   dataout: {
     dump: {
@@ -881,7 +882,7 @@ export default {
     slidingPeriod: "Sliding Period",
     execution: "Execution",
     intervalPeriod: "Interval Period",
-    intervaloffset:"Interval Offset",
+    intervaloffset: "Interval Offset",
     column: "Column",
     windowClause: "Window Clause",
     parttionSet: "Partition By",
@@ -909,8 +910,8 @@ export default {
     validStreamSqlDesc: "SQL statements are not supported for creating stream"
   },
   topic: {
-    agent:'Agent',
-    function:'Function',
+    agent: 'Agent',
+    function: 'Function',
     accounts: 'Accounts',
     connections: 'Connections',
     cpu_cores: 'CPU Cores',
@@ -1028,25 +1029,25 @@ export default {
     pageTip: "This page has some helpful references for getting started. You can reference it anytime by clicking the TDengine Logo in the top left.",
     metricTitle: "Metric",
     metricDesc:
-    "Metric refers to a physical quantity collected by sensors, equipment or other data collection devices. Current, voltage, temperature, pressure and GPS coordinates are examples of metrics. Metrics change with time and the data can be of type integer, float, boolean and string among others. The amount of collected metric data that is stored, increases with time.",
+      "Metric refers to a physical quantity collected by sensors, equipment or other data collection devices. Current, voltage, temperature, pressure and GPS coordinates are examples of metrics. Metrics change with time and the data can be of type integer, float, boolean and string among others. The amount of collected metric data that is stored, increases with time.",
     labelTitle: "Label/Tag",
     labelDesc:
-    "A label, or a tag, refers to the static properties of sensors, equipment and data collection devices. By static, we mean that the properties do not change with time. Examples of tags or labels, include device model, device location or serial number. TDengine does allow users to add, delete and update tag values for flexibility with business scenarios. Unlike metric data, tag/label data does not increase with time.",
+      "A label, or a tag, refers to the static properties of sensors, equipment and data collection devices. By static, we mean that the properties do not change with time. Examples of tags or labels, include device model, device location or serial number. TDengine does allow users to add, delete and update tag values for flexibility with business scenarios. Unlike metric data, tag/label data does not increase with time.",
     dataCollectionTitle: "Data Collection Point",
     dataCollectionDesc:
-    "A data collection point is typically a sensor which collects one or more metrics at some known interval. These metrics all have the same timestamp. Note that a data collection point may or may not correspond to a single device or instrument or equipment. For e.g., a vehicle will have many data collection points and these may collect metrics at different intervals.",
+      "A data collection point is typically a sensor which collects one or more metrics at some known interval. These metrics all have the same timestamp. Note that a data collection point may or may not correspond to a single device or instrument or equipment. For e.g., a vehicle will have many data collection points and these may collect metrics at different intervals.",
     tableTitle: "Table",
     tableDesc:
-    "A table in TDengine stores data for a single device or data collection point. A table can store thousands of metrics and each metric is stored in a column. Each metric in a table must have the same sampling rate, i.e. the timestamps are aligned. This is why it is important to note that a data collection point does not necessarily correspond to a device, instrument or piece of equipment, as mentioned above. In TDengine, the concept of one table per data collection point is important because it allows more efficient storage and computation.",
+      "A table in TDengine stores data for a single device or data collection point. A table can store thousands of metrics and each metric is stored in a column. Each metric in a table must have the same sampling rate, i.e. the timestamps are aligned. This is why it is important to note that a data collection point does not necessarily correspond to a device, instrument or piece of equipment, as mentioned above. In TDengine, the concept of one table per data collection point is important because it allows more efficient storage and computation.",
     superTableTitle: "Super Table (STable)",
     superTableDesc:
-    "A super table is a template for creating tables. It is similar to the concept of inheritance in object-oriented programming. Each table under a super table will have the same schema or data structure and the same tags/labels. TDengine takes advantage of the super table concept to query across, filter, and group similar devices. Instead of having to query individual tables, one can simply query the super table and filter using the tags/labels if one is looking for data from specific devices.",
+      "A super table is a template for creating tables. It is similar to the concept of inheritance in object-oriented programming. Each table under a super table will have the same schema or data structure and the same tags/labels. TDengine takes advantage of the super table concept to query across, filter, and group similar devices. Instead of having to query individual tables, one can simply query the super table and filter using the tags/labels if one is looking for data from specific devices.",
     subtableTitle: "Subtable",
     subtableDesc:
-    "A subtable is a table created from a Super Table template with labels/tags associated with it. TDengine can also have regular tables that are not derived from Super Tables and the main difference is that a regular table does not have tags, while a subtable has tags. It is best practice to use subtables instead of regular tables to take full advantage of TDengine in terms of storage and compute efficiency.",
+      "A subtable is a table created from a Super Table template with labels/tags associated with it. TDengine can also have regular tables that are not derived from Super Tables and the main difference is that a regular table does not have tags, while a subtable has tags. It is best practice to use subtables instead of regular tables to take full advantage of TDengine in terms of storage and compute efficiency.",
     databaseTitle: "Database",
     databaseDesc:
-    "A database in TDengine is a collection of tables. A running instance of TDengine can have multiple databases and each database can be configured with different storage policies. This allows optimization because one can create super tables for different types of devices or data collection points, in different databases with optimized storage and compute parameters.",
+      "A database in TDengine is a collection of tables. A running instance of TDengine can have multiple databases and each database can be configured with different storage policies. This allows optimization because one can create super tables for different types of devices or data collection points, in different databases with optimized storage and compute parameters.",
     instanceTitle: "Instance, URL, Token",
     instanceDesc: `An instance is a running cluster of nodes of TDengine with one or more databases. An instance cannot span across multiple regions or multiple clouds, but a single account (organization) can have multiple instances. An account may invite multiple users into his/her organization to share the data, and each user can be configured with different access rights.
     <br />
@@ -1108,45 +1109,55 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
-    targtedb:'Target Database',
-    expired:'Expired',
-    payloadtip:'Please select mqtt payload',
-    keep:'Keep',
-    agentexpiretip:'The expiration time must be greater than the current time',
-    mqttparsertip:'Ensure that all required items for the mqtt parser have been filled out',
-    mqtttitle:'MQTT Payload Parser',
-    colname:'Column Name',
-    rename:'Alias',
-    coltype:'Type',
-    addmqtttip:'Column name, type cannot be empty before adding',
-    subname:'Table Name',
-    supertable:'Super Table',
-    delcol:'Are you sure to delete?',
-    subtip:'Please enter the sub table name',
-    supertip:'Please enter the super table',
-    tagtip:'Please enter the tag name',
-    iptip:'Please enter the correct IP address',
-    porttip:'Please enter the correct Port',
-    ok:'OK',
-    cancel:'Cancel',
-    deletetip:'Are you sure  to delete ',
-    deleteok:'Deleted Successfully',
-    warning:'Warning',
-    successtip:'Operation Successfully',
-    msg:'Please enter',
-    starttip:`Are you sure to start the {dataname} task?`,
-    stoptip:`Are you sure to stop the {dataname} task?`,
+    bothtagsuper:'Tags and super table name must both exist or be empty',
+    selectfieldtip:'Please check the Field(Source) with value',
+    createsubtbtip:'Select Column(Targte) as template',
+    ascolumn: 'As Column',
+    astag: 'As Tag',
+    colname: 'Field(Source)',
+    rename: 'Column(Target)',
+    coltype: 'Column Type(Target)',
+
+    name: 'Child Table Naming Rule',
+    using: 'SuperTable Name',
+    targetdb: 'Target Database',
+    expired: 'Expired',
+    payloadtip: 'Please select mqtt payload',
+    keep: 'Keep',
+    agentexpiretip: 'The expiration time must be greater than the current time',
+    mqttparsertip: 'Ensure that all required items for the mqtt parser have been filled out',
+    mqtttitle: 'MQTT Payload Parser',
+
+    addmqtttip: 'Field, Column and Column Type cannot be empty before adding',
+    subname: 'Table Name',
+    supertable: 'Super Table',
+    delcol: 'Are you sure to delete?',
+    subtip: 'Please enter the sub table name',
+    usingtip:'Please enter the super table name',
+    supertip: 'Please enter the super table',
+    tagtip: 'Please enter the tag name',
+    iptip: 'Please enter the correct IP address',
+    porttip: 'Please enter the correct Port',
+    ok: 'OK',
+    cancel: 'Cancel',
+    deletetip: 'Are you sure  to delete ',
+    deleteok: 'Deleted Successfully',
+    warning: 'Warning',
+    successtip: 'Operation Successfully',
+    msg: 'Please enter',
+    starttip: `Are you sure to start the {dataname} task?`,
+    stoptip: `Are you sure to stop the {dataname} task?`,
     excutestart: 'Excute Start',
     excutestop: 'Excute Stop',
-    agent:'Agent',
-    agenttip:'Please select the agent.',
-    typetip:'Please select the source type',
-    nametip:'Please enter the source name',
-    name: 'Name',
+    agent: 'Agent',
+    agenttip: 'Please select the agent.',
+    typetip: 'Please select the source type',
+    nametip: 'Please enter the source name',
+    name2: 'Name',
     type: 'Type',
     target: 'Target',
     createat: 'Create At',
-    via:'Agent ID',
+    via: 'Agent ID',
     status: 'Status',
     operation: 'Operation',
     addsource: 'Add Source',
@@ -1662,38 +1673,38 @@ export default {
       enddesc: "For more details about data subscription, please refer to",
       enddesc1: ".",
     },
-    dashboard:{
-      dashboarddesc:`We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here。You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>  to install <a href='https://grafana.com/'>Grafana</a>。`,
-      step1:'Installing Grafana',
-      step2:'Install the TDengine data source plugin',
-      step3:'Start the Grafana service',
-      step4:'Logging into Grafana',
-      step5:'Adding a TDengine Data Source',
-      step6:'Importing dashboards',
-      tab1:'Installing Grafana on Debian or Ubuntu',
-      tab2:'Install Grafana on CentOS / RHEL',
-      tab2sub:'Or install it with RPM package.',
-      pluginname1:'Set up TDinsight manually',
-      pluginname2:'Automated deployment of TDinsight',
-      plugin1:'Install the latest version of the TDengine Data Source plugin from GitHub.',
-      plugin2:`We provide an installation script <code>TDinsight.sh</code> to allow users to configure the installation automatically and quickly.<br/>
+    dashboard: {
+      dashboarddesc: `We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here。You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>  to install <a href='https://grafana.com/'>Grafana</a>。`,
+      step1: 'Installing Grafana',
+      step2: 'Install the TDengine data source plugin',
+      step3: 'Start the Grafana service',
+      step4: 'Logging into Grafana',
+      step5: 'Adding a TDengine Data Source',
+      step6: 'Importing dashboards',
+      tab1: 'Installing Grafana on Debian or Ubuntu',
+      tab2: 'Install Grafana on CentOS / RHEL',
+      tab2sub: 'Or install it with RPM package.',
+      pluginname1: 'Set up TDinsight manually',
+      pluginname2: 'Automated deployment of TDinsight',
+      plugin1: 'Install the latest version of the TDengine Data Source plugin from GitHub.',
+      plugin2: `We provide an installation script <code>TDinsight.sh</code> to allow users to configure the installation automatically and quickly.<br/>
 
       You can download the script via wget or other tools:`,
-      pluginsub2:`This script will automatically download the latest <a href='https://github.com/taosdata/grafanaplugin/releases/tag/v3.3.2'>Grafana TDengine data source plugin</a> and <a href='https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json'>TDinsight dashboard</a> with configurable parameters for command-line options to the <a href='https://grafana.com/docs/grafana/latest/administration/provisioning/'>Grafana Provisioning</a> configuration file to automate deployment and updates, etc.With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.`,
-      
-      logingrafana:`Open the default Grafana URL in a web browser:<code>http://localhost:3000</code>. The default username/password is  <code>admin</code>.Grafana will require a password change after the first login.`,
-     
-      nav:`Point to the <strong>Configurations -> Data Sources</strong> menu, and click the <strong>Add data source</strong> button.`,
-      subsearch:'Search for and select<strong> TDengine</strong>。',
-      settingtd:'Configure the TDengine datasource.',
-      savetest:"Save and test. It will report 'TDengine Data source is working' under normal circumstances.",
-      
-      import:`In the page of configuring data source, click<strong> Dashboards</strong> tab.`,
-      cont1:'Choose <code>TDengine for 3.x</code>and click <code>import</code>.',
-      cont2:`After the importing is done, <code>TDinsight for 3.x</code> dashboard is available on the page of <code>search dashboards by name</code>.`,
-      cont3:'In the <code>TDinsight for 3.x</code> dashboard, choose the database used by taosKeeper to store monitoring data. ',
-      cont4:'You can see the monitoring result.'
-      
+      pluginsub2: `This script will automatically download the latest <a href='https://github.com/taosdata/grafanaplugin/releases/tag/v3.3.2'>Grafana TDengine data source plugin</a> and <a href='https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json'>TDinsight dashboard</a> with configurable parameters for command-line options to the <a href='https://grafana.com/docs/grafana/latest/administration/provisioning/'>Grafana Provisioning</a> configuration file to automate deployment and updates, etc.With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.`,
+
+      logingrafana: `Open the default Grafana URL in a web browser:<code>http://localhost:3000</code>. The default username/password is  <code>admin</code>.Grafana will require a password change after the first login.`,
+
+      nav: `Point to the <strong>Configurations -> Data Sources</strong> menu, and click the <strong>Add data source</strong> button.`,
+      subsearch: 'Search for and select<strong> TDengine</strong>。',
+      settingtd: 'Configure the TDengine datasource.',
+      savetest: "Save and test. It will report 'TDengine Data source is working' under normal circumstances.",
+
+      import: `In the page of configuring data source, click<strong> Dashboards</strong> tab.`,
+      cont1: 'Choose <code>TDengine for 3.x</code>and click <code>import</code>.',
+      cont2: `After the importing is done, <code>TDinsight for 3.x</code> dashboard is available on the page of <code>search dashboards by name</code>.`,
+      cont3: 'In the <code>TDinsight for 3.x</code> dashboard, choose the database used by taosKeeper to store monitoring data. ',
+      cont4: 'You can see the monitoring result.'
+
     }
   },
   component: {
@@ -1745,26 +1756,26 @@ export default {
     targetdsnRequired: 'Please input the target dsn',
     directoryRequired: 'Please input the directory'
   },
-  taosagents:{
-    edittitle:'Edit Agent',
-    deletetip:`Are you sure to delete agent {id} ?`,
-    eidtagent:'Edit Agent',
-    createnewagent:'Create New Agent',
-    cluster_id:'Cluster ID',
-    connectors:'Connectors',
-    created_at:'Created At',
-    dsn:'DSN',
-    expire_date:'Expire Date',
-    id:'ID',
-    last_modified_at:'Last Modified At',
-    name:'Name',
-    status:'Status',
-    user_id:'User ID',
-    rules:{
-      name:'Please enter the name.',
-      connectors:'Please select the connector.',
-      expire_date:'Please select the expire date.',
-      dsn:'Please enter the DSN.'
+  taosagents: {
+    edittitle: 'Edit Agent',
+    deletetip: `Are you sure to delete agent {id} ?`,
+    eidtagent: 'Edit Agent',
+    createnewagent: 'Create New Agent',
+    cluster_id: 'Cluster ID',
+    connectors: 'Connectors',
+    created_at: 'Created At',
+    dsn: 'DSN',
+    expire_date: 'Expire Date',
+    id: 'ID',
+    last_modified_at: 'Last Modified At',
+    name: 'Name',
+    status: 'Status',
+    user_id: 'User ID',
+    rules: {
+      name: 'Please enter the name.',
+      connectors: 'Please select the connector.',
+      expire_date: 'Please select the expire date.',
+      dsn: 'Please enter the DSN.'
     }
   },
   taoscluster: {
@@ -1909,14 +1920,14 @@ export default {
   header: {
     version: `${oem} Server Version`
   },
-  explorerfns:{
-    NumbericFn:'Mathematical Functions',
-    StringFn:'Concatenation Functions',
-    CoversionFn:'Conversion Functions',
-    DatetimeFN:'Time and Date Functions',
-    AggregationFn:'Aggregate Functions',
-    SelectorFn:'Selection Functions',
-    SeriesSpecificFn:'Time-Series Extensions',
-    SystemFn:'System Information Functions'
+  explorerfns: {
+    NumbericFn: 'Mathematical Functions',
+    StringFn: 'Concatenation Functions',
+    CoversionFn: 'Conversion Functions',
+    DatetimeFN: 'Time and Date Functions',
+    AggregationFn: 'Aggregate Functions',
+    SelectorFn: 'Selection Functions',
+    SeriesSpecificFn: 'Time-Series Extensions',
+    SystemFn: 'System Information Functions'
   }
 };

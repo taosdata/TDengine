@@ -14,7 +14,7 @@
     "model": {
         "name": "",
         "using": "",
-        "tags": [],
-        "columns": []
+        "columns":[],
+        "tags":[]
     }
 }

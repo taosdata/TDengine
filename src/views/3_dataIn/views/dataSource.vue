@@ -20,7 +20,7 @@
         max-height="250"
       >
         <el-table-column
-          :label="$t('datasource.name')"
+          :label="$t('datasource.name2')"
           prop="localname"
         ></el-table-column>
         <el-table-column

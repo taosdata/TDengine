@@ -67,7 +67,10 @@
           </div>
         </div>
       </section>
-      <section class="authentication" v-if="dbsource[0].authentication?.display">
+      <section
+        class="authentication"
+        v-if="dbsource[0].authentication?.display"
+      >
         <div>
           <div class="block-title">
             <span>{{ dbsource[0].authentication?.display }}</span>
@@ -397,7 +400,7 @@
             v-html="transforHtml(dbsource[0].parser.description)"
           ></div>
         </div>
-        <ul class="mqtt-fields">
+        <!-- <ul class="mqtt-fields">
           <li v-for="(field, index) in dbsource[0].parser.fields" :key="index">
             <span
               :class="['label', field.name == 'payload' ? 'required' : '']"
@@ -423,16 +426,18 @@
               ></div>
             </div>
           </li>
-        </ul>
-        <div class="parser-config" v-if="payloadVal">
+        </ul> -->
+        <ul></ul>
+        <div class="parser-config">
           <MqttConnector
             :connectorData="constMqttparser"
+            :fields="constmqttCols"
             ref="mqtt"
           ></MqttConnector>
         </div>
       </section>
       <section class="choose-db">
-        <span class="label required">{{ $t('datasource.targtedb')}}</span>
+        <span class="label required">{{ $t("datasource.targetdb") }}</span>
         <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
@@ -514,6 +519,7 @@ export default {
   },
   data() {
     return {
+      constmqttCols: [],
       textareas: ["ca", "cert", "cert_key", "certificate"],
       styleobj: {
         width: "100%",
@@ -561,6 +567,9 @@ export default {
     }
   },
   mounted() {
+    if (this.tagName == "mqtt") {
+      this.constmqttCols = this.dbsource[0].parser.fields;
+    }
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
@@ -758,31 +767,39 @@ export default {
         if (!this.dbname) {
           Message({
             type: "warning",
-            message: `${enterTip} target database `,
+            message: `${enterTip}  ` + this.$t("datasource.targetdb"),
           });
           return;
         }
         if (this.tagName == "mqtt") {
-          let payloadselect = this.dbsource[0].parser.fields.filter(
-            (item) => item.name == "payload"
-          )[0].value;
-          if (!payloadselect) {
-            Message({
-              type: "warning",
-              message: this.$t("datasource.payloadtip"),
-            });
-            return;
-          }
+          // let payloadselect = this.dbsource[0].parser.fields.filter(
+          //   (item) => item.name == "payload"
+          // )[0].value;
+          // if (!payloadselect) {
+          //   Message({
+          //     type: "warning",
+          //     message: this.$t("datasource.payloadtip"),
+          //   });
+          //   return;
+          // }
           this.$refs.mqtt.submit();
-          if (
-            this.$refs.mqtt &&
-            (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull)
-          ) {
-            Message({
-              type: "warning",
-              message: this.$t("datasource.mqttparsertip"),
-            });
-            return;
+          if (this.$refs.mqtt) {
+            if(this.$refs.mqtt.showSuperTip){
+               Message({
+                type: "warning",
+                message: this.$t("datasource.bothtagsuper"),
+              });
+              return;
+            }
+            if (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull) {
+              Message({
+                type: "warning",
+                message: this.$t("datasource.mqttparsertip"),
+              });
+              return;
+            }
+
+            
           }
         }
         this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
