@@ -124,7 +124,7 @@ localhost:6030 表示数据源的地址和端口，db1 表示具体的数据库�
 ```
 #### 从 TDengine 到 TDengine 的数据同步
 
-##### TDengine 3.0 -> TDengine 3.0
+##### 1. TDengine 3.0 -> TDengine 3.0
 
 在两个相同版本 （都是 3.0.x.y）的 TDengine 集群之间将源集群中的存量及增量数据同步到目标集群中。
 
@@ -146,7 +146,7 @@ taosx run -f 'tmq://root:taosdata@localhost:6030/db1?group.id=taosx1&client.id=t
 
 
 
-##### TDengine 2.4(2.6) -> TDengine 3.0
+##### 2. TDengine 2.4(2.6) -> TDengine 3.0
 
 将 2.4（2.6） 版本 TDengine 集群中的数据迁移到 3.0 版本 TDengine 集群。
 
@@ -181,7 +181,7 @@ taosx run -f 'taos://td2:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all' -t
 1.
 
 
-##### 从 TDengine 备份数据文件到本地
+#### 从 TDengine 备份数据文件到本地
 
 示例：
 ```shell
@@ -196,7 +196,7 @@ taosx run -f 'tmq://root:taosdata@td1:6030/db1' -t 'local:/path_directory/'
 
 
 
-##### 从本地数据文件恢复到 TDengine
+#### 从本地数据文件恢复到 TDengine
 
 示例：
 ```shell
@@ -207,7 +207,7 @@ taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?asse
 
 将 taosx 所在设备 /path_directory 路径下已备份的数据文件，恢复到集群 td2 的数据库 db1 中，如果 db1 不存在，则自动建库。
 
-##### 从 OPC-UA 同步数据到 TDengine
+#### 从 OPC-UA 同步数据到 TDengine
 
 可配置参数如下：
 | 参数名称 | 类型    | 描述                                   |
@@ -229,11 +229,11 @@ taosx run \
 以上示例的执行结果：
 采集localhost中nodeid为ns=2;i=2测点的数据，将其写入到集群tdengine中opc中，并以meters为表名，current为列名，double为列类型的schema来创建表。
 
-##### 从 OPC-DA 同步数据到 TDengine (Windows)
+#### 从 OPC-DA 同步数据到 TDengine (Windows)
 
 @zhengqin
 
-##### 从 Pi 同步数据到 TDengine (Windows)
+#### 从 PI 同步数据到 TDengine (Windows)
 
 在 taosX CLI 运行时支持的参数如下：
 - PISystemName：连接配置 PI 系统服务名，默认值与 PIServerName 一致
