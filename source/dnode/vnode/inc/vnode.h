@@ -100,18 +100,11 @@ void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
 
 // meta
-typedef struct SMeta       SMeta;  // todo: remove
-typedef struct SMetaReader SMetaReader;
-typedef struct SMetaEntry  SMetaEntry;
-
-#define META_READER_NOLOCK 0x1
-
 void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta* pAPI);
 void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
-int         metaGetTableEntryByName(SMetaReader *pReader, const char *name);
 int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList);
 int32_t     metaGetTableTagsByUids(void* pVnode, int64_t suid, SArray *uidList);
 int32_t     metaReadNext(SMetaReader *pReader);
@@ -122,37 +115,18 @@ int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
 int      metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid);
 int      metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
 bool     metaIsTableExist(void* pVnode, tb_uid_t uid);
-int32_t  metaGetCachedTableUidList(SMeta *pMeta, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
+int32_t  metaGetCachedTableUidList(void *pVnode, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
                                    bool *acquired);
-int32_t  metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
+int32_t  metaUidFilterCachePut(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen, double selectivityRatio);
-int32_t  metaUidCacheClear(SMeta *pMeta, uint64_t suid);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
-int32_t  metaTbGroupCacheClear(SMeta *pMeta, uint64_t suid);
-int32_t  metaGetCachedTbGroup(SMeta *pMeta, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
-int32_t  metaPutTbGroupToCache(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
+int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
+int32_t  metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen);
 
 int64_t  metaGetTbNum(SMeta *pMeta);
-int64_t  metaGetNtbNum(SMeta *pMeta);
-//typedef struct {
-//  int64_t uid;
-//  int64_t ctbNum;
-//} SMetaStbStats;
-int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
 
-#if 1  // refact APIs below (TODO)
-typedef SVCreateTbReq   STbCfg;
-typedef SVCreateTSmaReq SSmaCfg;
-
-typedef struct SMTbCursor SMTbCursor;
-
-SMTbCursor *metaOpenTbCursor(void *pVnode);
-void        metaCloseTbCursor(SMTbCursor *pTbCur);
-int32_t     metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType);
-int32_t     metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType);
-
-#endif
+int32_t  metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
 
 // tsdb
 typedef struct STsdbReader STsdbReader;
@@ -168,14 +142,14 @@ typedef struct STsdbReader STsdbReader;
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
 
-int32_t      tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-                            SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr, bool countOnly,
+int32_t      tsdbReaderOpen(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
+                            SSDataBlock *pResBlock, void **ppReader, const char *idstr, bool countOnly,
                             SHashObj **pIgnoreTables);
 int32_t      tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
 void         tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
 void         tsdbReaderClose(STsdbReader *pReader);
 int32_t      tsdbNextDataBlock(STsdbReader *pReader, bool *hasNext);
-int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
+int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
 void         tsdbReleaseDataBlock(STsdbReader *pReader);
 SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
 int32_t      tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
@@ -201,31 +175,10 @@ size_t  tsdbCacheGetUsage(SVnode *pVnode);
 int32_t tsdbCacheGetElems(SVnode *pVnode);
 
 //// tq
-//typedef struct SMetaTableInfo {
-//  int64_t         suid;
-//  int64_t         uid;
-//  SSchemaWrapper *schema;
-//  char            tbName[TSDB_TABLE_NAME_LEN];
-//} SMetaTableInfo;
-
 typedef struct SIdInfo {
   int64_t version;
   int32_t index;
 } SIdInfo;
-
-//typedef struct SSnapContext {
-//  SMeta    *pMeta;
-//  int64_t   snapVersion;
-//  TBC      *pCur;
-//  int64_t   suid;
-//  int8_t    subType;
-//  SHashObj *idVersion;
-//  SHashObj *suidInfo;
-//  SArray   *idList;
-//  int32_t   index;
-//  bool      withMeta;
-//  bool      queryMeta;  // true-get meta, false-get data
-//} SSnapContext;
 
 typedef struct STqReader {
   SPackedData     msg;
@@ -247,7 +200,7 @@ STqReader *tqReaderOpen(SVnode *pVnode);
 void       tqReaderClose(STqReader *);
 
 void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
-int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList);
+int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char* id);
 int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
@@ -345,59 +298,6 @@ struct SVnodeCfg {
 #define TABLE_ROLLUP_ON       ((int8_t)0x1)
 #define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
 #define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
-//struct SMetaEntry {
-//  int64_t  version;
-//  int8_t   type;
-//  int8_t   flags;  // TODO: need refactor?
-//  tb_uid_t uid;
-//  char    *name;
-//  union {
-//    struct {
-//      SSchemaWrapper schemaRow;
-//      SSchemaWrapper schemaTag;
-//      SRSmaParam     rsmaParam;
-//    } stbEntry;
-//    struct {
-//      int64_t  ctime;
-//      int32_t  ttlDays;
-//      int32_t  commentLen;
-//      char    *comment;
-//      tb_uid_t suid;
-//      uint8_t *pTags;
-//    } ctbEntry;
-//    struct {
-//      int64_t        ctime;
-//      int32_t        ttlDays;
-//      int32_t        commentLen;
-//      char          *comment;
-//      int32_t        ncid;  // next column id
-//      SSchemaWrapper schemaRow;
-//    } ntbEntry;
-//    struct {
-//      STSma *tsma;
-//    } smaEntry;
-//  };
-//
-//  uint8_t *pBuf;
-//};
-
-//struct SMetaReader {
-//  int32_t    flags;
-//  SMeta     *pMeta;
-//  SDecoder   coder;
-//  SMetaEntry me;
-//  void      *pBuf;
-//  int32_t    szBuf;
-//};
-
-//struct SMTbCursor {
-//  TBC        *pDbc;
-//  void       *pKey;
-//  void       *pVal;
-//  int32_t     kLen;
-//  int32_t     vLen;
-//  SMetaReader mr;
-//};
 
 #ifdef __cplusplus
 }

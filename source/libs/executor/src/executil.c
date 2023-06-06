@@ -136,7 +136,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
 
   size_t  keyLen = 0;
   int32_t iter = 0;
-  int32_t bufLen = 0, offset = 0;
+  int64_t bufLen = 0, offset = 0;
 
   // todo move away and record this during create window
   while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
@@ -495,7 +495,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     genTbGroupDigest((SNode*)listNode, digest, &context);
     nodesFree(listNode);
 
-    pAPI->metaFn.getCachedTableList(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), &tableList);
+    pAPI->metaFn.metaGetCachedTbGroup(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), &tableList);
     if (tableList) {
       taosArrayDestroy(pTableListInfo->pTableList);
       pTableListInfo->pTableList = tableList;
@@ -632,7 +632,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
 
   if (tsTagFilterCache) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
-    pAPI->metaFn.putTableListIntoCache(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), tableList, taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
+    pAPI->metaFn.metaPutTbGroupToCache(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), tableList, taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
   }
 
   //  int64_t st2 = taosGetTimestampUs();
@@ -960,6 +960,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
   SScalarParam output = {0};
+  SArray*      pUidTagList = NULL;
 
   tagFilterAssist ctx = {0};
   ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
@@ -979,7 +980,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
   //  int64_t stt = taosGetTimestampUs();
-  SArray* pUidTagList = taosArrayInit(10, sizeof(STUidTagInfo));
+  pUidTagList = taosArrayInit(10, sizeof(STUidTagInfo));
   copyExistedUids(pUidTagList, pUidList);
 
   FilterCondType condType = checkTagCond(pTagCond);
@@ -1148,6 +1149,21 @@ _end:
   }
 
   taosArrayDestroy(pUidList);
+  return code;
+}
+
+int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList, void* pTaskInfo){
+  SSubplan *pSubplan = (SSubplan *)node;
+  SScanPhysiNode pNode = {0};
+  pNode.suid = suid;
+  pNode.uid = suid;
+  pNode.tableType = TSDB_SUPER_TABLE;
+  STableListInfo* pTableListInfo = tableListCreate();
+  uint8_t digest[17] = {0};
+  int code = getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL, pTableListInfo, digest, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI);
+  *tableList = pTableListInfo->pTableList;
+  pTableListInfo->pTableList = NULL;
+  tableListDestroy(pTableListInfo);
   return code;
 }
 
@@ -1745,12 +1761,12 @@ int32_t convertFillType(int32_t mode) {
   return type;
 }
 
-static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery) {
+void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery) {
   if (ascQuery) {
-    *w = getAlignQueryTimeWindow(pInterval, pInterval->precision, ts);
+    *w = getAlignQueryTimeWindow(pInterval, ts);
   } else {
     // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-    *w = getAlignQueryTimeWindow(pInterval, pInterval->precision, ts);
+    *w = getAlignQueryTimeWindow(pInterval, ts);
 
     int64_t key = w->skey;
     while (key < ts) {  // moving towards end
@@ -1767,7 +1783,7 @@ static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindo
 static STimeWindow doCalculateTimeWindow(int64_t ts, SInterval* pInterval) {
   STimeWindow w = {0};
 
-  w.skey = taosTimeTruncate(ts, pInterval, pInterval->precision);
+  w.skey = taosTimeTruncate(ts, pInterval);
   w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   return w;
 }
@@ -1801,6 +1817,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   if (pRow) {
     w = pRow->win;
   }
+
   // in case of typical time window, we can calculate time window directly.
   if (w.skey > ts || w.ekey < ts) {
     w = doCalculateTimeWindow(ts, pInterval);
@@ -1813,6 +1830,34 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   }
 
   return w;
+}
+
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
+  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
+  if (!IS_CALENDAR_TIME_DURATION(pInterval->slidingUnit)) {
+    tw->skey += pInterval->sliding * factor;
+    tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    return;
+  }
+
+  // convert key to second
+  int64_t key = convertTimePrecision(tw->skey, pInterval->precision, TSDB_TIME_PRECISION_MILLI) / 1000;
+
+  int64_t duration = pInterval->sliding;
+  if (pInterval->slidingUnit == 'y') {
+    duration *= 12;
+  }
+
+  struct tm tm;
+  time_t    t = (time_t) key;
+  taosLocalTime(&t, &tm, NULL);
+
+  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + duration * factor);
+  tm.tm_year = mon / 12;
+  tm.tm_mon = mon % 12;
+  tw->skey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000LL, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
+
+  tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
 }
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {

@@ -78,11 +78,11 @@ enum {
   TASK_TRIGGER_STATUS__ACTIVE,
 };
 
-enum {
+typedef enum {
   TASK_LEVEL__SOURCE = 1,
   TASK_LEVEL__AGG,
   TASK_LEVEL__SINK,
-};
+} ETASK_LEVEL;
 
 enum {
   TASK_OUTPUT__FIXED_DISPATCH = 1,
@@ -206,7 +206,7 @@ static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
 void* streamQueueNextItem(SStreamQueue* queue);
 
 SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type);
-void                streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit);
+void               streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit);
 
 SStreamDataSubmit* streamSubmitBlockClone(SStreamDataSubmit* pSubmit);
 
@@ -284,13 +284,13 @@ struct SStreamTask {
   int16_t         dispatchMsgType;
   SStreamStatus   status;
   int32_t         selfChildId;
-  int32_t         nodeId;
+  int32_t         nodeId;  // vgroup id
   SEpSet          epSet;
   SCheckpointInfo chkInfo;
   STaskExec       exec;
-
-  // fill history
-  int8_t fillHistory;
+  int8_t          fillHistory;  // fill history
+  int64_t         ekey;         // end ts key
+  int64_t         endVer;       // end version
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
@@ -346,12 +346,14 @@ typedef struct SStreamMeta {
   void*        streamBackend;
   int32_t      streamBackendId;
   int64_t      streamBackendRid;
+  SHashObj*    pTaskBackendUnique;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
 
-SStreamTask* tNewStreamTask(int64_t streamId);
+SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory, int64_t triggerParam,
+                            SArray* pTaskList);
 int32_t      tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeStreamTask(SStreamTask* pTask);

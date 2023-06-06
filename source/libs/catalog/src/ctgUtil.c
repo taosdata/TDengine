@@ -1555,14 +1555,17 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   char dbFName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(&pReq->tbName, dbFName);
 
+  // since that we add read/write previliges when create db, there is no need to check createdDbs
+#if 0
   if (pInfo->createdDbs && taosHashGet(pInfo->createdDbs, dbFName, strlen(dbFName))) {
     pRes->pass = true;
     return TSDB_CODE_SUCCESS;
   }
+#endif
 
   switch (pReq->type) {
     case AUTH_TYPE_READ: {
-      if (pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
+      if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
         req->singleType = AUTH_TYPE_READ;
         CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
         if (pRes->pass || res->metaNotExists) {
@@ -1578,7 +1581,7 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       break;
     }
     case AUTH_TYPE_WRITE: {
-      if (pInfo->writeTbs && taosHashGetSize(pInfo->writeTbs) > 0) {
+      if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->writeTbs && taosHashGetSize(pInfo->writeTbs) > 0) {
         req->singleType = AUTH_TYPE_WRITE;
         CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
         if (pRes->pass || res->metaNotExists) {

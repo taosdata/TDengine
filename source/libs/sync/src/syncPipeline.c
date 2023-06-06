@@ -717,7 +717,7 @@ _out:
   return ret;
 }
 
-int32_t syncLogReplProcessReplyAsRecovery(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
+int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   SRaftId         destId = pMsg->srcId;
   ASSERT(pMgr->restored == false);
@@ -820,15 +820,15 @@ int32_t syncLogReplProcessReply(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncApp
   }
 
   if (pMgr->restored) {
-    (void)syncLogReplProcessReplyAsNormal(pMgr, pNode, pMsg);
+    (void)syncLogReplContinue(pMgr, pNode, pMsg);
   } else {
-    (void)syncLogReplProcessReplyAsRecovery(pMgr, pNode, pMsg);
+    (void)syncLogReplRecover(pMgr, pNode, pMsg);
   }
   taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 }
 
-int32_t syncLogReplDoOnce(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
+int32_t syncLogReplStart(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   if (pMgr->restored) {
     (void)syncLogReplAttempt(pMgr, pNode);
   } else {
@@ -931,7 +931,7 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
   return 0;
 }
 
-int32_t syncLogReplProcessReplyAsNormal(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
+int32_t syncLogReplContinue(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEntriesReply* pMsg) {
   ASSERT(pMgr->restored == true);
   if (pMgr->startIndex <= pMsg->lastSendIndex && pMsg->lastSendIndex < pMgr->endIndex) {
     if (pMgr->startIndex < pMgr->matchIndex && pMgr->retryBackoff > 0) {

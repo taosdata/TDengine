@@ -543,9 +543,9 @@ cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS DATABASE db_name(C).    
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
   WITH META AS DATABASE db_name(C).                                               { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, true); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
-  AS STABLE full_table_name(C).                                                   { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, false); }
+  AS STABLE full_table_name(C) where_clause_opt(D).                               { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, false, D); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
-  WITH META AS STABLE full_table_name(C).                                         { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, true); }
+  WITH META AS STABLE full_table_name(C) where_clause_opt(D).                     { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, true, D); }
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
 cmd ::= DROP CONSUMER GROUP exists_opt(A) cgroup_name(B) ON topic_name(C).        { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C); }
 

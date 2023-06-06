@@ -128,6 +128,7 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
   rocksdb_options_set_comparator(options, cmp);
   rocksdb_block_based_options_set_block_cache(tableoptions, cache);
   rocksdb_options_set_block_based_table_factory(options, tableoptions);
+  rocksdb_options_set_info_log_level(options, 2);  // WARN_LEVEL
   // rocksdb_options_set_inplace_update_support(options, 1);
   // rocksdb_options_set_allow_concurrent_memtable_write(options, 0);
 
@@ -1453,7 +1454,7 @@ static int32_t getTableDelDataFromDelIdx(SDelFReader *pDelReader, SDelIdx *pDelI
   int32_t code = 0;
 
   if (pDelIdx) {
-    code = tsdbReadDelData(pDelReader, pDelIdx, aDelData);
+    code = tsdbReadDelDatav1(pDelReader, pDelIdx, aDelData, INT64_MAX);
   }
 
   return code;
