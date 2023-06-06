@@ -592,7 +592,7 @@
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
-        <span class="label required">{{this.$t('datasource.targtedb')}}</span>
+        <span class="label required">{{this.$t('datasource.targetdb')}}</span>
         <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
@@ -756,6 +756,8 @@ export default {
       if (host.toLowerCase().includes("ip")) {
         this.isIP = this.ipRegex.test(this.dbsource[0].options.host.value);
       }
+
+      console.log(host,this.isIP,'influxdb',host.toLowerCase().includes("ip"),this.dbsource[0].options.host.value);
     },
     changePort() {
       this.isPort =
