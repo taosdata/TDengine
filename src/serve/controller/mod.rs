@@ -699,7 +699,7 @@ impl TaskController {
                         let result = if let Some((id, sender, agent_id)) = &agent_task_worker {
 
                             let send = sender.send(AgentAction::Run(*id)).map_err(|_| anyhow::format_err!("Unable to start task {id} with agent {agent_id}")).map(|_| ());
-                            dbg!(send);
+                            let _ = dbg!(send);
                             cloned_token2.cancelled().await;
                             Ok(())
                         } else {
