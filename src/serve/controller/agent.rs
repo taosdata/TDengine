@@ -169,17 +169,25 @@ pub struct AgentTokenError {
 impl Display for AgentTokenError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "Decoding agent token `{}` error: {:?}",
+            "Decoding agent token `{}` error: {}",
             self.token, self.source
         ))
     }
 }
 impl AgentToken {
     pub fn jwt_decode(&self, secret: impl AsRef<[u8]>) -> Result<AgentClaims, AgentTokenError> {
+        lazy_static::lazy_static! {
+            static ref VALIDATION: Validation = {
+                let mut validation = Validation::new(Algorithm::default());
+                validation.required_spec_claims.clear();
+                validation
+            };
+        }
+        // dbg!(std::str::from_utf8(secret.as_ref()).unwrap());
         jsonwebtoken::decode(
             self.0.as_str(),
             &DecodingKey::from_secret(secret.as_ref()),
-            &Validation::new(Algorithm::default()),
+            &VALIDATION,
         )
         .map_err(|source| AgentTokenError {
             token: self.0.clone(),
