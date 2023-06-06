@@ -214,8 +214,8 @@ taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?asse
 |-----------------|--------|-----------------------------------------------------------------------------|
 | connect_timeout | int    | 连接的超时时间（单位：秒）                                   |
 | request_timeout | int    | 请求的超时时间（单位：秒）                                               |
-| security_policy | string | None/Basic128Rsa15/Basic256/Basic256Sha256                                  |
-| security_mode   | string | None/Sign/SignAndEncrypt                                                    |
+| security_policy | string | OPC-UA连接安全策略（可配置为None/Basic128Rsa15/Basic256/Basic256Sha256）                                  |
+| security_mode   | string | OPC-UA连接模式（可配置为None/Sign/SignAndEncrypt）                                                    |
 | certificate     | string | cert.pem的路径。当安全模式或策略不是”无”时生效        |
 | private_key     | string | key.pem的路径。 当安全模式或策略不是”无”时生效 |
 
