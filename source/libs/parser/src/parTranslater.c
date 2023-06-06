@@ -758,18 +758,40 @@ static SNodeList* getProjectList(const SNode* pNode) {
 
 static bool isTimeLineQuery(SNode* pStmt) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    return ((SSelectStmt*)pStmt)->isTimeLineResult;
+    return (TIME_LINE_MULTI == ((SSelectStmt*)pStmt)->timeLineResMode) || (TIME_LINE_GLOBAL == ((SSelectStmt*)pStmt)->timeLineResMode);
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
+    return TIME_LINE_GLOBAL == ((SSetOperator*)pStmt)->timeLineResMode;
   } else {
     return false;
   }
 }
 
 static bool isGlobalTimeLineQuery(SNode* pStmt) {
-  if (!isTimeLineQuery(pStmt)) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    return TIME_LINE_GLOBAL == ((SSelectStmt*)pStmt)->timeLineResMode;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
+    return TIME_LINE_GLOBAL == ((SSetOperator*)pStmt)->timeLineResMode;
+  } else {
     return false;
   }
-  SSelectStmt* pSelect = (SSelectStmt*)pStmt;
-  return NULL == pSelect->pPartitionByList || NULL != pSelect->pOrderByList;
+}
+
+static bool isTimeLineAlignedQuery(SNode* pStmt) {
+  SSelectStmt *pSelect = (SSelectStmt *)pStmt;
+  if (isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return true;
+  }
+  if (!isTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return false;
+  }
+  if (QUERY_NODE_SELECT_STMT != nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return false;
+  }
+  SSelectStmt *pSub = (SSelectStmt *)((STempTableNode*)pSelect->pFromTable)->pSubquery;
+  if (nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
+    return true;
+  }
+  return false;
 }
 
 static bool isPrimaryKeyImpl(SNode* pExpr) {
@@ -1575,7 +1597,7 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-      !isTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) && !isTimeLineAlignedQuery(pCxt->pCurrStmt)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function requires valid time series input", pFunc->functionName);
   }
@@ -2289,7 +2311,7 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
     return TSDB_CODE_SUCCESS;
   }
   if (!pSelect->onlyHasKeepOrderFunc) {
-    pSelect->isTimeLineResult = false;
+    pSelect->timeLineResMode = TIME_LINE_NONE;
   }
   CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt, .existCol = false};
   nodesRewriteExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
@@ -2636,9 +2658,9 @@ static int32_t replaceTbName(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
 static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   if ((QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
-       !isTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) ||
+       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) ||
       (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pRight) &&
-       !isTimeLineQuery(((STempTableNode*)pJoinTable->pRight)->pSubquery))) {
+       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pRight)->pSubquery))) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
                                    "Join requires valid time series input");
   }
@@ -2673,7 +2695,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         }
         if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
           if (isSelectStmt(pCxt->pCurrStmt)) {
-            ((SSelectStmt*)pCxt->pCurrStmt)->isTimeLineResult = false;
+            ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
           } else if (isDeleteStmt(pCxt->pCurrStmt)) {
             code = TSDB_CODE_TSC_INVALID_OPERATION;
             break;
@@ -3152,7 +3174,7 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST);
   }
   pCxt->currClause = SQL_CLAUSE_GROUP_BY;
-  pSelect->isTimeLineResult = false;
+  pSelect->timeLineResMode = TIME_LINE_NONE;
   return translateExprList(pCxt, pSelect->pGroupByList);
 }
 
@@ -3552,7 +3574,18 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
 static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
-  int32_t code = translateExprList(pCxt, pSelect->pPartitionByList);
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  if (pSelect->pPartitionByList) {
+    int8_t typeType = getTableTypeFromTableNode(pSelect->pFromTable);
+    SNode* pPar = nodesListGetNode(pSelect->pPartitionByList, 0);
+    if (!((TSDB_NORMAL_TABLE == typeType || TSDB_CHILD_TABLE == typeType) && 
+      1 == pSelect->pPartitionByList->length && (QUERY_NODE_FUNCTION == nodeType(pPar) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPar)->funcType))) {
+      pSelect->timeLineResMode = TIME_LINE_MULTI;
+    }
+    
+    code = translateExprList(pCxt, pSelect->pPartitionByList);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExprList(pCxt, pSelect->pTags);
   }
@@ -3681,9 +3714,9 @@ static void resetResultTimeline(SSelectStmt* pSelect) {
   if ((QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
        isPrimaryKey((STempTableNode*)pSelect->pFromTable, pOrder)) ||
       (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder))) {
-    pSelect->isTimeLineResult = true;
+    pSelect->timeLineResMode = TIME_LINE_GLOBAL;
   } else {
-    pSelect->isTimeLineResult = false;
+    pSelect->timeLineResMode = TIME_LINE_NONE;
   }
 }
 
@@ -3813,8 +3846,13 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
       pLeftExpr = pLeftFuncExpr;
     }
     snprintf(pRightExpr->aliasName, sizeof(pRightExpr->aliasName), "%s", pLeftExpr->aliasName);
-    if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList,
-                                                       createSetOperProject(pSetOperator->stmtName, pLeft))) {
+    SNode* pProj = createSetOperProject(pSetOperator->stmtName, pLeft);
+    if (QUERY_NODE_COLUMN == nodeType(pLeft) && QUERY_NODE_COLUMN == nodeType(pRight) 
+      && ((SColumnNode*)pLeft)->colId == PRIMARYKEY_TIMESTAMP_COL_ID
+      && ((SColumnNode*)pRight)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      ((SColumnNode*)pProj)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    }
+    if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList, pProj)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -3826,6 +3864,10 @@ static uint8_t calcSetOperatorPrecision(SSetOperator* pSetOperator) {
 }
 
 static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pSetOperator) {
+  if (NULL == pSetOperator->pOrderByList || pSetOperator->pOrderByList->length <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   bool    other;
   int32_t code = translateOrderByPosition(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList, &other);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3837,6 +3879,14 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAlias(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, 0))->pExpr;
+    if (isPrimaryKeyImpl(pOrder)) {
+      pSetOperator->timeLineResMode = TIME_LINE_GLOBAL;
+    } else {
+      pSetOperator->timeLineResMode = TIME_LINE_NONE;
+    }
   }
   return code;
 }
@@ -6324,7 +6374,7 @@ static int32_t subtableExprHasColumnOrPseudoColumn(SNode* pNode) {
 static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
   if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
-      !pSelect->isTimeLineResult || crossTableWithoutAggOper(pSelect) || NULL != pSelect->pOrderByList ||
+      !isTimeLineQuery(pStmt->pQuery) || crossTableWithoutAggOper(pSelect) || NULL != pSelect->pOrderByList ||
       crossTableWithUdaf(pSelect) || isEventWindowQuery(pSelect) || hasJsonTypeProjection(pSelect)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
