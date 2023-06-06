@@ -32,7 +32,7 @@ extern "C" {
 #define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[17];
+extern const int32_t TYPE_BYTES[21];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES      sizeof(char)
