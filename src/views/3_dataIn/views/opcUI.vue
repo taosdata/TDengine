@@ -784,8 +784,8 @@ export default {
           // }
           this.$refs.mqtt.submit();
           if (this.$refs.mqtt) {
-            if(this.$refs.mqtt.showSuperTip){
-               Message({
+            if (this.$refs.mqtt.showSuperTip) {
+              Message({
                 type: "warning",
                 message: this.$t("datasource.bothtagsuper"),
               });
@@ -798,8 +798,6 @@ export default {
               });
               return;
             }
-
-            
           }
         }
         this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
@@ -853,8 +851,8 @@ export default {
                 Message.error(err.response.data.message);
             });
         }
-      } catch (error) {
-        console.log(error);
+      } catch (err) {
+        err.response.data.message && Message.error(err.response.data.message);
       }
     },
     handleClick(tab, event) {

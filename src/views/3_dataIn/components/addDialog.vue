@@ -160,17 +160,6 @@ export default {
         this.$nextTick(() => {
           this.closeDialog()
         })
-      } else if (this.ruleForm.agent[0] !== 'null') {
-        this.originalTypes = deepClone(
-          this.agentList
-            .filter((item) => item.id == this.ruleForm.agent[1])[0]
-            .connectors.map((val) => {
-              return {
-                id: val,
-                name: this.dataTypeMap.get(val)
-              };
-            })
-        );
       }
     },
     closeDialog() {
@@ -193,7 +182,6 @@ export default {
             ...agent
           }
         })
-        console.log(this.agentList,'this.agentList');
       } catch (error) {
         console.log(error);
       }
@@ -203,7 +191,6 @@ export default {
     "ruleForm.type": {
       deep: true,
       handler(val) {
-        console.log(val, "舰艇类型");
         if (val == "mqtt") {
         //   this.$emit("showMqttDialog");
         }
