@@ -183,7 +183,13 @@ async fn backup(
                 
                 log::debug!("assignment: {:?}", assignments);
                 for (topic, assignment) in assignments {
-                    offsets.insert(topic, assignment);
+                    if assignment.is_empty() {
+                        continue;
+                    }
+                    let vgroup_id = assignment[0].vgroup_id();
+                    let key = format!("{}@vgroup{}", topic, vgroup_id);
+                    log::debug!("key: {}, assignment: {:?}", key, assignment);
+                    offsets.insert(key, assignment);
                 }
 
                 if let Some((offset, message)) = next? {
