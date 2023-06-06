@@ -856,13 +856,12 @@ export default {
               dns += `${token}`;
             }
           }
-          dns += dns.includes("://") ? dns : dns + "://";
+          dns = dns.includes("://") ? dns : dns + "://";
           // if(this.handleEmptyValue(data.options.host.value)){
           dns += `@${data.options.host.value ? data.options.host.value : ""}`;
           // }
         } else {
           if (this.tagName == "influxdb") {
-            console.log(data.options.host.value , this.isIP,'influx---pp');
             this.changeHost(data.options.host.value)
             if (data.options.host.value && !this.isIP) {
               Message.warning(this.$t("datasource.iptip"));
