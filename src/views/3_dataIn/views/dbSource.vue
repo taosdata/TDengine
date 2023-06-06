@@ -172,7 +172,7 @@ export default {
             this.uidata[0].protocol.value =
               this.uidata[0].protocol.choices.filter((item) => {
                 return item.display === "Native";
-              })[0].name;
+              })[0]?.name;
           }
         }
       }

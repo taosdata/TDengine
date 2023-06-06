@@ -849,7 +849,7 @@ export default {
               dns += `${token}`;
             }
           }
-          dns += dns.includes('://')?dns:dns+'://'
+          dns = dns.includes('://') ? dns : '://' + dns
           // if(this.handleEmptyValue(data.options.host.value)){
           dns += `@${data.options.host.value ? data.options.host.value : ""}`;
           // }
