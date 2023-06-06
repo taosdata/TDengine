@@ -21,13 +21,29 @@
         prop="agent"
         v-model="ruleForm.agent"
       >
-        <el-cascader
+        <span slot="label">
+          <el-checkbox v-model="checked">{{ $t('datasource.agent') }}</el-checkbox>
+        </span>
+        <!-- <el-cascader
           v-model="ruleForm.agent"
           :placeholder="$t('datasource.agenttip')"
           style="width: 100%"
           :options="options"
+          :disabled="disabledAgent"
           >
-        </el-cascader>
+        </el-cascader> -->
+        <el-select 
+          v-model="ruleForm.agent"
+          :placeholder="checked ? $t('datasource.agenttip') : this.$t('disbleagent')"
+          :disabled="disabledAgent"
+        >
+          <el-option
+            v-for="item in this.agentList"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value">
+          </el-option>
+        </el-select>
       </el-form-item>
       <el-form-item :label="$t('datasource.sourcetype')" prop="type">
         <el-select
@@ -85,6 +101,9 @@ export default {
   },
   computed: {
     confirmStatus() {
+      if (!this.ruleForm.agent && this.checked) {
+        return true
+      }
       if (!this.ruleForm.type) {
         return true;
       }
@@ -105,7 +124,24 @@ export default {
           children: this.agentList
         }
       ]
-    }
+    },
+    rules() {
+      return {
+        agent: [
+          {
+            required: this.checked,
+            message: this.$t("datasource.agenttip"),
+          },
+        ],
+        type: [
+          {
+            required: true,
+            message: this.$t("datasource.typetip"),
+          },
+        ],
+        name: [{ required: true, message: this.$t("datasource.nametip") }],
+      }
+    },
   },
   data() {
     return {
@@ -117,27 +153,14 @@ export default {
         type: "",
         name: "",
       },
-      rules: {
-        // agent: [
-        //   {
-        //     required: true,
-        //     message: this.$t("datasource.agenttip"),
-        //   },
-        // ],
-        type: [
-          {
-            required: true,
-            message: this.$t("datasource.typetip"),
-          },
-        ],
-        name: [{ required: true, message: this.$t("datasource.nametip") }],
-      },
       dataTypeMap: new Map([
         ["tmq", "TDengine Subscription"],
         ["pi", "PI"],
         ["opcda", "OPC-DA"],
         ["opcua", "OPC-UA"],
       ]),
+      checked: true,
+      disabledAgent: false
     };
   },
   mounted() {
@@ -147,7 +170,7 @@ export default {
   methods: {
     handleAdd() {
       localStorage.setItem("datainName", this.ruleForm.name);
-      this.$parent.$parent.agentID = this.ruleForm.agent.length > 1 && this.ruleForm.agent[1];
+      this.$parent.$parent.agentID = this.ruleForm.agent;
       this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "", "");
     },
     closeDialog() {
@@ -186,6 +209,10 @@ export default {
         }
       },
     },
+    checked(val) {
+      this.disabledAgent = !val
+      this.ruleForm.agent = ''
+    }
   },
 };
 </script>
@@ -207,6 +234,10 @@ export default {
       margin-left: 25px;
     }
   }
+}
+::v-deep .el-checkbox__label {
+  font-size: 16px;
+  color: #4d6992;
 }
 .el-select {
   display: flex;
