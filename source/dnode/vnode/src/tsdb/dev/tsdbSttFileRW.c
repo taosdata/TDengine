@@ -50,7 +50,6 @@ static int32_t tsdbSttSegReaderOpen(SSttFileReader *reader, int64_t offset, SStt
 
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = TD_VID(reader->config->tsdb->pVnode);
 
   segReader[0] = taosMemoryCalloc(1, sizeof(*segReader[0]));
   if (!segReader[0]) return TSDB_CODE_OUT_OF_MEMORY;
@@ -61,7 +60,7 @@ static int32_t tsdbSttSegReaderOpen(SSttFileReader *reader, int64_t offset, SStt
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
     taosMemoryFree(segReader[0]);
     segReader[0] = NULL;
   }
@@ -82,7 +81,6 @@ static int32_t tsdbSttSegReaderClose(SSttSegReader **reader) {
 int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *config, SSttFileReader **reader) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = TD_VID(config->tsdb->pVnode);
 
   reader[0] = taosMemoryCalloc(1, sizeof(*reader[0]));
   if (reader[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -112,7 +110,7 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(config->tsdb->pVnode), lino, code);
     tsdbSttFileReaderClose(reader);
   }
   return code;
@@ -720,7 +718,6 @@ int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter
 int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArray *opArray) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = TD_VID(writer[0]->config->tsdb->pVnode);
 
   if (writer[0]->ctx->opened) {
     if (abort) {
@@ -737,7 +734,7 @@ int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArr
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(writer[0]->config->tsdb->pVnode), lino, code);
   }
   return code;
 }
@@ -745,7 +742,6 @@ _exit:
 int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = TD_VID(writer->config->tsdb->pVnode);
 
   if (!writer->ctx->opened) {
     code = tsdbSttFWriterDoOpen(writer);
@@ -833,7 +829,7 @@ int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(writer->config->tsdb->pVnode), lino, code);
   }
   return code;
 }

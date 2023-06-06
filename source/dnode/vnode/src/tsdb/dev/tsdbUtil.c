@@ -45,6 +45,16 @@ int32_t tTombBlockPut(STombBlock *delBlock, const STombRecord *delRecord) {
   return 0;
 }
 
+int32_t tTombRecordCmpr(const STombRecord *r1, const STombRecord *r2) {
+  if (r1->suid < r2->suid) return -1;
+  if (r1->suid > r2->suid) return 1;
+  if (r1->uid < r2->uid) return -1;
+  if (r1->uid > r2->uid) return 1;
+  if (r1->version < r2->version) return -1;
+  if (r1->version > r2->version) return 1;
+  return 0;
+}
+
 // STbStatisBlock ----------
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {

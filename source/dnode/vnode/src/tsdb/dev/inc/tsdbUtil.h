@@ -64,6 +64,8 @@ int32_t tTombBlockFree(STombBlock *delBlock);
 int32_t tTombBlockClear(STombBlock *delBlock);
 int32_t tTombBlockPut(STombBlock *delBlock, const STombRecord *delRecord);
 
+int32_t tTombRecordCmpr(const STombRecord *r1, const STombRecord *r2);
+
 // STbStatisBlock ----------
 #define STATIS_RECORD_NUM_ELEM 9
 typedef union {
