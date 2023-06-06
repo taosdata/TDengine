@@ -64,6 +64,7 @@ int32_t tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, TFileOpArr
 int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row);
 int32_t tsdbSttFileWriteTSDataBlock(SSttFileWriter *writer, SBlockData *pBlockData);
 int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *record);
+bool    tsdbSttFileWriterIsOpened(SSttFileWriter *writer);
 
 struct SSttFileWriterConfig {
   STsdb    *tsdb;

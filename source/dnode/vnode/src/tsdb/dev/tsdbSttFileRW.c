@@ -891,3 +891,5 @@ _exit:
   }
   return code;
 }
+
+bool tsdbSttFileWriterIsOpened(SSttFileWriter *writer) { return writer->ctx->opened; }
