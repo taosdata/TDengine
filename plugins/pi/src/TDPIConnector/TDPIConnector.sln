@@ -17,6 +17,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TDPIConnector.CsvPointBuild
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TDBackfill", "TDBackfill\TDBackfill.csproj", "{07CC0037-853B-4417-B42D-C3A211F77FB5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "taosx-pi-simulator", "taosx-pi-simulator\taosx-pi-simulator.csproj", "{4CD1097B-F6DC-41FE-B4FC-1391390EC887}"
+	ProjectSection(ProjectDependencies) = postProject
+		{75D82933-AF9E-4135-B0B6-C968E2CD693E} = {75D82933-AF9E-4135-B0B6-C968E2CD693E}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TDPIConnector.PI2", "TDPIConnector.PI2\TDPIConnector.PI2.csproj", "{75D82933-AF9E-4135-B0B6-C968E2CD693E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -49,6 +56,14 @@ Global
 		{07CC0037-853B-4417-B42D-C3A211F77FB5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07CC0037-853B-4417-B42D-C3A211F77FB5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{07CC0037-853B-4417-B42D-C3A211F77FB5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4CD1097B-F6DC-41FE-B4FC-1391390EC887}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4CD1097B-F6DC-41FE-B4FC-1391390EC887}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4CD1097B-F6DC-41FE-B4FC-1391390EC887}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4CD1097B-F6DC-41FE-B4FC-1391390EC887}.Release|Any CPU.Build.0 = Release|Any CPU
+		{75D82933-AF9E-4135-B0B6-C968E2CD693E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75D82933-AF9E-4135-B0B6-C968E2CD693E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75D82933-AF9E-4135-B0B6-C968E2CD693E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75D82933-AF9E-4135-B0B6-C968E2CD693E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

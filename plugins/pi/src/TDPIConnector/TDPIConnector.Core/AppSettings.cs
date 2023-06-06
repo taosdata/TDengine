@@ -83,14 +83,17 @@ namespace TDPIConnector.Core
 
         public static void Init(string tomlConfigFile)
         {
-            tomlConfig = Toml.ReadFile<TomlConfig>(tomlConfigFile);
-            log.Info($"toml file: {tomlConfig.ConfigString()}");
-            
+            tomlConfig = new TomlConfig();
+            if (tomlConfigFile != null && tomlConfigFile != "") {
+                tomlConfig = Toml.ReadFile<TomlConfig>(tomlConfigFile);
+                log.Info($"toml file: {tomlConfig.ConfigString()}");
+            }
+
             if (string.IsNullOrEmpty(tomlConfig.PIServerDomain))
             {
                 tomlConfig.PIServerDomain = null;
             }
-            if (tomlConfigFile == "")
+            if (tomlConfigFile == null || tomlConfigFile == "")
             {
                 TaosXEnabled = false;
                 tomlConfig.UpdateInterval = GetIntegerFromAppSettings("UpdateInterval");
@@ -106,7 +109,7 @@ namespace TDPIConnector.Core
                 tomlConfig.AFDatabaseName = GetStringFromAppSettings("AFDatabaseName");
                 tomlConfig.AFDataPipesInstances = GetIntegerFromAppSettings("AFDataPipesInstances", 1);
                 tomlConfig.PIDataPipesInstances = GetIntegerFromAppSettings("PIDataPipesInstances", 1);
-                tomlConfig.MaxBackfillRangeDays = GetIntegerFromAppSettings("MaxBackfillRangeDays");
+                tomlConfig.MaxBackfillRangeDays = GetIntegerFromAppSettings("MaxBackfillRangeDays", 1);
                 try
                 {
                     tomlConfig.TemplateForPIPoint = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates1.csv").Distinct().ToList();
@@ -131,9 +134,9 @@ namespace TDPIConnector.Core
                 TDEnginePITablesPrefix = string.Empty;
             }
             WebBaseUrl = GetStringFromAppSettings("WebBaseUrl");
-            WebBasePort = GetIntegerFromAppSettings("WebBasePort");
-            WebMaxPIEvents = GetIntegerFromAppSettings("WebMaxPIEvents");
-            WebMaxTDEngineHttpResponses = GetIntegerFromAppSettings("WebMaxTDEngineHttpResponses");
+            WebBasePort = GetIntegerFromAppSettings("WebBasePort", 80);
+            WebMaxPIEvents = GetIntegerFromAppSettings("WebMaxPIEvents", 5);
+            WebMaxTDEngineHttpResponses = GetIntegerFromAppSettings("WebMaxTDEngineHttpResponses", 5);
             WebMonitoringEventsEnabled = GetBooleanFromAppSettings("WebMonitoringEventsEnabled", false);
 
 
