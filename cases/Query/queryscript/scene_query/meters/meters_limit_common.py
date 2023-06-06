@@ -36,6 +36,7 @@ class TDTestQuery(TDCase):
     tables = 150
     per_table_num = 200
     vgroups = random.randint(1,8)
+    dbname_other_local = 'other_local_db'
     
     dbnamejoin = 'meters_join'
     #比base表要大
