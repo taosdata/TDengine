@@ -1505,6 +1505,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
     taosArrayDestroy(*(void**)pIte);
   }
   taosHashCleanup(pInfo->pPullDataMap);
+  taosHashCleanup(pInfo->pFinalPullDataMap);
   taosArrayDestroy(pInfo->pPullWins);
   blockDataDestroy(pInfo->pPullDataRes);
   taosArrayDestroy(pInfo->pDelWins);
