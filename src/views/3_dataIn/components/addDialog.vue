@@ -19,13 +19,14 @@
       <el-form-item
         :label="$t('datasource.agent')"
         prop="agent"
+        v-model="ruleForm.agent"
       >
         <el-cascader
           v-model="ruleForm.agent"
           :placeholder="$t('datasource.agenttip')"
           style="width: 100%"
           :options="options"
-          @change="selectAgenttype">
+          >
         </el-cascader>
       </el-form-item>
       <el-form-item :label="$t('datasource.sourcetype')" prop="type">
@@ -95,12 +96,8 @@ export default {
     options() {
       return [
         {
-          value: 'null',
+          value: 'disableAgent',
           label: this.$t('disbleagent'),
-        },
-        {
-          value: 'add',
-          label: this.$t('taosagents.createnewagent'),
         },
         {
           value: 'start',
@@ -116,7 +113,7 @@ export default {
       agentList: [],
       originalTypes: [],
       ruleForm: {
-        agent: "",
+        agent: ["disableAgent"],
         type: "",
         name: "",
       },
@@ -152,26 +149,6 @@ export default {
       localStorage.setItem("datainName", this.ruleForm.name);
       this.$parent.$parent.agentID = this.ruleForm.agent.length > 1 && this.ruleForm.agent[1];
       this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "", "");
-    },
-    selectAgenttype() {
-      this.ruleForm.type = "";
-      if(this.ruleForm.agent[0] === 'add') {
-        this.$emit('addAgent')
-        this.$nextTick(() => {
-          this.closeDialog()
-        })
-      } else if (this.ruleForm.agent[0] !== 'null') {
-        this.originalTypes = deepClone(
-          this.agentList
-            .filter((item) => item.id == this.ruleForm.agent[1])[0]
-            .connectors.map((val) => {
-              return {
-                id: val,
-                name: this.dataTypeMap.get(val)
-              };
-            })
-        );
-      }
     },
     closeDialog() {
       this.$refs.ruleForm.resetFields();
