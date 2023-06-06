@@ -917,7 +917,7 @@ export default {
     subtip:'请输入子表名称',
     // supertip:'请输入超级表', 
     // tagtip:'请输入tag名称',
-    iptip:'请输入正确的ip地址',
+    iptip:'请输入正确的ip地址或域名',
     porttip:'请输入正确的端口号',
     ok:'确定',
     cancel:'取消',

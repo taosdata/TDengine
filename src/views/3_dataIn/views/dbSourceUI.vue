@@ -3,8 +3,6 @@
     <div class="left-ui">
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
-
-        <!-- <h3>{{ dbsource[0].description }}</h3> -->
       </section>
       <section class="basics">
         <div class="block-title">
@@ -79,45 +77,6 @@
             </div>
           </div>
         </div>
-        <!-- <div style="width: 100%">
-          <span
-            :class="[
-              'label',
-              dbsource[0].options.username.required ? 'required' : '',
-            ]"
-            >{{ dbsource[0].options.username.display }}</span
-          >
-          <div class="label-value">
-            <el-input
-              :placeholder="dbsource[0].options.username.placeholder"
-              v-model="dbsource[0].options.username.value"
-            ></el-input>
-            <div
-              v-html="transforHtml(dbsource[0].options.username.description)"
-              class="description"
-            ></div>
-          </div>
-        </div> -->
-        <!-- <div style="width: 100%">
-          <span
-            :class="[
-              'label',
-              dbsource[0].options.password.required ? 'required' : '',
-            ]"
-            >{{ dbsource[0].options.password.display }}</span
-          >
-          <div class="label-value">
-            <el-input
-              :placeholder="dbsource[0].options.password.placeholder"
-              v-model="dbsource[0].options.password.value"
-              type="password"
-            ></el-input>
-            <div
-              v-html="transforHtml(dbsource[0].options.password.description)"
-              class="description"
-            ></div>
-          </div>
-        </div> -->
         <div
           style="width: 100%"
           v-if="JSON.stringify(dbsource[0].options.subject) !== '{}'"
@@ -592,7 +551,7 @@
       <!--未分组显示根节点下的params，显示方式和groups一样-->
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
-        <span class="label required">{{this.$t('datasource.targetdb')}}</span>
+        <span class="label required">{{ this.$t("datasource.targetdb") }}</span>
         <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
@@ -707,8 +666,9 @@ export default {
       backfillEndOption: {
         disabledDate: (time) => backfillEnd(time),
       },
-      ipRegex:
-        /^(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$/,
+      ipRegex://判断ip和域名
+       /^(?=^.{3,255}$)(http(s)?:\/\/)?(www\.)?[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+(:\d+)*(\/\w+\.\w+)*$/,
+        // /^(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$/,
       isIP: true,
       isPort: true,
       disable: false,
@@ -753,11 +713,9 @@ export default {
   },
   methods: {
     changeHost(host) {
-      if (host.toLowerCase().includes("ip")) {
+      if (this.tagName=='influxdb') {
         this.isIP = this.ipRegex.test(this.dbsource[0].options.host.value);
       }
-
-      console.log(host,this.isIP,'influxdb',host.toLowerCase().includes("ip"),this.dbsource[0].options.host.value);
     },
     changePort() {
       this.isPort =
@@ -849,12 +807,13 @@ export default {
               dns += `${token}`;
             }
           }
-          dns = dns.includes('://') ? dns : '://' + dns
+          dns = dns.includes("://") ? dns : dns + "://";
           // if(this.handleEmptyValue(data.options.host.value)){
           dns += `@${data.options.host.value ? data.options.host.value : ""}`;
           // }
         } else {
           if (this.tagName == "influxdb") {
+            this.changeHost(data.options.host.value)
             if (data.options.host.value && !this.isIP) {
               Message.warning(this.$t("datasource.iptip"));
               return;
@@ -1074,8 +1033,8 @@ export default {
           //   }
           // });
         }
-      } catch (error) {
-        console.log(error);
+      } catch (err) {
+        err.response.data.message && Message.error(err.response.data.message);
       }
     },
 

@@ -12,14 +12,14 @@
         >{{ $t("taosagents.createnewagent") }}</el-button
       >
     </div>
-    <el-table 
+    <el-table
       v-if="agentList?.length > 0"
-      style="margin-top: 20px" 
-      :data="agentList" 
-      size="mini" 
-      max-height="250" 
+      style="margin-top: 20px"
+      :data="agentList"
+      size="mini"
+      max-height="250"
     >
-      <el-table-column label="ID" prop="id" ></el-table-column>
+      <el-table-column label="ID" prop="id"></el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.cluster_id')"
         prop="cluster_id"
@@ -39,7 +39,7 @@
         prop="dsn"
         width="200"
       ></el-table-column> -->
-      
+
       <!-- <el-table-column
         :label="$t('taosagents.last_modified_at')"
         prop="last_modified_at"
@@ -261,16 +261,20 @@ export default {
         }
       ).then(async () => {
         try {
-          deleteAgent(data.id).then(res=>{
-            console.log(res,'200的提示');
-            res&&Message.success(this.$t('delSucc'))
-          }).catch((err) => {
-            console.log(err.response, "删除的错误提示--500");
-            err.response.data &&
-              err.response.data.message &&
-              Message.error(err.response.data.message);
-          });
-        } catch (error) {console.log(error);}
+          deleteAgent(data.id)
+            .then((res) => {
+              res && res.message && Message.error(res.message);
+            })
+            .catch((err) => {
+              err.response.data &&
+                err.response.data.message &&
+                Message.error(err.response.data.message);
+            });
+        } catch (err) {
+          err.response.data &&
+            err.response.data.message &&
+            Message.error(err.response.data.message);
+        }
 
         this.getAgents();
       });
@@ -352,9 +356,9 @@ export default {
         }
       } catch (error) {
         Message({
-          type: 'error',
-          message: error || error.message
-        })
+          type: "error",
+          message: error || error.message,
+        });
         console.log(error);
       }
     },

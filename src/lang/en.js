@@ -1136,7 +1136,7 @@ export default {
     usingtip:'Please enter the super table name',
     supertip: 'Please enter the super table',
     tagtip: 'Please enter the tag name',
-    iptip: 'Please enter the correct IP address',
+    iptip: 'Please enter the correct IP address or domain name',
     porttip: 'Please enter the correct Port',
     ok: 'OK',
     cancel: 'Cancel',
