@@ -1,9 +1,16 @@
 <template>
-  <div class="dnode-block">
-    <div style="font-size: 18px" v-if="agentList?.length > 0">
-      <p class="title">
-        <span>{{ $t("topic.agent") }}</span>
-      </p>
+  <div class="data-agent">
+    <p class="title">
+      <span>{{ $t("topic.agent") }}</span>
+    </p>
+    <div class="flexEnd">
+      <el-button
+        plain
+        @click="dialog = true"
+        size="small"
+        icon="el-icon-plus"
+        >{{ $t("taosagents.createnewagent") }}</el-button
+      >
     </div>
     <el-table
       v-if="agentList?.length > 0"
@@ -462,5 +469,18 @@ export default {
   font-size: 16px;
   margin: 10px 0;
   padding: 8px 16px;
+}
+.data-agent {
+  position: relative;
+}
+.flexEnd {
+  position: absolute;
+  top: 6px;
+  z-index: 9999;
+  right: 10px;
+  .el-button {
+    border: none;
+    background: transparent;
+  }
 }
 </style>

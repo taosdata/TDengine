@@ -3,8 +3,6 @@
     <div class="left-ui">
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
-
-        <!-- <h3>{{ dbsource[0].description }}</h3> -->
       </section>
       <section class="basics">
         <div class="block-title">
@@ -79,45 +77,6 @@
             </div>
           </div>
         </div>
-        <!-- <div style="width: 100%">
-          <span
-            :class="[
-              'label',
-              dbsource[0].options.username.required ? 'required' : '',
-            ]"
-            >{{ dbsource[0].options.username.display }}</span
-          >
-          <div class="label-value">
-            <el-input
-              :placeholder="dbsource[0].options.username.placeholder"
-              v-model="dbsource[0].options.username.value"
-            ></el-input>
-            <div
-              v-html="transforHtml(dbsource[0].options.username.description)"
-              class="description"
-            ></div>
-          </div>
-        </div> -->
-        <!-- <div style="width: 100%">
-          <span
-            :class="[
-              'label',
-              dbsource[0].options.password.required ? 'required' : '',
-            ]"
-            >{{ dbsource[0].options.password.display }}</span
-          >
-          <div class="label-value">
-            <el-input
-              :placeholder="dbsource[0].options.password.placeholder"
-              v-model="dbsource[0].options.password.value"
-              type="password"
-            ></el-input>
-            <div
-              v-html="transforHtml(dbsource[0].options.password.description)"
-              class="description"
-            ></div>
-          </div>
-        </div> -->
         <div
           style="width: 100%"
           v-if="JSON.stringify(dbsource[0].options.subject) !== '{}'"
@@ -757,14 +716,6 @@ export default {
       if (this.tagName=='influxdb') {
         this.isIP = this.ipRegex.test(this.dbsource[0].options.host.value);
       }
-
-      console.log(
-        host,
-        this.isIP,
-        "influxdb",
-        host.toLowerCase().includes("ip"),
-        this.dbsource[0].options.host.value
-      );
     },
     changePort() {
       this.isPort =
