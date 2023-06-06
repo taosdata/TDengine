@@ -1741,7 +1741,7 @@ export default {
     edituser: 'Edit User',
     username: 'User Name',
     password: 'Password',
-    subscription: 'Subscription',
+    subscription: 'Subscription topic',
     createbackup: 'Create New Backup',
     backupcycle: 'Backup Cycle',
     directory: 'Directory',

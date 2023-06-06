@@ -1,9 +1,16 @@
 <template>
-  <div class="dnode-block">
-    <div style="font-size: 18px;" v-if="agentList?.length > 0">
-      <p class="title">
-        <span>{{ $t("topic.agent") }}</span>
-      </p>
+  <div class="data-agent">
+    <p class="title">
+      <span>{{ $t("topic.agent") }}</span>
+    </p>
+    <div class="flexEnd">
+      <el-button
+        plain
+        @click="dialog = true"
+        size="small"
+        icon="el-icon-plus"
+        >{{ $t("taosagents.createnewagent") }}</el-button
+      >
     </div>
     <el-table 
       v-if="agentList?.length > 0"
@@ -256,7 +263,7 @@ export default {
         try {
           deleteAgent(data.id).then(res=>{
             console.log(res,'200的提示');
-            res&&res.message&&Message.error(res.message)
+            res&&Message.success(this.$t('delSucc'))
           }).catch((err) => {
             console.log(err.response, "删除的错误提示--500");
             err.response.data &&
@@ -458,5 +465,18 @@ export default {
   font-size: 16px;
   margin: 10px 0;
   padding: 8px 16px;
+}
+.data-agent {
+  position: relative;
+}
+.flexEnd {
+  position: absolute;
+  top: 6px;
+  z-index: 9999;
+  right: 10px;
+  .el-button {
+    border: none;
+    background: transparent;
+  }
 }
 </style>
