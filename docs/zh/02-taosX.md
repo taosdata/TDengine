@@ -212,12 +212,12 @@ taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?asse
 可配置参数如下：
 | 参数名称 | 类型    | 描述                                   |
 |-----------------|--------|-----------------------------------------------------------------------------|
-| connect_timeout | int    | timeout for connect to endpoint in second                                   |
-| request_timeout | int    | timeout for a request in second                                             |
+| connect_timeout | int    | 连接的超时时间（单位：秒）                                   |
+| request_timeout | int    | 请求的超时时间（单位：秒）                                               |
 | security_policy | string | None/Basic128Rsa15/Basic256/Basic256Sha256                                  |
 | security_mode   | string | None/Sign/SignAndEncrypt                                                    |
-| certificate     | string | Path to cert.pem. Required when security mode or policy isn't "None"        |
-| private_key     | string | Path to private key.pem. Required when security mode or policy isn't "None" |
+| certificate     | string | cert.pem的路径。当安全模式或策略不是”无”时生效        |
+| private_key     | string | key.pem的路径。 当安全模式或策略不是”无”时生效 |
 
 示例：
 
