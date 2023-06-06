@@ -16,7 +16,7 @@ options:
     placeholder: 127.0.0.1
     required: true
   port:
-    display: Port
+    display: 端口
     description: InfluxDB 服务器端口，默认情况下，InfluxDB 监听 8086 端口的 HTTP 请求和 8088 端口的 HTTPS 请求。
     placeholder: "8086"
     required: true

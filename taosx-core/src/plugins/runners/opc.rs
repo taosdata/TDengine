@@ -1,6 +1,8 @@
 use std::{
     collections::HashMap, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr,
     sync::Arc, time::Duration,
+    fs,
+    process::Stdio,
 };
 
 use anyhow::Context;
@@ -610,6 +612,12 @@ fn exe_path() -> PathBuf {
     super::get_plugin_dir("opc").join(EXE)
 }
 
+const LOG_FILE: &str = "opc.log";
+
+fn log_path() -> PathBuf {
+    super::get_log_dir("opc")
+}
+
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     let path = exe_path();
     let output = std::process::Command::new(&path).arg("version").output()?;
@@ -699,11 +707,29 @@ pub async fn opc_to_taos(
 
     let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(exe_path());
+
+    let mut log_path = log_path();
+
+    fs::create_dir_all(&log_path)?;
+
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
+    
+    let log_file = fs::OpenOptions::new()
+    .append(true)
+    .create(true)
+    .open(&log_path)
+    .unwrap();
+    let log_io = Stdio::from(log_file);
+
     let child = command
         .arg("collect")
         .arg(format!("--conf={}", &config_path.display()))
         .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit());
+        .stderr(log_io);
     {
         let mut child = child.spawn()?;
         tokio::spawn(async move {

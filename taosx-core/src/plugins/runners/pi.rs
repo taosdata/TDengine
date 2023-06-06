@@ -1,5 +1,7 @@
 use std::{
-    io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
+    io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc, time::Duration, 
+    fs,
+    process::Stdio,
 };
 
 use anyhow::Context;
@@ -237,6 +239,13 @@ fn pi_exe_path() -> PathBuf {
 fn pi_backfill_exe_path() -> PathBuf {
     super::get_plugin_dir("pi").join("taosx-pi-backfill.exe")
 }
+
+const LOG_FILE: &str = "pi.log";
+
+fn log_path() -> PathBuf {
+    super::get_log_dir("pi")
+}
+
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 pub async fn pi_to_taos(
     from: Dsn,
@@ -308,6 +317,23 @@ pub async fn pi_to_taos(
         retries += 1;
     }
 
+    let mut log_path = log_path();
+
+    fs::create_dir_all(&log_path)?;
+
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
+    
+    let log_file = fs::OpenOptions::new()
+    .append(true)
+    .create(true)
+    .open(&log_path)
+    .unwrap();
+    let log_io = Stdio::from(log_file);
+
     let child_command;
     match driver.as_str() {
         "pi" => {
@@ -316,7 +342,7 @@ pub async fn pi_to_taos(
                 .arg("-f")
                 .arg(&config_path)
                 .stdout(async_process::Stdio::inherit())
-                .stderr(async_process::Stdio::inherit())
+                .stderr(log_io)
                 .spawn()
                 .context("Start PI collector error")?;
         }
@@ -326,7 +352,7 @@ pub async fn pi_to_taos(
                 .arg("-f")
                 .arg(&config_path)
                 .stdout(async_process::Stdio::inherit())
-                .stderr(async_process::Stdio::inherit())
+                .stderr(log_io)
                 .spawn()
                 .context("Start PI Backfill error")?;
         }
@@ -426,13 +452,30 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         String::from("*")
     };
 
+    let mut log_path = log_path();
+
+    fs::create_dir_all(&log_path)?;
+
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
+    
+    let log_file = fs::OpenOptions::new()
+    .append(true)
+    .create(true)
+    .open(&log_path)
+    .unwrap();
+    let log_io = Stdio::from(log_file);
+
     let output = command
         .arg("-f")
         .arg(&config_path)
         .arg("-p")
         .arg(point_filter)
         .stdout(async_process::Stdio::piped())
-        .stderr(async_process::Stdio::piped())
+        .stderr(log_io)
         .output()
         .await?;
     // .context("Start PI collector error")?;
