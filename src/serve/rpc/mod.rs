@@ -4,25 +4,22 @@ use std::{
     pin::Pin,
     sync::{atomic::AtomicUsize, Arc},
     task::Poll,
-    time::Duration,
 };
 
 use arrow::{
-    array::{ArrayRef, StringArray, TimestampMillisecondArray, TimestampMillisecondBuilder},
+    array::{ArrayRef, StringArray, TimestampMillisecondArray},
     datatypes::{Field, Fields, Schema},
-    error::ArrowError,
     record_batch::RecordBatch,
 };
 use async_backtrace::framed;
 use futures::{Stream, StreamExt, TryStreamExt};
 use serde::Deserialize;
-use taosx_core::{DataSetsReq, ListResponse};
+use taosx_core::ListResponse;
 #[cfg(unix)]
 use tokio::net::UnixListener;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
-use tokio_util::codec::BytesCodec;
-use tonic::{transport::Server, IntoStreamingRequest, Request, Response, Status, Streaming};
+use tonic::{transport::Server, Request, Response, Status, Streaming};
 
 use arrow_flight::{
     decode::FlightDataDecoder,
@@ -41,7 +38,7 @@ use crate::serve::{
     rpc::put::PutStream,
 };
 
-use super::controller::{AgentAction, TaskControllerRef, TaskDetail};
+use super::controller::{AgentAction, TaskControllerRef};
 
 mod put;
 
@@ -50,11 +47,11 @@ pub(super) struct FlightServiceImpl {
     controller: TaskControllerRef,
 }
 
-impl FlightServiceImpl {
-    pub(super) fn new(controller: TaskControllerRef) -> Self {
-        Self { controller }
-    }
-}
+// impl FlightServiceImpl {
+//     pub(super) fn new(controller: TaskControllerRef) -> Self {
+//         Self { controller }
+//     }
+// }
 
 #[tonic::async_trait]
 impl FlightService for FlightServiceImpl {
@@ -67,7 +64,7 @@ impl FlightService for FlightServiceImpl {
         dbg!(&req);
         let addr = req.remote_addr();
         dbg!(&addr);
-        let (meta, extension, mut req) = req.into_parts();
+        let (meta, _extensions, mut req) = req.into_parts();
 
         dbg!(&meta);
 
@@ -82,7 +79,7 @@ impl FlightService for FlightServiceImpl {
                 .controller
                 .get_agent_with_token(&AgentToken::from(&res.payload))
                 .await
-                .map_err(|err| Status::permission_denied(format!("Invalid token")))?
+                .map_err(|err| Status::permission_denied(format!("Invalid token: {err}")))?
                 .ok_or_else(|| Status::permission_denied("Agent not found"))?;
             res.payload = serde_json::to_vec(&agent).unwrap().into();
             let handshake_stream = futures::stream::once(async { Ok(res) });
@@ -129,15 +126,15 @@ impl FlightService for FlightServiceImpl {
         &self,
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, Status> {
-        let (meta, extension, mut req) = req.into_parts();
-        dbg!(&meta);
+        let (meta, _extension, req) = req.into_parts();
+        // dbg!(&meta);
 
         let task_id = meta
             .get("x-task-id")
             .ok_or_else(|| Status::unavailable("Task id should be set"))
             .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
-        dbg!(task_id);
+        // dbg!(task_id);
 
         // let message = req.try_next().await?;
 
@@ -171,7 +168,7 @@ impl FlightService for FlightServiceImpl {
         &self,
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
-        let (meta, extension, mut req) = req.into_parts();
+        let (meta, extension, req) = req.into_parts();
         dbg!(&meta);
 
         dbg!(&extension);
@@ -198,23 +195,23 @@ impl FlightService for FlightServiceImpl {
 
         let (tx, rx) = flume::bounded(100);
 
-        let sender = tx.clone();
+        // let sender = tx.clone();
         let controller_runner = controller.clone();
         let agent_id = agent.id;
         tokio::spawn(async move {
             // let agent = controller_runner.get_agent_by_id(agent_id).await?;
-            let schema = Arc::new(Schema::new(Fields::from(vec![
-                Field::new(
-                    "ts",
-                    arrow::datatypes::DataType::Timestamp(
-                        arrow::datatypes::TimeUnit::Millisecond,
-                        None,
-                    ),
-                    false,
-                ),
-                Field::new("action", arrow::datatypes::DataType::Utf8, false),
-                Field::new("context", arrow::datatypes::DataType::Utf8, false),
-            ])));
+            // let schema = Arc::new(Schema::new(Fields::from(vec![
+            //     Field::new(
+            //         "ts",
+            //         arrow::datatypes::DataType::Timestamp(
+            //             arrow::datatypes::TimeUnit::Millisecond,
+            //             None,
+            //         ),
+            //         false,
+            //     ),
+            //     Field::new("action", arrow::datatypes::DataType::Utf8, false),
+            //     Field::new("context", arrow::datatypes::DataType::Utf8, false),
+            // ])));
             let encoder = FlightDataDecoder::new(req.map_err(FlightError::Tonic));
             let _ = encoder
                 .try_for_each_concurrent(1, |data| async {
@@ -351,7 +348,7 @@ impl FlightService for FlightServiceImpl {
         ) -> anyhow::Result<()> {
             controller.init_agent_worker(agent.id).await;
             let mut receiver = {
-                let mut agent_tasks = controller.agent_tasks.read().await;
+                let agent_tasks = controller.agent_tasks.read().await;
                 let listener = agent_tasks.get(&agent.id).unwrap();
 
                 // let current = { listener.current.lock().await.clone() };
@@ -516,7 +513,7 @@ impl FlightService for FlightServiceImpl {
                 // task.
 
                 let status: TaskStatus = serde_json::from_slice(&action.body)
-                    .map_err(|err| Status::invalid_argument(format!("{:?}", action.body)))?;
+                    .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
 
                 self.controller
                     .push_task_status(&status)
@@ -601,41 +598,33 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow::{
         datatypes::{DataType, Field, Schema, SchemaRef},
-        error::ArrowError,
-        ipc::{writer::IpcWriteOptions, TimestampBuilder},
+        ipc::writer::IpcWriteOptions,
     };
     use arrow_flight::decode::FlightDataDecoder;
     use arrow_flight::{
         encode::{FlightDataEncoder, FlightDataEncoderBuilder},
         error::FlightError,
         flight_service_client::FlightServiceClient,
-        flight_service_server::FlightServiceServer,
-        Criteria, FlightData, HandshakeRequest,
+        FlightData, HandshakeRequest,
     };
-    use futures::{FutureExt, TryStreamExt};
+    use futures::TryStreamExt;
     use tempfile::NamedTempFile;
-    use tokio::net::{TcpStream, UnixListener, UnixStream};
-    use tokio::time::Interval;
-    use tokio_stream::wrappers::UnixListenerStream;
     use tonic::{
         codegen::Bytes,
-        metadata::MetadataMap,
-        transport::{Channel, Endpoint, Server},
+        transport::{Channel, Endpoint},
         IntoStreamingRequest,
     };
 
-    use crate::serve::controller::{NewTask, TaskController, TaskControllerRef};
-
-    use super::FlightServiceImpl;
-    async fn client_with_uds(path: String) -> FlightServiceClient<Channel> {
-        let connector = tower::service_fn(move |_| UnixStream::connect(path.clone()));
-        let channel = Endpoint::try_from("http://[::1]:50051")
-            .unwrap()
-            .connect_with_connector(connector)
-            .await
-            .unwrap();
-        FlightServiceClient::new(channel)
-    }
+    // use super::FlightServiceImpl;
+    // async fn client_with_uds(path: String) -> FlightServiceClient<Channel> {
+    //     let connector = tower::service_fn(move |_| UnixStream::connect(path.clone()));
+    //     let channel = Endpoint::try_from("http://[::1]:50051")
+    //         .unwrap()
+    //         .connect_with_connector(connector)
+    //         .await
+    //         .unwrap();
+    //     FlightServiceClient::new(channel)
+    // }
     async fn client_with_tcp() -> FlightServiceClient<Channel> {
         // let connector = tower::service_fn(move |_| TcpStream::connect("127.0.0.1:6051"));
         let channel = Endpoint::try_from("http://127.0.0.1:6051")
@@ -656,8 +645,8 @@ mod tests {
         let path = file.into_temp_path().to_str().unwrap().to_string();
         let _ = std::fs::remove_file(path.clone());
 
-        let uds = UnixListener::bind(path.clone()).unwrap();
-        let stream = UnixListenerStream::new(uds);
+        // let uds = UnixListener::bind(path.clone()).unwrap();
+        // let stream = UnixListenerStream::new(uds);
 
         // let controller = TaskControllerRef::from_sqlite("sqlite:memory:")
         //     .await
@@ -683,7 +672,7 @@ mod tests {
 
             // futures::stream::repeat();
 
-            let mut metadata = MetadataMap::new();
+            // let mut metadata = MetadataMap::new();
 
             let schema = Arc::new(
                 Schema::new(vec![Field::new(
@@ -724,17 +713,17 @@ mod tests {
                 }
             }
             // let schema = arrow
-            let mut data = FlightDataEncoderBuilder::new()
-                .with_schema(schema.clone())
-                .with_metadata(Bytes::from("metadata"))
-                .with_options(
-                    IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
-                )
-                .build(FakeStream(
-                    schema.clone(),
-                    tokio::time::interval(Duration::from_millis(1000)),
-                    Instant::now() + Duration::from_secs(10),
-                ));
+            // let mut data = FlightDataEncoderBuilder::new()
+            //     .with_schema(schema.clone())
+            //     .with_metadata(Bytes::from("metadata"))
+            //     .with_options(
+            //         IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
+            //     )
+            //     .build(FakeStream(
+            //         schema.clone(),
+            //         tokio::time::interval(Duration::from_millis(1000)),
+            //         Instant::now() + Duration::from_secs(10),
+            //     ));
 
             struct Data {
                 data: FlightDataEncoder,
@@ -775,7 +764,7 @@ mod tests {
             //     .await
             //     .unwrap();
 
-            let mut data = FlightDataEncoderBuilder::new()
+            let data = FlightDataEncoderBuilder::new()
                 .with_schema(schema.clone())
                 .with_metadata(Bytes::from("metadata"))
                 .with_options(
@@ -787,7 +776,7 @@ mod tests {
                     Instant::now() + Duration::from_secs(10),
                 ));
 
-            let mut req = Data { data }.into_streaming_request();
+            let req = Data { data }.into_streaming_request();
 
             let response = client.do_exchange(req).await.unwrap();
             let stream = FlightDataDecoder::new(
