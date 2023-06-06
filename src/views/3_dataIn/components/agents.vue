@@ -23,11 +23,6 @@
         prop="name"
       ></el-table-column>
 
-      <el-table-column :label="$t('taosagents.connectors')" prop="connectors">
-        <template slot-scope="scope">
-          <span>{{ scope.row.connectors.join(",") }}</span>
-        </template></el-table-column
-      >
       <el-table-column
         :label="$t('taosagents.created_at')"
         prop="created_at"
@@ -37,21 +32,7 @@
         prop="dsn"
         width="200"
       ></el-table-column> -->
-      <el-table-column
-        :label="$t('taosagents.expire_date')"
-        prop="expire_date"
-      >
-      <template slot-scope="scope">
-        <template v-if="((new Date(scope.row.expire_date))<Date.now())">
-          <el-tooltip effect="light" :content="$t('datasource.expired')" placement="right-end">
-
-          <span style="color:red;">{{scope.row.expire_date}}</span>
-          </el-tooltip>
-        </template>
-        <span v-else>{{scope.row.expire_date}}</span>
-      </template>
       
-      </el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.last_modified_at')"
         prop="last_modified_at"
@@ -156,31 +137,6 @@
         <el-form-item prop="name" :label="$t('taosagents.name')">
           <el-input v-model.trim="ruleForm.name" :maxlength="20"></el-input>
         </el-form-item>
-
-        <el-form-item :label="$t('taosagents.connectors')" prop="connectors">
-          <el-select v-model="ruleForm.connectors" placeholder="" multiple>
-            <el-option
-              v-for="db in connectorList"
-              :key="db.id"
-              :label="db.name"
-              :value="db.id"
-            >
-            </el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item
-          :label="$t('taosagents.expire_date')"
-          prop="expire_date"
-          expire_time
-        >
-          <el-date-picker
-            v-model="ruleForm.expire_date"
-            style="width: 100%"
-            :picker-options="expireTimeOPtion"
-            type="date"
-            format="yyyy-MM-dd"
-          ></el-date-picker>
-        </el-form-item>
       </el-form>
 
       <el-row style="margin-top: 20px">
@@ -257,27 +213,11 @@ export default {
       clusterid: localStorage.getItem("local_clusterID"),
       ruleForm: {
         name: "",
-        connectors: "",
-        expire_date: "",
       },
       rules: {
         name: [
           {
             message: this.$t("taosagents.rules.name"),
-            trigger: "blur",
-            required: true,
-          },
-        ],
-        connectors: [
-          {
-            message: this.$t("taosagents.rules.connectors"),
-            trigger: "change",
-            required: true,
-          },
-        ],
-        expire_date: [
-          {
-            message: this.$t("taosagents.rules.expire_date"),
             trigger: "blur",
             required: true,
           },
@@ -293,14 +233,6 @@ export default {
       if (!this.ruleForm.name) {
         return true;
       }
-
-      if (this.ruleForm.connectors == "") {
-        return true;
-      }
-      if (!this.ruleForm.expire_date) {
-        return true;
-      }
-
       return false;
     },
   },
@@ -402,8 +334,6 @@ export default {
     async editAgentData() {
       try {
         let params = {
-          connectors: this.ruleForm.connectors,
-          expire_date: format(this.ruleForm.expire_date, "yyyy-MM-dd"),
           name: this.ruleForm.name,
         };
         let result = await editAgent(this.currentRow.id, params);
@@ -414,6 +344,10 @@ export default {
           this.copyDialog = true;
         }
       } catch (error) {
+        Message({
+          type: 'error',
+          message: error || error.message
+        })
         console.log(error);
       }
     },
@@ -456,9 +390,7 @@ export default {
       try {
         let params = {
           cluster_id: this.clusterid,
-          connectors: this.ruleForm.connectors,
           dsn: localStorage.getItem("base_url"),
-          expire_date: format(this.ruleForm.expire_date, "yyyy-MM-dd"),
           name: this.ruleForm.name,
           user_id: localStorage.getItem("username"),
         };
