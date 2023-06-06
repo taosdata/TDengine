@@ -109,6 +109,8 @@ typedef SVCreateTSmaReq SSmaCfg;
 
 SMTbCursor* metaOpenTbCursor(void* pVnode);
 void        metaCloseTbCursor(SMTbCursor* pTbCur);
+void        metaPauseTbCursor(SMTbCursor* pTbCur);
+void        metaResumeTbCursor(SMTbCursor* pTbCur, int8_t first);
 int32_t     metaTbCursorNext(SMTbCursor* pTbCur, ETableType jumpTableType);
 int32_t     metaTbCursorPrev(SMTbCursor* pTbCur, ETableType jumpTableType);
 

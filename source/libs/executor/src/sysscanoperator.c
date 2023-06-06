@@ -25,6 +25,7 @@
 #include "tdatablock.h"
 #include "tmsg.h"
 
+#include "index.h"
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
@@ -32,7 +33,6 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
-#include "index.h"
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
 typedef int32_t (*__sys_filte)(void* pMeta, SNode* cond, SArray* result);
@@ -540,12 +540,12 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
   int32_t restore = pInfo->restore;
   pInfo->restore = false;
-  
+
   while (restore || ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
     if (restore) {
       restore = false;
     }
-    
+
     char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
@@ -626,8 +626,8 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 }
 
 static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
-  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -1100,8 +1100,8 @@ int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
 }
 
 static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
-  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
   SSysTableScanInfo* pInfo = pOperator->info;
 
@@ -1288,11 +1288,16 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
 static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+  int8_t         firstMetaCursor = 0;
 
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    firstMetaCursor = 1;
+  }
+  if (!firstMetaCursor) {
+    pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0);
   }
 
   blockDataCleanup(pInfo->pRes);
@@ -1436,12 +1441,14 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       numOfRows = 0;
 
       if (pInfo->pRes->info.rows > 0) {
+        pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
         break;
       }
     }
   }
 
   if (numOfRows > 0) {
+    pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
     p->info.rows = numOfRows;
     pInfo->pRes->info.rows = numOfRows;
 
@@ -1485,7 +1492,8 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
   } else {
     if (pInfo->showRewrite == false) {
       if (pCondition != NULL && pInfo->pIdx == NULL) {
-        SSTabFltArg arg = {.pMeta = pInfo->readHandle.vnode, .pVnode = pInfo->readHandle.vnode, .pAPI = &pTaskInfo->storageAPI};
+        SSTabFltArg arg = {
+            .pMeta = pInfo->readHandle.vnode, .pVnode = pInfo->readHandle.vnode, .pAPI = &pTaskInfo->storageAPI};
 
         SSysTableIndex* idx = taosMemoryMalloc(sizeof(SSysTableIndex));
         idx->init = 0;
@@ -1827,7 +1835,7 @@ void destroySysScanOperator(void* param) {
     pInfo->pIdx = NULL;
   }
 
-  if(pInfo->pSchema) {
+  if (pInfo->pSchema) {
     taosHashCleanup(pInfo->pSchema);
     pInfo->pSchema = NULL;
   }
@@ -2144,7 +2152,7 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
   return -1;
 }
 
-static int32_t doGetTableRowSize(SReadHandle *pHandle, uint64_t uid, int32_t* rowLen, const char* idstr) {
+static int32_t doGetTableRowSize(SReadHandle* pHandle, uint64_t uid, int32_t* rowLen, const char* idstr) {
   *rowLen = 0;
 
   SMetaReader mr = {0};
@@ -2194,17 +2202,17 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 
   SBlockDistInfo* pBlockScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
 
   STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
-  int32_t             code = doGetTableRowSize(&pBlockScanInfo->readHandle, pBlockScanInfo->uid,
-                                               (int32_t*)&blockDistInfo.rowSize, GET_TASKID(pTaskInfo));
+  int32_t code = doGetTableRowSize(&pBlockScanInfo->readHandle, pBlockScanInfo->uid, (int32_t*)&blockDistInfo.rowSize,
+                                   GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
   pAPI->tsdReader.tsdReaderGetDataBlockDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
-  blockDistInfo.numOfInmemRows = (int32_t) pAPI->tsdReader.tsdReaderGetNumOfInMemRows(pBlockScanInfo->pHandle);
+  blockDistInfo.numOfInmemRows = (int32_t)pAPI->tsdReader.tsdReaderGetNumOfInMemRows(pBlockScanInfo->pHandle);
 
   SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
 
@@ -2289,7 +2297,8 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
     size_t num = tableListGetSize(pTableListInfo);
     void*  pList = tableListGetInfo(pTableListInfo, 0);
 
-    code = readHandle->api.tsdReader.tsdReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock, (void**)&pInfo->pHandle, pTaskInfo->id.str, false, NULL);
+    code = readHandle->api.tsdReader.tsdReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock,
+                                                   (void**)&pInfo->pHandle, pTaskInfo->id.str, false, NULL);
     cleanupQueryTableDataCond(&cond);
     if (code != 0) {
       goto _error;
