@@ -110,6 +110,8 @@ taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源）
 
 ```
 [] 中的数据都为可选参数。
+
+
 ```bash
 // url 示例
 tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
