@@ -444,7 +444,7 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
     return -1;
   }
 
-  ((SMsgHead *)buf)->vgId = htonl(pTask->nodeId);
+  ((SMsgHead *)buf)->vgId = htonl(pTask->info.nodeId);
 
   void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   tEncoderInit(&encoder, abuf, size);
@@ -454,7 +454,7 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
 
   STransAction action = {0};
   action.mTraceId = pTrans->mTraceId;
-  memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
+  memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
   action.pCont = buf;
   action.contLen = tlen;
   action.msgType = TDMT_STREAM_TASK_DEPLOY;
@@ -637,17 +637,17 @@ _OVER:
 
 static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   // vnode
-  /*if (pTask->nodeId > 0) {*/
+  /*if (pTask->info.nodeId > 0) {*/
   SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  pReq->head.vgId = htonl(pTask->nodeId);
+  pReq->head.vgId = htonl(pTask->info.nodeId);
   pReq->taskId = pTask->id.taskId;
   STransAction action = {0};
-  memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
+  memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
   action.pCont = pReq;
   action.contLen = sizeof(SVDropStreamTaskReq);
   action.msgType = TDMT_STREAM_TASK_DROP;
@@ -870,7 +870,7 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, con
                                                  SMStreamDoCheckpointMsg *pMsg) {
   SStreamCheckpointSourceReq req = {0};
   req.checkpointId = pMsg->checkpointId;
-  req.nodeId = pTask->nodeId;
+  req.nodeId = pTask->info.nodeId;
   req.expireTime = -1;
   req.streamId = pTask->streamId;
   req.taskId = pTask->taskId;
@@ -899,7 +899,7 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, con
 
   SMsgHead *pMsgHead = (SMsgHead *)buf;
   pMsgHead->contLen = htonl(tlen);
-  pMsgHead->vgId = htonl(pTask->nodeId);
+  pMsgHead->vgId = htonl(pTask->info.nodeId);
 
   tEncoderClear(&encoder);
 
@@ -938,12 +938,12 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   for (int32_t i = 0; i < totLevel; i++) {
     SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
     SStreamTask *pTask = taosArrayGetP(pLevel, 0);
-    if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
       int32_t sz = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < sz; j++) {
         SStreamTask *pTask = taosArrayGetP(pLevel, j);
-        /*A(pTask->nodeId > 0);*/
-        SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->nodeId);
+        /*A(pTask->info.nodeId > 0);*/
+        SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->info.nodeId);
         if (pVgObj == NULL) {
           taosRUnLockLatch(&pStream->lock);
           mndReleaseStream(pMnode, pStream);
@@ -1262,7 +1262,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         char nodeType[20 + VARSTR_HEADER_SIZE] = {0};
         varDataSetLen(nodeType, 5);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        if (pTask->nodeId > 0) {
+        if (pTask->info.nodeId > 0) {
           memcpy(varDataVal(nodeType), "vnode", 5);
         } else {
           memcpy(varDataVal(nodeType), "snode", 5);
@@ -1271,21 +1271,21 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         // node id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        int64_t nodeId = TMAX(pTask->nodeId, 0);
+        int64_t nodeId = TMAX(pTask->info.nodeId, 0);
         colDataSetVal(pColInfo, numOfRows, (const char *)&nodeId, false);
 
         // level
         char level[20 + VARSTR_HEADER_SIZE] = {0};
-        if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+        if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
           memcpy(varDataVal(level), "source", 6);
           varDataSetLen(level, 6);
-        } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
+        } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
           memcpy(varDataVal(level), "agg", 3);
           varDataSetLen(level, 3);
-        } else if (pTask->taskLevel == TASK_LEVEL__SINK) {
+        } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
           memcpy(varDataVal(level), "sink", 4);
           varDataSetLen(level, 4);
-        } else if (pTask->taskLevel == TASK_LEVEL__SINK) {
+        } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
         }
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetVal(pColInfo, numOfRows, (const char *)&level, false);
@@ -1323,10 +1323,10 @@ static int32_t mndPauseStreamTask(STrans *pTrans, SStreamTask *pTask) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  pReq->head.vgId = htonl(pTask->nodeId);
+  pReq->head.vgId = htonl(pTask->info.nodeId);
   pReq->taskId = pTask->id.taskId;
   STransAction action = {0};
-  memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
+  memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
   action.pCont = pReq;
   action.contLen = sizeof(SVPauseStreamTaskReq);
   action.msgType = TDMT_STREAM_TASK_PAUSE;
@@ -1344,7 +1344,7 @@ int32_t mndPauseAllStreamTasks(STrans *pTrans, SStreamObj *pStream) {
     int32_t sz = taosArrayGetSize(pTasks);
     for (int32_t j = 0; j < sz; j++) {
       SStreamTask *pTask = taosArrayGetP(pTasks, j);
-      if (pTask->taskLevel != TASK_LEVEL__SINK && mndPauseStreamTask(pTrans, pTask) < 0) {
+      if (pTask->info.taskLevel != TASK_LEVEL__SINK && mndPauseStreamTask(pTrans, pTask) < 0) {
         return -1;
       }
     }
@@ -1446,11 +1446,11 @@ static int32_t mndResumeStreamTask(STrans *pTrans, SStreamTask *pTask, int8_t ig
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  pReq->head.vgId = htonl(pTask->nodeId);
+  pReq->head.vgId = htonl(pTask->info.nodeId);
   pReq->taskId = pTask->id.taskId;
   pReq->igUntreated = igUntreated;
   STransAction action = {0};
-  memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
+  memcpy(&action.epSet, &pTask->info.epSet, sizeof(SEpSet));
   action.pCont = pReq;
   action.contLen = sizeof(SVResumeStreamTaskReq);
   action.msgType = TDMT_STREAM_TASK_RESUME;
@@ -1468,7 +1468,7 @@ int32_t mndResumeAllStreamTasks(STrans *pTrans, SStreamObj *pStream, int8_t igUn
     int32_t sz = taosArrayGetSize(pTasks);
     for (int32_t j = 0; j < sz; j++) {
       SStreamTask *pTask = taosArrayGetP(pTasks, j);
-      if (pTask->taskLevel != TASK_LEVEL__SINK && mndResumeStreamTask(pTrans, pTask, igUntreated) < 0) {
+      if (pTask->info.taskLevel != TASK_LEVEL__SINK && mndResumeStreamTask(pTrans, pTask, igUntreated) < 0) {
         return -1;
       }
     }

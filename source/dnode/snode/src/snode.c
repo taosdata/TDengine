@@ -62,7 +62,7 @@ FAIL:
 }
 
 int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
-  ASSERT(pTask->taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->childEpInfo) != 0);
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->pUpstreamEpInfoList) != 0);
 
   pTask->refCnt = 1;
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
@@ -85,7 +85,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
     return -1;
   }
 
-  int32_t numOfChildEp = taosArrayGetSize(pTask->childEpInfo);
+  int32_t numOfChildEp = taosArrayGetSize(pTask->pUpstreamEpInfoList);
   SReadHandle handle = { .vnode = NULL, .numOfVgroups = numOfChildEp, .pStateBackend = pTask->pState };
   initStreamStateAPI(&handle.api);
 
@@ -151,7 +151,7 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   }
   tDecoderClear(&decoder);
 
-  ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG);
 
   // 2.save task
   taosWLockLatch(&pSnode->pMeta->lock);
@@ -164,7 +164,7 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   taosWUnLockLatch(&pSnode->pMeta->lock);
 
   // 3.go through recover steps to fill history
-  if (pTask->fillHistory) {
+  if (pTask->info.fillHistory) {
     streamSetParamForRecover(pTask);
     streamAggRecoverPrepare(pTask);
   }

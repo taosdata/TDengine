@@ -64,11 +64,11 @@ SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamT
 
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pItem;
-    pStreamBlocks->childId = pTask->selfChildId;
+    pStreamBlocks->childId = pTask->info.selfChildId;
     pStreamBlocks->sourceVer = pSubmit->ver;
   } else if (pItem->type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)pItem;
-    pStreamBlocks->childId = pTask->selfChildId;
+    pStreamBlocks->childId = pTask->info.selfChildId;
     pStreamBlocks->sourceVer = pMerged->ver;
   }
 

@@ -108,10 +108,10 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 
         assignOneDataBlock(&block, taosArrayGet(pRetrieveBlock->blocks, 0));
         block.info.type = STREAM_PULL_OVER;
-        block.info.childId = pTask->selfChildId;
+        block.info.childId = pTask->info.selfChildId;
         taosArrayPush(pRes, &block);
         numOfBlocks += 1;
-        qDebug("s-task:%s(child %d) processed retrieve, reqId:0x%" PRIx64, pTask->id.idStr, pTask->selfChildId,
+        qDebug("s-task:%s(child %d) processed retrieve, reqId:0x%" PRIx64, pTask->id.idStr, pTask->info.selfChildId,
                pRetrieveBlock->reqId);
       }
 
@@ -127,7 +127,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 
     SSDataBlock block = {0};
     assignOneDataBlock(&block, output);
-    block.info.childId = pTask->selfChildId;
+    block.info.childId = pTask->info.selfChildId;
 
     size += blockDataGetSize(output) + sizeof(SSDataBlock) + sizeof(SColumnInfoData) * blockDataGetNumOfCols(&block);
     numOfBlocks += 1;
@@ -135,7 +135,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     taosArrayPush(pRes, &block);
 
     qDebug("s-task:%s (child %d) executed and get %d result blocks, size:%.2fMiB", pTask->id.idStr,
-           pTask->selfChildId, numOfBlocks, size / 1048576.0);
+           pTask->info.selfChildId, numOfBlocks, size / 1048576.0);
 
     // current output should be dispatched to down stream nodes
     if (numOfBlocks >= MAX_STREAM_RESULT_DUMP_THRESHOLD) {
@@ -164,7 +164,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
   int32_t code = 0;
 
-  ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
   void* exec = pTask->exec.pExecutor;
 
   qSetStreamOpOpen(exec);
@@ -200,7 +200,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
       SSDataBlock block = {0};
       assignOneDataBlock(&block, output);
-      block.info.childId = pTask->selfChildId;
+      block.info.childId = pTask->info.selfChildId;
       taosArrayPush(pRes, &block);
 
       batchCnt++;
@@ -275,7 +275,7 @@ int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
     return -1;
   }
 
-  if (pTask->taskLevel == TASK_LEVEL__SINK) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     ASSERT(((SStreamQueueItem*)pItem)->type == STREAM_INPUT__DATA_BLOCK);
     streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pItem);
   }
@@ -344,7 +344,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
-        if (pTask->taskLevel == TASK_LEVEL__SOURCE && batchSize < MIN_STREAM_EXEC_BATCH_NUM && times < 5) {
+        if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && batchSize < MIN_STREAM_EXEC_BATCH_NUM && times < 5) {
           times++;
           taosMsleep(10);
           qDebug("===stream===try again batchSize:%d", batchSize);
@@ -358,7 +358,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       if (pInput == NULL) {
         pInput = qItem;
         streamQueueProcessSuccess(pTask->inputQueue);
-        if (pTask->taskLevel == TASK_LEVEL__SINK) {
+        if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
           break;
         }
       } else {
@@ -392,7 +392,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       break;
     }
 
-    if (pTask->taskLevel == TASK_LEVEL__SINK) {
+    if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
       ASSERT(pInput->type == STREAM_INPUT__DATA_BLOCK);
       qDebug("s-task:%s sink task start to sink %d blocks", id, batchSize);
       streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pInput);
@@ -400,7 +400,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     }
 
     // wait for the task to be ready to go
-    while (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+    while (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
       int8_t status = atomic_load_8(&pTask->status.taskStatus);
       if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__PAUSE) {
         qError("stream task wait for the end of fill history, s-task:%s, status:%d", id,
@@ -423,7 +423,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
         const SStreamTrigger* pTrigger = (const SStreamTrigger*)pInput;
         qSetMultiStreamInput(pExecutor, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
       } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
-        ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
+        ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
         const SStreamDataSubmit* pSubmit = (const SStreamDataSubmit*)pInput;
         qSetMultiStreamInput(pExecutor, &pSubmit->submit, 1, STREAM_INPUT__DATA_SUBMIT);
         qDebug("s-task:%s set submit blocks as source block completed, %p %p len:%d ver:%" PRId64, id, pSubmit,

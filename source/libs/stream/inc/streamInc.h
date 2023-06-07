@@ -40,8 +40,6 @@ SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamT
 void    destroyStreamDataBlock(SStreamDataBlock* pBlock);
 
 int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock* pData);
-int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* data);
-
 int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock);
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq);

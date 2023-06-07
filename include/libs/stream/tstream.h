@@ -47,7 +47,6 @@ enum {
   TASK_STATUS__WAIT_DOWNSTREAM,
   TASK_STATUS__RECOVER_PREPARE,
   TASK_STATUS__RECOVER1,
-  TASK_STATUS__RECOVER2,
   TASK_STATUS__PAUSE,
 };
 
@@ -203,7 +202,7 @@ static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
   atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
 }
 
-void* streamQueueNextItem(SStreamQueue* queue);
+void* streamQueueNextItem(SStreamQueue* pQueue);
 
 SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type);
 void               streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit);
@@ -251,7 +250,7 @@ typedef struct {
   int8_t reserved;
 } STaskSinkFetch;
 
-typedef struct {
+typedef struct SStreamChildEpInfo {
   int32_t nodeId;
   int32_t childId;
   int32_t taskId;
@@ -276,32 +275,38 @@ typedef struct SStreamStatus {
   int8_t keepTaskStatus;
 } SStreamStatus;
 
-typedef struct SHistoryDataRange {
+typedef struct SHistDataRange {
   SVersionRange range;
   STimeWindow   window;
-} SHistoryDataRange;
+} SHistDataRange;
 
-struct SStreamTask {
-  SStreamId       id;
+typedef struct SSTaskBasicInfo {
+  int32_t         nodeId;       // vgroup id or snode id
+  SEpSet          epSet;
+  int32_t         selfChildId;
   int32_t         totalLevel;
   int8_t          taskLevel;
-  int8_t          outputType;
-  int16_t         dispatchMsgType;
-  SStreamStatus   status;
-  int32_t         selfChildId;
-  int32_t         nodeId;  // vgroup id
-  SEpSet          epSet;
-  SCheckpointInfo chkInfo;
-  STaskExec       exec;
-  int8_t          fillHistory;  // fill history
+  int8_t          fillHistory;  // is fill history task or not
+} SSTaskBasicInfo;
 
-  SHistoryDataRange dataRange;
-  SStreamId         historyTaskId;
+typedef struct SDispatchMsgInfo {
+  void*   pData;           // current dispatch data
+  int16_t msgType;         // dispatch msg type
+} SDispatchMsgInfo;
 
-  // children info
-  SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
-  int32_t nextCheckId;
-  SArray* checkpointInfo;  // SArray<SStreamCheckpointInfo>
+struct SStreamTask {
+  SStreamId        id;
+  SSTaskBasicInfo  info;
+  int8_t           outputType;
+  SDispatchMsgInfo msgInfo;
+  SStreamStatus    status;
+  SCheckpointInfo  chkInfo;
+  STaskExec        exec;
+  SHistDataRange   dataRange;
+  SStreamId        historyTaskId;
+  SArray*          pUpstreamEpInfoList;  // SArray<SStreamChildEpInfo*>, // children info
+  int32_t          nextCheckId;
+  SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>
 
   // output
   union {
@@ -326,7 +331,7 @@ struct SStreamTask {
 
   // the followings attributes don't be serialized
   int32_t             recoverTryingDownstream;
-  int32_t             recoverWaitingUpstream;
+  int32_t             numOfWaitingUpstream;
   int64_t             checkReqId;
   SArray*             checkReqIds;  // shuffle
   int32_t             refCnt;

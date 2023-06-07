@@ -123,7 +123,7 @@ int32_t tDecodeSStreamCheckpointRsp(SDecoder* pDecoder, SStreamCheckpointRsp* pR
 static int32_t streamAlignCheckpoint(SStreamTask* pTask, int64_t checkpointId, int32_t childId) {
   if (pTask->checkpointingId == 0) {
     pTask->checkpointingId = checkpointId;
-    pTask->checkpointAlignCnt = taosArrayGetSize(pTask->childEpInfo);
+    pTask->checkpointAlignCnt = taosArrayGetSize(pTask->pUpstreamEpInfoList);
   }
 
   ASSERT(pTask->checkpointingId == checkpointId);
@@ -165,7 +165,7 @@ int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStre
   int64_t checkpointId = pReq->checkpointId;
   int32_t childId = pReq->childId;
 
-  if (taosArrayGetSize(pTask->childEpInfo) > 0) {
+  if (taosArrayGetSize(pTask->pUpstreamEpInfoList) > 0) {
     code = streamAlignCheckpoint(pTask, checkpointId, childId);
     if (code > 0) {
       return 0;

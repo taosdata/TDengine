@@ -110,7 +110,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
       return -1;
     }
 
-    pRunReq->head.vgId = pTask->nodeId;
+    pRunReq->head.vgId = pTask->info.nodeId;
     pRunReq->streamId = pTask->id.streamId;
     pRunReq->taskId = pTask->id.taskId;
 
@@ -146,7 +146,7 @@ int32_t streamTaskEnqueueBlocks(SStreamTask* pTask, const SStreamDispatchReq* pR
   pDispatchRsp->streamId = htobe64(pReq->streamId);
   pDispatchRsp->upstreamNodeId = htonl(pReq->upstreamNodeId);
   pDispatchRsp->upstreamTaskId = htonl(pReq->upstreamTaskId);
-  pDispatchRsp->downstreamNodeId = htonl(pTask->nodeId);
+  pDispatchRsp->downstreamNodeId = htonl(pTask->info.nodeId);
   pDispatchRsp->downstreamTaskId = htonl(pTask->id.taskId);
 
   pRsp->pCont = buf;
@@ -162,7 +162,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 
   // enqueue
   if (pData != NULL) {
-    qDebug("s-task:%s (child %d) recv retrieve req from task:0x%x, reqId %" PRId64, pTask->id.idStr, pTask->selfChildId,
+    qDebug("s-task:%s (child %d) recv retrieve req from task:0x%x, reqId %" PRId64, pTask->id.idStr, pTask->info.selfChildId,
            pReq->srcTaskId, pReq->reqId);
 
     pData->type = STREAM_INPUT__DATA_RETRIEVE;
@@ -278,10 +278,10 @@ int32_t streamProcessRunReq(SStreamTask* pTask) {
 }
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
-  qDebug("s-task:%s receive retrieve req from node %d taskId:0x%x", pTask->id.idStr, pReq->srcNodeId, pReq->srcTaskId);
+  qDebug("s-task:%s receive retrieve req from taskId:0x%x (vgId:%d)", pTask->id.idStr, pReq->srcTaskId, pReq->srcNodeId);
   streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
 
-  ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
+  ASSERT(pTask->info.taskLevel != TASK_LEVEL__SINK);
   streamSchedExec(pTask);
   return 0;
 }
@@ -299,7 +299,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
 
   if (type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* px = (SStreamDataSubmit*)pItem;
-    if ((pTask->taskLevel == TASK_LEVEL__SOURCE) && tInputQueueIsFull(pTask)) {
+    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && tInputQueueIsFull(pTask)) {
       qError("s-task:%s input queue is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) stop to push data",
              pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total,
              size);
@@ -319,7 +319,7 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
            px->submit.msgLen, px->submit.ver, total, size + px->submit.msgLen/1048576.0);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
-    if ((pTask->taskLevel == TASK_LEVEL__SOURCE) && (tInputQueueIsFull(pTask))) {
+    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (tInputQueueIsFull(pTask))) {
       qError("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
              pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total,
              size);
@@ -350,19 +350,21 @@ int32_t tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem) {
 
 static void* streamQueueCurItem(SStreamQueue* queue) { return queue->qItem; }
 
-void* streamQueueNextItem(SStreamQueue* queue) {
-  int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
-  if (dequeueFlag == STREAM_QUEUE__FAILED) {
-    ASSERT(queue->qItem != NULL);
-    return streamQueueCurItem(queue);
+void* streamQueueNextItem(SStreamQueue* pQueue) {
+  int8_t flag = atomic_exchange_8(&pQueue->status, STREAM_QUEUE__PROCESSING);
+
+  if (flag == STREAM_QUEUE__FAILED) {
+    ASSERT(pQueue->qItem != NULL);
+    return streamQueueCurItem(pQueue);
   } else {
-    queue->qItem = NULL;
-    taosGetQitem(queue->qall, &queue->qItem);
-    if (queue->qItem == NULL) {
-      taosReadAllQitems(queue->queue, queue->qall);
-      taosGetQitem(queue->qall, &queue->qItem);
+    pQueue->qItem = NULL;
+    taosGetQitem(pQueue->qall, &pQueue->qItem);
+    if (pQueue->qItem == NULL) {
+      taosReadAllQitems(pQueue->queue, pQueue->qall);
+      taosGetQitem(pQueue->qall, &pQueue->qItem);
     }
-    return streamQueueCurItem(queue);
+
+    return streamQueueCurItem(pQueue);
   }
 }
 

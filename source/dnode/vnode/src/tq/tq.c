@@ -820,9 +820,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->dataRange.range.minVer = ver;
 
   // expand executor
-  pTask->status.taskStatus = /*(pTask->fillHistory) ? */TASK_STATUS__WAIT_DOWNSTREAM /*: TASK_STATUS__NORMAL*/;
+  pTask->status.taskStatus = /*(pTask->info.fillHistory) ? */TASK_STATUS__WAIT_DOWNSTREAM /*: TASK_STATUS__NORMAL*/;
 
-  if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
     if (pTask->pState == NULL) {
       return -1;
@@ -837,13 +837,13 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     }
 
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
-  } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
+  } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
     if (pTask->pState == NULL) {
       return -1;
     }
 
-    int32_t     numOfVgroups = (int32_t)taosArrayGetSize(pTask->childEpInfo);
+    int32_t     numOfVgroups = (int32_t)taosArrayGetSize(pTask->pUpstreamEpInfoList);
     SReadHandle handle = {.vnode = NULL, .numOfVgroups = numOfVgroups, .pStateBackend = pTask->pState};
     initStorageAPI(&handle.api);
 
@@ -879,7 +879,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     tSimpleHashSetFreeFp(pTask->tbSink.pTblInfo, freePtr);
   }
 
-  if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SWalFilterCond cond = {.deleteMsg = 1};  // delete msg also extract from wal files
     pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond);
   }
@@ -887,7 +887,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   streamSetupTrigger(pTask);
 
   tqInfo("vgId:%d expand stream task, s-task:%s, checkpoint ver:%" PRId64 " child id:%d, level:%d", vgId,
-         pTask->id.idStr, pTask->chkInfo.version, pTask->selfChildId, pTask->taskLevel);
+         pTask->id.idStr, pTask->chkInfo.version, pTask->info.selfChildId, pTask->info.taskLevel);
 
   // next valid version will add one
   pTask->chkInfo.version += 1;
@@ -1028,7 +1028,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   taosWUnLockLatch(&pStreamMeta->lock);
 
   // 3. It's an fill history task, do nothing. wait for the main task to start it
-  if (pTask->fillHistory) {
+  if (pTask->info.fillHistory) {
     tqDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
   } else {
     // calculate the correct start time window, and start the handle the history data for the main task.
@@ -1037,7 +1037,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
       streamTaskStartHistoryTask(pTask, sversion);
 
       // launch current task
-      SHistoryDataRange* pRange = &pTask->dataRange;
+      SHistDataRange* pRange = &pTask->dataRange;
       int64_t ekey = pRange->window.ekey;
       int64_t ver = pRange->range.minVer;
 
@@ -1093,7 +1093,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   double el = (taosGetTimestampMs() - st) / 1000.0;
   tqDebug("s-task:%s history scan stage(step 1) ended, elapsed time:%.2fs", pTask->id.idStr, el);
 
-  if (pTask->fillHistory) {
+  if (pTask->info.fillHistory) {
     // todo transfer the executor status, and then destroy this stream task
   } else {
     // todo update the chkInfo version for current task.
@@ -1199,7 +1199,7 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
     return -1;
   }
 
-  atomic_store_8(&pTask->fillHistory, 0);
+  atomic_store_8(&pTask->info.fillHistory, 0);
   streamMetaSaveTask(pTq->pStreamMeta, pTask);
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
@@ -1392,7 +1392,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     atomic_store_8(&pTask->status.taskStatus, pTask->status.keepTaskStatus);
 
     // no lock needs to secure the access of the version
-    if (pReq->igUntreated && pTask->taskLevel == TASK_LEVEL__SOURCE) {
+    if (pReq->igUntreated && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
       // discard all the data  when the stream task is suspended.
       walReaderSetSkipToVersion(pTask->exec.pWalReader, sversion);
       tqDebug("vgId:%d s-task:%s resume to exec, prev paused version:%" PRId64 ", start from vnode ver:%" PRId64
@@ -1403,7 +1403,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
               vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
     }
 
-    if (pTask->taskLevel == TASK_LEVEL__SOURCE && taosQueueItemSize(pTask->inputQueue->queue) == 0) {
+    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && taosQueueItemSize(pTask->inputQueue->queue) == 0) {
       tqStartStreamTasks(pTq);
     } else {
       streamSchedExec(pTask);

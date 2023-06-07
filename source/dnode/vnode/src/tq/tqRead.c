@@ -1109,7 +1109,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
       int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
       if (code != 0) {
         tqError("vgId:%d, s-task:%s update qualified table error for stream task", vgId, pTask->id.idStr);

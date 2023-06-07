@@ -129,8 +129,8 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     }
 
     int32_t status = pTask->status.taskStatus;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
-//      tqTrace("s-task:%s level:%d not source task, no need to start", pTask->id.idStr, pTask->taskLevel);
+    if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+//      tqTrace("s-task:%s level:%d not source task, no need to start", pTask->id.idStr, pTask->info.taskLevel);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }

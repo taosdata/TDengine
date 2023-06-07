@@ -110,7 +110,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
 
       isShuffle = true;
       pTask->outputType = TASK_OUTPUT__SHUFFLE_DISPATCH;
-      pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
+      pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
       if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
         return -1;
       }
@@ -131,7 +131,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
 
       for (int32_t j = 0; j < numOfSinkNodes; j++) {
         SStreamTask* pSinkTask = taosArrayGetP(pSinkNodeList, j);
-        if (pSinkTask->nodeId == pVgInfo->vgId) {
+        if (pSinkTask->info.nodeId == pVgInfo->vgId) {
           pVgInfo->taskId = pSinkTask->id.taskId;
           break;
         }
@@ -148,11 +148,11 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
 int32_t mndAssignStreamTaskToVgroup(SMnode* pMnode, SStreamTask* pTask, SSubplan* plan, const SVgObj* pVgroup) {
   int32_t msgLen;
 
-  pTask->nodeId = pVgroup->vgId;
-  pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+  pTask->info.nodeId = pVgroup->vgId;
+  pTask->info.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
-  plan->execNode.nodeId = pTask->nodeId;
-  plan->execNode.epSet = pTask->epSet;
+  plan->execNode.nodeId = pTask->info.nodeId;
+  plan->execNode.epSet = pTask->info.epSet;
   if (qSubPlanToString(plan, &pTask->exec.qmsg, &msgLen) < 0) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     return -1;
@@ -172,11 +172,11 @@ SSnodeObj* mndSchedFetchOneSnode(SMnode* pMnode) {
 int32_t mndAssignStreamTaskToSnode(SMnode* pMnode, SStreamTask* pTask, SSubplan* plan, const SSnodeObj* pSnode) {
   int32_t msgLen;
 
-  pTask->nodeId = SNODE_HANDLE;
-  pTask->epSet = mndAcquireEpFromSnode(pMnode, pSnode);
+  pTask->info.nodeId = SNODE_HANDLE;
+  pTask->info.epSet = mndAcquireEpFromSnode(pMnode, pSnode);
 
   plan->execNode.nodeId = SNODE_HANDLE;
-  plan->execNode.epSet = pTask->epSet;
+  plan->execNode.epSet = pTask->info.epSet;
 
   if (qSubPlanToString(plan, &pTask->exec.qmsg, &msgLen) < 0) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
@@ -232,8 +232,8 @@ int32_t mndAddSinkTaskToStream(SStreamObj* pStream, SArray* pTaskList, SMnode* p
     return -1;
   }
 
-  pTask->nodeId = vgId;
-  pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+  pTask->info.nodeId = vgId;
+  pTask->info.epSet = mndGetVgroupEpset(pMnode, pVgroup);
   mndSetSinkTaskInfo(pStream, pTask);
   return 0;
 }
@@ -273,9 +273,9 @@ static SStreamChildEpInfo* createStreamTaskEpInfo(SStreamTask* pTask) {
     return NULL;
   }
 
-  pEpInfo->childId = pTask->selfChildId;
-  pEpInfo->epSet = pTask->epSet;
-  pEpInfo->nodeId = pTask->nodeId;
+  pEpInfo->childId = pTask->info.selfChildId;
+  pEpInfo->epSet = pTask->info.epSet;
+  pEpInfo->nodeId = pTask->info.nodeId;
   pEpInfo->taskId = pTask->id.taskId;
 
   return pEpInfo;
@@ -284,11 +284,11 @@ static SStreamChildEpInfo* createStreamTaskEpInfo(SStreamTask* pTask) {
 void setFixedDownstreamEpInfo(SStreamTask* pDstTask, const SStreamTask* pTask) {
   STaskDispatcherFixedEp* pDispatcher = &pDstTask->fixedEpDispatcher;
   pDispatcher->taskId = pTask->id.taskId;
-  pDispatcher->nodeId = pTask->nodeId;
-  pDispatcher->epSet = pTask->epSet;
+  pDispatcher->nodeId = pTask->info.nodeId;
+  pDispatcher->epSet = pTask->info.epSet;
 
   pDstTask->outputType = TASK_OUTPUT__FIXED_DISPATCH;
-  pDstTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
+  pDstTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
 }
 
 int32_t setEpToDownstreamTask(SStreamTask* pTask, SStreamTask* pDownstream) {
@@ -297,11 +297,11 @@ int32_t setEpToDownstreamTask(SStreamTask* pTask, SStreamTask* pDownstream) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if(pDownstream->childEpInfo == NULL) {
-    pDownstream->childEpInfo = taosArrayInit(4, POINTER_BYTES);
+  if(pDownstream->pUpstreamEpInfoList == NULL) {
+    pDownstream->pUpstreamEpInfoList = taosArrayInit(4, POINTER_BYTES);
   }
   
-  taosArrayPush(pDownstream->childEpInfo, &pEpInfo);
+  taosArrayPush(pDownstream->pUpstreamEpInfoList, &pEpInfo);
   return TSDB_CODE_SUCCESS;
 }
 

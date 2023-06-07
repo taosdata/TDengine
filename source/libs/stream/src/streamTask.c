@@ -19,7 +19,7 @@
 
 static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
-  pTask->selfChildId = childId;
+  pTask->info.selfChildId = childId;
   taosArrayPush(pArray, &pTask);
   return 0;
 }
@@ -33,8 +33,8 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHisto
 
   pTask->id.taskId = tGenIdPI32();
   pTask->id.streamId = streamId;
-  pTask->taskLevel = taskLevel;
-  pTask->fillHistory = fillHistory;
+  pTask->info.taskLevel = taskLevel;
+  pTask->info.fillHistory = fillHistory;
   pTask->triggerParam = triggerParam;
 
   char buf[128] = {0};
@@ -71,21 +71,21 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pTask->id.streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->id.taskId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pTask->totalLevel) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->taskLevel) < 0) return -1;
+  if (tEncodeI32(pEncoder, pTask->info.totalLevel) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->info.taskLevel) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->outputType) < 0) return -1;
-  if (tEncodeI16(pEncoder, pTask->dispatchMsgType) < 0) return -1;
+  if (tEncodeI16(pEncoder, pTask->msgInfo.msgType) < 0) return -1;
 
   if (tEncodeI8(pEncoder, pTask->status.taskStatus) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->status.schedStatus) < 0) return -1;
 
-  if (tEncodeI32(pEncoder, pTask->selfChildId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pTask->nodeId) < 0) return -1;
-  if (tEncodeSEpSet(pEncoder, &pTask->epSet) < 0) return -1;
+  if (tEncodeI32(pEncoder, pTask->info.selfChildId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pTask->info.nodeId) < 0) return -1;
+  if (tEncodeSEpSet(pEncoder, &pTask->info.epSet) < 0) return -1;
 
   if (tEncodeI64(pEncoder, pTask->chkInfo.id) < 0) return -1;
   if (tEncodeI64(pEncoder, pTask->chkInfo.version) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->fillHistory) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->info.fillHistory) < 0) return -1;
 
   if (tEncodeI64(pEncoder, pTask->historyTaskId.streamId)) return -1;
   if (tEncodeI32(pEncoder, pTask->historyTaskId.taskId)) return -1;
@@ -94,14 +94,14 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI64(pEncoder, pTask->dataRange.window.skey)) return -1;
   if (tEncodeI64(pEncoder, pTask->dataRange.window.ekey)) return -1;
 
-  int32_t epSz = taosArrayGetSize(pTask->childEpInfo);
+  int32_t epSz = taosArrayGetSize(pTask->pUpstreamEpInfoList);
   if (tEncodeI32(pEncoder, epSz) < 0) return -1;
   for (int32_t i = 0; i < epSz; i++) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->childEpInfo, i);
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamEpInfoList, i);
     if (tEncodeStreamEpInfo(pEncoder, pInfo) < 0) return -1;
   }
 
-  if (pTask->taskLevel != TASK_LEVEL__SINK) {
+  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
     if (tEncodeCStr(pEncoder, pTask->exec.qmsg) < 0) return -1;
   }
 
@@ -131,21 +131,21 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->id.streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->id.taskId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pTask->totalLevel) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->taskLevel) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pTask->info.totalLevel) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->info.taskLevel) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->outputType) < 0) return -1;
-  if (tDecodeI16(pDecoder, &pTask->dispatchMsgType) < 0) return -1;
+  if (tDecodeI16(pDecoder, &pTask->msgInfo.msgType) < 0) return -1;
 
   if (tDecodeI8(pDecoder, &pTask->status.taskStatus) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->status.schedStatus) < 0) return -1;
 
-  if (tDecodeI32(pDecoder, &pTask->selfChildId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pTask->nodeId) < 0) return -1;
-  if (tDecodeSEpSet(pDecoder, &pTask->epSet) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pTask->info.selfChildId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pTask->info.nodeId) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &pTask->info.epSet) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pTask->chkInfo.id) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->chkInfo.version) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->fillHistory) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->info.fillHistory) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pTask->historyTaskId.streamId)) return -1;
   if (tDecodeI32(pDecoder, &pTask->historyTaskId.taskId)) return -1;
@@ -156,7 +156,8 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
   int32_t epSz;
   if (tDecodeI32(pDecoder, &epSz) < 0) return -1;
-  pTask->childEpInfo = taosArrayInit(epSz, sizeof(void*));
+
+  pTask->pUpstreamEpInfoList = taosArrayInit(epSz, POINTER_BYTES);
   for (int32_t i = 0; i < epSz; i++) {
     SStreamChildEpInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamChildEpInfo));
     if (pInfo == NULL) return -1;
@@ -164,10 +165,10 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
       taosMemoryFreeClear(pInfo);
       return -1;
     }
-    taosArrayPush(pTask->childEpInfo, &pInfo);
+    taosArrayPush(pTask->pUpstreamEpInfoList, &pInfo);
   }
 
-  if (pTask->taskLevel != TASK_LEVEL__SINK) {
+  if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
     if (tDecodeCStrAlloc(pDecoder, &pTask->exec.qmsg) < 0) return -1;
   }
 
@@ -217,7 +218,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     walCloseReader(pTask->exec.pWalReader);
   }
 
-  taosArrayDestroyP(pTask->childEpInfo, taosMemoryFree);
+  taosArrayDestroyP(pTask->pUpstreamEpInfoList, taosMemoryFree);
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
     tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);
