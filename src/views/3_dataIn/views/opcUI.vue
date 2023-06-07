@@ -828,28 +828,22 @@ export default {
           piParams["via"] = this.$parent.agentID;
         }
         if (this.isEditable) {
-          await EditSource(piParams, this.editId)
-            .then(() => {
-              this.$parent.toggleComponent("opctable", this.protocol);
-            })
-            .catch((err) => {
-              err.response.data &&
-                err.response.data.message &&
-                Message.error(err.response.data.message);
-            });
+          let result = await EditSource(piParams, this.editId);
+          if (result.message) {
+            Message.error(result.message);
+            return;
+          }
+          this.$parent.toggleComponent("opctable", this.protocol);
         } else {
-          await AddSource(piParams)
-            .then((res) => {
-              if (res && res.id) {
-                this.$parent.toggleComponent("opctable", "");
-                Message.success(this.$t("datasource.successtip"));
-              }
-            })
-            .catch((err) => {
-              err.response.data &&
-                err.response.data.message &&
-                Message.error(err.response.data.message);
-            });
+          let result = await AddSource(piParams);
+          if (result.message) {
+            Message.error(result.message);
+            return;
+          }
+          if (result && result.id) {
+            this.$parent.toggleComponent("opctable", "");
+            Message.success(this.$t("datasource.successtip"));
+          }
         }
       } catch (err) {
         err.response.data.message && Message.error(err.response.data.message);

@@ -192,7 +192,6 @@ import {
 } from "@/api/explorer/agent";
 import { copy } from "@/utils/index";
 import { getUIData } from "@/api/explorer/datain";
-import { format } from "date-fns";
 import { Message } from "element-ui";
 export default {
   name: "Agent",
@@ -349,6 +348,10 @@ export default {
         };
         let result = await editAgent(this.currentRow.id, params);
         this.dialog = false;
+        if (result.message) {
+          Message.error(result.message);
+          return;
+        }
         this.getAgents();
         if (result.token) {
           this.agenttoken = result.token;
@@ -375,8 +378,8 @@ export default {
             : "";
           return item;
         });
-      } catch (error) {
-        console.log(error);
+      } catch (err) {
+        err.response.data.message && Message.error(err.response.data.message);
       }
     },
     async getConnectorTypes() {
@@ -407,13 +410,17 @@ export default {
         };
         let result = await addNewAgent(params);
         this.dialog = false;
+        if (result.message) {
+          Message.error(result.message);
+          return;
+        }
         this.getAgents();
         if (result.token) {
           this.agenttoken = result.token;
           this.copyDialog = true;
         }
-      } catch (error) {
-        console.log(error);
+      } catch (err) {
+        err.response.data.message && Message.error(err.response.data.message);
       }
     },
   },
