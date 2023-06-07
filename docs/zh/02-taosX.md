@@ -108,16 +108,12 @@ taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源）
 |------|------------|---|-----------|-----------|------|------|----------|-----------------------|
 |driver|   protocol |   | username  | password  | host | port |  object  |  params               |
 
-```
-[] 中的数据都为可选参数。
-
-
-```bash
 // url 示例
 tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 ```
+[] 中的数据都为可选参数。
 
-不同的驱动（driver）拥有不同的参数。driver包含如下选项:
+1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项:
 
 - taos：使用查询接口从 TDengine 获取数据
 - tmq：启用数据订阅从 TDengine 获取数据
@@ -126,12 +122,15 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 - opc：启用 opc-connector 从 opc-server 中获取数据
 - mqtt: 启动 mqtt-connector 获取 mqtt-broker 中的数据
 
-+protocol 包含如下选项：
+2. +protocol 包含如下选项：
 - +ws: 当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
 - +ua: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
 - +da: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
 
-localhost:6030 表示数据源的地址和端口，db1 表示具体的TDengine数据库，root 和 taosdata 表示该数据源的用户名和密码，问号后则是这个 dsn 的参数。
+3. host:port 表示数据源的地址和端口。
+4. object 表示具体的数据源，可以是TDengine的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
+5. username 和 password 表示该数据源的用户名和密码。
+6. params 代表了 dsn 的参数。
 
 
 
