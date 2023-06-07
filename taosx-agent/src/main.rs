@@ -1,11 +1,12 @@
 use std::{path::PathBuf, time::Duration};
 
+use chrono::Utc;
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
-use time::macros::format_description;
+
 use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::LocalTime},
+    fmt::format::FmtSpan,
     prelude::__tracing_subscriber_SubscriberExt,
     util::SubscriberInitExt,
     Layer as _,
@@ -15,6 +16,8 @@ use twelf::{config, Layer};
 use tracing::{log::LevelFilter, Level};
 
 use taosx_core::get_log_dir;
+
+use crate::runner::TaskStatus;
 
 const LOG_FILE: &str = "agent.log";
 
@@ -154,11 +157,25 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let ctrl_c = tokio::signal::ctrl_c();
     let mut client = agent::Client::new(&args.endpoint, &args.token).await?;
     let mut client2 = agent::Client::new(&args.endpoint, &args.token).await?;
-    let (runner, sender, status) = runner::spawn_runner(&args.endpoint, &args.token);
+    let mut client3 = agent::Client::new(&args.endpoint, &args.token).await?;
+    let (runner, tasks, sender, status) = runner::spawn_runner(&args.endpoint, &args.token);
 
     tokio::select! {
         _ = ctrl_c => {
             tracing::info!("SIGINT triggered");
+            for task in tasks.iter() {                
+                let status = TaskStatus::new(
+                    *task.key(),
+                    Utc::now(),
+                    "failed".to_string(),
+                    Some("taosx-agent is closed by SIGINT".to_string()),
+                    Default::default()
+                );
+                tracing::info!("status: {:?}", status);
+                if let Err(err) = client3.push_status(&status).await {
+                    tracing::error!("Push status error: {err}");
+                }
+            }
         }
         _ = runner => {
             tracing::info!("Runner stopped");

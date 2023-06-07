@@ -19,7 +19,7 @@ use arrow_flight::{
     error::FlightError,
     Action as FlightAction, FlightData,
 };
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use flume::Receiver;
 use futures::{FutureExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
