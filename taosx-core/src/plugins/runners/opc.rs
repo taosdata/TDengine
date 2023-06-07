@@ -77,6 +77,22 @@ pub struct OPCConfig {
     #[serde(skip)]
     /// table_info: table_name, Vec<(field, type)>
     table_info: HashMap<String, Vec<(String, String)>>,
+    #[serde(skip)]
+    opc_table_config: TableConfig,
+}
+
+#[derive(serde::Deserialize, Debug, serde::Serialize)]
+struct TableConfig {
+    stable_prefix: String,
+    column_configs: Vec<ColumnConfig>,
+}
+
+#[derive(serde::Deserialize, Debug, serde::Serialize)]
+struct ColumnConfig {
+    column_name: String,
+    column_type: Option<Ty>,
+    column_alias: Option<String>,
+    is_primary_key: bool,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -410,6 +426,7 @@ impl OPCConfig {
             batch_size,
             batch_timeout,
         };
+        let opc_table_config: TableConfig= serde_json::from_str(dsn.remove("opc_table_config").context("should config opc_table_config").unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?;
         Ok(OPCConfig {
             opc_type,
             debug,
@@ -419,6 +436,7 @@ impl OPCConfig {
             report,
             param_mapping,
             table_info,
+            opc_table_config
         })
     }
 
@@ -909,6 +927,32 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
             IpcDataType::Float32,
         ),
     );
+    let mut column_configs = Vec::new();
+    let column_config = ColumnConfig {
+        column_name: String::from("received_time"),
+        column_type: Some(Ty::Timestamp),
+        column_alias: Some("ts".to_string()),
+        is_primary_key: true,
+    };
+    column_configs.push(column_config);
+    let column_config = ColumnConfig {
+        column_name: String::from("original_time"),
+        column_type: Some(Ty::Timestamp),
+        column_alias: None,
+        is_primary_key: false,
+    };
+    column_configs.push(column_config);
+    let column_config = ColumnConfig {
+        column_name: String::from("value"),
+        column_type: Some(Ty::Timestamp),
+        column_alias: None,
+        is_primary_key: true,
+    };
+    column_configs.push(column_config);
+    let opc_table_config = TableConfig {
+        stable_prefix: "meters".to_string(),
+        column_configs,
+    };
     let config = OPCConfig {
         opc_type: OpcType::OPCUA,
         debug: true,
@@ -959,6 +1003,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
         },
         param_mapping: map,
         table_info: HashMap::new(),
+        opc_table_config,
     };
     let toml = toml::to_string(&config)?;
     assert_eq!(
