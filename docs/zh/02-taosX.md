@@ -110,21 +110,33 @@ taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源）
 
 
 [] 中的数据都为可选参数。
+
 // url 示例
 tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
-驱动（driver）分别有 taos，tmq，local几个选项。
-taos：使用连接 TDengine 的数据源
-tmq：启用数据订阅从 TDengine 中获取数据
-local：数据备份或恢复
 
-localhost:6030 表示数据源的地址和端口，db1 表示具体的数据库，root 和 taosdata 表示该数据源的用户名和密码，问号后则是这个 dsn 的参数。不同的驱动（driver）拥有不同的参数。
-+ws 表示使用 rest 获取数据，不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
+不同的驱动（driver）拥有不同的参数。driver包含如下选项:
+
+(1) taos：使用查询接口从 TDengine 获取数据
+(2) tmq：启用数据订阅从 TDengine 获取数据
+(3) local：数据备份或恢复
+(4) pi: 启用 pi-connector从 pi 数据库中获取数据
+(5) opc：启用 opc-connector 从 opc-server 中获取数据
+(6) mqtt: 启动 mqtt-connector 获取 mqtt-broker 中的数据
+
++protocol 包含如下选项：
+(1) +ws: 当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
+(2) +ua: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
+(3) +da: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
+
+localhost:6030 表示数据源的地址和端口，db1 表示具体的TDengine数据库，root 和 taosdata 表示该数据源的用户名和密码，问号后则是这个 dsn 的参数。
+
+
 
 
 ```
 #### 从 TDengine 到 TDengine 的数据同步
 
-##### 1. TDengine 3.0 -> TDengine 3.0
+1. TDengine 3.0 -> TDengine 3.0
 
 在两个相同版本 （都是 3.0.x.y）的 TDengine 集群之间将源集群中的存量及增量数据同步到目标集群中。
 
@@ -145,10 +157,11 @@ taosx run \
 ```
 
 常见错误排查：
+(1)
+(2)
 
 
-
-##### 2. TDengine 2.4(2.6) -> TDengine 3.0
+2. TDengine 2.4(2.6) -> TDengine 3.0
 
 将 2.4（2.6） 版本 TDengine 集群中的数据迁移到 3.0 版本 TDengine 集群。
 
@@ -193,13 +206,17 @@ taosx run \
 taosx run -f 'tmq://root:taosdata@td1:6030/db1' -t 'local:/path_directory/'
 
 ```
-以上示例执行的结果：
+以上示例执行的结果及参数说明：
 
 将集群 td1 中的数据库 db1 的所有数据，备份到 taosx 所在设备的 /path_directory 路径下。
 
-常见错误排查
+数据源(-f 参数的 DSN)的 object 支持配置为 数据库级(dbname)、超级表级(dbname.stablename)、子表/普通表级(dbname.tablename)，对应备份数据的级别数据库级、超级表级、子表/普通表级
 
+常见错误排查：
 
+(1)
+(2)
+(3)
 
 #### 从本地数据文件恢复到 TDengine
 
@@ -211,6 +228,14 @@ taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?asse
 以上示例执行的结果：
 
 将 taosx 所在设备 /path_directory 路径下已备份的数据文件，恢复到集群 td2 的数据库 db1 中，如果 db1 不存在，则自动建库。
+
+目标源(-t 参数的 DSN)中的 object 支持配置为数据库(dbname)、超级表(dbname.stablename)、子表/普通表(dbname.tablename)，对应备份数据的级别数据库级、超级表级、子表/普通表级，前提是备份的数据文件也是对应的数据库级、超级表级、子表/普通表级数据。
+
+常见错误排查：
+
+(1)
+(2)
+(3)
 
 #### 从 OPC-UA 同步数据到 TDengine
 
@@ -232,7 +257,14 @@ taosx run \
     -t "taos://tdengine:6030/opc"
 ```
 以上示例的执行结果：
-采集localhost中nodeid为ns=2;i=2测点的数据，将其写入到集群tdengine中opc中，并以meters为表名，current为列名，double为列类型的schema来创建表。
+
+采集 localhost 的 opc-server 中 nodeid 为 ns=2;i=2 测点的数据，将其写入到集群 tdengine 的 opc 库中，并以 meters 为表名，current 为列名，double 为列类型的 schema 来创建表（如果对应表已存在，则直接采集数据并写入）。
+
+常见错误排查：
+
+(1)
+(2)
+(3)
 
 #### 从 OPC-DA 同步数据到 TDengine (Windows)
 
@@ -242,8 +274,8 @@ taosx run \
 
 在 taosX CLI 运行时支持的参数如下：
 - PISystemName：连接配置 PI 系统服务名，默认值与 PIServerName 一致
-- MaxWaitLen：数据最大缓冲条数，默认值为1000
-- UpdateInterval：PI System 取数据频率，默认值为10000（毫秒：ms）
+- MaxWaitLen：数据最大缓冲条数，默认值为 1000 ,有效取值范围为 [1,10000]
+- UpdateInterval：PI System 取数据频率，默认值为 10000(毫秒：ms),有效取值范围为 [10,600000]
 
 应用示例：
 
@@ -256,10 +288,14 @@ taosx run \
 以上示例的PI参数：
 - PIServerName：PI 连接配置主机名 ，此示例中为 WIN-2OA23UM12TN
 - AFDatabaseName：指定连接的 PI 数据库，此示例中为 Met1
-- TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 ，按照 element 的每个 Arrtribution 作为子表导入到 TDengine 服务器 tdengine 的 pi 库中
-- TemplateForAFElement：使用 AF Point 模式将模板template3 ，template4 ，按照 element 的 Attribution 集合作为一个子表导入到 TDengine 服务器 tdengine的 pi 库中
+- TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 ，按照 element 的每个 Arrtribution 作为子表导入到 TDengine 服务器 tdengine 的 pi 库中（如果对应表已存在，则直接采集数据并写入）
+- TemplateForAFElement：使用 AF Point 模式将模板 template3 ，template4 ，按照 element 的 Attribution 集合作为一个子表导入到 TDengine 服务器 tdengine的 pi 库中（如果对应表已存在，则直接采集数据并写入）
 
 常见错误排查：
+
+(1)
+(2)
+(3)
 
 
 
