@@ -182,6 +182,17 @@ export default {
       this.$parent.$parent.agentID = this.ruleForm.agent;
       this.$parent.$parent.toggleComponent(this.ruleForm.type, "", "", "");
     },
+
+    selectAgenttype() {
+      this.ruleForm.type = "";
+      if(this.ruleForm.agent[0] === 'add') {
+        this.$emit('addAgent')
+        this.$nextTick(() => {
+          this.closeDialog()
+        })
+      }
+    },
+
     closeDialog() {
       this.$refs.ruleForm.resetFields();
       // this.switchVal = false;
@@ -202,7 +213,6 @@ export default {
             ...agent
           }
         })
-        console.log(this.agentList,'this.agentList');
       } catch (error) {
         console.log(error);
       }
@@ -212,7 +222,6 @@ export default {
     "ruleForm.type": {
       deep: true,
       handler(val) {
-        console.log(val, "舰艇类型");
         if (val == "mqtt") {
         //   this.$emit("showMqttDialog");
         }

@@ -2,22 +2,44 @@
   <div class="connector">
     <div class="json-zone">
       <ul class="header">
+        <li>
+          <span>
+            {{ $t("datasource.ascolumn") }}
+          </span>
+          <el-tooltip
+            effect="light"
+            :content="$t('datasource.selectfieldtip')"
+            placement="right-start"
+          >
+            <i class="el-icon-info" style="color: #4259ce"></i>
+          </el-tooltip>
+        </li>
+        <li>
+          <span>
+            {{ $t("datasource.astag") }}
+          </span>
+          <el-tooltip
+            effect="light"
+            :content="$t('datasource.selectfieldtip')"
+            placement="right-start"
+          >
+            <i class="el-icon-info" style="color: #4259ce"></i>
+          </el-tooltip>
+        </li>
         <li>{{ $t("datasource.colname") }}</li>
         <li>{{ $t("datasource.rename") }}</li>
-        <li>Type</li>
+        <li>{{ $t("datasource.coltype") }}</li>
         <li></li>
       </ul>
-      <span class="info">
-        <el-tooltip
-          class="item"
-          effect="light"
-          :content="$t('datasource.addmqtttip')"
-          placement="top-start"
-        >
-          <i class="el-icon-info"></i>
-        </el-tooltip>
-      </span>
       <div class="col-content">
+        <Mqttcolumn
+          v-for="item in fields.filter((item) => item.name != 'payload')"
+          :key="item.name"
+          :colData="item"
+          @deleteRow="deleteRow"
+          @changeAddStatus="changeAddStatus"
+        >
+        </Mqttcolumn>
         <Mqttcolumn
           v-for="(item, index) in connectorData.parse.payload.json"
           :key="index"
@@ -46,30 +68,26 @@
       ref="ruleForm"
     >
       <el-form-item
-        v-for="(item, index) in Object.keys(connectorData.model)"
+        v-for="(item, index) in Object.keys(connectorData.model).filter(
+          (item) => visiblecols.includes(item)
+        )"
         :key="index"
         :prop="item"
-        :label="item"
       >
-        <template v-if="Array.isArray(connectorData.model[item])">
-          <span slot="label">
-            <el-tooltip
-              effect="light"
-              content="e.g:a,b,c"
-              placement="right-start"
-            >
-              <i class="el-icon-info"></i>
-            </el-tooltip>
+        <span slot="label">
+          <el-tooltip
+            effect="light"
+            :content="$t('datasource.createsubtbtip')"
+            placement="right-start"
+            v-if="item != 'using'"
+          >
+            <i class="el-icon-info"></i>
+          </el-tooltip>
 
-            {{ item }}
-          </span>
-          <el-input
-            :value="connectorData.model[item].toString()"
-            @input="getTagOrColumn($event, item)"
-          ></el-input>
-        </template>
+          {{ $t(`datasource.${item}`) }}
+        </span>
 
-        <el-input v-model="connectorData.model[item]" v-else></el-input>
+        <el-input v-model="connectorData.model[item]"></el-input>
       </el-form-item>
     </el-form>
   </div>
@@ -86,12 +104,20 @@ export default {
         return null;
       },
     },
+    fields: {
+      type: Array,
+      default: () => {
+        return [];
+      },
+    },
   },
   data() {
     return {
+      showSuperTip: false,
+      visiblecols: ["using", "name"],
       visible: true,
       disable: false,
-      nameisnull:true,
+      nameisnull: true,
       rules: {
         name: [
           {
@@ -105,7 +131,7 @@ export default {
   },
   methods: {
     getTagOrColumn(event, val) {
-      this.connectorData.model[val] = event.split(',');
+      this.connectorData.model[val] = event.split(",");
     },
     changeAddStatus() {
       this.$nextTick(() => {
@@ -139,19 +165,26 @@ export default {
     closeMqttDialog() {
       this.$emit("closeMqttDialog");
     },
-    submit(){
-        this.$refs['ruleForm'].validate((valid)=>{
-            if(valid){
-                this.nameisnull=false
-            }else{
-                this.nameisnull=true
-                return false
-            }
-        })
-    }
+    submit() {
+      let tags = this.$store.state.app.mqttParser.model.tags;
+      let supername = this.connectorData.model["using"];
+      if ((tags.length > 0 && !supername) || (tags.length == 0 && supername)) {
+        this.showSuperTip = true;
+      } else {
+        this.showSuperTip = false;
+      }
+      this.$refs["ruleForm"].validate((valid) => {
+        if (valid) {
+          this.nameisnull = false;
+        } else {
+          this.nameisnull = true;
+          return false;
+        }
+      });
+    },
   },
   mounted() {
-    this.changeAddStatus()
+    this.changeAddStatus();
   },
 };
 </script>
@@ -160,17 +193,21 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  max-height: 200px;
-  padding-left: 200px;
+  max-height: 250px;
+  //   padding-left: 200px;
   margin-bottom: 15px;
   position: relative;
   .header {
     display: grid;
-    grid-template-columns: 2fr 2fr 2fr 1fr;
-    margin-bottom: 15px;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr 0.5fr;
     column-gap: 10px;
+    background-color: #f5f7fa;
+    border: 1px solid #ebeef5;
+    border-bottom: none;
+    padding-top: 5px;
+    padding-bottom: 5px;
     li {
-      color: #4259ce;
+      color: #909399;
       font-size: 16px;
       text-align: center;
     }
@@ -179,6 +216,8 @@ export default {
     overflow: auto;
     border: none;
     margin-bottom: 15px;
+
+    border: 1px solid #ebeef5;
   }
   .info {
     position: absolute;
