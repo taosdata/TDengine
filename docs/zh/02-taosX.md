@@ -108,11 +108,12 @@ taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源）
 |------|------------|---|-----------|-----------|------|------|----------|-----------------------|
 |driver|   protocol |   | username  | password  | host | port |  object  |  params               |
 
-
+```
 [] 中的数据都为可选参数。
-
+```bash
 // url 示例
 tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
+```
 
 不同的驱动（driver）拥有不同的参数。driver包含如下选项:
 
@@ -133,7 +134,7 @@ localhost:6030 表示数据源的地址和端口，db1 表示具体的TDengine�
 
 
 
-```
+
 #### 从 TDengine 到 TDengine 的数据同步
 
 1. TDengine 3.0 -> TDengine 3.0
