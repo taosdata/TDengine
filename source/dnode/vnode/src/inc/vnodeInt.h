@@ -208,15 +208,16 @@ int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 
 // tq
-int  tqInit();
-void tqCleanUp();
-STQ* tqOpen(const char* path, SVnode* pVnode);
-void tqNotifyClose(STQ*);
-void tqClose(STQ*);
-int  tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
-int  tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
-int  tqUnregisterPushHandle(STQ* pTq, void* pHandle);
-int  tqStartStreamTasks(STQ* pTq);  // restore all stream tasks after vnode launching completed.
+int     tqInit();
+void    tqCleanUp();
+STQ*    tqOpen(const char* path, SVnode* pVnode);
+void    tqNotifyClose(STQ*);
+void    tqClose(STQ*);
+int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
+int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
+int     tqUnregisterPushHandle(STQ* pTq, void* pHandle);
+int     tqStartStreamTasks(STQ* pTq);  // restore all stream tasks after vnode launching completed.
+int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen);
 
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);

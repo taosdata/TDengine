@@ -1120,7 +1120,7 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
     return -1;
   }
 
-  qDebug("s-task:%s set start wal scan start ver:%"PRId64, pTask->id.idStr, sversion);
+  qDebug("s-task:%s set start wal scan start ver:%" PRId64, pTask->id.idStr, sversion);
 
   walReaderSeekVer(pTask->exec.pWalReader, sversion);
   pTask->chkInfo.currentVer = sversion;
@@ -1504,5 +1504,15 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
   taosWUnLockLatch(&pMeta->lock);
 
+  return 0;
+}
+int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* pMsg, int32_t msgLen) {
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  char*        msg = POINTER_SHIFT(pMsg, sizeof(SMsgHead));
+  int32_t      len = msgLen - sizeof(SMsgHead);
+
+  taosWLockLatch(&pMeta->lock);
+  taosWUnLockLatch(&pMeta->lock);
   return 0;
 }

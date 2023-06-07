@@ -124,12 +124,11 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = { .msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen };
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
 
-#if 0
 static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   int32_t contLen = 0;
   void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
@@ -142,7 +141,6 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
-#endif
 
 static void mndPullupTelem(SMnode *pMnode) {
   mTrace("pullup telem msg");
@@ -266,11 +264,9 @@ static void *mndThreadFp(void *param) {
       mndCalMqRebalance(pMnode);
     }
 
-#if 0
     if (sec % tsStreamCheckpointTickInterval == 0) {
       mndStreamCheckpointTick(pMnode, sec);
     }
-#endif
 
     if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
@@ -586,7 +582,7 @@ int32_t mndIsCatchUp(SMnode *pMnode) {
   return syncIsCatchUp(rid);
 }
 
-ESyncRole mndGetRole(SMnode *pMnode){
+ESyncRole mndGetRole(SMnode *pMnode) {
   int64_t rid = pMnode->syncMgmt.sync;
   return syncGetRole(rid);
 }

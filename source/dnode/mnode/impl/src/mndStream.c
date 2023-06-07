@@ -69,9 +69,9 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_PAUSE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_RESUME_RSP, mndTransProcessRsp);
-
-  // mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
-  // mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
+  mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
+  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_REPORT_CHECKPOINT, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_MND_PAUSE_STREAM, mndProcessPauseStreamReq);
@@ -794,8 +794,6 @@ _OVER:
   return code;
 }
 
-#if 0
-
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
@@ -836,8 +834,8 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, con
   req.checkpointId = pMsg->checkpointId;
   req.nodeId = pTask->nodeId;
   req.expireTime = -1;
-  req.streamId = pTask->streamId;
-  req.taskId = pTask->taskId;
+  req.streamId = pTask->id.streamId;
+  req.taskId = pTask->id.taskId;
 
   int32_t code;
   int32_t blen;
@@ -882,7 +880,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   SStreamObj *pStream = mndAcquireStream(pMnode, pMsg->streamName);
 
   if (pStream == NULL || pStream->uid != pMsg->streamId) {
-    mError("start checkpointing failed since stream %s not found", pMsg->streamName);
+    mError("failed to checkpoint since stream %s not found", pMsg->streamName);
     return -1;
   }
 
@@ -891,6 +889,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   if (pTrans == NULL) return -1;
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    mError("failed to checkpoint since stream %s", tstrerror(TSDB_CODE_MND_TRANS_CONFLICT));
     mndReleaseStream(pMnode, pStream);
     mndTransDrop(pTrans);
     return -1;
@@ -959,8 +958,6 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
 
   return 0;
 }
-
-#endif
 
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
@@ -1402,7 +1399,6 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
-
 
 static int32_t mndResumeStreamTask(STrans *pTrans, SStreamTask *pTask, int8_t igUntreated) {
   SVResumeStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVResumeStreamTaskReq));
