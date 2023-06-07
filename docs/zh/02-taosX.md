@@ -100,7 +100,7 @@ taosX 是进行数据同步与复制的核心组件，以下运行模式指 taos
 
 #### DSN (Data Source Name)
 
-Taosx 命令行模式使用 DSN 来表示一个数据源（来源或目的源），典型的 DSN 如下：
+taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源），典型的 DSN 如下：
 
 ```bash
 # url-like
