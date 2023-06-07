@@ -200,7 +200,7 @@ STqReader *tqReaderOpen(SVnode *pVnode);
 void       tqReaderClose(STqReader *);
 
 void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
-int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList);
+int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char* id);
 int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 

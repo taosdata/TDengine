@@ -1166,7 +1166,7 @@ static int32_t tsdbSnapWriteDelTableDataStart(STsdbSnapWriter* pWriter, TABLEID*
 
       int32_t c = tTABLEIDCmprFn(pDelIdx, &pWriter->tbid);
       if (c < 0) {
-        code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->pTIter->tIter.aDelData);
+        code = tsdbReadDelDatav1(pWriter->pDelFReader, pDelIdx, pWriter->pTIter->tIter.aDelData, INT64_MAX);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         SDelIdx* pDelIdxNew = taosArrayReserve(pWriter->aDelIdx, 1);
@@ -1183,7 +1183,7 @@ static int32_t tsdbSnapWriteDelTableDataStart(STsdbSnapWriter* pWriter, TABLEID*
 
         pWriter->pTIter->tIter.iDelIdx++;
       } else if (c == 0) {
-        code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
+        code = tsdbReadDelDatav1(pWriter->pDelFReader, pDelIdx, pWriter->aDelData, INT64_MAX);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         pWriter->pTIter->tIter.iDelIdx++;

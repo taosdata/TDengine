@@ -362,7 +362,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
       }
       tqDebug("vgId:%d, tq try to get ctb for stb subscribe, suid:%" PRId64, pTq->pVnode->config.vgId, handle.execHandle.execTb.suid);
       handle.execHandle.pTqReader = tqReaderOpen(pTq->pVnode);
-      tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList);
+      tqReaderSetTbUidList(handle.execHandle.pTqReader, tbUidList, NULL);
       taosArrayDestroy(tbUidList);
     }
     tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, vgId);

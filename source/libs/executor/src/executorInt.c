@@ -562,7 +562,6 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
       int32_t numOfRows = 0;
       if (IS_VAR_DATA_TYPE(pDst->info.type)) {
         int32_t j = 0;
-        pDst->varmeta.length = 0;
 
         while (j < totalRows) {
           if (pIndicator[j] == 0) {
@@ -573,18 +572,8 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
           if (colDataIsNull_var(pDst, j)) {
             colDataSetNull_var(pDst, numOfRows);
           } else {
-            // fix address sanitizer error. p1 may point to memory that will change during realloc of colDataSetVal, first copy it to p2
             char* p1 = colDataGetVarData(pDst, j);
-            int32_t len = 0;
-            if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
-              len = getJsonValueLen(p1);
-            } else {
-              len = varDataTLen(p1);
-            }
-            char* p2 = taosMemoryMalloc(len);
-            memcpy(p2, p1, len);
-            colDataSetVal(pDst, numOfRows, p2, false);
-            taosMemoryFree(p2);
+            colDataReassignVal(pDst, numOfRows, j, p1);
           }
           numOfRows += 1;
           j += 1;
