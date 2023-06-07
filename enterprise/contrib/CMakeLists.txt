@@ -25,9 +25,9 @@ IF (NOT EXISTS ${TD_SOURCE_DIR}/community/source)
 ENDIF ()
 
 # grant-lib
-IF (NOT BUILD_WITH_CFG_GRANTS)
+# IF (NOT BUILD_WITH_CFG_GRANTS)
         cat("${TD_SOURCE_DIR}/enterprise/cmake/grant-lib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-ENDIF ()
+# ENDIF ()
 
 IF (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/src/plugins/taosx)
         cat("${TD_SOURCE_DIR}/enterprise/cmake/taosx_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
