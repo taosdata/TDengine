@@ -176,7 +176,10 @@ taosx run \
 
 示例：
 ```shell
-taosx run -f 'taos://td2:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all' -t 'taos://td3:6030/db2?libraryPath=./libtaos.so.3.0.1.8' -v
+taosx run \
+  -f 'taos://td1:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all' \
+  -t 'taos://td2:6030/db2?libraryPath=./libtaos.so.3.0.1.8' \
+  -v
 ```
 
 常见错误排查：
