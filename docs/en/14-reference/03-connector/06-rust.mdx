@@ -27,9 +27,14 @@ The source code for the Rust connectors is located on [GitHub](https://github.co
 Native connections are supported on the same platforms as the TDengine client driver.
 Websocket connections are supported on all platforms that can run Go.
 
-## Version support
+## Version history
 
-Please refer to [version support list](/reference/connector#version-support)
+| connector-rust version |  TDengine version |                   major features                    |
+| :----------------: | :--------------: | :--------------------------------------------------: |
+|       v0.8.8       |      3.0.5.0 or later    | TMQ: Get consuming progress and seek offset to consume. |
+|       v0.8.0       |      3.0.4.0     | Support schemaless insert. |
+|       v0.7.6       |      3.0.3.0     | Support req_id in query. |
+|       v0.6.0       |      3.0.0.0     | Base features. |
 
 The Rust Connector is still under rapid development and is not guaranteed to be backward compatible before 1.0. We recommend using TDengine version 3.0 or higher to avoid known issues.
 
@@ -499,6 +504,22 @@ The TMQ is of [futures::Stream](https://docs.rs/futures/latest/futures/stream/in
 }
 ```
 
+Get assignments：
+
+Version requirements connector-rust >= v0.8.8, TDengine >= 3.0.5.0
+
+```rust
+let assignments = consumer.assignments().await.unwrap();
+```
+
+Seek offset：
+
+Version requirements connector-rust >= v0.8.8, TDengine >= 3.0.5.0
+
+```rust
+consumer.offset_seek(topic, vgroup_id, offset).await;
+```
+
 Unsubscribe:
 
 ```rust
@@ -513,7 +534,7 @@ The following parameters can be configured for the TMQ DSN. Only `group.id` is m
 - `enable.auto.commit`: Automatically commits. This can be enabled when data consistency is not essential.
 - `auto.commit.interval.ms`: Interval for automatic commits.
   
-For more information, see [GitHub sample file](https://github.com/taosdata/taos-connector-rust/blob/main/examples/subscribe.rs).
+For more information, see [GitHub sample file](https://github.com/taosdata/TDengine/blob/3.0/docs/examples/rust/nativeexample/examples/subscribe_demo.rs).
 
 For information about other structure APIs, see the [Rust documentation](https://docs.rs/taos).
 
