@@ -146,6 +146,11 @@ pub struct GroupedParams {
     pub display_order: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(default)]
+    pub collapsible: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub collapsed: Option<bool>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub params: Vec<Param>,
 }
@@ -416,8 +421,14 @@ impl DataSourceDefinition {
             }
         }
         for group in self.groups.as_mut_slice() {
+            if group.collapsible {
+                group.collapsed.replace(false);
+            }
             for param in &mut group.params {
                 if let Some(value) = dsn.remove(&param.name) {
+                    if group.collapsible {
+                        group.collapsed.replace(true);
+                    }
                     if !value.is_empty() {
                         param.value.replace(value);
                     }
@@ -501,7 +512,6 @@ fn opc() {
 
     let dsn = "opc+ua://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
     let dsn = Dsn::from_str(&dsn).unwrap();
-    // let tmq = &mut def[0];
     let dsn = def.values_from(dsn);
     dbg!(&dsn);
 }
@@ -517,9 +527,25 @@ fn influxdb() {
 
     let dsn = "influxdb://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
     let dsn = Dsn::from_str(&dsn).unwrap();
-    // let tmq = &mut def[0];
     let dsn = def.values_from(dsn);
     dbg!(&dsn);
+}
+#[test]
+fn test_mqtt() {
+    use std::str::FromStr;
+    let json = include_str!("cn/mqtt.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "mqtt://localhost:123/opcua/server1?ca=abc&cert=abc&abc";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let ds = def.values_from(dsn);
+    assert_eq!(ds.groups[0].collapsed, Some(true));
+    dbg!(&ds);
 }
 #[test]
 fn test_values() {
