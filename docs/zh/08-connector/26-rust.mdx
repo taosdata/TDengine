@@ -502,6 +502,22 @@ TMQ 消息队列是一个 [futures::Stream](https://docs.rs/futures/latest/futur
 }
 ```
 
+获取消费进度：
+
+版本要求 connector-rust >= v0.8.8， TDengine >= 3.0.5.0
+
+```rust
+let assignments = consumer.assignments().await.unwrap();
+```
+
+按照指定的进度消费：
+
+版本要求 connector-rust >= v0.8.8， TDengine >= 3.0.5.0
+
+```rust
+consumer.offset_seek(topic, vgroup_id, offset).await;
+```
+
 停止订阅：
 
 ```rust
@@ -516,7 +532,7 @@ consumer.unsubscribe().await;
 - `enable.auto.commit`: 当设置为 `true` 时，将启用自动标记模式，当对数据一致性不敏感时，可以启用此方式。
 - `auto.commit.interval.ms`: 自动标记的时间间隔。
   
-完整订阅示例参见 [GitHub 示例文件](https://github.com/taosdata/taos-connector-rust/blob/main/examples/subscribe.rs).
+完整订阅示例参见 [GitHub 示例文件](https://github.com/taosdata/TDengine/blob/3.0/docs/examples/rust/nativeexample/examples/subscribe_demo.rs).
 
 其他相关结构体 API 使用说明请移步 Rust 文档托管网页：<https://docs.rs/taos>。
 

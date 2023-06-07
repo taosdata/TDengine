@@ -499,6 +499,22 @@ The TMQ is of [futures::Stream](https://docs.rs/futures/latest/futures/stream/in
 }
 ```
 
+Get assignments：
+
+Version requirements connector-rust >= v0.8.8, TDengine >= 3.0.5.0
+
+```rust
+let assignments = consumer.assignments().await.unwrap();
+```
+
+Seek offset：
+
+Version requirements connector-rust >= v0.8.8, TDengine >= 3.0.5.0
+
+```rust
+consumer.offset_seek(topic, vgroup_id, offset).await;
+```
+
 Unsubscribe:
 
 ```rust
@@ -513,7 +529,7 @@ The following parameters can be configured for the TMQ DSN. Only `group.id` is m
 - `enable.auto.commit`: Automatically commits. This can be enabled when data consistency is not essential.
 - `auto.commit.interval.ms`: Interval for automatic commits.
   
-For more information, see [GitHub sample file](https://github.com/taosdata/taos-connector-rust/blob/main/examples/subscribe.rs).
+For more information, see [GitHub sample file](https://github.com/taosdata/TDengine/blob/3.0/docs/examples/rust/nativeexample/examples/subscribe_demo.rs).
 
 For information about other structure APIs, see the [Rust documentation](https://docs.rs/taos).
 
