@@ -119,17 +119,17 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 
 不同的驱动（driver）拥有不同的参数。driver包含如下选项:
 
-(1) taos：使用查询接口从 TDengine 获取数据
-(2) tmq：启用数据订阅从 TDengine 获取数据
-(3) local：数据备份或恢复
-(4) pi: 启用 pi-connector从 pi 数据库中获取数据
-(5) opc：启用 opc-connector 从 opc-server 中获取数据
-(6) mqtt: 启动 mqtt-connector 获取 mqtt-broker 中的数据
+- taos：使用查询接口从 TDengine 获取数据
+- tmq：启用数据订阅从 TDengine 获取数据
+- local：数据备份或恢复
+- pi: 启用 pi-connector从 pi 数据库中获取数据
+- opc：启用 opc-connector 从 opc-server 中获取数据
+- mqtt: 启动 mqtt-connector 获取 mqtt-broker 中的数据
 
 +protocol 包含如下选项：
-(1) +ws: 当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
-(2) +ua: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
-(3) +da: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
+- +ws: 当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
+- +ua: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
+- +da: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
 
 localhost:6030 表示数据源的地址和端口，db1 表示具体的TDengine数据库，root 和 taosdata 表示该数据源的用户名和密码，问号后则是这个 dsn 的参数。
 
