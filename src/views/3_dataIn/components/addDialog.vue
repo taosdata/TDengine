@@ -22,7 +22,16 @@
         v-model="ruleForm.agent"
       >
         <span slot="label">
-          <el-checkbox v-model="checked">{{ $t('datasource.agent') }}</el-checkbox>
+          <el-checkbox v-model="checked">
+            {{ $t('datasource.agent') }} 
+          </el-checkbox>
+          <el-tooltip
+            effect="light"
+            placement="top"
+          >
+            <span slot="content" v-html="$t('datasource.agentInfo')"></span>
+            <i class="el-icon-info"></i>
+        </el-tooltip>
         </span>
         <!-- <el-cascader
           v-model="ruleForm.agent"

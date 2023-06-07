@@ -6,7 +6,7 @@
     <div class="flexEnd">
       <el-button
         plain
-        @click="dialog = true"
+        @click="add"
         size="small"
         icon="el-icon-plus"
         >{{ $t("taosagents.createnewagent") }}</el-button
@@ -209,7 +209,7 @@ export default {
       requestIng: false,
       dblist: [],
       isEditDialog: false,
-      dialogTitle: "Create New Agent",
+      dialogTitle: "",
       pageSize: 10,
       currentPage: 1,
       total: 10,
@@ -264,6 +264,7 @@ export default {
           deleteAgent(data.id).then(res=>{
             console.log(res,'200的提示');
             res&&Message.success(this.$t('delSucc'))
+            this.getAgents();
           }).catch((err) => {
             console.log(err.response, "删除的错误提示--500");
             err.response.data &&
@@ -271,8 +272,6 @@ export default {
               Message.error(err.response.data.message);
           });
         } catch (error) {console.log(error);}
-
-        this.getAgents();
       });
     },
     add() {
@@ -280,8 +279,6 @@ export default {
       this.isEditDialog = false;
       this.dialog = true;
       this.ruleForm.name = "";
-      this.ruleForm.expire_date = "";
-      this.ruleForm.connectors = "";
     },
     refresh() {
       this.getAgents();
@@ -291,8 +288,6 @@ export default {
       this.isEditDialog = true;
       this.dialog = true;
       this.ruleForm.name = data.name;
-      this.ruleForm.connectors = data.connectors;
-      this.ruleForm.expire_date = data.expire_date;
       this.currentRow = data;
     },
     copyToken(text) {
@@ -346,10 +341,10 @@ export default {
         let result = await editAgent(this.currentRow.id, params);
         this.dialog = false;
         this.getAgents();
-        if (result.token) {
-          this.agenttoken = result.token;
-          this.copyDialog = true;
-        }
+        Message({
+          type: 'success',
+          message: this.$t('operateSucc')
+        })
       } catch (error) {
         Message({
           type: 'error',
