@@ -869,11 +869,11 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
-int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver, int64_t ekey) {
+int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
-  pTaskInfo->streamInfo.fillHistoryVer1 = ver;
-  pTaskInfo->streamInfo.fillHisotryeKey1 = ekey;
+  pTaskInfo->streamInfo.fillHistoryVer = *pVerRange;
+  pTaskInfo->streamInfo.fillHistoryWindow = *pWindow;
   pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__PREPARE1;
   return 0;
 }

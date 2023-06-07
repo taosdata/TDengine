@@ -17,13 +17,13 @@
 #include "osMemory.h"
 #include "tencode.h"
 
-void _metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMeta* pAPI) {
+void metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMeta* pAPI) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
-  metaReaderInit(pReader, pMeta, flags);
+  metaReaderDoInit(pReader, pMeta, flags);
   pReader->pAPI = pAPI;
 }
 
-void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
+void metaReaderDoInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->pMeta = pMeta;
   pReader->flags = flags;
@@ -143,7 +143,7 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
 int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  metaReaderDoInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
@@ -159,7 +159,7 @@ int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName) {
 int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, (SMeta *)meta, 0);
+  metaReaderDoInit(&mr, (SMeta *)meta, 0);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
@@ -174,7 +174,7 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
 int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, ((SVnode *)pVnode)->pMeta, 0);
+  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, 0);
 
   SMetaReader *pReader = &mr;
 
@@ -195,7 +195,7 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
 int metaGetTableTypeByName(void *pVnode, char *tbName, ETableType *tbType) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  metaReaderDoInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;
@@ -222,7 +222,7 @@ SMTbCursor *metaOpenTbCursor(void *pVnode) {
   }
 
   SVnode* pVnodeObj = pVnode;
-  metaReaderInit(&pTbCur->mr, pVnodeObj->pMeta, 0);
+  metaReaderDoInit(&pTbCur->mr, pVnodeObj->pMeta, 0);
 
   tdbTbcOpen(pVnodeObj->pMeta->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
 
@@ -760,7 +760,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
   }
 
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pMeta, 0);
+  metaReaderDoInit(&mr, pMeta, 0);
   int64_t smaId;
   int     smaIdx = 0;
   STSma  *pTSma = NULL;
@@ -815,7 +815,7 @@ _err:
 STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
   STSma      *pTSma = NULL;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pMeta, 0);
+  metaReaderDoInit(&mr, pMeta, 0);
   if (metaReaderGetTableEntryByUid(&mr, indexUid) < 0) {
     metaWarn("vgId:%d, failed to get table entry for smaId:%" PRIi64, TD_VID(pMeta->pVnode), indexUid);
     metaReaderClear(&mr);

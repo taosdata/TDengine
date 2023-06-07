@@ -164,7 +164,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
     }
 
     buf = NULL;
-    qDebug("s-task:%s (child %d) send retrieve req to task %d at node %d, reqId:0x%" PRIx64, pTask->id.idStr,
+    qDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
            pTask->selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
   }
   code = 0;
@@ -238,14 +238,14 @@ int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pR
   msg.pCont = buf;
   msg.msgType = TDMT_STREAM_TASK_CHECK;
 
-  qDebug("s-task:%s dispatch check msg to downstream s-task:%" PRIx64 ":%d node %d: check msg", pTask->id.idStr,
+  qDebug("s-task:%s dispatch check msg to s-task:%" PRIx64 ":0x%x (vgId:%d)", pTask->id.idStr,
          pReq->streamId, pReq->downstreamTaskId, nodeId);
 
   tmsgSendReq(pEpSet, &msg);
   return 0;
 }
 
-int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecoverFinishReq* pReq, int32_t vgId,
+int32_t streamDoDispatchRecoverFinishMsg(SStreamTask* pTask, const SStreamRecoverFinishReq* pReq, int32_t vgId,
                                           SEpSet* pEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
@@ -283,8 +283,7 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
   msg.info.noResp = 1;
 
   tmsgSendReq(pEpSet, &msg);
-  qDebug("s-task:%s dispatch recover finish msg to downstream taskId:0x%x node %d: recover finish msg", pTask->id.idStr,
-         pReq->taskId, vgId);
+  qDebug("s-task:%s dispatch recover finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, pReq->taskId, vgId);
 
   return 0;
 }

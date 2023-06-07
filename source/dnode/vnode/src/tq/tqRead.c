@@ -114,7 +114,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     }
 
     SMetaReader mr = {0};
-    metaReaderInit(&mr, pHandle->execHandle.pTqReader->pVnodeMeta, 0);
+    metaReaderDoInit(&mr, pHandle->execHandle.pTqReader->pVnodeMeta, 0);
 
     if (metaGetTableEntryByName(&mr, req.tbName) < 0) {
       metaReaderClear(&mr);

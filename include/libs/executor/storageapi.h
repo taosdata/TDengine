@@ -233,28 +233,6 @@ typedef struct SStoreSnapshotFn {
   int32_t (*getTableInfoFromSnapshot)(SSnapContext* ctx, void** pBuf, int32_t* contLen, int16_t* type, int64_t* uid);
 } SStoreSnapshotFn;
 
-/**
-void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
-void        metaReaderReleaseLock(SMetaReader *pReader);
-void        metaReaderClear(SMetaReader *pReader);
-int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
-int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
-int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList);
-const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
-int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
-
-int      metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid);
-int      metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
-bool     metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
-int32_t  metaGetCachedTableUidList(SMeta *pMeta, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
-                                   bool *acquired);
-int32_t  metaUidFilterCachePut(SMeta *pMeta, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
-                               int32_t payloadLen, double selectivityRatio);
-tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
-int32_t  metaGetCachedTbGroup(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray** pList);
-int32_t  metaPutTbGroupToCache(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload, int32_t payloadLen);
- */
-
 typedef struct SStoreMeta {
   SMTbCursor *(*openTableMetaCursor)(void *pVnode);                        // metaOpenTbCursor
   void        (*closeTableMetaCursor)(SMTbCursor *pTbCur);                 // metaCloseTbCursor

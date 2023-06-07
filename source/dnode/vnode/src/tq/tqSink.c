@@ -311,7 +311,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
         tbData.uid = pTableSinkInfo->uid;
       } else {
         SMetaReader mr = {0};
-        metaReaderInit(&mr, pVnode->pMeta, 0);
+        metaReaderDoInit(&mr, pVnode->pMeta, 0);
         if (metaGetTableEntryByName(&mr, ctbName) < 0) {
           metaReaderClear(&mr);
           taosMemoryFree(pTableSinkInfo);

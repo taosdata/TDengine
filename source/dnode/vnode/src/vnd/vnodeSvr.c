@@ -564,24 +564,6 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_WALINFO:
       return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_RUN:
-      return tqProcessTaskRunReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_DISPATCH:
-      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
-    case TDMT_STREAM_TASK_CHECK:
-      return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_DISPATCH_RSP:
-      return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RETRIEVE:
-      return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RETRIEVE_RSP:
-      return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE:
-      return tqProcessTaskRecover1Req(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RECOVER_FINISH:
-      return tqProcessTaskRecoverFinishReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RECOVER_FINISH_RSP:
-      return tqProcessTaskRecoverFinishRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -1651,7 +1633,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
   tDecodeSBatchDeleteReq(&decoder, &deleteReq);
 
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
 
   int32_t sz = taosArrayGetSize(deleteReq.deleteReqs);
   for (int32_t i = 0; i < sz; i++) {

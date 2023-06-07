@@ -557,18 +557,19 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask);
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp);
 int32_t streamTaskStartHistoryTask(SStreamTask* pTask, int64_t ver);
+int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 
 // common
 int32_t streamSetParamForRecover(SStreamTask* pTask);
 int32_t streamRestoreParam(SStreamTask* pTask);
 int32_t streamSetStatusNormal(SStreamTask* pTask);
 // source level
-int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, int64_t ver, int64_t ekey);
+int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq);
 int32_t streamSourceRecoverScanStep1(SStreamTask* pTask);
 int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req* pReq);
 int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver);
-int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask);
+int32_t streamDispatchRecoverFinishMsg(SStreamTask* pTask);
 // agg level
 int32_t streamAggRecoverPrepare(SStreamTask* pTask);
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId);

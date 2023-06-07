@@ -5452,7 +5452,7 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
 
 int32_t tsdbGetTableSchema(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid) {
   SMetaReader mr = {0};
-  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  metaReaderDoInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
@@ -5584,57 +5584,3 @@ void tsdbReaderSetId(STsdbReader* pReader, const char* idstr) {
 
 void tsdbReaderSetCloseFlag(STsdbReader* pReader) { pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
 
-/*-------------todo:refactor the implementation of those APIs in this file to seperate the API into two files------*/
-// opt perf, do NOT create so many readers
-int64_t tsdbGetLastTimestamp(SVnode* pVnode, void* pTableList, int32_t numOfTables, const char* pIdStr) {
-  SQueryTableDataCond cond = {.type = TIMEWINDOW_RANGE_CONTAINED, .numOfCols = 1, .order = TSDB_ORDER_DESC,
-                              .startVersion = -1, .endVersion = -1};
-  cond.twindows.skey = INT64_MIN;
-  cond.twindows.ekey = INT64_MAX;
-
-  cond.colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
-  cond.pSlotList = taosMemoryMalloc(sizeof(int32_t) * cond.numOfCols);
-  if (cond.colList == NULL || cond.pSlotList == NULL) {
-    // todo
-  }
-
-  cond.colList[0].colId = 1;
-  cond.colList[0].slotId = 0;
-  cond.colList[0].type = TSDB_DATA_TYPE_TIMESTAMP;
-
-  cond.pSlotList[0] = 0;
-
-  STableKeyInfo* pTableKeyInfo = pTableList;
-  STsdbReader* pReader = NULL;
-  SSDataBlock* pBlock = createDataBlock();
-
-  SColumnInfoData data = {0};
-  data.info = (SColumnInfo) {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = 1, .bytes = TSDB_KEYSIZE};
-  blockDataAppendColInfo(pBlock, &data);
-
-  int64_t key = INT64_MIN;
-
-  for(int32_t i = 0; i < numOfTables; ++i) {
-    int32_t code = tsdbReaderOpen(pVnode, &cond, &pTableKeyInfo[i], 1, pBlock, (void**)&pReader, pIdStr, false, NULL);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    bool hasData = false;
-    code = tsdbNextDataBlock(pReader, &hasData);
-    if (!hasData || code != TSDB_CODE_SUCCESS) {
-      continue;
-    }
-
-    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
-    int64_t k = *(int64_t*)pCol->pData;
-
-    if (key < k) {
-      key = k;
-    }
-
-    tsdbReaderClose(pReader);
-  }
-
-  return 0;
-}

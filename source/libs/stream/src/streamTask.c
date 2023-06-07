@@ -17,7 +17,7 @@
 #include "tstream.h"
 #include "wal.h"
 
-static int32_t mndAddToTaskset(SArray* pArray, SStreamTask* pTask) {
+static int32_t addToTaskset(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
   pTask->selfChildId = childId;
   taosArrayPush(pArray, &pTask);
@@ -45,108 +45,8 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHisto
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
 
-  mndAddToTaskset(pTaskList, pTask);
+  addToTaskset(pTaskList, pTask);
   return pTask;
-}
-
-SStreamTask* streamTaskClone(SStreamTask* pTask) {
-  SStreamTask* pDst = taosMemoryCalloc(1, sizeof(SStreamTask));
- /* pDst->
-
-  SStreamId       id;
-  int32_t         totalLevel;
-  int8_t          taskLevel;
-  int8_t          outputType;
-  int16_t         dispatchMsgType;
-  SStreamStatus   status;
-  int32_t         selfChildId;
-  int32_t         nodeId;      // vgroup id
-  SEpSet          epSet;
-  SCheckpointInfo chkInfo;
-  STaskExec       exec;
-  int8_t          fillHistory;  // fill history
-  int64_t         ekey;         // end ts key
-  int64_t         endVer;       // end version
-
-  // children info
-  SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
-  int32_t nextCheckId;
-  SArray* checkpointInfo;  // SArray<SStreamCheckpointInfo>
-
-  // output
-  union {
-    STaskDispatcherFixedEp fixedEpDispatcher;
-    STaskDispatcherShuffle shuffleDispatcher;
-    STaskSinkTb            tbSink;
-    STaskSinkSma           smaSink;
-    STaskSinkFetch         fetchSink;
-  };
-
-  int8_t        inputStatus;
-  int8_t        outputStatus;
-  SStreamQueue* inputQueue;
-  SStreamQueue* outputQueue;
-
-  // trigger
-  int8_t        triggerStatus;
-  int64_t       triggerParam;
-  void*         timer;
-  SMsgCb*       pMsgCb;  // msg handle
-  SStreamState* pState;  // state backend
-
-  // the followings attributes don't be serialized
-  int32_t             recoverTryingDownstream;
-  int32_t             recoverWaitingUpstream;
-  int64_t             checkReqId;
-  SArray*             checkReqIds;  // shuffle
-  int32_t             refCnt;
-  int64_t             checkpointingId;
-  int32_t             checkpointAlignCnt;
-  struct SStreamMeta* pMeta;
-
-  int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
-  if (pTask->inputQueue) {
-    streamQueueClose(pTask->inputQueue);
-  }
-  if (pTask->outputQueue) {
-    streamQueueClose(pTask->outputQueue);
-  }
-  if (pTask->exec.qmsg) {
-    taosMemoryFree(pTask->exec.qmsg);
-  }
-
-  if (pTask->exec.pExecutor) {
-    qDestroyTask(pTask->exec.pExecutor);
-    pTask->exec.pExecutor = NULL;
-  }
-
-  if (pTask->exec.pWalReader != NULL) {
-    walCloseReader(pTask->exec.pWalReader);
-  }
-
-  taosArrayDestroyP(pTask->childEpInfo, taosMemoryFree);
-  if (pTask->outputType == TASK_OUTPUT__TABLE) {
-    tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
-    taosMemoryFree(pTask->tbSink.pTSchema);
-    tSimpleHashCleanup(pTask->tbSink.pTblInfo);
-  }
-
-  if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    taosArrayDestroy(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
-    taosArrayDestroy(pTask->checkReqIds);
-    pTask->checkReqIds = NULL;
-  }
-
-  if (pTask->pState) {
-    streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
-  }
-
-  if (pTask->id.idStr != NULL) {
-    taosMemoryFree((void*)pTask->id.idStr);
-  }
-
-  taosMemoryFree(pTask);*/
-  return NULL;
 }
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo) {

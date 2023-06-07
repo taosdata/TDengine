@@ -1785,14 +1785,17 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     memcpy(&pTSInfo->base.cond, &pTaskInfo->streamInfo.tableCond, sizeof(SQueryTableDataCond));
+
     if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1) {
-      pTSInfo->base.cond.startVersion = 0;
-      pTSInfo->base.cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer1;
-      qDebug("stream recover step1, verRange:%" PRId64 " - %" PRId64 ", %s", pTSInfo->base.cond.startVersion,
-             pTSInfo->base.cond.endVersion, id);
+      pTSInfo->base.cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer.minVer;
+      pTSInfo->base.cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer.maxVer;
+
+      pTSInfo->base.cond.twindows = pTaskInfo->streamInfo.fillHistoryWindow;
+      qDebug("stream recover step1, verRange:%" PRId64 "-%" PRId64 " window:%"PRId64"-%"PRId64", %s", pTSInfo->base.cond.startVersion,
+             pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey, pTSInfo->base.cond.twindows.ekey, id);
       pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN1;
     } else {
-      pTSInfo->base.cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer1 + 1;
+      pTSInfo->base.cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer.minVer + 1;
       pTSInfo->base.cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer2;
       qDebug("stream recover step2, verRange:%" PRId64 " - %" PRId64", %s", pTSInfo->base.cond.startVersion,
              pTSInfo->base.cond.endVersion, id);
@@ -2085,8 +2088,11 @@ FETCH_NEXT_BLOCK:
           return pInfo->pCreateTbRes;
         }
 
+        // todo apply time window range filter
+
         doCheckUpdate(pInfo, pBlockInfo->window.ekey, pBlock);
         doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+
         pBlock->info.dataLoad = 1;
         blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
 

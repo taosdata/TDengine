@@ -709,7 +709,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   }
 
   // validate req
-  metaReaderInit(&mr, pMeta, 0);
+  metaReaderDoInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
     if (pReq->type == TSDB_CHILD_TABLE && pReq->ctb.suid != mr.me.ctbEntry.suid) {
       terrno = TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;

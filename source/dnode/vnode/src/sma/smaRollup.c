@@ -896,7 +896,7 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
     return TSDB_CODE_SUCCESS;
   }
 
-  metaReaderInit(&mr, SMA_META(pSma), 0);
+  metaReaderDoInit(&mr, SMA_META(pSma), 0);
   smaDebug("vgId:%d, rsma clone qTaskInfo for suid:%" PRIi64, SMA_VID(pSma), pInfo->suid);
   if (metaReaderGetTableEntryByUidCache(&mr, pInfo->suid) < 0) {
     code = terrno;
@@ -1116,7 +1116,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
   }
 
   int64_t nRsmaTables = 0;
-  metaReaderInit(&mr, SMA_META(pSma), 0);
+  metaReaderDoInit(&mr, SMA_META(pSma), 0);
   if (!(uidStore.tbUids = taosArrayInit(1024, sizeof(tb_uid_t)))) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);

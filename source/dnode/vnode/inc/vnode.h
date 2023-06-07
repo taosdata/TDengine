@@ -101,7 +101,7 @@ void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
 
 // meta
-void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta* pAPI);
+void        metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta* pAPI);
 void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
@@ -124,8 +124,6 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
 int32_t  metaPutTbGroupToCache(void* pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen);
-
-int64_t  metaGetTbNum(SMeta *pMeta);
 
 int32_t  metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
 

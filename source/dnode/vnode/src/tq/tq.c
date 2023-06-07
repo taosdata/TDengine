@@ -812,11 +812,15 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pTq->pVnode->msgCb;
   pTask->pMeta = pTq->pStreamMeta;
+
   pTask->chkInfo.version = ver;
   pTask->chkInfo.currentVer = ver;
 
+  pTask->dataRange.range.maxVer = ver;
+  pTask->dataRange.range.minVer = ver;
+
   // expand executor
-  pTask->status.taskStatus = (pTask->fillHistory) ? TASK_STATUS__WAIT_DOWNSTREAM : TASK_STATUS__NORMAL;
+  pTask->status.taskStatus = /*(pTask->fillHistory) ? */TASK_STATUS__WAIT_DOWNSTREAM /*: TASK_STATUS__NORMAL*/;
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
@@ -919,16 +923,12 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
     rsp.status = streamTaskCheckStatus(pTask);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
-    tqDebug("s-task:%s recv task check req(reqId:0x%" PRIx64
-            ") %d at node %d task status:%d, check req from task %d at node %d, rsp status %d",
-            pTask->id.idStr, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, pTask->status.taskStatus,
-            rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+    tqDebug("s-task:%s recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), status:%d, rsp status %d",
+            pTask->id.idStr, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, pTask->status.taskStatus, rsp.status);
   } else {
     rsp.status = 0;
-    tqDebug("tq recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64
-            ") %d at node %d, check req from task:0x%x at node %d, rsp status %d",
-            taskId, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.upstreamTaskId, rsp.upstreamNodeId,
-            rsp.status);
+    tqDebug("tq recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64 ") from task:0x%x (vgId:%d), rsp status %d",
+            taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   }
 
   SEncoder encoder;
@@ -969,12 +969,12 @@ int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, char* msg, int32
   }
 
   tDecoderClear(&decoder);
-  tqDebug("tq recv task check rsp(reqId:0x%" PRIx64 ") %d at node %d check req from task:0x%x at node %d, status %d",
+  tqDebug("tq recv task check rsp(reqId:0x%" PRIx64 ") %d (vgId:%d) check req from task:0x%x (vgId:%d), status %d",
           rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, rsp.upstreamTaskId);
   if (pTask == NULL) {
-    tqError("tq failed to locate the stream task:0x%x vgId:%d, it may have been destroyed", rsp.upstreamTaskId,
+    tqError("tq failed to locate the stream task:0x%x (vgId:%d), it may have been destroyed", rsp.upstreamTaskId,
             pTq->pStreamMeta->vgId);
     return -1;
   }
@@ -1027,13 +1027,27 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
   taosWUnLockLatch(&pStreamMeta->lock);
 
-  // 3. for fill history task, do nothing. wait for the main task to start it
+  // 3. It's an fill history task, do nothing. wait for the main task to start it
   if (pTask->fillHistory) {
     tqDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
   } else {
+    // calculate the correct start time window, and start the handle the history data for the main task.
     if (pTask->historyTaskId.taskId != 0) {
+      // launch the history fill stream task
       streamTaskStartHistoryTask(pTask, sversion);
+
+      // launch current task
+      SHistoryDataRange* pRange = &pTask->dataRange;
+      int64_t ekey = pRange->window.ekey;
+      int64_t ver = pRange->range.minVer;
+
+      pRange->window.skey = ekey;
+      pRange->window.ekey = INT64_MAX;
+      pRange->range.minVer = 0;
+      pRange->range.maxVer = ver;
     }
+
+    streamTaskCheckDownstreamTasks(pTask);
   }
 
   tqDebug("vgId:%d s-task:%s is deployed and add meta from mnd, status:%d, total:%d", vgId, pTask->id.idStr,
@@ -1043,20 +1057,24 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 }
 
 int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
-  int32_t code;
+  int32_t code = TSDB_CODE_SUCCESS;
   char*   msg = pMsg->pCont;
   int32_t msgLen = pMsg->contLen;
 
+  SStreamMeta* pMeta = pTq->pStreamMeta;
   SStreamRecoverStep1Req* pReq = (SStreamRecoverStep1Req*)msg;
-  SStreamTask*            pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->taskId);
   if (pTask == NULL) {
+    tqError("vgId:%d failed to acquire stream task:0x%x during stream recover, task may have been destroyed",
+            pMeta->vgId, pReq->taskId);
     return -1;
   }
 
   // check param
   int64_t fillVer1 = pTask->chkInfo.version;
   if (fillVer1 <= 0) {
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    streamMetaReleaseTask(pMeta, pTask);
     return -1;
   }
 
@@ -1068,14 +1086,27 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     tqDebug("s-task:%s is dropped, abort recover in step1", pTask->id.idStr);
 
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   tqDebug("s-task:%s history scan stage(step 1) ended, elapsed time:%.2fs", pTask->id.idStr, el);
 
-  // todo transfer the executor status, and then destroy this stream task
+  if (pTask->fillHistory) {
+    // todo transfer the executor status, and then destroy this stream task
+  } else {
+    // todo update the chkInfo version for current task.
+    // this task has an associated history stream task, so we need to scan wal from the end version of
+    // history scan. The current version of chkInfo.current is not updated during the history scan
+    tqDebug("s-task:%s history data scan completed, now start to scan data from wal, start ver:%" PRId64
+            ", window:%" PRId64 " - %" PRId64,
+            pTask->id.idStr, pTask->chkInfo.currentVer, pTask->dataRange.window.skey, pTask->dataRange.window.ekey);
+
+    code = streamTaskScanHistoryDataComplete(pTask);
+    streamMetaReleaseTask(pMeta, pTask);
+    return code;
+  }
 
 #if 0
   // build msg to launch next step
@@ -1162,7 +1193,7 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
   tqDebug("s-task:%s step2 recover finished, el:%.2fs", pTask->id.idStr, el);
 
   // dispatch recover finish req to all related downstream task
-  code = streamDispatchRecoverFinishReq(pTask);
+  code = streamDispatchRecoverFinishMsg(pTask);
   if (code < 0) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
