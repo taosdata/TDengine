@@ -22,7 +22,7 @@
       <template v-if="constcols.includes(colData['name'])">
         <span class="forbidden">{{ colData["name"] }}</span>
       </template>
-      <el-input v-model="colData['name']" size="mini" v-else></el-input>
+      <el-input v-model="colData['name']" size="mini" v-else ></el-input>
     </li>
     <li>
       <template v-if="constcols.includes(colData['name'])">
@@ -61,6 +61,7 @@
   </ul>
 </template>
 <script>
+import { Message } from 'element-ui';
 export default {
   name: "MqttColumn",
   props: {
@@ -101,6 +102,15 @@ export default {
     },
   },
   methods: {
+    watchFieldVal(val){
+        console.log(val,'输入');
+        if(this.constcols.includes(val)){
+            Message.error('不能输入ts,topic,qos作为新字段')
+            return
+        }else{
+            console.log('tiaoshi');
+        }
+    },
     checkColumn() {
       if (this.colData.name) {
         let oldparser = this.$store.state.app.mqttParser;

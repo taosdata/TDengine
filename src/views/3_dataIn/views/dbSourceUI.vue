@@ -666,9 +666,10 @@ export default {
       backfillEndOption: {
         disabledDate: (time) => backfillEnd(time),
       },
-      ipRegex://判断ip和域名
-       /^(?=^.{3,255}$)(http(s)?:\/\/)?(www\.)?[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+(:\d+)*(\/\w+\.\w+)*$/,
-        // /^(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$/,
+      //判断ip和域名
+      ipRegex:
+        /^(?=^.{3,255}$)(http(s)?:\/\/)?(www\.)?[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+(:\d+)*(\/\w+\.\w+)*$/,
+      // /^(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$/,
       isIP: true,
       isPort: true,
       disable: false,
@@ -713,7 +714,7 @@ export default {
   },
   methods: {
     changeHost(host) {
-      if (this.tagName=='influxdb') {
+      if (this.tagName == "influxdb") {
         this.isIP = this.ipRegex.test(this.dbsource[0].options.host.value);
       }
     },
@@ -813,7 +814,7 @@ export default {
           // }
         } else {
           if (this.tagName == "influxdb") {
-            this.changeHost(data.options.host.value)
+            this.changeHost(data.options.host.value);
             if (data.options.host.value && !this.isIP) {
               Message.warning(this.$t("datasource.iptip"));
               return;
@@ -974,23 +975,19 @@ export default {
         }
         if (this.tagName === "datasource") {
           if (this.isEditable) {
-            await EditSource(apiParams, this.editId)
-              .then(() => {
-                this.$parent.toggleComponent("tmqtable");
-              })
-              .catch((err) => {
-                err.response.data.message &&
-                  Message.error(err.response.data.message);
-              });
+            let result = await EditSource(apiParams, this.editId);
+            if (result.message) {
+              Message.error(result.message);
+              return;
+            }
+            this.$parent.toggleComponent("tmqtable");
           } else {
-            await AddSource(apiParams)
-              .then((res) => {
-                this.$parent.toggleComponent("tmqtable");
-              })
-              .catch((err) => {
-                err.response.data.message &&
-                  Message.error(err.response.data.message);
-              });
+            let result = await AddSource(apiParams);
+            if (result.message) {
+              Message.error(result.message);
+              return;
+            }
+            this.$parent.toggleComponent("tmqtable");
           }
         } else {
           let piParams = {
@@ -1015,23 +1012,23 @@ export default {
             piParams["via"] = this.$parent.agentID;
           }
           if (this.isEditable) {
-            await EditSource(piParams, this.editId).then(() => {
-              this.$parent.toggleComponent("pitable");
-            });
+            let result = await EditSource(piParams, this.editId);
+            if (result.message) {
+              Message.error(result.message);
+              return;
+            }
+            this.$parent.toggleComponent("pitable");
           } else {
-            await AddSource(piParams).then((res) => {
-              if (res && res.id) {
-                this.$parent.toggleComponent("pitable");
-                Message.success("Operation Successfully!");
-              }
-            });
+            let result =await AddSource(piParams);
+            if (result.message) {
+              Message.error(result.message);
+              return;
+            }
+            if (result && result.id) {
+              this.$parent.toggleComponent("pitable");
+              Message.success("Operation Successfully!");
+            }
           }
-          // await AddSource(piParams).then((res) => {
-          //   if (res && res.id) {
-          //     this.$parent.toggleComponent('pitable');
-          //     Message.success("Operation Successfully!");
-          //   }
-          // });
         }
       } catch (err) {
         err.response.data.message && Message.error(err.response.data.message);
