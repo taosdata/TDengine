@@ -139,7 +139,9 @@ localhost:6030 表示数据源的地址和端口，db1 表示具体的数据库�
 
 示例：
 ```shell
-taosx run -f 'tmq://root:taosdata@localhost:6030/db1?group.id=taosx1&client.id=taosx&timeout=never&offset=2:10' -t 'taos://root:taosdata@another.com:6030/db2'
+taosx run \
+  -f 'tmq://root:taosdata@localhost:6030/db1?group.id=taosx1&client.id=taosx&timeout=never&offset=2:10' \
+  -t 'taos://root:taosdata@another.com:6030/db2'
 ```
 
 常见错误排查：
