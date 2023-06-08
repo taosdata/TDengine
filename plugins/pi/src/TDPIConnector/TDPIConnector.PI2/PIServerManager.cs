@@ -6,6 +6,12 @@ using TDPIConnector.PI.Exceptions;
 
 namespace TDPIConnector.PI2
 {
+    public enum ThisValType
+    {
+        Unknown,
+        String,
+        Double
+    }
     public class DateTimeWrapper
     {
         public DateTime Value { get; set; }
@@ -60,10 +66,10 @@ namespace TDPIConnector.PI2
             }
         }
 
-        public void CreatePoint(string pointName) {
+        public void CreatePoint(string pointName, ThisValType type) {
             if (!CheckPointExist(pointName))
             {
-                PIPoint piPoint = piServer.PIPoints.Add(pointName, "classic", PointTypeConstants.pttypFloat64, null);
+                PIPoint piPoint = piServer.PIPoints.Add(pointName, "classic", getType(type), null);
                 log.Info($"{pointName} has been created.");
             }
             else {
@@ -71,7 +77,17 @@ namespace TDPIConnector.PI2
             }
         }
 
-        public void UpdataPoint(string pointName, DateTime ts, double value)
+        private PointTypeConstants getType(ThisValType type) {
+            if (type == ThisValType.Double)
+            {
+                return PointTypeConstants.pttypFloat64;
+            }
+            else {
+                return PointTypeConstants.pttypString;
+            }
+        }
+
+        public void UpdataPoint(string pointName, DateTime ts, object value)
         {
             if (CheckPointExist(pointName))
             {

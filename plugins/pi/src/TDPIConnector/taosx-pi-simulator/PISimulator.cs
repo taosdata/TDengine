@@ -9,20 +9,21 @@ using TDPIConnector.Core;
 
 namespace PISimulator
 {
+
     class SimulatorFromCSV
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         private class SigleData {
             public int offset;
-            public double value;
+            public object value;
         };
         private class InsertData
         {
             public string point;
             public DateTime ts;
-            public double value;
+            public object value;
 
-            public InsertData(string point, DateTime ts, double value)
+            public InsertData(string point, DateTime ts, object value)
             {
                 this.point = point;
                 this.ts = ts;
@@ -31,6 +32,7 @@ namespace PISimulator
         }
         class SimulationData {
             public string point;
+            public ThisValType type;
             public DateTime start;
             public int currentIndex = 0;
             public List<SigleData> data;
@@ -148,7 +150,7 @@ namespace PISimulator
         {
             var pointList = new List<string>();
             foreach (var data in simulationDataList) {
-                piServerManager.CreatePoint(data.Key);
+                piServerManager.CreatePoint(data.Key, data.Value.type);
                 pointList.Add(data.Key);
             }
             return pointList;
@@ -174,12 +176,14 @@ namespace PISimulator
             List<double> valList = new List<double>();
 
             DateTime start = DateTime.Now;
+            res.type = ThisValType.Unknown;
             foreach (string line in lines.Skip(1))
             {
                 string[] columns = line.Split(',');
                 DateTime ts = DateTime.Parse(columns[0].Replace("\"", ""));
 
-                double val = double.Parse(columns[1]);
+                setType(ref res.type, columns[1]);
+                object val = getVal(res.type, columns[1]);
                 if (res.data.Count == 0) {
                     start = ts;
                 }
@@ -189,6 +193,36 @@ namespace PISimulator
                 res.data.Add(data);
             }
             return res;
+        }
+
+        private object getVal(ThisValType type, string v)
+        {
+            if (type == ThisValType.Double)
+            {
+                return double.Parse(v);
+            }
+            else if (type == ThisValType.String)
+            {
+                return v;
+            }
+            else {
+                log.Error($"Type {type} not support.");
+                throw new NotImplementedException();
+            }
+        }
+
+        private void setType(ref ThisValType type, string v)
+        {
+            if (type != ThisValType.Unknown)
+            {
+                return;
+            }
+            double number;
+            if (double.TryParse(v, out number)) {
+                type = ThisValType.Double;
+            } else {
+                type = ThisValType.String;
+            }
         }
     }
 }

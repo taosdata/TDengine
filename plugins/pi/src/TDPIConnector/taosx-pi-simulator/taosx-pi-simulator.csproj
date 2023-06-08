@@ -64,6 +64,7 @@
     <None Include="Points.csv">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TDPIConnector.Core\TDPIConnector.Core.csproj">
