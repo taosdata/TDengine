@@ -238,6 +238,10 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   tEndDecode(pCoder);
 
 _exit:
+  if (code) {
+    vError("vgId%d, failed to preprocess submit request since %s, msg type:%d", TD_VID(pVnode), tstrerror(code),
+           pMsg->msgType);
+  }
   tDecoderClear(pCoder);
   return code;
 }
@@ -245,11 +249,11 @@ _exit:
 static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
-  int32_t     size;
-  int32_t     ret;
-  uint8_t    *pCont;
-  SEncoder   *pCoder = &(SEncoder){0};
-  SDeleteRes  res = {0};
+  int32_t    size;
+  int32_t    ret;
+  uint8_t   *pCont;
+  SEncoder  *pCoder = &(SEncoder){0};
+  SDeleteRes res = {0};
 
   SReadHandle handle = {.config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
   initStorageAPI(&handle.api);
@@ -297,7 +301,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 _exit:
   if (code) {
-    vError("vgId%d failed to preprocess write request since %s, msg type:%d", TD_VID(pVnode), tstrerror(code),
+    vError("vgId%d, failed to preprocess write request since %s, msg type:%d", TD_VID(pVnode), tstrerror(code),
            pMsg->msgType);
   }
   return code;
@@ -316,8 +320,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     return -1;
   }
 
-  vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
-         ver);
+  vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver);
 
   ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
   ASSERT(pVnode->state.applied + 1 == ver);
@@ -1492,8 +1495,7 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 
   code = vnodeConsolidateAlterHashRange(pVnode, ver);
   if (code < 0) {
-    vError("vgId:%d, failed to consolidate alter hashrange since %s. version:%" PRId64, TD_VID(pVnode), terrstr(),
-           ver);
+    vError("vgId:%d, failed to consolidate alter hashrange since %s. version:%" PRId64, TD_VID(pVnode), terrstr(), ver);
     goto _exit;
   }
   pVnode->config.hashChange = false;
