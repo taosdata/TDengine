@@ -116,6 +116,19 @@ static FORCE_INLINE int32_t tarray2_make_room(  //
 #define TARRAY2_APPEND(a, e)           TARRAY2_INSERT(a, (a)->size, e)
 #define TARRAY2_APPEND_PTR(a, ep)      TARRAY2_APPEND(a, *(ep))
 
+#define TARRAY2_APPEND_BATCH(a, ep, n)                                               \
+  ({                                                                                 \
+    int32_t __ret = 0;                                                               \
+    if ((a)->size + (n) > (a)->capacity) {                                           \
+      __ret = tarray2_make_room((a), (a)->size + (n), sizeof(typeof((a)->data[0]))); \
+    }                                                                                \
+    if (!__ret) {                                                                    \
+      memcpy((a)->data + (a)->size, (ep), sizeof(typeof((a)->data[0])) * (n));       \
+      (a)->size += (n);                                                              \
+    }                                                                                \
+    __ret;                                                                           \
+  })
+
 // return (TYPE *)
 #define TARRAY2_SEARCH(a, ep, cmp, flag)                                                                     \
   ({                                                                                                         \

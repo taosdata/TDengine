@@ -47,13 +47,15 @@ typedef union {
 } STombBlock;
 
 typedef struct {
-  int32_t   numRec;
-  int32_t   size[TOMB_RECORD_ELEM_NUM];
+  SFDataPtr dp[1];
   TABLEID   minTbid;
   TABLEID   maxTbid;
   int64_t   minVer;
   int64_t   maxVer;
-  SFDataPtr dp[1];
+  int32_t   numRec;
+  int32_t   size[TOMB_RECORD_ELEM_NUM];
+  int8_t    cmprAlg;
+  int8_t    rsvd[7];
 } STombBlk;
 
 #define TOMB_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
@@ -94,13 +96,15 @@ typedef union {
 } STbStatisBlock;
 
 typedef struct {
-  int32_t   numRec;
-  int32_t   size[STATIS_RECORD_NUM_ELEM];
+  SFDataPtr dp[1];
   TABLEID   minTbid;
   TABLEID   maxTbid;
   int64_t   minVer;
   int64_t   maxVer;
-  SFDataPtr dp[1];
+  int32_t   numRec;
+  int32_t   size[STATIS_RECORD_NUM_ELEM];
+  int8_t    cmprAlg;
+  int8_t    rsvd[7];
 } SStatisBlk;
 
 #define STATIS_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
