@@ -457,6 +457,7 @@ typedef struct SStreamIntervalOperatorInfo {
   int64_t            dataVersion;
   SStateStore        statestore;
   bool               recvGetAll;
+  SHashObj*          pFinalPullDataMap;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
