@@ -241,10 +241,10 @@ function install_jemalloc() {
       ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.so.2 /usr/local/lib
       ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so > /dev/null 2>&1
       ${csudo}/usr/bin/install -c -d /usr/local/lib
-      [ -f ${binary_dir}/build/lib/libjemalloc.a ] &&
-        ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
-      [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ] &&
-        ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
+      #[ -f ${binary_dir}/build/lib/libjemalloc.a ] &&
+      #  ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
+      #[ -f ${binary_dir}/build/lib/libjemalloc_pic.a ] &&
+      #  ${csudo}/usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
       if [ -f "${binary_dir}/build/lib/pkgconfig/jemalloc.pc" ]; then
         ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
         ${csudo}/usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc \

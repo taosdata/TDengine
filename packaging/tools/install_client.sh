@@ -214,13 +214,13 @@ function install_jemalloc() {
             ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
             ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
             ${csudo}/usr/bin/install -c -d /usr/local/lib
-            if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
-                ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
-            fi
-            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
-                ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
-            fi
-            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+            #if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
+            #    ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
+            #fi
+            #if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+            #    ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
+            #fi
+            if [ -f ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc ]; then
                 ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
                 ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
             fi
