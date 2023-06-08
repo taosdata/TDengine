@@ -750,7 +750,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   }
 
   // erase duplicated Window Pseudo funcNode by filtering colNode in pSelect->pProjectionList
-  if (pSelect->pProjectionList) {
+  if (WINDOW_TYPE_INTERVAL == pWindow->winType && pSelect->pProjectionList) {
     int32_t funcIndex = 0;
     SNode * pFunc = NULL, *pProject = NULL;
     FOREACH(pFunc, pWindow->pFuncs) {
