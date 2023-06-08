@@ -749,22 +749,29 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     code = rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL);
   }
 
-  // erase duplicated funcNode by filtering colNode in pSelect->pProjectionList
-  int32_t funcIndex = 0;
-  SNode * pFunc = NULL, *pProject = NULL;
-  FOREACH(pFunc, pWindow->pFuncs) {
-    bool exist = false;
-    FOREACH(pProject, pSelect->pProjectionList) {
-      if (0 != ((SFunctionNode*)pFunc)->node.aliasName[0] &&
-          0 == strncmp(((SFunctionNode*)pFunc)->node.aliasName, ((SColumnNode*)pProject)->colName, TSDB_COL_NAME_LEN)) {
-        exist = true;
-        break;
+  // erase duplicated Window Pseudo funcNode by filtering colNode in pSelect->pProjectionList
+  if (pSelect->pProjectionList) {
+    int32_t funcIndex = 0;
+    SNode * pFunc = NULL, *pProject = NULL;
+    FOREACH(pFunc, pWindow->pFuncs) {
+      if (!fmIsWindowPseudoColumnFunc(((SFunctionNode*)pFunc)->funcId)) {
+        ++funcIndex;
+        continue;
       }
-    }
-    if (!exist) {
-      nodesListErase(pWindow->pFuncs,  nodesListGetCell(pWindow->pFuncs, funcIndex));
-    } else {
-      ++funcIndex;
+      bool exist = false;
+      FOREACH(pProject, pSelect->pProjectionList) {
+        if (0 != ((SFunctionNode*)pFunc)->node.aliasName[0] &&
+            0 == strncmp(((SFunctionNode*)pFunc)->node.aliasName, ((SColumnNode*)pProject)->colName,
+                         TSDB_COL_NAME_LEN)) {
+          exist = true;
+          break;
+        }
+      }
+      if (!exist) {
+        nodesListErase(pWindow->pFuncs, nodesListGetCell(pWindow->pFuncs, funcIndex));
+      } else {
+        ++funcIndex;
+      }
     }
   }
 
