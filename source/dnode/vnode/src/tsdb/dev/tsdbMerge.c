@@ -93,9 +93,9 @@ static int32_t tsdbMergerClose(SMerger *merger) {
   ASSERT(TARRAY2_SIZE(merger->sttReaderArr) == 0);
 
   // clear the merge
-  TARRAY2_FREE(merger->dataIterArr);
-  TARRAY2_FREE(merger->sttReaderArr);
-  TARRAY2_FREE(merger->fopArr);
+  TARRAY2_DESTROY(merger->dataIterArr, NULL);
+  TARRAY2_DESTROY(merger->sttReaderArr, NULL);
+  TARRAY2_DESTROY(merger->fopArr, NULL);
   for (int32_t i = 0; i < ARRAY_SIZE(merger->ctx->bData); i++) {
     tBlockDataDestroy(merger->ctx->bData + i);
   }

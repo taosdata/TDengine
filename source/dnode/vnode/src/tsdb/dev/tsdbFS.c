@@ -56,8 +56,8 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
 
 static int32_t destroy_fs(STFileSystem **fs) {
   if (fs[0] == NULL) return 0;
-  TARRAY2_FREE(fs[0]->fSetArr);
-  TARRAY2_FREE(fs[0]->fSetArrTmp);
+  TARRAY2_DESTROY(fs[0]->fSetArr, NULL);
+  TARRAY2_DESTROY(fs[0]->fSetArrTmp, NULL);
   tsem_destroy(&fs[0]->canEdit);
   taosMemoryFree(fs[0]);
   fs[0] = NULL;
@@ -664,7 +664,7 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
 
   if (code) {
-    TARRAY2_CLEAR_FREE(fsetArr[0], tsdbTFileSetClear);
+    TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
     taosMemoryFree(fsetArr[0]);
     fsetArr[0] = NULL;
   }
@@ -673,7 +673,7 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
 
 int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr) {
   if (fsetArr[0]) {
-    TARRAY2_CLEAR_FREE(fsetArr[0], tsdbTFileSetClear);
+    TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
     fsetArr[0] = NULL;
   }
   return 0;

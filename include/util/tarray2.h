@@ -75,16 +75,6 @@ static FORCE_INLINE int32_t tarray2_make_room(  //
 
 #define TARRAY2_INIT(a) TARRAY2_INIT_EX(a, 0, 0, NULL)
 
-#define TARRAY2_INITIALIZER \
-  { 0, 0, NULL }
-
-#define TARRAY2_FREE(a)          \
-  do {                           \
-    if ((a)->data) {             \
-      taosMemoryFree((a)->data); \
-    }                            \
-  } while (0)
-
 #define TARRAY2_CLEAR(a, cb)                    \
   do {                                          \
     if ((cb) && (a)->size > 0) {                \
@@ -96,10 +86,14 @@ static FORCE_INLINE int32_t tarray2_make_room(  //
     (a)->size = 0;                              \
   } while (0)
 
-#define TARRAY2_CLEAR_FREE(a, cb) \
-  do {                            \
-    TARRAY2_CLEAR(a, cb);         \
-    TARRAY2_FREE(a);              \
+#define TARRAY2_DESTROY(a, cb)   \
+  do {                           \
+    TARRAY2_CLEAR(a, cb);        \
+    if ((a)->data) {             \
+      taosMemoryFree((a)->data); \
+      (a)->data = NULL;          \
+    }                            \
+    (a)->capacity = 0;           \
   } while (0)
 
 #define TARRAY2_INSERT(a, idx, e)                                                                              \

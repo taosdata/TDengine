@@ -22,11 +22,10 @@
 extern "C" {
 #endif
 
-// SDelBlock ----------
-
-#define TOMB_RECORD_NUM_ELEM 5
+// STombRecord ----------
+#define TOMB_RECORD_ELEM_NUM 5
 typedef union {
-  int64_t aData[TOMB_RECORD_NUM_ELEM];
+  int64_t dataArr[TOMB_RECORD_ELEM_NUM];
   struct {
     int64_t suid;
     int64_t uid;
@@ -37,7 +36,7 @@ typedef union {
 } STombRecord;
 
 typedef union {
-  TARRAY2(int64_t) dataArr[TOMB_RECORD_NUM_ELEM];
+  TARRAY2(int64_t) dataArr[TOMB_RECORD_ELEM_NUM];
   struct {
     TARRAY2(int64_t) suid[1];
     TARRAY2(int64_t) uid[1];
@@ -49,9 +48,9 @@ typedef union {
 
 typedef struct {
   int32_t   numRec;
-  int32_t   size[TOMB_RECORD_NUM_ELEM];
-  TABLEID   minTid;
-  TABLEID   maxTid;
+  int32_t   size[TOMB_RECORD_ELEM_NUM];
+  TABLEID   minTbid;
+  TABLEID   maxTbid;
   int64_t   minVer;
   int64_t   maxVer;
   SFDataPtr dp[1];
@@ -59,17 +58,16 @@ typedef struct {
 
 #define TOMB_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
 
-int32_t tTombBlockInit(STombBlock *delBlock);
-int32_t tTombBlockFree(STombBlock *delBlock);
-int32_t tTombBlockClear(STombBlock *delBlock);
-int32_t tTombBlockPut(STombBlock *delBlock, const STombRecord *delRecord);
-
-int32_t tTombRecordCmpr(const STombRecord *r1, const STombRecord *r2);
+int32_t tTombBlockInit(STombBlock *tombBlock);
+int32_t tTombBlockDestroy(STombBlock *tombBlock);
+int32_t tTombBlockClear(STombBlock *tombBlock);
+int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record);
+int32_t tTombRecordCompare(const STombRecord *record1, const STombRecord *record2);
 
 // STbStatisBlock ----------
 #define STATIS_RECORD_NUM_ELEM 9
 typedef union {
-  int64_t aData[STATIS_RECORD_NUM_ELEM];
+  int64_t dataArr[STATIS_RECORD_NUM_ELEM];
   struct {
     int64_t suid;
     int64_t uid;

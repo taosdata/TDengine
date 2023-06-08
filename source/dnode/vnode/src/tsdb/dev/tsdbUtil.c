@@ -16,36 +16,36 @@
 #include "dev.h"
 
 // SDelBlock ----------
-int32_t tTombBlockInit(STombBlock *delBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
-    TARRAY2_INIT(&delBlock->dataArr[i]);
+int32_t tTombBlockInit(STombBlock *tombBlock) {
+  for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
+    TARRAY2_INIT(&tombBlock->dataArr[i]);
   }
   return 0;
 }
 
-int32_t tTombBlockFree(STombBlock *delBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
-    TARRAY2_FREE(&delBlock->dataArr[i]);
+int32_t tTombBlockDestroy(STombBlock *tombBlock) {
+  for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
+    TARRAY2_DESTROY(&tombBlock->dataArr[i], NULL);
   }
   return 0;
 }
 
-int32_t tTombBlockClear(STombBlock *delBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
-    TARRAY2_CLEAR(&delBlock->dataArr[i], NULL);
+int32_t tTombBlockClear(STombBlock *tombBlock) {
+  for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
+    TARRAY2_CLEAR(&tombBlock->dataArr[i], NULL);
   }
   return 0;
 }
 
-int32_t tTombBlockPut(STombBlock *delBlock, const STombRecord *delRecord) {
-  for (int32_t i = 0; i < ARRAY_SIZE(delBlock->dataArr); ++i) {
-    int32_t code = TARRAY2_APPEND(&delBlock->dataArr[i], delRecord->aData[i]);
+int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record) {
+  for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
+    int32_t code = TARRAY2_APPEND(&tombBlock->dataArr[i], record->dataArr[i]);
     if (code) return code;
   }
   return 0;
 }
 
-int32_t tTombRecordCmpr(const STombRecord *r1, const STombRecord *r2) {
+int32_t tTombRecordCompare(const STombRecord *r1, const STombRecord *r2) {
   if (r1->suid < r2->suid) return -1;
   if (r1->suid > r2->suid) return 1;
   if (r1->uid < r2->uid) return -1;
@@ -65,7 +65,7 @@ int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
 
 int32_t tStatisBlockFree(STbStatisBlock *statisBlock) {
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
-    TARRAY2_FREE(&statisBlock->dataArr[i]);
+    TARRAY2_DESTROY(&statisBlock->dataArr[i], NULL);
   }
   return 0;
 }
@@ -79,7 +79,7 @@ int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
 
 int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *statisRecord) {
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
-    int32_t code = TARRAY2_APPEND(&statisBlock->dataArr[i], statisRecord->aData[i]);
+    int32_t code = TARRAY2_APPEND(&statisBlock->dataArr[i], statisRecord->dataArr[i]);
     if (code) return code;
   }
   return 0;

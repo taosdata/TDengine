@@ -24,7 +24,7 @@ static int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
 
 static void    tsdbSttLvlClearFObj(void *data) { tsdbTFileObjUnref(*(STFileObj **)data); }
 static int32_t tsdbSttLvlClear(SSttLvl **lvl) {
-  TARRAY2_CLEAR_FREE(lvl[0]->fobjArr, tsdbSttLvlClearFObj);
+  TARRAY2_DESTROY(lvl[0]->fobjArr, tsdbSttLvlClearFObj);
   taosMemoryFree(lvl[0]);
   lvl[0] = NULL;
   return 0;
@@ -50,7 +50,7 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
 
 static void tsdbSttLvlRemoveFObj(void *data) { tsdbTFileObjRemove(*(STFileObj **)data); }
 static void tsdbSttLvlRemove(SSttLvl **lvl) {
-  TARRAY2_CLEAR_FREE(lvl[0]->fobjArr, tsdbSttLvlRemoveFObj);
+  TARRAY2_DESTROY(lvl[0]->fobjArr, tsdbSttLvlRemoveFObj);
   taosMemoryFree(lvl[0]);
   lvl[0] = NULL;
 }
@@ -443,7 +443,7 @@ int32_t tsdbTFileSetClear(STFileSet **fset) {
     tsdbTFileObjUnref(fset[0]->farr[ftype]);
   }
 
-  TARRAY2_CLEAR_FREE(fset[0]->lvlArr, tsdbSttLvlClear);
+  TARRAY2_DESTROY(fset[0]->lvlArr, tsdbSttLvlClear);
 
   taosMemoryFree(fset[0]);
   fset[0] = NULL;
@@ -457,7 +457,7 @@ int32_t tsdbTFileSetRemove(STFileSet **fset) {
     tsdbTFileObjRemove(fset[0]->farr[ftype]);
   }
 
-  TARRAY2_CLEAR_FREE(fset[0]->lvlArr, tsdbSttLvlRemove);
+  TARRAY2_DESTROY(fset[0]->lvlArr, tsdbSttLvlRemove);
   taosMemoryFree(fset[0]);
   fset[0] = NULL;
   return 0;

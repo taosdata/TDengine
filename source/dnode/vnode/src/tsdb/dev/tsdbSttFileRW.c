@@ -69,9 +69,9 @@ _exit:
 
 static int32_t tsdbSttSegReaderClose(SSttSegReader **reader) {
   if (reader[0]) {
-    TARRAY2_FREE(reader[0]->sttBlkArray);
-    TARRAY2_FREE(reader[0]->tombBlkArray);
-    TARRAY2_FREE(reader[0]->statisBlkArray);
+    TARRAY2_DESTROY(reader[0]->sttBlkArray, NULL);
+    TARRAY2_DESTROY(reader[0]->tombBlkArray, NULL);
+    TARRAY2_DESTROY(reader[0]->statisBlkArray, NULL);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   }
@@ -122,7 +122,7 @@ int32_t tsdbSttFileReaderClose(SSttFileReader **reader) {
       tFree(reader[0]->bufArr[i]);
     }
     tsdbCloseFile(&reader[0]->fd);
-    TARRAY2_CLEAR_FREE(reader[0]->readerArray, tsdbSttSegReaderClose);
+    TARRAY2_DESTROY(reader[0]->readerArray, tsdbSttSegReaderClose);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   }
@@ -454,12 +454,12 @@ static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
 
   STombBlk tombBlk[1] = {{
       .numRec = TOMB_BLOCK_SIZE(writer->tData),
-      .minTid =
+      .minTbid =
           {
               .suid = TARRAY2_FIRST(writer->tData->suid),
               .uid = TARRAY2_FIRST(writer->tData->uid),
           },
-      .maxTid =
+      .maxTbid =
           {
               .suid = TARRAY2_LAST(writer->tData->suid),
               .uid = TARRAY2_LAST(writer->tData->uid),
@@ -625,12 +625,12 @@ static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
   }
   tDestroyTSchema(writer->skmRow->pTSchema);
   tDestroyTSchema(writer->skmTb->pTSchema);
-  tTombBlockFree(writer->tData);
+  tTombBlockDestroy(writer->tData);
   tStatisBlockFree(writer->sData);
   tBlockDataDestroy(writer->bData);
-  TARRAY2_FREE(writer->tombBlkArray);
-  TARRAY2_FREE(writer->statisBlkArray);
-  TARRAY2_FREE(writer->sttBlkArray);
+  TARRAY2_DESTROY(writer->tombBlkArray, NULL);
+  TARRAY2_DESTROY(writer->statisBlkArray, NULL);
+  TARRAY2_DESTROY(writer->sttBlkArray, NULL);
 }
 
 static int32_t tsdbSttFileDoUpdateHeader(SSttFileWriter *writer) {

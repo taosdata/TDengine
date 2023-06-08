@@ -135,8 +135,8 @@ _exit:
 int32_t tsdbDataFileReaderClose(SDataFileReader **reader) {
   if (reader[0] == NULL) return 0;
 
-  TARRAY2_FREE(reader[0]->dataBlkArray);
-  TARRAY2_FREE(reader[0]->blockIdxArray);
+  TARRAY2_DESTROY(reader[0]->dataBlkArray, NULL);
+  TARRAY2_DESTROY(reader[0]->blockIdxArray, NULL);
 
   for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
     tsdbCloseFile(&reader[0]->fd[i]);
@@ -389,13 +389,13 @@ static int32_t tsdbDataFileWriterDoClose(SDataFileWriter *writer) {
     tsdbDataFileReaderClose(&writer->ctx->reader);
   }
 
-  tTombBlockFree(writer->tData);
+  tTombBlockDestroy(writer->tData);
   tStatisBlockFree(writer->sData);
   tBlockDataDestroy(writer->bData);
-  TARRAY2_FREE(writer->tombBlkArray);
-  TARRAY2_FREE(writer->dataBlkArray);
-  TARRAY2_FREE(writer->blockIdxArray);
-  tTombBlockFree(writer->ctx->tData);
+  TARRAY2_DESTROY(writer->tombBlkArray, NULL);
+  TARRAY2_DESTROY(writer->dataBlkArray, NULL);
+  TARRAY2_DESTROY(writer->blockIdxArray, NULL);
+  tTombBlockDestroy(writer->ctx->tData);
 
   for (int32_t i = 0; i < ARRAY_SIZE(writer->bufArr); ++i) {
     tFree(writer->bufArr[i]);
@@ -587,7 +587,7 @@ static int32_t tsdbDataFileWriteDataBlock(SDataFileWriter *writer, SBlockData *b
     writer->files[TSDB_FTYPE_SMA].size += dataBlk->smaInfo.size;
   }
 
-  TARRAY2_FREE(smaArr);
+  TARRAY2_DESTROY(smaArr, NULL);
 
   // to dataBlkArray
   code = TARRAY2_APPEND_PTR(writer->dataBlkArray, dataBlk);
@@ -857,12 +857,12 @@ static int32_t tsdbDataFileDoWriteTombBlock(SDataFileWriter *writer) {
 
   STombBlk tombBlk[1] = {{
       .numRec = TOMB_BLOCK_SIZE(writer->tData),
-      .minTid =
+      .minTbid =
           {
               .suid = TARRAY2_FIRST(writer->tData->suid),
               .uid = TARRAY2_FIRST(writer->tData->uid),
           },
-      .maxTid =
+      .maxTbid =
           {
               .suid = TARRAY2_LAST(writer->tData->suid),
               .uid = TARRAY2_LAST(writer->tData->uid),
@@ -961,7 +961,7 @@ static int32_t tsdbDataFileDoWriteTombRecord(SDataFileWriter *writer, const STom
           .ekey = TARRAY2_GET(writer->ctx->tData->ekey, writer->ctx->iRowTomb),
       }};
 
-      int32_t c = tTombRecordCmpr(record, record1);
+      int32_t c = tTombRecordCompare(record, record1);
       if (c < 0) {
         break;
       } else if (c > 0) {

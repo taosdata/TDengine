@@ -417,8 +417,8 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   ASSERT(committer->dataWriter == NULL);
   ASSERT(committer->sttWriter == NULL);
   ASSERT(committer->iterMerger == NULL);
-  TARRAY2_FREE(committer->iterArray);
-  TARRAY2_FREE(committer->fopArray);
+  TARRAY2_DESTROY(committer->iterArray, NULL);
+  TARRAY2_DESTROY(committer->fopArray, NULL);
   tsdbFSDestroyCopySnapshot(&committer->fsetArr);
 
 _exit:

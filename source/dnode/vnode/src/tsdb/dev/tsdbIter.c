@@ -246,8 +246,8 @@ static int32_t tsdbDataTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
          iter->dataTomb->tombBlkArrayIdx++) {
       const STombBlk *tombBlk = TARRAY2_GET_PTR(iter->dataTomb->tombBlkArray, iter->dataTomb->tombBlkArrayIdx);
 
-      if (tbid && tbid->suid == tombBlk->minTid.suid && tbid->uid == tombBlk->minTid.uid &&
-          tbid->suid == tombBlk->maxTid.suid && tbid->uid == tombBlk->maxTid.uid) {
+      if (tbid && tbid->suid == tombBlk->minTbid.suid && tbid->uid == tombBlk->minTbid.uid &&
+          tbid->suid == tombBlk->maxTbid.suid && tbid->uid == tombBlk->maxTbid.uid) {
         continue;
       }
 
@@ -372,8 +372,8 @@ static int32_t tsdbSttTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
          iter->sttTomb->tombBlkArrayIdx++) {
       const STombBlk *tombBlk = TARRAY2_GET_PTR(iter->sttTomb->tombBlkArray, iter->sttTomb->tombBlkArrayIdx);
 
-      if (tbid && tbid->suid == tombBlk->minTid.suid && tbid->uid == tombBlk->minTid.uid &&
-          tbid->suid == tombBlk->maxTid.suid && tbid->uid == tombBlk->maxTid.uid) {
+      if (tbid && tbid->suid == tombBlk->minTbid.suid && tbid->uid == tombBlk->minTbid.uid &&
+          tbid->suid == tombBlk->maxTbid.suid && tbid->uid == tombBlk->maxTbid.uid) {
         continue;
       }
 
@@ -453,12 +453,12 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
 }
 
 static int32_t tsdbSttTombIterClose(STsdbIter *iter) {
-  tTombBlockFree(iter->sttTomb->tData);
+  tTombBlockDestroy(iter->sttTomb->tData);
   return 0;
 }
 
 static int32_t tsdbDataTombIterClose(STsdbIter *iter) {
-  tTombBlockFree(iter->dataTomb->tData);
+  tTombBlockDestroy(iter->dataTomb->tData);
   return 0;
 }
 
