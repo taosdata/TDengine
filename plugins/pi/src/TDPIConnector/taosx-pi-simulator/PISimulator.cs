@@ -5,23 +5,26 @@ using System.IO;
 using System.Timers;
 using log4net;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace PISimulator
 {
+
     class SimulatorFromCSV
     {
         private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
         private class SigleData {
             public int offset;
-            public double value;
+            public object value;
         };
         private class InsertData
         {
             public string point;
             public DateTime ts;
-            public double value;
+            public object value;
 
-            public InsertData(string point, DateTime ts, double value)
+            public InsertData(string point, DateTime ts, object value)
             {
                 this.point = point;
                 this.ts = ts;
@@ -30,6 +33,7 @@ namespace PISimulator
         }
         class SimulationData {
             public string point;
+            public ThisValType type;
             public DateTime start;
             public int currentIndex = 0;
             public List<SigleData> data;
@@ -88,12 +92,25 @@ namespace PISimulator
         public void Start() {
             piServerManager.Connect();
             CreateSimulationData(GetCSVFiles(csvPath));
-            CreatePIPoints();
+            var points = CreatePIPoints();
+            updatePointCSV(points);
             resetStartTime(DateTime.Now);
 
-            var timer = new Timer(1000);
+            var timer = new System.Timers.Timer(1000);
             timer.Elapsed += OnTimerUpdate;
             timer.Enabled = true;
+        }
+        public void updatePointCSV(List<string> points) {
+            var filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Points.csv");
+            using (StreamWriter writer = new StreamWriter(filePath))
+            {
+                foreach (string point in points)
+                {
+                    writer.WriteLine(point);
+                }
+            }
+
+            log.Info("Point list written to point.csv.");
         }
 
         private void resetStartTime(DateTime now)
@@ -107,13 +124,28 @@ namespace PISimulator
         public void OnTimerUpdate(object sender, ElapsedEventArgs e)
         {
             var now = DateTime.Now;
+            int maxConcurrency = 30; // 最大并发数
+            SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(maxConcurrency);
+            List<Task> tasks = new List<Task>();
             foreach (var data in simulationDataList)
             {
-                var res = data.Value.PopPreData(now);
-                foreach (var pointValue in res) {
-                    piServerManager.UpdataPoint(pointValue.point, pointValue.ts, pointValue.value);
-                }
+                tasks.Add(Task.Run(async () =>
+                {
+                    await concurrencySemaphore.WaitAsync();
+                    try
+                    {
+                        var res = data.Value.PopPreData(now);
+                        foreach (var pointValue in res) {
+                            piServerManager.UpdataPoint(pointValue.point, pointValue.ts, pointValue.value);
+                        }
+                    }
+                    finally
+                    {
+                        concurrencySemaphore.Release();
+                    }
+                }));
             }
+            Task.WaitAll(tasks.ToArray());
         }
 
         private List<string> GetCSVFiles(string csvPath)
@@ -130,11 +162,14 @@ namespace PISimulator
             return csvFiles;
         }
 
-        public void CreatePIPoints()
+        public List<string> CreatePIPoints()
         {
+            var pointList = new List<string>();
             foreach (var data in simulationDataList) {
-                piServerManager.CreatePoint(data.Key);
+                piServerManager.CreatePoint(data.Key, data.Value.type);
+                pointList.Add(data.Key);
             }
+            return pointList;
         }
 
         private void CreateSimulationData(List<string> files) {
@@ -157,12 +192,14 @@ namespace PISimulator
             List<double> valList = new List<double>();
 
             DateTime start = DateTime.Now;
+            res.type = ThisValType.Unknown;
             foreach (string line in lines.Skip(1))
             {
                 string[] columns = line.Split(',');
                 DateTime ts = DateTime.Parse(columns[0].Replace("\"", ""));
 
-                double val = double.Parse(columns[1]);
+                setType(ref res.type, columns[1]);
+                object val = getVal(res.type, columns[1]);
                 if (res.data.Count == 0) {
                     start = ts;
                 }
@@ -172,6 +209,36 @@ namespace PISimulator
                 res.data.Add(data);
             }
             return res;
+        }
+
+        private object getVal(ThisValType type, string v)
+        {
+            if (type == ThisValType.Double)
+            {
+                return double.Parse(v);
+            }
+            else if (type == ThisValType.String)
+            {
+                return v;
+            }
+            else {
+                log.Error($"Type {type} not support.");
+                throw new NotImplementedException();
+            }
+        }
+
+        private void setType(ref ThisValType type, string v)
+        {
+            if (type != ThisValType.Unknown)
+            {
+                return;
+            }
+            double number;
+            if (double.TryParse(v, out number)) {
+                type = ThisValType.Double;
+            } else {
+                type = ThisValType.String;
+            }
         }
     }
 }

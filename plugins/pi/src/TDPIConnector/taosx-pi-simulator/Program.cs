@@ -76,13 +76,22 @@ namespace PISimulator
                     log.Fatal("Init Failed! Please check toml config file.", e);
                     return;
                 }
-          
-                var simlulator = new SimulatorFromCSV(AppSettings.tomlConfig.PIServerName);
-                simlulator.Start();
 
-                
+                if (options.DropTables)
+                {
+                    PointsDropper dropper = new PointsDropper(AppSettings.tomlConfig.PIServerName);
+                    dropper.Start();
+                    log.Info("PI Simulator drop points finished, exit.");
+                }
+                else {
+                    var simlulator = new SimulatorFromCSV(AppSettings.tomlConfig.PIServerName);
+                    simlulator.Start();
+                    WatiQuit();
+                    log.Info("PI Simulator finished, exit.");
+                }
             }
-
+        }
+        static void WatiQuit() {
             while (true)
             {
                 var str = Console.ReadLine();
@@ -96,7 +105,6 @@ namespace PISimulator
                     Thread.Sleep(5000);
                 }
             }
-            log.Info("PI Simulator finished, exit.");
         }
     }
 }

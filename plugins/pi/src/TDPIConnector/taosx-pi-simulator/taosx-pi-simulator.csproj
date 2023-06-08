@@ -48,6 +48,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DropPoints.cs" />
     <Compile Include="PISimulator.cs" />
     <Compile Include="CommandLineOptions.cs" />
     <Compile Include="CommandLineParser.cs" />
@@ -63,6 +64,7 @@
     <None Include="Points.csv">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TDPIConnector.Core\TDPIConnector.Core.csproj">
