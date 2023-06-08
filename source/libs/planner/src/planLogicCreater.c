@@ -732,25 +732,25 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   return code;
 }
 
-static int32_t eraseDuplicatedWindowPseudoCol(SWindowLogicNode* pWindow, SNodeList* pProjections) {
+static int32_t eraseDuplicatedPseudoColumnFuncs(SNodeList* pFuncs, SNodeList* pProjections) {
   int32_t    code = 0;
   int32_t    funcIndex = 0;
-  SSHashObj* pHashFunc = NULL;
+  SSHashObj* pFuncHash = NULL;
   SNode*     pFuncNode = NULL;
-  FOREACH(pFuncNode, pWindow->pFuncs) {
+  FOREACH(pFuncNode, pFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pFuncNode;
     if (!fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
       ++funcIndex;
       continue;
     }
-    if (!pHashFunc && !(pHashFunc = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT)))) {
+    if (!pFuncHash && !(pFuncHash = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT)))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       break;
     }
 
-    void* hashVal = tSimpleHashGet(pHashFunc, &pFunc->funcId, sizeof(pFunc->funcId));
+    void* hashVal = tSimpleHashGet(pFuncHash, &pFunc->funcId, sizeof(pFunc->funcId));
     if (!hashVal) {
-      tSimpleHashPut(pHashFunc, &pFunc->funcId, sizeof(pFunc->funcId), &funcIndex, sizeof(funcIndex));
+      tSimpleHashPut(pFuncHash, &pFunc->funcId, sizeof(pFunc->funcId), &funcIndex, sizeof(funcIndex));
       ++funcIndex;
       continue;
     }
@@ -765,13 +765,13 @@ static int32_t eraseDuplicatedWindowPseudoCol(SWindowLogicNode* pWindow, SNodeLi
       }
     }
     if (!exist) {
-      nodesListErase(pWindow->pFuncs, nodesListGetCell(pWindow->pFuncs, funcIndex));
+      nodesListErase(pFuncs, nodesListGetCell(pFuncs, funcIndex));
     } else {
-      nodesListErase(pWindow->pFuncs, nodesListGetCell(pWindow->pFuncs, *(int32_t*)hashVal));
-      tSimpleHashPut(pHashFunc, &pFunc->funcId, sizeof(pFunc->funcId), &funcIndex, sizeof(funcIndex));
+      nodesListErase(pFuncs, nodesListGetCell(pFuncs, *(int32_t*)hashVal));
+      tSimpleHashPut(pFuncHash, &pFunc->funcId, sizeof(pFunc->funcId), &funcIndex, sizeof(funcIndex));
     }
   }
-  tSimpleHashCleanup(pHashFunc);
+  tSimpleHashCleanup(pFuncHash);
   return code;
 }
 
@@ -794,7 +794,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
 
   if (TSDB_CODE_SUCCESS == code && WINDOW_TYPE_INTERVAL == pWindow->winType && pSelect->pProjectionList) {
     // erase duplicated Window Pseudo funcNode by filtering colNode in pSelect->pProjectionList
-    code = eraseDuplicatedWindowPseudoCol(pWindow, pSelect->pProjectionList);
+    code = eraseDuplicatedPseudoColumnFuncs(pWindow->pFuncs, pSelect->pProjectionList);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
