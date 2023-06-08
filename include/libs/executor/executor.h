@@ -23,6 +23,7 @@ extern "C" {
 #include "query.h"
 #include "tcommon.h"
 #include "tmsgcb.h"
+#include "storageapi.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -41,7 +42,6 @@ typedef struct {
 
 typedef struct {
   void*   tqReader;
-  void*   meta;
   void*   config;
   void*   vnode;
   void*   mnd;
@@ -51,10 +51,10 @@ typedef struct {
   bool    initTableReader;
   bool    initTqReader;
   int32_t numOfVgroups;
+  void*   sContext;  // SSnapContext*
 
-  void* sContext;  // SSnapContext*
-
-  void* pStateBackend;
+  void*   pStateBackend;
+  struct SStorageAPI api;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
@@ -82,6 +82,8 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
                                      uint64_t id);
 
+int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList, void* pTaskInfo);
+
 /**
  * set the task Id, usually used by message queue process
  * @param tinfo
@@ -89,6 +91,8 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
  * @param queryId
  */
 void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
+
+//void qSetTaskCode(qTaskInfo_t tinfo, int32_t code);
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
 
@@ -186,11 +190,19 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len);
 
-STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
+void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
+STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key);
+/**
+ * return the scan info, in the form of tuple of two items, including table uid and current timestamp
+ * @param tinfo
+ * @param uid
+ * @param ts
+ * @return
+ */
+int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts);
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo);
-
-void verifyOffset(void *pWalReader, STqOffsetVal* pOffset);
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType);
 

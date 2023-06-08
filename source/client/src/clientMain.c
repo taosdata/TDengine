@@ -119,6 +119,43 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return NULL;
 }
 
+int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type) {
+  if (taos == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  switch (type) {
+    case TAOS_NOTIFY_PASSVER: {
+      taosThreadMutexLock(&pObj->mutex);
+      if (fp && !pObj->passInfo.fp) {
+        atomic_add_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
+      } else if (!fp && pObj->passInfo.fp) {
+        atomic_sub_fetch_32(&pObj->pAppInfo->pAppHbMgr->passKeyCnt, 1);
+      }
+      pObj->passInfo.fp = fp;
+      pObj->passInfo.param = param;
+      taosThreadMutexUnlock(&pObj->mutex);
+      break;
+    }
+    default: {
+      terrno = TSDB_CODE_INVALID_PARA;
+      releaseTscObj(*(int64_t *)taos);
+      return terrno;
+    }
+  }
+
+  releaseTscObj(*(int64_t *)taos);
+  return 0;
+}
+
 void taos_close_internal(void *taos) {
   if (taos == NULL) {
     return;
@@ -356,9 +393,10 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
       } break;
 
       case TSDB_DATA_TYPE_BINARY:
-      case TSDB_DATA_TYPE_NCHAR: {
+      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_GEOMETRY: {
         int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
+        if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
           if (ASSERT(charLen <= fields[i].bytes && charLen >= 0)) {
             tscError("taos_print_row error binary. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
           }
@@ -438,6 +476,8 @@ const char *taos_data_type(int type) {
       return "TSDB_DATA_TYPE_NCHAR";
     case TSDB_DATA_TYPE_JSON:
       return "TSDB_DATA_TYPE_JSON";
+    case TSDB_DATA_TYPE_GEOMETRY:
+      return "TSDB_DATA_TYPE_GEOMETRY";
     case TSDB_DATA_TYPE_UTINYINT:
       return "TSDB_DATA_TYPE_UTINYINT";
     case TSDB_DATA_TYPE_USMALLINT:
@@ -1307,6 +1347,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     goto _return;
   }
 
+  pRequest->syncQuery = true;
+
   STscObj *pTscObj = pRequest->pTscObj;
   code = transferTableNameList(tableNameList, pTscObj->acctId, pTscObj->db, &catalogReq.pTableMeta);
   if (code) {
@@ -1333,7 +1375,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   tsem_wait(&pParam->sem);
 
 _return:
-  taosArrayDestroy(catalogReq.pTableMeta);
+  taosArrayDestroyEx(catalogReq.pTableMeta, destoryTablesReq);
   destroyRequest(pRequest);
   return code;
 }

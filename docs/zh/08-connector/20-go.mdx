@@ -30,7 +30,7 @@ REST 连接支持所有能运行 Go 的平台。
 
 ## 版本支持
 
-请参考[版本支持列表](../#版本支持)
+请参考[版本支持列表](https://github.com/taosdata/driver-go#remind)
 
 ## 支持的功能特性
 
@@ -383,6 +383,15 @@ func main() {
 
  提交消息。
 
+* `func (c *Consumer) Assignment() (partitions []tmq.TopicPartition, err error)`
+
+ 获取消费进度。(需要 TDengine >= 3.0.5.0， driver-go >= v3.5.0)
+
+* `func (c *Consumer) Seek(partition tmq.TopicPartition, ignoredTimeoutMs int) error`
+注意：出于兼容目的保留 `ignoredTimeoutMs` 参数，当前未使用
+
+ 按照指定的进度消费。(需要 TDengine >= 3.0.5.0， driver-go >= v3.5.0)
+
 * `func (c *Consumer) Close() error`
 
  关闭连接。
@@ -468,11 +477,20 @@ func main() {
 
  提交消息。
 
+* `func (c *Consumer) Assignment() (partitions []tmq.TopicPartition, err error)`
+
+ 获取消费进度。(需要 TDengine >= 3.0.5.0， driver-go >= v3.5.0)
+
+* `func (c *Consumer) Seek(partition tmq.TopicPartition, ignoredTimeoutMs int) error`
+注意：出于兼容目的保留 `ignoredTimeoutMs` 参数，当前未使用
+
+ 按照指定的进度消费。(需要 TDengine >= 3.0.5.0， driver-go >= v3.5.0)
+
 * `func (c *Consumer) Close() error`
 
  关闭连接。
 
-完整订阅示例参见 [GitHub 示例文件](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
+完整订阅示例参见 [GitHub 示例文件](https://github.com/taosdata/driver-go/blob/main/examples/tmqoverws/main.go)
 
 ### 通过 WebSocket 进行参数绑定
 
@@ -520,7 +538,7 @@ func main() {
 
   结束参数绑定。
 
-完整参数绑定示例参见 [GitHub 示例文件](https://github.com/taosdata/driver-go/blob/3.0/examples/stmtoverws/main.go)
+完整参数绑定示例参见 [GitHub 示例文件](https://github.com/taosdata/driver-go/blob/main/examples/stmtoverws/main.go)
 
 ## API 参考
 

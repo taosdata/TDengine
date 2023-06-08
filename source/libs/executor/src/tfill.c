@@ -517,10 +517,16 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
     return;
   }
 
+  // the endKey is now the aligned time window value. truncate time window isn't correct.
   pFillInfo->end = endKey;
-  if (!FILL_IS_ASC_FILL(pFillInfo)) {
-    pFillInfo->end = taosTimeTruncate(endKey, &pFillInfo->interval, pFillInfo->interval.precision);
+
+#if 0
+  if (pFillInfo->order == TSDB_ORDER_ASC) {
+    ASSERT(pFillInfo->start <= pFillInfo->end);
+  } else {
+    ASSERT(pFillInfo->start >= pFillInfo->end);
   }
+#endif
 
   pFillInfo->index = 0;
   pFillInfo->numOfRows = numOfRows;
@@ -529,6 +535,13 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
 void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) {
   pFillInfo->pSrcBlock = (SSDataBlock*)pInput;
 }
+
+void taosFillUpdateStartTimestampInfo(SFillInfo* pFillInfo, int64_t ts) {
+  pFillInfo->start = ts;
+  pFillInfo->currentKey = ts;
+}
+
+bool taosFillNotStarted(const SFillInfo* pFillInfo) {return pFillInfo->start == pFillInfo->currentKey;}
 
 bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
   int32_t remain = taosNumOfRemainRows(pFillInfo);
@@ -561,9 +574,10 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     ASSERT(numOfRes >= numOfRows);
   } else {  // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
-        (ekey1 >= pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
+        (ekey1 > pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
       return 0;
     }
+
     numOfRes = taosTimeCountInterval(ekey1, pFillInfo->currentKey, pFillInfo->interval.sliding,
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
     numOfRes += 1;

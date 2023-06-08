@@ -17,6 +17,7 @@
 #include "dataSinkMgt.h"
 #include "executorInt.h"
 #include "planner.h"
+#include "storageapi.h"
 #include "tcompression.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -428,8 +429,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   inserter->explain = pInserterNode->explain;
 
   int64_t suid = 0;
-  int32_t code =
-      tsdbGetTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
+  int32_t code = pManager->pAPI->metaFn.getTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
   if (code) {
     destroyDataSinker((SDataSinkHandle*)inserter);
     taosMemoryFree(inserter);

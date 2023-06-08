@@ -249,6 +249,7 @@ typedef struct SDropDnodeStmt {
   char      fqdn[TSDB_FQDN_LEN];
   int32_t   port;
   bool      force;
+  bool      unsafe;
 } SDropDnodeStmt;
 
 typedef struct SAlterDnodeStmt {
@@ -350,6 +351,11 @@ typedef struct SDropComponentNodeStmt {
   int32_t   dnodeId;
 } SDropComponentNodeStmt;
 
+typedef struct SRestoreComponentNodeStmt {
+  ENodeType type;
+  int32_t   dnodeId;
+} SRestoreComponentNodeStmt;
+
 typedef struct SCreateTopicStmt {
   ENodeType type;
   char      topicName[TSDB_TABLE_NAME_LEN];
@@ -358,6 +364,7 @@ typedef struct SCreateTopicStmt {
   bool      ignoreExists;
   bool      withMeta;
   SNode*    pQuery;
+  SNode*    pWhere;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {
@@ -435,6 +442,19 @@ typedef struct SDropStreamStmt {
   char      streamName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
 } SDropStreamStmt;
+
+typedef struct SPauseStreamStmt {
+  ENodeType type;
+  char      streamName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+} SPauseStreamStmt;
+
+typedef struct SResumeStreamStmt {
+  ENodeType type;
+  char      streamName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+  bool      ignoreUntreated;
+} SResumeStreamStmt;
 
 typedef struct SCreateFunctionStmt {
   ENodeType type;

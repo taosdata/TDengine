@@ -19,6 +19,7 @@
 #include "executor.h"
 #include "filter.h"
 #include "qworker.h"
+#include "rocksdb/c.h"
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"
@@ -102,6 +103,17 @@ struct SQueryNode {
   _query_reseek_func_t reseek;
 };
 
+#if 1  // refact APIs below (TODO)
+typedef SVCreateTbReq   STbCfg;
+typedef SVCreateTSmaReq SSmaCfg;
+
+SMTbCursor *metaOpenTbCursor(void *pVnode);
+void        metaCloseTbCursor(SMTbCursor *pTbCur);
+int32_t     metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType);
+int32_t     metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType);
+
+#endif
+
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void* vnodeBufPoolMallocAligned(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
@@ -142,6 +154,9 @@ int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, in
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 
+int32_t         metaUidCacheClear(SMeta* pMeta, uint64_t suid);
+int32_t         metaTbGroupCacheClear(SMeta *pMeta, uint64_t suid);
+
 int metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
@@ -160,6 +175,8 @@ void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
 int           metaTtlSmaller(SMeta* pMeta, uint64_t time, SArray* uidList);
 
+void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
+
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
@@ -177,6 +194,7 @@ int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 int32_t tsdbPrepareCommit(STsdb* pTsdb);
 int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
+int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
@@ -195,7 +213,7 @@ void tqClose(STQ*);
 int  tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int  tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 int  tqUnregisterPushHandle(STQ* pTq, void* pHandle);
-int  tqStartStreamTasks(STQ* pTq);    // restore all stream tasks after vnode launching completed.
+int  tqStartStreamTasks(STQ* pTq);  // restore all stream tasks after vnode launching completed.
 
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
@@ -206,14 +224,17 @@ int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t m
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessSeekReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
+
 // tq-stream
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessSubmitReqForSubscribe(STQ* pTq);
-int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
@@ -378,7 +399,6 @@ struct SVnode {
   STQ*          pTq;
   SSink*        pSink;
   tsem_t        canCommit;
-  SVCommitSched commitSched;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
@@ -387,9 +407,6 @@ struct SVnode {
   int32_t       blockSec;
   int64_t       blockSeq;
   SQHandle*     pQuery;
-#if 0
-  SRpcHandleInfo blockInfo;
-#endif
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
@@ -401,6 +418,10 @@ struct SVnode {
 #define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
 #define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
 #define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
+
+#define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
+#define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
+#define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
 
 struct STbUidStore {
   tb_uid_t  suid;
@@ -467,6 +488,9 @@ struct SCompactInfo {
   int64_t     commitID;
   STimeWindow tw;
 };
+
+void initStorageAPI(SStorageAPI* pAPI);
+
 
 #ifdef __cplusplus
 }

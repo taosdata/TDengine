@@ -31,10 +31,15 @@ extern "C" {
 #define free    FREE_FUNC_TAOS_FORBID
 #ifdef strdup
 #undef strdup
-#define strdup  STRDUP_FUNC_TAOS_FORBID
+#define strdup STRDUP_FUNC_TAOS_FORBID
 #endif
-#endif // ifndef ALLOW_FORBID_FUNC
-#endif // if !defined(WINDOWS)
+#endif  // ifndef ALLOW_FORBID_FUNC
+#endif  // if !defined(WINDOWS)
+
+// #define taosMemoryMalloc  malloc
+// #define taosMemoryCalloc  calloc
+// #define taosMemoryRealloc realloc
+// #define taosMemoryFree    free
 
 int32_t taosMemoryDbgInit();
 int32_t taosMemoryDbgInitRestore();

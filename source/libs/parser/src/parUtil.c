@@ -305,6 +305,7 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
     dst[j] = src[k];
     j++;
   }
+  if (j >= dlen) j = dlen - 1;
   dst[j] = '\0';
   return j;
 }
@@ -415,7 +416,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
 end:
   taosHashCleanup(keyHash);
   if (retCode == TSDB_CODE_SUCCESS) {
-    tTagNew(pTagVals, 1, true, ppTag);
+    retCode = tTagNew(pTagVals, 1, true, ppTag);
   }
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
@@ -498,7 +499,7 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                 char* pStr) {
-  return sprintf(pStr, "%s*%d*%s*%s*%d", pUser, acctId, pDb, (NULL != pTable && '\0' == pTable[0]) ? NULL : pTable,
+  return sprintf(pStr, "%s*%d*%s*%s*%d", pUser, acctId, pDb, (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable,
                  type);
 }
 
@@ -524,6 +525,9 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
     strncpy(pStr, pStart, p - pStart);
     *pNext = ++p;
   }
+  if (*pStart == '`' && *(pStart + 1) == '`') {
+    *pStr = 0;
+  }
 }
 
 static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
@@ -532,7 +536,11 @@ static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUser
   pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
   getStringFromAuthStr(p, pUserAuth->tbName.dbname, &p);
   getStringFromAuthStr(p, pUserAuth->tbName.tname, &p);
-  pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
+  if (pUserAuth->tbName.tname[0]) {
+    pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
+  } else {
+    pUserAuth->tbName.type = TSDB_DB_NAME_T;
+  }
   pUserAuth->type = getIntegerFromAuthStr(p, &p);
 }
 
@@ -664,6 +672,22 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   }
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
+}
+
+
+SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable) {
+  SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
+  if (NULL == select) {
+    return NULL;
+  }
+  select->isDistinct = isDistinct;
+  select->pProjectionList = pProjectionList;
+  select->pFromTable = pTable;
+  sprintf(select->stmtName, "%p", select);
+  select->isTimeLineResult = true;
+  select->onlyHasKeepOrderFunc = true;
+  select->timeRange = TSWINDOW_INITIALIZER;
+  return (SNode*)select;
 }
 
 static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pData, int32_t index, SHashObj** pHash) {

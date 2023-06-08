@@ -5,6 +5,423 @@
 #unit-test
 ,,y,unit-test,bash test.sh
 
+#tsim test
+,,y,script,./test.sh -f tsim/user/basic.sim
+,,y,script,./test.sh -f tsim/user/password.sim
+,,y,script,./test.sh -f tsim/user/privilege_db.sim
+,,y,script,./test.sh -f tsim/user/privilege_sysinfo.sim
+,,y,script,./test.sh -f tsim/user/privilege_topic.sim
+,,y,script,./test.sh -f tsim/db/alter_option.sim
+,,y,script,./test.sh -f tsim/db/alter_replica_13.sim
+,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
+,,y,script,./test.sh -f tsim/db/basic1.sim
+,,y,script,./test.sh -f tsim/db/basic2.sim
+,,y,script,./test.sh -f tsim/db/basic3.sim
+,,y,script,./test.sh -f tsim/db/basic4.sim
+,,y,script,./test.sh -f tsim/db/basic5.sim
+,,y,script,./test.sh -f tsim/db/basic6.sim
+,,y,script,./test.sh -f tsim/db/commit.sim
+,,y,script,./test.sh -f tsim/db/create_all_options.sim
+,,y,script,./test.sh -f tsim/db/delete_reuse1.sim
+,,y,script,./test.sh -f tsim/db/delete_reuse2.sim
+,,y,script,./test.sh -f tsim/db/delete_reusevnode.sim
+,,y,script,./test.sh -f tsim/db/delete_reusevnode2.sim
+,,y,script,./test.sh -f tsim/db/delete_writing1.sim
+,,y,script,./test.sh -f tsim/db/delete_writing2.sim
+,,y,script,./test.sh -f tsim/db/error1.sim
+,,y,script,./test.sh -f tsim/db/keep.sim
+,,y,script,./test.sh -f tsim/db/len.sim
+,,y,script,./test.sh -f tsim/db/repeat.sim
+,,y,script,./test.sh -f tsim/db/show_create_db.sim
+,,y,script,./test.sh -f tsim/db/show_create_table.sim
+,,y,script,./test.sh -f tsim/db/tables.sim
+,,y,script,./test.sh -f tsim/db/taosdlog.sim
+,,y,script,./test.sh -f tsim/dnode/balance_replica1.sim
+,,y,script,./test.sh -f tsim/dnode/balance_replica3.sim
+,,y,script,./test.sh -f tsim/dnode/balance1.sim
+,,y,script,./test.sh -f tsim/dnode/balance2.sim
+,,y,script,./test.sh -f tsim/dnode/balance3.sim
+,,y,script,./test.sh -f tsim/dnode/balancex.sim
+,,y,script,./test.sh -f tsim/dnode/create_dnode.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_mnode.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_qnode_snode.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica1.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
+,,y,script,./test.sh -f tsim/dnode/drop_dnode_force.sim
+,,y,script,./test.sh -f tsim/dnode/offline_reason.sim
+,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica1.sim
+,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
+,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
+,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
+,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
+,,y,script,./test.sh -f tsim/dnode/vnode_clean.sim
+,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim
+,,y,script,./test.sh -f tsim/import/basic.sim
+,,y,script,./test.sh -f tsim/import/commit.sim
+,,y,script,./test.sh -f tsim/import/large.sim
+,,y,script,./test.sh -f tsim/import/replica1.sim
+,,y,script,./test.sh -f tsim/insert/backquote.sim
+,,y,script,./test.sh -f tsim/insert/basic.sim
+,,y,script,./test.sh -f tsim/insert/basic0.sim
+,,y,script,./test.sh -f tsim/insert/basic1.sim
+,,y,script,./test.sh -f tsim/insert/basic2.sim
+,,y,script,./test.sh -f tsim/insert/commit-merge0.sim
+,,y,script,./test.sh -f tsim/insert/insert_drop.sim
+,,y,script,./test.sh -f tsim/insert/insert_select.sim
+,,y,script,./test.sh -f tsim/insert/null.sim
+,,y,script,./test.sh -f tsim/insert/query_block1_file.sim
+,,y,script,./test.sh -f tsim/insert/query_block1_memory.sim
+,,y,script,./test.sh -f tsim/insert/query_block2_file.sim
+,,y,script,./test.sh -f tsim/insert/query_block2_memory.sim
+,,y,script,./test.sh -f tsim/insert/query_file_memory.sim
+,,y,script,./test.sh -f tsim/insert/query_multi_file.sim
+,,y,script,./test.sh -f tsim/insert/tcp.sim
+,,y,script,./test.sh -f tsim/insert/update0.sim
+,,y,script,./test.sh -f tsim/insert/update1_sort_merge.sim
+,,y,script,./test.sh -f tsim/insert/update2.sim
+,,y,script,./test.sh -f tsim/parser/alter__for_community_version.sim
+,,y,script,./test.sh -f tsim/parser/alter_column.sim
+,,y,script,./test.sh -f tsim/parser/alter_stable.sim
+,,y,script,./test.sh -f tsim/parser/alter.sim
+,,y,script,./test.sh -f tsim/parser/alter1.sim
+,,y,script,./test.sh -f tsim/parser/auto_create_tb_drop_tb.sim
+,,y,script,./test.sh -f tsim/parser/auto_create_tb.sim
+,,y,script,./test.sh -f tsim/parser/between_and.sim
+,,y,script,./test.sh -f tsim/parser/binary_escapeCharacter.sim
+,,y,script,./test.sh -f tsim/parser/col_arithmetic_operation.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_bigint.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_bool.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_double.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_float.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_int.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_smallint.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_tinyint.sim
+,,y,script,./test.sh -f tsim/parser/columnValue_unsign.sim
+,,y,script,./test.sh -f tsim/parser/commit.sim
+,,y,script,./test.sh -f tsim/parser/condition.sim
+,,y,script,./test.sh -f tsim/parser/constCol.sim
+,,y,script,./test.sh -f tsim/parser/create_db.sim
+,,y,script,./test.sh -f tsim/parser/create_mt.sim
+,,y,script,./test.sh -f tsim/parser/create_tb_with_tag_name.sim
+,,y,script,./test.sh -f tsim/parser/create_tb.sim
+,,y,script,./test.sh -f tsim/parser/dbtbnameValidate.sim
+,,y,script,./test.sh -f tsim/parser/distinct.sim
+,,y,script,./test.sh -f tsim/parser/fill_us.sim
+,,y,script,./test.sh -f tsim/parser/fill.sim
+,,y,script,./test.sh -f tsim/parser/first_last.sim
+,,y,script,./test.sh -f tsim/parser/fill_stb.sim
+,,y,script,./test.sh -f tsim/parser/interp.sim
+,,y,script,./test.sh -f tsim/parser/fourArithmetic-basic.sim
+,,y,script,./test.sh -f tsim/parser/function.sim
+,,y,script,./test.sh -f tsim/parser/groupby-basic.sim
+,,y,script,./test.sh -f tsim/parser/groupby.sim
+,,y,script,./test.sh -f tsim/parser/having_child.sim
+,,y,script,./test.sh -f tsim/parser/having.sim
+,,y,script,./test.sh -f tsim/parser/import_commit1.sim
+,,y,script,./test.sh -f tsim/parser/import_commit2.sim
+,,y,script,./test.sh -f tsim/parser/import_commit3.sim
+,,y,script,./test.sh -f tsim/parser/import_file.sim
+,,y,script,./test.sh -f tsim/parser/import.sim
+,,y,script,./test.sh -f tsim/parser/insert_multiTbl.sim
+,,y,script,./test.sh -f tsim/parser/insert_tb.sim
+,,y,script,./test.sh -f tsim/parser/join_manyblocks.sim
+,,y,script,./test.sh -f tsim/parser/join_multitables.sim
+,,y,script,./test.sh -f tsim/parser/join_multivnode.sim
+,,y,script,./test.sh -f tsim/parser/join.sim
+,,y,script,./test.sh -f tsim/parser/last_cache.sim
+,,y,script,./test.sh -f tsim/parser/last_groupby.sim
+,,y,script,./test.sh -f tsim/parser/lastrow.sim
+,,y,script,./test.sh -f tsim/parser/lastrow2.sim
+,,y,script,./test.sh -f tsim/parser/like.sim
+,,y,script,./test.sh -f tsim/parser/limit.sim
+,,y,script,./test.sh -f tsim/parser/limit1.sim
+,,y,script,./test.sh -f tsim/parser/mixed_blocks.sim
+,,y,script,./test.sh -f tsim/parser/nchar.sim
+,,y,script,./test.sh -f tsim/parser/nestquery.sim
+,,y,script,./test.sh -f tsim/parser/null_char.sim
+,,y,script,./test.sh -f tsim/parser/precision_ns.sim
+,,y,script,./test.sh -f tsim/parser/projection_limit_offset.sim
+,,y,script,./test.sh -f tsim/parser/regex.sim
+,,y,script,./test.sh -f tsim/parser/regressiontest.sim
+,,y,script,./test.sh -f tsim/parser/select_across_vnodes.sim
+,,y,script,./test.sh -f tsim/parser/select_distinct_tag.sim
+,,y,script,./test.sh -f tsim/parser/select_from_cache_disk.sim
+,,y,script,./test.sh -f tsim/parser/select_with_tags.sim
+,,y,script,./test.sh -f tsim/parser/selectResNum.sim
+,,y,script,./test.sh -f tsim/parser/set_tag_vals.sim
+,,y,script,./test.sh -f tsim/parser/single_row_in_tb.sim
+,,y,script,./test.sh -f tsim/parser/sliding.sim
+,,y,script,./test.sh -f tsim/parser/slimit_alter_tags.sim
+,,y,script,./test.sh -f tsim/parser/slimit.sim
+,,y,script,./test.sh -f tsim/parser/slimit1.sim
+,,y,script,./test.sh -f tsim/parser/stableOp.sim
+,,y,script,./test.sh -f tsim/parser/tags_dynamically_specifiy.sim
+,,y,script,./test.sh -f tsim/parser/tags_filter.sim
+,,y,script,./test.sh -f tsim/parser/tbnameIn.sim
+,,y,script,./test.sh -f tsim/parser/timestamp.sim
+,,y,script,./test.sh -f tsim/parser/top_groupby.sim
+,,y,script,./test.sh -f tsim/parser/topbot.sim
+,,y,script,./test.sh -f tsim/parser/union.sim
+,,y,script,./test.sh -f tsim/parser/union_sysinfo.sim
+,,y,script,./test.sh -f tsim/parser/where.sim
+,,y,script,./test.sh -f tsim/query/tagLikeFilter.sim
+,,y,script,./test.sh -f tsim/query/charScalarFunction.sim
+,,y,script,./test.sh -f tsim/query/explain.sim
+,,y,script,./test.sh -f tsim/query/interval-offset.sim
+,,y,script,./test.sh -f tsim/query/interval.sim
+,,y,script,./test.sh -f tsim/query/scalarFunction.sim
+,,y,script,./test.sh -f tsim/query/scalarNull.sim
+,,y,script,./test.sh -f tsim/query/session.sim
+,,y,script,./test.sh -f tsim/query/udf.sim
+,,y,script,./test.sh -f tsim/query/udf_with_const.sim
+,,y,script,./test.sh -f tsim/query/sys_tbname.sim
+,,y,script,./test.sh -f tsim/query/groupby.sim
+,,y,script,./test.sh -f tsim/query/event.sim
+,,y,script,./test.sh -f tsim/query/forceFill.sim
+,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
+,,y,script,./test.sh -f tsim/query/partitionby.sim
+,,y,script,./test.sh -f tsim/qnode/basic1.sim
+,,y,script,./test.sh -f tsim/snode/basic1.sim
+,,y,script,./test.sh -f tsim/mnode/basic1.sim
+,,y,script,./test.sh -f tsim/mnode/basic2.sim
+,,y,script,./test.sh -f tsim/mnode/basic3.sim
+,,y,script,./test.sh -f tsim/mnode/basic4.sim
+,,y,script,./test.sh -f tsim/mnode/basic5.sim
+,,y,script,./test.sh -f tsim/show/basic.sim
+,,y,script,./test.sh -f tsim/table/autocreate.sim
+,,y,script,./test.sh -f tsim/table/basic1.sim
+,,y,script,./test.sh -f tsim/table/basic2.sim
+,,y,script,./test.sh -f tsim/table/basic3.sim
+,,y,script,./test.sh -f tsim/table/bigint.sim
+,,y,script,./test.sh -f tsim/table/binary.sim
+,,y,script,./test.sh -f tsim/table/bool.sim
+,,y,script,./test.sh -f tsim/table/column_name.sim
+,,y,script,./test.sh -f tsim/table/column_num.sim
+,,y,script,./test.sh -f tsim/table/column_value.sim
+,,y,script,./test.sh -f tsim/table/column2.sim
+,,y,script,./test.sh -f tsim/table/createmulti.sim
+,,y,script,./test.sh -f tsim/table/date.sim
+,,y,script,./test.sh -f tsim/table/db.table.sim
+,,y,script,./test.sh -f tsim/table/delete_reuse1.sim
+,,y,script,./test.sh -f tsim/table/delete_reuse2.sim
+,,y,script,./test.sh -f tsim/table/delete_writing.sim
+,,y,script,./test.sh -f tsim/table/describe.sim
+,,y,script,./test.sh -f tsim/table/double.sim
+,,y,script,./test.sh -f tsim/table/float.sim
+,,y,script,./test.sh -f tsim/table/hash.sim
+,,y,script,./test.sh -f tsim/table/int.sim
+,,y,script,./test.sh -f tsim/table/limit.sim
+,,y,script,./test.sh -f tsim/table/smallint.sim
+,,y,script,./test.sh -f tsim/table/table_len.sim
+,,y,script,./test.sh -f tsim/table/table.sim
+,,y,script,./test.sh -f tsim/table/tinyint.sim
+,,y,script,./test.sh -f tsim/table/vgroup.sim
+,,n,script,./test.sh -f tsim/stream/basic0.sim -g
+,,y,script,./test.sh -f tsim/stream/basic1.sim
+,,y,script,./test.sh -f tsim/stream/basic2.sim
+,,y,script,./test.sh -f tsim/stream/basic3.sim
+,,y,script,./test.sh -f tsim/stream/basic4.sim
+,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
+,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
+,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
+,,y,script,./test.sh -f tsim/stream/deleteSession.sim
+,,y,script,./test.sh -f tsim/stream/deleteState.sim
+,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
+,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
+,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
+,,y,script,./test.sh -f tsim/stream/drop_stream.sim
+,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
+,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
+,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalDelete0.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalDelete1.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalLinear.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext1.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalRange.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
+,,y,script,./test.sh -f tsim/stream/ignoreCheckUpdate.sim
+,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
+,,y,script,./test.sh -f tsim/stream/partitionby1.sim
+,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
+,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
+,,y,script,./test.sh -f tsim/stream/partitionby.sim
+,,y,script,./test.sh -f tsim/stream/pauseAndResume.sim
+,,y,script,./test.sh -f tsim/stream/schedSnode.sim
+,,y,script,./test.sh -f tsim/stream/session0.sim
+,,y,script,./test.sh -f tsim/stream/session1.sim
+,,y,script,./test.sh -f tsim/stream/sliding.sim
+,,y,script,./test.sh -f tsim/stream/state0.sim
+,,y,script,./test.sh -f tsim/stream/state1.sim
+,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
+,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndTag2.sim
+,,y,script,./test.sh -f tsim/stream/windowClose.sim
+,,y,script,./test.sh -f tsim/trans/lossdata1.sim
+,,y,script,./test.sh -f tsim/trans/create_db.sim
+,,y,script,./test.sh -f tsim/tmq/basic1.sim
+,,y,script,./test.sh -f tsim/tmq/basic2.sim
+,,y,script,./test.sh -f tsim/tmq/basic3.sim
+,,y,script,./test.sh -f tsim/tmq/basic4.sim
+,,y,script,./test.sh -f tsim/tmq/basic1Of2Cons.sim
+,,y,script,./test.sh -f tsim/tmq/basic2Of2Cons.sim
+,,y,script,./test.sh -f tsim/tmq/basic3Of2Cons.sim
+,,y,script,./test.sh -f tsim/tmq/basic4Of2Cons.sim
+,,y,script,./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
+,,y,script,./test.sh -f tsim/tmq/topic.sim
+,,y,script,./test.sh -f tsim/tmq/snapshot.sim
+,,y,script,./test.sh -f tsim/tmq/snapshot1.sim
+,,y,script,./test.sh -f tsim/stable/alter_comment.sim
+,,y,script,./test.sh -f tsim/stable/alter_count.sim
+,,y,script,./test.sh -f tsim/stable/alter_import.sim
+,,y,script,./test.sh -f tsim/stable/alter_insert1.sim
+,,y,script,./test.sh -f tsim/stable/alter_insert2.sim
+,,y,script,./test.sh -f tsim/stable/alter_metrics.sim
+,,y,script,./test.sh -f tsim/stable/column_add.sim
+,,y,script,./test.sh -f tsim/stable/column_drop.sim
+,,y,script,./test.sh -f tsim/stable/column_modify.sim
+,,y,script,./test.sh -f tsim/stable/disk.sim
+,,y,script,./test.sh -f tsim/stable/dnode3.sim
+,,y,script,./test.sh -f tsim/stable/metrics.sim
+,,y,script,./test.sh -f tsim/stable/refcount.sim
+,,y,script,./test.sh -f tsim/stable/tag_add.sim
+,,y,script,./test.sh -f tsim/stable/tag_drop.sim
+,,y,script,./test.sh -f tsim/stable/tag_filter.sim
+,,y,script,./test.sh -f tsim/stable/tag_modify.sim
+,,y,script,./test.sh -f tsim/stable/tag_rename.sim
+,,y,script,./test.sh -f tsim/stable/values.sim
+,,y,script,./test.sh -f tsim/stable/vnode3.sim
+,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
+,,n,script,./test.sh -f tsim/sma/drop_sma.sim
+,,y,script,./test.sh -f tsim/sma/sma_leak.sim
+,,y,script,./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
+,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
+,,n,script,./test.sh -f tsim/valgrind/checkError1.sim
+,,n,script,./test.sh -f tsim/valgrind/checkError2.sim
+,,n,script,./test.sh -f tsim/valgrind/checkError3.sim
+,,n,script,./test.sh -f tsim/valgrind/checkError4.sim
+,,n,script,./test.sh -f tsim/valgrind/checkError5.sim
+,,n,script,./test.sh -f tsim/valgrind/checkError6.sim
+,,n,script,./test.sh -f tsim/valgrind/checkError7.sim
+,,n,script,./test.sh -f tsim/valgrind/checkError8.sim
+,,n,script,./test.sh -f tsim/valgrind/checkUdf.sim
+,,y,script,./test.sh -f tsim/vnode/replica3_basic.sim
+,,y,script,./test.sh -f tsim/vnode/replica3_repeat.sim
+,,y,script,./test.sh -f tsim/vnode/replica3_vgroup.sim
+,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
+,,y,script,./test.sh -f tsim/vnode/replica3_import.sim
+,,y,script,./test.sh -f tsim/vnode/stable_balance_replica1.sim
+,,y,script,./test.sh -f tsim/vnode/stable_dnode2_stop.sim
+,,y,script,./test.sh -f tsim/vnode/stable_dnode2.sim
+,,y,script,./test.sh -f tsim/vnode/stable_dnode3.sim
+,,y,script,./test.sh -f tsim/vnode/stable_replica3_dnode6.sim
+,,y,script,./test.sh -f tsim/vnode/stable_replica3_vnode3.sim
+,,y,script,./test.sh -f tsim/sync/3Replica1VgElect.sim
+,,y,script,./test.sh -f tsim/sync/3Replica5VgElect.sim
+,,y,script,./test.sh -f tsim/sync/oneReplica1VgElect.sim
+,,y,script,./test.sh -f tsim/sync/oneReplica5VgElect.sim
+,,y,script,./test.sh -f tsim/catalog/alterInCurrent.sim
+,,y,script,./test.sh -f tsim/scalar/in.sim
+,,y,script,./test.sh -f tsim/scalar/scalar.sim
+,,y,script,./test.sh -f tsim/scalar/filter.sim
+,,y,script,./test.sh -f tsim/scalar/caseWhen.sim
+,,y,script,./test.sh -f tsim/scalar/tsConvert.sim
+,,y,script,./test.sh -f tsim/alter/cached_schema_after_alter.sim
+,,y,script,./test.sh -f tsim/alter/dnode.sim
+,,y,script,./test.sh -f tsim/alter/table.sim
+,,y,script,./test.sh -f tsim/cache/new_metrics.sim
+,,y,script,./test.sh -f tsim/cache/restart_table.sim
+,,y,script,./test.sh -f tsim/cache/restart_metrics.sim
+,,y,script,./test.sh -f tsim/column/commit.sim
+,,y,script,./test.sh -f tsim/column/metrics.sim
+,,y,script,./test.sh -f tsim/column/table.sim
+,,y,script,./test.sh -f tsim/compress/commitlog.sim
+,,y,script,./test.sh -f tsim/compress/compress2.sim
+,,y,script,./test.sh -f tsim/compress/compress.sim
+,,y,script,./test.sh -f tsim/compress/uncompress.sim
+,,y,script,./test.sh -f tsim/compute/avg.sim
+,,y,script,./test.sh -f tsim/compute/block_dist.sim
+,,y,script,./test.sh -f tsim/compute/bottom.sim
+,,y,script,./test.sh -f tsim/compute/count.sim
+,,y,script,./test.sh -f tsim/compute/diff.sim
+,,y,script,./test.sh -f tsim/compute/diff2.sim
+,,y,script,./test.sh -f tsim/compute/first.sim
+,,y,script,./test.sh -f tsim/compute/interval.sim
+,,y,script,./test.sh -f tsim/compute/last_row.sim
+,,y,script,./test.sh -f tsim/compute/last.sim
+,,y,script,./test.sh -f tsim/compute/leastsquare.sim
+,,y,script,./test.sh -f tsim/compute/max.sim
+,,y,script,./test.sh -f tsim/compute/min.sim
+,,y,script,./test.sh -f tsim/compute/null.sim
+,,y,script,./test.sh -f tsim/compute/percentile.sim
+,,y,script,./test.sh -f tsim/compute/stddev.sim
+,,y,script,./test.sh -f tsim/compute/sum.sim
+,,y,script,./test.sh -f tsim/compute/top.sim
+,,y,script,./test.sh -f tsim/field/2.sim
+,,y,script,./test.sh -f tsim/field/3.sim
+,,y,script,./test.sh -f tsim/field/4.sim
+,,y,script,./test.sh -f tsim/field/5.sim
+,,y,script,./test.sh -f tsim/field/6.sim
+,,y,script,./test.sh -f tsim/field/binary.sim
+,,y,script,./test.sh -f tsim/field/bigint.sim
+,,y,script,./test.sh -f tsim/field/bool.sim
+,,y,script,./test.sh -f tsim/field/double.sim
+,,y,script,./test.sh -f tsim/field/float.sim
+,,y,script,./test.sh -f tsim/field/int.sim
+,,y,script,./test.sh -f tsim/field/single.sim
+,,y,script,./test.sh -f tsim/field/smallint.sim
+,,y,script,./test.sh -f tsim/field/tinyint.sim
+,,y,script,./test.sh -f tsim/field/unsigined_bigint.sim
+,,y,script,./test.sh -f tsim/vector/metrics_field.sim
+,,y,script,./test.sh -f tsim/vector/metrics_mix.sim
+,,y,script,./test.sh -f tsim/vector/metrics_query.sim
+,,y,script,./test.sh -f tsim/vector/metrics_tag.sim
+,,y,script,./test.sh -f tsim/vector/metrics_time.sim
+,,y,script,./test.sh -f tsim/vector/multi.sim
+,,y,script,./test.sh -f tsim/vector/single.sim
+,,y,script,./test.sh -f tsim/vector/table_field.sim
+,,y,script,./test.sh -f tsim/vector/table_mix.sim
+,,y,script,./test.sh -f tsim/vector/table_query.sim
+,,y,script,./test.sh -f tsim/vector/table_time.sim
+,,y,script,./test.sh -f tsim/wal/kill.sim
+,,y,script,./test.sh -f tsim/tag/3.sim
+,,y,script,./test.sh -f tsim/tag/4.sim
+,,y,script,./test.sh -f tsim/tag/5.sim
+,,y,script,./test.sh -f tsim/tag/6.sim
+,,y,script,./test.sh -f tsim/tag/add.sim
+,,y,script,./test.sh -f tsim/tag/bigint.sim
+,,y,script,./test.sh -f tsim/tag/binary_binary.sim
+,,y,script,./test.sh -f tsim/tag/binary.sim
+,,y,script,./test.sh -f tsim/tag/bool_binary.sim
+,,y,script,./test.sh -f tsim/tag/bool_int.sim
+,,y,script,./test.sh -f tsim/tag/bool.sim
+,,y,script,./test.sh -f tsim/tag/change.sim
+,,y,script,./test.sh -f tsim/tag/column.sim
+,,y,script,./test.sh -f tsim/tag/commit.sim
+,,y,script,./test.sh -f tsim/tag/create.sim
+,,y,script,./test.sh -f tsim/tag/delete.sim
+,,y,script,./test.sh -f tsim/tag/double.sim
+,,y,script,./test.sh -f tsim/tag/filter.sim
+,,y,script,./test.sh -f tsim/tag/float.sim
+,,y,script,./test.sh -f tsim/tag/int_binary.sim
+,,y,script,./test.sh -f tsim/tag/int_float.sim
+,,y,script,./test.sh -f tsim/tag/int.sim
+,,y,script,./test.sh -f tsim/tag/set.sim
+,,y,script,./test.sh -f tsim/tag/smallint.sim
+,,y,script,./test.sh -f tsim/tag/tinyint.sim
+,,y,script,./test.sh -f tsim/tag/drop_tag.sim
+,,y,script,./test.sh -f tsim/tag/tbNameIn.sim
+,,y,script,./test.sh -f tmp/monitor.sim
+
 #system test
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
@@ -62,6 +479,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
 
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3
+
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/basic5.py
@@ -75,10 +497,12 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/db.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqError.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/schema.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilterWhere.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+,,n,system-test,python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py -N 3 -n 3
@@ -90,7 +514,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
@@ -118,6 +542,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -155,9 +580,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/boundary.py
 ,,n,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_comment.py
-,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
+#,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/mutil_stage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py -R
@@ -165,6 +590,32 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
@@ -292,6 +743,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaBasic.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py
@@ -352,6 +804,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_systable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stmt_error.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py
@@ -367,6 +820,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tagFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts_3398.py -N 3 -n 3
+
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode2mnode.py -N 5
@@ -393,7 +848,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
+#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
+,,n,system-test,python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
@@ -637,7 +1093,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 4
-#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 4
@@ -822,6 +1278,7 @@
 ,,y,script,./test.sh -f tsim/parser/columnValue_tinyint.sim
 ,,y,script,./test.sh -f tsim/parser/columnValue_unsign.sim
 ,,y,script,./test.sh -f tsim/parser/condition.sim
+,,y,script,./test.sh -f tsim/parser/condition_scl.sim
 ,,y,script,./test.sh -f tsim/parser/constCol.sim
 ,,y,script,./test.sh -f tsim/parser/create_db.sim
 ,,y,script,./test.sh -f tsim/parser/create_mt.sim
@@ -898,12 +1355,16 @@
 ,,y,script,./test.sh -f tsim/query/multi_order_by.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
 ,,y,script,./test.sh -f tsim/query/groupby.sim
+,,y,script,./test.sh -f tsim/query/groupby_distinct.sim
 ,,y,script,./test.sh -f tsim/query/event.sim
 ,,y,script,./test.sh -f tsim/query/forceFill.sim
 ,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
+,,y,script,./test.sh -f tsim/query/emptyTsRange_scl.sim
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
 ,,y,script,./test.sh -f tsim/query/tableCount.sim 
+,,y,script,./test.sh -f tsim/query/tag_scan.sim 
 ,,y,script,./test.sh -f tsim/query/nullColSma.sim
+,,y,script,./test.sh -f tsim/query/bug3398.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -943,38 +1404,48 @@
 ,,n,script,./test.sh -f tsim/stream/basic0.sim -g
 ,,y,script,./test.sh -f tsim/stream/basic1.sim
 ,,y,script,./test.sh -f tsim/stream/basic2.sim
+,,y,script,./test.sh -f tsim/stream/basic3.sim
+,,y,script,./test.sh -f tsim/stream/basic4.sim
+,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
+,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
+,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
+,,y,script,./test.sh -f tsim/stream/deleteSession.sim
+,,y,script,./test.sh -f tsim/stream/deleteState.sim
+,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
+,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
+,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
 ,,y,script,./test.sh -f tsim/stream/drop_stream.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
 ,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
-,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
-,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
-,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
-,,y,script,./test.sh -f tsim/stream/session0.sim
-,,y,script,./test.sh -f tsim/stream/session1.sim
-,,y,script,./test.sh -f tsim/stream/state0.sim
-,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
-,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
-,,y,script,./test.sh -f tsim/stream/partitionby.sim
-,,y,script,./test.sh -f tsim/stream/partitionby1.sim
-,,y,script,./test.sh -f tsim/stream/schedSnode.sim
-,,y,script,./test.sh -f tsim/stream/windowClose.sim
-,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
-,,y,script,./test.sh -f tsim/stream/sliding.sim
-,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
-,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
-,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
-,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
-,,y,script,./test.sh -f tsim/stream/deleteSession.sim
-,,y,script,./test.sh -f tsim/stream/deleteState.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalDelete0.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalDelete1.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalLinear.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext1.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext.sim
+,,y,script,./test.sh -f tsim/stream/fillIntervalRange.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
+,,y,script,./test.sh -f tsim/stream/ignoreCheckUpdate.sim
+,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
+,,y,script,./test.sh -f tsim/stream/partitionby1.sim
+,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
+,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
+,,y,script,./test.sh -f tsim/stream/partitionby.sim
+,,y,script,./test.sh -f tsim/stream/pauseAndResume.sim
+,,y,script,./test.sh -f tsim/stream/schedSnode.sim
+,,y,script,./test.sh -f tsim/stream/session0.sim
+,,y,script,./test.sh -f tsim/stream/session1.sim
+,,y,script,./test.sh -f tsim/stream/sliding.sim
+,,y,script,./test.sh -f tsim/stream/state0.sim
+,,y,script,./test.sh -f tsim/stream/state1.sim
+,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
+,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
 ,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndTag2.sim
+,,y,script,./test.sh -f tsim/stream/windowClose.sim
 ,,y,script,./test.sh -f tsim/trans/lossdata1.sim
 ,,y,script,./test.sh -f tsim/tmq/basic1.sim
 ,,y,script,./test.sh -f tsim/tmq/basic2.sim

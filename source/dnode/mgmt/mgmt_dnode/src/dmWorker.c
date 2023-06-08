@@ -91,6 +91,7 @@ static void *dmCrashReportThreadFp(void *param) {
         dError("failed to send crash report");
         if (pFile) {
           taosReleaseCrashLogFile(pFile, false);
+          pFile = NULL;
           continue;
         }
       } else {
@@ -110,6 +111,7 @@ static void *dmCrashReportThreadFp(void *param) {
     
     if (pFile) {
       taosReleaseCrashLogFile(pFile, truncateFile);
+      pFile = NULL;
       truncateFile = false;
     }
     
@@ -226,6 +228,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
+      break;
+    case TDMT_DND_ALTER_MNODE_TYPE:
+      code = (*pMgmt->processAlterNodeTypeFp)(MNODE, pMsg);
       break;
     case TDMT_DND_SERVER_STATUS:
       code = dmProcessServerRunStatus(pMgmt, pMsg);

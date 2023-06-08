@@ -100,7 +100,8 @@ sudo apt-get install tdengine
 
 :::tip
 apt-get 方式只适用于 Debian 或 Ubuntu 系统。
-::::
+:::
+
 </TabItem>
 <TabItem label="Windows 安装" value="windows">
 
@@ -206,6 +207,8 @@ Active: inactive (dead)
 
 - 查看服务状态：`sudo launchctl list | grep taosd`
 
+- 查看服务详细信息：`launchctl print system/com.tdengine.taosd`
+
 :::info
 
 - `launchctl` 命令管理`com.tdengine.taosd`需要管理员权限，务必在前面加 `sudo` 来增强安全性。
@@ -296,7 +299,7 @@ SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
 ```
 
-对表 `d10` 按 10 每秒进行平均值、最大值和最小值聚合统计：
+对表 `d10` 按每 10 秒进行平均值、最大值和最小值聚合统计：
 
 ```sql
 SELECT FIRST(ts), AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(10s);

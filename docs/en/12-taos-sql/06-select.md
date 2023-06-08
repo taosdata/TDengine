@@ -55,7 +55,7 @@ window_clause: {
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
 
 interp_clause:
-    RANGE(ts_val, ts_val), EVERY(every_val), FILL(fill_mod_and_val)
+    RANGE(ts_val, ts_val) EVERY(every_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
     PARTITION BY expr [, expr] ...
@@ -373,7 +373,7 @@ FROM temp_stable t1, temp_stable t2
 WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
-For sub-table and super table：
+For sub-table and super table:
 
 ```sql
 SELECT *

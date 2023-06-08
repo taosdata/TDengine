@@ -112,9 +112,6 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
     pVnode->blocked = true;
     pVnode->blockSec = taosGetTimestampSec();
     pVnode->blockSeq = seq;
-#if 0
-    pVnode->blockInfo = pMsg->info;
-#endif
   }
   taosThreadMutexUnlock(&pVnode->lock);
 
@@ -157,8 +154,6 @@ void vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit) {
   } else {
     tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
-
-  vnodeUpdCommitSched(pVnode);
 }
 
 #if BATCH_ENABLE
@@ -556,9 +551,9 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   // start to restore all stream tasks
   if (tsDisableStream) {
-    vInfo("vgId:%d, not restore stream tasks, since disabled", pVnode->config.vgId);
+    vInfo("vgId:%d, not launch stream tasks, since stream tasks are disabled", pVnode->config.vgId);
   } else {
-    vInfo("vgId:%d start to restore stream tasks", pVnode->config.vgId);
+    vInfo("vgId:%d start to launch stream tasks", pVnode->config.vgId);
     tqStartStreamTasks(pVnode->pTq);
   }
 }
@@ -571,6 +566,19 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   if (pVnode->blocked) {
     pVnode->blocked = false;
     vDebug("vgId:%d, become follower and post block", pVnode->config.vgId);
+    tsem_post(&pVnode->syncSem);
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+}
+
+static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vInfo("vgId:%d, become learner", pVnode->config.vgId);
+
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    pVnode->blocked = false;
+    vDebug("vgId:%d, become learner and post block", pVnode->config.vgId);
     tsem_post(&pVnode->syncSem);
   }
   taosThreadMutexUnlock(&pVnode->lock);
@@ -617,6 +625,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpApplyQueueItems = vnodeApplyQueueItems;
   pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
   pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
+  pFsm->FpBecomeLearnerCb = vnodeBecomeLearner;
   pFsm->FpReConfigCb = NULL;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
   pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
@@ -649,7 +658,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d", pVnode->config.vgId, pCfg->replicaNum, pCfg->myIndex);
-  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+  for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     vInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pVnode->config.vgId, i, pNode->nodeFqdn, pNode->nodePort,
           pNode->nodeId, pNode->clusterId);

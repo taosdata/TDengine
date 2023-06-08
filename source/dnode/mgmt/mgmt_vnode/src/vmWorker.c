@@ -49,6 +49,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_VND_ALTER_HASHRANGE:
       code = vmProcessAlterHashRangeReq(pMgmt, pMsg);
       break;
+    case TDMT_DND_ALTER_VNODE_TYPE:
+      code = vmProcessAlterVnodeTypeReq(pMgmt, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in vnode-mgmt queue", pMsg);
@@ -57,7 +60,7 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   if (IsReq(pMsg)) {
     if (code != 0) {
       if (terrno != 0) code = terrno;
-      dGError("msg:%p, failed to process since %s, type:%s", pMsg, terrstr(code), TMSG_INFO(pMsg->msgType));
+      dGError("msg:%p, failed to process since %s, type:%s", pMsg, tstrerror(code), TMSG_INFO(pMsg->msgType));
     }
     vmSendRsp(pMsg, code);
   }
@@ -75,7 +78,7 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   int32_t code = vnodeProcessQueryMsg(pVnode->pImpl, pMsg);
   if (code != 0) {
     if (terrno != 0) code = terrno;
-    dGError("vgId:%d, msg:%p failed to query since %s", pVnode->vgId, pMsg, terrstr(code));
+    dGError("vgId:%d, msg:%p failed to query since %s", pVnode->vgId, pMsg, tstrerror(code));
     vmSendRsp(pMsg, code);
   }
 

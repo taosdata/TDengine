@@ -36,7 +36,6 @@ database_option: {
   | TSDB_PAGESIZE value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
-  | WAL_ROLL_PERIOD value
   | WAL_SEGMENT_SIZE value
 }
 ```
@@ -72,8 +71,8 @@ database_option: {
   - 0：表示可以创建多张超级表。
   - 1：表示只可以创建一张超级表。
 - STT_TRIGGER：表示落盘文件触发文件合并的个数。默认为 1，范围 1 到 16。对于少表高频场景，此参数建议使用默认配置，或较小的值；而对于多表低频场景，此参数建议配置较大的值。
-- TABLE_PREFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。
-- TABLE_SUFFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。
+- TABLE_PREFIX：当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的前缀；当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的前缀；例如，假定表名为 "v30001"，当 TSDB_PREFIX = 2 时 使用 "0001" 来决定分配到哪个 vgroup ，当 TSDB_PREFIX = -2 时使用 "v3" 来决定分配到哪个 vgroup
+- TABLE_SUFFIX：当其为正值时，在决定把一个表分配到哪个 vgroup 时要忽略表名中指定长度的后缀；当其为负值时，在决定把一个表分配到哪个 vgroup 时只使用表名中指定长度的后缀；例如，假定表名为 "v30001"，当 TSDB_SUFFIX = 2 时 使用 "v300" 来决定分配到哪个 vgroup ，当 TSDB_SUFFIX = -2 时使用 "01" 来决定分配到哪个 vgroup。
 - TSDB_PAGESIZE：一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。
 - WAL_RETENTION_PERIOD: 为了数据订阅消费，需要WAL日志文件额外保留的最大时长策略。WAL日志清理，不受订阅客户端消费状态影响。单位为 s。默认为 0，表示无需为订阅保留。新建订阅，应先设置恰当的时长策略。
 - WAL_RETENTION_SIZE：为了数据订阅消费，需要WAL日志文件额外保留的最大累计大小策略。单位为 KB。默认为 0，表示累计大小无上限。
@@ -122,6 +121,8 @@ alter_database_option: {
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
   | KEEP value
+  | WAL_RETENTION_PERIOD value
+  | WAL_RETENTION_SIZE value
 }
 ```
 

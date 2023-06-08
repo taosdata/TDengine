@@ -90,7 +90,7 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
       }
 
       if (isDeepFree && pItem->pStreamState) {
-        streamStateClose(pItem->pStreamState);
+        streamStateClose(pItem->pStreamState, false);
       }
 
       if (isDeepFree && pInfo->taskInfo[i]) {
@@ -276,12 +276,9 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       return TSDB_CODE_FAILED;
     }
 
-    SReadHandle handle = {
-        .meta = pVnode->pMeta,
-        .vnode = pVnode,
-        .initTqReader = 1,
-        .pStateBackend = pStreamState,
-    };
+    SReadHandle handle = { .vnode = pVnode, .initTqReader = 1, .pStateBackend = pStreamState };
+    initStorageAPI(&handle.api);
+
     pRSmaInfo->taskInfo[idx] = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle, TD_VID(pVnode));
     if (!pRSmaInfo->taskInfo[idx]) {
       terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
@@ -853,11 +850,8 @@ static int32_t tdCloneQTaskInfo(SSma *pSma, qTaskInfo_t dstTaskInfo, qTaskInfo_t
   code = qSerializeTaskStatus(srcTaskInfo, &pOutput, &len);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  SReadHandle handle = {
-      .meta = pVnode->pMeta,
-      .vnode = pVnode,
-      .initTqReader = 1,
-  };
+  SReadHandle handle = { .vnode = pVnode, .initTqReader = 1 };
+  initStorageAPI(&handle.api);
 
   if (ASSERTS(!dstTaskInfo, "dstTaskInfo:%p is not NULL", dstTaskInfo)) {
     code = TSDB_CODE_APP_ERROR;
@@ -904,7 +898,7 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
 
   metaReaderInit(&mr, SMA_META(pSma), 0);
   smaDebug("vgId:%d, rsma clone qTaskInfo for suid:%" PRIi64, SMA_VID(pSma), pInfo->suid);
-  if (metaGetTableEntryByUidCache(&mr, pInfo->suid) < 0) {
+  if (metaReaderGetTableEntryByUidCache(&mr, pInfo->suid) < 0) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -1131,7 +1125,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
   for (int64_t i = 0; i < arrSize; ++i) {
     suid = *(tb_uid_t *)taosArrayGet(suidList, i);
     smaDebug("vgId:%d, rsma restore, suid is %" PRIi64, TD_VID(pVnode), suid);
-    if (metaGetTableEntryByUidCache(&mr, suid) < 0) {
+    if (metaReaderGetTableEntryByUidCache(&mr, suid) < 0) {
       code = terrno;
       TSDB_CHECK_CODE(code, lino, _exit);
     }

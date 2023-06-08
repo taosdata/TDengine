@@ -162,7 +162,53 @@ class TDTestCase:
         for t in range (2):
             tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
             tdSql.checkEqual(20470,len(tdSql.queryResult))
-
+            
+    def ins_dnodes_check(self):
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
+        tdSql.query(f'select * from information_schema.ins_dnodes')
+        result = tdSql.queryResult
+        tdSql.checkEqual(result[0][0],1)
+        tdSql.checkEqual(result[0][8],"")
+        tdSql.checkEqual(result[0][9],"")
+        self.str107 = 'Hc7VCc+'
+        for t in range (10):
+            self.str107 += 'tP+2soIXpP'
+        self.str108 = self.str107 + '='
+        self.str109 = self.str108 + '+'
+        self.str254 = self.str108 + self.str108 + '01234567890123456789012345678901234567'
+        self.str255 = self.str254 + '='
+        self.str256 = self.str254 + '=('
+        self.str257 = self.str254 + '=()'
+        self.str510 = self.str255 + self.str255
+        tdSql.error('alter dnode 1 "activeCode" "a"')
+        tdSql.error('alter dnode 1 "activeCode" "' + self.str107 + '"')
+        tdSql.execute('alter all dnodes "activeCode" "' + self.str108 + '"')
+        tdSql.error('alter dnode 1 "activeCode" "' + self.str109 + '"')
+        tdSql.error('alter all dnodes "activeCode" "' + self.str510 + '"')
+        tdSql.query(f'select * from information_schema.ins_dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][8],self.str108)
+        tdSql.execute('alter dnode 1 "activeCode" ""')
+        tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][0],"")
+        tdSql.checkEqual(tdSql.queryResult[0][1],'')
+        tdSql.error('alter dnode 1 "cActiveCode" "a"')
+        tdSql.error('alter dnode 1 "cActiveCode" "' + self.str107 + '"')
+        tdSql.error('alter dnode 1 "cActiveCode" "' + self.str256 + '"')
+        tdSql.error('alter all dnodes "cActiveCode" "' + self.str255 + '"')
+        tdSql.error('alter all dnodes "cActiveCode" "' + self.str256 + '"')
+        tdSql.error('alter all dnodes "cActiveCode" "' + self.str257 + '"')
+        tdSql.execute('alter all dnodes "cActiveCode" "' + self.str254 + '"')
+        tdSql.error('alter dnode 1 "cActiveCode" "' + self.str510 + '"')
+        tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][0],"")
+        tdSql.checkEqual(tdSql.queryResult[0][1],self.str254)
+        tdSql.execute('alter dnode 1 "cActiveCode" "' + self.str109 + '"')
+        tdSql.query(f'show dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][9],self.str109)
+        tdSql.execute('alter all dnodes "cActiveCode" ""')
+        tdSql.query(f'select c_active_code from information_schema.ins_dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][0],'')
 
     def run(self):
         self.prepare_data()
@@ -170,6 +216,7 @@ class TDTestCase:
         self.ins_columns_check()
         # self.ins_col_check_4096()
         self.ins_stable_check()
+        self.ins_dnodes_check()
 
 
     def stop(self):

@@ -32,7 +32,7 @@ extern "C" {
 #define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[16];
+extern const int32_t TYPE_BYTES[17];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES      sizeof(char)
@@ -53,10 +53,11 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_DATA_BIGINT_NULL    0x8000000000000000LL
 #define TSDB_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define TSDB_DATA_FLOAT_NULL  0x7FF00000            // it is an NAN
-#define TSDB_DATA_DOUBLE_NULL 0x7FFFFF0000000000LL  // an NAN
-#define TSDB_DATA_NCHAR_NULL  0xFFFFFFFF
-#define TSDB_DATA_BINARY_NULL 0xFF
+#define TSDB_DATA_FLOAT_NULL    0x7FF00000            // it is an NAN
+#define TSDB_DATA_DOUBLE_NULL   0x7FFFFF0000000000LL  // an NAN
+#define TSDB_DATA_NCHAR_NULL    0xFFFFFFFF
+#define TSDB_DATA_BINARY_NULL   0xFF
+#define TSDB_DATA_GEOMETRY_NULL 0xFF
 
 #define TSDB_DATA_UTINYINT_NULL  0xFF
 #define TSDB_DATA_USMALLINT_NULL 0xFFFF
@@ -232,13 +233,7 @@ typedef enum ELogicConditionType {
 #define TSDB_QUERY_ID_LEN   26
 #define TSDB_TRANS_OPER_LEN 16
 
-/**
- *  In some scenarios uint16_t (0~65535) is used to store the row len.
- *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
- *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
- *    the final value is 65531-(4096-1)*4 = 49151.
- */
-#define TSDB_MAX_BYTES_PER_ROW 49151
+#define TSDB_MAX_BYTES_PER_ROW 65531  // 49151:65531
 #define TSDB_MAX_TAGS_LEN      16384
 #define TSDB_MAX_TAGS          128
 
@@ -259,6 +254,7 @@ typedef enum ELogicConditionType {
 #define TSDB_IPv4ADDR_LEN       16
 #define TSDB_FILENAME_LEN       128
 #define TSDB_SHOW_SQL_LEN       2048
+#define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
 #define TSDB_SLOW_QUERY_SQL_LEN 512
 #define TSDB_SHOW_SUBQUERY_LEN  1000
 
@@ -273,6 +269,9 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_CONFIG_LEN 128
 #define TSDB_DNODE_VALUE_LEN  256
 
+#define TSDB_ACTIVE_KEY_LEN      109
+#define TSDB_CONN_ACTIVE_KEY_LEN 255
+
 #define TSDB_DEFAULT_PKT_SIZE 65480  // same as RPC_MAX_UDP_SIZE
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
@@ -285,8 +284,11 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_ROLE_VNODE 2
 
 #define TSDB_MAX_REPLICA               5
+#define TSDB_MAX_LEARNER_REPLICA       10
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
-#define TSDB_SYNC_LOG_BUFFER_RETENTION (TSDB_SYNC_LOG_BUFFER_SIZE >> 4)
+#define TSDB_SYNC_LOG_BUFFER_RETENTION 256
+#define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
+#define TSDB_SYNC_NEGOTIATION_WIN      512
 
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
@@ -407,9 +409,11 @@ typedef enum ELogicConditionType {
 #define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16 * 1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
-#define TSDB_MAX_FIELD_LEN             16384
-#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
-#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
+#define TSDB_MAX_FIELD_LEN             65519               // 16384:65519
+#define TSDB_MAX_BINARY_LEN            TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_NCHAR_LEN             TSDB_MAX_FIELD_LEN  // 16384-8:65519
+#define TSDB_MAX_GEOMETRY_LEN          TSDB_MAX_FIELD_LEN  // 16384-8:65519
+
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 

@@ -250,7 +250,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
       pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-      tqBuildDeleteReq(pVnode, stbFullName, pDataBlock, pDeleteReq);
+      tqBuildDeleteReq(stbFullName, pDataBlock, pDeleteReq, "");
       continue;
     }
 

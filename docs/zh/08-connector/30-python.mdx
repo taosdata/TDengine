@@ -362,7 +362,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ##### TaosConnection 类的使用
 
-`TaosConnection` 类既包含对 PEP249 Connection 接口的实现(如：`cursor`方法和 `close` 方法)，也包含很多扩展功能（如： `execute`、 `query`、`schemaless_insert` 和 `subscribe` 方法。
+类似上文介绍的使用方法，增加 `req_id` 参数。
 
 ```python title="execute 方法"
 {{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:insert}}
@@ -372,13 +372,9 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 {{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:query}}
 ```
 
-:::tip
-查询结果只能获取一次。比如上面的示例中 `fetch_all()` 和 `fetch_all_into_dict()` 只能用一个。重复获取得到的结果为空列表。
-:::
-
 ##### TaosResult 类的使用
 
-上面 `TaosConnection` 类的使用示例中，我们已经展示了两种获取查询结果的方法： `fetch_all()` 和 `fetch_all_into_dict()`。除此之外 `TaosResult` 还提供了按行迭代(`rows_iter`)或按数据块迭代(`blocks_iter`)结果集的方法。在查询数据量较大的场景，使用这两个方法会更高效。
+类似上文介绍的使用方法，增加 `req_id` 参数。
 
 ```python title="blocks_iter 方法"
 {{#include docs/examples/python/result_set_with_req_id_examples.py}}
@@ -391,13 +387,10 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 {{#include docs/examples/python/cursor_usage_native_reference_with_req_id.py}}
 ```
 
-:::note
-TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
-
-:::
-
 </TabItem>
 <TabItem value="rest" label="REST 连接">
+
+类似上文介绍的使用方法，增加 `req_id` 参数。
 
 #####  TaosRestCursor 类的使用
 
@@ -420,7 +413,10 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
 </TabItem>
+
 <TabItem value="websocket" label="WebSocket 连接">
+
+类似上文介绍的使用方法，增加 `req_id` 参数。
 
 ```python
 {{#include docs/examples/python/connect_websocket_with_req_id_examples.py:basic}}
@@ -479,6 +475,56 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py}}
+```
+
+</TabItem>
+</Tabs>
+
+### 无模式写入
+
+连接器支持无模式写入功能。
+
+<Tabs defaultValue="list">
+<TabItem value="list" label="List 写入">
+
+简单写入
+
+```python
+{{#include docs/examples/python/schemaless_insert.py}}
+```
+
+带有 ttl 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_ttl.py}}
+```
+
+带有 req_id 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_req_id.py}}
+```
+
+</TabItem>
+
+<TabItem value="raw" label="Raw 写入">
+
+简单写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw.py}}
+```
+
+带有 ttl 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
+```
+
+带有 req_id 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
 ```
 
 </TabItem>

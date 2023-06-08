@@ -178,6 +178,7 @@ int32_t getJsonValueLen(const char* data);
 
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
+int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx, const char* pData);
 int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows, bool trimValue);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int32_t* capacity,
                         const SColumnInfoData* pSource, int32_t numOfRow2);
@@ -215,7 +216,7 @@ void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void blockDataCleanup(SSDataBlock* pDataBlock);
 void blockDataEmpty(SSDataBlock* pDataBlock);
 
-size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
+size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize);
 
 int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
 int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);

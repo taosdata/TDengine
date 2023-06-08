@@ -125,6 +125,7 @@ static int32_t getStatus(SDataDispatchHandle* pDispatcher) {
 }
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
+  int32_t              code = 0;
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM, 0);
   if (NULL == pBuf) {
@@ -137,7 +138,10 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   }
 
   toDataCacheEntry(pDispatcher, pInput, pBuf);
-  taosWriteQitem(pDispatcher->pDataBlocks, pBuf);
+  code = taosWriteQitem(pDispatcher->pDataBlocks, pBuf);
+  if (code != 0) {
+    return code;
+  }
 
   int32_t status = updateStatus(pDispatcher);
   *pContinue = (status == DS_BUF_LOW || status == DS_BUF_EMPTY);
@@ -193,9 +197,6 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->numOfRows = pEntry->numOfRows;
   pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
-
-  //  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
-  //  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 
   atomic_sub_fetch_64(&pDispatcher->cachedSize, pEntry->dataLen);
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);

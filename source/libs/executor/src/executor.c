@@ -14,6 +14,8 @@
  */
 
 #include "executor.h"
+#include <libs/transport/trpc.h>
+#include <libs/wal/wal.h>
 #include "executorInt.h"
 #include "operator.h"
 #include "planner.h"
@@ -21,7 +23,8 @@
 #include "tdatablock.h"
 #include "tref.h"
 #include "tudf.h"
-#include "vnode.h"
+
+#include "storageapi.h"
 
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             exchangeObjRefPool = -1;
@@ -112,7 +115,7 @@ void resetTaskInfo(qTaskInfo_t tinfo) {
   clearStreamBlock(pTaskInfo->pRoot);
 }
 
-static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
+static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, const char* id) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
@@ -129,7 +132,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-    qDebug("s-task set source blocks:%d %s", (int32_t)numOfBlocks, id);
+
+    qDebug("s-task:%s in this batch, all %d blocks need to be processed and dump results", id, (int32_t)numOfBlocks);
     ASSERT(pInfo->validBlockIndex == 0 && taosArrayGetSize(pInfo->pBlockLists) == 0);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
@@ -137,6 +141,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
         taosArrayPush(pInfo->pBlockLists, pReq);
       }
+
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
       taosArrayPush(pInfo->pBlockLists, input);
@@ -144,11 +149,10 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        SPackedData  tmp = {
-             .pDataBlock = pDataBlock,
-        };
+        SPackedData  tmp = { .pDataBlock = pDataBlock };
         taosArrayPush(pInfo->pBlockLists, &tmp);
       }
+
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {
       ASSERT(0);
@@ -158,16 +162,18 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
-void doSetTaskId(SOperatorInfo* pOperator) {
+void doSetTaskId(SOperatorInfo* pOperator, SStorageAPI *pAPI) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pStreamScanInfo = pOperator->info;
-    STableScanInfo*  pScanInfo = pStreamScanInfo->pTableScanOp->info;
-    if (pScanInfo->base.dataReader != NULL) {
-      tsdbReaderSetId(pScanInfo->base.dataReader, pTaskInfo->id.str);
+    if (pStreamScanInfo->pTableScanOp != NULL) {
+      STableScanInfo* pScanInfo = pStreamScanInfo->pTableScanOp->info;
+      if (pScanInfo->base.dataReader != NULL) {
+        pAPI->tsdReader.tsdSetReaderTaskId(pScanInfo->base.dataReader, pTaskInfo->id.str);
+      }
     }
   } else {
-    doSetTaskId(pOperator->pDownstream[0]);
+    doSetTaskId(pOperator->pDownstream[0], pAPI);
   }
 }
 
@@ -177,8 +183,13 @@ void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   buildTaskId(taskId, queryId, pTaskInfo->id.str);
 
   // set the idstr for tsdbReader
-  doSetTaskId(pTaskInfo->pRoot);
+  doSetTaskId(pTaskInfo->pRoot, &pTaskInfo->storageAPI);
 }
+
+//void qSetTaskCode(qTaskInfo_t tinfo, int32_t code) {
+//  SExecTaskInfo* pTaskInfo = tinfo;
+//  pTaskInfo->code = code;
+//}
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   if (tinfo == NULL) {
@@ -249,7 +260,7 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
                                      uint64_t id) {
   if (msg == NULL) {  // create raw scan
-    SExecTaskInfo* pTaskInfo = doCreateTask(0, id, vgId, OPTR_EXEC_MODEL_QUEUE);
+    SExecTaskInfo* pTaskInfo = doCreateTask(0, id, vgId, OPTR_EXEC_MODEL_QUEUE, &pReaderHandle->api);
     if (NULL == pTaskInfo) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
@@ -261,6 +272,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
       return NULL;
     }
 
+    pTaskInfo->storageAPI = pReaderHandle->api;
     qDebug("create raw scan task info completed, vgId:%d, %s", vgId, GET_TASKID(pTaskInfo));
     return pTaskInfo;
   }
@@ -320,7 +332,8 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
   return pTaskInfo;
 }
 
-static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr) {
+static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr,
+    SStorageAPI* pAPI) {
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
   int32_t numOfUids = taosArrayGetSize(tableIdList);
   if (numOfUids == 0) {
@@ -336,11 +349,11 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
+  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, 0, &pAPI->metaFn);
   for (int32_t i = 0; i < numOfUids; ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
 
-    int32_t code = metaGetTableEntryByUid(&mr, *id);
+    int32_t code = pAPI->metaReaderFn.getTableEntryByUid(&mr, *id);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table meta, uid:%" PRIu64 " code:%s, %s", *id, tstrerror(terrno), idstr);
       continue;
@@ -368,7 +381,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     if (pScanInfo->pTagCond != NULL) {
       bool          qualified = false;
       STableKeyInfo info = {.groupId = 0, .uid = mr.me.uid};
-      code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.meta, &qualified);
+      code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
         continue;
@@ -383,7 +396,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     taosArrayPush(qa, id);
   }
 
-  metaReaderClear(&mr);
+  pAPI->metaReaderFn.clearReader(&mr);
   return qa;
 }
 
@@ -393,7 +406,7 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   int32_t        code = 0;
 
   if (isAdd) {
-    qDebug("add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), id);
+    qDebug("try to add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), id);
   }
 
   // traverse to the stream scanner node to add this table id
@@ -401,10 +414,10 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   SStreamScanInfo* pScanInfo = pInfo->info;
 
   if (isAdd) {  // add new table id
-    SArray* qa = filterUnqualifiedTables(pScanInfo, tableIdList, id);
+    SArray* qa = filterUnqualifiedTables(pScanInfo, tableIdList, id, &pTaskInfo->storageAPI);
     int32_t numOfQualifiedTables = taosArrayGetSize(qa);
     qDebug("%d qualified child tables added into stream scanner, %s", numOfQualifiedTables, id);
-    code = tqReaderAddTbUidList(pScanInfo->tqReader, qa);
+    code = pTaskInfo->storageAPI.tqReaderFn.tqReaderAddTables(pScanInfo->tqReader, qa);
     if (code != TSDB_CODE_SUCCESS) {
       taosArrayDestroy(qa);
       return code;
@@ -433,8 +446,8 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
         if (assignUid) {
           keyInfo.groupId = keyInfo.uid;
         } else {
-          code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
-                                       &keyInfo.groupId);
+          code = getGroupIdFromTagsVal(pScanInfo->readHandle.vnode, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
+                                       &keyInfo.groupId, &pTaskInfo->storageAPI);
           if (code != TSDB_CODE_SUCCESS) {
             taosMemoryFree(keyBuf);
             taosArrayDestroy(qa);
@@ -456,7 +469,7 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   } else {  // remove the table id in current list
     qDebug("%d remove child tables from the stream scanner, %s", (int32_t)taosArrayGetSize(tableIdList), id);
     taosWLockLatch(&pTaskInfo->lock);
-    code = tqReaderRemoveTbUidList(pScanInfo->tqReader, tableIdList);
+    code = pTaskInfo->storageAPI.tqReaderFn.tqReaderRemoveTables(pScanInfo->tqReader, tableIdList);
     taosWUnLockLatch(&pTaskInfo->lock);
   }
 
@@ -502,7 +515,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   }
 
   SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50};
-  code = dsDataSinkMgtInit(&cfg);
+  code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
     goto _error;
@@ -1058,16 +1071,10 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
   pOperator->status = OP_NOT_OPENED;
 }
 
-void verifyOffset(void *pWalReader, STqOffsetVal* pOffset){
-  // if offset version is small than first version , let's seek to first version
-  int64_t firstVer = walGetFirstVer(((SWalReader*)pWalReader)->pWal);
-  if (pOffset->version + 1 < firstVer){
-    pOffset->version = firstVer - 1;
-  }
-}
-
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   const char*    id = GET_TASKID(pTaskInfo);
 
@@ -1089,12 +1096,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
     if (pOffset->type == TMQ_OFFSET__LOG) {
       // todo refactor: move away
-      tsdbReaderClose(pScanBaseInfo->dataReader);
+      pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
-      verifyOffset(pInfo->tqReader->pWalReader, pOffset);
-      if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, id) < 0) {
-        qError("tqSeekVer failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
+      SStoreTqReader* pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
+      SWalReader* pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
+      walReaderVerifyOffset(pWalReader, pOffset);
+      if (pReaderAPI->tqReaderSeek(pInfo->tqReader, pOffset->version + 1, id) < 0) {
+        qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
         return -1;
       }
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
@@ -1149,8 +1158,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pScanInfo->scanTimes = 0;
 
       if (pScanBaseInfo->dataReader == NULL) {
-        int32_t code = tsdbReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1,
-                                      pScanInfo->pResBlock, &pScanBaseInfo->dataReader, id, false);
+        int32_t code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1,
+                                      pScanInfo->pResBlock, (void**) &pScanBaseInfo->dataReader, id, false, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           qError("prepare read tsdb snapshot failed, uid:%" PRId64 ", code:%s %s", pOffset->uid, tstrerror(code), id);
           terrno = code;
@@ -1160,8 +1169,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         qDebug("tsdb reader created with offset(snapshot) uid:%" PRId64 " ts:%" PRId64 " table index:%d, total:%d, %s",
                uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       } else {
-        tsdbSetTableList(pScanBaseInfo->dataReader, &keyInfo, 1);
-        tsdbReaderReset(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
+        pTaskInfo->storageAPI.tsdReader.tsdSetQueryTableList(pScanBaseInfo->dataReader, &keyInfo, 1);
+        pTaskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
         qDebug("tsdb reader offset seek snapshot to uid:%" PRId64 " ts %" PRId64 "  table index:%d numOfTable:%d, %s",
                uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       }
@@ -1183,14 +1192,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       SOperatorInfo*  p = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, id);
       STableListInfo* pTableListInfo = ((SStreamRawScanInfo*)(p->info))->pTableListInfo;
 
-      if (setForSnapShot(sContext, pOffset->uid) != 0) {
+      if (pAPI->snapshotFn.createSnapshot(sContext, pOffset->uid) != 0) {
         qError("setDataForSnapShot error. uid:%" PRId64 " , %s", pOffset->uid, id);
         terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
         return -1;
       }
 
-      SMetaTableInfo mtInfo = getUidfromSnapShot(sContext);
-      tsdbReaderClose(pInfo->dataReader);
+      SMetaTableInfo mtInfo = pTaskInfo->storageAPI.snapshotFn.getMetaTableInfoFromSnapshot(sContext);
+      pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pInfo->dataReader);
       pInfo->dataReader = NULL;
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
@@ -1208,8 +1217,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
       int32_t        size = tableListGetSize(pTableListInfo);
 
-      tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, &pInfo->dataReader, NULL,
-                     false);
+      pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, (void**) &pInfo->dataReader, NULL,
+                     false, NULL);
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
       strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
@@ -1220,7 +1229,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
       SStreamRawScanInfo* pInfo = pOperator->info;
       SSnapContext*       sContext = pInfo->sContext;
-      if (setForSnapShot(sContext, pOffset->uid) != 0) {
+      if (pTaskInfo->storageAPI.snapshotFn.createSnapshot(sContext, pOffset->uid) != 0) {
         qError("setForSnapShot error. uid:%" PRIu64 " ,version:%" PRId64, pOffset->uid, pOffset->version);
         terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
         return -1;
@@ -1229,7 +1238,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
              id);
     } else if (pOffset->type == TMQ_OFFSET__LOG) {
       SStreamRawScanInfo* pInfo = pOperator->info;
-      tsdbReaderClose(pInfo->dataReader);
+      pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pInfo->dataReader);
       pInfo->dataReader = NULL;
       qDebug("tmqsnap qStreamPrepareScan snapshot log, %s", id);
     }

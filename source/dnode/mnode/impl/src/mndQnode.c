@@ -180,7 +180,7 @@ static int32_t mndSetCreateQnodeUndoLogs(STrans *pTrans, SQnodeObj *pObj) {
   return 0;
 }
 
-static int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
+int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
   SSdbRaw *pCommitRaw = mndQnodeActionEncode(pObj);
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
@@ -188,7 +188,11 @@ static int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
   return 0;
 }
 
-static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj) {
+bool mndQnodeInDnode(SQnodeObj *pQnode, int32_t dnodeId) { 
+  return pQnode->pDnode->id == dnodeId;
+}
+
+int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj) {
   SDCreateQnodeReq createReq = {0};
   createReq.dnodeId = pDnode->id;
 

@@ -157,7 +157,8 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY: {
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       int32_t len = pSrc->node.resType.bytes + 1;
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
@@ -401,6 +402,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(joinType);
   CLONE_NODE_FIELD(pMergeCondition);
   CLONE_NODE_FIELD(pOnConditions);
+  CLONE_NODE_FIELD(pColEqualOnConditions);
   COPY_SCALAR_FIELD(isSingleTableJoin);
   COPY_SCALAR_FIELD(inputTsOrder);
   return TSDB_CODE_SUCCESS;
@@ -455,6 +457,7 @@ static int32_t logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst
   COPY_SCALAR_FIELD(numOfChannels);
   COPY_SCALAR_FIELD(srcGroupId);
   COPY_SCALAR_FIELD(groupSort);
+  COPY_SCALAR_FIELD(ignoreGroupId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -587,7 +590,7 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t physiWindowCopy(const SWinodwPhysiNode* pSrc, SWinodwPhysiNode* pDst) {
+static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pFuncs);

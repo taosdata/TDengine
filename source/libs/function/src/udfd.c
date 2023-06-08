@@ -54,16 +54,15 @@ int32_t udfdCPluginOpen(SScriptUdfEnvItem *items, int numItems) { return 0; }
 int32_t udfdCPluginClose() { return 0; }
 
 const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
-  char  initFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
+  char  initFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
   char *initSuffix = "_init";
-  strcpy(initFuncName, udfName);
-  strncat(initFuncName, initSuffix, strlen(initSuffix));
+  snprintf(initFuncName, sizeof(initFuncName), "%s%s", udfName, initSuffix);
   uv_dlsym(&udfCtx->lib, initFuncName, (void **)(&udfCtx->initFunc));
 
-  char  destroyFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
+  char  destroyFuncName[TSDB_FUNC_NAME_LEN + 9] = {0};
   char *destroySuffix = "_destroy";
   strcpy(destroyFuncName, udfName);
-  strncat(destroyFuncName, destroySuffix, strlen(destroySuffix));
+  snprintf(destroyFuncName, sizeof(destroyFuncName), "%s%s", udfName, destroySuffix);
   uv_dlsym(&udfCtx->lib, destroyFuncName, (void **)(&udfCtx->destroyFunc));
   return udfName;
 }
@@ -73,22 +72,19 @@ void udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfName)
   strcpy(processFuncName, udfName);
   uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc));
 
-  char  startFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+  char  startFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
   char *startSuffix = "_start";
-  strncpy(startFuncName, processFuncName, sizeof(startFuncName));
-  strncat(startFuncName, startSuffix, strlen(startSuffix));
+  snprintf(startFuncName, sizeof(startFuncName), "%s%s", processFuncName, startSuffix);
   uv_dlsym(&udfCtx->lib, startFuncName, (void **)(&udfCtx->aggStartFunc));
 
-  char  finishFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
+  char  finishFuncName[TSDB_FUNC_NAME_LEN + 8] = {0};
   char *finishSuffix = "_finish";
-  strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
-  strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
+  snprintf(finishFuncName, sizeof(finishFuncName), "%s%s", processFuncName, finishSuffix);
   uv_dlsym(&udfCtx->lib, finishFuncName, (void **)(&udfCtx->aggFinishFunc));
 
-  char  mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+  char  mergeFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
   char *mergeSuffix = "_merge";
-  strncpy(mergeFuncName, processFuncName, sizeof(mergeFuncName));
-  strncat(mergeFuncName, mergeSuffix, strlen(mergeSuffix));
+  snprintf(mergeFuncName, sizeof(mergeFuncName), "%s%s", processFuncName, mergeSuffix);
   uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
 }
 
@@ -591,7 +587,7 @@ SUdf *udfdNewUdf(const char *udfName) {
 SUdf *udfdGetOrCreateUdf(const char *udfName) {
   uv_mutex_lock(&global.udfsMutex);
   SUdf  **pUdfHash = taosHashGet(global.udfsHash, udfName, strlen(udfName));
-  int64_t currTime = taosGetTimestampSec();
+  int64_t currTime = taosGetTimestampMs();
   bool    expired = false;
   if (pUdfHash) {
     expired = currTime - (*pUdfHash)->lastFetchTime > 10 * 1000;  // 10s
@@ -604,9 +600,9 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
       return udf;
     } else {
       (*pUdfHash)->expired = true;
-      taosHashRemove(global.udfsHash, udfName, strlen(udfName));
       fnInfo("udfd expired, check for new version. existing udf %s udf version %d, udf created time %" PRIx64,
              (*pUdfHash)->name, (*pUdfHash)->version, (*pUdfHash)->createdTime);
+      taosHashRemove(global.udfsHash, udfName, strlen(udfName));
     }
   }
 
@@ -688,6 +684,8 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       output.colMeta.type = udf->outputType;
       output.colMeta.precision = 0;
       output.colMeta.scale = 0;
+      udfColEnsureCapacity(&output, call->block.info.rows);
+
       SUdfDataBlock input = {0};
       convertDataBlockToUdfDataBlock(&call->block, &input);
       code = udf->scriptPlugin->udfScalarProcFunc(&input, &output, udf->scriptUdfCtx);
@@ -842,7 +840,7 @@ void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
 
 int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   if (!osDataSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
+    terrno = TSDB_CODE_NO_DISKSPACE;
     fnError("udfd create shared library failed since %s", terrstr(terrno));
     return terrno;
   }

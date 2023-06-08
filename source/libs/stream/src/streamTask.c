@@ -17,23 +17,35 @@
 #include "tstream.h"
 #include "wal.h"
 
-SStreamTask* tNewStreamTask(int64_t streamId) {
+static int32_t mndAddToTaskset(SArray* pArray, SStreamTask* pTask) {
+  int32_t childId = taosArrayGetSize(pArray);
+  pTask->selfChildId = childId;
+  taosArrayPush(pArray, &pTask);
+  return 0;
+}
+
+SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, int8_t fillHistory, int64_t triggerParam, SArray* pTaskList) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   pTask->id.taskId = tGenIdPI32();
   pTask->id.streamId = streamId;
+  pTask->taskLevel = taskLevel;
+  pTask->fillHistory = fillHistory;
+  pTask->triggerParam = triggerParam;
 
   char buf[128] = {0};
-  sprintf(buf, "0x%"PRIx64"-%d", pTask->id.streamId, pTask->id.taskId);
+  sprintf(buf, "0x%" PRIx64 "-%d", pTask->id.streamId, pTask->id.taskId);
 
   pTask->id.idStr = taosStrdup(buf);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
 
+  mndAddToTaskset(pTaskList, pTask);
   return pTask;
 }
 
@@ -171,7 +183,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
 void tFreeStreamTask(SStreamTask* pTask) {
   qDebug("free s-task:%s", pTask->id.idStr);
-
+  int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
   if (pTask->inputQueue) {
     streamQueueClose(pTask->inputQueue);
   }
@@ -195,6 +207,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
     tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);
+    tSimpleHashCleanup(pTask->tbSink.pTblInfo);
   }
 
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -204,10 +217,10 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   if (pTask->pState) {
-    streamStateClose(pTask->pState);
+    streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
   }
 
-  if (pTask->id.idStr != NULL)  {
+  if (pTask->id.idStr != NULL) {
     taosMemoryFree((void*)pTask->id.idStr);
   }
 

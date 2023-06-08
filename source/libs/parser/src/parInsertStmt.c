@@ -128,7 +128,8 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       //      strcpy(val.colName, pTagSchema->name);
-      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
+      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY ||
+          pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -266,7 +267,10 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
       pBind = bind + c;
     }
 
-    tColDataAddValueByBind(pCol, pBind);
+    code = tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE: -1);
+    if (code) {
+      goto _return;
+    }
   }
 
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
@@ -309,7 +313,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
     pBind = bind;
   }
 
-  tColDataAddValueByBind(pCol, pBind);
+  tColDataAddValueByBind(pCol, pBind, IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE: -1);
 
   qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 

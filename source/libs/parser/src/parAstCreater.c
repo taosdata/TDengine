@@ -259,8 +259,19 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       strcpy(pExpr->userAlias, ((SColumnNode*)pExpr)->colName);
     } else {
       int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
-      strncpy(pExpr->aliasName, pRawExpr->p, len);
-      pExpr->aliasName[len] = '\0';
+
+      // See TS-3398.
+      // Len of pRawExpr->p could be larger than len of aliasName[TSDB_COL_NAME_LEN].
+      // If aliasName is truncated, hash value of aliasName could be the same.
+      T_MD5_CTX ctx;
+      tMD5Init(&ctx);
+      tMD5Update(&ctx, (uint8_t*)pRawExpr->p, pRawExpr->n);
+      tMD5Final(&ctx);
+      char* p = pExpr->aliasName;
+      for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
+        sprintf(p, "%02x", ctx.digest[i]);
+        p += 2;
+      }
       strncpy(pExpr->userAlias, pRawExpr->p, len);
       pExpr->userAlias[len] = '\0';
     }
@@ -498,7 +509,7 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_OUT_OF_MEM(func);
   strcpy(func->functionName, "cast");
   func->node.resType = dt;
-  if (TSDB_DATA_TYPE_VARCHAR == dt.type) {
+  if (TSDB_DATA_TYPE_VARCHAR == dt.type || TSDB_DATA_TYPE_GEOMETRY == dt.type) {
     func->node.resType.bytes = func->node.resType.bytes + VARSTR_HEADER_SIZE;
   } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
     func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
@@ -822,16 +833,9 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
 
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable) {
   CHECK_PARSER_STATUS(pCxt);
-  SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
+  SNode* select = createSelectStmtImpl(isDistinct, pProjectionList, pTable);
   CHECK_OUT_OF_MEM(select);
-  select->isDistinct = isDistinct;
-  select->pProjectionList = pProjectionList;
-  select->pFromTable = pTable;
-  sprintf(select->stmtName, "%p", select);
-  select->isTimeLineResult = true;
-  select->onlyHasKeepOrderFunc = true;
-  select->timeRange = TSWINDOW_INITIALIZER;
-  return (SNode*)select;
+  return select;  
 }
 
 static void setSubquery(SNode* pStmt) {
@@ -1025,23 +1029,23 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       pDbOptions->sstTrigger = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_TABLE_PREFIX: {
-      SValueNode *pNode = (SValueNode *)pVal;
+      SValueNode* pNode = (SValueNode*)pVal;
       if (TSDB_DATA_TYPE_BIGINT == pNode->node.resType.type || TSDB_DATA_TYPE_UBIGINT == pNode->node.resType.type) {
         pDbOptions->tablePrefix = taosStr2Int32(pNode->literal, NULL, 10);
       } else {
         snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table_prefix data type");
-        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;        
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
       }
       nodesDestroyNode((SNode*)pNode);
       break;
     }
-    case DB_OPTION_TABLE_SUFFIX:{
-      SValueNode *pNode = (SValueNode *)pVal;
+    case DB_OPTION_TABLE_SUFFIX: {
+      SValueNode* pNode = (SValueNode*)pVal;
       if (TSDB_DATA_TYPE_BIGINT == pNode->node.resType.type || TSDB_DATA_TYPE_UBIGINT == pNode->node.resType.type) {
         pDbOptions->tableSuffix = taosStr2Int32(pNode->literal, NULL, 10);
       } else {
         snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid table_suffix data type");
-        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;        
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
       }
       nodesDestroyNode((SNode*)pNode);
       break;
@@ -1224,7 +1228,7 @@ SDataType createDataType(uint8_t type) {
 }
 
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
-  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = taosStr2Int16(pLen->z, NULL, 10)};
+  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = taosStr2Int32(pLen->z, NULL, 10)};
   return dt;
 }
 
@@ -1576,7 +1580,7 @@ SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const
   return (SNode*)pStmt;
 }
 
-SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool force) {
+SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool force, bool unsafe) {
   CHECK_PARSER_STATUS(pCxt);
   SDropDnodeStmt* pStmt = (SDropDnodeStmt*)nodesMakeNode(QUERY_NODE_DROP_DNODE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
@@ -1589,6 +1593,7 @@ SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool f
     }
   }
   pStmt->force = force;
+  pStmt->unsafe = unsafe;
   return (SNode*)pStmt;
 }
 
@@ -1674,6 +1679,14 @@ SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, cons
   return (SNode*)pStmt;
 }
 
+SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRestoreComponentNodeStmt* pStmt = (SRestoreComponentNodeStmt*)nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  return (SNode*)pStmt;
+}
+
 SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTopicName(pCxt, pTopicName)) {
@@ -1703,7 +1716,7 @@ SNode* createCreateTopicStmtUseDb(SAstCreateContext* pCxt, bool ignoreExists, ST
 }
 
 SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pRealTable,
-                                     bool withMeta) {
+                                     bool withMeta, SNode* pWhere) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTopicName(pCxt, pTopicName)) {
     return NULL;
@@ -1713,6 +1726,8 @@ SNode* createCreateTopicStmtUseTable(SAstCreateContext* pCxt, bool ignoreExists,
   COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   pStmt->ignoreExists = ignoreExists;
   pStmt->withMeta = withMeta;
+  pStmt->pWhere = pWhere;
+
   strcpy(pStmt->subDbName, ((SRealTableNode*)pRealTable)->table.dbName);
   strcpy(pStmt->subSTbName, ((SRealTableNode*)pRealTable)->table.tableName);
   nodesDestroyNode(pRealTable);
@@ -1944,6 +1959,32 @@ SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToke
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
   pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+}
+
+SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkStreamName(pCxt, pStreamName)) {
+    return NULL;
+  }
+  SPauseStreamStmt* pStmt = (SPauseStreamStmt*)nodesMakeNode(QUERY_NODE_PAUSE_STREAM_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+}
+
+SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, bool ignoreUntreated,
+                              SToken* pStreamName) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkStreamName(pCxt, pStreamName)) {
+    return NULL;
+  }
+  SResumeStreamStmt* pStmt = (SResumeStreamStmt*)nodesMakeNode(QUERY_NODE_RESUME_STREAM_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  pStmt->ignoreUntreated = ignoreUntreated;
   return (SNode*)pStmt;
 }
 

@@ -690,7 +690,7 @@ _err:
   return -1;
 }
 
-int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **pMetaRsp) {
+int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRsp **pMetaRsp) {
   SMetaEntry  me = {0};
   SMetaReader mr = {0};
 
@@ -729,7 +729,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMe
   metaReaderClear(&mr);
 
   // build SMetaEntry
-  me.version = version;
+  me.version = ver;
   me.type = pReq->type;
   me.uid = pReq->uid;
   me.name = pReq->name;
@@ -767,6 +767,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMe
     metaWLock(pMeta);
     metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1);
     metaUidCacheClear(pMeta, me.ctbEntry.suid);
+    metaTbGroupCacheClear(pMeta, me.ctbEntry.suid);
     metaULock(pMeta);
   } else {
     me.ntbEntry.ctime = pReq->ctime;
@@ -998,6 +999,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
 
     metaUpdateStbStats(pMeta, e.ctbEntry.suid, -1);
     metaUidCacheClear(pMeta, e.ctbEntry.suid);
+    metaTbGroupCacheClear(pMeta, e.ctbEntry.suid);    
   } else if (e.type == TSDB_NORMAL_TABLE) {
     // drop schema.db (todo)
 
@@ -1009,6 +1011,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
 
     metaStatsCacheDrop(pMeta, uid);
     metaUidCacheClear(pMeta, uid);
+    metaTbGroupCacheClear(pMeta, uid);        
     --pMeta->pVnode->config.vndStats.numOfSTables;
   }
 
@@ -1429,6 +1432,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
               ((STag *)(ctbEntry.ctbEntry.pTags))->len, pMeta->txn);
 
   metaUidCacheClear(pMeta, ctbEntry.ctbEntry.suid);
+  metaTbGroupCacheClear(pMeta, ctbEntry.ctbEntry.suid);        
 
   metaULock(pMeta);
 

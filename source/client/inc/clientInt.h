@@ -63,6 +63,7 @@ typedef struct {
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
+  int32_t passKeyCnt;   // with passVer call back
   int64_t reportBytes;  // not implemented
   int64_t startTime;
   // ctl
@@ -126,6 +127,12 @@ typedef struct SAppInfo {
   TdThreadMutex mutex;
 } SAppInfo;
 
+typedef struct {
+  int32_t            ver;
+  void*              param;
+  __taos_notify_fn_t fp;
+} SPassInfo;
+
 typedef struct STscObj {
   char          user[TSDB_USER_LEN];
   char          pass[TSDB_PASSWORD_LEN];
@@ -141,6 +148,7 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
+  SPassInfo     passInfo;
 } STscObj;
 
 typedef struct STscDbg {
@@ -354,7 +362,7 @@ void       stopAllRequests(SHashObj* pRequests);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
-void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
+void hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
 
 typedef struct SSqlCallbackWrapper {
   SParseContext* pParseCtx;

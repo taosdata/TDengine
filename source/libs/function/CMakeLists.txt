@@ -32,8 +32,8 @@ target_link_libraries(
     PRIVATE nodes 
     PRIVATE qcom 
     PRIVATE scalar 
+    PRIVATE geometry 
     PRIVATE transport 
-    PRIVATE stream ${LINK_JEMALLOC}
     PUBLIC uv_a
 )
 

@@ -795,13 +795,18 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     return -1;
   }
 
-  if (pMsg->term > raftStoreGetTerm(pSyncNode)) {
-    syncNodeStepDown(pSyncNode, pMsg->term);
+  if(pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER){
+    if (pMsg->term > raftStoreGetTerm(pSyncNode)) {
+      syncNodeStepDown(pSyncNode, pMsg->term);
+    }
+  }
+  else{
+    syncNodeUpdateTermWithoutStepDown(pSyncNode, pMsg->term);
   }
 
   // state, term, seq/ack
   int32_t code = 0;
-  if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
+  if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER || pSyncNode->state == TAOS_SYNC_STATE_LEARNER) {
     if (pMsg->term == raftStoreGetTerm(pSyncNode)) {
       if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT) {
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq pre-snapshot");

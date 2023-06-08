@@ -112,6 +112,7 @@ typedef struct SJoinLogicNode {
   SNode*     pOnConditions;
   bool       isSingleTableJoin;
   EOrder     inputTsOrder;
+  SNode*     pColEqualOnConditions;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -185,6 +186,7 @@ typedef struct SMergeLogicNode {
   int32_t    numOfChannels;
   int32_t    srcGroupId;
   bool       groupSort;
+  bool       ignoreGroupId;
 } SMergeLogicNode;
 
 typedef enum EWindowType {
@@ -405,6 +407,7 @@ typedef struct SSortMergeJoinPhysiNode {
   SNode*     pOnConditions;
   SNodeList* pTargets;
   EOrder     inputTsOrder;
+  SNode*     pColEqualOnConditions;
 } SSortMergeJoinPhysiNode;
 
 typedef struct SAggPhysiNode {
@@ -444,9 +447,10 @@ typedef struct SMergePhysiNode {
   int32_t    numOfChannels;
   int32_t    srcGroupId;
   bool       groupSort;
+  bool       ignoreGroupId;
 } SMergePhysiNode;
 
-typedef struct SWinodwPhysiNode {
+typedef struct SWindowPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of parameter expression of function
   SNodeList* pFuncs;
@@ -459,10 +463,10 @@ typedef struct SWinodwPhysiNode {
   EOrder     inputTsOrder;
   EOrder     outputTsOrder;
   bool       mergeDataBlock;
-} SWinodwPhysiNode;
+} SWindowPhysiNode;
 
 typedef struct SIntervalPhysiNode {
-  SWinodwPhysiNode window;
+  SWindowPhysiNode window;
   int64_t          interval;
   int64_t          offset;
   int64_t          sliding;
@@ -495,7 +499,7 @@ typedef struct SMultiTableIntervalPhysiNode {
 } SMultiTableIntervalPhysiNode;
 
 typedef struct SSessionWinodwPhysiNode {
-  SWinodwPhysiNode window;
+  SWindowPhysiNode window;
   int64_t          gap;
 } SSessionWinodwPhysiNode;
 
@@ -504,14 +508,14 @@ typedef SSessionWinodwPhysiNode SStreamSemiSessionWinodwPhysiNode;
 typedef SSessionWinodwPhysiNode SStreamFinalSessionWinodwPhysiNode;
 
 typedef struct SStateWinodwPhysiNode {
-  SWinodwPhysiNode window;
+  SWindowPhysiNode window;
   SNode*           pStateKey;
 } SStateWinodwPhysiNode;
 
 typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
 
 typedef struct SEventWinodwPhysiNode {
-  SWinodwPhysiNode window;
+  SWindowPhysiNode window;
   SNode*           pStartCond;
   SNode*           pEndCond;
 } SEventWinodwPhysiNode;

@@ -37,6 +37,13 @@ extern "C" {
 )
 // clang-format on
 
+typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
+
+typedef struct STableKeyInfo {
+  uint64_t uid;
+  uint64_t groupId;
+} STableKeyInfo;
+
 typedef struct SWinKey {
   uint64_t groupId;
   TSKEY    ts;
@@ -82,7 +89,7 @@ typedef struct STuplePos {
       int32_t pageId;
       int32_t offset;
     };
-    STupleKey streamTupleKey;
+    SWinKey streamTupleKey;
   };
 } STuplePos;
 
@@ -128,6 +135,7 @@ enum {
   TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
   TMQ_MSG_TYPE__TAOSX_RSP,
+  TMQ_MSG_TYPE__WALINFO_RSP,
   TMQ_MSG_TYPE__END_RSP,
 };
 
@@ -207,11 +215,6 @@ typedef struct SSDataBlock {
   SDataBlockInfo   info;
 } SSDataBlock;
 
-enum {
-  FETCH_TYPE__DATA = 0,
-  FETCH_TYPE__NONE,
-};
-
 typedef struct SVarColAttr {
   int32_t* offset;    // start position for each entry in the list
   uint32_t length;    // used buffer size that contain the valid data
@@ -228,6 +231,7 @@ typedef struct SColumnInfoData {
   };
   SColumnInfo info;     // column info
   bool        hasNull;  // if current column data has null value.
+  bool        reassigned; // if current column data is reassigned.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
