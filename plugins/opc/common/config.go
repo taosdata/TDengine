@@ -74,13 +74,13 @@ type DaCollectConfig struct {
 }
 
 type NodeConfig struct {
-	ID        string `json:"id,omitempty" yaml:"id" toml:"id"` // namespace=?;identifierType=identifier, ns=2;i=2. node_id for ua
-	ValueType string `json:"value_type,omitempty" yaml:"value_type" toml:"value_type"`
+	ID string `json:"id,omitempty" yaml:"id" toml:"id"` // namespace=?;identifierType=identifier, ns=2;i=2. node_id for ua
+	//ValueType string `json:"value_type,omitempty" yaml:"value_type" toml:"value_type"`
 }
 
 type TagConfig struct {
-	Tag       string `json:"tag,omitempty" yaml:"tag" toml:"tag"` // tag for opcda
-	ValueType string `json:"value_type,omitempty" yaml:"value_type" toml:"value_type"`
+	Tag string `json:"tag,omitempty" yaml:"tag" toml:"tag"` // tag for opcda
+	//ValueType string `json:"value_type,omitempty" yaml:"value_type" toml:"value_type"`
 }
 
 type ReportConfig struct {
@@ -224,4 +224,5 @@ type NodeValue struct {
 type Point struct {
 	ID   string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
+	Type string `json:"type,omitempty"`
 }

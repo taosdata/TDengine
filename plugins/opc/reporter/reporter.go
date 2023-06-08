@@ -19,104 +19,67 @@ type Reporter interface {
 	Stop(ctx context.Context)
 }
 
-func NewOpcReporter(config common.Config) (Reporter, error) {
+func NewDataReporter(config common.Config) (Reporter, error) {
 	address, err := net.ResolveTCPAddr("tcp", config.Report.Remote)
 	if err != nil {
 		return nil, fmt.Errorf("create opc reporter error. %v", err)
 	}
-	valueTypes, err := parseValueType(config.Collect)
-	if err != nil {
-		return nil, fmt.Errorf("create opc reporter error. %v", err)
-	}
 
-	r := OpcReporter{
-		valueTypes:   valueTypes,
-		concurrent:   config.Report.Concurrent,
+	r := DataReporter{
+		debug:        config.Debug,
+		address:      address,
 		batchSize:    config.Report.BatchSize,
 		batchTimeout: time.Duration(config.Report.BatchTimeout) * time.Second,
-		address:      address,
-		channels:     make(map[common.ValueType]chan *common.NodeValue, len(valueTypes)),
-		debug:        config.Debug,
+		concurrent:   config.Report.Concurrent,
 	}
-
 	return &r, nil
 }
 
-type OpcReporter struct {
-	valueTypes   []common.ValueType
-	concurrent   int
-	batchSize    int
-	batchTimeout time.Duration
-	address      *net.TCPAddr
-	channels     map[common.ValueType]chan *common.NodeValue // value channel map. key - valueType, value - value channel
-	writers      []writer
-	once         sync.Once
-	wait         sync.WaitGroup
-	debug        bool
+type DataReporter struct {
+	debug         bool
+	address       *net.TCPAddr
+	batchSize     int
+	batchTimeout  time.Duration
+	concurrent    int
+	wait          sync.WaitGroup
+	once          sync.Once
+	valueChannels sync.Map // key - valueType, value - value channel
+	writers       []writer
 }
 
-var _ Reporter = (*OpcReporter)(nil)
-
-func (r *OpcReporter) Report(ctx context.Context, valueCh <-chan *common.NodeValue) error {
-	r.createValueChannel()
-	if err := r.createWriters(); err != nil {
-		return fmt.Errorf("create opc reporter error. %v", err)
-	}
-	r.startWriting(ctx)
-	r.readValue(valueCh)
-	logger.Debug("## opc reporter is done.")
-	return nil
-}
-
-func (r *OpcReporter) readValue(valueCh <-chan *common.NodeValue) {
+func (r *DataReporter) Report(ctx context.Context, ch <-chan *common.NodeValue) error {
 	defer func() {
 		logger.Debug("## read value is done.")
 
-		for _, ch := range r.channels {
+		r.valueChannels.Range(func(key, value any) bool {
+			ch := value.(chan *common.NodeValue)
 			close(ch)
-		}
+			return true
+		})
 	}()
 
-	for value := range valueCh {
-		r.channels[value.ValueType] <- value
-	}
-}
+	for value := range ch {
+		_valueCh, loaded := r.valueChannels.LoadOrStore(value.ValueType, make(chan *common.NodeValue, r.batchSize))
+		valueCh := _valueCh.(chan *common.NodeValue)
 
-func (r *OpcReporter) createValueChannel() {
-	for _, valueType := range r.valueTypes {
-		logger.Debug("## create value channel for ", "value type", valueType)
-		r.channels[valueType] = make(chan *common.NodeValue, r.batchSize)
-	}
-}
-
-func (r *OpcReporter) createWriters() error {
-	for _, valueType := range r.valueTypes {
-		logger.DebugF("## create %d writer for %s", r.concurrent, valueType)
-		for i := 0; i < r.concurrent; i++ {
-			w, err := r.createWriter(valueType)
+		// create writer when first time
+		if !loaded {
+			writers, err := r.createWriters(value.ValueType, valueCh)
 			if err != nil {
+				logger.ErrorF("## create writer error. %v", err)
 				return err
 			}
-			r.writers = append(r.writers, w)
+			r.writers = append(r.writers, writers...)
+			r.startWriters(ctx, writers)
 		}
+
+		valueCh <- value
 	}
 	return nil
 }
 
-func (r *OpcReporter) createWriter(valueType common.ValueType) (writer, error) {
-	schema, err := getSchema(valueType)
-	if err != nil {
-		return nil, fmt.Errorf("create writer error. %v", err)
-	}
-	f, err := getAppendFunc(valueType)
-	if err != nil {
-		return nil, fmt.Errorf("create writer error. %v", err)
-	}
-	return NewArrowWriter(r.address, r.debug, r.batchSize, r.batchTimeout, schema, f, r.channels[valueType])
-}
-
-func (r *OpcReporter) startWriting(ctx context.Context) {
-	for _, w := range r.writers {
+func (r *DataReporter) startWriters(ctx context.Context, writers []writer) {
+	for _, w := range writers {
 		r.wait.Add(1)
 		go func(w writer) {
 			defer r.wait.Done()
@@ -127,7 +90,31 @@ func (r *OpcReporter) startWriting(ctx context.Context) {
 	}
 }
 
-func (r *OpcReporter) Stop(ctx context.Context) {
+func (r *DataReporter) createWriters(valueType common.ValueType, ch chan *common.NodeValue) (writers []writer, err error) {
+	logger.DebugF("## create %d writer for %s", r.concurrent, valueType)
+	for i := 0; i < r.concurrent; i++ {
+		w, err := r.createWriter(valueType, ch)
+		if err != nil {
+			return nil, err
+		}
+		writers = append(writers, w)
+	}
+	return
+}
+
+func (r *DataReporter) createWriter(valueType common.ValueType, ch chan *common.NodeValue) (writer, error) {
+	schema, err := getSchema(valueType)
+	if err != nil {
+		return nil, fmt.Errorf("create writer error. %v", err)
+	}
+	f, err := getAppendFunc(valueType)
+	if err != nil {
+		return nil, fmt.Errorf("create writer error. %v", err)
+	}
+	return NewArrowWriter(r.address, r.debug, r.batchSize, r.batchTimeout, schema, f, ch)
+}
+
+func (r *DataReporter) Stop(ctx context.Context) {
 	r.once.Do(func() {
 		defer r.wait.Wait()
 
@@ -175,30 +162,6 @@ func packData(values []*common.NodeValue, schema *arrow.Schema, valueFunc append
 	}
 
 	return recordBuilder.NewRecord(), nil
-}
-
-func parseValueType(config common.CollectConfig) (valueTypes []common.ValueType, err error) {
-	valueTypeMap := make(map[common.ValueType]struct{}, len(config.Ua.Nodes)+len(config.Da.Tags))
-	for _, node := range config.Ua.Nodes {
-		vt, err := common.ValueTypeFromString(node.ValueType)
-		if err != nil {
-			return nil, err
-		}
-		valueTypeMap[vt] = struct{}{}
-	}
-	for _, tag := range config.Da.Tags {
-		vt, err := common.ValueTypeFromString(tag.ValueType)
-		if err != nil {
-			return nil, err
-		}
-		valueTypeMap[vt] = struct{}{}
-	}
-
-	for vt := range valueTypeMap {
-		valueTypes = append(valueTypes, vt)
-	}
-
-	return
 }
 
 var meta = arrow.MetadataFrom(map[string]string{
