@@ -361,11 +361,13 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
 
     SStateKey sKey = {.key = *((SWinKey*)pPos->pKey), .opNum = ((SStreamState*)pFileState->pFileStore)->number};
     code = streamStatePutBatch(pFileState->pFileStore, "state", batch, &sKey, pPos->pRowBuff, pFileState->rowSize, 0);
-    qDebug("===stream===put %" PRId64 " to disc, res %d", sKey.key.ts, code);
+    qDebug("===stream===put %" PRId64 " to disc, code:%d, size:%d", sKey.key.ts, code, pFileState->rowSize);
   }
+
   if (streamStateGetBatchSize(batch) > 0) {
     code = streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
+
   streamStateClearBatch(batch);
 
   if (flushState) {
