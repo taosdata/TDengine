@@ -1385,18 +1385,7 @@ static SNode* smaIndexOptFindWStartFunc(SNodeList* pSmaFuncs) {
   return NULL;
 }
 
-static SNode* smaIndexOptFuncInProject(SNodeList* pProjects, SFunctionNode* pFunc) {
-  SNode* pProject = NULL;
-  FOREACH(pProject, pProjects) {
-    if (0 != pFunc->node.aliasName[0] &&
-        0 == strncmp(pFunc->node.aliasName, ((SColumnNode*)pProject)->colName, TSDB_COL_NAME_LEN)) {
-      return pProject;
-    }
-  }
-  return NULL;
-}
-
-static int32_t smaIndexOptCreateSmaCols(SWindowLogicNode* pWindow, uint64_t tableId, SNodeList* pSmaFuncs,
+static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNodeList* pSmaFuncs,
                                         SNodeList** pOutput) {
   SNodeList* pCols = NULL;
   SNode*     pFunc = NULL;
@@ -1404,16 +1393,11 @@ static int32_t smaIndexOptCreateSmaCols(SWindowLogicNode* pWindow, uint64_t tabl
   int32_t    index = 0;
   int32_t    smaFuncIndex = -1;
   bool       hasWStart = false;
-
-  SProjectLogicNode* pProject = (SProjectLogicNode*)pWindow->node.pParent;
-  FOREACH(pFunc, pWindow->pFuncs) {
+  FOREACH(pFunc, pFuncs) {
     smaFuncIndex = smaIndexOptFindSmaFunc(pFunc, pSmaFuncs);
     if (smaFuncIndex < 0) {
       break;
     } else {
-      if (pProject && !smaIndexOptFuncInProject(pProject->pProjections, (SFunctionNode*)pFunc)) {
-        continue;
-      }
       code = nodesListMakeStrictAppend(&pCols, smaIndexOptCreateSmaCol(pFunc, tableId, smaFuncIndex + 1));
       if (TSDB_CODE_SUCCESS != code) {
         break;
@@ -1460,11 +1444,10 @@ static int32_t smaIndexOptCouldApplyIndex(SScanLogicNode* pScan, STableIndexInfo
   if (!smaIndexOptEqualInterval(pScan, pWindow, pIndex)) {
     return TSDB_CODE_SUCCESS;
   }
-
   SNodeList* pSmaFuncs = NULL;
   int32_t    code = nodesStringToList(pIndex->expr, &pSmaFuncs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = smaIndexOptCreateSmaCols(pWindow, pIndex->dstTbUid, pSmaFuncs, pCols);
+    code = smaIndexOptCreateSmaCols(pWindow->pFuncs, pIndex->dstTbUid, pSmaFuncs, pCols);
   }
   nodesDestroyList(pSmaFuncs);
   return code;
