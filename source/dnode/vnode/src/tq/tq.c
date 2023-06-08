@@ -1045,12 +1045,21 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
       pRange->window.ekey = INT64_MAX;
       pRange->range.minVer = 0;
       pRange->range.maxVer = ver;
+
+      tqDebug("s-task:%s fill-history task exists, update stream time window:%" PRId64 " - %" PRId64
+              ", ver range:%" PRId64 " - %" PRId64,
+              pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
+    } else {
+      SHistDataRange* pRange = &pTask->dataRange;
+      tqDebug("s-task:%s no associated task, stream time window:%" PRId64 " - %" PRId64 ", ver range:%" PRId64
+              " - %" PRId64,
+              pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
     }
 
     streamTaskCheckDownstreamTasks(pTask);
   }
 
-  tqDebug("vgId:%d s-task:%s is deployed and add meta from mnd, status:%d, total:%d", vgId, pTask->id.idStr,
+  tqDebug("vgId:%d s-task:%s is deployed and add meta from mnd, status:%d, numOfTasks:%d", vgId, pTask->id.idStr,
           pTask->status.taskStatus, numOfTasks);
 
   return 0;

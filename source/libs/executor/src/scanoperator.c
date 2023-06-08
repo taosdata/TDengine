@@ -2093,16 +2093,24 @@ FETCH_NEXT_BLOCK:
         {  // do additional time window filter
           STimeWindow* pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
 
-          if (pWindow->skey != 0) {
+          if (pWindow->skey != INT64_MIN) {
             bool* p = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
+            bool hasUnqualified = false;
 
             SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
             for(int32_t i = 0; i < pBlock->info.rows; ++i) {
               int64_t* ts = (int64_t*) colDataGetData(pCol, i);
               p[i] = (*ts >= pWindow->skey);
+
+              if (!p[i]) {
+                hasUnqualified = true;
+              }
             }
 
-            trimDataBlock(pBlock, pBlock->info.rows, p);
+            if (hasUnqualified) {
+              trimDataBlock(pBlock, pBlock->info.rows, p);
+            }
+
             taosMemoryFree(p);
           }
         }

@@ -122,7 +122,7 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
   return 0;
 }
 
-int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) {
+static int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) {
   if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1676,101 +1676,6 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 
   return buf;
 }
-
-#if 0
-void blockDebugShowDataBlock(SSDataBlock* pBlock, const char* flag) {
-  SArray* dataBlocks = taosArrayInit(1, sizeof(SSDataBlock*));
-  taosArrayPush(dataBlocks, &pBlock);
-  blockDebugShowDataBlocks(dataBlocks, flag);
-  taosArrayDestroy(dataBlocks);
-}
-
-void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
-  char    pBuf[128] = {0};
-  int32_t sz = taosArrayGetSize(dataBlocks);
-  for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGet(dataBlocks, i);
-    size_t       numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-
-    int32_t rows = pDataBlock->info.rows;
-    printf("%s |block ver %" PRIi64 " |block type %d |child id %d|group id %" PRIu64 "\n", flag,
-           pDataBlock->info.version, (int32_t)pDataBlock->info.type, pDataBlock->info.childId,
-           pDataBlock->info.id.groupId);
-    for (int32_t j = 0; j < rows; j++) {
-      printf("%s |", flag);
-      for (int32_t k = 0; k < numOfCols; k++) {
-        SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
-        void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
-        if (k == 0) {
-          printf("cols:%d |", (int32_t)numOfCols);
-        }
-        if (colDataIsNull(pColInfoData, rows, j, NULL)) {
-          printf(" %15s |", "NULL");
-          continue;
-        }
-
-        switch (pColInfoData->info.type) {
-          case TSDB_DATA_TYPE_TIMESTAMP:
-            formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
-            printf(" %25s |", pBuf);
-            break;
-          case TSDB_DATA_TYPE_BOOL:
-            printf(" %15" PRIi8 " |", *(int8_t*)var);
-            break;
-          case TSDB_DATA_TYPE_TINYINT:
-            printf(" %15" PRIi8 " |", *(int8_t*)var);
-            break;
-          case TSDB_DATA_TYPE_SMALLINT:
-            printf(" %15" PRIi16 " |", *(int16_t*)var);
-            break;
-          case TSDB_DATA_TYPE_INT:
-            printf(" %15d |", *(int32_t*)var);
-            break;
-          case TSDB_DATA_TYPE_UTINYINT:
-            printf(" %15" PRIu8 " |", *(uint8_t*)var);
-            break;
-          case TSDB_DATA_TYPE_USMALLINT:
-            printf(" %15" PRIu16 " |", *(uint16_t*)var);
-            break;
-          case TSDB_DATA_TYPE_UINT:
-            printf(" %15u |", *(uint32_t*)var);
-            break;
-          case TSDB_DATA_TYPE_BIGINT:
-            printf(" %15" PRId64 " |", *(int64_t*)var);
-            break;
-          case TSDB_DATA_TYPE_UBIGINT:
-            printf(" %15" PRIu64 " |", *(uint64_t*)var);
-            break;
-          case TSDB_DATA_TYPE_FLOAT:
-            printf(" %15f |", *(float*)var);
-            break;
-          case TSDB_DATA_TYPE_DOUBLE:
-            printf(" %15lf |", *(double*)var);
-            break;
-          case TSDB_DATA_TYPE_VARCHAR:
-          case TSDB_DATA_TYPE_GEOMETRY: {
-            char*   pData = colDataGetVarData(pColInfoData, j);
-            int32_t dataSize = TMIN(sizeof(pBuf) - 1, varDataLen(pData));
-            memset(pBuf, 0, dataSize + 1);
-            strncpy(pBuf, varDataVal(pData), dataSize);
-            printf(" %15s |", pBuf);
-          } break;
-          case TSDB_DATA_TYPE_NCHAR: {
-            char*   pData = colDataGetVarData(pColInfoData, j);
-            int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
-            memset(pBuf, 0, dataSize);
-            (void)taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
-            printf(" %15s |", pBuf);
-          } break;
-          default:
-            break;
-        }
-      }
-      printf("\n");
-    }
-  }
-}
-#endif
 
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) {

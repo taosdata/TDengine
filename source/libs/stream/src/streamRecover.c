@@ -321,8 +321,8 @@ static void doCheckDownstreamStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   pHTask->dataRange.range.minVer = 0;
   pHTask->dataRange.range.maxVer = pTask->chkInfo.currentVer;
 
-  qDebug("s-task:%s set the launch condition for fill history s-task:%s, window:%" PRId64 "-%" PRId64
-         " verrange:%" PRId64 "-%" PRId64,
+  qDebug("s-task:%s set the launch condition for fill history s-task:%s, window:%" PRId64 " - %" PRId64
+         " ver range:%" PRId64 " - %" PRId64,
          pTask->id.idStr, pHTask->id.idStr, pHTask->dataRange.window.skey, pHTask->dataRange.window.ekey,
          pHTask->dataRange.range.minVer, pHTask->dataRange.range.maxVer);
 
