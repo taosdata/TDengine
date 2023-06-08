@@ -875,6 +875,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
       doHandleTimeslice(pOperator, pSliceInfo->pNextGroupRes);
       if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+        if (pSliceInfo->pRemainRes == NULL) {
+          pSliceInfo->pNextGroupRes = NULL;
+        }
         goto _finished;
       }
       pSliceInfo->pNextGroupRes = NULL;
