@@ -237,11 +237,6 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       taosFreeQitem(qRes);
       return code;
     }
-//
-//    if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-//      qDebug("s-task:%s scan exec dispatch blocks:%d", pTask->id.idStr, batchCnt);
-//      streamDispatchStreamBlock(pTask);
-//    }
 
     if (finished) {
       break;
@@ -334,7 +329,8 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     qDebug("s-task:%s start to extract data block from inputQ", id);
 
     while (1) {
-      if (streamTaskShouldPause(&pTask->status)) {
+      // downstream task's input queue is blocked, stop immediately
+      if (streamTaskShouldPause(&pTask->status) || (pTask->outputStatus == TASK_INPUT_STATUS__BLOCKED)) {
         if (batchSize > 1) {
           break;
         } else {
@@ -397,18 +393,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       qDebug("s-task:%s sink task start to sink %d blocks", id, batchSize);
       streamTaskOutputResultBlock(pTask, (SStreamDataBlock*)pInput);
       continue;
-    }
-
-    // wait for the task to be ready to go
-    while (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-      int8_t status = atomic_load_8(&pTask->status.taskStatus);
-      if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__PAUSE) {
-        qError("stream task wait for the end of fill history, s-task:%s, status:%d", id,
-               atomic_load_8(&pTask->status.taskStatus));
-        taosMsleep(100);
-      } else {
-        break;
-      }
     }
 
     int64_t st = taosGetTimestampMs();

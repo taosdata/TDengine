@@ -292,7 +292,15 @@ typedef struct SSTaskBasicInfo {
 typedef struct SDispatchMsgInfo {
   void*   pData;           // current dispatch data
   int16_t msgType;         // dispatch msg type
+  int32_t retryCount;      // retry send data count
+  int64_t blockingTs;      // output blocking timestamp
 } SDispatchMsgInfo;
+
+typedef struct {
+  int8_t        outputType;
+  int8_t        outputStatus;
+  SStreamQueue* outputQueue;
+} SSTaskOutputInfo;
 
 struct SStreamTask {
   SStreamId        id;
@@ -536,7 +544,9 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
 void    tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq);
 
-void tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
+int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTask* pTask, int32_t vgId, int32_t numOfBlocks,
+                               int64_t dstTaskId);
+void    tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
 int32_t streamSetupTrigger(SStreamTask* pTask);
 
