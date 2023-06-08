@@ -586,15 +586,9 @@ BK:
 		}
 	}
 
-	valueMaps, err := r.getNodeValueTypeForNodeMap(ctx, nodeMap)
-	if err != nil {
-		err = fmt.Errorf("get node value type error %v", err)
-		return
-	}
-
 	points = make([]common.Point, 0, len(nodeMap))
 	for _, node := range nodeMap {
-		point := r.nodeToPoint(ctx, node, valueMaps[node.String()])
+		point := r.nodeToPoint(ctx, node)
 		points = append(points, point)
 	}
 
@@ -621,35 +615,6 @@ func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leav
 	return
 }
 
-func (r *reader) getNodeValueTypeForNodeMap(ctx context.Context, nodeMap map[string]*opcua.Node) (valueTypes map[string]common.ValueType, err error) {
-	nodes := make([]*opcua.Node, 0, len(nodeMap))
-	for _, node := range nodeMap {
-		nodes = append(nodes, node)
-	}
-	return r.getNodeValueType(ctx, nodes)
-}
-
-func (r *reader) getNodeValueType(ctx context.Context, nodes []*opcua.Node) (valueTypes map[string]common.ValueType, err error) {
-	valueTypes = make(map[string]common.ValueType, len(nodes))
-
-	uaNodes := make([]*uaNode, len(nodes))
-	nodeToRead := make([]*ua.ReadValueID, len(nodes))
-	for i, node := range nodes {
-		uaNodes[i] = &uaNode{nodeID: node.ID}
-		nodeToRead[i] = &ua.ReadValueID{NodeID: node.ID}
-	}
-
-	values, err := r.readValue(ctx, uaNodes, nodeToRead)
-	if err != nil {
-		return nil, fmt.Errorf("get node value type error %v", err)
-	}
-
-	for _, value := range values {
-		valueTypes[value.Identifier] = value.ValueType
-	}
-	return
-}
-
 func (r *reader) getNodeName(ctx context.Context, node *opcua.Node) (name string, err error) {
 	if browseName, err := node.BrowseNameWithContext(ctx); err == nil {
 		name = browseName.Name
@@ -657,7 +622,7 @@ func (r *reader) getNodeName(ctx context.Context, node *opcua.Node) (name string
 	return
 }
 
-func (r *reader) nodeToPoint(ctx context.Context, node *opcua.Node, valueType common.ValueType) common.Point {
+func (r *reader) nodeToPoint(ctx context.Context, node *opcua.Node) common.Point {
 	name, _ := r.getNodeName(ctx, node)
-	return common.Point{ID: node.String(), Name: name, Type: valueType.String()}
+	return common.Point{ID: node.String(), Name: name}
 }

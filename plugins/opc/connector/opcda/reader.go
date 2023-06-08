@@ -185,40 +185,50 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 			case <-notifyCtx.Done():
 				return
 			case <-ticker.C:
-				for id, item := range r.client.Read() {
-					logger.DebugF("## read data for identifier. id %s. item %v, value type %T", id, item, item.Value)
-					if !item.Good() && !r.containsBad {
-						logger.WarnF("## read data for identifier %q status %v is not ok ", id, item)
-						continue
-					}
-
-					value := item.Value
-					valueType := r.tags[id].valueType
-					if valueType == common.Invalid {
-						t := reflect.TypeOf(value).Kind()
-						var err error
-						valueType, err = toValueType(t)
-						if err != nil {
-							logger.Warn("## read data for identifier %q. value type %T is not supported", id, value)
-							continue
-						}
-					}
-
-					ch <- &common.NodeValue{
-						Identifier: id,
-						Name:       r.tags[id].name,
-						Timestamp:  item.Timestamp,
-						Now:        time.Now(),
-						Value:      value,
-						ValueType:  valueType,
-						Status:     int64(uint32(item.Quality)),
-					}
+				values := r.readItems(r.tags)
+				for _, val := range values {
+					ch <- val
 				}
 			}
 		}
 	}()
 
 	return ch, nil
+}
+
+func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) {
+	items := r.client.Read()
+	values = make([]*common.NodeValue, 0, len(items))
+	for id, item := range items {
+		if !item.Good() && !r.containsBad {
+			logger.WarnF("## read data for identifier %q status %v is not ok ", id, item)
+			continue
+		}
+
+		value := item.Value
+		valueType := tags[id].valueType
+		if valueType == common.Invalid {
+			t := reflect.TypeOf(value).Kind()
+			var err error
+			valueType, err = toValueType(t)
+			if err != nil {
+				logger.Warn("## read data for identifier %q. value type %T is not supported", id, value)
+				continue
+			}
+			tags[id].valueType = valueType
+		}
+
+		values = append(values, &common.NodeValue{
+			Identifier: id,
+			Name:       tags[id].name,
+			Timestamp:  item.Timestamp,
+			Now:        time.Now(),
+			Value:      value,
+			ValueType:  valueType,
+			Status:     int64(uint32(item.Quality)),
+		})
+	}
+	return values
 }
 
 func (r *reader) getAllTags(ctx context.Context) ([]common.Point, error) {
@@ -230,7 +240,9 @@ func (r *reader) getAllTags(ctx context.Context) ([]common.Point, error) {
 		return nil, fmt.Errorf("get all tags error. create browser error %v", err)
 	}
 
-	return r.browse(tree), nil
+	tags := r.browse(tree)
+
+	return tags, nil
 }
 
 func (r *reader) browse(tree *opc.Tree) (points []common.Point) {
