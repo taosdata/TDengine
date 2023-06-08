@@ -4,6 +4,18 @@
       <ul class="header">
         <li>
           <span>
+            {{ $t("datasource.primarykey") }}
+          </span>
+          <el-tooltip
+            effect="light"
+            :content="$t('datasource.primarytip')"
+            placement="right-start"
+          >
+            <i class="el-icon-info"></i>
+          </el-tooltip>
+        </li>
+        <li>
+          <span>
             {{ $t("datasource.ascolumn") }}
           </span>
           <el-tooltip
@@ -11,7 +23,7 @@
             :content="$t('datasource.selectfieldtip')"
             placement="right-start"
           >
-            <i class="el-icon-info" style="color: #4259ce"></i>
+            <i class="el-icon-info" ></i>
           </el-tooltip>
         </li>
         <li>
@@ -23,7 +35,7 @@
             :content="$t('datasource.selectfieldtip')"
             placement="right-start"
           >
-            <i class="el-icon-info" style="color: #4259ce"></i>
+            <i class="el-icon-info"></i>
           </el-tooltip>
         </li>
         <li>{{ $t("datasource.colname") }}</li>
@@ -37,6 +49,8 @@
           :key="item.name"
           :colData="item"
           @deleteRow="deleteRow"
+          :currentPrimary="defaultSelect"
+          @changePrimary="changePrimary"
           @changeAddStatus="changeAddStatus"
         >
         </Mqttcolumn>
@@ -46,19 +60,33 @@
           :index="index"
           :colData="item"
           @deleteRow="deleteRow"
+          :currentPrimary="defaultSelect"
+          @changePrimary="changePrimary"
           @changeAddStatus="changeAddStatus"
           ref="mqtt"
         >
         </Mqttcolumn>
       </div>
-      <el-button
-        icon="el-icon-plus"
-        size="small"
-        type="primary"
-        :disabled="disable"
-        plain
-        @click="addRow"
-      ></el-button>
+      <div class="footer">
+        <el-button
+          icon="el-icon-plus"
+          size="small"
+          type="primary"
+          :disabled="disable"
+          plain
+          @click="addRow"
+        ></el-button>
+        <el-tooltip
+          effect="light"
+          :content="$t('datasource.addmqtttip')"
+          placement="right-start"
+          style="position: absolute;right:5px;"
+        >
+          <i
+            class="el-icon-info"
+          ></i>
+        </el-tooltip>
+      </div>
     </div>
 
     <el-form
@@ -113,6 +141,7 @@ export default {
   },
   data() {
     return {
+      defaultSelect: "",
       showSuperTip: false,
       visiblecols: ["using", "name"],
       visible: true,
@@ -126,10 +155,20 @@ export default {
             trigger: "blur",
           },
         ],
+         using: [
+          {
+            required: true,
+            message: this.$t("datasource.usingtip"),
+            trigger: "blur",
+          },
+        ],
       },
     };
   },
   methods: {
+    changePrimary(data) {
+      this.defaultSelect = data;
+    },
     getTagOrColumn(event, val) {
       this.connectorData.model[val] = event.split(",");
     },
@@ -140,7 +179,7 @@ export default {
         );
       });
     },
-    deleteRow(ind) {
+    deleteRow(ind,name) {
       this.$confirm(this.$t("datasource.delcol"), {
         confirmButtonText: this.$t("datasource.ok"),
         cancelButtonText: this.$t("datasource.cancel"),
@@ -148,6 +187,20 @@ export default {
       }).then(() => {
         let oldData = this.$store.state.app.mqttParser;
         oldData.parse.payload.json.splice(ind, 1);
+        let columns=oldData.model.columns
+        let tags=oldData.model.tags
+        if(columns.includes(name)){
+            columns.splice(columns.indexOf(name),1)
+        }
+        if(tags.includes(name)){
+            tags.splice(tags.indexOf(name),1)
+        }
+        if (this.defaultSelect == name) {
+        if (!columns.includes("ts")) {
+          columns.unshift("ts");
+          this.defaultSelect='ts'
+        }
+      }
         this.$store.commit("app/SET_MQTT_PARSER", oldData);
         this.disable = false;
       });
@@ -185,6 +238,7 @@ export default {
   },
   mounted() {
     this.changeAddStatus();
+    this.defaultSelect=this.connectorData.model.columns.length>0?this.connectorData.model.columns[0]:'ts'
   },
 };
 </script>
@@ -197,9 +251,15 @@ export default {
   //   padding-left: 200px;
   margin-bottom: 15px;
   position: relative;
+  .el-icon-info{
+    color: #4259ce;
+     margin-top: 0px; 
+     margin-left: 4px;
+  }
+
   .header {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr 1fr 0.5fr;
+    grid-template-columns: 2fr 2fr 2fr 3fr 3fr 3fr 0.5fr;
     column-gap: 10px;
     background-color: #f5f7fa;
     border: 1px solid #ebeef5;
@@ -207,9 +267,18 @@ export default {
     padding-top: 5px;
     padding-bottom: 5px;
     li {
+      display: flex;
+      justify-content: center;
+      white-space: nowrap;
       color: #909399;
       font-size: 16px;
+      align-items: center;
       text-align: center;
+    }
+  }
+  .footer{
+    .el-button{
+        width:96%;
     }
   }
   .col-content {

@@ -1109,6 +1109,8 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
+    repeattip:'Cannot enter ts, topic, and qos as new fields ',
+    primarytip:'Primary keys only support columns of type timestamp',
     bothtagsuper:'Tags and super table name must both exist or be empty',
     selectfieldtip:'Please check the Field(Source) with value',
     createsubtbtip:'Select Column(Targte) as template',
@@ -1117,7 +1119,7 @@ export default {
     colname: 'Field(Source)',
     rename: 'Column(Target)',
     coltype: 'Column Type(Target)',
-
+    primarykey:'Primary Key',
     name: 'Child Table Naming Rule',
     using: 'SuperTable Name',
     targetdb: 'Target Database',

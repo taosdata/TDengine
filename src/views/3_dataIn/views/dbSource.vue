@@ -87,10 +87,12 @@ export default {
             break;
           case "opcua":
             this.currentName = "opcui";
+            this.tagName='opcua'
             this.protocol = "ua";
             break;
           case "opcda":
             this.currentName = "opcui";
+            this.tagName='opcda'
             this.protocol = "da";
             break;
           case "pi":

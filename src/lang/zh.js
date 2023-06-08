@@ -891,14 +891,17 @@ export default {
   },
 
   datasource: {
+    repeattip:'不能输入ts,topic,qos作为新字段',
+    primarytip:'主键只支持类型是timestamp的列',
     bothtagsuper:'Tags和超级表名必须同时存在或者同时为空',
     selectfieldtip:'请选择有值的字段(来源)',
     createsubtbtip:'选择列(目标)作为模板',
     ascolumn: '作为列',
-    astag: '作为tag',
+    astag: '作为Tag',
     colname:'字段(来源)',
     rename:'列(目标)',
     coltype:'列类型(目标)',
+    primarykey:'主键',
     usingtip:'请输入超级表名称',
     name:'子表命名规则',
     using:'超级表名',

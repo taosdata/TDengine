@@ -317,73 +317,166 @@
               v-html="transforHtml(item.description)"
             ></div>
           </div>
-          <template v-for="(p, pind) in item.params">
-            <div :key="pind">
-              <span :class="['label', p.required ? 'required' : '']">
-                {{ p.display ? p.display : p.name }}
-              </span>
-              <div class="label-value">
-                <template v-if="p.hint === 'str' || p.hint === 'timeout'">
-                  <el-input v-model="p.value" placeholder=""></el-input>
-                </template>
-                <template v-if="p.hint.type && p.hint.type === 'str'">
-                  <template v-if="p.hint.choices">
-                    <el-select v-model="p.value" placeholder="">
-                      <el-option
-                        v-for="c in p.hint.choices"
-                        :key="c"
-                        :label="c"
-                        :value="c"
-                      ></el-option>
-                    </el-select>
-                  </template>
-                  <el-input v-else v-model="p.value"></el-input>
-                </template>
-                <template
-                  v-if="
-                    (p.hint === 'bool' || p.hint.type === 'bool') &&
-                    p.name == 'clean_session'
-                  "
-                >
-                  <el-radio-group v-model="p.value" v-if="p.choices">
-                    <el-radio v-for="c in p.choices" :key="c" :label="c">
-                      {{ c }}
-                    </el-radio>
-                  </el-radio-group>
-                  <template v-else>
-                    <el-checkbox
-                      v-model="p.value"
-                      true-label="true"
-                      false-label="false"
-                    ></el-checkbox>
-                  </template>
-                </template>
-                <template v-else-if="p.hint.type && p.hint.type === 'bool'">
-                  <!-- <el-radio-group v-model="p.value">
-                    <el-radio v-for="c in p.choices" :key="c" :label="c">
-                      {{ c }}
-                    </el-radio>
-                  </el-radio-group> -->
-                  <p-three-checkbox :data="checkboxData" v-model="p.value" />
-                </template>
-                <template
-                  v-if="
-                    (p.hint.type && p.hint.type === 'integer') ||
-                    p.hint === 'integer'
-                  "
-                >
-                  <el-input-number
-                    v-model="p.value"
-                    :min="p.hint.min"
-                    :max="p.hint.max"
-                  ></el-input-number>
-                </template>
-                <div
-                  v-html="transforHtml(p.description)"
-                  class="description"
-                ></div>
-              </div>
+          <template
+            v-if="
+              item.hasOwnProperty('collapsible') && item.name.includes('SSL')
+            "
+          >
+            <div
+              class="switch-ssl"
+              style="display: flex; align-items: flex-start"
+            >
+              <span style="color: #4259ce; margin-right: 10px">SSL/TSL</span>
+              <el-switch v-model="item.collapsible"> </el-switch>
             </div>
+          </template>
+          <template v-if="item.collapsible && item.name.includes('SSL')">
+            <template v-for="(p, pind) in item.params">
+              <div
+                :key="pind"
+                v-if="item.collapsible && item.name.includes('SSL')"
+                class="ssl"
+              >
+                <span :class="['label', p.required ? 'required' : '']">
+                  {{ p.display ? p.display : p.name }}
+                </span>
+                <div class="label-value">
+                  <template
+                    v-if="
+                      p.hint === 'str' ||
+                      p.hint === 'timeout' ||
+                      p.hint.type == 'file'
+                    "
+                  >
+                    <el-input
+                      v-model="p.value"
+                      placeholder=""
+                      :type="
+                        p.hint.type && p.hint.type == 'file'
+                          ? 'textarea'
+                          : 'text'
+                      "
+                    ></el-input>
+                  </template>
+                  <template v-if="p.hint.type && p.hint.type === 'str'">
+                    <template v-if="p.hint.choices">
+                      <el-select v-model="p.value" placeholder="">
+                        <el-option
+                          v-for="c in p.hint.choices"
+                          :key="c"
+                          :label="c"
+                          :value="c"
+                        ></el-option>
+                      </el-select>
+                    </template>
+                    <el-input v-else v-model="p.value"></el-input>
+                  </template>
+                  <template
+                    v-if="
+                      (p.hint === 'bool' || p.hint.type === 'bool') &&
+                      p.name == 'clean_session'
+                    "
+                  >
+                    <el-radio-group v-model="p.value" v-if="p.choices">
+                      <el-radio v-for="c in p.choices" :key="c" :label="c">
+                        {{ c }}
+                      </el-radio>
+                    </el-radio-group>
+                    <template v-else>
+                      <el-checkbox
+                        v-model="p.value"
+                        true-label="true"
+                        false-label="false"
+                      ></el-checkbox>
+                    </template>
+                  </template>
+                  <template v-else-if="p.hint.type && p.hint.type === 'bool'">
+                    <p-three-checkbox :data="checkboxData" v-model="p.value" />
+                  </template>
+                  <template
+                    v-if="
+                      (p.hint.type && p.hint.type === 'integer') ||
+                      p.hint === 'integer'
+                    "
+                  >
+                    <el-input-number
+                      v-model="p.value"
+                      :min="p.hint.min"
+                      :max="p.hint.max"
+                    ></el-input-number>
+                  </template>
+                  <div
+                    v-html="transforHtml(p.description)"
+                    class="description"
+                  ></div>
+                </div>
+              </div>
+            </template>
+          </template>
+          <template v-else>
+            <template v-for="(p, pind) in item.params">
+              <div :key="pind" v-if="!item.name.includes('SSL')">
+                <span :class="['label', p.required ? 'required' : '']">
+                  {{ p.display ? p.display : p.name }}
+                </span>
+                <div class="label-value">
+                  <template v-if="p.hint === 'str' || p.hint === 'timeout'">
+                    <el-input v-model="p.value" placeholder=""></el-input>
+                  </template>
+                  <template v-if="p.hint.type && p.hint.type === 'str'">
+                    <template v-if="p.hint.choices">
+                      <el-select v-model="p.value" placeholder="">
+                        <el-option
+                          v-for="c in p.hint.choices"
+                          :key="c"
+                          :label="c"
+                          :value="c"
+                        ></el-option>
+                      </el-select>
+                    </template>
+                    <el-input v-else v-model="p.value"></el-input>
+                  </template>
+                  <template
+                    v-if="
+                      (p.hint === 'bool' || p.hint.type === 'bool') &&
+                      p.name == 'clean_session'
+                    "
+                  >
+                    <el-radio-group v-model="p.value" v-if="p.choices">
+                      <el-radio v-for="c in p.choices" :key="c" :label="c">
+                        {{ c }}
+                      </el-radio>
+                    </el-radio-group>
+                    <template v-else>
+                      <el-checkbox
+                        v-model="p.value"
+                        true-label="true"
+                        false-label="false"
+                      ></el-checkbox>
+                    </template>
+                  </template>
+                  <template v-else-if="p.hint.type && p.hint.type === 'bool'">
+                    <p-three-checkbox :data="checkboxData" v-model="p.value" />
+                  </template>
+                  <template
+                    v-if="
+                      (p.hint.type && p.hint.type === 'integer') ||
+                      p.hint === 'integer'
+                    "
+                  >
+                    <el-input-number
+                      v-model="p.value"
+                      :min="p.hint.min"
+                      :max="p.hint.max"
+                    ></el-input-number>
+                  </template>
+                  <div
+                    v-html="transforHtml(p.description)"
+                    class="description"
+                  ></div>
+                </div>
+              </div>
+            </template>
           </template>
         </section>
       </template>
@@ -400,34 +493,7 @@
             v-html="transforHtml(dbsource[0].parser.description)"
           ></div>
         </div>
-        <!-- <ul class="mqtt-fields">
-          <li v-for="(field, index) in dbsource[0].parser.fields" :key="index">
-            <span
-              :class="['label', field.name == 'payload' ? 'required' : '']"
-              >{{ field.name }}</span
-            >
-            <div class="mqtt-field">
-              <el-select
-                v-model="field.value"
-                :disabled="field.name != 'payload'"
-                placeholder=""
-                @change="selectPayload(field.value)"
-              >
-                <el-option
-                  v-for="pay in mqttpayload"
-                  :key="pay"
-                  :label="pay"
-                  :value="pay"
-                ></el-option>
-              </el-select>
-              <div
-                class="description"
-                v-html="transforHtml(field.description)"
-              ></div>
-            </div>
-          </li>
-        </ul> -->
-        <ul></ul>
+       
         <div class="parser-config">
           <MqttConnector
             :connectorData="constMqttparser"
@@ -519,6 +585,7 @@ export default {
   },
   data() {
     return {
+      openSSL: false,
       constmqttCols: [],
       textareas: ["ca", "cert", "cert_key", "certificate"],
       styleobj: {
@@ -695,7 +762,7 @@ export default {
                 data.groups[index].params[g],
                 "required"
               ) &&
-              data.groups[index].params[g]["value"] == undefined
+              (data.groups[index].params[g]["value"] == undefined||data.groups[index].params[g]["value"] =='')
             ) {
               Message({
                 type: "warning",
@@ -772,16 +839,6 @@ export default {
           return;
         }
         if (this.tagName == "mqtt") {
-          // let payloadselect = this.dbsource[0].parser.fields.filter(
-          //   (item) => item.name == "payload"
-          // )[0].value;
-          // if (!payloadselect) {
-          //   Message({
-          //     type: "warning",
-          //     message: this.$t("datasource.payloadtip"),
-          //   });
-          //   return;
-          // }
           this.$refs.mqtt.submit();
           if (this.$refs.mqtt) {
             if (this.$refs.mqtt.showSuperTip) {
@@ -800,7 +857,17 @@ export default {
             }
           }
         }
+        let oldparser = this.$store.state.app.mqttParser;
+        let columns = oldparser.model.columns;
+        if (columns.includes(this.$refs.mqtt.defaultSelect)) {
+          columns.map((item, ind) => {
+            if (item == this.$refs.mqtt.defaultSelect) {
+              columns.unshift(columns.splice(ind, 1)[0]);
+            }
+          });
+        }
         this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
+
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
@@ -846,7 +913,10 @@ export default {
           }
         }
       } catch (err) {
-        err.response.data.message && Message.error(err.response.data.message);
+        err.response &&
+          err.response.data &&
+          err.response.data.message &&
+          Message.error(err.response.data.message);
       }
     },
     handleClick(tab, event) {

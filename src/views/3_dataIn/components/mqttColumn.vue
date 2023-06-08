@@ -1,5 +1,19 @@
 <template>
   <ul class="mqtt-column">
+    <li class="primary">
+      <el-checkbox
+        :value="colData['name'] == currentPrimary"
+        @change="changePrimary(colData['name'])"
+        :disabled="
+          ['topic', 'qos'].includes(colData['name']) ||
+          !colData['name'] ||
+          (!colData['cast'] && colData['name'] != 'ts') ||
+          (colData['cast'] &&
+            !colData['cast'].toLowerCase().includes('timestamp'))
+        "
+        >&nbsp;</el-checkbox
+      >
+    </li>
     <li class="ascolumn">
       <el-radio
         v-model="radio"
@@ -22,7 +36,12 @@
       <template v-if="constcols.includes(colData['name'])">
         <span class="forbidden">{{ colData["name"] }}</span>
       </template>
-      <el-input v-model="colData['name']" size="mini" v-else ></el-input>
+      <el-input
+        :value="colData['name']"
+        size="mini"
+        v-else
+        @input="watchFieldVal"
+      ></el-input>
     </li>
     <li>
       <template v-if="constcols.includes(colData['name'])">
@@ -32,42 +51,89 @@
       </template>
       <el-input v-model="colData['alias']" size="mini" v-else></el-input>
     </li>
-    <li style="position: relative">
+    <li
+      style="
+        position: relative;
+        display: flex;
+        justify-content: center;
+        max-width: 135px;
+      "
+    >
       <template v-if="constcols.includes(colData['name'])">
         <span class="forbidden">
           <i class="el-icon-close"></i>
         </span>
       </template>
       <template v-else>
-        <el-input v-model="colData['cast']" size="mini"></el-input>
-        <el-tooltip
-          effect="light"
-          :content="$t('datasource.addmqtttip')"
-          placement="right-start"
-          style="position: absolute"
+        <el-select
+          v-model="colData['cast']"
+          size="mini"
+          @change="changeType"
+          placeholder=""
         >
-          <i
-            class="el-icon-info"
-            style="color: #4259ce; margin-top: 5px; margin-left: 4px"
-          ></i>
-        </el-tooltip>
+          <el-option
+            v-for="item in mqttTypes"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          ></el-option>
+        </el-select>
+        <el-input
+          type="number"
+          :min="1"
+          v-if="['NCHAR', 'VARCHAR'].includes(colData['cast'])"
+          size="mini"
+          @input="handleChange"
+          :value="
+            /\d/.test(colData['cast'])
+              ? Number(colData['cast'].replace(/[^\d]/g, ''))
+              : num
+          "
+        ></el-input>
+        <!-- <el-input-number
+          :value="
+            /\d/.test(colData['cast'])
+              ? Number(colData['cast'].replace(/[^\d]/g, ''))
+              : num
+          "
+          controls-position="right"
+          @change="handleChange"
+          :min="1"
+          v-if="['NCHAR', 'VARCHAR'].includes(colData['cast'])"
+          size="mini"
+        ></el-input-number> -->
       </template>
     </li>
     <li class="icon-col" v-if="!constcols.includes(colData['name'])">
-      <span class="icon-container" @click="deleteRow" v-if="index != 0">
+      <span class="icon-container" @click="deleteRow">
         <i class="el-icon-minus"></i>
       </span>
     </li>
   </ul>
 </template>
 <script>
-import { Message } from 'element-ui';
+import { Message } from "element-ui";
+import { dataType } from "../../2_explorer/views/components/utils/index";
+const timestamps = [
+  {
+    label: "TIMESTAMP(us)",
+    value: "TIMESTAMP(us)",
+  },
+  {
+    label: "TIMESTAMP(ns)",
+    value: "TIMESTAMP(ns)",
+  },
+];
 export default {
   name: "MqttColumn",
   props: {
     index: {
       type: Number,
       default: 0,
+    },
+    currentPrimary: {
+      type: String,
+      default: "",
     },
     colData: {
       type: Object,
@@ -78,8 +144,12 @@ export default {
   },
   data() {
     return {
+      num: 1,
+      mqttTypes: [...dataType, ...timestamps].filter(item=>item.value!=='NCHAR'&&item.value!='VARCHAR'),
       constcols: ["ts", "topic", "qos"],
+      primaryradio: "ts",
       radio: "",
+      primaryval: false,
       params: {
         name: "",
         alias: "",
@@ -102,14 +172,22 @@ export default {
     },
   },
   methods: {
-    watchFieldVal(val){
-        console.log(val,'输入');
-        if(this.constcols.includes(val)){
-            Message.error('不能输入ts,topic,qos作为新字段')
-            return
-        }else{
-            console.log('tiaoshi');
-        }
+    changeType() {
+      this.num = 1;
+    },
+    handleChange(val) {
+      this.colData["cast"] = this.colData["cast"] + "(" + val + ")";
+    },
+    changePrimary(val) {
+      this.$emit("changePrimary", val);
+    },
+    watchFieldVal(val) {
+      if (this.constcols.includes(val)) {
+        Message.error(this.$t('datasource.repeattip'));
+        return;
+      } else {
+        this.colData["name"] = val;
+      }
     },
     checkColumn() {
       if (this.colData.name) {
@@ -142,7 +220,8 @@ export default {
       }
     },
     deleteRow() {
-      this.$emit("deleteRow", this.index);
+      this.$emit("deleteRow", this.index, this.colData["name"]);
+      
     },
     addRow() {
       if (this.addStatus) return;
@@ -155,16 +234,16 @@ export default {
       let oldparser = this.$store.state.app.mqttParser;
       let columns = oldparser.model.columns;
       let tags = oldparser.model.tags;
-      if(columns.includes(this.colData.name)){
-        this.radio='1'
+      if (columns.includes(this.colData.name)) {
+        this.radio = "1";
       }
-      if(tags.includes(this.colData.name)){
-        this.radio='2'
+      if (tags.includes(this.colData.name)) {
+        this.radio = "2";
       }
     },
   },
   mounted() {
-    this.echoColOrTag()
+    this.echoColOrTag();
   },
   watch: {
     addStatus: {
@@ -181,18 +260,36 @@ export default {
   .el-tooltip__popper.is-light {
     border: 1px solid #4259ce;
   }
+  .el-input-number__decrease {
+    height: 14px !important;
+  }
+  .el-input-number__increase {
+    height: 14px !important;
+  }
+  .el-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 .mqtt-column {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 0.5fr;
+  grid-template-columns: 2fr 2fr 2fr 3fr 3fr 3fr 0.5fr;
   column-gap: 10px;
   border-top: 1px solid #ebeef5;
   padding-top: 8px;
   padding-bottom: 8px;
+  .primary {
+    display: flex;
+    justify-content: center;
+  }
   .forbidden {
     display: flex;
     justify-content: center;
     cursor: initial;
+    .el-icon-close {
+      cursor: initial;
+    }
   }
   .icon-col {
     display: flex;
