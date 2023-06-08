@@ -13,17 +13,17 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use actix_embed::Embed;
 use actix_web::{
     error::{self, PayloadError},
-    http::{header::{ContentType, AUTHORIZATION}, },
+    http::header::{ContentType, AUTHORIZATION},
     middleware::{self, Logger},
     post,
     web::{self},
-    App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder, HttpResponseBuilder,
+    App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use awc::Client;
 
 use clap::Parser;
 use rust_embed::RustEmbed;
-use serde::{Deserialize, Serialize, };
+use serde::{Deserialize, Serialize};
 
 fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
     match level {
@@ -65,8 +65,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let log_level = args
         .log_level
-        .clone()
-        .or(args.verbose.clone().map(|v| v.log_level_filter()))
+        .or(args.verbose.as_ref().map(|v| v.log_level_filter()))
         .unwrap_or(log::LevelFilter::Info);
     let subscriber = tracing_subscriber::fmt()
         .with_level(true)
@@ -82,8 +81,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     const EXPLORER_PORT: u16 = 6060;
-    const EXPLORER_CLUSTER: &'static str = "http://localhost:6041";
-    const EXPLORER_X_PAI: &'static str = "http://localhost:6050";
+    const EXPLORER_CLUSTER: &str = "http://localhost:6041";
+    const EXPLORER_X_PAI: &str = "http://localhost:6050";
     args.port.get_or_insert(EXPLORER_PORT);
     args.profile
         .cluster
@@ -107,28 +106,27 @@ async fn main() -> anyhow::Result<()> {
             .wrap(cors)
             .app_data(web::Data::new(Client::new()))
             .app_data(args.clone())
-            .route("/", web::get().to(index))
+            // .route("/", web::get().to(index))
             .route("/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/api/-/license", web::to(renew_license))
             .route("/api/-/profile", web::to(profile))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
-            .route("/{route}", web::get().to(index))
-            .service(Embed::new("/", &Asset))
+            .service(
+                Embed::new("/", &StaticAssets)
+                    .index_file("index.html")
+                    .fallback_handler(|_: &_| {
+                        let embed = StaticAssets::get("index.html").unwrap();
+                        HttpResponse::Ok()
+                            .content_type(ContentType::html())
+                            .body(embed.data)
+                    }),
+            )
     })
     .bind(("0.0.0.0", port))?
     .run()
     .await?;
     Ok(())
-}
-
-async fn index() -> impl Responder {
-    let index_html = Asset::get("index.html").unwrap();
-    HttpResponse::Ok().content_type(ContentType::html()).body(
-        std::str::from_utf8(index_html.data.as_ref())
-            .unwrap()
-            .to_string(),
-    )
 }
 
 async fn profile(args: web::Data<Args>) -> impl Responder {
@@ -163,11 +161,10 @@ impl PartialEq for RenewLicense {
         if !l {
             return false;
         }
-        let r = match (&self.c_active_code, &other.c_active_code) {
+        match (&self.c_active_code, &other.c_active_code) {
             (Some(l), Some(r)) => l == r,
             _ => true,
-        };
-        return r;
+        }
     }
 }
 
@@ -220,13 +217,13 @@ async fn rest_proxy(
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error(transparent)]
-    XError(#[from] awc::error::SendRequestError),
+    XApi(#[from] awc::error::SendRequestError),
     #[error(transparent)]
-    PayloadError(#[from] PayloadError),
+    Payload(#[from] PayloadError),
     #[error(transparent)]
-    ApiDocError(#[from] JsonPayloadError),
+    ApiDoc(#[from] JsonPayloadError),
     #[error(transparent)]
-    JsonError(#[from] serde_json::Error),
+    Json(#[from] serde_json::Error),
 }
 
 impl error::ResponseError for Error {}
@@ -259,14 +256,16 @@ async fn x_api(
         .send_body(bytes)
         .await?;
     // match resp {
-    //     Ok(mut ok) => 
+    //     Ok(mut ok) =>
     //         match ok.body().limit(1024 * 1024 * 1024).await {
     //             Ok(data) => Ok(HttpResponseBuilder::new(ok.status()).body(data)),
     //             Err(err) => Err(Error::PayloadError(err)),
     //         },
     //     Err(err) => Err(Error::XError(err)),
     // }
-    Ok(HttpResponse::Ok().content_type(ContentType::json()).body(resp.body().await?))
+    Ok(HttpResponse::Ok()
+        .content_type(ContentType::json())
+        .body(resp.body().await?))
 }
 
 async fn x_api_doc(
@@ -304,7 +303,7 @@ async fn x_api_doc(
 
 #[derive(RustEmbed)]
 #[folder = "../dist/"]
-struct Asset;
+struct StaticAssets;
 
 #[derive(Parser, Debug, Clone, Deserialize, Serialize)]
 struct Profile {

@@ -20,19 +20,19 @@ fn main() -> shadow_rs::SdResult<()> {
     } else {
         cus_prompt.trim()
     };
-    let content = std::fs::read_to_string(&readme)
+    let content = std::fs::read_to_string(readme)
         .unwrap()
-        .replace("taos", &cus_prompt)
-        .replace("TDengine", &cus_name);
+        .replace("taos", cus_prompt)
+        .replace("TDengine", cus_name);
     let readme_out = out_dir.join("README.md");
     std::fs::write(&readme_out, content).unwrap();
 
     let service = std::fs::read_to_string(manifest_dir.join("examples").join("explorer.service"))
         .unwrap()
-        .replace("taos", &cus_prompt)
-        .replace("TDengine", &cus_name);
+        .replace("taos", cus_prompt)
+        .replace("TDengine", cus_name);
     std::fs::write(
-        &target_dir.join(format!("{cus_prompt}-explorer.service")),
+        target_dir.join(format!("{cus_prompt}-explorer.service")),
         service,
     )
     .unwrap();
@@ -43,6 +43,7 @@ fn main() -> shadow_rs::SdResult<()> {
     println!("cargo:rerun-if-env-changed=CUS_NAME");
     println!("cargo:rerun-if-env-changed=CUS_PROMPT");
     println!("cargo:rerun-if-changed=README.md");
+    println!("cargo:rerun-if-changed=../dist/");
     println!("cargo:rerun-if-changed=examples/explorer.service");
     shadow_rs::new()
 }
