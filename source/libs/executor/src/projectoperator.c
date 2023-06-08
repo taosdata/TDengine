@@ -213,6 +213,8 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   } else {
     if (limitReached && (pLimitInfo->slimit.limit >= 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       setOperatorCompleted(pOperator);
+    } else if (limitReached && groupId == 0) {
+      setOperatorCompleted(pOperator);
     }
   }
 

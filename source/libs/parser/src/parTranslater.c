@@ -707,6 +707,10 @@ static bool isWindowPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsWindowPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isInterpFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsInterpFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isInterpPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsInterpPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
@@ -3030,7 +3034,7 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static EDealRes needFillImpl(SNode* pNode, void* pContext) {
-  if (isAggFunc(pNode) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType) {
+  if ((isAggFunc(pNode) || isInterpFunc(pNode)) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType) {
     *(bool*)pContext = true;
     return DEAL_RES_END;
   }
@@ -3054,7 +3058,7 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
     code = scalarCalculateConstants(pCaseFunc, &pCell->pNode);
   }
   if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE != nodeType(pCell->pNode)) {
-    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Fill value is just a constant");
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Fill value can only accept constant");
   } else if (TSDB_CODE_SUCCESS != code) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled data type mismatch");
   }
@@ -3078,6 +3082,7 @@ static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeL
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
+
       ++fillNo;
     }
   }
@@ -3561,6 +3566,9 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList);
   }
 
   return code;
