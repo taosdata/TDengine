@@ -46,6 +46,14 @@ int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record) {
   return 0;
 }
 
+int32_t tTombBlockGet(STombBlock *tombBlock, int32_t idx, STombRecord *record) {
+  if (idx >= TOMB_BLOCK_SIZE(tombBlock)) return TSDB_CODE_OUT_OF_RANGE;
+  for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
+    record->dataArr[i] = TARRAY2_GET(&tombBlock->dataArr[i], idx);
+  }
+  return 0;
+}
+
 int32_t tTombRecordCompare(const STombRecord *r1, const STombRecord *r2) {
   if (r1->suid < r2->suid) return -1;
   if (r1->suid > r2->suid) return 1;
@@ -83,6 +91,69 @@ int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *reco
   for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
     code = TARRAY2_APPEND(&statisBlock->dataArr[i], record->dataArr[i]);
     if (code) return code;
+  }
+  return 0;
+}
+
+int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecord *record) {
+  if (idx >= STATIS_BLOCK_SIZE(statisBlock)) return TSDB_CODE_OUT_OF_RANGE;
+  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
+    record->dataArr[i] = TARRAY2_GET(&statisBlock->dataArr[i], idx);
+  }
+  return 0;
+}
+
+// SBrinRecord ----------
+int32_t tBrinBlockInit(SBrinBlock *brinBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
+    TARRAY2_INIT(&brinBlock->dataArr1[i]);
+  }
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
+    TARRAY2_INIT(&brinBlock->dataArr2[i]);
+  }
+  return 0;
+}
+
+int32_t tBrinBlockDestroy(SBrinBlock *brinBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
+    TARRAY2_DESTROY(&brinBlock->dataArr1[i], NULL);
+  }
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
+    TARRAY2_DESTROY(&brinBlock->dataArr2[i], NULL);
+  }
+  return 0;
+}
+
+int32_t tBrinBlockClear(SBrinBlock *brinBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
+    TARRAY2_CLEAR(&brinBlock->dataArr1[i], NULL);
+  }
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
+    TARRAY2_CLEAR(&brinBlock->dataArr2[i], NULL);
+  }
+  return 0;
+}
+
+int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record) {
+  int32_t code;
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
+    code = TARRAY2_APPEND(&brinBlock->dataArr1[i], record->dataArr1[i]);
+    if (code) return code;
+  }
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
+    code = TARRAY2_APPEND(&brinBlock->dataArr2[i], record->dataArr2[i]);
+    if (code) return code;
+  }
+  return 0;
+}
+
+int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record) {
+  if (idx >= BRIN_BLOCK_SIZE(brinBlock)) return TSDB_CODE_OUT_OF_RANGE;
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); ++i) {
+    record->dataArr1[i] = TARRAY2_GET(&brinBlock->dataArr1[i], idx);
+  }
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr2); ++i) {
+    record->dataArr2[i] = TARRAY2_GET(&brinBlock->dataArr2[i], idx);
   }
   return 0;
 }
