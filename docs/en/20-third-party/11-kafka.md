@@ -16,165 +16,79 @@ TDengine Source Connector is used to read data from TDengine in real-time and se
 
 ![TDengine Database Kafka Connector -- streaming integration with kafka connect](kafka/streaming-integration-with-kafka-connect.webp)
 
-## What is Confluent?
-
-[Confluent](https://www.confluent.io/) adds many extensions to Kafka. include:
-
-1. Schema Registry
-2. REST Proxy
-3. Non-Java Clients
-4. Many packaged Kafka Connect plugins
-5. GUI for managing and monitoring Kafka - Confluent Control Center
-
-Some of these extensions are available in the community version of Confluent. Some are only available in the enterprise version.
-![TDengine Database Kafka Connector -- Confluent platform](kafka/confluentPlatform.webp)
-
-Confluent Enterprise Edition provides the `confluent` command-line tool to manage various components.
-
 ## Prerequisites
 
 1. Linux operating system
 2. Java 8 and Maven installed
-3. Git is installed
+3. Git/curl/vi is installed
 4. TDengine is installed and started. If not, please refer to [Installation and Uninstallation](/operation/pkg-install)
 
-## Install Confluent
-
-Confluent provides two installation methods: Docker and binary packages. This article only introduces binary package installation.
+## Install Kafka
 
 Execute in any directory:
 
 ````
-curl -O http://packages.confluent.io/archive/7.1/confluent-7.1.1.tar.gz
-tar xzf confluent-7.1.1.tar.gz -C /opt/
+curl -O https://downloads.apache.org/kafka/3.4.0/kafka_2.13-3.4.0.tgz
+tar xzf kafka_2.13-3.4.0.tgz -C /opt/
+ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
 ````
 
-Then you need to add the `$CONFLUENT_HOME/bin` directory to the PATH.
+Then you need to add the `$KAFKA_HOME/bin` directory to the PATH.
 
 ```title=".profile"
-export CONFLUENT_HOME=/opt/confluent-7.1.1
-export PATH=$CONFLUENT_HOME/bin:$PATH
+export KAFKA_HOME=/opt/kafka
+export PATH=$PATH:$KAFKA_HOME/bin
 ```
 
 Users can append the above script to the current user's profile file (~/.profile or ~/.bash_profile)
-
-After the installation is complete, you can enter `confluent version` for simple verification:
-
-```
-# confluent version
-confluent - Confluent CLI
-
-Version:     v2.6.1
-Git Ref:     6d920590
-Build Date:  2022-02-18T06:14:21Z
-Go Version:  go1.17.6 (linux/amd64)
-Development: false
-```
 
 ## Install TDengine Connector plugin
 
 ### Install from source code
 
-```
+```shell
 git clone --branch 3.0 https://github.com/taosdata/kafka-connect-tdengine.git
 cd kafka-connect-tdengine
-mvn clean package
-unzip -d $CONFLUENT_HOME/share/java/ target/components/packages/taosdata-kafka-connect-tdengine-*.zip
+mvn clean package -Dmaven.test.skip=true
+unzip -d $KAFKA_HOME/components/ target/components/packages/taosdata-kafka-connect-tdengine-*.zip
 ```
 
-The above script first clones the project source code and then compiles and packages it with Maven. After the package is complete, the zip package of the plugin is generated in the `target/components/packages/` directory. Unzip this zip package to plugin path. We used `$CONFLUENT_HOME/share/java/` above because it's a build in plugin path.
+The above script first clones the project source code and then compiles and packages it with Maven. After the package is complete, the zip package of the plugin is generated in the `target/components/packages/` directory. Unzip this zip package to plugin path. We used `$KAFKA_HOME/components/` above because it's a build in plugin path.
 
-### Install with confluent-hub
+### Add configuration file
 
-[Confluent Hub](https://www.confluent.io/hub) provides a service to download Kafka Connect plugins. After TDengine Kafka Connector is published to Confluent Hub, it can be installed using the command tool `confluent-hub`.
-**TDengine Kafka Connector is currently not officially released and cannot be installed in this way**.
+add kafka-connect-tdengine plugin path to `plugin.path` in `$KAFKA_HOME/config/connect-distributed.properties`.
 
-## Start Confluent
-
-```
-confluent local services start
+```properties
+plugin.path=/usr/share/java,/opt/kafka/components
 ```
 
-:::note
-Be sure to install the plugin before starting Confluent. Otherwise, Kafka Connect will fail to discover the plugins.
-:::
+## Start Kafka Services
 
-:::tip
-If a component fails to start, try clearing the data and restarting. The data directory will be printed to the console at startup, e.g.:
+Use command bellow to start all services:
 
-```title="Console output log" {1}
-Using CONFLUENT_CURRENT: /tmp/confluent.106668
-Starting ZooKeeper
-ZooKeeper is [UP]
-Starting Kafka
-Kafka is [UP]
-Starting Schema Registry
-Schema Registry is [UP]
-Starting Kafka REST
-Kafka REST is [UP]
-Starting Connect
-Connect is [UP]
-Starting ksqlDB Server
-ksqlDB Server is [UP]
-Starting Control Center
-Control Center is [UP]
-```
+```shell
+zookeeper-server-start.sh -daemon $KAFKA_HOME/config/zookeeper.properties
 
-To clear data, execute `rm -rf /tmp/confluent.106668`.
-:::
+kafka-server-start.sh -daemon $KAFKA_HOME/config/server.properties
 
-### Check Confluent Services Status
+connect-distributed.sh -daemon $KAFKA_HOME/config/connect-distributed.properties
 
-Use command bellow to check the status of all service:
-
-```
-confluent local services status
-```
-
-The expected output is:
-```
-Connect is [UP]
-Control Center is [UP]
-Kafka is [UP]
-Kafka REST is [UP]
-ksqlDB Server is [UP]
-Schema Registry is [UP]
-ZooKeeper is [UP]
 ```
 
 ### Check Successfully Loaded Plugin
 
 After Kafka Connect was completely started, you can use bellow command to check if our plugins are installed successfully:
-```
-confluent local services connect plugin list
+
+```shell
+curl http://localhost:8083/connectors
 ```
 
-The output should contains `TDengineSinkConnector` and `TDengineSourceConnector` as bellow:
+The output as bellow:
 
+```txt
+[]
 ```
-Available Connect Plugins:
-[
-  {
-    "class": "com.taosdata.kafka.connect.sink.TDengineSinkConnector",
-    "type": "sink",
-    "version": "1.0.0"
-  },
-  {
-    "class": "com.taosdata.kafka.connect.source.TDengineSourceConnector",
-    "type": "source",
-    "version": "1.0.0"
-  },
-......
-```
-
-If not, please check the log file of Kafka Connect. To view the log file path, please execute:
-
-```
-echo `cat /tmp/confluent.current`/connect/connect.stdout
-```
-It should produce a path like:`/tmp/confluent.104086/connect/connect.stdout`
-
-Besides log file `connect.stdout` there is a file named `connect.properties`. At the end of this file you can see the effective `plugin.path` which is a series of paths joined by comma. If Kafka Connect not found our plugins, it's probably because the installed path is not included in `plugin.path`.
 
 ## The use of TDengine Sink Connector
 
@@ -184,40 +98,47 @@ TDengine Sink Connector internally uses TDengine [modeless write interface](/ref
 
 The following example synchronizes the data of the topic meters to the target database power. The data format is the InfluxDB Line protocol format.
 
-### Add configuration file
+### Add Sink Connector configuration file
 
-```
+```shell
 mkdir ~/test
 cd ~/test
-vi sink-demo.properties
+vi sink-demo.json
 ```
 
-sink-demo.properties' content is following:
+sink-demo.json' content is following:
 
-```ini title="sink-demo.properties"
-name=TDengineSinkConnector
-connector.class=com.taosdata.kafka.connect.sink.TDengineSinkConnector
-tasks.max=1
-topics=meters
-connection.url=jdbc:TAOS://127.0.0.1:6030
-connection.user=root
-connection.password=taosdata
-connection.database=power
-db.schemaless=line
-data.precision=ns
-key.converter=org.apache.kafka.connect.storage.StringConverter
-value.converter=org.apache.kafka.connect.storage.StringConverter
+```json title="sink-demo.json"
+{
+  "name": "TDengineSinkConnector",
+  "config": {
+    "connector.class":"com.taosdata.kafka.connect.sink.TDengineSinkConnector",
+    "tasks.max": "1",
+    "topics": "meters",
+    "connection.url": "jdbc:TAOS://127.0.0.1:6030",
+    "connection.user": "root",
+    "connection.password": "taosdata",
+    "connection.database": "power",
+    "db.schemaless": "line",
+    "data.precision": "ns",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "errors.tolerance": "all",
+    "errors.deadletterqueue.topic.name": "dead_letter_topic",
+    "errors.deadletterqueue.topic.replication.factor": 1
+  }
+}
 ```
 
 Key configuration instructions:
 
-1. `topics=meters` and `connection.database=power` means to subscribe to the data of the topic meters and write to the database power.
-2. `db.schemaless=line` means the data in the InfluxDB Line protocol format.
+1. `"topics": "meters"` and `"connection.database": "power"` means to subscribe to the data of the topic meters and write to the database power.
+2. `"db.schemaless": "line"` means the data in the InfluxDB Line protocol format.
 
-### Create Connector instance
+### Create Sink Connector instance
 
-````
-confluent local services connect connector load TDengineSinkConnector --config ./sink-demo.properties
+````shell
+curl -X POST -d @sink-demo.json http://localhost:8083/connectors -H "Content-Type: application/json"
 ````
 
 If the above command is executed successfully, the output is as follows:
@@ -237,7 +158,10 @@ If the above command is executed successfully, the output is as follows:
     "tasks.max": "1",
     "topics": "meters",
     "value.converter": "org.apache.kafka.connect.storage.StringConverter",
-    "name": "TDengineSinkConnector"
+    "name": "TDengineSinkConnector",
+    "errors.tolerance": "all",
+    "errors.deadletterqueue.topic.name": "dead_letter_topic",
+    "errors.deadletterqueue.topic.replication.factor": "1",  
   },
   "tasks": [],
   "type": "sink"
@@ -258,7 +182,7 @@ meters,location=California.LoSangeles,groupid=3 current=11.3,voltage=221,phase=0
 Use kafka-console-producer to write test data to the topic `meters`.
 
 ```
-cat test-data.txt | kafka-console-producer --broker-list localhost:9092 --topic meters
+cat test-data.txt | kafka-console-producer.sh --broker-list localhost:9092 --topic meters
 ```
 
 :::note
@@ -269,12 +193,12 @@ TDengine Sink Connector will automatically create the database if the target dat
 
 Use the TDengine CLI to verify that the sync was successful.
 
-```
+```sql
 taos> use power;
 Database changed.
 
 taos> select * from meters;
-              ts               |          current          |          voltage          |           phase           | groupid |            location            |
+              _ts               |          current          |          voltage          |           phase           | groupid |            location            |
 ===============================================================================================================================================================
  2022-03-28 09:56:51.249000000 |              11.800000000 |             221.000000000 |               0.280000000 | 2       | California.LosAngeles          |
  2022-03-28 09:56:51.250000000 |              13.400000000 |             223.000000000 |               0.290000000 | 2       | California.LosAngeles          |
@@ -293,29 +217,34 @@ TDengine Source Connector will convert the data in TDengine data table into [Inf
 
 The following sample program synchronizes the data in the database test to the topic tdengine-source-test.
 
-### Add configuration file
+### Add Source Connector configuration file
 
-```
-vi source-demo.properties
+```shell
+vi source-demo.json
 ```
 
 Input following content:
 
-```ini title="source-demo.properties"
-name=TDengineSourceConnector
-connector.class=com.taosdata.kafka.connect.source.TDengineSourceConnector
-tasks.max=1
-connection.url=jdbc:TAOS://127.0.0.1:6030
-connection.username=root
-connection.password=taosdata
-connection.database=test
-connection.attempts=3
-connection.backoff.ms=5000
-topic.prefix=tdengine-source-
-poll.interval.ms=1000
-fetch.max.rows=100
-key.converter=org.apache.kafka.connect.storage.StringConverter
-value.converter=org.apache.kafka.connect.storage.StringConverter
+```json title="source-demo.json"
+{
+  "name":"TDengineSourceConnector",
+    "config":{
+    "connector.class": "com.taosdata.kafka.connect.source.TDengineSourceConnector",
+    "tasks.max": 1,
+    "connection.url": "jdbc:TAOS://127.0.0.1:6030",
+    "connection.username": "root",
+    "connection.password": "taosdata",
+    "connection.database": "test",
+    "connection.attempts": 3,
+    "connection.backoff.ms": 5000,
+    "topic.prefix": "tdengine-source",
+    "poll.interval.ms": 1000,
+    "fetch.max.rows": 100,
+    "topic.per.stable": true,
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter"
+    }
+}
 ```
 
 ### Prepare test data
@@ -340,40 +269,40 @@ INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-1
 
 Use TDengine CLI to execute SQL script
 
-```
+```shell
 taos -f prepare-source-data.sql
 ```
 
 ### Create Connector instance
 
-````
-confluent local services connect connector load TDengineSourceConnector --config source-demo.properties
-````
+```shell
+curl -X POST -d @source-demo.json http://localhost:8083/connectors -H "Content-Type: application/json"
+```
 
 ### View topic data
 
 Use the kafka-console-consumer command-line tool to monitor data in the topic tdengine-source-test. In the beginning, all historical data will be output. After inserting two new data into TDengine, kafka-console-consumer immediately outputs the two new data. The output is in InfluxDB line protocol format.
 
-````
-kafka-console-consumer --bootstrap-server localhost:9092 --from-beginning --topic tdengine-source-test
+````shell
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic tdengine-source-test-meters
 ````
 
 output:
 
-````
+```txt
 ......
 meters,location="California.SanFrancisco",groupid=2i32 current=10.3f32,voltage=219i32,phase=0.31f32 1538548685000000000
 meters,location="California.SanFrancisco",groupid=2i32 current=12.6f32,voltage=218i32,phase=0.33f32 1538548695000000000
 ......
-````
+```
 
 All historical data is displayed. Switch to the TDengine CLI and insert two new pieces of data:
 
-````
+```sql
 USE test;
 INSERT INTO d1001 VALUES (now, 13.3, 229, 0.38);
 INSERT INTO d1002 VALUES (now, 16.3, 233, 0.22);
-````
+```
 
 Switch back to kafka-console-consumer, and the command line window has printed out the two pieces of data just inserted.
 
@@ -383,16 +312,16 @@ After testing, use the unload command to stop the loaded connector.
 
 View currently active connectors:
 
-````
-confluent local services connect connector status
-````
+```shell
+curl http://localhost:8083/connectors
+```
 
 You should now have two active connectors if you followed the previous steps. Use the following command to unload:
 
-````
-confluent local services connect connector unload TDengineSinkConnector
-confluent local services connect connector unload TDengineSourceConnector
-````
+```shell
+curl -X DELETE http://localhost:8083/connectors/TDengineSinkConnector
+curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
+```
 
 ## Configuration reference
 
@@ -430,19 +359,14 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 6. `query.interval.ms`: The time range of reading data from TDengine each time, its unit is millisecond. It should be adjusted according to the data flow in rate, the default value is 1000.
 7. `topic.per.stable`: If it's set to true, it means one super table in TDengine corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>-<stable.name>`; if it's set to false, it means the whole DB corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>`.
 
-
-
 ## Other notes
 
-1. To install plugin to a customized location, refer to https://docs.confluent.io/home/connect/self-managed/install.html#install-connector-manually.
-2. To use Kafka Connect without confluent, refer to  https://kafka.apache.org/documentation/#connect.
+1. To use Kafka Connect, refer to <https://kafka.apache.org/documentation/#connect>.
 
 ## Feedback
 
-https://github.com/taosdata/kafka-connect-tdengine/issues
+<https://github.com/taosdata/kafka-connect-tdengine/issues>
 
 ## Reference
 
-1. https://www.confluent.io/what-is-apache-kafka
-2. https://developer.confluent.io/learn-kafka/kafka-connect/intro
-3. https://docs.confluent.io/platform/current/platform.html
+1. For more information, see <https://kafka.apache.org/documentation/>
