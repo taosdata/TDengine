@@ -17,7 +17,6 @@
 #define _STREAM_BACKEDN_ROCKSDB_H_
 
 #include "rocksdb/c.h"
-// #include "streamInc.h"
 #include "streamState.h"
 #include "tcoding.h"
 #include "tcommon.h"

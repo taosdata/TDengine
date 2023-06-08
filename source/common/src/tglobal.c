@@ -60,6 +60,7 @@ int32_t tsNumOfQnodeQueryThreads = 4;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
+int32_t tsMaxStreamBackendCache = 128;  // M
 
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
@@ -72,6 +73,7 @@ int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
 int64_t tsMndLogRetention = 2000;
+bool    tsMndSkipGrant = false;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -105,7 +107,7 @@ int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = false;
-bool    tsEnableScience = false; // on taos-cli show float and doulbe with scientific notation if true 
+bool    tsEnableScience = false;  // on taos-cli show float and doulbe with scientific notation if true
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -117,8 +119,8 @@ int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
-int32_t tsMetaCacheMaxSize = -1; // MB
-int32_t tsSlowLogThreshold = 3; // seconds
+int32_t tsMetaCacheMaxSize = -1;  // MB
+int32_t tsSlowLogThreshold = 3;   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
 
 /*
@@ -141,8 +143,8 @@ int32_t tsCompressColData = -1;
 // count/hyperloglog function always return values in case of all NULL data or Empty data set.
 int32_t tsCountAlwaysReturnValue = 1;
 
-// 10 ms for sliding time, the value will changed in case of time precision changed
-int32_t tsMinSlidingTime = 10;
+// 1 ms for sliding time, the value will changed in case of time precision changed
+int32_t tsMinSlidingTime = 1;
 
 // the maxinum number of distict query result
 int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
@@ -150,8 +152,8 @@ int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
 // 1 database precision unit for interval time range, changed accordingly
 int32_t tsMinIntervalTime = 1;
 
-// maximum memory allowed to be allocated for a single csv load (in MB)
-int32_t tsMaxMemUsedByInsert = 1024;
+// maximum batch rows numbers imported from a single csv load
+int32_t tsMaxInsertBatchRows = 1000000;
 
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
@@ -208,6 +210,7 @@ char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
+bool    tsFilterScalarMode = false;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -344,11 +347,12 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   //  if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
   //  if (cfgAddInt32(pCfg, "smlBatchSize", tsSmlBatchSize, 1, INT32_MAX, true) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxInsertBatchRows", tsMaxInsertBatchRows, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
-  if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, 1) != 0)
+    return -1;
   if (cfgAddInt32(pCfg, "metaCacheMaxSize", tsMetaCacheMaxSize, -1, INT32_MAX, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 0, INT32_MAX, true) != 0) return -1;
   if (cfgAddString(pCfg, "slowLogScope", "", true) != 0) return -1;
@@ -419,7 +423,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 10, 1000000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, 0) != 0) return -1;
@@ -488,6 +492,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, 0) != 0) return -1;
   if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "skipGrant", tsMndSkipGrant, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, 0) != 0) return -1;
@@ -521,6 +526,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "checkpointInterval", tsCheckpointInterval, 0, INT64_MAX, 0) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, 0) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -770,7 +778,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   //  tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
   //  tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
-  tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
+  tsMaxInsertBatchRows = cfgGetItem(pCfg, "maxInsertBatchRows")->i32;
 
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
@@ -778,7 +786,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
   tsEnableQueryHb = cfgGetItem(pCfg, "enableQueryHb")->bval;
-  tsEnableScience = cfgGetItem(pCfg, "enableScience")->bval;  
+  tsEnableScience = cfgGetItem(pCfg, "enableScience")->bval;
   tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
   tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
@@ -884,6 +892,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
   tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
+  tsMndSkipGrant = cfgGetItem(pCfg, "skipGrant")->bval;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
@@ -897,6 +906,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
   tsCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i64;
+
+  tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
+  tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
 
   GRANT_CFG_GET;
   return 0;
@@ -1039,7 +1051,7 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
           } else if (strcasecmp("maxNumOfDistinctRes", name) == 0) {
             tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
           } else if (strcasecmp("maxMemUsedByInsert", name) == 0) {
-            tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
+            tsMaxInsertBatchRows = cfgGetItem(pCfg, "maxInsertBatchRows")->i32;
           } else if (strcasecmp("maxRetryWaitTime", name) == 0) {
             tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
           }

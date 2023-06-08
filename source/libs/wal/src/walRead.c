@@ -108,6 +108,14 @@ int32_t walNextValidMsg(SWalReader *pReader) {
 
 int64_t walReaderGetCurrentVer(const SWalReader *pReader) { return pReader->curVersion; }
 int64_t walReaderGetValidFirstVer(const SWalReader *pReader) { return walGetFirstVer(pReader->pWal); }
+void    walReaderSetSkipToVersion(SWalReader *pReader, int64_t ver) { atomic_store_64(&pReader->skipToVersion, ver); }
+
+// this function is NOT multi-thread safe, and no need to be.
+int64_t walReaderGetSkipToVersion(SWalReader *pReader) {
+  int64_t newVersion = pReader->skipToVersion;
+  pReader->skipToVersion = 0;
+  return newVersion;
+}
 
 void walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever) {
   *sver = walGetFirstVer(pReader->pWal);
@@ -325,7 +333,7 @@ static int32_t walFetchBodyNew(SWalReader *pReader) {
     return -1;
   }
 
-  wDebug("vgId:%d, index:%" PRId64 " is fetched, cursor advance", pReader->pWal->cfg.vgId, ver);
+  wDebug("vgId:%d, index:%" PRId64 " is fetched, type:%d, cursor advance", pReader->pWal->cfg.vgId, ver, pReader->pHead->head.msgType);
   pReader->curVersion = ver + 1;
   return 0;
 }

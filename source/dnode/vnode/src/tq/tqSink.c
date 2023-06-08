@@ -137,7 +137,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
 
   int32_t blockSz = taosArrayGetSize(pBlocks);
 
-  tqDebug("vgId:%d, s-task:%s write results blocks:%d into table", TD_VID(pVnode), pTask->id.idStr, blockSz);
+  tqDebug("vgId:%d, s-task:%s write results %d blocks into table", TD_VID(pVnode), pTask->id.idStr, blockSz);
 
   void*   pBuf = NULL;
   SArray* tagArray = NULL;
@@ -294,13 +294,12 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
 
       char* ctbName = pDataBlock->info.parTbName;
       if (!ctbName[0]) {
+        memset(ctbName, 0, TSDB_TABLE_NAME_LEN);
         if (res == TSDB_CODE_SUCCESS) {
           memcpy(ctbName, pTableSinkInfo->tbName, strlen(pTableSinkInfo->tbName));
         } else {
-          char* tmp = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
-          memcpy(ctbName, tmp, strlen(tmp));
-          memcpy(pTableSinkInfo->tbName, tmp, strlen(tmp));
-          taosMemoryFree(tmp);
+          buildCtbNameByGroupIdImpl(stbFullName, pDataBlock->info.id.groupId, ctbName);
+          memcpy(pTableSinkInfo->tbName, ctbName, strlen(ctbName));
           tqDebug("vgId:%d, gropuId:%" PRIu64 " datablock table name is null", TD_VID(pVnode),
                   pDataBlock->info.id.groupId);
         }
@@ -482,17 +481,15 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       tEncoderClear(&encoder);
       tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
 
-      SRpcMsg msg = {
-          .msgType = TDMT_VND_SUBMIT,
-          .pCont = pBuf,
-          .contLen = len,
-      };
-
+      SRpcMsg msg = { .msgType = TDMT_VND_SUBMIT, .pCont = pBuf, .contLen = len };
       if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
         tqDebug("failed to put into write-queue since %s", terrstr());
       }
     }
   }
+
+  tqDebug("vgId:%d, s-task:%s write results completed", TD_VID(pVnode), pTask->id.idStr);
+
 _end:
   taosArrayDestroy(tagArray);
   taosArrayDestroy(pVals);

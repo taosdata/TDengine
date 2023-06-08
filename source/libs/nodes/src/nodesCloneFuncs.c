@@ -402,6 +402,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(joinType);
   CLONE_NODE_FIELD(pMergeCondition);
   CLONE_NODE_FIELD(pOnConditions);
+  CLONE_NODE_FIELD(pColEqualOnConditions);
   COPY_SCALAR_FIELD(isSingleTableJoin);
   COPY_SCALAR_FIELD(inputTsOrder);
   return TSDB_CODE_SUCCESS;
@@ -589,7 +590,7 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t physiWindowCopy(const SWinodwPhysiNode* pSrc, SWinodwPhysiNode* pDst) {
+static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pFuncs);
@@ -668,7 +669,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isEmptyResult);
-  COPY_SCALAR_FIELD(isTimeLineResult);
+  COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
   return TSDB_CODE_SUCCESS;

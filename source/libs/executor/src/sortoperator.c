@@ -60,7 +60,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   }
 
   pOperator->exprSupp.pCtx =
-      createSqlFunctionCtx(pOperator->exprSupp.pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
+      createSqlFunctionCtx(pOperator->exprSupp.pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset, &pTaskInfo->storageAPI.functionStore);
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   code = filterInitFromNode((SNode*)pSortNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -153,6 +153,7 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
       colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
     }
 
+    pDataBlock->info.dataLoad = 1;
     pDataBlock->info.rows = p->info.rows;
   }
 
@@ -500,7 +501,7 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   pSup->numOfExprs = numOfCols;
 
   initResultSizeInfo(&pOperator->resultInfo, 1024);
-  pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
+  pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset, &pTaskInfo->storageAPI.functionStore);
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);

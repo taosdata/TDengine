@@ -202,10 +202,19 @@ function install_lib() {
     log_print "start install lib from ${lib_dir} to ${lib_link_dir}"
     ${csudo}rm -f ${lib_link_dir}/libtaos* || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos* || :
+    
+    #rocksdb
+    [ -f ${lib_link_dir}/librocksdb* ] && ${csudo}rm -f ${lib_link_dir}/librocksdb* || :
+    [ -f ${lib64_link_dir}/librocksdb* ] && ${csudo}rm -f ${lib64_link_dir}/librocksdb* || :
+
+    #rocksdb
+    [ -f ${lib_link_dir}/librocksdb* ] && ${csudo}rm -f ${lib_link_dir}/librocksdb* || :
+    [ -f ${lib64_link_dir}/librocksdb* ] && ${csudo}rm -f ${lib64_link_dir}/librocksdb* || :
 
     [ -f ${lib_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
     [ -f ${lib64_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
 
+    ${csudo}ln -s ${lib_dir}/librocksdb.* ${lib_link_dir}/librocksdb.${lib_file_ext_1} 2>>${install_log_path} || return 1
     ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
     ${csudo}ln -s ${lib_link_dir}/libtaos.${lib_file_ext_1} ${lib_link_dir}/libtaos.${lib_file_ext} 2>>${install_log_path} || return 1
 
@@ -214,6 +223,7 @@ function install_lib() {
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.${lib_file_ext} ]]; then
       ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
       ${csudo}ln -s ${lib64_link_dir}/libtaos.${lib_file_ext_1} ${lib64_link_dir}/libtaos.${lib_file_ext}  2>>${install_log_path} || return 1
+      ${csudo}ln -s ${lib_dir}/librocksdb.* ${lib64_link_dir}/librocksdb.${lib_file_ext_1} 2>>${install_log_path} || return 1
 
       [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib64_link_dir}/libtaosws.${lib_file_ext} 2>>${install_log_path}
     fi

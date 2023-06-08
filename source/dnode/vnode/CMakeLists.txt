@@ -15,6 +15,7 @@ target_sources(
     "src/vnd/vnodeSync.c"
     "src/vnd/vnodeSnapshot.c"
     "src/vnd/vnodeRetention.c"
+    "src/vnd/vnodeInitApi.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -86,6 +87,28 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
     PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
 )
+IF (TD_LINUX)
+target_link_libraries(
+    vnode
+    PUBLIC os
+    PUBLIC util
+    PUBLIC common
+    PUBLIC tfs
+    PUBLIC wal
+    PUBLIC qworker
+    PUBLIC sync
+    PUBLIC executor
+    PUBLIC scheduler
+    PUBLIC tdb
+
+    # PUBLIC bdb
+    # PUBLIC scalar
+    PUBLIC rocksdb-shared
+    PUBLIC transport
+    PUBLIC stream
+    PUBLIC index
+)
+ELSE()
 target_link_libraries(
     vnode
     PUBLIC os
@@ -106,6 +129,7 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
 )
+ENDIF()
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)

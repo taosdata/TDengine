@@ -355,6 +355,11 @@ static int32_t collectMetaKeyFromCreateTopic(SCollectMetaKeyCxt* pCxt, SCreateTo
   if (NULL != pStmt->pQuery) {
     return collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
   }
+  if (NULL != pStmt->pWhere) {
+    int32_t code = collectMetaKeyFromRealTableImpl(pCxt, pStmt->subDbName, pStmt->subSTbName,
+                                                    AUTH_TYPE_READ);
+    return code;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -581,7 +586,7 @@ static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShow
     code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, AUTH_TYPE_READ,
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ,
                                   pCxt->pMetaCache);
   }
   return code;
