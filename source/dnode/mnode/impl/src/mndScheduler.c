@@ -396,8 +396,7 @@ static int32_t doAddSourceTask(SArray* pTaskList, int8_t fillHistory, int64_t ui
   pTask->dataRange.window.skey = INT64_MIN;
   pTask->dataRange.window.ekey = 1685959190000;//taosGetTimestampMs();
 
-  mDebug("0x%x----------------window:%"PRId64" - %"PRId64, pTask->id.taskId, pTask->dataRange.window.skey, pTask->dataRange.window.ekey);
-
+  mDebug("s-task:0x%x set time window:%"PRId64" - %"PRId64, pTask->id.taskId, pTask->dataRange.window.skey, pTask->dataRange.window.ekey);
 
   // all the source tasks dispatch result to a single agg node.
   setFixedDownstreamEpInfo(pTask, pDownstreamTask);

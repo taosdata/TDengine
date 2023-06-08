@@ -17,7 +17,7 @@
 #include "ttimer.h"
 
 #define STREAM_TASK_INPUT_QUEUE_CAPACITY          20480
-#define STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE  (50)
+#define STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE  (30)
 #define ONE_MB_F                                  (1048576.0)
 #define QUEUE_MEM_SIZE_IN_MB(_q)                  (taosQueueMemorySize(_q) / ONE_MB_F)
 

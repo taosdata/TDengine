@@ -164,26 +164,6 @@ int32_t streamMergeSubmit(SStreamMergedSubmit* pMerged, SStreamDataSubmit* pSubm
   return 0;
 }
 
-static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit* pDataSubmit) {
-  atomic_add_fetch_32(pDataSubmit->dataRef, 1);
-}
-
-SStreamDataSubmit* streamSubmitBlockClone(SStreamDataSubmit* pSubmit) {
-  int32_t len = 0;
-  if (pSubmit->type == STREAM_INPUT__DATA_SUBMIT) {
-    len = pSubmit->submit.msgLen;
-  }
-
-  SStreamDataSubmit* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM, len);
-  if (pSubmitClone == NULL) {
-    return NULL;
-  }
-
-  streamDataSubmitRefInc(pSubmit);
-  memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
-  return pSubmitClone;
-}
-
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem) {
   if (dst->type == STREAM_INPUT__DATA_BLOCK && pElem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)dst;

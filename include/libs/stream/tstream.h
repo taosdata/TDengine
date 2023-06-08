@@ -132,7 +132,6 @@ typedef struct {
 // ref data block, for delete
 typedef struct {
   int8_t       type;
-  int64_t      ver;
   SSDataBlock* pBlock;
 } SStreamRefDataBlock;
 
@@ -206,8 +205,6 @@ void* streamQueueNextItem(SStreamQueue* pQueue);
 
 SStreamDataSubmit* streamDataSubmitNew(SPackedData* pData, int32_t type);
 void               streamDataSubmitDestroy(SStreamDataSubmit* pDataSubmit);
-
-SStreamDataSubmit* streamSubmitBlockClone(SStreamDataSubmit* pSubmit);
 
 typedef struct {
   char*              qmsg;
