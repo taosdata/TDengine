@@ -254,8 +254,6 @@ int32_t tsdbSttFileReadTombBlock(SSttSegReader *reader, const STombBlk *tombBlk,
   int32_t code = 0;
   int32_t lino = 0;
 
-  tTombBlockClear(dData);
-
   code = tRealloc(&reader->reader->config->bufArr[0], tombBlk->dp->size);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -263,6 +261,7 @@ int32_t tsdbSttFileReadTombBlock(SSttSegReader *reader, const STombBlk *tombBlk,
   if (code) TSDB_CHECK_CODE(code, lino, _exit);
 
   int64_t size = 0;
+  tTombBlockClear(dData);
   for (int32_t i = 0; i < ARRAY_SIZE(dData->dataArr); ++i) {
     code = tsdbDecmprData(reader->reader->config->bufArr[0] + size, tombBlk->size[i], TSDB_DATA_TYPE_BIGINT,
                           tombBlk->cmprAlg, &reader->reader->config->bufArr[1], sizeof(int64_t) * tombBlk->numRec,

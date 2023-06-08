@@ -44,11 +44,24 @@ typedef struct SDataFileReaderConfig {
 int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
                                SDataFileReader **reader);
 int32_t tsdbDataFileReaderClose(SDataFileReader **reader);
+// .head
+int32_t tsdbDataFileReadBrinBlk(SDataFileReader *reader, const TBrinBlkArray **brinBlkArray);
+int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinBlk, SBrinBlock *brinBlock);
+// .data
+int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData);
+int32_t tsdbDataFileReadBlockDataByCol(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData,
+                                       STSchema *pTSchema, int32_t cidArr[], int32_t numCid);
+// .sma
+int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader);
+// .tomb
+int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **tombBlkArray);
+int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombBlk, STombBlock *tData);
+
+#if 1
 int32_t tsdbDataFileReadBlockIdx(SDataFileReader *reader, const TBlockIdxArray **blockIdxArray);
 int32_t tsdbDataFileReadDataBlk(SDataFileReader *reader, const SBlockIdx *blockIdx, const TDataBlkArray **dataBlkArray);
 int32_t tsdbDataFileReadDataBlock(SDataFileReader *reader, const SDataBlk *dataBlk, SBlockData *bData);
-int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **tombBlkArray);
-int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombBlk, STombBlock *tData);
+#endif
 
 // SDataFileWriter =============================================
 typedef struct SDataFileWriter SDataFileWriter;
@@ -72,9 +85,11 @@ typedef struct SDataFileWriterConfig {
 
 int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWriter **writer);
 int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, TFileOpArray *opArr);
+
 int32_t tsdbDataFileWriteTSData(SDataFileWriter *writer, SRowInfo *row);
 int32_t tsdbDataFileWriteTSDataBlock(SDataFileWriter *writer, SBlockData *bData);
 int32_t tsdbDataFileFlushTSDataBlock(SDataFileWriter *writer);
+
 int32_t tsdbDataFileWriteTombRecord(SDataFileWriter *writer, const STombRecord *record);
 
 #ifdef __cplusplus

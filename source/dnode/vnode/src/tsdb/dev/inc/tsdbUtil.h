@@ -165,12 +165,18 @@ typedef union {
 } SBrinBlock;
 
 typedef struct {
+  SFDataPtr dp[1];
   TABLEID   minTbid;
   TABLEID   maxTbid;
   int64_t   minVer;
   int64_t   maxVer;
-  SFDataPtr dp[1];
+  int32_t   numRec;
+  int32_t   size[15];
+  int8_t    cmprAlg;
+  int8_t    rsvd[7];
 } SBrinBlk;
+
+typedef TARRAY2(SBrinBlk) TBrinBlkArray;
 
 #define BRIN_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
 
