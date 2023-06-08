@@ -435,12 +435,17 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         goto _err;
       }
     } break;
+
+    case TDMT_VND_STREAM_CHECK_POINT_SOURCE: {
+      if (tqProcessStreamCheckPointReq(pVnode->pTq, ver, pReq, len) < 0) goto _err;
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {
         goto _err;
       }
       break;
+
     case TDMT_VND_ALTER_CONFIG:
       vnodeProcessAlterConfigReq(pVnode, ver, pReq, len, pRsp);
       break;

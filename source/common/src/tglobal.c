@@ -200,7 +200,7 @@ int64_t tsWalFsyncDataSizeLimit = (100 * 1024 * 1024L);
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointTickInterval = 50;
+int32_t tsStreamCheckpointTickInterval = 120;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushInterval = 3600;
 int32_t tsGrantHBInterval = 60;

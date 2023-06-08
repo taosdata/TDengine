@@ -346,7 +346,6 @@ typedef struct SStreamMeta {
   void*        streamBackend;
   int32_t      streamBackendId;
   int64_t      streamBackendRid;
-  SHashObj*    pTaskBackendUnique;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
