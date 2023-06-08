@@ -5,7 +5,7 @@ set -e
 
 # OPTIONS=`getopt  --options 'ho:r:e:f' --longoptions 'help,os:,arch:,repo:,force' -- "$@"`
 FORCE=0
-
+current_os=`uname`
 usage() {
   cat << EOF
 Usage:
@@ -52,9 +52,12 @@ build_binary() {
       go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latest'" -o taoskeeper main.go
     elif [ "$REPO" = "taoskeeper" ]; then
       go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latest'" -o taoskeeper main.go
+          # if os != darwin, use upx to compress binary
+      if [ "$current_os" != "Darwin" ]; then
+         upx taoskeeper > /dev/null 2>&1 || :
+      fi
     fi
-#    upx taoskeeper > /dev/null 2>&1 || :
-   
+#    upx taoskeeper > /dev/null 2>&1 || :   
   fi
   readlink -f taoskeeper
 }
