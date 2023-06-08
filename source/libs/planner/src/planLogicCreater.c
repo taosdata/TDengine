@@ -760,7 +760,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
       }
       bool exist = false;
       FOREACH(pProject, pSelect->pProjectionList) {
-        if (0 != ((SFunctionNode*)pFunc)->node.aliasName[0] &&
+        if (QUERY_NODE_COLUMN == nodeType(pProject) && 0 != ((SFunctionNode*)pFunc)->node.aliasName[0] &&
             0 == strncmp(((SFunctionNode*)pFunc)->node.aliasName, ((SColumnNode*)pProject)->colName,
                          TSDB_COL_NAME_LEN)) {
           exist = true;
