@@ -791,7 +791,21 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
       memcpy(udfCol->colData.varLenCol.varOffsets, col->varmeta.offset, udfCol->colData.varLenCol.varOffsetsLen);
       udfCol->colData.varLenCol.payloadLen = colDataGetLength(col, udfBlock->numOfRows);
       udfCol->colData.varLenCol.payload = taosMemoryMalloc(udfCol->colData.varLenCol.payloadLen);
-      memcpy(udfCol->colData.varLenCol.payload, col->pData, udfCol->colData.varLenCol.payloadLen);
+      if (col->reassigned) {
+        for (int32_t row = 0; row < udfCol->colData.numOfRows; ++row) {
+          char* pColData = col->pData + col->varmeta.offset[row];
+          int32_t colSize = 0;
+          if (col->info.type == TSDB_DATA_TYPE_JSON) {
+            colSize = getJsonValueLen(pColData);
+          } else {
+            colSize = varDataTLen(pColData);
+          }
+          memcpy(udfCol->colData.varLenCol.payload, pColData, colSize);
+          udfCol->colData.varLenCol.payload += colSize;
+        }
+      } else {
+        memcpy(udfCol->colData.varLenCol.payload, col->pData, udfCol->colData.varLenCol.payloadLen);
+      }
     } else {
       udfCol->colData.fixLenCol.nullBitmapLen = BitmapLen(udfCol->colData.numOfRows);
       int32_t bitmapLen = udfCol->colData.fixLenCol.nullBitmapLen;
