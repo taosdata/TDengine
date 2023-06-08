@@ -467,6 +467,12 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 {{#include docs/examples/python/tmq_example.py}}
 ```
 
+连接器提供了 `assignment`接口，用于获取 topic assignment 的功能，可以查询订阅的 assignment 的消费进度，并提供 `seek` 接口，用于重置 topic 的 assignment。
+
+```python
+{{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
+```
+
 </TabItem>
 
 <TabItem value="websocket" label="WebSocket 连接">
@@ -475,6 +481,12 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py}}
+```
+
+连接器提供了 `assignment` 接口，用于获取 topic assignment 的功能，可以查询订阅的 topic 的消费进度，并提供 `seek` 接口，用于重置 topic 的消费进度。
+
+```python
+{{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
 ```
 
 </TabItem>

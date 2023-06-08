@@ -453,6 +453,44 @@ As the way to connect introduced above but add `req_id` argument.
 </TabItem>
 </Tabs>
 
+### Subscription
+
+Connector support data subscription. For more information about subscroption, please refer to [Data Subscription](../../develop/tmq/).
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
+The `consumer` in the connector has the subscription api. For more subscription api parameters, please refer to [Data Subscription](../../develop/tmq/).
+
+```python
+{{#include docs/examples/python/tmq_example.py}}
+```
+
+There is an `assignment` API in the connector, which can get the assignment of the topic. And there is a `seek` api to reset the assignment of the topic.
+
+```python
+{{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
+```
+
+</TabItem>
+
+<TabItem value="websocket" label="WebSocket connection">
+
+In addition to native connections, the connector also supports subscriptions via websockets.
+
+```python
+{{#include docs/examples/python/tmq_websocket_example.py}}
+```
+
+There is an `assignment` API in the connector, which can get the assignment of the topic. And there is a `seek` api to reset the assignment of the topic.
+
+```python
+{{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
+```
+
+</TabItem>
+</Tabs>
+
 ### Schemaless Insert
 
 Connector support schemaless insert.
@@ -507,7 +545,8 @@ Insert with req_id argument
 
 | Example program links | Example program content |
 | ------------------------------------------------------------------------------------------------------------- | ------------------- ---- |
-| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py) | parameter binding, bind multiple rows at once |
+| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py) | parameter binding, 
+bind multiple rows at once |
 | [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py) | bind_row.py
 | [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py) | InfluxDB line protocol writing |
 | [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py) | Use JSON type tags |
