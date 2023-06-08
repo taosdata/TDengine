@@ -485,12 +485,12 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   }
 
   int32_t code = 0;
+  bool    freeReader = false;
 
   // backup the rows
   int32_t backupRows = pBlock->info.rows;
   pBlock->info.rows = rows;
 
-  bool            freeReader = false;
   STableCachedVal val = {0};
 
   SMetaReader mr = {0};
@@ -1553,13 +1553,13 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
 
-  pInfo->pRes->info.rows = pBlock->info.rows;
-  pInfo->pRes->info.id.uid = pBlock->info.id.uid;
-  pInfo->pRes->info.type = STREAM_NORMAL;
-  pInfo->pRes->info.version = pBlock->info.version;
+  pBlockInfo->rows = pBlock->info.rows;
+  pBlockInfo->id.uid = pBlock->info.id.uid;
+  pBlockInfo->type = STREAM_NORMAL;
+  pBlockInfo->version = pBlock->info.version;
 
   STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-  pInfo->pRes->info.id.groupId = getTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+  pBlockInfo->id.groupId = getTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
 
   // todo extract method
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
@@ -1589,7 +1589,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
     int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
-                                          pInfo->pRes->info.rows, GET_TASKID(pTaskInfo), &pTableScanInfo->base.metaCache);
+                                          pBlockInfo->rows, GET_TASKID(pTaskInfo), &pTableScanInfo->base.metaCache);
     // ignore the table not exists error, since this table may have been dropped during the scan procedure.
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       blockDataFreeRes((SSDataBlock*)pBlock);
@@ -1606,7 +1606,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   pInfo->pRes->info.dataLoad = 1;
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
-//  blockDataFreeRes((SSDataBlock*)pBlock);
 
   calBlockTbName(pInfo, pInfo->pRes);
   return 0;
@@ -2088,10 +2087,25 @@ FETCH_NEXT_BLOCK:
           return pInfo->pCreateTbRes;
         }
 
-        // todo apply time window range filter
-
         doCheckUpdate(pInfo, pBlockInfo->window.ekey, pBlock);
         doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+
+        {  // do additional time window filter
+          STimeWindow* pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
+
+          if (pWindow->skey != 0) {
+            bool* p = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
+
+            SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
+            for(int32_t i = 0; i < pBlock->info.rows; ++i) {
+              int64_t* ts = (int64_t*) colDataGetData(pCol, i);
+              p[i] = (*ts >= pWindow->skey);
+            }
+
+            trimDataBlock(pBlock, pBlock->info.rows, p);
+            taosMemoryFree(p);
+          }
+        }
 
         pBlock->info.dataLoad = 1;
         blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
