@@ -28,11 +28,10 @@ extern "C" {
 #endif
 
 typedef struct SStreamFileState SStreamFileState;
-
 typedef SList SStreamSnapshot;
 
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
-                                      GetTsFun fp, void* pFile, TSKEY delMark);
+                                      GetTsFun fp, void* pFile, TSKEY delMark, const char* id);
 void              streamFileStateDestroy(SStreamFileState* pFileState);
 void              streamFileStateClear(SStreamFileState* pFileState);
 bool              needClearDiskBuff(SStreamFileState* pFileState);

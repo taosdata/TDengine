@@ -43,12 +43,13 @@ struct SStreamFileState {
   uint64_t   maxRowCount;
   uint64_t   curRowCount;
   GetTsFun   getTs;
+  char*      id;
 };
 
 typedef SRowBuffPos SRowBuffInfo;
 
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
-                                      GetTsFun fp, void* pFile, TSKEY delMark) {
+                                      GetTsFun fp, void* pFile, TSKEY delMark, const char* idstr) {
   if (memSize <= 0) {
     memSize = DEFAULT_MAX_STREAM_BUFFER_SIZE;
   }
@@ -70,6 +71,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   if (!pFileState->usedBuffs || !pFileState->freeBuffs || !pFileState->rowBuffMap) {
     goto _error;
   }
+
   pFileState->keyLen = keySize;
   pFileState->rowSize = rowSize;
   pFileState->selectivityRowSize = selectRowSize;
@@ -81,6 +83,8 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   pFileState->deleteMark = delMark;
   pFileState->flushMark = INT64_MIN;
   pFileState->maxTs = INT64_MIN;
+  pFileState->id = taosStrdup(idstr);
+
   recoverSnapshot(pFileState);
   return pFileState;
 
@@ -124,6 +128,8 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   if (!pFileState) {
     return;
   }
+
+  taosMemoryFree(pFileState->id);
   tdListFreeP(pFileState->usedBuffs, destroyRowBuffAllPosPtr);
   tdListFreeP(pFileState->freeBuffs, destroyRowBuff);
   tSimpleHashCleanup(pFileState->rowBuffMap);
@@ -177,7 +183,8 @@ void popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, uin
       i++;
     }
   }
-  qInfo("do stream state flush %d rows to disck. is used: %d", listNEles(pFlushList), used);
+
+  qInfo("stream state flush %d rows to disk. is used:%d", listNEles(pFlushList), used);
 }
 
 int32_t flushRowBuff(SStreamFileState* pFileState) {
@@ -185,13 +192,17 @@ int32_t flushRowBuff(SStreamFileState* pFileState) {
   if (!pFlushList) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   uint64_t num = (uint64_t)(pFileState->curRowCount * FLUSH_RATIO);
   num = TMAX(num, FLUSH_NUM);
   popUsedBuffs(pFileState, pFlushList, num, false);
+
   if (isListEmpty(pFlushList)) {
     popUsedBuffs(pFileState, pFlushList, num, true);
   }
+
   flushSnapshot(pFileState, pFlushList, false);
+
   SListIter fIter = {0};
   tdListInitIter(pFlushList, &fIter, TD_LIST_FORWARD);
   SListNode* pNode = NULL;
@@ -201,6 +212,7 @@ int32_t flushRowBuff(SStreamFileState* pFileState) {
     tdListAppend(pFileState->freeBuffs, &pPos->pRowBuff);
     pPos->pRowBuff = NULL;
   }
+
   tdListFreeP(pFlushList, destroyRowBuffPosPtr);
   return TSDB_CODE_SUCCESS;
 }
@@ -269,13 +281,13 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
   TSKEY ts = pFileState->getTs(pKey);
   if (ts > pFileState->maxTs - pFileState->deleteMark && ts < pFileState->flushMark) {
     int32_t len = 0;
-    void*   pVal = NULL;
-    int32_t code = streamStateGet_rocksdb(pFileState->pFileStore, pKey, &pVal, &len);
+    void*   p = NULL;
+    int32_t code = streamStateGet_rocksdb(pFileState->pFileStore, pKey, &p, &len);
     qDebug("===stream===get %" PRId64 " from disc, res %d", ts, code);
     if (code == TSDB_CODE_SUCCESS) {
-      memcpy(pNewPos->pRowBuff, pVal, len);
+      memcpy(pNewPos->pRowBuff, p, len);
     }
-    taosMemoryFree(pVal);
+    taosMemoryFree(p);
   }
 
   tSimpleHashPut(pFileState->rowBuffMap, pKey, keyLen, &pNewPos, POINTER_BYTES);
@@ -348,12 +360,16 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   tdListInitIter(pSnapshot, &iter, TD_LIST_FORWARD);
 
   const int32_t BATCH_LIMIT = 256;
-  SListNode*    pNode = NULL;
+
+  int64_t    st = taosGetTimestampMs();
+  int32_t    numOfElems = listNEles(pSnapshot);
+  SListNode* pNode = NULL;
 
   void* batch = streamStateCreateBatch();
   while ((pNode = tdListNext(&iter)) != NULL && code == TSDB_CODE_SUCCESS) {
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
     ASSERT(pPos->pRowBuff && pFileState->rowSize > 0);
+
     if (streamStateGetBatchSize(batch) >= BATCH_LIMIT) {
       code = streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
       streamStateClearBatch(batch);
@@ -361,7 +377,8 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
 
     SStateKey sKey = {.key = *((SWinKey*)pPos->pKey), .opNum = ((SStreamState*)pFileState->pFileStore)->number};
     code = streamStatePutBatch(pFileState->pFileStore, "state", batch, &sKey, pPos->pRowBuff, pFileState->rowSize, 0);
-    qDebug("===stream===put %" PRId64 " to disc, code:%d, size:%d", sKey.key.ts, code, pFileState->rowSize);
+    // todo handle failure
+//    qDebug("===stream===put %" PRId64 " to disc, code:%d, size:%d", sKey.key.ts, code, pFileState->rowSize);
   }
 
   if (streamStateGetBatchSize(batch) > 0) {
@@ -369,6 +386,10 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   }
 
   streamStateClearBatch(batch);
+
+  int64_t elapsed = taosGetTimestampMs() - st;
+  qDebug("%s flush to disk in batch model completed, rows:%d, batch size:%d, elapsed time:%"PRId64"ms", pFileState->id, numOfElems,
+         BATCH_LIMIT, elapsed);
 
   if (flushState) {
     const char* taskKey = "streamFileState";
@@ -391,8 +412,8 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     }
     streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
-  streamStateDestroyBatch(batch);
 
+  streamStateDestroyBatch(batch);
   return code;
 }
 
