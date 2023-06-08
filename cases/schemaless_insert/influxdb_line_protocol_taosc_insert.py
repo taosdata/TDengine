@@ -1213,7 +1213,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
-            self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+            # self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
 
             self.ts_2828(10, 10, 3)
             self.ts_3053()

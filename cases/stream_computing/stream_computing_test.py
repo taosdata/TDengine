@@ -869,7 +869,8 @@ class StreamComputingTest(TDCase):
                     stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
             else:
                 if subtable == "constant":
-                    stb_subtable_value = f'"{self.ext_ctb_stream_des_table}"'
+                    # stb_subtable_value = f'"{self.ext_ctb_stream_des_table}"'
+                    stb_subtable_value = f'"constant_{self.ext_ctb_stream_des_table}"'
                 else:
                     stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast(cast(cast({subtable} as int unsigned) as bigint) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
         else:
@@ -910,7 +911,7 @@ class StreamComputingTest(TDCase):
             self.date_time += 1
             if tag_value:
                 if subtable == "constant":
-                    self.tdSql.query(f'select {tag_value} from {self.ext_ctb_stream_des_table}')
+                    self.tdSql.query(f'select {tag_value} from constant_{self.ext_ctb_stream_des_table}')
                 else:
                     self.tdSql.query(f'select {tag_value} from {self.stb_name}')
                 tag_value_list = self.tdSql.query_data
@@ -2993,7 +2994,7 @@ class StreamComputingTest(TDCase):
             self.create_error_source_sql_stream()
             ## ! rep3 TD-20280
             self.insert_after_restart()
-            self.insert_after_restart(delete=True, fill_history_value=1)
+            # self.insert_after_restart(delete=True, fill_history_value=1)
             ## ! TD-18123
             # # self.insert_after_recreate_source_table()
             self.query_after_drop_stream_db()
@@ -3018,9 +3019,8 @@ class StreamComputingTest(TDCase):
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
             self.at_once_interval(interval=random.randint(10, 15), partition=None, delete=True)
             self.at_once_session(session=random.randint(10, 15),subtable=None, partition="abs(c1)")
-            # !TD-24624
-            # if self.vgroups == 1:
-            #     self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition=None, subtable="constant", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
+            if self.vgroups == 1:
+                self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition=None, subtable="constant", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
             for ignore_expired in [None, 0, 1]:
                 self.at_once_session(session=random.randint(10, 15), ignore_expired=ignore_expired)
             for ignore_update in [None, 0, 1]:

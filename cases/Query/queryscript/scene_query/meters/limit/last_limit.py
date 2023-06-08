@@ -509,9 +509,15 @@ class TDTestQuery(TDTestQuery):
 
         self.tdCreateData.alter_local_slowlogthreshold()  #设置慢查询
         
+        self.benchmark_insert_stb(self.source_taosd_list,self.dbname_other_local,'stb',self.tables,self.per_table_num,self.vgroups,self.replica) 
+        self.base_sql_count(self.dbname_other_local,self.tables,self.per_table_num)
         self.benchmark_insert_stb(self.source_taosd_list,self.dbnamejoin_local,'stb',self.join_tables,self.join_per_table_num,self.join_vgroups,self.replica) 
         self.base_sql_count(self.dbnamejoin_local,self.join_tables,self.join_per_table_num)
-        self.run_sql(self.dbname,self.tables,self.per_table_num,self.dbnamejoin_local)   #前面用base的，后面用local的
+        
+        #self.run_sql(self.dbname,self.tables,self.per_table_num,self.dbnamejoin_local)   #前面用base的，后面用local的
+        self.run_sql(self.dbname_other_local,self.tables,self.per_table_num,self.dbnamejoin_local)   #前面用base_local的,解决不同容器的错误，后面用local的
+        
+        self.drop_db_table(self.dbname_other_local)  #共用时可以删除
         self.drop_db_table(self.dbnamejoin_local) 
         
         endTime = time.time()
