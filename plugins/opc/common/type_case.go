@@ -11,7 +11,7 @@ import (
 type ValueType int
 
 const (
-	_ ValueType = iota
+	Invalid ValueType = iota
 	TIMESTAMP
 	INT
 	INTUNSIGNED
