@@ -1,5 +1,5 @@
 ## 说明
-taosx-simulator 通过读取当全目录下 /csv/*.csv 文件，为每一个 csv 文件在 PI System 中生成一个 Point 点位。
+taosx-simulator 通过读取当前目录下 /csv/*.csv 文件，为每一个 csv 文件在 PI System 中生成一个 Point 点位。
 
 ## 版本说明
 ### 1.0.0.*

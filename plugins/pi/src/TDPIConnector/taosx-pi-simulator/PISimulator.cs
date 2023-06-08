@@ -5,7 +5,8 @@ using System.IO;
 using System.Timers;
 using log4net;
 using System.Linq;
-using TDPIConnector.Core;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace PISimulator
 {
@@ -95,7 +96,7 @@ namespace PISimulator
             updatePointCSV(points);
             resetStartTime(DateTime.Now);
 
-            var timer = new Timer(1000);
+            var timer = new System.Timers.Timer(1000);
             timer.Elapsed += OnTimerUpdate;
             timer.Enabled = true;
         }
@@ -123,13 +124,28 @@ namespace PISimulator
         public void OnTimerUpdate(object sender, ElapsedEventArgs e)
         {
             var now = DateTime.Now;
+            int maxConcurrency = 30; // 最大并发数
+            SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(maxConcurrency);
+            List<Task> tasks = new List<Task>();
             foreach (var data in simulationDataList)
             {
-                var res = data.Value.PopPreData(now);
-                foreach (var pointValue in res) {
-                    piServerManager.UpdataPoint(pointValue.point, pointValue.ts, pointValue.value);
-                }
+                tasks.Add(Task.Run(async () =>
+                {
+                    await concurrencySemaphore.WaitAsync();
+                    try
+                    {
+                        var res = data.Value.PopPreData(now);
+                        foreach (var pointValue in res) {
+                            piServerManager.UpdataPoint(pointValue.point, pointValue.ts, pointValue.value);
+                        }
+                    }
+                    finally
+                    {
+                        concurrencySemaphore.Release();
+                    }
+                }));
             }
+            Task.WaitAll(tasks.ToArray());
         }
 
         private List<string> GetCSVFiles(string csvPath)
