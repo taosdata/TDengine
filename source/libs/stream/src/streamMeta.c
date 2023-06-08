@@ -89,6 +89,10 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   pMeta->streamBackend = streamBackendInit(streamPath);
+
+  if (pMeta->streamBackend == NULL) {
+    goto _err;
+  }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
   taosMemoryFree(streamPath);
@@ -104,7 +108,6 @@ _err:
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
-  // if (pMeta->streamBackend) streamBackendCleanup(pMeta->streamBackend);
   taosMemoryFree(pMeta);
   qError("failed to open stream meta");
   return NULL;
@@ -398,4 +401,18 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
   }
 
   return 0;
+}
+
+int32_t streamDoCheckpoint(SStreamMeta* pMeta) {
+  int  code = -1;
+  char buf[256];
+
+  sprintf(buf, "%s/%s", pMeta->path, "checkpoints");
+  code = taosMulModeMkDir(buf, 0755);
+  if (code != 0) {
+    qError("failed to create chechpoint %s, reason:%s", buf, tstrerror(code));
+    return code;
+  }
+  code = streamBackendDoCheckpoint(pMeta->streamBackendRid, buf);
+  return code;
 }

@@ -120,6 +120,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
 #ifdef USE_ROCKSDB
   SStreamMeta* pMeta = pStreamTask->pMeta;
   pState->streamBackendRid = pMeta->streamBackendRid;
+
   int code = streamStateOpenBackend(pMeta->streamBackend, pState);
   if (code == -1) {
     taosReleaseRef(streamBackendId, pMeta->streamBackendRid);

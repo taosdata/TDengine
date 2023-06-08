@@ -41,6 +41,7 @@ typedef struct {
 } RocksdbCfInst;
 
 uint32_t nextPow2(uint32_t x) {
+  if (x <= 1) return 2;
   x = x - 1;
   x = x | (x >> 1);
   x = x | (x >> 2);
@@ -188,6 +189,37 @@ void streamBackendCleanup(void* arg) {
   taosMemoryFree(pHandle);
   qDebug("destroy stream backend backend:%p", pHandle);
   return;
+}
+
+int32_t streamBackendDoCheckpoint(int64_t backendRid, const char* path) {
+  int64_t         st = taosGetTimestampMs();
+  int32_t         code = -1;
+  SBackendHandle* pHandle = taosAcquireRef(streamBackendId, backendRid);
+  if (pHandle == NULL) {
+    return -1;
+  }
+  qDebug("stream backend:%p start to do checkpoint at:%s ", pHandle, path);
+
+  if (pHandle->db != NULL) {
+    char*                 err = NULL;
+    rocksdb_checkpoint_t* cp = rocksdb_checkpoint_object_create(pHandle->db, &err);
+    if (cp == NULL || err != NULL) {
+      taosMemoryFree(err);
+      qError("stream backend:%p failed to do checkpoint at:%s, reason:%s", pHandle, path, err);
+    }
+    rocksdb_checkpoint_create(cp, path, 64 << 20, &err);
+    if (err != NULL) {
+      taosMemoryFree(err);
+      qError("stream backend:%p failed to do checkpoint at:%s, reason:%s", pHandle, path, err);
+    } else {
+      code = 0;
+      qDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pHandle, path,
+             taosGetTimestampMs() - st);
+    }
+    rocksdb_checkpoint_object_destroy(cp);
+  }
+  taosReleaseRef(streamBackendId, backendRid);
+  return code;
 }
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
   SBackendHandle* pHandle = (SBackendHandle*)backend;
@@ -810,7 +842,11 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
 }
 int streamStateOpenBackend(void* backend, SStreamState* pState) {
   qInfo("start to open state %p on backend %p 0x%" PRIx64 "-%d", pState, backend, pState->streamId, pState->taskId);
-  taosAcquireRef(streamBackendId, pState->streamBackendRid);
+  void* arg = taosAcquireRef(streamBackendId, pState->streamBackendRid);
+  if (arg == NULL) {
+    return -1;
+  }
+
   SBackendHandle* handle = backend;
 
   sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-%d", pState->streamId, pState->taskId);

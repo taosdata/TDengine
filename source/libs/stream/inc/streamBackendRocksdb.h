@@ -46,6 +46,7 @@ typedef struct {
 
 void*      streamBackendInit(const char* path);
 void       streamBackendCleanup(void* arg);
+int32_t    streamBackendDoCheckpoint(int64_t rid, const char* cpPath);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
 
