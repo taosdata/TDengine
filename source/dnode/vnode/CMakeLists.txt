@@ -115,7 +115,7 @@ target_link_libraries(
 
     # PUBLIC bdb
     # PUBLIC scalar
-    PUBLIC rocksdb-shared
+    PUBLIC rocksdb
     PUBLIC transport
     PUBLIC stream
     PUBLIC index

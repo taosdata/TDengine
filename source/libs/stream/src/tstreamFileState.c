@@ -419,7 +419,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     if (code != 0 || len == 0 || val == NULL) {
       return TSDB_CODE_FAILED;
     }
-    memcpy(val, buf, len);
+    memcpy(buf, val, len);
     buf[len] = 0;
     maxCheckPointId = atol((char*)buf);
     taosMemoryFree(val);
@@ -433,7 +433,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     if (code != 0) {
       return TSDB_CODE_FAILED;
     }
-    memcpy(val, buf, len);
+    memcpy(buf, val, len);
     buf[len] = 0;
     taosMemoryFree(val);
 

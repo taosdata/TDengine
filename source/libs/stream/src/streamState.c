@@ -106,7 +106,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   }
 
   SStreamTask* pStreamTask = pTask;
-  char statePath[1024];
+  char         statePath[1024];
   if (!specPath) {
     sprintf(statePath, "%s/%d", path, pStreamTask->id.taskId);
   } else {
@@ -119,10 +119,10 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
 
 #ifdef USE_ROCKSDB
   SStreamMeta* pMeta = pStreamTask->pMeta;
-  taosAcquireRef(pMeta->streamBackendId, pMeta->streamBackendRid);
+  pState->streamBackendRid = pMeta->streamBackendRid;
   int code = streamStateOpenBackend(pMeta->streamBackend, pState);
   if (code == -1) {
-    taosReleaseRef(pMeta->streamBackendId, pMeta->streamBackendRid);
+    taosReleaseRef(streamBackendId, pMeta->streamBackendRid);
     taosMemoryFree(pState);
     pState = NULL;
   }
@@ -222,9 +222,7 @@ _err:
 void streamStateClose(SStreamState* pState, bool remove) {
   SStreamTask* pTask = pState->pTdbState->pOwner;
 #ifdef USE_ROCKSDB
-  // streamStateCloseBackend(pState);
   streamStateDestroy(pState, remove);
-  taosReleaseRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
 #else
   tdbCommit(pState->pTdbState->db, pState->pTdbState->txn);
   tdbPostCommit(pState->pTdbState->db, pState->pTdbState->txn);
@@ -278,10 +276,10 @@ int32_t streamStateCommit(SStreamState* pState) {
 
 int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
-  void* pVal = NULL;
-  int32_t len = 0;
-  int32_t code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
-  char* buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  void*    pVal = NULL;
+  int32_t  len = 0;
+  int32_t  code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
+  char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
   uint32_t rowSize = streamFileStateGeSelectRowSize(pState->pFileState);
   memcpy(buf + len - rowSize, value, vLen);
   return code;
@@ -291,10 +289,10 @@ int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void*
 }
 int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
-  void* pVal = NULL;
-  int32_t len = 0;
-  int32_t code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
-  char* buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  void*    pVal = NULL;
+  int32_t  len = 0;
+  int32_t  code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
+  char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
   uint32_t rowSize = streamFileStateGeSelectRowSize(pState->pFileState);
   *ppVal = buf + len - rowSize;
   return code;
