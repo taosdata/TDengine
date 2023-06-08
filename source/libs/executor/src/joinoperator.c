@@ -319,6 +319,11 @@ void destroyMergeJoinOperator(void* param) {
   }
   nodesDestroyNode(pJoinOperator->pCondAfterMerge);
 
+  taosArrayDestroy(pJoinOperator->rowCtx.leftCreatedBlocks);
+  taosArrayDestroy(pJoinOperator->rowCtx.rightCreatedBlocks);
+  taosArrayDestroy(pJoinOperator->rowCtx.leftRowLocations);
+  taosArrayDestroy(pJoinOperator->rowCtx.rightRowLocations);
+
   pJoinOperator->pRes = blockDataDestroy(pJoinOperator->pRes);
   taosMemoryFreeClear(param);
 }
