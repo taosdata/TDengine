@@ -163,6 +163,8 @@ typedef union {
 typedef struct {
   TABLEID   minTbid;
   TABLEID   maxTbid;
+  int64_t   minVer;
+  int64_t   maxVer;
   SFDataPtr dp[1];
 } SBrinBlk;
 
