@@ -799,8 +799,14 @@ impl TaskController {
             }
         }
         let agent = if let Some(id) = task.via {
-            let agent = self.get_agent_by_id(id).await?;
-            Some(agent.ok_or_else(|| anyhow::format_err!("Agent ID not found: {}", id))?)
+            let agent = self
+                .get_agent_by_id(id)
+                .await?
+                .ok_or_else(|| anyhow::format_err!("Agent ID not found: {}", id))?;
+            if !self.agent_alive(id).await {
+                anyhow::bail!("Agent {id} is not alive");
+            }
+            Some(agent)
         } else {
             None
         };
@@ -2424,6 +2430,37 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_create_task_when_agent_not_alive() -> anyhow::Result<()> {
+        let controller = TaskController::from_sqlite("sqlite::memory:").await?;
+        let agent = controller
+            .create_agent(AgentProps {
+                dsn: "".to_string(),
+                name: "a1".to_string(),
+                cluster_id: "".to_string(),
+                user_id: "".to_string(),
+            })
+            .await?;
+        dbg!(&agent);
+
+        let task_props: NewTask = serde_json::from_str(&format!(
+            r#"
+        {{
+            "from": "mqtt:///db2",
+            "to":"taos:///db2",
+            "via": 1
+        }}
+        "#,
+        ))
+        .unwrap();
+
+        let task = controller.create(task_props).await;
+        assert!(task.is_err());
+        dbg!(&task);
+        assert!(task.unwrap_err().to_string().contains("Agent 1 is not alive"));
+
+        Ok(())
+    }
     #[tokio::test(flavor = "multi_thread")]
     async fn test_task_offset() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "taos=info");
