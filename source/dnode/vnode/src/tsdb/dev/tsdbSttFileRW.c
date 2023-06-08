@@ -626,7 +626,7 @@ static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
   tDestroyTSchema(writer->skmRow->pTSchema);
   tDestroyTSchema(writer->skmTb->pTSchema);
   tTombBlockDestroy(writer->tData);
-  tStatisBlockFree(writer->sData);
+  tStatisBlockDestroy(writer->sData);
   tBlockDataDestroy(writer->bData);
   TARRAY2_DESTROY(writer->tombBlkArray, NULL);
   TARRAY2_DESTROY(writer->statisBlkArray, NULL);
@@ -774,9 +774,7 @@ int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
         .suid = row->suid,
         .uid = row->uid,
         .firstKey = key->ts,
-        .firstKeyVer = key->version,
         .lastKey = key->ts,
-        .lastKeyVer = key->version,
         .minVer = key->version,
         .maxVer = key->version,
         .count = 1,
@@ -789,9 +787,7 @@ int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
     if (key->ts > TARRAY2_LAST(writer->sData->lastKey)) {
       TARRAY2_LAST(writer->sData->count)++;
       TARRAY2_LAST(writer->sData->lastKey) = key->ts;
-      TARRAY2_LAST(writer->sData->lastKeyVer) = key->version;
     } else if (key->ts == TARRAY2_LAST(writer->sData->lastKey)) {
-      TARRAY2_LAST(writer->sData->lastKeyVer) = key->version;
     } else {
       ASSERTS(0, "timestamp should be in ascending order");
     }
@@ -811,10 +807,6 @@ int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
               : writer->bData->aUid[writer->bData->nRow - 1]) == row->uid  //
       && writer->bData->aTSKEY[writer->bData->nRow - 1] == key->ts         //
   ) {
-    if (writer->bData->nRow == 1) {
-      TARRAY2_LAST(writer->sData->firstKeyVer) = key->version;
-    }
-
     code = tBlockDataUpdateRow(writer->bData, &row->row, writer->config->skmRow->pTSchema);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {

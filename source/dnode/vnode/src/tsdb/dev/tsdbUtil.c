@@ -38,8 +38,9 @@ int32_t tTombBlockClear(STombBlock *tombBlock) {
 }
 
 int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record) {
+  int32_t code;
   for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
-    int32_t code = TARRAY2_APPEND(&tombBlock->dataArr[i], record->dataArr[i]);
+    code = TARRAY2_APPEND(&tombBlock->dataArr[i], record->dataArr[i]);
     if (code) return code;
   }
   return 0;
@@ -57,29 +58,30 @@ int32_t tTombRecordCompare(const STombRecord *r1, const STombRecord *r2) {
 
 // STbStatisBlock ----------
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
+  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
     TARRAY2_INIT(&statisBlock->dataArr[i]);
   }
   return 0;
 }
 
-int32_t tStatisBlockFree(STbStatisBlock *statisBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
+int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock) {
+  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
     TARRAY2_DESTROY(&statisBlock->dataArr[i], NULL);
   }
   return 0;
 }
 
 int32_t tStatisBlockClear(STbStatisBlock *statisBlock) {
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
+  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
     TARRAY2_CLEAR(&statisBlock->dataArr[i], NULL);
   }
   return 0;
 }
 
-int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *statisRecord) {
-  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
-    int32_t code = TARRAY2_APPEND(&statisBlock->dataArr[i], statisRecord->dataArr[i]);
+int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *record) {
+  int32_t code;
+  for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; ++i) {
+    code = TARRAY2_APPEND(&statisBlock->dataArr[i], record->dataArr[i]);
     if (code) return code;
   }
   return 0;

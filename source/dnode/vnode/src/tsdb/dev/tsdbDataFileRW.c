@@ -390,7 +390,7 @@ static int32_t tsdbDataFileWriterDoClose(SDataFileWriter *writer) {
   }
 
   tTombBlockDestroy(writer->tData);
-  tStatisBlockFree(writer->sData);
+  tStatisBlockDestroy(writer->sData);
   tBlockDataDestroy(writer->bData);
   TARRAY2_DESTROY(writer->tombBlkArray, NULL);
   TARRAY2_DESTROY(writer->dataBlkArray, NULL);

@@ -65,16 +65,14 @@ int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record);
 int32_t tTombRecordCompare(const STombRecord *record1, const STombRecord *record2);
 
 // STbStatisBlock ----------
-#define STATIS_RECORD_NUM_ELEM 9
+#define STATIS_RECORD_NUM_ELEM 7
 typedef union {
   int64_t dataArr[STATIS_RECORD_NUM_ELEM];
   struct {
     int64_t suid;
     int64_t uid;
     int64_t firstKey;
-    int64_t firstKeyVer;
     int64_t lastKey;
-    int64_t lastKeyVer;
     int64_t minVer;
     int64_t maxVer;
     int64_t count;
@@ -87,9 +85,7 @@ typedef union {
     TARRAY2(int64_t) suid[1];
     TARRAY2(int64_t) uid[1];
     TARRAY2(int64_t) firstKey[1];
-    TARRAY2(int64_t) firstKeyVer[1];
     TARRAY2(int64_t) lastKey[1];
-    TARRAY2(int64_t) lastKeyVer[1];
     TARRAY2(int64_t) minVer[1];
     TARRAY2(int64_t) maxVer[1];
     TARRAY2(int64_t) count[1];
@@ -109,9 +105,9 @@ typedef struct SStatisBlk {
 #define STATIS_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
 
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock);
-int32_t tStatisBlockFree(STbStatisBlock *statisBlock);
+int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock);
 int32_t tStatisBlockClear(STbStatisBlock *statisBlock);
-int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *statisRecord);
+int32_t tStatisBlockPut(STbStatisBlock *statisBlock, const STbStatisRecord *record);
 
 // other apis
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb);
