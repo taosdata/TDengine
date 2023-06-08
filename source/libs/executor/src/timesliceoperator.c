@@ -903,7 +903,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         goto _finished;
       }
     }
-    // handling post work for a specific group
+    // post work for a specific group
 
     // check if need to interpolate after last datablock
     // except for fill(next), fill(linear)
@@ -916,6 +916,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
     // restore initial value for next group
     resetTimesliceInfo(pSliceInfo);
+    if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+      goto _finished;
+    }
   }
 
 _finished:
