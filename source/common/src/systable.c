@@ -291,6 +291,8 @@ static const SSysDbTableSchema subscriptionSchema[] = {
     {.name = "consumer_group", .bytes = TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "consumer_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "offset", .bytes = TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
+    {.name = "rows", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema vnodesSchema[] = {
@@ -359,6 +361,11 @@ static const SSysDbTableSchema consumerSchema[] = {
     {.name = "up_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "subscribe_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "rebalance_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "withTbName", .bytes = 1, .type = TSDB_DATA_TYPE_SMALLINT, .sysInfo = false},
+    {.name = "useSnapshot", .bytes = 1, .type = TSDB_DATA_TYPE_SMALLINT, .sysInfo = false},
+    {.name = "autoCommit", .bytes = 1, .type = TSDB_DATA_TYPE_SMALLINT, .sysInfo = false},
+    {.name = "autoCommitInterval", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "resetOffsetCfg", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema offsetSchema[] = {

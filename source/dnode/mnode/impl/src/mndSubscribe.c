@@ -24,7 +24,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_SUBSCRIBE_VER_NUMBER   1
+#define MND_SUBSCRIBE_VER_NUMBER   2
 #define MND_SUBSCRIBE_RESERVE_SIZE 64
 
 #define MND_SUBSCRIBE_REBALANCE_CNT 3
@@ -809,7 +809,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto SUB_DECODE_OVER;
 
-  if (sver != MND_SUBSCRIBE_VER_NUMBER) {
+  if (sver > MND_SUBSCRIBE_VER_NUMBER || sver < 1) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto SUB_DECODE_OVER;
   }
@@ -828,7 +828,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, SUB_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_SUBSCRIBE_RESERVE_SIZE, SUB_DECODE_OVER);
 
-  if (tDecodeSubscribeObj(buf, pSub) == NULL) {
+  if (tDecodeSubscribeObj(buf, pSub, sver) == NULL) {
     goto SUB_DECODE_OVER;
   }
 
@@ -1087,15 +1087,39 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
                pConsumerEp->consumerId, varDataVal(cgroup), pVgEp->vgId);
 
         // offset
-#if 0
-      // subscribe time
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
-
-      // rebalance time
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
-#endif
+        OffsetRows *data = NULL;
+        for(int i = 0; i < taosArrayGetSize(pConsumerEp->offsetRows); i++){
+          OffsetRows *tmp = taosArrayGet(pConsumerEp->offsetRows, i);
+          if(data->vgId != pVgEp->vgId){
+            continue;
+          }
+          data = tmp;
+        }
+        if(data){
+          // vg id
+          char buf[TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE] = {0};
+          tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &data->offset);
+          varDataSetLen(buf, strlen(varDataVal(buf)));
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          colDataSetVal(pColInfo, numOfRows, (const char *)&data->rows, false);
+        }else{
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          colDataSetNULL(pColInfo, numOfRows);
+          pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+          colDataSetNULL(pColInfo, numOfRows);
+          mError("mnd show subscriptions: do not find vgId:%d in offsetRows", pVgEp->vgId);
+        }
+//#if 0
+//      // subscribe time
+//      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+//      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
+//
+//      // rebalance time
+//      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+//      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
+//#endif
 
         numOfRows++;
       }

@@ -5338,6 +5338,15 @@ int32_t tDeserializeSMqAskEpReq(void *buf, int32_t bufLen, SMqAskEpReq *pReq) {
   return 0;
 }
 
+int32_t tDeatroySMqHbReq(SMqHbReq* pReq){
+  for(int i = 0; i < taosArrayGetSize(pReq->topics); i++){
+    TopicOffsetRows* vgs = taosArrayGet(pReq->topics, i);
+    if(vgs) taosArrayDestroy(vgs->offsetRows);
+  }
+  taosArrayDestroy(pReq->topics);
+  return 0;
+}
+
 int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -5345,6 +5354,21 @@ int32_t tSerializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
 
   if (tEncodeI64(&encoder, pReq->consumerId) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->epoch) < 0) return -1;
+
+  int32_t sz = taosArrayGetSize(pReq->topics);
+  if (tEncodeI32(&encoder, sz) < 0) return -1;
+  for (int32_t i = 0; i < sz; ++i) {
+    TopicOffsetRows* vgs = (TopicOffsetRows*)taosArrayGet(pReq->topics, i);
+    if (tEncodeCStr(&encoder, vgs->topicName) < 0) return -1;
+    int32_t szVgs = taosArrayGetSize(vgs->offsetRows);
+    if (tEncodeI32(&encoder, szVgs) < 0) return -1;
+    for (int32_t j = 0; j < szVgs; ++j) {
+      OffsetRows *offRows = taosArrayGet(vgs->offsetRows, j);
+      if (tEncodeI32(&encoder, offRows->vgId) < 0) return -1;
+      if (tEncodeI64(&encoder, offRows->rows) < 0) return -1;
+      if (tEncodeSTqOffsetVal(&encoder, &offRows->offset) < 0) return -1;
+    }
+  }
 
   tEndEncode(&encoder);
 
@@ -5362,7 +5386,28 @@ int32_t tDeserializeSMqHbReq(void *buf, int32_t bufLen, SMqHbReq *pReq) {
 
   if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->epoch) < 0) return -1;
-
+  int32_t sz = 0;
+  if (tDecodeI32(&decoder, &sz) < 0) return -1;
+  if(sz > 0){
+    pReq->topics = taosArrayInit(sz, sizeof(TopicOffsetRows));
+    if (NULL == pReq->topics) return -1;
+    for (int32_t i = 0; i < sz; ++i) {
+      TopicOffsetRows* data = taosArrayReserve(pReq->topics, 1);
+      tDecodeCStrTo(&decoder, data->topicName);
+      int32_t szVgs = 0;
+      if (tDecodeI32(&decoder, &szVgs) < 0) return -1;
+      if(szVgs > 0){
+        data->offsetRows = taosArrayInit(szVgs, sizeof(OffsetRows));
+        if (NULL == data->offsetRows) return -1;
+        for (int32_t j= 0; j < szVgs; ++j) {
+          OffsetRows* offRows = taosArrayReserve(data->offsetRows, 1);
+          if (tDecodeI32(&decoder, &offRows->vgId) < 0) return -1;
+          if (tDecodeI64(&decoder, &offRows->rows) < 0) return -1;
+          if (tDecodeSTqOffsetVal(&decoder, &offRows->offset) < 0) return -1;
+        }
+      }
+    }
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);

@@ -99,8 +99,8 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
   if (pOffset != NULL) {
     *pOffsetVal = pOffset->val;
 
-    char formatBuf[80];
-    tFormatOffset(formatBuf, 80, pOffsetVal);
+    char formatBuf[TSDB_OFFSET_LEN];
+    tFormatOffset(formatBuf, TSDB_OFFSET_LEN, pOffsetVal);
     tqDebug("tmq poll: consumer:0x%" PRIx64
             ", subkey %s, vgId:%d, existed offset found, offset reset to %s and continue. reqId:0x%" PRIx64,
             consumerId, pHandle->subKey, vgId, formatBuf, pRequest->reqId);
@@ -186,8 +186,8 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP, vgId);
 
 end : {
-  char buf[80] = {0};
-  tFormatOffset(buf, 80, &dataRsp.rspOffset);
+  char buf[TSDB_OFFSET_LEN] = {0};
+  tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.rspOffset);
   tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, reqId:0x%" PRIx64
           " code:%d",
           consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
