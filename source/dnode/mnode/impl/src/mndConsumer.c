@@ -433,8 +433,10 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
     taosRLockLatch(&pSub->lock);
     SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &consumerId, sizeof(int64_t));
-    pConsumerEp->offsetRows = data->offsetRows;
-    data->offsetRows = NULL;
+    if(pConsumerEp){
+      pConsumerEp->offsetRows = data->offsetRows;
+      data->offsetRows = NULL;
+    }
     taosRUnLockLatch(&pSub->lock);
 
     mndReleaseSubscribe(pMnode, pSub);
