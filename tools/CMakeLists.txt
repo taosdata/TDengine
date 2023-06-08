@@ -161,7 +161,7 @@ ELSE ()
             COMMAND cmake -E echo "Copy taosadapter.toml"
             COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
             COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-            COMMAND cmake -E eKho "Copy taosadapter-debug"
+            COMMAND cmake -E echo "Copy taosadapter-debug"
             COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
             )
     ENDIF (TD_WINDOWS)
