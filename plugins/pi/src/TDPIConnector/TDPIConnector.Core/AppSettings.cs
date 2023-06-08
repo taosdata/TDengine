@@ -110,24 +110,26 @@ namespace TDPIConnector.Core
                 tomlConfig.AFDataPipesInstances = GetIntegerFromAppSettings("AFDataPipesInstances", 1);
                 tomlConfig.PIDataPipesInstances = GetIntegerFromAppSettings("PIDataPipesInstances", 1);
                 tomlConfig.MaxBackfillRangeDays = GetIntegerFromAppSettings("MaxBackfillRangeDays", 1);
+                tomlConfig.TDDataBase = GetStringFromAppSettings("TDEnginePIDatabase");
+
+                TDEngineHost = GetStringFromAppSettings("TDEngineHost");
+                TDEnginePort = GetIntegerFromAppSettings("TDEnginePort");
+                TDEngineUsername = GetStringFromAppSettings("TDEngineUsername");
+                TDEnginePassword = GetStringFromAppSettings("TDEnginePassword");
+                TDEngineToken = GetStringFromAppSettings("TDEngineToken");
+
                 try
                 {
+                    tomlConfig.PointList = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "Points.csv").Distinct().ToList();
                     tomlConfig.TemplateForPIPoint = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates1.csv").Distinct().ToList();
                     tomlConfig.TemplateForAFElement = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates2.csv").Distinct().ToList();
-                    tomlConfig.PointList = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "Points.csv").Distinct().ToList();
                 }
                 catch (Exception)
                 {
                     //throw;
                 }
             } 
-            else {
-                TDEngineHost = GetStringFromAppSettings("TDEngineHost");
-                TDEnginePort = GetIntegerFromAppSettings("TDEnginePort");
-                TDEngineUsername = GetStringFromAppSettings("TDEngineUsername");
-                TDEnginePassword = GetStringFromAppSettings("TDEnginePassword");
-                TDEngineToken = GetStringFromAppSettings("TDEngineToken");
-            }
+
             TDEnginePITablesPrefix = GetStringFromAppSettings("TDEnginePITablesPrefix");
             if (TDEnginePITablesPrefix == null)
             {

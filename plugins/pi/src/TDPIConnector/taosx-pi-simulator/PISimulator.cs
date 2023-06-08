@@ -5,6 +5,7 @@ using System.IO;
 using System.Timers;
 using log4net;
 using System.Linq;
+using TDPIConnector.Core;
 
 namespace PISimulator
 {
@@ -88,12 +89,25 @@ namespace PISimulator
         public void Start() {
             piServerManager.Connect();
             CreateSimulationData(GetCSVFiles(csvPath));
-            CreatePIPoints();
+            var points = CreatePIPoints();
+            updatePointCSV(points);
             resetStartTime(DateTime.Now);
 
             var timer = new Timer(1000);
             timer.Elapsed += OnTimerUpdate;
             timer.Enabled = true;
+        }
+        public void updatePointCSV(List<string> points) {
+            var filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Points.csv");
+            using (StreamWriter writer = new StreamWriter(filePath))
+            {
+                foreach (string point in points)
+                {
+                    writer.WriteLine(point);
+                }
+            }
+
+            log.Info("Point list written to point.csv.");
         }
 
         private void resetStartTime(DateTime now)
@@ -130,11 +144,14 @@ namespace PISimulator
             return csvFiles;
         }
 
-        public void CreatePIPoints()
+        public List<string> CreatePIPoints()
         {
+            var pointList = new List<string>();
             foreach (var data in simulationDataList) {
                 piServerManager.CreatePoint(data.Key);
+                pointList.Add(data.Key);
             }
+            return pointList;
         }
 
         private void CreateSimulationData(List<string> files) {

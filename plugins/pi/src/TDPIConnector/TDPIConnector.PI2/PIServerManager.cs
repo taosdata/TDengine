@@ -1,6 +1,7 @@
 ﻿using log4net;
 using PISDK;
 using System;
+using System.Collections.Generic;
 using TDPIConnector.PI.Exceptions;
 
 namespace TDPIConnector.PI2
@@ -18,6 +19,30 @@ namespace TDPIConnector.PI2
         public PIServerManager(string piServerName)
         {
             this.piServerName = piServerName;
+        }
+
+        public void DeletePoint(List<string> pointList)
+        {
+            foreach (var pointName in pointList)
+            {
+                try
+                {
+                    piServer.PIPoints.Remove(pointName);
+                    log.Info($"{pointName} has been deleted.");
+                }
+                catch (Exception e)
+                {
+                    if (e.Message.Contains("not exist"))
+                    {
+                        log.Info($"Point {pointName} does not need to be deleted because it does not exist.");
+                    }
+                    else
+                    {
+                        log.Error($"Error occured when delete point.", e);
+                        throw e;
+                    }
+                }
+            }
         }
 
         public void Connect()

@@ -24,6 +24,10 @@ namespace PISimulator
                 {
                     options.ShowVersion = true;
                 }
+                else if (args[i] == "-d" || args[i] == "--drop")
+                {
+                    options.DropTables = true;
+                }
                 //unknow option
                 else
                 {
