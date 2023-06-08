@@ -41,7 +41,7 @@ class TestStrBoundary(TDCase):
             self.tdSql.checkEqual(self.tdSql.query_data[1][2], data_value)
             self.tdSql.checkEqual(self.tdSql.query_data[2][2], self.tag_len_value)
             self.tdSql.query(f'select t1, c1 from {dbname}.tb')
-            self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), self.tag_len_value)
+            self.tdSql.checkEqual(int(self.tdSql.query_data[0][0]), self.tag_len_value)
             self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), max_length)
             self.tdSql.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {data_type}({data_value})) tags (t1 {data_type}({exceed_length}))')
             self.tdSql.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {data_type}({exceed_length})) tags (t1 {data_type}({data_value}))')
