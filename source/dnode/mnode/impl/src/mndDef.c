@@ -515,6 +515,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
     SMqConsumerEp newEp = {
         .consumerId = pConsumerEp->consumerId,
         .vgs = taosArrayDup(pConsumerEp->vgs, (__array_item_dup_fn_t)tCloneSMqVgEp),
+        .offsetRows = NULL,
     };
     taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp, sizeof(SMqConsumerEp));
   }
