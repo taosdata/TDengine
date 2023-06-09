@@ -241,6 +241,8 @@ Input following content:
     "poll.interval.ms": 1000,
     "fetch.max.rows": 100,
     "topic.per.stable": true,
+    "topic.ignore.db": false,
+    "out.format": "line",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.storage.StringConverter"
     }
