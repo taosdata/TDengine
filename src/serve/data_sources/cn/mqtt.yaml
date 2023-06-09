@@ -26,6 +26,23 @@ options:
     description: MQTT Broker 密码。
     placeholder: password
 
+authentication:
+  display: 认证
+  description: 使用用户名和密码访问 MQTT Broker。
+  value: plain
+  alternatives:
+    - name: plain
+      display: 用户名密码访问
+      description: 使用用户名和密码访问 MQTT Broker。
+      username:
+        display: 用户
+        placeholder: username
+        required: false
+      password:
+        display: 密码
+        placeholder: password
+        required: false
+
 groups:
   - name: SSL 证书
     description: 使用证书和私钥建立连接以启用 SSL。
@@ -101,7 +118,6 @@ groups:
         hint:
           type: str
 
-
   - name: 其他
     display_order: 2
     params:
@@ -130,13 +146,13 @@ parser:
     taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，<br>
     包括，指定表名称和超级表名，设置普通列会标签列等。
   fields:
-  - name: ts
-    description: 时间戳
-  - name: topic
-    description: 主题
-  - name: qos
-    description: 质量
-  - name: payload
-    description: 负载
+    - name: ts
+      description: 时间戳
+    - name: topic
+      description: 主题
+    - name: qos
+      description: 质量
+    - name: payload
+      description: 负载
 
   required: true
