@@ -822,7 +822,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     return -1;
   }
 
-  if(pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
+  if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
     terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
@@ -957,7 +957,7 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
     return -1;
   }
 
-  if(pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags){
+  if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
     terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
@@ -1188,8 +1188,8 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;
   }
- 
-  if(pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ntags){
+
+  if (pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ntags) {
     terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
@@ -1473,7 +1473,8 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
 
   SSchema *pTag = pNew->pTags + tag;
 
-  if (!(pTag->type == TSDB_DATA_TYPE_BINARY || pTag->type == TSDB_DATA_TYPE_NCHAR || pTag->type == TSDB_DATA_TYPE_GEOMETRY)) {
+  if (!(pTag->type == TSDB_DATA_TYPE_BINARY || pTag->type == TSDB_DATA_TYPE_NCHAR ||
+        pTag->type == TSDB_DATA_TYPE_GEOMETRY)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
@@ -1501,7 +1502,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
     return -1;
   }
 
-  if(pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ncols){
+  if (pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ncols) {
     terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;
   }
@@ -1593,7 +1594,8 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
   }
 
   SSchema *pCol = pNew->pColumns + col;
-  if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR || pCol->type == TSDB_DATA_TYPE_GEOMETRY)) {
+  if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR ||
+        pCol->type == TSDB_DATA_TYPE_GEOMETRY)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
@@ -3177,7 +3179,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       if (pShow->pIter == NULL) break;
     } else {
       fetch = true;
-      void  *pKey = taosHashGetKey(pShow->pIter, NULL);
+      void *pKey = taosHashGetKey(pShow->pIter, NULL);
       pStb = sdbAcquire(pSdb, SDB_STB, pKey);
       if (!pStb) continue;
     }

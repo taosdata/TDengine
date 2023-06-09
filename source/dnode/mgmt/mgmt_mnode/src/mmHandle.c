@@ -33,10 +33,12 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     return -1;
   }
 
-  SMnodeOpt option = {.deploy = true, .numOfReplicas = createReq.replica, 
-                      .numOfTotalReplicas = createReq.replica + createReq.learnerReplica, 
-                      .selfIndex = -1, .lastIndex = createReq.lastIndex};
-  
+  SMnodeOpt option = {.deploy = true,
+                      .numOfReplicas = createReq.replica,
+                      .numOfTotalReplicas = createReq.replica + createReq.learnerReplica,
+                      .selfIndex = -1,
+                      .lastIndex = createReq.lastIndex};
+
   memcpy(option.replicas, createReq.replicas, sizeof(createReq.replicas));
   for (int32_t i = 0; i < createReq.replica; ++i) {
     if (createReq.replicas[i].id == pInput->pData->dnodeId) {
@@ -200,6 +202,7 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DROP_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_PAUSE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_RESUME_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_CONFIG_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_REPLICA_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
