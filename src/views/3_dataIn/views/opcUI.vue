@@ -499,6 +499,7 @@
                 <div :key="pind">
                   <opcConnector
                     :opcConfig="opcConfig"
+                    :isEditable='isEditable'
                     ref="opcsingleton"
                   ></opcConnector>
                 </div>
@@ -768,21 +769,21 @@ export default {
             }`;
           }
           dns += `@`;
-          if (this.tagName == "mqtt") {
-            let currentAuth = data.authentication.alternatives.filter(
-              (item) => item.name == "plain"
-            );
-            if (!currentAuth[0].username.value) {
-              Message({
-                type: "warning",
-                message:
-                  this.$t("datasource.msg") +
-                  ":" +
-                  `${currentAuth[0].username.display} `,
-              });
-              return;
-            }
-          }
+          // if (this.tagName == "mqtt") {
+          //   let currentAuth = data.authentication.alternatives.filter(
+          //     (item) => item.name == "plain"
+          //   );
+          //   if (!currentAuth[0].username.value) {
+          //     Message({
+          //       type: "warning",
+          //       message:
+          //         this.$t("datasource.msg") +
+          //         ":" +
+          //         `${currentAuth[0].username.display} `,
+          //     });
+          //     return;
+          //   }
+          // }
         } else {
           dns += `://`;
         }

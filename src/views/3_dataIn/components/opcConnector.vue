@@ -1,7 +1,7 @@
 <template>
   <div class="opc-connector">
     <ul class="singleton-header">
-      <li>
+      <li style="display:flex;align-items:center;">
         <span>
           {{ $t("datasource.primarykey") }}
         </span>
@@ -29,7 +29,7 @@
     >
       <li>
         <el-checkbox
-          :disabled="item.column_type != 'timestamp'"
+          :disabled="item.column_type != 'timestamp'||isEditable"
           @change="changePrimary(item)"
           :value="item.column_name == currentPrimary"
         ></el-checkbox>
@@ -45,16 +45,15 @@
         <span>{{ item.column_name }}</span>
       </li>
       <li>
-        <el-input v-model="item.column_alias" size="mini"></el-input>
+        <el-input v-model="item.column_alias" size="mini" :disabled='isEditable'></el-input>
       </li>
       <li>
         <span>{{ item.column_type }}</span>
       </li>
     </ul>
-    <el-button @click="submit">确定</el-button>
 
     <el-form
-      :model="ruleForm"
+      :model="opcConfig"
       :rules="rules"
       ref="ruleForm"
       style="width: 80%; margin-top: 20px"
@@ -64,7 +63,7 @@
         :label="$t('datasource.stable_prefix')"
         prop="stable_prefix"
       >
-        <el-input v-model="ruleForm.stable_prefix"></el-input>
+        <el-input v-model="opcConfig.stable_prefix"></el-input>
       </el-form-item>
     </el-form>
   </div>
@@ -80,6 +79,10 @@ export default {
       default: () => {
         return null;
       },
+    },
+    isEditable: {
+      type: Boolean,
+      default: false,
     },
   },
   data() {
@@ -103,7 +106,7 @@ export default {
     };
   },
   mounted() {
-    console.log(this.opcConfig, "opcConfig");
+    console.log(this.opcConfig, "opcConfig",this.isEditable,'判断是否编辑状态');
   },
   methods: {
     saveToDb(val) {
@@ -143,7 +146,7 @@ export default {
         return val
       });
 
-      if(!this.ruleForm.stable_prefix){
+      if(!this.opcConfig.stable_prefix){
         this.isReject=true
         return
       }else{
@@ -162,6 +165,9 @@ export default {
 .opc-connector {
   display: flex;
   flex-direction: column;
+}
+::v-deep.el-form-item__label{
+    color: #4259ce;
 }
 .singleton-header {
   display: grid;

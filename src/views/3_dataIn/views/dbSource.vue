@@ -132,7 +132,9 @@ export default {
             break;
         }
       } else {
+        console.log(id,'opcbianji----edit',this.uidata[0]);
         switch (id) {
+          
           case "tmq":
             this.currentName = "ui";
             this.tagName = "datasource";
@@ -141,6 +143,8 @@ export default {
             this.currentName = "opcui";
             this.tagName = "opc";
             this.protocol = "ua";
+            console.log(this.uidata[0].groups[2].params,'---bian编辑table',JSON.parse(this.uidata[0].groups[2].params[0].value));
+            this.opcConfig=deepClone(JSON.parse(this.uidata[0].groups[2].params[0].value) ) 
             break;
           case "opcda":
             this.currentName = "opcui";
@@ -231,6 +235,13 @@ export default {
       deep: true,
       handler(val) {
         this.parserobj=val
+
+      },
+    },
+    "$store.state.app.opcConfig": {
+      deep: true,
+      handler(val) {
+        this.opcConfig=val
 
       },
     },
