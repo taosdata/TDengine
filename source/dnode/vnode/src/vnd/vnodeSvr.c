@@ -239,7 +239,7 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 _exit:
   if (code) {
-    vError("vgId%d, failed to preprocess submit request since %s, msg type:%d", TD_VID(pVnode), tstrerror(code),
+    vError("vgId:%d, failed to preprocess submit request since %s, msg type:%d", TD_VID(pVnode), tstrerror(code),
            pMsg->msgType);
   }
   tDecoderClear(pCoder);
@@ -301,7 +301,7 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 _exit:
   if (code) {
-    vError("vgId%d, failed to preprocess write request since %s, msg type:%d", TD_VID(pVnode), tstrerror(code),
+    vError("vgId:%d, failed to preprocess write request since %s, msg type:%d", TD_VID(pVnode), tstrerror(code),
            pMsg->msgType);
   }
   return code;
