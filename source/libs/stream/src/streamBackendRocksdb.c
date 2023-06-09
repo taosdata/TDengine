@@ -877,7 +877,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   taosThreadRwlockInit(&pState->pTdbState->rwLock, NULL);
   SCfComparator compare = {.comp = pCompare, .numOfComp = cfLen};
   pState->pTdbState->pComparNode = streamBackendAddCompare(handle, &compare);
-  // rocksdb_writeoptions_disable_WAL(pState->pTdbState->writeOpts, 1);
+  rocksdb_writeoptions_disable_WAL(pState->pTdbState->writeOpts, 1);
   qInfo("succ to open state %p on backend, %p, 0x%" PRIx64 "-%d", pState, handle, pState->streamId, pState->taskId);
   return 0;
 }
