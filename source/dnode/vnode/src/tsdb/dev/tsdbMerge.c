@@ -130,35 +130,35 @@ static int32_t tsdbMergeToDataTableEnd(SMerger *merger) {
     for (int32_t i = 0; i < numRow; i++) {
       row->row.iRow = i;
 
-      code = tsdbDataFileWriteTSData(merger->dataWriter, row);
+      code = tsdbDataFileWriteRow(merger->dataWriter, row);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tsdbDataFileFlushTSDataBlock(merger->dataWriter);
+    code = tsdbDataFileFlush(merger->dataWriter);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     for (int32_t i = numRow; i < merger->ctx->bData[pidx].nRow; i++) {
       row->row.iRow = i;
-      code = tsdbDataFileWriteTSData(merger->dataWriter, row);
+      code = tsdbDataFileWriteRow(merger->dataWriter, row);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     row->row = tsdbRowFromBlockData(merger->ctx->bData + cidx, 0);
     for (int32_t i = 0; i < merger->ctx->bData[cidx].nRow; i++) {
       row->row.iRow = i;
-      code = tsdbDataFileWriteTSData(merger->dataWriter, row);
+      code = tsdbDataFileWriteRow(merger->dataWriter, row);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else {
     if (merger->ctx->bData[pidx].nRow > 0) {
-      code = tsdbDataFileWriteTSDataBlock(merger->dataWriter, merger->ctx->bData + cidx);
+      code = tsdbDataFileWriteBlockData(merger->dataWriter, merger->ctx->bData + cidx);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     if (merger->ctx->bData[cidx].nRow < merger->minRow) {
       code = tsdbSttFileWriteTSDataBlock(merger->sttWriter, merger->ctx->bData + cidx);
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
-      code = tsdbDataFileWriteTSDataBlock(merger->dataWriter, merger->ctx->bData + cidx);
+      code = tsdbDataFileWriteBlockData(merger->dataWriter, merger->ctx->bData + cidx);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
@@ -224,7 +224,7 @@ static int32_t tsdbMergeToDataLevel(SMerger *merger) {
       if (merger->ctx->bData[merger->ctx->bDataIdx].nRow >= merger->maxRow) {
         int32_t idx = (merger->ctx->bDataIdx + 1) % 2;
 
-        code = tsdbDataFileWriteTSDataBlock(merger->dataWriter, merger->ctx->bData + idx);
+        code = tsdbDataFileWriteBlockData(merger->dataWriter, merger->ctx->bData + idx);
         TSDB_CHECK_CODE(code, lino, _exit);
 
         tBlockDataClear(merger->ctx->bData + idx);
