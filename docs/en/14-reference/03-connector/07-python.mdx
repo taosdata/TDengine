@@ -455,7 +455,7 @@ As the way to connect introduced above but add `req_id` argument.
 
 ### Subscription
 
-Connector support data subscription. For more information about subscroption, please refer to [Data Subscription](../../develop/tmq/).
+Connector support data subscription. For more information about subscroption, please refer to [Data Subscription](../../../develop/tmq/).
 
 <Tabs defaultValue="native">
 <TabItem value="native" label="native connection">
@@ -464,7 +464,7 @@ The `consumer` in the connector contains the subscription api.
 
 #### Create Consumer
 
-The syntax for creating a consumer is `consumer = Consumer(configs)`. For more subscription api parameters, please refer to [Data Subscription](../../develop/tmq/).
+The syntax for creating a consumer is `consumer = Consumer(configs)`. For more subscription api parameters, please refer to [Data Subscription](../../../develop/tmq/).
 
 ```python
 from taos.tmq import Consumer
@@ -544,7 +544,7 @@ In addition to native connections, the connector also supports subscriptions via
 
 #### Create Consumer
 
-The syntax for creating a consumer is "consumer = consumer = Consumer(conf=configs)". You need to specify that the `td.connect.websocket.scheme` parameter is set to "ws" in the configuration. For more subscription api parameters, please refer to [Data Subscription](../../develop/tmq/#create-a-consumer).
+The syntax for creating a consumer is "consumer = consumer = Consumer(conf=configs)". You need to specify that the `td.connect.websocket.scheme` parameter is set to "ws" in the configuration. For more subscription api parameters, please refer to [Data Subscription](../../../develop/tmq/#create-a-consumer).
 
 ```python
 import taosws
