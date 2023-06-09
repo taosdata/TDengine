@@ -50,7 +50,7 @@ authentication:
       username:
         display: Username
         placeholder: username
-        required: false
+        required: true
       password:
         display: Password
         placeholder: password

@@ -37,7 +37,7 @@ authentication:
       username:
         display: 用户
         placeholder: username
-        required: false
+        required: true
       password:
         display: 密码
         placeholder: password
