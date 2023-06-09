@@ -114,6 +114,7 @@ groups:
           that the client has disconnected and will close the<br>
           connection.
         placeholder: 10
+        value: 60
       - name: clean_session
         display: Clean Session
         value: true
@@ -138,6 +139,7 @@ groups:
       - name: log_level
         display: Log Level
         description: Log Level
+        value: info
         hint:
           type: str
           choices:
