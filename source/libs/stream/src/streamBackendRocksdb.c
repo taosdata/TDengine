@@ -738,6 +738,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
     if (3 == sscanf(cf, "0x%" PRIx64 "-%d_%s", &streamId, &taskId, funcname)) {
       rocksdb_block_based_table_options_t* tableOpt = rocksdb_block_based_options_create();
       rocksdb_block_based_options_set_block_cache(tableOpt, handle->cache);
+      rocksdb_block_based_options_set_partition_filters(tableOpt, 1);
 
       rocksdb_filterpolicy_t* filter = rocksdb_filterpolicy_create_bloom(15);
       rocksdb_block_based_options_set_filter_policy(tableOpt, filter);
@@ -812,6 +813,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
         rocksdb_options_t*                   opt = rocksdb_options_create_copy(handle->dbOpt);
         rocksdb_block_based_table_options_t* tableOpt = rocksdb_block_based_options_create();
         rocksdb_block_based_options_set_block_cache(tableOpt, handle->cache);
+        rocksdb_block_based_options_set_partition_filters(tableOpt, 1);
 
         rocksdb_filterpolicy_t* filter = rocksdb_filterpolicy_create_bloom(15);
         rocksdb_block_based_options_set_filter_policy(tableOpt, filter);
@@ -878,6 +880,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     // refactor later
     rocksdb_block_based_table_options_t* tableOpt = rocksdb_block_based_options_create();
     rocksdb_block_based_options_set_block_cache(tableOpt, handle->cache);
+    rocksdb_block_based_options_set_partition_filters(tableOpt, 1);
 
     rocksdb_filterpolicy_t* filter = rocksdb_filterpolicy_create_bloom(15);
     rocksdb_block_based_options_set_filter_policy(tableOpt, filter);

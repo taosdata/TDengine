@@ -945,19 +945,40 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   // 2. reset tick
   atomic_store_64(&pStream->currentTick, 0);
   // 3. commit log: stream checkpoint info
+  pStream->checkpointFreq = taosGetTimestampMs();
+
   taosRUnLockLatch(&pStream->lock);
+
+  // code condtion
+
+  SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
+  if (pCommitRaw == NULL) {
+    mError("failed to prepare trans rebalance since %s", terrstr());
+    goto _ERR;
+  }
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    mError("failed to prepare trans rebalance since %s", terrstr());
+    goto _ERR;
+  }
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    mError("failed to prepare trans rebalance since %s", terrstr());
+    goto _ERR;
+  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("failed to prepare trans rebalance since %s", terrstr());
-    mndTransDrop(pTrans);
-    mndReleaseStream(pMnode, pStream);
-    return -1;
+    goto _ERR;
   }
 
   mndReleaseStream(pMnode, pStream);
   mndTransDrop(pTrans);
-
   return 0;
+_ERR:
+  mndReleaseStream(pMnode, pStream);
+  mndTransDrop(pTrans);
+  return -1;
 }
 
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
