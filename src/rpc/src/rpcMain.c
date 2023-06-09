@@ -1466,6 +1466,10 @@ static TBOOL rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   rpcUnlockConn(pConn);
 
   if (ret == BOOL_FALSE) {
+    if (pConn->connType != RPC_CONN_TCPC) {
+      pContext->code = terrno;
+      return BOOL_ASYNC;
+    }	  
     // try next ip again
     pContext->code = terrno;
     // in rpcProcessConnError if numOfTry over limit, could call rpcNotifyClient to stop query
@@ -1499,6 +1503,7 @@ static bool rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 
   if (writtenLen != msgLen) {
     tError("%s, failed to send, msgLen:%d written:%d, reason:%s", pConn->info, msgLen, writtenLen, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno); 
     ret = false;
   }
 
