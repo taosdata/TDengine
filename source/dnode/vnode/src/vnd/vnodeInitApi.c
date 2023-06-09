@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "storageapi.h"
-#include "vnodeInt.h"
-#include "tstreamUpdate.h"
 #include "meta.h"
+#include "storageapi.h"
+#include "tstreamUpdate.h"
+#include "vnodeInt.h"
 
 static void initTsdbReaderAPI(TsdReader* pReader);
 static void initMetadataAPI(SStoreMeta* pMeta);
@@ -56,10 +56,10 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderResetStatus = tsdbReaderReset;
 
   pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo;
-  pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable;    // todo this function should be moved away
+  pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable;  // todo this function should be moved away
 
   pReader->tsdSetQueryTableList = tsdbSetTableList;
-  pReader->tsdSetReaderTaskId = (void (*)(void *, const char *))tsdbReaderSetId;
+  pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
@@ -67,6 +67,8 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->openTableMetaCursor = metaOpenTbCursor;
   pMeta->closeTableMetaCursor = metaCloseTbCursor;
+  pMeta->pauseTableMetaCursor = metaPauseTbCursor;
+  pMeta->resumeTableMetaCursor = metaResumeTbCursor;
   pMeta->cursorNext = metaTbCursorNext;
   pMeta->cursorPrev = metaTbCursorPrev;
 
@@ -78,7 +80,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->storeGetIndexInfo = vnodeGetIdx;
   pMeta->getInvertIndex = vnodeGetIvtIdx;
 
-  pMeta->extractTagVal = (const void *(*)(const void *, int16_t, STagVal *))metaGetTableTagVal;
+  pMeta->extractTagVal = (const void* (*)(const void*, int16_t, STagVal*))metaGetTableTagVal;
   pMeta->getTableTags = metaGetTableTags;
   pMeta->getTableTagsByUid = metaGetTableTagsByUids;
 
@@ -86,7 +88,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getTableTypeByName = metaGetTableTypeByName;
   pMeta->getTableNameByUid = metaGetTableNameByUid;
 
-  pMeta->getTableSchema = tsdbGetTableSchema;   // todo refactor
+  pMeta->getTableSchema = tsdbGetTableSchema;  // todo refactor
   pMeta->storeGetTableList = vnodeGetTableList;
 
   pMeta->getCachedTableList = metaGetCachedTableUidList;
@@ -106,7 +108,7 @@ void initTqAPI(SStoreTqReader* pTq) {
 
   pTq->tqReaderNextBlockInWal = tqNextBlockInWal;
 
-  pTq->tqNextBlockImpl = tqNextBlockImpl;// todo remove it
+  pTq->tqNextBlockImpl = tqNextBlockImpl;  // todo remove it
 
   pTq->tqReaderAddTables = tqReaderAddTbUidList;
   pTq->tqReaderSetQueryTableList = tqReaderSetTbUidList;
@@ -116,10 +118,10 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderIsQueriedTable = tqReaderIsQueriedTable;
   pTq->tqReaderCurrentBlockConsumed = tqCurrentBlockConsumed;
 
-  pTq->tqReaderGetWalReader = tqGetWalReader;  // todo remove it
-  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;          // todo remove it
+  pTq->tqReaderGetWalReader = tqGetWalReader;              // todo remove it
+  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
 
-  pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg; // todo remove it
+  pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
   pTq->tqGetResultBlock = tqGetResultBlock;
 
   pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
@@ -199,7 +201,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateClose = streamStateClose;
   pStore->streamStateBegin = streamStateBegin;
   pStore->streamStateCommit = streamStateCommit;
-  pStore->streamStateDestroy= streamStateDestroy;
+  pStore->streamStateDestroy = streamStateDestroy;
   pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
 }
 

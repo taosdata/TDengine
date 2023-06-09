@@ -245,11 +245,11 @@ _exit:
 static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
-  int32_t     size;
-  int32_t     ret;
-  uint8_t    *pCont;
-  SEncoder   *pCoder = &(SEncoder){0};
-  SDeleteRes  res = {0};
+  int32_t    size;
+  int32_t    ret;
+  uint8_t   *pCont;
+  SEncoder  *pCoder = &(SEncoder){0};
+  SDeleteRes res = {0};
 
   SReadHandle handle = {.config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
   initStorageAPI(&handle.api);
@@ -316,8 +316,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     return -1;
   }
 
-  vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
-         ver);
+  vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver);
 
   ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
   ASSERT(pVnode->state.applied + 1 == ver);
@@ -1495,6 +1494,7 @@ static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t ver) {
         pVnode->config.hashBegin, pVnode->config.hashEnd, ver);
 
   // TODO: trim meta of tables from TDB per hash range [pVnode->config.hashBegin, pVnode->config.hashEnd]
+  code = metaTrimTables(pVnode->pMeta);
 
   return code;
 }
@@ -1508,8 +1508,7 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 
   code = vnodeConsolidateAlterHashRange(pVnode, ver);
   if (code < 0) {
-    vError("vgId:%d, failed to consolidate alter hashrange since %s. version:%" PRId64, TD_VID(pVnode), terrstr(),
-           ver);
+    vError("vgId:%d, failed to consolidate alter hashrange since %s. version:%" PRId64, TD_VID(pVnode), terrstr(), ver);
     goto _exit;
   }
   pVnode->config.hashChange = false;

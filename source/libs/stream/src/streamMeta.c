@@ -20,7 +20,7 @@
 #include "ttimer.h"
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
-static int32_t      streamBackendId = 0;
+int32_t             streamBackendId = 0;
 static void         streamMetaEnvInit() { streamBackendId = taosOpenRef(20, streamBackendCleanup); }
 
 void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
@@ -79,7 +79,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->vgId = vgId;
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
-  pMeta->streamBackendId = streamBackendId;
 
   memset(streamPath, 0, len);
   sprintf(streamPath, "%s/%s", pMeta->path, "state");

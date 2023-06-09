@@ -236,6 +236,7 @@ typedef struct SColumnInfoData {
   };
   SColumnInfo info;     // column info
   bool        hasNull;  // if current column data has null value.
+  bool        reassigned; // if current column data is reassigned.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {

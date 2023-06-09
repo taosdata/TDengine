@@ -343,6 +343,7 @@ struct SStreamTask {
   int64_t             checkpointingId;
   int32_t             checkpointAlignCnt;
   struct SStreamMeta* pMeta;
+  SSHashObj*          pNameMap;
 };
 
 // meta
@@ -360,7 +361,6 @@ typedef struct SStreamMeta {
   SRWLatch     lock;
   int32_t      walScanCounter;
   void*        streamBackend;
-  int32_t      streamBackendId;
   int64_t      streamBackendRid;
   SHashObj*    pTaskBackendUnique;
 } SStreamMeta;

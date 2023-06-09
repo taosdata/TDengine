@@ -239,5 +239,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
     taosMemoryFree((void*)pTask->id.idStr);
   }
 
+  if (pTask->pNameMap) {
+    tSimpleHashCleanup(pTask->pNameMap);
+  }
+
   taosMemoryFree(pTask);
 }
