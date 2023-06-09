@@ -114,7 +114,7 @@ export default {
           val.column_name == this.currentPrimary ||
           val.column_name == "value"
         ) {
-          Message.warning("主键列不能取消");
+          Message.warning(this.$t('datasource.primaryvaluetip'));
           return;
         }
         let index = this.saveFileds.indexOf(val.column_name);
@@ -142,17 +142,18 @@ export default {
         }
         return val
       });
-      let valuealias=savedata.filter(item=>item.column_name=='value')[0].column_alias
 
-      if(!valuealias||!this.ruleForm.stable_prefix){
+      if(!this.ruleForm.stable_prefix){
         this.isReject=true
         return
+      }else{
+        this.isReject=false
       }
       this.$store.commit('app/SET_OPC_CONFIG',{
         column_configs:savedata,
         stable_prefix:this.ruleForm.stable_prefix
       })
-      console.log(this.$store.state.app.opcConfig, savedata,this.opcConfig, this.saveFileds, "submit");
+      console.log(this.$store.state.app.opcConfig,this.isReject, savedata,this.opcConfig, this.saveFileds, "submit");
     },
   },
 };

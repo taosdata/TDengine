@@ -1113,6 +1113,8 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
+    opcvaluetip:'Please enter the value alias',
+    primaryvaluetip:'Primary column and value column can not be canceled',
     stable_prefix:'Stable Prefix',
     stable_prefixtip:'Please enter the super table prefix',
     warehousing:'Warehousing',

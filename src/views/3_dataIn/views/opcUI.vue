@@ -423,7 +423,7 @@
           </template>
           <template v-else>
             <template v-for="(p, pind) in item.params">
-              <div :key="pind" v-if="!item.name.includes('SSL')">
+              <div :key="p.name" v-if="!item.name.includes('SSL')">
                 <span :class="['label', p.required ? 'required' : '']">
                   {{ p.display ? p.display : p.name }}
                 </span>

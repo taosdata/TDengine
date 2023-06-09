@@ -891,6 +891,8 @@ export default {
   },
 
   datasource: {
+    opcvaluetip:'请输入value列的别名',
+    primaryvaluetip:'主键列和value列不能取消',
     stable_prefix:'超级表前缀',
     stable_prefixtip:'请输入超级表前缀',
     warehousing:'入库',
