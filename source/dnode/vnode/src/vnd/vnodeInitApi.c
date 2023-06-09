@@ -206,7 +206,7 @@ void initStateStoreAPI(SStateStore* pStore) {
 }
 
 void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {
-  pMetaReader->initReader = metaReaderInit;
+  pMetaReader->initReader = _metaReaderInit;
   pMetaReader->clearReader = metaReaderClear;
 
   pMetaReader->getTableEntryByUid = metaReaderGetTableEntryByUid;

@@ -17,7 +17,7 @@
 #include "osMemory.h"
 #include "tencode.h"
 
-void metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMeta* pAPI) {
+void _metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMeta* pAPI) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
   metaReaderDoInit(pReader, pMeta, flags);
   pReader->pAPI = pAPI;
@@ -143,7 +143,7 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
 int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  metaReaderDoInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
@@ -195,7 +195,7 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
 int metaGetTableTypeByName(void *pVnode, char *tbName, ETableType *tbType) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  metaReaderDoInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;
@@ -222,7 +222,7 @@ SMTbCursor *metaOpenTbCursor(void *pVnode) {
   }
 
   SVnode* pVnodeObj = pVnode;
-  metaReaderInit(&pTbCur->mr, pVnodeObj->pMeta, 0);
+  metaReaderDoInit(&pTbCur->mr, pVnodeObj->pMeta, 0);
 
   // tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
   pTbCur->pMeta = pVnodeObj->pMeta;
@@ -254,7 +254,7 @@ void metaPauseTbCursor(SMTbCursor *pTbCur) {
 }
 void metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first) {
   if (pTbCur->paused) {
-    metaReaderInit(&pTbCur->mr, pTbCur->pMeta, 0);
+    metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, 0);
 
     tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
 
