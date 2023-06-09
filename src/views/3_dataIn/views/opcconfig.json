@@ -1,0 +1,29 @@
+{
+    "stable_prefix": "meters",
+    "column_configs":
+    [
+        {
+            "column_name": "received_time",
+            "column_type": "timestamp",
+            "column_alias": "",
+            "is_primary_key": true
+        },
+        {
+            "column_name": "original_time",
+            "column_type": "timestamp",
+            "column_alias": "",
+            "is_primary_key": false
+        },
+        {
+            "column_name": "value",
+            "column_alias": "",
+            "is_primary_key": false
+        },
+        {
+            "column_name": "status",
+            "column_type": "int",
+            "column_alias": "",
+            "is_primary_key": false
+        }
+    ]
+}

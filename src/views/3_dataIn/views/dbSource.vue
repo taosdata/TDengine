@@ -11,6 +11,7 @@
       :protocol="protocol"
       :mqttParser="mqttParser"
       :constMqttparser="parserobj"
+      :opcConfig='opcConfig'
       :isEditable="isEditable"
       ref="table"
     ></component>
@@ -22,6 +23,7 @@ import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
 import { getUIData } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
+import constOpc from "./opcconfig.json";
  import { deepClone } from "@/utils";
 export default {
   name: "DbSource",
@@ -32,6 +34,7 @@ export default {
   },
   data() {
     return {
+      opcConfig:constOpc,
       parserobj:constparser,
       protocol: "ua", //只针对opc的ua/da
       tagName: "datasource",
@@ -43,11 +46,13 @@ export default {
       isEditable: false,
       agentID: "",
       mqttParser: null,
-      staticParser:null
+      staticParser:null,
+      staticOpc:null
     };
   },
   created() {
     this.staticParser=deepClone(constparser)
+    this.staticOpc=deepClone(constOpc)
     this.getData();
   },
   methods: {
@@ -58,10 +63,10 @@ export default {
         });
         this.$parent.$parent.$parent.sourceDisabled = false;
       } catch (error) {
-        if (error.response.status == 404) {
+        if (error.response&&error.response.status == 404) {
           this.$parent.$parent.$parent.sourceDisabled = true;
         }
-        if (error.response.status === 500) {
+        if (error.response&&error.response.status === 500) {
           this.$parent.$parent.$parent.sourceDisabled = true;
         }
       }
@@ -78,6 +83,8 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
           this.uidata = type == "opc" ? data : this.deepClone(data);
+          this.opcConfig=deepClone(this.staticOpc)
+          this.$store.commit('app/SET_OPC_CONFIG',this.opcConfig)
         }
         this.isEditable = false;
         switch (type) {

@@ -306,8 +306,8 @@
           </el-tabs>
         </template>
       </section>
-      <template v-for="item in dbsource[0].groups">
-        <section :class="['groups', item.name]" :key="item.display_order">
+      <template v-for="(item,gind) in dbsource[0].groups">
+        <section :class="['groups', item.name]" :key="gind">
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
               <span>{{ item.name }}</span>
@@ -327,14 +327,17 @@
               style="display: flex; align-items: flex-start"
             >
               <span style="color: #4259ce; margin-right: 10px">SSL/TSL</span>
-              <el-switch v-model="item.collapsible"> </el-switch>
+              <!-- <template v-if="item.hasOwnProperty('collapsed')">
+                <el-switch v-model="item.collapsed"> </el-switch>
+              </template> -->
+              <el-switch v-model="item.collapsed"> </el-switch>
             </div>
           </template>
-          <template v-if="item.collapsible && item.name.includes('SSL')">
-            <template v-for="(p, pind) in item.params">
+          <template v-if="item.collapsed && item.name.includes('SSL')">
+            <template v-for="p in item.params">
               <div
-                :key="pind"
-                v-if="item.collapsible && item.name.includes('SSL')"
+                :key="p.name"
+                v-if="item.collapsed && item.name.includes('SSL')"
                 class="ssl"
               >
                 <span :class="['label', p.required ? 'required' : '']">
@@ -350,7 +353,7 @@
                   >
                     <el-input
                       v-model="p.value"
-                      placeholder=""
+                      :placeholder="p.placeholder ? p.placeholder : ''"
                       :type="
                         p.hint.type && p.hint.type == 'file'
                           ? 'textarea'
@@ -369,7 +372,11 @@
                         ></el-option>
                       </el-select>
                     </template>
-                    <el-input v-else v-model="p.value"></el-input>
+                    <el-input
+                      v-else
+                      v-model="p.value"
+                      :placeholder="p.placeholder ? p.placeholder : ''"
+                    ></el-input>
                   </template>
                   <template
                     v-if="
@@ -403,6 +410,7 @@
                       v-model="p.value"
                       :min="p.hint.min"
                       :max="p.hint.max"
+                      :placeholder="p.placeholder ? p.placeholder : ''"
                     ></el-input-number>
                   </template>
                   <div
@@ -421,11 +429,17 @@
                 </span>
                 <div class="label-value">
                   <template v-if="p.hint === 'str' || p.hint === 'timeout'">
-                    <el-input v-model="p.value" placeholder=""></el-input>
+                    <el-input
+                      v-model="p.value"
+                      :placeholder="p.placeholder ? p.placeholder : ''"
+                    ></el-input>
                   </template>
                   <template v-if="p.hint.type && p.hint.type === 'str'">
                     <template v-if="p.hint.choices">
-                      <el-select v-model="p.value" placeholder="">
+                      <el-select
+                        v-model="p.value"
+                        :placeholder="p.placeholder ? p.placeholder : ''"
+                      >
                         <el-option
                           v-for="c in p.hint.choices"
                           :key="c"
@@ -434,7 +448,11 @@
                         ></el-option>
                       </el-select>
                     </template>
-                    <el-input v-else v-model="p.value"></el-input>
+                    <el-input
+                      v-else
+                      v-model="p.value"
+                      :placeholder="p.placeholder ? p.placeholder : ''"
+                    ></el-input>
                   </template>
                   <template
                     v-if="
@@ -468,6 +486,7 @@
                       v-model="p.value"
                       :min="p.hint.min"
                       :max="p.hint.max"
+                      :placeholder="p.placeholder ? p.placeholder : ''"
                     ></el-input-number>
                   </template>
                   <div
@@ -476,6 +495,14 @@
                   ></div>
                 </div>
               </div>
+              <template v-if="p.name == 'opc_table_config'">
+                <div :key="pind">
+                  <opcConnector
+                    :opcConfig="opcConfig"
+                    ref="opcsingleton"
+                  ></opcConnector>
+                </div>
+              </template>
             </template>
           </template>
         </section>
@@ -493,7 +520,7 @@
             v-html="transforHtml(dbsource[0].parser.description)"
           ></div>
         </div>
-       
+
         <div class="parser-config">
           <MqttConnector
             :connectorData="constMqttparser"
@@ -537,13 +564,21 @@ import marked from "marked";
 import { decrypt, debounce } from "@/utils/index";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/mqttConnector.vue";
+import opcConnector from "../components/opcConnector.vue";
 export default {
   name: "DbSourceUI",
   components: {
     "p-three-checkbox": PThreeCheckbox,
     MqttConnector,
+    opcConnector,
   },
   props: {
+    opcConfig: {
+      type: Object,
+      default: () => {
+        return null;
+      },
+    },
     constMqttparser: {
       type: Object,
       default: () => {
@@ -689,6 +724,7 @@ export default {
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       let enterTip = this.$t("dataIn.enterTip");
+      console.log("889999----000");
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
@@ -713,11 +749,23 @@ export default {
         }
         this.decryptPwd = decrypt(localStorage.getItem("pwd"));
         if (data.authentication.value == "plain") {
-          if (data.authentication.alternatives[1].username.value) {
-            dns += `://${data.authentication.alternatives[1].username.value}`;
+          if (
+            data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
+              .username.value
+          ) {
+            dns += `://${
+              data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
+                .username.value
+            }`;
           }
-          if (data.authentication.alternatives[1].password.value) {
-            dns += `:${data.authentication.alternatives[1].password.value}`;
+          if (
+            data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
+              .password.value
+          ) {
+            dns += `:${
+              data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
+                .password.value
+            }`;
           }
           dns += `@`;
           if (this.tagName == "mqtt") {
@@ -752,6 +800,7 @@ export default {
         // dns += data.options.subject.value
         //   ? "/" + data.options.subject.value
         //   : "";
+        console.log("8888");
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
@@ -762,16 +811,46 @@ export default {
                 data.groups[index].params[g],
                 "required"
               ) &&
-              (data.groups[index].params[g]["value"] == undefined||data.groups[index].params[g]["value"] =='')
+              (data.groups[index].params[g]["value"] == undefined ||
+                data.groups[index].params[g]["value"] == "")
             ) {
-              Message({
-                type: "warning",
-                message:
-                  this.$t("datasource.msg") +
-                  ":" +
-                  `${data.groups[index].params[g].display} `,
-              });
-              return;
+              if (this.tagName == "mqtt") {
+                console.log(data.groups[index], "data.groups[index]--000");
+                if (data.groups[index].collapsed) {
+                  Message({
+                    type: "warning",
+                    message:
+                      this.$t("datasource.msg") +
+                      ":" +
+                      `${data.groups[index].params[g].display} `,
+                  });
+                  return;
+                }
+              } else {
+                console.log("opc---warning", this.$refs.opcsingleton);
+                if (this.tagName.includes("opc")) {
+                  this.$refs.opcsingleton[0].submit()
+                  if (this.$refs.opcsingleton[0].isReject) {
+                    Message({
+                      type: "warning",
+                      message:
+                        this.$t("datasource.msg") +
+                        ":" +
+                        `${data.groups[index].params[g].display} `,
+                    });
+                    return;
+                  }
+                } else {
+                  Message({
+                    type: "warning",
+                    message:
+                      this.$t("datasource.msg") +
+                      ":" +
+                      `${data.groups[index].params[g].display} `,
+                  });
+                  return;
+                }
+              }
             } else {
               if (data.groups[index].params[g].value) {
                 if (data.groups[index].params[g].name === "use_received_time") {
@@ -781,9 +860,23 @@ export default {
                       `${data.groups[index].params[g].name}=${value}` + "&";
                   }
                 } else {
-                  querystr +=
-                    `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                    "&";
+                  if (this.tagName == "mqtt") {
+                    if (
+                      !Object.hasOwnProperty.call(
+                        data.groups[index],
+                        "collapsed"
+                      ) ||
+                      data.groups[index].collapsed
+                    ) {
+                      querystr +=
+                        `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                        "&";
+                    }
+                  } else {
+                    querystr +=
+                      `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                      "&";
+                  }
                 }
               }
             }
@@ -830,7 +923,10 @@ export default {
             }
           }
         }
-        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        if (querystr) {
+          dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        }
+
         if (!this.dbname) {
           Message({
             type: "warning",
@@ -838,6 +934,7 @@ export default {
           });
           return;
         }
+        console.log(this.tagName,this.$store.state.app.opcConfig, "this.tagNamethis.tagNamethis.tagName");
         if (this.tagName == "mqtt") {
           this.$refs.mqtt.submit();
           if (this.$refs.mqtt) {
@@ -856,18 +953,21 @@ export default {
               return;
             }
           }
+          let oldparser = this.$store.state.app.mqttParser;
+          let columns = oldparser.model.columns;
+          if (columns.includes(this.$refs.mqtt.defaultSelect)) {
+            columns.map((item, ind) => {
+              if (item == this.$refs.mqtt.defaultSelect) {
+                columns.unshift(columns.splice(ind, 1)[0]);
+              }
+            });
+          }
+          this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
         }
-        let oldparser = this.$store.state.app.mqttParser;
-        let columns = oldparser.model.columns;
-        if (columns.includes(this.$refs.mqtt.defaultSelect)) {
-          columns.map((item, ind) => {
-            if (item == this.$refs.mqtt.defaultSelect) {
-              columns.unshift(columns.splice(ind, 1)[0]);
-            }
-          });
-        }
-        this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
 
+       if(this.tagName.includes('opc')){
+        dns += '&opc_table_config='+ JSON.stringify(this.$store.state.app.opcConfig)
+       }
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
@@ -888,6 +988,7 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
+        console.log("add");
         if (this.tagName == "mqtt") {
           piParams["parser"] = this.$store.state.app.mqttParser;
         }

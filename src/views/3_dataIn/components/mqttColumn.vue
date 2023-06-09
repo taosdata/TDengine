@@ -295,6 +295,7 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding-right: 10px;
     i {
       color: #999;
     }

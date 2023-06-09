@@ -1109,6 +1109,16 @@ export default {
     'elapsed(ts, 1m)': 'Elasped(ts,1m)'
   },
   datasource: {
+    // primary_key:'Primary Key',
+    // opc_filed:'Filed',
+    // opc_alias:'Alias',
+    // opc_type:'Type',
+    stable_prefix:'Stable Prefix',
+    stable_prefixtip:'Please enter the super table prefix',
+    warehousing:'Warehousing',
+    received_time:'Received Time',
+    original_time:'Original Time',
+    value:'Value',
     repeattip:'Cannot enter ts, topic, and qos as new fields ',
     primarytip:'Primary keys only support columns of type timestamp',
     bothtagsuper:'Tags and super table name must both exist or be empty',

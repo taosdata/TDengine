@@ -891,6 +891,12 @@ export default {
   },
 
   datasource: {
+    stable_prefix:'超级表前缀',
+    stable_prefixtip:'请输入超级表前缀',
+    warehousing:'入库',
+    received_time:'接收时间',
+    original_time:'开始时间',
+    value:'值',
     repeattip:'不能输入ts,topic,qos作为新字段',
     primarytip:'主键只支持类型是timestamp的列',
     bothtagsuper:'Tags和超级表名必须同时存在或者同时为空',
