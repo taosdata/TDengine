@@ -1088,7 +1088,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // do recovery step 1
-  tqDebug("s-task:%s start non-blocking recover stage(step 1) scan", pTask->id.idStr);
+  tqDebug("s-task:%s start history data scan stage(step 1)", pTask->id.idStr);
   int64_t st = taosGetTimestampMs();
 
   streamSourceRecoverScanStep1(pTask);
@@ -1100,10 +1100,31 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
-  tqDebug("s-task:%s history scan stage(step 1) ended, elapsed time:%.2fs", pTask->id.idStr, el);
+  tqDebug("s-task:%s history data scan stage(step 1) ended, elapsed time:%.2fs", pTask->id.idStr, el);
 
-  if (pTask->info.fillHistory) {
-    // todo transfer the executor status, and then destroy this stream task
+  if (pTask->info.fillHistory) {/*
+    // 1. stop the related stream task, get the current scan wal version of stream task, ver1.
+    SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
+    if (pStreamTask == NULL) {
+      // todo handle error
+    }
+
+    pStreamTask->status.taskStatus = TASK_STATUS__PAUSE;
+
+
+    // if it's an source task, extract the last version in wal.
+
+    // 2. wait for downstream tasks to completed
+
+
+    // 3. do secondary scan of the history data scan, the time window remain, and the version range is updated to [pTask->dataRange.range.maxVer, ver1]
+
+
+    // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
+
+
+    // 5. resume the related stream task.
+*/
   } else {
     // todo update the chkInfo version for current task.
     // this task has an associated history stream task, so we need to scan wal from the end version of

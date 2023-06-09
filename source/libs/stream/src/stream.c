@@ -264,13 +264,12 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   }
 
   pTask->msgInfo.retryCount = 0;
-  int8_t old = atomic_exchange_8(&pTask->outputStatus, pRsp->inputStatus);
-  ASSERT(old == TASK_OUTPUT_STATUS__WAIT);
+  ASSERT(pTask->outputStatus == TASK_OUTPUT_STATUS__WAIT);
 
   qDebug("s-task:%s output status is set to:%d", pTask->id.idStr, pTask->outputStatus);
 
   // the input queue of the (down stream) task that receive the output data is full, so the TASK_INPUT_STATUS_BLOCKED is rsp
-  if (pTask->outputStatus == TASK_INPUT_STATUS__BLOCKED) {
+  if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
     pTask->msgInfo.blockingTs = taosGetTimestampMs(); // record the blocking start time
 
     int32_t waitDuration = 300; //  300 ms

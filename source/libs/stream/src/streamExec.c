@@ -440,8 +440,8 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     streamTaskExecImpl(pTask, pInput, &resSize, &totalBlocks);
 
     double  el = (taosGetTimestampMs() - st) / 1000.0;
-    qDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d",
-           id, el, resSize / 1048576.0, totalBlocks);
+    qDebug("s-task:%s batch of (%d)input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d",
+           id, batchSize, el, resSize / 1048576.0, totalBlocks);
     streamFreeQitem(pInput);
   }
 

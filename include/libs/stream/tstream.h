@@ -309,6 +309,7 @@ struct SStreamTask {
   STaskExec        exec;
   SHistDataRange   dataRange;
   SStreamId        historyTaskId;
+  SStreamId        streamTaskId;
   SArray*          pUpstreamEpInfoList;  // SArray<SStreamChildEpInfo*>, // children info
   int32_t          nextCheckId;
   SArray*          checkpointInfo;  // SArray<SStreamCheckpointInfo>

@@ -319,6 +319,10 @@ static void setHTasksId(SArray* pTaskList, const SArray* pHTaskList) {
 
     (*pStreamTask)->historyTaskId.taskId = (*pHTask)->id.taskId;
     (*pStreamTask)->historyTaskId.streamId = (*pHTask)->id.streamId;
+
+    (*pHTask)->streamTaskId.taskId = (*pStreamTask)->id.taskId;
+    (*pHTask)->streamTaskId.streamId = (*pStreamTask)->id.streamId;
+
     mDebug("s-task:0x%x related history task:0x%x", (*pStreamTask)->id.taskId, (*pHTask)->id.taskId);
   }
 }
