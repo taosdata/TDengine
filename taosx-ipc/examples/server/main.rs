@@ -3,10 +3,10 @@ use std::{
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path,
+    path::Path, 
 };
 use taos::sync::*;
-use taos_query::{AsyncQueryable, RawBlock};
+use taos_query::{AsyncQueryable, RawBlock, AsyncFetchable};
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
     stream::{flat::FlatMessage, point::{PointMessage, self}},
@@ -325,6 +325,7 @@ fn handle_point_message<R: Read, W: Write>(
             },
             {
                 "column_name": "status",
+                "column_alias": "ss",
                 "column_type": "int",
                 "is_primary_key": false
             }
@@ -397,7 +398,7 @@ fn handle_point_message<R: Read, W: Write>(
                 // remove last char
                 columns.pop();
                 let tags = "`point_id` VARCHAR(2), `point_name` VARCHAR(2)";
-                let stable_sql = format!("create table if not exists `{}` ({}) tags ({})", stable_name, columns, tags);
+                let stable_sql = format!("create table if not exists `{}` ({}) tags ({}) COMMENT '{}'", stable_name, columns, tags, serde_json::to_string(&table_config).unwrap().replace("\"", "\\\""));
                 for i in 0..id_cv.len() {
                     let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
                     let code = id_code_map.get(&id);
@@ -461,23 +462,57 @@ fn handle_point_message<R: Read, W: Write>(
                                     // stable not exists
                                     println!("create stable sql: {}", &stable_sql);
                                     taos_query::Queryable::exec(&taos, &stable_sql).unwrap();
-                                } else if errstr.contains("[0x263F]") {
+                                } else if errstr.contains("[0x2602]") {
                                     // Illegal number of columns, alter to add columns
-                                    let sql = format!("alter table {stable_name} add column ");
-                                    let mut add_columns= String::new();
-                                    let mut modify_columns = String::new();
-                                    let mut drop_columns = String::new();
-                                    runtime.block_on(async {
-                                        let desc = taos_query::Queryable::describe(&taos, &stable_name.as_str()).unwrap();
-                                        for column_config in &table_config.column_configs { 
-                                            
-
-                                        }
+                                    // let query_info_sql = format!("select table_comment from information_schema.ins_stables where stable_name = '{}'", &stable_name);
+                                    // comment should't be null
+                                    // let res: String = taos_query::Queryable::query_one(&taos, &query_info_sql).unwrap().unwrap();
+                                    // let res = res.replace("\\", "");
+                                    // let old_config: TableConfig = serde_json::from_str(&res).unwrap();
+                                    // desc.into_iter().for_each(|column_meta| {
+                                    //     if column_meta.is_tag() {
+                                    //         return;
+                                    //     }
+                                    //     let mut need_add = true;
+                                    //     for column_config in &table_config.column_configs { 
+                                    //         if get_real_column_name(column_config) == column_meta.field() {
+                                    //             need_add = false;
+                                    //             break;
+                                    //         }
+                                    //     }
+                                    //     if need_add {
+                                    //         let add_column_sql = format!("alter table `{stable_name}` ADD COLUMN {} {}", get_real_column_name(column_config), column_config.column_type.unwrap());
+                                    //         println!("add_column_sql:{}", add_column_sql);
+                                    //         taos_query::Queryable::exec(&taos, &add_column_sql).unwrap();
+                                    //     }
+                                    // });
+                                    for column_config in &table_config.column_configs {
+                                        let mut need_add = true;
+                                        let column_name = get_real_column_name(column_config);
+                                        // alter stable column not supported by taosd
+                                        // for old_column_config in &old_config.column_configs {
+                                            // if column_name == &old_column_config.column_name {
+                                        //         if get_real_column_name(&old_column_config) != get_real_column_name(&column_config) {
+                                        //             let modify_column_name_sql = format!("ALTER TABLE `{stable_name}` MODIFY")
+                                        //         }
+                                            // }
+                                        // }
+                                        let desc = taos_query::Queryable::describe(&taos, &stable_name).unwrap();
                                         desc.into_iter().for_each(|column_meta| {
-                                            
+                                            if column_name == column_meta.field() {
+                                                need_add = false;
+                                            }
                                         });
-                                         
-                                    });
+                                        if need_add {
+                                            let add_column_sql = format!("alter table `{stable_name}` ADD COLUMN {} {}", get_real_column_name(column_config), column_config.column_type.unwrap());
+                                            println!("add_column_sql:{}", add_column_sql);
+                                            taos_query::Queryable::exec(&taos, &add_column_sql).unwrap();
+                                        }
+                                    }
+
+                                    // let update_stable_comment = format!("ALTER TABLE `{stable_name}` COMMENT '{}'", serde_json::to_string(&table_config.column_configs).unwrap());
+                                    // println!("update_stable_comment :{}", &update_stable_comment);
+                                    // taos_query::Queryable::exec(&taos, &update_stable_comment).unwrap();
                                 } else if errstr.contains("[0x2653]") {
                                     // column length not enough
                                     runtime.block_on(async {
@@ -522,6 +557,11 @@ fn handle_point_message<R: Read, W: Write>(
     }
     println!("finished, totally {records_count} rows");
     Ok(())
+}
+
+#[inline]
+fn get_real_column_name(column_config: &ColumnConfig) -> &String {
+    &column_config.column_alias.as_ref().unwrap_or(&column_config.column_name)
 }
 
 #[cfg(not(target_os = "windows"))]

@@ -31,7 +31,7 @@ use tracing::{debug, info, instrument};
 
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
-use super::runners::opc::{opc_config_blocking, OpcTableConfig, TableConfig};
+use super::runners::opc::{opc_config_blocking, OpcTableConfig, TableConfig, ColumnConfig};
 use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
@@ -504,7 +504,25 @@ async fn consume_point_record(
                             // stable not exists
                             debug!("create stable sql: {}", &stable_sql);
                             taos.exec(&stable_sql).await?;
-                        } else if errstr.contains("[0x0118]") {
+                        } else if errstr.contains("[0x2602]") {
+                            // Illegal number of columns, alter to add columns
+                            for column_config in &table_config.column_configs {
+                                let mut need_add = true;
+                                let column_name = get_real_column_name(column_config);
+                                // alter stable column not supported by taosd
+                                let desc = taos.describe(&stable_name).await?;
+                                desc.into_iter().for_each(|column_meta| {
+                                    if column_name == column_meta.field() {
+                                        need_add = false;
+                                    }
+                                });
+                                if need_add {
+                                    let add_column_sql = format!("alter table `{stable_name}` ADD COLUMN {} {}", get_real_column_name(column_config), column_config.column_type.unwrap());
+                                    println!("add_column_sql:{}", add_column_sql);
+                                    taos.exec(&add_column_sql).await?;
+                                }
+                            }
+                        } else if errstr.contains("[0x2653]") {
                             // column or tag length not enough
                             let desc = taos.describe(&stable_name.as_str()).await?;
                             desc.into_iter().for_each(|column_meta| {
@@ -538,89 +556,14 @@ async fn consume_point_record(
                     },
                 }
             }
-            
-            // stmt.prepare(&insert_sql).unwrap();
-            // let res = stmt.bind(&new_cv_vec.as_slice());
-            // match res {
-            //     Ok(_) => (),
-            //     Err(err) => {
-            //         let errstr = err.to_string();
-            //         log::debug!("error: {}", errstr);
-            //         if errstr.contains("[0x2603]") {
-            //             // stable not exists
-            //             debug!("create stable sql: {}", &stable_sql);
-            //             taos.exec(&stable_sql).await?;
-            //             stmt.bind(&new_cv_vec.as_slice()).with_context(|| format!("stmt bind error"))?;
-            //         }
-            //     }
-            // }
-            // loop {
-            //     let add_result = stmt.add_batch();
-            //     match add_result {
-            //         Ok(_) => {
-            //             break;
-            //         },
-            //         Err(err) => {
-            //             let errstr = err.to_string();
-            //             log::error!("stmt add error, {}, ", errstr);
-            //             if errstr.contains("[0x0118]") {
-            //                 // Invalid parameters and double length
-            //                 let desc = taos.describe(&stable_name.as_str()).await?;
-            //                 desc.into_iter().for_each(|column_meta| {
-            //                     match column_meta.ty() {
-            //                         Ty::VarChar | Ty::NChar if column_meta.field() == value_cloumn_name => {
-            //                             let sql = format!(
-            //                                 "alter table `{stable_name}` modify column `{}` {}({})",
-            //                                 column_meta.field(),
-            //                                 column_meta.ty(),
-            //                                 column_meta.length() * 2
-            //                                 );
-            //                             log::info!("add execute sql: {}", &sql);
-            //                             taos.exec_sync(sql).unwrap();
-            //                         },
-            //                         ty => {
-            //                             log::debug!("ty is {} will not execute alter", ty.lowercase_name())
-            //                         }
-            //                     }
-            //                 });
-            //                 stmt.prepare(&insert_sql)?;
-            //                 stmt.bind(&new_cv_vec.as_slice())?;
-            //             } else {
-            //                 break;
-            //             }
-            //         }
-            //     }
-            // }
-            // loop {
-            //     let res = stmt.execute();
-            //     match res {
-            //         Ok(n) => {
-            //             *count += n;
-            //             points += n;
-            //             break;
-            //         }
-            //         Err(err) => {
-            //             let block = RawBlock::parse_from_raw_block(
-            //                 views_to_raw_block(&new_cv_vec),
-            //                 taos::Precision::Millisecond,
-            //             );
-            //             let block = block.pretty_format();
-            //             let errstr = err.to_string();
-            //             log::error!("execute error, {}, data: {}", errstr, block);
-            //             // TODO tag length alter
-            //             if errstr.contains("") {
-                            
-            //             } else if errstr.contains("") {
-            //                 // cloumn or tag length not enough
-                            
-            //             }
-            //             break;
-            //         }
-            //     }
-            // }
         }
     }
     Ok(points)
+}
+
+#[inline]
+fn get_real_column_name(column_config: &ColumnConfig) -> &String {
+    &column_config.column_alias.as_ref().unwrap_or(&column_config.column_name)
 }
 
 async fn consume_flat_record(
