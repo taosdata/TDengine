@@ -210,7 +210,7 @@ class TsmaTest(TDCase):
         self.tdSql.execute(f'drop stable {self.stb_name}')
         self.tdSql.query('show streams')
         self.tdSql.checkEqual(self.tdSql.query_row, 0)
-    
+
     def drop_sma_db(self, interval="1s"):
         self.case_name = sys._getframe().f_code.co_name
 
@@ -222,20 +222,21 @@ class TsmaTest(TDCase):
         self.tdSql.query('show streams')
         self.tdSql.checkEqual(self.tdSql.query_row, 0)
 
-    def run(self):
-        self.tsma_interval_test()
-        # ! TD-21421 
+    def test(self):
         # self.tsma_sliding_test()
+        return
+    def run(self):
+        # self.test()
+        # return
+        self.tsma_interval_test()
+        self.tsma_sliding_test()
         self.tsma_watermark_max_delay_test(sliding=None)
-        # ! TD-21421 
-        # self.tsma_watermark_max_delay_test(sliding="5s")
-        # self.delete_vnode_test()
-        # ! TD-21438
+        self.tsma_watermark_max_delay_test(sliding="5s")
+        self.delete_vnode_test()
         self.recreate_tsma_after_drop()
         self.partition_by_unsupported()
         self.drop_sma_stb()
         self.drop_sma_db()
-        
 
     def cleanup(self):
         pass
