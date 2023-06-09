@@ -43,7 +43,7 @@ class DeleteBackup(TDCase):
         self.dbname = ['db1','db2']
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 100
+        self.tb_num = 1000
         self.row_num = 1000
         self.drop_flag = 'yes'
         self.start_timestamp = "2020-10-01 00:00:00.000"
@@ -61,7 +61,8 @@ class DeleteBackup(TDCase):
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 1000
-        self.ntb_row_num = 10000
+        self.ntb_row_num = 1000
+        self.delete_timestamp = "2020-10-01 00:00:00.100"
     def delete_backup_db_stb(self,source_type):
         for source_task in ['','+ws']:
             for target_task in ['','+ws']:
@@ -73,6 +74,7 @@ class DeleteBackup(TDCase):
                 group_id = self.tdCom.get_long_name(5)
                 for source in range(len(self.source_taosd_list)):
                     target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
+                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {target_file_dir}')
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     # group_id = self.tdCom.get_long_name(5)
                     if source_type == 'db':
@@ -86,7 +88,7 @@ class DeleteBackup(TDCase):
                             self.tdTaosx.run_backup_stb_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.stbname,source,group_id,self.timeout)
                         elif source_task.lower() == '':
                             self.tdTaosx.run_backup_stb_from_native_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.stbname,source,group_id,self.timeout)
-                    thread_list_source[source].start()
+                        thread_list_source[source].start()
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0],port=int(self.source_taosd_list[source][1]))
                     taosd_master.execute(f'delete from {self.dbname[source]}.{self.stbname[source]} where ts <= "{self.delete_timestamp}" ')
                 for thread in thread_list_source:
@@ -105,7 +107,7 @@ class DeleteBackup(TDCase):
                             self.tdTaosx.run_backup_stb_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.stbname,source,group_id,self.timeout)
                         elif source_task.lower() == '':
                             self.tdTaosx.run_backup_stb_from_native_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.stbname,source,group_id,self.timeout)
-                    thread_list_source[source].start()    
+                        thread_list_source[source].start()
                 for source in range(len(self.source_taosd_list)):
                     target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     if target_task.lower() == '+ws':

@@ -17,10 +17,13 @@ function usage() {
     echo -e "\t -E environment file"
     echo -e "\t -c mnode count"
     echo -e "\t -e enable sub log dir"
+    echo -e "\t -f enable send2feishu robot"
     echo -e "\t -h help"
 }
 
-while getopts "m:t:b:l:o:v:d:c:w:n:N:M:E:esh" opt; do
+send2feishu_enabled="true"
+
+while getopts "m:t:b:l:o:v:d:c:w:n:N:M:E:f:esh" opt; do
     case $opt in
         m)
             config_file=$OPTARG
@@ -66,6 +69,9 @@ while getopts "m:t:b:l:o:v:d:c:w:n:N:M:E:esh" opt; do
             ;;
         e)
             sublogdir_enabled=1
+            ;;
+        f)
+            send2feishu_enabled=$OPTARG
             ;;
         h)
             usage
@@ -374,6 +380,7 @@ index_file=$log_dir/case_index.txt
 stat_file=$log_dir/stat.txt
 failed_case_file=$log_dir/failed.txt
 echo "0" >$index_file
+start_time_all=`date +%Y_%m%d_%H%M%S`
 
 i=0
 j=0
@@ -414,6 +421,48 @@ echo "Total Cases: $total_cases" >$stat_file
 echo "Successful:  $success_cases" >>$stat_file
 echo "Failed:      $failed_cases" >>$stat_file
 cat $stat_file
+
+if [ ${send2feishu_enabled} == "True" ] ;then
+    # new file testcase statusFile
+    curr_dir=$(readlink -f "$(dirname "$0")")
+    echo "script dir:" $curr_dir
+
+    status_file=${curr_dir}"/case_status.txt"
+
+    if  [  -f $status_file ]; then
+        echo "$t_file not found"
+        rm -rf ${status_file}
+        exit 1
+    fi
+
+    # define parameters of text for sending to feishu robot
+    end_time_all=`date +%Y_%m%d_%H%M%S`
+
+    if [ -f ${failed_case_file} ]; then
+        result='failed'
+    else
+        result='success'
+    fi
+    if [[ ${t_file} =~ "query" ]];then
+        owner="guoxy"
+    elif [[ ${t_file} =~ "insert" ]];then
+        owner="jiajb"
+    elif [[ ${t_file} =~ "taox" ]];then
+        owner="jiacy"
+    else
+        owner="lihui"
+    fi
+
+    result_detail="failed ${failed_cases},successful ${success_cases}"
+    test_scope="${t_file} , querypolicy-[${DATABASE_QUERY_POLICY}] , buildNumber-[${BUILD_NUMBER}]"
+    community_commit_id=${community_commit_id}
+    enterprise_commit_id=${enterprise_commit_id}
+
+    echo  -e "result:${result}\nresult_detail:${result_detail}\nstart_time:${start_time_all}\nend_time:${end_time_all}\ntest_scope:${test_scope}\nlog_dir:${log_dir}\ncommunity_commit_id:${community_commit_id}\nenterprise_commit_id:${enterprise_commit_id}\nowner:${owner}"  >> ${status_file}
+
+    python3 feishuTalk.py 
+    rm -rf ${status_file}
+fi
 if [ -f $failed_case_file ]; then
     echo -e "\e[31m TEST FAILED\e[0m"
     cat $failed_case_file

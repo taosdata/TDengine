@@ -21,7 +21,7 @@ class Runtaosx():
     def __init__(self,logger):
         self.logger = logger
         self.remote: Remote = Remote(self.logger)
-    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,start_timestamp,row_num,drop_flag,child_table_exist,replica,vgroups,interlace_rows,insert_interval):
+    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,start_timestamp,row_num,drop_flag,child_table_exist,replica,vgroups,interlace_rows,insert_interval,num_of_records_per_req=5000):
         dict = {}
         with open(json_path,'rb') as file:
             params = json.load(file)
@@ -39,6 +39,7 @@ class Runtaosx():
             params['databases'][0]['super_tables'][0]['start_timestamp'] = start_timestamp
             params['databases'][0]['super_tables'][0]['interlace_rows'] = interlace_rows
             params['databases'][0]['super_tables'][0]['insert_interval'] = insert_interval
+            params['num_of_records_per_req'] = num_of_records_per_req
             dict = params
         file.close()
         return dict
@@ -98,7 +99,7 @@ class Runtaosx():
         thread_list.append(threading.Thread(target=self.remote_run, args=(
                                 0,taosx_setting['fqdn'][0], f"taosx run \
                                     -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
-                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])}/{target_dbname}'")))
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])}/{target_dbname}' -v")))
     def run_taosx_db_from_native_to_ws(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout):
         thread_list.append(threading.Thread(target=self.remote_run, args=(
                                 0,taosx_setting['fqdn'][0], f"taosx run \

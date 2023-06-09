@@ -51,11 +51,15 @@ class TDTestQuery(TDTestQuery):
         # self.right_case_2()
         # self.right_case_2_tbname()
         # self.right_case_2_tbname_groupby()
-        # self.right_case_2_interval_1()
+        # self.right_case_2_interval_tbname()
         # self.rm_sql_2()
+        
+        # self.data_create(self.db_2_1)
+        # self.right_case_2_interval_1()
+        # self.rm_sql_2_1()
+        
         self.data_create(self.db_2_2)
         self.right_case_2_interval_2()
-        self.right_case_2_interval_tbname()
         self.rm_sql_2_2()
         endTime2 = time.time()       
         self.logger.info("total time2 %d s" % (endTime2 - startTime2))

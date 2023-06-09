@@ -8,6 +8,8 @@ settings:
       dnodes:
         - endpoint: ceph01:6030
           config_dir: /etc/taos
+          code_dir: /root/TDengine
+          update_branch: main
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
@@ -23,6 +25,7 @@ settings:
         logDir: /var/log/taos
         debugFlag: 135
         asyncLog: 0
+        maxQueryTimeRange: 3
 
   - name: taosAdapter
     fqdn: [ceph01]
@@ -49,3 +52,13 @@ settings:
         firstEP: ceph01:6030
         logDir: /var/log/taos
         debugFlag: 135
+  - name: taosBenchmark
+    fqdn: [ceph01]
+    spec:
+      version: 3.0.1.8
+      taos_version: 3.0.1.8
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: ceph01:6030
+        logDir: /var/log/taos
+        debugFlag: 131

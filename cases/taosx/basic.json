@@ -27,7 +27,8 @@
                 "maxRows": 4096,
                 "comp": 2,
                 "table_prefix": 1,
-                "table_suffix": 1
+                "table_suffix": 1,
+                "WAL_RETENTION_PERIOD":1000
             },
             "super_tables": [
                 {

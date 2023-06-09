@@ -13,6 +13,7 @@
 
 import json
 import os
+from random import randint
 import threading
 import time
 from taostest import TDCase, T
@@ -53,16 +54,16 @@ class StaticFullSync(TDCase):
         
         self.stbname = [self.tdCom.get_long_name(3)]
         self.tbname_m = [self.tdCom.get_long_name(1)]
-        self.tb_num = 10
-        self.row_num = 10
+        self.tb_num = 1000
+        self.row_num = 1000
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
         # param for taosBenchmark with ntb check
         self.ntb_dbname = [self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]
         self.ntb_name_m = [self.tdCom.get_long_name(2),self.tdCom.get_long_name(2)]
-        self.ntb_num = 10
-        self.ntb_row_num = 10
+        self.ntb_num = 1000
+        self.ntb_row_num = 1000
         # param for taosx
         self.timeout = '10s'
         self.replica = [3]
@@ -177,6 +178,8 @@ class StaticFullSync(TDCase):
                     group_id = self.tdCom.get_long_name(5)
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(
                         self.source_taosd_list[source][1]))
+                    wal_value = randint(1, 1000)
+                    taosd_master.execute(f'alter database {self.ntb_dbname[source]} WAL_RETENTION_PERIOD {wal_value}')
                     master_count_rows.append(taosd_master.query(
                         f'select count(*) from {self.ntb_dbname[source]}.{self.ntb_name_m[source]}0').fetch_all_into_dict())
                     master_sum.append(taosd_master.query(

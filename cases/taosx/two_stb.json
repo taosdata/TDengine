@@ -25,7 +25,8 @@
                 "keep": 3650,
                 "minRows": 100,
                 "maxRows": 4096,
-                "comp": 2
+                "comp": 2,
+                "WAL_RETENTION_PERIOD":1000
             },
             "super_tables": [
                 {

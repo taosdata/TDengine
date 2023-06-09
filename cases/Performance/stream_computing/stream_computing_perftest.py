@@ -53,10 +53,10 @@ class StreamComputingPerfTest(TDCase):
         return ','.join(str_list)
 
     def clean_and_restart_taosd(self):
-        killCmd = "systemctl stop taosd"
-        startCmd = "systemctl start taosd"
+        killCmd = "ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | grep -v SCREEN | awk '{print $2}' | xargs kill -9"
+        startCmd = "screen -d -m taosd"
         self._remote.cmd(self.fqdn, [killCmd])
-        self._remote.cmd(self.fqdn, [f"rm -rf {self.data_dir} {self.log_dir}"])
+        self._remote.cmd(self.fqdn, [f"rm -rf {self.data_dir}/* {self.log_dir}/*"])
         self._remote.cmd(self.fqdn, [startCmd])
         taosd_process_count = self._remote.cmd(self.fqdn, [f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"])
         if int(taosd_process_count) > 0:
@@ -89,7 +89,7 @@ class StreamComputingPerfTest(TDCase):
         file_name = []
 
         test_root = os.environ['TEST_ROOT']
-        cfg = read_yaml(test_root + "/cases/Performance/stream_computing/insert.yaml")
+        cfg = read_yaml(test_root + "/cases/Performance/stream_computing/insert_rocksdb.yaml")
         
         jfile = InsertFile()
         Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
@@ -106,7 +106,7 @@ class StreamComputingPerfTest(TDCase):
                     query_sql = cfg[cases][json_file]["stream_info"]["source_sql"]
                     target_db = target_tb.split(".")[0]
                     # self.tdSql.execute(f'create database if not exists {target_db} minrows 1 vgroups 1')
-                    self.tdSql.execute(f'create database if not exists {target_db} vgroups {cfg[cases][json_file]["db_info"]["vgroups"]} replica {cfg[cases][json_file]["db_info"]["replica"]}')
+                    self.tdSql.execute(f'create database if not exists {target_db} vgroups {cfg[cases][json_file]["db_info"]["vgroups"]} replica {cfg[cases][json_file]["db_info"]["replica"]} WAL_RETENTION_PERIOD 86400')
                     # self.tdSql.execute(f'create database if not exists perf_db2 minrows 1 vgroups 1')
                     # interval=cfg[cases][json_file]["stream_info"]["interval"]
 
@@ -208,7 +208,7 @@ class StreamComputingPerfTest(TDCase):
             tag_elm_list = [{"type": "int", "count": 1}, {"type": "varchar", "count": 1, "len": 16}]
             self.tdCom.create_stable(dbname=db['name'], column_elm_list=column_elm_list, tag_elm_list=tag_elm_list, default_column_index_start_num=0, default_tag_index_start_num=0)
             if "stream_info" in cfg[cases][json_file]:
-                self.tdCom.create_stream(stream_name=stream_name, des_table=target_tb, source_sql=query_sql, trigger_mode=trigger_mode, watermark=watermark)
+                self.tdCom.create_stream(stream_name=stream_name, des_table=target_tb, source_sql=query_sql, trigger_mode=trigger_mode, watermark=watermark, ignore_update=0)
             # self.tdCom.create_ctable(dbname=db['name'], tag_elm_list=tag_elm_list, default_ctbname_prefix="stb_00", default_ctbname_index_start_num=0, count=10)
             # self.stb_stream_des_table = f'{self.stb_name}{self.des_table_suffix}'
             # self.ctb_stream_des_table = f'{self.ctb_name}{self.des_table_suffix}'
@@ -261,11 +261,15 @@ class StreamComputingPerfTest(TDCase):
                     expected_res = 0
                 latency = 0
                 while init_res != expected_res:
+                    self.tdSql.query('select count(*) from perf_db1.output_streamtb;')
+                    print("---count---", self.tdSql.query_data[0][0])
                     self.tdSql.query(query_sql)
                     init_res = self.tdSql.query_data[0][0]
                     time.sleep(1)
                     self.tdSql.query(query_sql)
                     expected_res = self.tdSql.query_data[0][0]
+                    
+                    
                     if latency < self.stream_timeout:
                         latency += 1
                         time.sleep(1)
@@ -312,8 +316,8 @@ class StreamComputingPerfTest(TDCase):
 
                 f.write(f'--------{cases}---- final result \t--------\n')
                 if "_wstart" in cfg[cases][json_file]["stream_info"]["source_sql"]:
-                    select_ts_elm = "_wstart as start"
-                    order_by_elm = "start"
+                    select_ts_elm = "_wstart as wstart"
+                    order_by_elm = "wstart"
                 else:
                     select_ts_elm = "ts"
                     order_by_elm = "ts"

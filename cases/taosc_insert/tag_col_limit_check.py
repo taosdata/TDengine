@@ -130,12 +130,15 @@ class TestTagColLimit(TDCase):
                 self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name])
             else:
                 self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name, tag_key_name])
+
     def max_sql_length_check(self):
+        # * https://taosdata.feishu.cn/wiki/wikcnxFabKRYMviPcWyq2NAMdKe
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c2 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c3 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c4 binary(12)) tags (t1 bool)')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c2 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c3 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c4 binary(22)) tags (t1 bool)')
+        self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c2 int) tags (t1 bool)')
+        self.tdSql.error(f'create stable if not exists {dbname}.stb_error (col_ts timestamp, c1 binary({self.tdCom.Boundary.BINARY_MAX_LENGTH}), c2 int, c3 bool) tags (t1 bool)')
         self.tdSql.execute(f'drop database if exists {dbname}')
+
     def run(self):
         self.tag_max_count_check()
         self.stb_col_max_count_check()

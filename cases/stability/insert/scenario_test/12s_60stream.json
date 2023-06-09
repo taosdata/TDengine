@@ -1,0 +1,572 @@
+{
+        "filetype": "insert",
+        "cfgdir": "/etc/taos",
+        "host": "127.0.0.1",
+        "port": 6030,
+        "user": "root",
+        "password": "taosdata",
+        "connection_pool_size": 8,
+        "thread_count": 40,
+        "create_table_thread_count": 40,
+        "result_file": "./insert_res.txt",
+        "confirm_parameter_prompt": "no",
+        "insert_interval": 0,
+        "interlace_rows": 0,
+        "num_of_records_per_req": 1000,
+        "prepared_rand": 10000,
+        "chinese": "no",
+        "databases": [
+                {
+                        "dbinfo": {
+                                "name": "lingshu2",
+                                "drop": "yes",
+                                "buffer": 30,
+                                "cachesize": 50,
+                                "stt_trigger": 8,
+                                "vgroups": 60,
+                                "replica": 1
+                        },
+                        "super_tables": [
+                                {
+                                        "name": "metrics",
+                                        "child_table_exists": "no",
+                                        "childtable_count": 1000,
+                                        "childtable_prefix": "d",
+                                        "escape_character": "yes",
+                                        "auto_create_table": "no",
+                                        "batch_create_tbl_num": 5,
+                                        "data_source": "rand",
+                                        "insert_mode": "taosc",
+                                        "non_stop_mode": "no",
+                                        "line_protocol": "line",
+                                        "insert_rows": 10000,
+                                        "interlace_rows": 0,
+                                        "insert_interval": 0,
+                                        "partial_col_num": 0,
+                                        "disorder_ratio": 0,
+                                        "disorder_range": 1000,
+                                        "timestamp_step": 300000,
+                                        "start_timestamp": "2023-01-05 00:00:00.000",
+                                        "sample_format": "csv",
+                                        "sample_file": "./sample.csv",
+                                        "use_sample_ts": "no",
+                                        "tags_file": "",
+                                        "columns": [
+                                                { "type": "TIMESTAMP", "name": "ts_origin"},
+                                                { "type": "BOOL", "name": "bit_value"},
+                                                { "type": "UTINYINT", "name": "ut_value"},
+                                                { "type": "TINYINT", "name": "t_value"},
+                                                { "type": "USMALLINT", "name": "us_value"},
+                                                { "type": "SMALLINT", "name": "s_value"},
+                                                { "type": "UINT", "name": "ui_value"},
+                                                { "type": "INT", "name": "i_value"},
+                                                { "type": "UBIGINT", "name": "ub_value"},
+                                                { "type": "BIGINT", "name": "b_value"},
+                                                { "type": "FLOAT", "name": "f_value"},
+                                                { "type": "DOUBLE", "name": "d_value"},
+                                                { "type": "VARCHAR", "len": 100, "name": "bin_value"},
+                                                { "type": "VARCHAR", "len": 100, "name": "str_value"},
+                                                { "type": "TIMESTAMP", "name": "rising_edge"},
+                                                { "type": "TIMESTAMP", "name": "falling_edge"},
+                                                { "type": "BIGINT", "name": "width"},
+                                                { "type": "TINYINT", "name": "bound", "min":0, "max": 3}
+                                        ],
+                                        "tags": [
+                                                { "type": "VARCHAR", "len": 16, "name": "exp_id", "values": ["20230309103650", "20230309101626", "20230309133804", "20230309095851", "20230308093735", "20230308093654", "20230308095518", "20230309101145", "20230309101801", "20230309094709", "20230308150755"]},
+                                                { "type": "INT", "name": "import_seq"},
+                                                { "type": "VARCHAR", "len": 36, "name": "id", "values":["0xf01_0x105_1", "0xf01_0x105_2", "0xf01_0x105_3", "0xf01_0x105_4", "0xf01_0x105_5", "0xf01_0x105_6", "0xf01_0x105_7", "0xf01_0x105_8", "0xf01_0x105_9", "0xf01_0x105_10", "0xf01_0x105_11", "0xf01_0x105_12", "0xf01_0x10513", "0xf01_0x105_14", "0xf01_0x105_15", "0xf01_0x105_16", "0xf01_0x105_17", "0xf01_0x105_18", "0xf01_0x105_19", "0xf01_0x105_20"]},
+                                                { "type": "INT", "name": "mainframe"},
+                                                { "type": "INT", "name": "subframe"},
+                                                { "type": "INT", "name": "metric_id"},
+                                                { "type": "VARCHAR", "len": 100, "name": "frame_name"},
+                                                { "type": "TINYINT", "name": "frame_type"},
+                                                { "type": "TINYINT", "name": "value_type"},
+                                                { "type": "TINYINT", "name": "metric_type"}
+                                        ]
+                                }
+                        ]
+                }
+        ],
+        "streams": [
+                {
+                        "stream_name": "s1",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s1stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_8') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s2",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s2stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_19','0xf01_0x105_20','0xf01_0x105_9','0xf01_0x105_10') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s3",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s3stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_18') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s4",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s4stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s5",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s5stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_11','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s6",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s6stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_2','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s7",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s7stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_3','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s8",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s8stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_4','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s9",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s9stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_5','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s10",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s10stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_6','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s11",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s11stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_7','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s12",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s12stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_8','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s13",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s13stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_9','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s14",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s14stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_10','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s15",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s15stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_13','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s16",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s16stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_14','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s17",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s17stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_15','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s18",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s18stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_16','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s19",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s19stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_17','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s20",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s20stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_18','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s21",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s21stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_19','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s22",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s22stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_20','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s23",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s23stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_1') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s24",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s24stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_2') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s25",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s25stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_3','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s26",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s26stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_4','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s27",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s27stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_5','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s28",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s28stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_6','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s29",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s29stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s30",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s30stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s31",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s31stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s32",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s32stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s33",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s33stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s34",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s34stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s35",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s35stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s36",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s36stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s37",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s37stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s38",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s38stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s39",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s39stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s40",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s40stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s41",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s41stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s42",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s42stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s43",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s43stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s44",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s44stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s45",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s45stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s46",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s46stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s47",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s47stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s48",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s48stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s49",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s49stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s50",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s50stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s51",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s51stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s52",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s52stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s53",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s53stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s54",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s54stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s55",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s55stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s56",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s56stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s57",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s57stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s58",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s58stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s59",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s59stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                },
+                {
+                        "stream_name": "s60",
+                        "trigger_mode": "window_close",
+                        "ignore_expired": "0",
+                        "stream_stb": "lingshu2.s60stb",
+                        "source_sql": "select _wend as ts,last_row(ts_origin) as ts_origin,last_row(bit_value) as bit_value,avg(ut_value) as ut_value,avg(t_value) as t_value,avg(us_value) as us_value,avg(s_value) as s_value,avg(ui_value) as ui_value,avg(i_value) as i_value,avg(ub_value) as ub_value,avg(b_value) as b_value,avg(f_value) as f_value,avg(d_value) as d_value,last_row(bin_value) as bin_value,last_row(str_value) as str_value,last_row(rising_edge) as rising_edge,last_row(falling_edge) as falling_edge,last_row(width) as width,last_row(bound) as bound,last_row(exp_id) as exp_id,last_row(import_seq) as import_seq,last_row(id) as id,last_row(mainframe) as mainframe,last_row(subframe) as subframe,last_row(metric_id) as metric_id,last_row(frame_name) as frame_name,last_row(frame_type) as frame_type,last_row(value_type) as value_type,last_row(metric_type) as metric_type from lingshu2.metrics where exp_id = '20230308150755' and id in ('0xf01_0x105_12','0xf01_0x105_11') and bound = 0 partition by id interval(500a)",
+                        "drop": "yes"
+                }
+        ]
+}

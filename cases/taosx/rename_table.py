@@ -42,8 +42,8 @@ class RenameTable(TDCase):
         # param for taosBenchmark with db,stb and ctb check
         self.stbname = [[self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)],[self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]]
         self.tbname_m = [[self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)],[self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)]]
-        self.tb_num = 10
-        self.row_num = 100
+        self.tb_num = 1000
+        self.row_num = 1000
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
@@ -51,8 +51,8 @@ class RenameTable(TDCase):
         # param for taosBenchmark with ntb check
         self.ntb_dbname = [self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]
         self.ntb_name_m = [self.tdCom.get_long_name(2),self.tdCom.get_long_name(2)]
-        self.ntb_num = 10
-        self.ntb_row_num = 100
+        self.ntb_num = 1000
+        self.ntb_row_num = 1000
         self.prefix_list = ['first','second']
         self.suffix_list = ['one','two']
         self.template_list = [

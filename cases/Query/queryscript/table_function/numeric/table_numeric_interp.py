@@ -173,8 +173,15 @@ class TDTestQuery(TDCase):
         
         
         #单fill
-        fills = ['VALUE,100','PREV','NULL','LINEAR','NEXT']#'NONE',
-        fill_base = str(random.sample(fills,1)).replace("[","").replace("]","").replace("'","").replace(", ","")
+        fill_random_num = random.randint(-100000000,100000000)
+        fill_random_nu2 = random.randint(-100000000,100000000)
+        fill_random_nu3 = random.randint(-100000000,100000000)
+        fills = ['VALUE,100','VALUE,fill_random_num','PREV','NULL','LINEAR','NEXT',
+                'VALUE,fill_random_num + (fill_random_nu2)','VALUE,fill_random_num + (fill_random_nu2) + (fill_random_nu3)','VALUE,fill_random_num + (fill_random_nu2) + (fill_random_nu3)',
+                'VALUE,fill_random_num - (fill_random_nu2)','VALUE,fill_random_num - (fill_random_nu2) * (fill_random_nu3)','VALUE,fill_random_num - (fill_random_nu2) - (fill_random_nu3)',
+                'VALUE,fill_random_num * (fill_random_nu2)','VALUE,fill_random_num * (fill_random_nu2) / (fill_random_nu3)','VALUE,fill_random_num * (fill_random_nu2) * (fill_random_nu3)',
+                'VALUE,fill_random_num / (fill_random_nu2)','VALUE,fill_random_num / (fill_random_nu2) * (fill_random_nu3)','VALUE,fill_random_num * (fill_random_nu2) / (fill_random_nu3)']#'NONE',
+        fill_base = str(random.sample(fills,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("fill_random_num",str(fill_random_num)).replace("fill_random_nu2",str(fill_random_nu2)).replace("fill_random_nu3",str(fill_random_nu3))
         single_fill = 'Fill' +'(' +fill_base + ')'
 
         #单every
@@ -379,6 +386,38 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s as ii from %s where %s %s %s %s order by ii);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
+                            
+                        list_intervals = [11,12,13,14,15,]
+                        for i in list_intervals:                        
+                            range_fill_every = self.interp_range_fill_every(i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = "select %s,_irowts,_isfilled  from %s  %s ;"  % (func,self.table,range_fill_every)
+
+                            sql2 = "select %s,_irowts,_isfilled from %s where  %s %s %s ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
+                            
+                            sql2 = "select %s,_irowts,_isfilled  from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select * from (select %s,_irowts,_isfilled  from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
+                            
+                            sql1 = "select %s,_irowts,_isfilled  as ii from %s  %s order by ii;"  % (func,self.table,range_fill_every)
+
+                            sql2 = "select %s,_irowts,_isfilled  as ii from %s where  %s %s %s order by ii ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
+                            
+                            sql2 = "select %s,_irowts,_isfilled  as ii from %s where tbname in ('%s') %s order by ii ;"  % (func,self.table,self.table,range_fill_every)
+                            self.interp_check(sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select * from (select %s,_irowts,_isfilled as ii from %s where %s %s %s %s order by ii);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
                             self.interp_check(sql1,sql2)
                             sql= sql + sql2
                             

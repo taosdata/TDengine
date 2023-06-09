@@ -57,6 +57,7 @@ class TDTestQuery(TDCase):
     #basic_param
     db = "stable_irate"
     db_1 = "stable_irate_1"
+    db_1_1 = "stable_irate_1_1"
     db_2 = "stable_irate_2"
     db_3 = "stable_irate_3"
     
@@ -453,7 +454,7 @@ class TDTestQuery(TDCase):
 
     def right_case_1_tbname_interval(self):
         self.logger.info("\n==========================right case 1_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_1)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_1_1)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -462,8 +463,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                 
-                cur1.execute('use %s;' %self.db_1) 
-                self.tdSql.execute('use %s;' %self.db_1)                  
+                cur1.execute('use %s;' %self.db_1_1) 
+                self.tdSql.execute('use %s;' %self.db_1_1)                  
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname_interval========case1======\n\n\n" %i)
                 
@@ -1197,7 +1198,7 @@ class TDTestQuery(TDCase):
         
     def right_case_2_tbname_interval(self):
         self.logger.info("\n==========================right case 2_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_1_1)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -1207,8 +1208,8 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                 
-                cur1.execute('use %s;' %self.db_2) 
-                self.tdSql.execute('use %s;' %self.db_2)               
+                cur1.execute('use %s;' %self.db_1_1) 
+                self.tdSql.execute('use %s;' %self.db_1_1)               
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case_tbname_interval========case2======\n\n\n" %i)
 
@@ -1786,6 +1787,10 @@ class TDTestQuery(TDCase):
     def rm_sql_1(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.drop_db("%s" % self.db_1) 
+
+    def rm_sql_1_1(self):
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db_1_1) 
                 
     def rm_sql_2(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
@@ -1806,8 +1811,16 @@ class TDTestQuery(TDCase):
         self.right_case_1_tbname()
         self.error_case_1()       
         self.right_case_1_interval()
-        self.right_case_1_tbname_interval()    
+        #self.right_case_1_tbname_interval()    
         self.rm_sql_1()
+        endTime1 = time.time()       
+        self.logger.info("total time1 %d s" % (endTime1 - startTime1))
+          
+        startTime1 = time.time()
+        self.data_create(self.db_1_1) 
+        self.right_case_1_tbname_interval()  
+        self.right_case_2_tbname_interval()   
+        self.rm_sql_1_1()
         endTime1 = time.time()       
         self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
@@ -1817,7 +1830,7 @@ class TDTestQuery(TDCase):
         self.right_case_2_tbname()
         self.error_case_2()        
         self.right_case_2_interval()
-        self.right_case_2_tbname_interval()    
+        #self.right_case_2_tbname_interval()    
         self.rm_sql_2()
         endTime2 = time.time()       
         self.logger.info("total time2 %d s" % (endTime2 - startTime2))
@@ -1828,7 +1841,7 @@ class TDTestQuery(TDCase):
         self.right_case_3_tbname()
         self.error_case_3()       
         self.right_case_3_interval()
-        self.right_case_3_tbname_interval()    
+        self.right_case_3_tbname_interval()  
         self.rm_sql_3()
         endTime3 = time.time()
         self.logger.info("total time3 %ds" % (endTime3 - startTime3))     

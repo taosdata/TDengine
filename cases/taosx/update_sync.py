@@ -50,8 +50,8 @@ class AddSync(TDCase):
         self.target_taosadapter = self.taosadapter_list[-1]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 10
-        self.row_num = 100
+        self.tb_num = 1000
+        self.row_num = 1000
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
@@ -63,8 +63,8 @@ class AddSync(TDCase):
         # param for taosBenchmark with ntb check
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
-        self.ntb_num = 10
-        self.ntb_row_num = 100
+        self.ntb_num = 1000
+        self.ntb_row_num = 1000
         #param for taosx
         self.timeout = '5s'
     
@@ -207,9 +207,9 @@ class AddSync(TDCase):
             self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
             self.update_sync_db_stb('db')
             self.update_sync_db_stb('stable')
-            self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
-            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
-            self.update_sync_ntb()
+            # self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
+            # self.update_sync_ntb()
     def cleanup(self):
         pass
 

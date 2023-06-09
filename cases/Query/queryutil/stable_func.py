@@ -244,7 +244,8 @@ class TDFunction():
         return int_cloumn_regular_only
     def int_cloumn_regular_only_3(self):   
         hanshu = ['INTERP']  
-        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)'] 
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(q_bool)',
+                  '(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_double_null)','(q_bool_null)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn_regular_only = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return int_cloumn_regular_only
@@ -584,7 +585,7 @@ class TDFunction():
         time_units = ['nums','numm','numh','numd']      
         time_interval = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")  
         
-        time_num = random.randint(0, 1000)  
+        time_num = random.randint(1, 1000)  
         int_derivative = int_cloumn_state.replace("time_interval","%s" %time_interval).replace("num","%d" %time_num)   
                     
         return int_derivative
@@ -599,7 +600,7 @@ class TDFunction():
         time_units = ['nums','numm','numh','numd']      
         time_interval = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")  
         
-        time_num = random.randint(0, 1000)  
+        time_num = random.randint(1, 1000)  
         int_derivative = int_cloumn_state.replace("time_interval","%s" %time_interval).replace("num","%d" %time_num)   
                     
         return int_derivative

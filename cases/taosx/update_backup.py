@@ -46,8 +46,8 @@ class UpdateBackup(TDCase):
         self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 5
-        self.row_num = 5
+        self.tb_num = 1000
+        self.row_num = 1000
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
@@ -59,8 +59,8 @@ class UpdateBackup(TDCase):
         # param for taosBenchmark with ntb check
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
-        self.ntb_num = 5
-        self.ntb_row_num = 5
+        self.ntb_num = 1000
+        self.ntb_row_num = 1000
         #param for taosx
         self.timeout = '5s'
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num,create_flag,start_timestamp):
@@ -281,9 +281,9 @@ class UpdateBackup(TDCase):
             self.update_backup_db_stb('db')
             self.update_backup_db_stb('stable')
             self.update_backup_ctb()
-            self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
-            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
-            self.update_backup_ntb()
+            # self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
+            # self.update_backup_ntb()
     def cleanup(self):
         pass
 

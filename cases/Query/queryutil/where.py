@@ -497,21 +497,35 @@ class TDWhere():
         sliding_interval_offset = 'interval'+'(' + sliding_interval_no_offset + ',' + sliding_interval_offset + ')'
         
         #单fill,对时间强要求
-        fill_random_num = random.randint(-1000000,1000000)
-        fills_all = ['NONE','VALUE,100','VALUE_F,100','PREV','NULL','NULL_F','LINEAR','NEXT','VALUE,10000','VALUE_F,10000','VALUE,fill_random_num','VALUE_F,fill_random_num']
-        fill_base = str(random.sample(fills_all,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num))
+        fill_random_num = random.randint(-100000000,100000000)
+        fill_random_nu2 = random.randint(-100000000,100000000)
+        fill_random_nu3 = random.randint(-100000000,100000000)
+        fills_all = ['NONE','VALUE,100','VALUE_F,100','PREV','NULL','NULL_F','LINEAR','NEXT','VALUE,10000','VALUE_F,10000','VALUE,fill_random_num','VALUE_F,fill_random_num',
+                     'VALUE,fill_random_num + fill_random_nu2','VALUE_F,fill_random_num + fill_random_nu2','VALUE_F,fill_random_num + fill_random_nu2 + fill_random_nu3',
+                     'VALUE,fill_random_num - fill_random_nu2','VALUE_F,fill_random_num - fill_random_nu2','VALUE_F,fill_random_num - fill_random_nu2 - fill_random_nu3',
+                     'VALUE,fill_random_num * fill_random_nu2','VALUE_F,fill_random_num * fill_random_nu2','VALUE_F,fill_random_num * fill_random_nu2 * fill_random_nu3',
+                     'VALUE,fill_random_num / fill_random_nu2','VALUE_F,fill_random_num / fill_random_nu2','VALUE_F,fill_random_num * fill_random_nu2 / fill_random_nu3']
+        fill_base = str(random.sample(fills_all,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num)).replace("fill_random_nu2",str(fill_random_nu2)).replace("fill_random_nu3",str(fill_random_nu3))
         single_fill = 'Fill' +'(' +fill_base + ')'
         
         #强制fill,对时间强要求
         #fill_random_num = random.randint(-1000000,1000000)
-        fills_f = ['VALUE_F,fill_random_num','NULL_F','VALUE_F,10000'] 
-        fill_f_base = str(random.sample(fills_f,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num))
+        fills_f = ['VALUE_F,fill_random_num','NULL_F','VALUE_F,10000',
+                'VALUE_F,fill_random_num + fill_random_nu2','VALUE_F,fill_random_num + fill_random_nu2 + fill_random_nu3',
+                'VALUE_F,fill_random_num - fill_random_nu2','VALUE_F,fill_random_num - fill_random_nu2 - fill_random_nu3',
+                'VALUE_F,fill_random_num * fill_random_nu2','VALUE_F,fill_random_num * fill_random_nu2 * fill_random_nu3',
+                'VALUE_F,fill_random_num - fill_random_nu2','VALUE_F,fill_random_num / fill_random_nu2 / fill_random_nu3']
+        fill_f_base = str(random.sample(fills_f,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num)).replace("fill_random_nu2",str(fill_random_nu2)).replace("fill_random_nu3",str(fill_random_nu3))
         single_fill_f = 'Fill' +'(' +fill_f_base + ')'
         
         #单fill,对时间强要求
         #fill_random_num = random.randint(-1000000,1000000)
-        fills_not_f = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT','VALUE,10000','VALUE,fill_random_num']
-        fill_not_f_base = str(random.sample(fills_not_f,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num))
+        fills_not_f = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT','VALUE,10000','VALUE,fill_random_num',
+                    'VALUE,fill_random_num + fill_random_nu2','VALUE,fill_random_num + fill_random_nu2 + fill_random_nu3',
+                    'VALUE,fill_random_num - fill_random_nu2','VALUE,fill_random_num - fill_random_nu2 - fill_random_nu3',
+                    'VALUE,fill_random_num * fill_random_nu2','VALUE,fill_random_num * fill_random_nu2 * fill_random_nu3',
+                    'VALUE,fill_random_num / fill_random_nu2','VALUE,fill_random_num / fill_random_nu2 / fill_random_nu3']
+        fill_not_f_base = str(random.sample(fills_not_f,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num)).replace("fill_random_nu2",str(fill_random_nu2)).replace("fill_random_nu3",str(fill_random_nu3))
         single_fill_not_f = 'Fill' +'(' +fill_not_f_base + ')'
 
         #超级表，不支持session，state_window
@@ -709,6 +723,32 @@ class TDWhere():
         
         return og_by
 
+    def having(self):    
+        int_column = ['(q_int)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_float)','(q_double)','(q_int_null)','(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_float_null)','(q_double_null)']
+        bia_column = ['(*)','(_c0)','(_C0)','(q_bool)','(q_binary)','(q_nchar)','(q_ts)','(q_bool_null)','(q_binary_null)','(q_nchar_null)','(q_ts_null)']
+        tag_column = ['(tbname)','(loc)','(t_int)','(t_bigint)','(t_smallint)','(t_tinyint)','(t_float)','(t_double)','(t_bool)','(t_binary)','(t_nchar)','(t_ts)']
+        columns = int_column + bia_column + tag_column
+        column = str(random.sample(columns,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","")
+
+        if self.NUM%10 == 1:
+            having = " order by ts "
+        elif self.NUM%10 == 2:
+            having = " order by %s " %column
+        elif self.NUM%10 == 3:
+            having = " order by %s desc " %column
+        elif self.NUM%10 == 4:
+            having = " group by %s " %column
+        elif self.NUM%10 == 5 :
+            having = " group by tbname , %s " %column
+        elif self.NUM%10 == 6 :
+            having = " group by tbname , %s order by %s " %(column,column)
+        elif self.NUM%10 == 7 :
+            having = " group by tbname , %s order by %s desc" %(column,column)
+        else:
+            having = "  "
+        
+        return having
+
     def limit_offset(self):       
         if self.NUM%8 == 1:
             limit_offset = " limit 10 offset 10 slimit 10 offset 10 "
@@ -744,9 +784,10 @@ class TDWhere():
         hanshu_column = self.hanshu_int()
         time_window = self.time_window()
         og_by = self.orderby_groupby()
+        having = self.having()
         limit_offset = self.limit_offset()
         
-        return(column,hanshu_column,q_where,q_like_match,q_in_where,time_window,og_by,limit_offset)
+        return(column,hanshu_column,q_where,q_like_match,q_in_where,time_window,og_by,having,limit_offset)
 
     def regular_where_null(self):  
         #return null data      

@@ -208,10 +208,11 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         # nchar
         # * legal nchar could not be larger than 16374/4
         stb_name = self.tdCom.get_long_name()
-        input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"])}'
+        legal_length = int(len(self.tdCom.get_long_name(self.tdCom.boundary_config["TAG_COLUMN_MAX_LENGTH"]))/4)
+        input_sql = f'{stb_name} 1626006833640 t t1={self.tdCom.get_long_name(legal_length)}'
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 204)
-        input_sql = f'{stb_name} 1626006833640 t t0=t t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}'
+        input_sql = f'{stb_name} 1626006833640 t t1={self.tdCom.get_long_name(legal_length+1)}'
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
         self.tdSql.checkIn("Invalid binary/nchar column/tag length", res.text)
@@ -534,9 +535,6 @@ st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64'
         self.duplicate_id_tag_col_insert_Check()
         self.duplicate_insert_exist_check()
         self.tag_col_binary_nchar_length_increase_check()
-        # ! TD-17284
-        # self.tag_col_binary_max_length_check()
-        # self.tag_col_nchar_max_length_check()
         self.batch_insert_check()
         self.multi_insert_check(100)
         self.batch_error_insert_check()

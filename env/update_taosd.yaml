@@ -1,0 +1,59 @@
+settings:
+  - name: taosd
+    fqdn: [u1-60]
+    spec:
+      version: 3.0.2.2  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: u1-60:6030
+      dnodes:
+        - endpoint: u1-60:6030
+          config_dir: /etc/taos
+          code_dir: /root/TDengine
+          update_branch: 1db4619fdc50448c287d310732663486504a79af
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            rpcDebugFlag: 131
+            dDebugFlag: 131
+            mDebugFlag: 131
+            supportVnodes: 1024
+            asynclog: 0
+  - name: taospy
+    fqdn: [u1-60]
+    spec:
+      version: 3.0.2.2
+      client_version: 3.0.2.2
+      config:
+        firstEP: u1-60:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+        asyncLog: 0
+  - name: taosAdapter
+    fqdn: [u1-60]
+    spec:
+      version: 3.0.1.8
+      config_file: /etc/taos/taosadapter.toml
+      adapter_config:
+        debug: true
+        logLevel: info
+        port: 6041
+        taosConfigDir: /etc/taos
+        log:
+          path: /var/log/taos
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["telnet_tcp"]
+          ports: [6046]
+          user: root
+          password: taosdata
+
+      taos_config:
+        firstEP: u1-60:6030
+        dataDir: /var/lib/taos
+        logDir: /var/log/taos
+        debugFlag: 131
+
+
