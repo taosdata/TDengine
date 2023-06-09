@@ -824,6 +824,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       break;
     }
     QW_UNLOCK(QW_WRITE, &ctx->lock);
+    queryStop = false;
   } while (true);
 
   input.code = code;
