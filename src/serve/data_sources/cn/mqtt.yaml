@@ -91,6 +91,7 @@ groups:
 
       - name: keep_alive
         display: Keep Alive
+        value: 60
         hint:
           type: integer
           min: 1
@@ -124,6 +125,7 @@ groups:
       - name: log_level
         display: 日志级别
         description: 选择日志级别。默认为： `info` 。
+        value: info
         hint:
           type: str
           choices:
