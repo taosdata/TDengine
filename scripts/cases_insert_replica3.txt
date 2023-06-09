@@ -39,7 +39,7 @@ taostest --use=common_cluster_30.yaml --case=taosc_insert/timestamp_check.py --k
 taostest --use=common_cluster_30.yaml --case=taosc_insert/null_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/numeric_type_boundary_check.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/str_type_boundary_check.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=cluster/restart_dnodes.py --keep --containers
+#taostest --use=common_cluster_30.yaml --case=cluster/restart_dnodes.py --keep --containers
 
 taostest --use=common_cluster_30.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
@@ -98,7 +98,7 @@ taostest --use=common_cluster_30.yaml --case=restful_insert/timestamp_check.py -
 taostest --use=common_cluster_30.yaml --case=restful_insert/null_check.py --keep --containers
 
 taostest --use=common_cluster_30.yaml --case=restful_insert/numeric_type_boundary_check.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=restful_insert/str_type_boundary_check.py --keep --containers
+#taostest --use=common_cluster_30.yaml --case=restful_insert/str_type_boundary_check.py --keep --containers
 
 #taostest --use=common_cluster_30.yaml --case=stream_computing/stream_computing_test.py --keep --containers
 

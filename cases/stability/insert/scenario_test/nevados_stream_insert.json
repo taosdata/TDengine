@@ -12,7 +12,7 @@
         "confirm_parameter_prompt": "no",
         "insert_interval": 0,
         "interlace_rows": 40,
-        "num_of_records_per_req": 1000,
+        "num_of_records_per_req": 10000,
         "prepared_rand": 10000,
         "chinese": "no",
         "databases": [
@@ -177,6 +177,9 @@
                 {
                         "stream_name": "trackers_hourly_stream",
                         "stream_stb": "dev.trackers_hourly",
+			"ignore_update": "0",
+			"ignore_expired": "0",
+			"fill_history": "1",
                         "source_sql": "select _wstart as window_start, site, zone, tracker, max( case when abs(reg_pitch - reg_move_pitch) <= 2 then 1 when reg_temp_therm2 < -20 then 1 else 0 end ) as on_target, case when max(abs(reg_pitch - reg_move_pitch)) <= 2 then \"on_target\" when min(reg_temp_therm2) < -20 then \"cold_limit\" else \"off_target\" end as on_target_status, avg(reg_pitch) as avg_pitch, last(reg_pitch) as last_pitch, avg(reg_move_pitch) as avg_move_pitch, last(reg_move_pitch) as last_move_pitch from prod.trackers where _ts >= \"2023-01-01\" and _ts < now() + 1h partition by site, zone, tracker interval(1h) sliding(1h) fill(null)",
                         "drop": "yes"
                 }
