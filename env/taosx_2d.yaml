@@ -11,7 +11,19 @@ settings:
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd/cluster1
             logDir: /data/cyjia/data/taosd/cluster1
-            debugFlag: 135
+            debugFlag: 131
+        - endpoint: u1-41:6070
+          config_dir: /data/cyjia/data/taosd/cluster2
+          config: # will write into taos.cfg
+            dataDir: /data/cyjia/data/taosd/cluster2
+            logDir: /data/cyjia/data/taosd/cluster2
+            debugFlag: 131
+        - endpoint: u1-41:6090
+          config_dir: /data/cyjia/data/taosd/cluster3
+          config: # will write into taos.cfg
+            dataDir: /data/cyjia/data/taosd/cluster3
+            logDir: /data/cyjia/data/taosd/cluster3
+            debugFlag: 131
   - name: taosd
     fqdn: [u1-42]
     spec:
@@ -24,6 +36,20 @@ settings:
           config: # will write into taos.cfg
             dataDir: /data/cyjia/data/taosd_1/cluster1
             logDir: /data/cyjia/data/taosd_1/cluster1
+            debugFlag: 135
+            supportVnodes: 1024
+        - endpoint: u1-42:6070
+          config_dir: /data/cyjia/data/taosd_1/cluster2
+          config: # will write into taos.cfg
+            dataDir: /data/cyjia/data/taosd_1/cluster2
+            logDir: /data/cyjia/data/taosd_1/cluster2
+            debugFlag: 135
+            supportVnodes: 1024
+        - endpoint: u1-42:6090
+          config_dir: /data/cyjia/data/taosd_1/cluster2
+          config: # will write into taos.cfg
+            dataDir: /data/cyjia/data/taosd_1/cluster2
+            logDir: /data/cyjia/data/taosd_1/cluster2
             debugFlag: 135
             supportVnodes: 1024
   - name: taospy
