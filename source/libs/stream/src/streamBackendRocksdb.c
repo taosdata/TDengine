@@ -89,6 +89,8 @@ void* streamBackendInit(const char* path) {
   pHandle->cfInst = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
+  rocksdb_env_set_low_priority_background_threads(env, tsNumOfSnodeStreamThreads);
+  rocksdb_env_set_high_priority_background_threads(env, tsNumOfSnodeStreamThreads);
 
   rocksdb_cache_t* cache = rocksdb_cache_create_lru(64 << 20);
 
@@ -96,13 +98,13 @@ void* streamBackendInit(const char* path) {
   rocksdb_options_set_env(opts, env);
   rocksdb_options_set_create_if_missing(opts, 1);
   rocksdb_options_set_create_missing_column_families(opts, 1);
-  rocksdb_options_set_write_buffer_size(opts, 48 << 20);
   rocksdb_options_set_max_total_wal_size(opts, 128 << 20);
   rocksdb_options_set_recycle_log_file_num(opts, 6);
-  rocksdb_options_set_max_write_buffer_number(opts, 2);
+  rocksdb_options_set_max_write_buffer_number(opts, 3);
   rocksdb_options_set_info_log_level(opts, 0);
   uint32_t dbLimit = nextPow2(tsMaxStreamBackendCache);
   rocksdb_options_set_db_write_buffer_size(opts, dbLimit << 20);
+  rocksdb_options_set_write_buffer_size(opts, (dbLimit << 20) / 2);
 
   pHandle->env = env;
   pHandle->dbOpt = opts;
