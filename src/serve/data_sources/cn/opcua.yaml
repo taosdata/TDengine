@@ -164,7 +164,23 @@ groups:
           choices:
             - observe
             - subscribe
+  - name: 库表配置
+    display_order: 4
+    description: | 
+      超级表创建配置
+ 
+      - **received_time**: 采集时间戳。<br>
+      - **original_time**: 原始时间戳。<br>
+      - **value**: 采集点值。<br>
+      - **status**: 点位质量。<br>
 
+    params:
+      - name: opc_table_config
+        display: OPC Table Config
+        required: true
+        placeholder: 10
+        hint:
+          type: json
   - name: 其他
     display_order: 4
     description: 其他配置项。

@@ -211,34 +211,3 @@ groups:
         hint:
           type: bool
         description: use data received time as timestamp not server time
-
-parser: 
-  display: dd
-  description:
-
-table_config:
-  display: OPC UA Table Config
-  description: |
-    MQTT will report exactly four fields of data for each data stream:<br>
-
-    - **ts**: the collect timestamp.<br>
-    - **topic**: the topic name to subscribe.<br>
-    - **qos**: the QoS of the message, usually 0, 1, 2.<br>
-    - **payload**: the data payload of the message.<br>
-
-    taosX could parse the payload with JSON extractor and let users to specify the<br>
-    data model in the database, for example, the table name pattern and stable name<br>
-    pattern, field names as tags or field names as columns.
-  fields:
-  - name: using
-    description: stable name prefix
-  - name: received_time
-    description: Received Time.
-  - name: original_time
-    description: Server Time
-  - name: value
-    description: Point Value
-  - name: status
-    description: Point Status
-
-  required: true

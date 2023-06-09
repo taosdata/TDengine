@@ -464,13 +464,20 @@ fn handle_point_message<R: Read, W: Write>(
                                 } else if errstr.contains("[0x263F]") {
                                     // Illegal number of columns, alter to add columns
                                     let sql = format!("alter table {stable_name} add column ");
-                                    break;
-                                    // let mut add_colums 
-                                    // runtime.block_on(async {
-                                    //     let desc = taos_query::Queryable::describe(&taos, &stable_name.as_str()).unwrap();
-                                        
-                                        
-                                    // });
+                                    let mut add_columns= String::new();
+                                    let mut modify_columns = String::new();
+                                    let mut drop_columns = String::new();
+                                    runtime.block_on(async {
+                                        let desc = taos_query::Queryable::describe(&taos, &stable_name.as_str()).unwrap();
+                                        for column_config in &table_config.column_configs { 
+                                            
+
+                                        }
+                                        desc.into_iter().for_each(|column_meta| {
+                                            
+                                        });
+                                         
+                                    });
                                 } else if errstr.contains("[0x2653]") {
                                     // column length not enough
                                     runtime.block_on(async {
