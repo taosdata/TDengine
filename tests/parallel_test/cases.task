@@ -817,7 +817,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tagFilter.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts_3398.py -N 3 -n 3
