@@ -809,6 +809,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
       offRows->vgId = pVg->vgId;
       offRows->rows = pVg->numOfRows;
       offRows->offset = pVg->offsetInfo.committedOffset;
+      tscDebug("report row:%lldd, offset:%" PRId64, offRows->rows, offRows->offset.version);
     }
   }
 
@@ -1695,7 +1696,7 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg,
   return pRspObj;
 }
 
-SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper) {
+SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper, SMqClientVg* pVg, int64_t* numOfRows) {
   SMqTaosxRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqTaosxRspObj));
   pRspObj->resType = RES_TYPE__TMQ_METADATA;
   tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
@@ -1710,6 +1711,13 @@ SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper) {
     setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
   }
 
+  // extract the rows in this data packet
+  for (int32_t i = 0; i < pRspObj->rsp.blockNum; ++i) {
+    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, i);
+    int64_t            rows = htobe64(pRetrieve->numOfRows);
+    pVg->numOfRows += rows;
+    (*numOfRows) += rows;
+  }
   return pRspObj;
 }
 
@@ -2007,7 +2015,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         if (pollRspWrapper->taosxRsp.createTableNum == 0) {
           pRsp = tmqBuildRspFromWrapper(pollRspWrapper, pVg, &numOfRows);
         } else {
-          pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper);
+          pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper, pVg, &numOfRows);
         }
 
         tmq->totalRows += numOfRows;

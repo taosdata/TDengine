@@ -595,6 +595,7 @@ typedef struct {
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
+  SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
 } SMqSubscribeObj;
 
