@@ -297,6 +297,7 @@ _exit:
   return code;
 }
 
+#if 0
 int32_t tsdbDataFileReadBlockIdx(SDataFileReader *reader, const TBlockIdxArray **blockIdxArray) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -392,6 +393,7 @@ _exit:
   }
   return code;
 }
+#endif
 
 int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **tombBlkArray) {
   int32_t code = 0;

@@ -35,13 +35,13 @@ struct STsdbIter {
       int32_t             iRow;
     } stt[1];
     struct {
-      SDataFileReader      *reader;
-      const TBlockIdxArray *blockIdxArray;
-      int32_t               blockIdxArrayIdx;
-      const TDataBlkArray  *dataBlkArray;
-      int32_t               dataBlkArrayIdx;
-      SBlockData            bData[1];
-      int32_t               iRow;
+      SDataFileReader     *reader;
+      const TBrinBlkArray *brinBlkArray;
+      int32_t              brinBlkArrayIdx;
+      SBrinBlock           brinBlock[1];
+      int32_t              brinBlockIdx;
+      SBlockData           bData[1];
+      int32_t              iRow;
     } data[1];
     struct {
       SMemTable  *memt;
@@ -118,6 +118,7 @@ static int32_t tsdbDataIterNext(STsdbIter *iter, const TABLEID *tbid) {
 
   while (!iter->ctx->noMoreData) {
     for (;;) {
+      // SBlockData
       for (; iter->data->iRow < iter->data->bData->nRow; iter->data->iRow++) {
         if (tbid && tbid->suid == iter->data->bData->suid && tbid->uid == iter->data->bData->uid) {
           iter->data->iRow = iter->data->bData->nRow;
@@ -129,51 +130,48 @@ static int32_t tsdbDataIterNext(STsdbIter *iter, const TABLEID *tbid) {
         goto _exit;
       }
 
-      if (iter->data->dataBlkArray == NULL || iter->data->dataBlkArrayIdx >= TARRAY2_SIZE(iter->data->dataBlkArray)) {
+      // SBrinBlock
+      if (iter->data->brinBlockIdx >= BRIN_BLOCK_SIZE(iter->data->brinBlock)) {
         break;
       }
 
-      for (; iter->data->dataBlkArray && iter->data->dataBlkArrayIdx < TARRAY2_SIZE(iter->data->dataBlkArray);
-           iter->data->dataBlkArrayIdx++) {
-        const SDataBlk *dataBlk = TARRAY2_GET_PTR(iter->data->dataBlkArray, iter->data->dataBlkArrayIdx);
+      for (; iter->data->brinBlockIdx < BRIN_BLOCK_SIZE(iter->data->brinBlock); iter->data->brinBlockIdx++) {
+        SBrinRecord record[1];
+        tBrinBlockGet(iter->data->brinBlock, iter->data->brinBlockIdx, record);
 
-        if (tbid) {
-          const SBlockIdx *blockIdx = TARRAY2_GET_PTR(iter->data->blockIdxArray, iter->data->blockIdxArrayIdx - 1);
-
-          if (tbid->suid == blockIdx->suid && tbid->uid == blockIdx->uid) {
-            iter->data->dataBlkArrayIdx = TARRAY2_SIZE(iter->data->dataBlkArray);
-            break;
-          }
+        if (tbid && tbid->suid == record->suid && tbid->uid == record->uid) {
+          continue;
         }
 
-        code = tsdbDataFileReadDataBlock(iter->data->reader, dataBlk, iter->data->bData);
+        iter->row->suid = record->suid;
+        iter->row->uid = record->uid;
+
+        code = tsdbDataFileReadBlockData(iter->data->reader, record, iter->data->bData);
         if (code) return code;
 
         iter->data->iRow = 0;
-        iter->data->dataBlkArrayIdx++;
+        iter->data->brinBlockIdx++;
         break;
       }
     }
 
-    if (iter->data->blockIdxArrayIdx >= TARRAY2_SIZE(iter->data->blockIdxArray)) {
+    if (iter->data->brinBlkArrayIdx >= TARRAY2_SIZE(iter->data->brinBlkArray)) {
       iter->ctx->noMoreData = true;
       break;
     }
 
-    for (; iter->data->blockIdxArrayIdx < TARRAY2_SIZE(iter->data->blockIdxArray); iter->data->blockIdxArrayIdx++) {
-      const SBlockIdx *blockIdx = TARRAY2_GET_PTR(iter->data->blockIdxArray, iter->data->blockIdxArrayIdx);
+    for (; iter->data->brinBlkArrayIdx < TARRAY2_SIZE(iter->data->brinBlkArray); iter->data->brinBlkArrayIdx++) {
+      const SBrinBlk *brinBlk = TARRAY2_GET_PTR(iter->data->brinBlkArray, iter->data->brinBlkArrayIdx);
 
-      if (tbid && tbid->suid == blockIdx->suid && tbid->uid == blockIdx->uid) {
+      if (tbid && tbid->uid == brinBlk->minTbid.uid && tbid->uid == brinBlk->maxTbid.uid) {
         continue;
       }
 
-      code = tsdbDataFileReadDataBlk(iter->data->reader, blockIdx, &iter->data->dataBlkArray);
+      code = tsdbDataFileReadBrinBlock(iter->data->reader, brinBlk, iter->data->brinBlock);
       if (code) return code;
 
-      iter->row->suid = blockIdx->suid;
-      iter->row->uid = blockIdx->uid;
-      iter->data->dataBlkArrayIdx = 0;
-      iter->data->blockIdxArrayIdx++;
+      iter->data->brinBlockIdx = 0;
+      iter->data->brinBlkArrayIdx++;
       break;
     }
   }
@@ -290,19 +288,20 @@ static int32_t tsdbSttIterOpen(STsdbIter *iter) {
 static int32_t tsdbDataIterOpen(STsdbIter *iter) {
   int32_t code;
 
-  code = tsdbDataFileReadBlockIdx(iter->data->reader, &iter->data->blockIdxArray);
+  // SBrinBlk
+  code = tsdbDataFileReadBrinBlk(iter->data->reader, &iter->data->brinBlkArray);
   if (code) return code;
 
-  // SBlockIdx
-  if (TARRAY2_SIZE(iter->data->blockIdxArray) == 0) {
+  if (TARRAY2_SIZE(iter->data->brinBlkArray) == 0) {
     iter->ctx->noMoreData = true;
     return 0;
   }
-  iter->data->blockIdxArrayIdx = 0;
 
-  // SDataBlk
-  iter->data->dataBlkArray = NULL;
-  iter->data->dataBlkArrayIdx = 0;
+  iter->data->brinBlkArrayIdx = 0;
+
+  // SBrinBlock
+  tBrinBlockInit(iter->data->brinBlock);
+  iter->data->brinBlockIdx = 0;
 
   // SBlockData
   tBlockDataCreate(iter->data->bData);
@@ -331,7 +330,7 @@ static int32_t tsdbDataTombIterOpen(STsdbIter *iter) {
     iter->ctx->noMoreData = true;
     return 0;
   }
-  iter->data->blockIdxArrayIdx = 0;
+  iter->dataTomb->tombBlkArrayIdx = 0;
 
   tTombBlockInit(iter->dataTomb->tData);
   iter->dataTomb->iRow = 0;
@@ -340,6 +339,7 @@ static int32_t tsdbDataTombIterOpen(STsdbIter *iter) {
 }
 
 static int32_t tsdbDataIterClose(STsdbIter *iter) {
+  tBrinBlockDestroy(iter->data->brinBlock);
   tBlockDataDestroy(iter->data->bData);
   return 0;
 }
