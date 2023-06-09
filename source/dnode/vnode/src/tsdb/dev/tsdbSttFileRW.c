@@ -228,7 +228,7 @@ int32_t tsdbSttFileReadSttBlk(SSttSegReader *reader, const TSttBlkArray **sttBlk
   return 0;
 }
 
-int32_t tsdbSttFileReadDataBlock(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData) {
+int32_t tsdbSttFileReadBlockData(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -242,6 +242,125 @@ int32_t tsdbSttFileReadDataBlock(SSttSegReader *reader, const SSttBlk *sttBlk, S
   code = tDecmprBlockData(reader->reader->config->bufArr[0], sttBlk->bInfo.szBlock, bData,
                           &reader->reader->config->bufArr[1]);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(reader->reader->config->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+int32_t tsdbSttFileReadBlockDataByColumn(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData,
+                                         STSchema *pTSchema, int16_t cids[], int32_t ncid) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TABLEID tbid = {.suid = sttBlk->suid, .uid = 0};
+  code = tBlockDataInit(bData, &tbid, pTSchema, cids, ncid);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // uid + version + tskey
+  code = tRealloc(&reader->reader->config->bufArr[0], sttBlk->bInfo.szKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbReadFile(reader->reader->fd, sttBlk->bInfo.offset, reader->reader->config->bufArr[0], sttBlk->bInfo.szKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // hdr
+  SDiskDataHdr hdr[1];
+  int32_t      size = 0;
+
+  size += tGetDiskDataHdr(reader->reader->config->bufArr[0] + size, hdr);
+
+  ASSERT(hdr->delimiter == TSDB_FILE_DLMT);
+
+  bData->nRow = hdr->nRow;
+  bData->uid = hdr->uid;
+
+  // uid
+  if (hdr->uid == 0) {
+    ASSERT(hdr->szUid);
+    code = tsdbDecmprData(reader->reader->config->bufArr[0] + size, hdr->szUid, TSDB_DATA_TYPE_BIGINT, hdr->cmprAlg,
+                          (uint8_t **)&bData->aUid, sizeof(int64_t) * hdr->nRow, &reader->reader->config->bufArr[1]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    ASSERT(hdr->szUid == 0);
+  }
+  size += hdr->szUid;
+
+  // version
+  code = tsdbDecmprData(reader->reader->config->bufArr[0] + size, hdr->szVer, TSDB_DATA_TYPE_BIGINT, hdr->cmprAlg,
+                        (uint8_t **)&bData->aVersion, sizeof(int64_t) * hdr->nRow, &reader->reader->config->bufArr[1]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  size += hdr->szVer;
+
+  // ts
+  code = tsdbDecmprData(reader->reader->config->bufArr[0] + size, hdr->szKey, TSDB_DATA_TYPE_TIMESTAMP, hdr->cmprAlg,
+                        (uint8_t **)&bData->aTSKEY, sizeof(TSKEY) * hdr->nRow, &reader->reader->config->bufArr[1]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  size += hdr->szKey;
+
+  ASSERT(size == sttBlk->bInfo.szKey);
+
+  // other columns
+  if (bData->nColData > 0) {
+    if (hdr->szBlkCol > 0) {
+      code = tRealloc(&reader->reader->config->bufArr[0], hdr->szBlkCol);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tsdbReadFile(reader->reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey,
+                          reader->reader->config->bufArr[0], hdr->szBlkCol);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    SBlockCol  bc[1] = {{.cid = 0}};
+    SBlockCol *blockCol = bc;
+
+    size = 0;
+    for (int32_t i = 0; i < bData->nColData; i++) {
+      SColData *colData = tBlockDataGetColDataByIdx(bData, i);
+
+      while (blockCol && blockCol->cid < colData->cid) {
+        if (size < hdr->szBlkCol) {
+          size += tGetBlockCol(reader->reader->config->bufArr[0] + size, blockCol);
+        } else {
+          ASSERT(size == hdr->szBlkCol);
+          blockCol = NULL;
+        }
+      }
+
+      if (blockCol == NULL || blockCol->cid > colData->cid) {
+        for (int32_t iRow = 0; iRow < hdr->nRow; iRow++) {
+          code = tColDataAppendValue(colData, &COL_VAL_NONE(colData->cid, colData->type));
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+      } else {
+        ASSERT(blockCol->type == colData->type);
+        ASSERT(blockCol->flag && blockCol->flag != HAS_NONE);
+
+        if (blockCol->flag == HAS_NULL) {
+          for (int32_t iRow = 0; iRow < hdr->nRow; iRow++) {
+            code = tColDataAppendValue(colData, &COL_VAL_NULL(blockCol->cid, blockCol->type));
+            TSDB_CHECK_CODE(code, lino, _exit);
+          }
+        } else {
+          int32_t size1 = blockCol->szBitmap + blockCol->szOffset + blockCol->szValue;
+
+          code = tRealloc(&reader->reader->config->bufArr[1], size1);
+          TSDB_CHECK_CODE(code, lino, _exit);
+
+          code = tsdbReadFile(reader->reader->fd,
+                              sttBlk->bInfo.offset + sttBlk->bInfo.szKey + hdr->szBlkCol + blockCol->offset,
+                              reader->reader->config->bufArr[1], size1);
+          TSDB_CHECK_CODE(code, lino, _exit);
+
+          code = tsdbDecmprColData(reader->reader->config->bufArr[1], blockCol, hdr->cmprAlg, hdr->nRow, colData,
+                                   &reader->reader->config->bufArr[2]);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+      }
+    }
+  }
 
 _exit:
   if (code) {
@@ -341,7 +460,7 @@ struct SSttFileWriter {
   STsdbFD *fd;
 };
 
-static int32_t tsdbSttFileDoWriteTSDataBlock(SSttFileWriter *writer) {
+static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   if (writer->bData->nRow == 0) return 0;
 
   int32_t code = 0;
@@ -647,7 +766,7 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
   int32_t lino;
   int32_t code;
 
-  code = tsdbSttFileDoWriteTSDataBlock(writer);
+  code = tsdbSttFileDoWriteBlockData(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbSttFileDoWriteStatisBlock(writer);
@@ -752,7 +871,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
+int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -763,7 +882,7 @@ int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
 
   TSDBKEY key[1] = {TSDBROW_KEY(&row->row)};
   if (!TABLE_SAME_SCHEMA(row->suid, row->uid, writer->ctx->tbid->suid, writer->ctx->tbid->uid)) {
-    code = tsdbSttFileDoWriteTSDataBlock(writer);
+    code = tsdbSttFileDoWriteBlockData(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     code = tsdbUpdateSkmTb(writer->config->tsdb, (TABLEID *)row, writer->config->skmTb);
@@ -823,7 +942,7 @@ int32_t tsdbSttFileWriteTSData(SSttFileWriter *writer, SRowInfo *row) {
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     if (writer->bData->nRow >= writer->config->maxRow) {
-      code = tsdbSttFileDoWriteTSDataBlock(writer);
+      code = tsdbSttFileDoWriteBlockData(writer);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -838,7 +957,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFileWriteTSDataBlock(SSttFileWriter *writer, SBlockData *bdata) {
+int32_t tsdbSttFileWriteBlockData(SSttFileWriter *writer, SBlockData *bdata) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -849,7 +968,7 @@ int32_t tsdbSttFileWriteTSDataBlock(SSttFileWriter *writer, SBlockData *bdata) {
     row->uid = bdata->uid ? bdata->uid : bdata->aUid[i];
     row->row = tsdbRowFromBlockData(bdata, i);
 
-    code = tsdbSttFileWriteTSData(writer, row);
+    code = tsdbSttFileWriteRow(writer, row);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -869,7 +988,7 @@ int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *re
     return code;
   } else {
     if (writer->bData->nRow > 0) {
-      code = tsdbSttFileDoWriteTSDataBlock(writer);
+      code = tsdbSttFileDoWriteBlockData(writer);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 

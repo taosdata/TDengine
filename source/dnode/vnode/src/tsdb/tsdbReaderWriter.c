@@ -1489,7 +1489,7 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader) {
 }
 
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData) {
-    return tsdbReadDelDatav1(pReader, pDelIdx, aDelData, INT64_MAX);
+  return tsdbReadDelDatav1(pReader, pDelIdx, aDelData, INT64_MAX);
 }
 
 int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, int64_t maxVer) {
@@ -1517,10 +1517,10 @@ int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelDa
     if (delData.version > maxVer) {
       continue;
     }
-      if (taosArrayPush(aDelData, &delData) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _err;
-      }
+    if (taosArrayPush(aDelData, &delData) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
   ASSERT(n == size);

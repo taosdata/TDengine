@@ -155,7 +155,7 @@ static int32_t tsdbMergeToDataTableEnd(SMerger *merger) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     if (merger->ctx->bData[cidx].nRow < merger->minRow) {
-      code = tsdbSttFileWriteTSDataBlock(merger->sttWriter, merger->ctx->bData + cidx);
+      code = tsdbSttFileWriteBlockData(merger->sttWriter, merger->ctx->bData + cidx);
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
       code = tsdbDataFileWriteBlockData(merger->dataWriter, merger->ctx->bData + cidx);
@@ -274,7 +274,7 @@ static int32_t tsdbMergeToUpperLevel(SMerger *merger) {
   // data
   SRowInfo *row;
   while ((row = tsdbIterMergerGet(merger->dataIterMerger))) {
-    code = tsdbSttFileWriteTSData(merger->sttWriter, row);
+    code = tsdbSttFileWriteRow(merger->sttWriter, row);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     code = tsdbIterMergerNext(merger->dataIterMerger);

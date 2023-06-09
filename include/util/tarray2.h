@@ -38,8 +38,6 @@ extern "C" {
 
 typedef void (*TArray2Cb)(void *);
 
-#define TARRAY2_MIN_SIZE 16
-
 #define TARRAY2_SIZE(a)       ((a)->size)
 #define TARRAY2_CAPACITY(a)   ((a)->capacity)
 #define TARRAY2_DATA(a)       ((a)->data)
@@ -55,7 +53,7 @@ static FORCE_INLINE int32_t tarray2_make_room(  //
     int32_t sz                                  // size of element
 ) {
   TARRAY2(void) *a = arg;
-  int32_t capacity = (a->capacity > 0) ? (a->capacity << 1) : TARRAY2_MIN_SIZE;
+  int32_t capacity = (a->capacity > 0) ? (a->capacity << 1) : 32;
   while (capacity < es) {
     capacity <<= 1;
   }

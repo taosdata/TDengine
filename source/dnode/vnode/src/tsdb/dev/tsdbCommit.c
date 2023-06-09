@@ -198,7 +198,7 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
       code = tsdbIterMergerSkipTableData(committer->iterMerger, committer->ctx->tbid);
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
-      code = tsdbSttFileWriteTSData(committer->sttWriter, row);
+      code = tsdbSttFileWriteRow(committer->sttWriter, row);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = tsdbIterMergerNext(committer->iterMerger);

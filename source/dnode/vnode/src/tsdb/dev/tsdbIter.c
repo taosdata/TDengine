@@ -100,7 +100,7 @@ static int32_t tsdbSttIterNext(STsdbIter *iter, const TABLEID *tbid) {
         continue;
       }
 
-      int32_t code = tsdbSttFileReadDataBlock(iter->stt->reader, sttBlk, iter->stt->bData);
+      int32_t code = tsdbSttFileReadBlockData(iter->stt->reader, sttBlk, iter->stt->bData);
       if (code) return code;
 
       iter->stt->iRow = 0;

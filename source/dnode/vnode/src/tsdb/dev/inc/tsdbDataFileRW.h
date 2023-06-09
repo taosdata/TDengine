@@ -49,10 +49,11 @@ int32_t tsdbDataFileReadBrinBlk(SDataFileReader *reader, const TBrinBlkArray **b
 int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinBlk, SBrinBlock *brinBlock);
 // .data
 int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData);
-int32_t tsdbDataFileReadBlockDataByCol(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData,
-                                       STSchema *pTSchema, int32_t cidArr[], int32_t numCid);
+int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData,
+                                          STSchema *pTSchema, int16_t cids[], int32_t ncid);
 // .sma
-int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader);
+int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *record,
+                                 TColumnDataAggArray *columnDataAggArray);
 // .tomb
 int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **tombBlkArray);
 int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombBlk, STombBlock *tData);
