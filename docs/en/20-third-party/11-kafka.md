@@ -241,6 +241,8 @@ Input following content:
     "poll.interval.ms": 1000,
     "fetch.max.rows": 100,
     "topic.per.stable": true,
+    "topic.ignore.db": false,
+    "out.format": "line",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.storage.StringConverter"
     }
@@ -356,8 +358,10 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 3. `timestamp.initial`: Data synchronization start time. The format is 'yyyy-MM-dd HH:mm:ss'. If it is not set, the data importing to Kafka will be started from the first/oldest row in the database.
 4. `poll.interval.ms`: The time interval for checking newly created tables or removed tables, default value is 1000.
 5. `fetch.max.rows`: The maximum number of rows retrieved when retrieving the database, default is 100.
-6. `query.interval.ms`: The time range of reading data from TDengine each time, its unit is millisecond. It should be adjusted according to the data flow in rate, the default value is 1000.
-7. `topic.per.stable`: If it's set to true, it means one super table in TDengine corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>-<stable.name>`; if it's set to false, it means the whole DB corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>`.
+6. `query.interval.ms`: The time range of reading data from TDengine each time, its unit is millisecond. It should be adjusted according to the data flow in rate, the default value is 0, this means to get all the data to the latest time.
+7. `out.format`: Result output format. `line` indicates that the output format is InfluxDB line protocol format, `json` indicates that the output format is json. The default is line.
+8. `topic.per.stable`: If it's set to true, it means one super table in TDengine corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>-<stable.name>`; if it's set to false, it means the whole DB corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>`.
+9. `topic.ignore.db`: Whether the topic naming rule contains the database name: true indicates that the rule is `<topic.prefix>-<stable.name>`, false indicates that the rule is `<topic.prefix>-<connection.database>-<stable.name>`, and the default is false. Does not take effect when `topic.per.stable` is set to false.
 
 ## Other notes
 

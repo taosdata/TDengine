@@ -240,6 +240,8 @@ vi source-demo.json
     "poll.interval.ms": 1000,
     "fetch.max.rows": 100,
     "topic.per.stable": true,
+    "topic.ignore.db": false,
+    "out.format": "line",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.storage.StringConverter"
     }
@@ -361,8 +363,10 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 3. `timestamp.initial`: 数据同步起始时间。格式为'yyyy-MM-dd HH:mm:ss'，若未指定则从指定 DB 中最早的一条记录开始。
 4. `poll.interval.ms`: 检查是否有新建或删除的表的时间间隔，单位为 ms。默认为 1000。
 5. `fetch.max.rows` : 检索数据库时最大检索条数。 默认为 100。
-6. `query.interval.ms`: 从 TDengine 一次读取数据的时间跨度，需要根据表中的数据特征合理配置，避免一次查询的数据量过大或过小；在具体的环境中建议通过测试设置一个较优值，默认值为 1000.
-7. `topic.per.stable`: 如果设置为true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix>-<connection.database>-<stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix>-<connection.database>`
+6. `query.interval.ms`: 从 TDengine 一次读取数据的时间跨度，需要根据表中的数据特征合理配置，避免一次查询的数据量过大或过小；在具体的环境中建议通过测试设置一个较优值，默认值为 0，即获取到当前最新时间的所有数据。
+7. `out.format` : 结果集输出格式。`line` 表示输出格式为 InfluxDB Line 协议格式，`json` 表示输出格式是 json。默认为 line。
+8. `topic.per.stable`: 如果设置为 true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix>-<connection.database>-<stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix>-<connection.database>`
+9. `topic.ignore.db`: topic 命名规则是否包含 database 名称，true 表示规则为 `<topic.prefix>-<stable.name>`，false 表示规则为 `<topic.prefix>-<connection.database>-<stable.name>`，默认 false。在 `topic.per.stable` 设置为 false 时不生效。
 
 ## 其他说明
 
