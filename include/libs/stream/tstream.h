@@ -570,6 +570,7 @@ void         streamMetaInit();
 void         streamMetaCleanup();
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
 void         streamMetaClose(SStreamMeta* streamMeta);
+int32_t      streamDoCheckpoint(SStreamMeta* streamMeta);
 
 int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);

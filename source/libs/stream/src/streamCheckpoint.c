@@ -130,15 +130,15 @@ static int32_t streamAlignCheckpoint(SStreamTask* pTask, int64_t checkpointId, i
   return atomic_sub_fetch_32(&pTask->checkpointAlignCnt, 1);
 }
 
-static int32_t streamDoCheckpoint(SStreamMeta* pMeta, SStreamTask* pTask, int64_t checkpointId) {
-  // commit tdb state
-  streamStateCommit(pTask->pState);
-  // commit non-tdb state
-  // copy and save new state
-  // report to mnode
-  // send checkpoint req to downstream
-  return 0;
-}
+// static int32_t streamDoCheckpoint(SStreamMeta* pMeta, SStreamTask* pTask, int64_t checkpointId) {
+//   // commit tdb state
+//   streamStateCommit(pTask->pState);
+//   // commit non-tdb state
+//   // copy and save new state
+//   // report to mnode
+//   // send checkpoint req to downstream
+//   return 0;
+// }
 
 static int32_t streamDoSourceCheckpoint(SStreamMeta* pMeta, SStreamTask* pTask, int64_t checkpointId) {
   // ref wal
@@ -175,7 +175,7 @@ int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStre
     }
   }
 
-  code = streamDoCheckpoint(pMeta, pTask, checkpointId);
+  // code = streamDoCheckpoint(pMeta, pTask, checkpointId);
   if (code < 0) {
     // rsp error
     return -1;
