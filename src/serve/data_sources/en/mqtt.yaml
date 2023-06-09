@@ -40,6 +40,22 @@ options:
     description: MQTT Broker password.
     placeholder: password
 
+authentication:
+  display: Authentication
+  value: plain
+  alternatives:
+    - name: plain
+      display: Username Password
+      description: Use MQTT Broker username and password。
+      username:
+        display: Username
+        placeholder: username
+        required: false
+      password:
+        display: Password
+        placeholder: password
+        required: false
+
 groups:
   - name: Enable SSL
     display_order: 0
@@ -115,7 +131,6 @@ groups:
         hint:
           type: str
 
-
   - name: Others
     display_order: 2
     description: Other configurations.
@@ -146,13 +161,13 @@ parser:
     data model in the database, for example, the table name pattern and stable name<br>
     pattern, field names as tags or field names as columns.
   fields:
-  - name: ts
-    description: Timestamp.
-  - name: topic
-    description: Topic name.
-  - name: qos
-    description: QoS, one of 0/1/2.
-  - name: payload
-    description: Payload
+    - name: ts
+      description: Timestamp.
+    - name: topic
+      description: Topic name.
+    - name: qos
+      description: QoS, one of 0/1/2.
+    - name: payload
+      description: Payload
 
   required: true

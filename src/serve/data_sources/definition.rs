@@ -72,6 +72,10 @@ pub enum DataSourceOptions {
     },
     Endpoint {
         endpoint: OptionDef,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        username: Option<OptionDef>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        password: Option<OptionDef>,
     },
     Uri {
         #[serde(default)]
@@ -339,7 +343,11 @@ impl DataSourceDefinition {
                             subject.value.replace(value.to_string());
                         }
                     }
-                    DataSourceOptions::Endpoint { endpoint } => {
+                    DataSourceOptions::Endpoint {
+                        endpoint,
+                        username,
+                        password,
+                    } => {
                         let mut endpoint_str = String::new();
                         if let Some(addr) = dsn.addresses.first() {
                             if let Some(value) = addr.host.as_ref() {
@@ -355,6 +363,20 @@ impl DataSourceDefinition {
                             endpoint_str.push_str(value.as_str());
                         }
                         endpoint.value.replace(endpoint_str);
+
+                        // user/pass
+                        if let Some(value) = username_value.as_deref() {
+                            username
+                                .get_or_insert(Default::default())
+                                .value
+                                .replace(value.to_string());
+                        }
+                        if let Some(value) = password_value.as_deref() {
+                            password
+                                .get_or_insert(Default::default())
+                                .value
+                                .replace(value.to_string());
+                        }
                     }
                 },
                 None => (),
@@ -371,7 +393,11 @@ impl DataSourceDefinition {
                                 port: _,
                                 subject: _,
                             } => panic!("mixed path and uri type of DSN"),
-                            DataSourceOptions::Endpoint { endpoint: _ } => {
+                            DataSourceOptions::Endpoint {
+                                endpoint: _,
+                                username: _,
+                                password: _,
+                            } => {
                                 panic!("mixed path and uri type of DSN")
                             }
                         },
