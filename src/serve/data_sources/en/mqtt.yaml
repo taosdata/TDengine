@@ -31,65 +31,55 @@ options:
     description: |
       Mqtt server endpoint. e.g: 127.0.0.1:1883
     placeholder: 127.0.0.1:1883
+  username:
+    display: Username
+    description: MQTT Broker username.
+    placeholder: username
+  password:
+    display: Password
+    description: MQTT Broker password.
+    placeholder: password
 
 authentication:
   display: Authentication
-  description: Use username/password plain authentication or with certificate files, or anonymous(default).
-  value: anonymous
+  value: plain
   alternatives:
-    - name: anonymous
-      display: Anonymous
-      description: Logging in anonymously without any configurations (if available).
-      value: true
-      params: []
-
     - name: plain
-      display: Username
-      description: Use username and password.
+      display: Username Password
+      description: Use MQTT Broker username and password。
       username:
         display: Username
-        description: MQTT Broker username.
         placeholder: username
         required: true
       password:
         display: Password
-        description: MQTT Broker password.
         placeholder: password
-    - name: certificates
-      display: Certificates
-      description: Use certificate file and private key.
-      params:
-        - name: ca
-          display: CA
-          description: CA file content
-          required: true
-          hint:
-            type: file
-        - name: cert
-          display: Client certificate file
-          description: Client certificate file content.
-          required: true
-          hint:
-            type: file
-        - name: cert_key
-          display: Client key file
-          description: Client key file content.
-          required: true
-          hint:
-            type: file
-        - name: username
-          display: Username
-          description: MQTT Broker username.
-          placeholder: username
-          hint:
-            type: str
-        - name: password
-          display: Password
-          description: MQTT Broker password.
-          placeholder: password
-          hint:
-            type: str
+        required: false
+
 groups:
+  - name: Enable SSL
+    display_order: 0
+    description: Use self-signed certificate file and private key.
+    collapsible: true
+    params:
+      - name: ca
+        display: CA
+        description: CA file content
+        required: true
+        hint:
+          type: file
+      - name: cert
+        display: Client certificate file
+        description: Client certificate file content.
+        required: true
+        hint:
+          type: file
+      - name: cert_key
+        display: Client key file
+        description: Client key file content.
+        required: true
+        hint:
+          type: file
   - name: Connection
     display_order: 1
     description: Some configurations used in connecting step.
@@ -124,6 +114,7 @@ groups:
           that the client has disconnected and will close the<br>
           connection.
         placeholder: 10
+        value: 60
       - name: clean_session
         display: Clean Session
         value: true
@@ -141,7 +132,6 @@ groups:
         hint:
           type: str
 
-
   - name: Others
     display_order: 2
     description: Other configurations.
@@ -149,6 +139,7 @@ groups:
       - name: log_level
         display: Log Level
         description: Log Level
+        value: info
         hint:
           type: str
           choices:
@@ -172,13 +163,13 @@ parser:
     data model in the database, for example, the table name pattern and stable name<br>
     pattern, field names as tags or field names as columns.
   fields:
-  - name: ts
-    description: Timestamp.
-  - name: topic
-    description: Topic name.
-  - name: qos
-    description: QoS, one of 0/1/2.
-  - name: payload
-    description: Payload
+    - name: ts
+      description: Timestamp.
+    - name: topic
+      description: Topic name.
+    - name: qos
+      description: QoS, one of 0/1/2.
+    - name: payload
+      description: Payload
 
   required: true

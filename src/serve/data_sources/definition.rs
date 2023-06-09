@@ -72,6 +72,10 @@ pub enum DataSourceOptions {
     },
     Endpoint {
         endpoint: OptionDef,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        username: Option<OptionDef>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        password: Option<OptionDef>,
     },
     Uri {
         #[serde(default)]
@@ -146,6 +150,11 @@ pub struct GroupedParams {
     pub display_order: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(default)]
+    pub collapsible: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub collapsed: Option<bool>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub params: Vec<Param>,
 }
@@ -334,7 +343,11 @@ impl DataSourceDefinition {
                             subject.value.replace(value.to_string());
                         }
                     }
-                    DataSourceOptions::Endpoint { endpoint } => {
+                    DataSourceOptions::Endpoint {
+                        endpoint,
+                        username,
+                        password,
+                    } => {
                         let mut endpoint_str = String::new();
                         if let Some(addr) = dsn.addresses.first() {
                             if let Some(value) = addr.host.as_ref() {
@@ -350,6 +363,20 @@ impl DataSourceDefinition {
                             endpoint_str.push_str(value.as_str());
                         }
                         endpoint.value.replace(endpoint_str);
+
+                        // user/pass
+                        if let Some(value) = username_value.as_deref() {
+                            username
+                                .get_or_insert(Default::default())
+                                .value
+                                .replace(value.to_string());
+                        }
+                        if let Some(value) = password_value.as_deref() {
+                            password
+                                .get_or_insert(Default::default())
+                                .value
+                                .replace(value.to_string());
+                        }
                     }
                 },
                 None => (),
@@ -366,7 +393,11 @@ impl DataSourceDefinition {
                                 port: _,
                                 subject: _,
                             } => panic!("mixed path and uri type of DSN"),
-                            DataSourceOptions::Endpoint { endpoint: _ } => {
+                            DataSourceOptions::Endpoint {
+                                endpoint: _,
+                                username: _,
+                                password: _,
+                            } => {
                                 panic!("mixed path and uri type of DSN")
                             }
                         },
@@ -416,8 +447,14 @@ impl DataSourceDefinition {
             }
         }
         for group in self.groups.as_mut_slice() {
+            if group.collapsible {
+                group.collapsed.replace(false);
+            }
             for param in &mut group.params {
                 if let Some(value) = dsn.remove(&param.name) {
+                    if group.collapsible {
+                        group.collapsed.replace(true);
+                    }
                     if !value.is_empty() {
                         param.value.replace(value);
                     }
@@ -501,7 +538,6 @@ fn opc() {
 
     let dsn = "opc+ua://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
     let dsn = Dsn::from_str(&dsn).unwrap();
-    // let tmq = &mut def[0];
     let dsn = def.values_from(dsn);
     dbg!(&dsn);
 }
@@ -517,9 +553,25 @@ fn influxdb() {
 
     let dsn = "influxdb://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
     let dsn = Dsn::from_str(&dsn).unwrap();
-    // let tmq = &mut def[0];
     let dsn = def.values_from(dsn);
     dbg!(&dsn);
+}
+#[test]
+fn test_mqtt() {
+    use std::str::FromStr;
+    let json = include_str!("cn/mqtt.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "mqtt://localhost:123/opcua/server1?ca=abc&cert=abc&abc";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let ds = def.values_from(dsn);
+    assert_eq!(ds.groups[0].collapsed, Some(true));
+    dbg!(&ds);
 }
 #[test]
 fn test_values() {

@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -25,7 +25,25 @@ pub struct TaskStatus {
     context: Option<String>,
 }
 
-struct Worker {
+impl TaskStatus {
+    pub fn new(
+        id: i64, 
+        at: DateTime<Utc>, 
+        action: String, 
+        message: Option<String>,
+        context: Option<String>,
+    ) -> Self {
+        Self {
+            id,
+            at,
+            action,
+            message,
+            context,
+        }
+    }
+}
+
+pub struct Worker {
     handle: JoinHandle<Result<()>>,
     cancellation: CancellationToken,
 }
@@ -46,6 +64,7 @@ pub fn spawn_runner(
     token: impl Display,
 ) -> (
     JoinHandle<Result<()>>,
+    Arc<DashMap<i64, Worker>>,
     flume::Sender<Action>,
     flume::Receiver<TaskStatus>,
 ) {
@@ -53,10 +72,12 @@ pub fn spawn_runner(
     let (status_tx, status_rx) = flume::unbounded();
     let endpoint = endpoint.to_string();
     let token = token.to_string();
+    let tasks_orgin: Arc<DashMap<i64, Worker>> = Arc::new(DashMap::new());
+    let tasks = tasks_orgin.clone();
     (
         tokio::task::spawn_blocking(move || {
             let port_pool = taosx_core::utils::port_pool::PortPool::default();
-            let tasks: DashMap<i64, Worker> = DashMap::new();
+            
             // let stop_notify = tokio::sync::Notify::new();
             // let scheduler = Arc::new()
             loop {
@@ -147,6 +168,7 @@ pub fn spawn_runner(
                 }
             }
         }),
+        tasks_orgin,
         tx,
         status_rx,
     )

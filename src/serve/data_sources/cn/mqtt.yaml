@@ -27,64 +27,45 @@ options:
     placeholder: password
 
 authentication:
-  display: Authentication
-  description: 认证方式
-  value: anonymous
+  display: 认证
+  description: 使用用户名和密码访问 MQTT Broker。
+  value: plain
   alternatives:
-    - name: anonymous
-      display: 匿名
-      description: 匿名登录
-      value: true
-      params: []
-
     - name: plain
-      display: 用户名密码
-      description: 使用用户名和密码登录
+      display: 用户名密码访问
+      description: 使用用户名和密码访问 MQTT Broker。
       username:
-        display: 用户名
-        description: MQTT Broker 用户名.
-        placeholder: 用户名
+        display: 用户
+        placeholder: username
         required: true
       password:
         display: 密码
-        description: MQTT Broker 密码.
-        placeholder: 密码
-    - name: certificates
-      display: 证书配置
-      description: 使用证书和私钥建立连接
-      params:
-        - name: ca
-          display: CA
-          description: CA 证书文件内容。
-          required: true
-          hint:
-            type: file
-        - name: cert
-          display: 客户端证书
-          description: .cert 文件内容
-          required: true
-          hint:
-            type: file
-        - name: cert_key
-          display: 客户端私钥
-          description: 私钥文件内容
-          required: true
-          hint:
-            type: file
-        - name: username
-          display: 用户名
-          description: MQTT Broker 用户名.
-          placeholder: username
-          hint:
-            type: str
-        - name: password
-          display: 密码
-          description: MQTT Broker 密码.
-          placeholder: 密码
-          hint:
-            type: str
+        placeholder: password
+        required: false
 
 groups:
+  - name: SSL 证书
+    description: 使用证书和私钥建立连接以启用 SSL。
+    collapsible: true
+    params:
+      - name: ca
+        display: CA
+        description: CA 证书文件内容。
+        required: true
+        hint:
+          type: file
+      - name: cert
+        display: 客户端证书
+        description: .cert 文件内容
+        required: true
+        hint:
+          type: file
+      - name: cert_key
+        display: 客户端私钥
+        description: 私钥文件内容
+        required: true
+        hint:
+          type: file
   - name: 连接
     display_order: 1
     description: MQTT Broker 连接配置
@@ -110,6 +91,7 @@ groups:
 
       - name: keep_alive
         display: Keep Alive
+        value: 60
         hint:
           type: integer
           min: 1
@@ -137,13 +119,13 @@ groups:
         hint:
           type: str
 
-
   - name: 其他
     display_order: 2
     params:
       - name: log_level
         display: 日志级别
         description: 选择日志级别。默认为： `info` 。
+        value: info
         hint:
           type: str
           choices:
@@ -166,13 +148,13 @@ parser:
     taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，<br>
     包括，指定表名称和超级表名，设置普通列会标签列等。
   fields:
-  - name: ts
-    description: 时间戳
-  - name: topic
-    description: 主题
-  - name: qos
-    description: 质量
-  - name: payload
-    description: 负载
+    - name: ts
+      description: 时间戳
+    - name: topic
+      description: 主题
+    - name: qos
+      description: 质量
+    - name: payload
+      description: 负载
 
   required: true
