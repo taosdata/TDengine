@@ -1,0 +1,59 @@
+settings:
+  - name: taosd
+    fqdn: [win84,u1-45]
+    spec:
+      version: 3.0.3.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: win84:6030
+      dnodes:
+        - endpoint: win84:6030
+          system: windows
+          config_dir: C:/TDengine/cfg
+          config: # will write into taos.cfg
+            dataDir: C:/TDengine/data
+            logDir: C:/TDengine/log
+            debugFlag: 135
+            supportVnodes: 1024
+        - endpoint: u1-45:6030
+          config_dir: /data/cyjia/data/taosd/
+          config: # will write into taos.cfg
+            dataDir: /data/cyjia/data/taosd/
+            logDir: /data/cyjia/data/taosd/
+            debugFlag: 135
+            supportVnodes: 1024
+  - name: taospy
+    fqdn: [u1-45]
+    spec:
+      version: 2.7.3
+      client_version: 3.0.3.0
+      config:
+        firstEP: win84:6030
+        logDir: C:/TDengine/cfg
+        debugFlag: 135
+        asyncLog: 0
+
+  - name: taosAdapter
+    fqdn: [win84]
+    spec:
+      system: windows
+      version: 3.0.3.0
+      config_file: C:/TDengine/cfg/taosadaper.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: C:/TDengine/cfg
+        log:
+          path: C:/TDengine/log
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["telnet_tcp"]
+          ports: [6046]
+          user: root
+          password: taosdata
+          worker: 1000
+      taos_config:
+        firstEP: win84:6030
+        logDir: C:/TDengine/cfg
+        debugFlag: 135
