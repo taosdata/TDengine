@@ -1,223 +1,225 @@
 {
-  "filetype": "insert",
-  "cfgdir": "/etc/taos",
-  "host": "127.0.0.1",
-  "port": 6030,
-  "rest_port": 6041,
-  "user": "root",
-  "password": "taosdata",
-  "thread_count": 40,
-  "create_table_thread_count": 40,
-  "result_file": "/root/taosBenchmark_result.log",
-  "confirm_parameter_prompt": "no",
-  "insert_interval": 0,
-  "num_of_records_per_req": 1000,
-  "max_sql_len": 1024000,
-  "databases": [
-    {
-      "dbinfo": {
-        "name": "stream_test",
-        "drop": "no",
-        "replica": 1,
-        "duration": 10,
-        "precision": "ms",
-        "keep": 3650,
-        "minRows": 100,
-        "maxRows": 4096,
-        "comp": 2,
-        "vgroups": 40,
-        "stt_trigger": 1
-      },
-      "super_tables": [
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "rest_port": 6041,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 40,
+    "create_table_thread_count": 40,
+    "result_file": "/root/taosBenchmark_result.log",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "num_of_records_per_req": 10000,
+    "max_sql_len": 1024000,
+    "databases": [
         {
-          "name": "stb",
-          "child_table_exists": "yes",
-          "childtable_count": 10000,
-          "childtable_prefix": "ctb0_",
-          "escape_character": "no",
-          "auto_create_table": "no",
-          "batch_create_tbl_num": 10,
-          "data_source": "rand",
-          "insert_mode": "taosc",
-          "rollup": null,
-          "interlace_rows": 0,
-          "line_protocol": null,
-          "tcp_transfer": "no",
-          "insert_rows": 1000000,
-          "partial_col_num": 0,
-          "childtable_limit": 0,
-          "childtable_offset": 0,
-          "rows_per_tbl": 0,
-          "max_sql_len": 1024000,
-          "disorder_ratio": 0,
-          "disorder_range": 1000,
-          "keep_trying": 0,
-          "timestamp_step": 1100,
-          "trying_interval": 0,
-          "start_timestamp": "2020-01-01 00:00:00",
-          "sample_format": "csv",
-          "sample_file": "./sample.csv",
-          "tags_file": "",
-          "columns": [
-            {
-              "type": "INT",
-              "count": 1
+            "dbinfo": {
+                "name": "stream_test",
+                "drop": "no",
+                "replica": 1,
+                "duration": 10,
+                "precision": "ms",
+                "keep": 3650,
+                "minRows": 100,
+                "maxRows": 4096,
+                "comp": 2,
+                "vgroups": 40,
+                "stt_trigger": 1,
+                "WAL_RETENTION_PERIOD": 86400
             },
-            {
-              "type": "TINYINT",
-              "count": 0
-            },
-            {
-              "type": "DOUBLE",
-              "count": 0
-            },
-            {
-              "type": "VARCHAR",
-              "count": 0,
-              "len": 16
-            },
-            {
-              "type": "NCHAR",
-              "count": 0,
-              "len": 4
-            },
-            {
-              "type": "SMALLINT",
-              "count": 0
-            },
-            {
-              "type": "BIGINT",
-              "count": 0
-            },
-            {
-              "type": "UTINYINT",
-              "count": 0
-            },
-            {
-              "type": "USMALLINT",
-              "count": 0
-            },
-            {
-              "type": "UINT",
-              "count": 0
-            },
-            {
-              "type": "UBIGINT",
-              "count": 0
-            },
-            {
-              "type": "FLOAT",
-              "count": 2
-            },
-            {
-              "type": "BINARY",
-              "count": 0,
-              "len": 8
-            },
-            {
-              "type": "BOOL",
-              "count": 0
-            },
-            {
-              "type": "TIMESTAMP",
-              "count": 1
-            },
-            {
-              "type": "JSON",
-              "count": 0,
-              "len": 8
-            }
-          ],
-          "tags": [
-            {
-              "type": "INT",
-              "count": 0
-            },
-            {
-              "type": "TINYINT",
-              "count": 1
-            },
-            {
-              "type": "DOUBLE",
-              "count": 0
-            },
-            {
-              "type": "VARCHAR",
-              "count": 0,
-              "len": 8
-            },
-            {
-              "type": "NCHAR",
-              "count": 0,
-              "len": 16
-            },
-            {
-              "type": "SMALLINT",
-              "count": 0
-            },
-            {
-              "type": "BIGINT",
-              "count": 0
-            },
-            {
-              "type": "UTINYINT",
-              "count": 0
-            },
-            {
-              "type": "USMALLINT",
-              "count": 0
-            },
-            {
-              "type": "UINT",
-              "count": 0
-            },
-            {
-              "type": "UBIGINT",
-              "count": 0
-            },
-            {
-              "type": "FLOAT",
-              "count": 0
-            },
-            {
-              "type": "BINARY",
-              "count": 1,
-              "len": 16
-            },
-            {
-              "type": "BOOL",
-              "count": 0
-            },
-            {
-              "type": "TIMESTAMP",
-              "count": 0
-            },
-            {
-              "type": "JSON",
-              "count": 0,
-              "len": 8
-            }
-          ]
+            "super_tables": [
+                {
+                    "name": "stb",
+                    "child_table_exists": "yes",
+                    "childtable_count": 100000,
+                    "childtable_prefix": "ctb0_",
+                    "escape_character": "no",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 10,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "rollup": null,
+                    "interlace_rows": 10000,
+                    "line_protocol": null,
+                    "tcp_transfer": "no",
+                    "insert_rows": 500000,
+                    "partial_col_num": 0,
+                    "childtable_limit": 0,
+                    "childtable_offset": 0,
+                    "rows_per_tbl": 0,
+                    "max_sql_len": 1024000,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "keep_trying": 0,
+                    "timestamp_step": 1100,
+                    "trying_interval": 0,
+                    "start_timestamp": "2021-01-01 00:00:00",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "tags_file": "",
+                    "columns": [
+                        {
+                            "type": "INT",
+                            "count": 1
+                        },
+                        {
+                            "type": "TINYINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "DOUBLE",
+                            "count": 0
+                        },
+                        {
+                            "type": "VARCHAR",
+                            "count": 0,
+                            "len": 16
+                        },
+                        {
+                            "type": "NCHAR",
+                            "count": 0,
+                            "len": 4
+                        },
+                        {
+                            "type": "SMALLINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "BIGINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "UTINYINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "USMALLINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "UINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "UBIGINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "FLOAT",
+                            "count": 2
+                        },
+                        {
+                            "type": "BINARY",
+                            "count": 0,
+                            "len": 8
+                        },
+                        {
+                            "type": "BOOL",
+                            "count": 0
+                        },
+                        {
+                            "type": "TIMESTAMP",
+                            "count": 1
+                        },
+                        {
+                            "type": "JSON",
+                            "count": 0,
+                            "len": 8
+                        }
+                    ],
+                    "tags": [
+                        {
+                            "type": "INT",
+                            "count": 0
+                        },
+                        {
+                            "type": "TINYINT",
+                            "count": 1
+                        },
+                        {
+                            "type": "DOUBLE",
+                            "count": 0
+                        },
+                        {
+                            "type": "VARCHAR",
+                            "count": 0,
+                            "len": 8
+                        },
+                        {
+                            "type": "NCHAR",
+                            "count": 0,
+                            "len": 16
+                        },
+                        {
+                            "type": "SMALLINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "BIGINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "UTINYINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "USMALLINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "UINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "UBIGINT",
+                            "count": 0
+                        },
+                        {
+                            "type": "FLOAT",
+                            "count": 0
+                        },
+                        {
+                            "type": "BINARY",
+                            "count": 1,
+                            "len": 16
+                        },
+                        {
+                            "type": "BOOL",
+                            "count": 0
+                        },
+                        {
+                            "type": "TIMESTAMP",
+                            "count": 0
+                        },
+                        {
+                            "type": "JSON",
+                            "count": 0,
+                            "len": 8
+                        }
+                    ]
+                }
+            ]
         }
-      ]
-    }
-  ],
-  "prepare_rand": 10000,
-  "chinese": "no",
-  "streams": [
-    {
-      "stream_name": "stream_stability",
-      "stream_stb": "stream_test.output_streamtb",
-      "trigger_mode": "at_once",
-      "watermark": "30s",
-      "subtable": "(concat(tbname, \"suffix\"))",
-      "fill_history": 1,
-      "ignore_update": 1,
-      "stream_stb_field": "(ts,c1,c2,c3)",
-      "stream_tag_field": "(t1)",
-      "source_sql": "select _wstart as wstart, min(c1),max(c2), count(c3)  from stream_test.stb partition by cast(t1 as int) t1,tbname interval(1s)",
-      "drop": "yes"
-    }
-  ],
-  "test_log": "/root/testlog/"
+    ],
+    "prepare_rand": 10000,
+    "chinese": "no",
+    "streams": [
+        {
+            "stream_name": "stream_stability",
+            "stream_stb": "stream_test.output_streamtb",
+            "trigger_mode": "at_once",
+            "watermark": "30s",
+            "subtable": "(concat(tbname, \"suffix\"))",
+            "fill_history": "0",
+            "ignore_expired": "0",
+            "ignore_update": "0",
+            "stream_stb_field": "(ts,c1,c2,c3)",
+            "stream_tag_field": "(t1)",
+            "source_sql": "select _wstart as wstart, min(c1),max(c2), count(c3)  from stream_test.stb partition by cast(t1 as int) t1,tbname interval(10s)",
+            "drop": "yes"
+        }
+    ],
+    "test_log": "/root/testlog/"
 }
