@@ -25,8 +25,8 @@ class TestErrorInsert(TDCase):
         """
         dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
-        stbname = self.tdCom.get_long_name(3, "letters")
-        tbname = self.tdCom.get_long_name(2, "letters")
+        stbname = self.tdCom.get_long_name(3)
+        tbname = self.tdCom.get_long_name(3)
         self.tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t13 bool)')
@@ -38,7 +38,7 @@ class TestErrorInsert(TDCase):
         symbol_list.remove('+')
         symbol_list.remove(';')
         symbol_list.remove('-')
-        # ! TD-13248	
+        # ! TD-13248
         symbol_list.remove(',')
         for base_sql in [f'insert into {dbname}.{tbname} values (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)', f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True)']:
             for insert_str in symbol_list:
@@ -50,7 +50,7 @@ class TestErrorInsert(TDCase):
                     self.tdSql.error(sql_new)
             base_sql = base_sql.replace("values", "")
             self.tdSql.error(base_sql)
-        
+
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def type_mismatch_check(self):

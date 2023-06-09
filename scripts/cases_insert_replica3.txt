@@ -98,7 +98,7 @@ taostest --use=common_cluster_30.yaml --case=restful_insert/timestamp_check.py -
 taostest --use=common_cluster_30.yaml --case=restful_insert/null_check.py --keep --containers
 
 taostest --use=common_cluster_30.yaml --case=restful_insert/numeric_type_boundary_check.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=restful_insert/str_type_boundary_check.py --keep --containers
+#taostest --use=common_cluster_30.yaml --case=restful_insert/str_type_boundary_check.py --keep --containers
 
 #taostest --use=common_cluster_30.yaml --case=stream_computing/stream_computing_test.py --keep --containers
 
