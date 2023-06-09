@@ -461,8 +461,12 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
 
   uint32_t defaultPgsz = 0;
   uint32_t defaultBufsz = 0;
-  getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
-
+  code = getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
+  if (code) {
+    qError("failed to get buff page size, rowSize:%d", pAggSup->resultRowSize);
+    return code;
+  }
+  
   if (!osTempSpaceAvailable()) {
     code = TSDB_CODE_NO_DISKSPACE;
     qError("Init stream agg supporter failed since %s, key:%s, tempDir:%s", terrstr(code), pKey, tsTempDir);
