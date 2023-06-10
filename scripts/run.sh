@@ -446,7 +446,7 @@ if [ ${send2feishu_enabled} == "True" ] ;then
     if [[ ${t_file} =~ "query" ]];then
         owner="guoxy"
     elif [[ ${t_file} =~ "insert" ]];then
-        owner="jiajb"
+        owner="Jayden Jia"
     elif [[ ${t_file} =~ "taox" ]];then
         owner="jiacy"
     else
