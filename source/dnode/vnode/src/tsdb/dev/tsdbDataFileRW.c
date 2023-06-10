@@ -17,7 +17,7 @@
 
 typedef struct {
   SFDataPtr brinBlkPtr[1];
-#if 1
+#if 0
   SFDataPtr blockIdxPtr[1];
 #endif
   SFDataPtr rsrvd[2];
@@ -40,7 +40,7 @@ struct SDataFileReader {
     bool brinBlkLoaded;
     bool tombBlkLoaded;
 
-#if 1
+#if 0
     TABLEID tbid[1];
     bool    blockIdxLoaded;
 #endif
@@ -53,7 +53,7 @@ struct SDataFileReader {
   TBrinBlkArray brinBlkArray[1];
   TTombBlkArray tombBlkArray[1];
 
-#if 1
+#if 0
   TDataBlkArray  dataBlkArray[1];
   TBlockIdxArray blockIdxArray[1];
 #endif
@@ -148,7 +148,7 @@ int32_t tsdbDataFileReaderClose(SDataFileReader **reader) {
   TARRAY2_DESTROY(reader[0]->tombBlkArray, NULL);
   TARRAY2_DESTROY(reader[0]->brinBlkArray, NULL);
 
-#if 1
+#if 0
   TARRAY2_DESTROY(reader[0]->dataBlkArray, NULL);
   TARRAY2_DESTROY(reader[0]->blockIdxArray, NULL);
 #endif

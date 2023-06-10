@@ -369,7 +369,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFileReadTombBlock(SSttSegReader *reader, const STombBlk *tombBlk, STombBlock *dData) {
+int32_t tsdbSttFileReadTombBlock(SSttSegReader *reader, const STombBlk *tombBlk, STombBlock *tombBlock) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -380,14 +380,14 @@ int32_t tsdbSttFileReadTombBlock(SSttSegReader *reader, const STombBlk *tombBlk,
   if (code) TSDB_CHECK_CODE(code, lino, _exit);
 
   int64_t size = 0;
-  tTombBlockClear(dData);
-  for (int32_t i = 0; i < ARRAY_SIZE(dData->dataArr); ++i) {
+  tTombBlockClear(tombBlock);
+  for (int32_t i = 0; i < ARRAY_SIZE(tombBlock->dataArr); ++i) {
     code = tsdbDecmprData(reader->reader->config->bufArr[0] + size, tombBlk->size[i], TSDB_DATA_TYPE_BIGINT,
                           tombBlk->cmprAlg, &reader->reader->config->bufArr[1], sizeof(int64_t) * tombBlk->numRec,
                           &reader->reader->config->bufArr[2]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = TARRAY2_APPEND_BATCH(&dData->dataArr[i], reader->reader->config->bufArr[1], tombBlk->numRec);
+    code = TARRAY2_APPEND_BATCH(&tombBlock->dataArr[i], reader->reader->config->bufArr[1], tombBlk->numRec);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     size += tombBlk->size[i];
@@ -401,27 +401,26 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFileReadStatisBlock(SSttSegReader *reader, const SStatisBlk *statisBlk, STbStatisBlock *sData) {
+int32_t tsdbSttFileReadStatisBlock(SSttSegReader *reader, const SStatisBlk *statisBlk, STbStatisBlock *statisBlock) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  tStatisBlockClear(sData);
 
   code = tRealloc(&reader->reader->config->bufArr[0], statisBlk->dp->size);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code =
       tsdbReadFile(reader->reader->fd, statisBlk->dp->offset, reader->reader->config->bufArr[0], statisBlk->dp->size);
-  if (code) TSDB_CHECK_CODE(code, lino, _exit);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   int64_t size = 0;
-  for (int32_t i = 0; i < ARRAY_SIZE(sData->dataArr); ++i) {
+  tStatisBlockClear(statisBlock);
+  for (int32_t i = 0; i < ARRAY_SIZE(statisBlock->dataArr); ++i) {
     code = tsdbDecmprData(reader->reader->config->bufArr[0] + size, statisBlk->size[i], TSDB_DATA_TYPE_BIGINT,
                           statisBlk->cmprAlg, &reader->reader->config->bufArr[1], sizeof(int64_t) * statisBlk->numRec,
                           &reader->reader->config->bufArr[2]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = TARRAY2_APPEND_BATCH(sData->dataArr + i, reader->reader->config->bufArr[1], statisBlk->numRec);
+    code = TARRAY2_APPEND_BATCH(statisBlock->dataArr + i, reader->reader->config->bufArr[1], statisBlk->numRec);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     size += statisBlk->size[i];
@@ -444,48 +443,48 @@ struct SSttFileWriter {
     TABLEID tbid[1];
   } ctx[1];
   // file
-  STFile file[1];
+  STsdbFD *fd;
+  STFile   file[1];
   // data
+  SSttFooter      footer[1];
+  TTombBlkArray   tombBlkArray[1];
   TSttBlkArray    sttBlkArray[1];
   TStatisBlkArray statisBlkArray[1];
-  TTombBlkArray   tombBlkArray[1];
-  SSttFooter      footer[1];
-  SBlockData      bData[1];
-  STbStatisBlock  sData[1];
-  STombBlock      tData[1];
+  STombBlock      tombBlock[1];
+  STbStatisBlock  staticBlock[1];
+  SBlockData      blockData[1];
   // helper data
   SSkmInfo skmTb[1];
   SSkmInfo skmRow[1];
   uint8_t *bufArr[5];
-  STsdbFD *fd;
 };
 
 static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
-  if (writer->bData->nRow == 0) return 0;
+  if (writer->blockData->nRow == 0) return 0;
 
   int32_t code = 0;
   int32_t lino = 0;
 
   SSttBlk sttBlk[1] = {{
-      .suid = writer->bData->suid,
-      .minUid = writer->bData->uid ? writer->bData->uid : writer->bData->aUid[0],
-      .maxUid = writer->bData->uid ? writer->bData->uid : writer->bData->aUid[writer->bData->nRow - 1],
-      .minKey = writer->bData->aTSKEY[0],
-      .maxKey = writer->bData->aTSKEY[0],
-      .minVer = writer->bData->aVersion[0],
-      .maxVer = writer->bData->aVersion[0],
-      .nRow = writer->bData->nRow,
+      .suid = writer->blockData->suid,
+      .minUid = writer->blockData->uid ? writer->blockData->uid : writer->blockData->aUid[0],
+      .maxUid = writer->blockData->uid ? writer->blockData->uid : writer->blockData->aUid[writer->blockData->nRow - 1],
+      .minKey = writer->blockData->aTSKEY[0],
+      .maxKey = writer->blockData->aTSKEY[0],
+      .minVer = writer->blockData->aVersion[0],
+      .maxVer = writer->blockData->aVersion[0],
+      .nRow = writer->blockData->nRow,
   }};
 
-  for (int32_t iRow = 1; iRow < writer->bData->nRow; iRow++) {
-    if (sttBlk->minKey > writer->bData->aTSKEY[iRow]) sttBlk->minKey = writer->bData->aTSKEY[iRow];
-    if (sttBlk->maxKey < writer->bData->aTSKEY[iRow]) sttBlk->maxKey = writer->bData->aTSKEY[iRow];
-    if (sttBlk->minVer > writer->bData->aVersion[iRow]) sttBlk->minVer = writer->bData->aVersion[iRow];
-    if (sttBlk->maxVer < writer->bData->aVersion[iRow]) sttBlk->maxVer = writer->bData->aVersion[iRow];
+  for (int32_t iRow = 1; iRow < writer->blockData->nRow; iRow++) {
+    if (sttBlk->minKey > writer->blockData->aTSKEY[iRow]) sttBlk->minKey = writer->blockData->aTSKEY[iRow];
+    if (sttBlk->maxKey < writer->blockData->aTSKEY[iRow]) sttBlk->maxKey = writer->blockData->aTSKEY[iRow];
+    if (sttBlk->minVer > writer->blockData->aVersion[iRow]) sttBlk->minVer = writer->blockData->aVersion[iRow];
+    if (sttBlk->maxVer < writer->blockData->aVersion[iRow]) sttBlk->maxVer = writer->blockData->aVersion[iRow];
   }
 
   int32_t sizeArr[5] = {0};
-  code = tCmprBlockData(writer->bData, writer->config->cmprAlg, NULL, NULL, writer->config->bufArr, sizeArr);
+  code = tCmprBlockData(writer->blockData, writer->config->cmprAlg, NULL, NULL, writer->config->bufArr, sizeArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   sttBlk->bInfo.offset = writer->file->size;
@@ -503,7 +502,7 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   code = TARRAY2_APPEND_PTR(writer->sttBlkArray, sttBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tBlockDataClear(writer->bData);
+  tBlockDataClear(writer->blockData);
 
 _exit:
   if (code) {
@@ -513,7 +512,7 @@ _exit:
 }
 
 static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
-  if (STATIS_BLOCK_SIZE(writer->sData) == 0) return 0;
+  if (STATIS_BLOCK_SIZE(writer->staticBlock) == 0) return 0;
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -526,44 +525,46 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
           },
       .minTbid =
           {
-              .suid = TARRAY2_FIRST(writer->sData->suid),
-              .uid = TARRAY2_FIRST(writer->sData->uid),
+              .suid = TARRAY2_FIRST(writer->staticBlock->suid),
+              .uid = TARRAY2_FIRST(writer->staticBlock->uid),
           },
       .maxTbid =
           {
-              .suid = TARRAY2_LAST(writer->sData->suid),
-              .uid = TARRAY2_LAST(writer->sData->uid),
+              .suid = TARRAY2_LAST(writer->staticBlock->suid),
+              .uid = TARRAY2_LAST(writer->staticBlock->uid),
           },
-      .minVer = TARRAY2_FIRST(writer->sData->minVer),
-      .maxVer = TARRAY2_FIRST(writer->sData->maxVer),
-      .numRec = STATIS_BLOCK_SIZE(writer->sData),
+      .minVer = TARRAY2_FIRST(writer->staticBlock->minVer),
+      .maxVer = TARRAY2_FIRST(writer->staticBlock->maxVer),
+      .numRec = STATIS_BLOCK_SIZE(writer->staticBlock),
       .cmprAlg = writer->config->cmprAlg,
   }};
 
-  for (int32_t i = 1; i < STATIS_BLOCK_SIZE(writer->sData); i++) {
-    statisBlk->minVer = TMIN(statisBlk->minVer, TARRAY2_GET(writer->sData->minVer, i));
-    statisBlk->maxVer = TMAX(statisBlk->maxVer, TARRAY2_GET(writer->sData->maxVer, i));
+  for (int32_t i = 1; i < STATIS_BLOCK_SIZE(writer->staticBlock); i++) {
+    if (statisBlk->minVer > TARRAY2_GET(writer->staticBlock->minVer, i)) {
+      statisBlk->minVer = TARRAY2_GET(writer->staticBlock->minVer, i);
+    }
+    if (statisBlk->maxVer < TARRAY2_GET(writer->staticBlock->maxVer, i)) {
+      statisBlk->maxVer = TARRAY2_GET(writer->staticBlock->maxVer, i);
+    }
   }
 
   for (int32_t i = 0; i < STATIS_RECORD_NUM_ELEM; i++) {
-    int32_t size;
-    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(writer->sData->dataArr + i),
-                        TARRAY2_DATA_LEN(&writer->sData->dataArr[i]), TSDB_DATA_TYPE_BIGINT, statisBlk->cmprAlg,
-                        &writer->config->bufArr[0], 0, &size, &writer->config->bufArr[1]);
+    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(writer->staticBlock->dataArr + i),
+                        TARRAY2_DATA_LEN(&writer->staticBlock->dataArr[i]), TSDB_DATA_TYPE_BIGINT, statisBlk->cmprAlg,
+                        &writer->config->bufArr[0], 0, &statisBlk->size[i], &writer->config->bufArr[1]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbWriteFile(writer->fd, writer->file->size, writer->config->bufArr[0], size);
+    code = tsdbWriteFile(writer->fd, writer->file->size, writer->config->bufArr[0], statisBlk->size[i]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    statisBlk->size[i] = size;
-    statisBlk->dp->size += size;
-    writer->file->size += size;
+    statisBlk->dp->size += statisBlk->size[i];
+    writer->file->size += statisBlk->size[i];
   }
 
   code = TARRAY2_APPEND_PTR(writer->statisBlkArray, statisBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tStatisBlockClear(writer->sData);
+  tStatisBlockClear(writer->staticBlock);
 
 _exit:
   if (code) {
@@ -573,7 +574,7 @@ _exit:
 }
 
 static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
-  if (TOMB_BLOCK_SIZE(writer->tData) == 0) return 0;
+  if (TOMB_BLOCK_SIZE(writer->tombBlock) == 0) return 0;
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -586,44 +587,46 @@ static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
           },
       .minTbid =
           {
-              .suid = TARRAY2_FIRST(writer->tData->suid),
-              .uid = TARRAY2_FIRST(writer->tData->uid),
+              .suid = TARRAY2_FIRST(writer->tombBlock->suid),
+              .uid = TARRAY2_FIRST(writer->tombBlock->uid),
           },
       .maxTbid =
           {
-              .suid = TARRAY2_LAST(writer->tData->suid),
-              .uid = TARRAY2_LAST(writer->tData->uid),
+              .suid = TARRAY2_LAST(writer->tombBlock->suid),
+              .uid = TARRAY2_LAST(writer->tombBlock->uid),
           },
-      .minVer = TARRAY2_FIRST(writer->tData->version),
-      .maxVer = TARRAY2_FIRST(writer->tData->version),
-      .numRec = TOMB_BLOCK_SIZE(writer->tData),
+      .minVer = TARRAY2_FIRST(writer->tombBlock->version),
+      .maxVer = TARRAY2_FIRST(writer->tombBlock->version),
+      .numRec = TOMB_BLOCK_SIZE(writer->tombBlock),
       .cmprAlg = writer->config->cmprAlg,
   }};
 
-  for (int32_t i = 1; i < TOMB_BLOCK_SIZE(writer->tData); i++) {
-    tombBlk->minVer = TMIN(tombBlk->minVer, TARRAY2_GET(writer->tData->version, i));
-    tombBlk->maxVer = TMAX(tombBlk->maxVer, TARRAY2_GET(writer->tData->version, i));
+  for (int32_t i = 1; i < TOMB_BLOCK_SIZE(writer->tombBlock); i++) {
+    if (tombBlk->minVer > TARRAY2_GET(writer->tombBlock->version, i)) {
+      tombBlk->minVer = TARRAY2_GET(writer->tombBlock->version, i);
+    }
+    if (tombBlk->maxVer < TARRAY2_GET(writer->tombBlock->version, i)) {
+      tombBlk->maxVer = TARRAY2_GET(writer->tombBlock->version, i);
+    }
   }
 
-  for (int32_t i = 0; i < ARRAY_SIZE(writer->tData->dataArr); i++) {
-    int32_t size;
-    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&writer->tData->dataArr[i]),
-                        TARRAY2_DATA_LEN(&writer->tData->dataArr[i]), TSDB_DATA_TYPE_BIGINT, tombBlk->cmprAlg,
-                        &writer->config->bufArr[0], 0, &size, &writer->config->bufArr[1]);
+  for (int32_t i = 0; i < ARRAY_SIZE(writer->tombBlock->dataArr); i++) {
+    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&writer->tombBlock->dataArr[i]),
+                        TARRAY2_DATA_LEN(&writer->tombBlock->dataArr[i]), TSDB_DATA_TYPE_BIGINT, tombBlk->cmprAlg,
+                        &writer->config->bufArr[0], 0, &tombBlk->size[i], &writer->config->bufArr[1]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbWriteFile(writer->fd, writer->file->size, writer->config->bufArr[0], size);
+    code = tsdbWriteFile(writer->fd, writer->file->size, writer->config->bufArr[0], tombBlk->size[i]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    tombBlk->size[i] = size;
-    tombBlk->dp->size += size;
-    writer->file->size += size;
+    tombBlk->dp->size += tombBlk->size[i];
+    writer->file->size += tombBlk->size[i];
   }
 
   code = TARRAY2_APPEND_PTR(writer->tombBlkArray, tombBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tTombBlockClear(writer->tData);
+  tTombBlockClear(writer->tombBlock);
 
 _exit:
   if (code) {
@@ -749,9 +752,9 @@ static void tsdbSttFWriterDoClose(SSttFileWriter *writer) {
   }
   tDestroyTSchema(writer->skmRow->pTSchema);
   tDestroyTSchema(writer->skmTb->pTSchema);
-  tTombBlockDestroy(writer->tData);
-  tStatisBlockDestroy(writer->sData);
-  tBlockDataDestroy(writer->bData);
+  tTombBlockDestroy(writer->tombBlock);
+  tStatisBlockDestroy(writer->staticBlock);
+  tBlockDataDestroy(writer->blockData);
   TARRAY2_DESTROY(writer->tombBlkArray, NULL);
   TARRAY2_DESTROY(writer->statisBlkArray, NULL);
   TARRAY2_DESTROY(writer->sttBlkArray, NULL);
@@ -880,7 +883,6 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  TSDBKEY key[1] = {TSDBROW_KEY(&row->row)};
   if (!TABLE_SAME_SCHEMA(row->suid, row->uid, writer->ctx->tbid->suid, writer->ctx->tbid->uid)) {
     code = tsdbSttFileDoWriteBlockData(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -889,15 +891,24 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
     TSDB_CHECK_CODE(code, lino, _exit);
 
     TABLEID id = {.suid = row->suid, .uid = row->suid ? 0 : row->uid};
-    code = tBlockDataInit(writer->bData, &id, writer->config->skmTb->pTSchema, NULL, 0);
+    code = tBlockDataInit(writer->blockData, &id, writer->config->skmTb->pTSchema, NULL, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  TSDBKEY key[1];
+  if (row->row.type == TSDBROW_ROW_FMT) {
+    key->ts = row->row.pTSRow->ts;
+    key->version = row->row.version;
+  } else {
+    key->ts = row->row.pBlockData->aTSKEY[row->row.iRow];
+    key->version = row->row.pBlockData->aVersion[row->row.iRow];
   }
 
   if (writer->ctx->tbid->uid != row->uid) {
     writer->ctx->tbid->suid = row->suid;
     writer->ctx->tbid->uid = row->uid;
 
-    if (STATIS_BLOCK_SIZE(writer->sData) >= writer->config->maxRow) {
+    if (STATIS_BLOCK_SIZE(writer->staticBlock) >= writer->config->maxRow) {
       code = tsdbSttFileDoWriteStatisBlock(writer);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -911,16 +922,20 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
         .maxVer = key->version,
         .count = 1,
     };
-    code = tStatisBlockPut(writer->sData, &record);
+    code = tStatisBlockPut(writer->staticBlock, &record);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    ASSERT(key->ts >= TARRAY2_LAST(writer->sData->lastKey));
+    ASSERT(key->ts >= TARRAY2_LAST(writer->staticBlock->lastKey));
 
-    TARRAY2_LAST(writer->sData->minVer) = TMIN(TARRAY2_LAST(writer->sData->minVer), key->version);
-    TARRAY2_LAST(writer->sData->maxVer) = TMAX(TARRAY2_LAST(writer->sData->maxVer), key->version);
-    if (key->ts > TARRAY2_LAST(writer->sData->lastKey)) {
-      TARRAY2_LAST(writer->sData->count)++;
-      TARRAY2_LAST(writer->sData->lastKey) = key->ts;
+    if (TARRAY2_LAST(writer->staticBlock->minVer) > key->version) {
+      TARRAY2_LAST(writer->staticBlock->minVer) = key->version;
+    }
+    if (TARRAY2_LAST(writer->staticBlock->maxVer) < key->version) {
+      TARRAY2_LAST(writer->staticBlock->maxVer) = key->version;
+    }
+    if (key->ts > TARRAY2_LAST(writer->staticBlock->lastKey)) {
+      TARRAY2_LAST(writer->staticBlock->count)++;
+      TARRAY2_LAST(writer->staticBlock->lastKey) = key->ts;
     }
   }
 
@@ -931,22 +946,22 @@ int32_t tsdbSttFileWriteRow(SSttFileWriter *writer, SRowInfo *row) {
   }
 
   // row to col conversion
-  if (key->version <= writer->config->compactVersion                       //
-      && writer->bData->nRow > 0                                           //
-      && (writer->bData->uid                                               //
-              ? writer->bData->uid                                         //
-              : writer->bData->aUid[writer->bData->nRow - 1]) == row->uid  //
-      && writer->bData->aTSKEY[writer->bData->nRow - 1] == key->ts         //
+  if (key->version <= writer->config->compactVersion                               //
+      && writer->blockData->nRow > 0                                               //
+      && writer->blockData->aTSKEY[writer->blockData->nRow - 1] == key->ts         //
+      && (writer->blockData->uid                                                   //
+              ? writer->blockData->uid                                             //
+              : writer->blockData->aUid[writer->blockData->nRow - 1]) == row->uid  //
   ) {
-    code = tBlockDataUpdateRow(writer->bData, &row->row, writer->config->skmRow->pTSchema);
+    code = tBlockDataUpdateRow(writer->blockData, &row->row, writer->config->skmRow->pTSchema);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    if (writer->bData->nRow >= writer->config->maxRow) {
+    if (writer->blockData->nRow >= writer->config->maxRow) {
       code = tsdbSttFileDoWriteBlockData(writer);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tBlockDataAppendRow(writer->bData, &row->row, writer->config->skmRow->pTSchema, row->uid);
+    code = tBlockDataAppendRow(writer->blockData, &row->row, writer->config->skmRow->pTSchema, row->uid);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -961,7 +976,6 @@ int32_t tsdbSttFileWriteBlockData(SSttFileWriter *writer, SBlockData *bdata) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO: optimize here
   SRowInfo row[1];
   row->suid = bdata->suid;
   for (int32_t i = 0; i < bdata->nRow; i++) {
@@ -987,23 +1001,21 @@ int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *re
     code = tsdbSttFWriterDoOpen(writer);
     return code;
   } else {
-    if (writer->bData->nRow > 0) {
+    if (writer->blockData->nRow > 0) {
       code = tsdbSttFileDoWriteBlockData(writer);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    if (STATIS_BLOCK_SIZE(writer->sData) > 0) {
+    if (STATIS_BLOCK_SIZE(writer->staticBlock) > 0) {
       code = tsdbSttFileDoWriteStatisBlock(writer);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
-  // write SDelRecord
-  code = tTombBlockPut(writer->tData, record);
+  code = tTombBlockPut(writer->tombBlock, record);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // write SDelBlock if need
-  if (TOMB_BLOCK_SIZE(writer->tData) >= writer->config->maxRow) {
+  if (TOMB_BLOCK_SIZE(writer->tombBlock) >= writer->config->maxRow) {
     code = tsdbSttFileDoWriteTombBlock(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
