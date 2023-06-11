@@ -1,8 +1,12 @@
 use std::{
-    collections::HashMap, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr,
+    collections::HashMap, fs, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr,
     sync::Arc, time::Duration,
-    fs,
-    process::Stdio,
+};
+
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 
 use anyhow::Context;
@@ -717,20 +721,28 @@ pub async fn opc_to_taos(
     log_path.push(LOG_FILE);
 
     log::info!("log file dir: {}", &log_path.display());
-    
-    let log_file = fs::OpenOptions::new()
-    .append(true)
-    .create(true)
-    .open(&log_path)
-    .unwrap();
-    let log_io = Stdio::from(log_file);
+
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        None,
+    );
 
     let child = command
         .arg("collect")
         .arg(format!("--conf={}", &config_path.display()))
         .stdout(std::process::Stdio::inherit())
-        .stderr(log_io);
+        .stderr(std::process::Stdio::piped());
     {
+        let output = child.output().await?;
+        writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
+
         let mut child = child.spawn()?;
         tokio::spawn(async move {
             tokio::select! {
