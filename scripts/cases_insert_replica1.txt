@@ -49,7 +49,7 @@ taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/influxdb_l
 taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
 taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
 
-taostest --setup=common_insert.yaml --case=stream_computing/stream_computing_test.py --keep --containers
+taostest --use=common_insert.yaml --case=stream_computing/stream_computing_test.py --keep --containers
 
 
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts2910.py --keep --containers
