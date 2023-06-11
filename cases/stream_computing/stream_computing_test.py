@@ -932,11 +932,11 @@ class StreamComputingTest(TDCase):
                             self.tdSql.query(f'select t1,t2,t3,t4,t6,t7,t8,t9,t10,t12 from ext_{self.stb_name}{self.des_table_suffix};')
                             while list(set(self.tdSql.query_data)) != [(None, None, None, None, None, None, None, None, None, None)]:
                                 self.tdSql.query(f'select t1,t2,t3,t4,t6,t7,t8,t9,t10,t12 from ext_{self.stb_name}{self.des_table_suffix};')
-                                    if latency < self.default_interval:
-                                        latency += 1
-                                        time.sleep(1)
-                                    else:
-                                        return False
+                                if latency < self.default_interval:
+                                    latency += 1
+                                    time.sleep(1)
+                                else:
+                                    return False
                             self.tdSql.checkEqual(list(set(self.tdSql.query_data)), [(None, None, None, None, None, None, None, None, None, None)])
                         else:
                             self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from ext_{self.stb_name}{self.des_table_suffix} order by ts', f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} partition by {partition} interval({self.dataDict["interval"]}s) order by wstart', defined_tag_count=defined_tag_count, tag_value_list=tag_value_list)
