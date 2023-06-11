@@ -1,13 +1,19 @@
 use std::{
     collections::HashMap,
+    fs,
     io::{BufRead, Write},
     num::ParseIntError,
     path::PathBuf,
+    process::Stdio,
     str::ParseBoolError,
     sync::Arc,
     time::Duration,
-    fs,
-    process::Stdio,
+};
+
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 
 use itertools::Itertools;
@@ -237,19 +243,29 @@ pub async fn mqtt_to_taos(
     log_path.push(LOG_FILE);
 
     log::info!("log file dir: {}", &log_path.display());
-    
-    let log_file = fs::OpenOptions::new()
-    .append(true)
-    .create(true)
-    .open(&log_path)
-    .unwrap();
-    let log_io = Stdio::from(log_file);
 
-    let mut child = command
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        None,
+    );
+
+    let child = command
         .arg("-c")
         .arg(&config_path)
         .stdout(async_process::Stdio::inherit())
-        .stderr(log_io)
+        .stderr(std::process::Stdio::piped());
+
+    let output = child.output().await?;
+    writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
+
+    let mut child = child
         .spawn()
         .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
     let port_pool = port_pool.clone();
