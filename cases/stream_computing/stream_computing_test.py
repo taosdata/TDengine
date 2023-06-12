@@ -1811,8 +1811,17 @@ class StreamComputingTest(TDCase):
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.ctb_name} state_window({state_window_col_name})', trigger_mode="window_close")
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} state_window({state_window_col_name})', trigger_mode="window_close")
         state_window_max = self.dataDict['state_window_max']
+        state_window_value_inmem = 0
+        sleep_step = 0
         for i in range(self.range_count):
             state_window_value = random.randint(int((i)*state_window_max/self.range_count), int((i+1)*state_window_max/self.range_count))
+            while state_window_value == state_window_value_inmem:
+                state_window_value = random.randint(int((i)*state_window_max/self.range_count), int((i+1)*state_window_max/self.range_count))
+                if sleep_step < self.default_interval:
+                    sleep_step += 1
+                    time.sleep(1)
+                else:
+                    return
             for j in range(2, self.range_count+3):
                 self.tdSql.execute(f'insert into {self.ctb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
                 self.tdSql.execute(f'insert into {self.tb_name} (ts, {state_window_col_name}) values ({self.date_time}, {state_window_value})')
@@ -1830,7 +1839,7 @@ class StreamComputingTest(TDCase):
                     self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} state_window({state_window_col_name}) limit {i}', i)
                 else:
                     self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} state_window({state_window_col_name}) limit {i}', i)
-
+            state_window_value_inmem = state_window_value
 
     def watermark_max_delay_interval_ext(self, interval, max_delay, watermark=None, fill_value=None, partition="tbname", delete=False, fill_history_value=None, interval_value=None, subtable=None, case_when=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False):
         if stb_field_name_value == self.partitial_stb_filter_des_select_elm or stb_field_name_value == self.exchange_stb_filter_des_select_elm:
@@ -2957,6 +2966,11 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
+        # for i in range(100):
+        #     for vgroups in self.vgroups_list:
+        #         for delete in [True, False]:
+        #             for fill_history_value in [0, 1]:
+        #                 self.at_once_interval_ext(interval=random.randint(10, 15), delete=delete, fill_history_value=fill_history_value, partition=None, subtable=None, stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
         # self.at_once_interval(interval=random.randint(10, 12), partition="c1", fill_value="NULL")
         # self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL", delete=True)
         # self.vgroups = 1
