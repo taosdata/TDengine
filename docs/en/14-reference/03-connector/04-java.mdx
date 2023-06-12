@@ -32,25 +32,22 @@ TDengine's JDBC driver implementation is as consistent as possible with the rela
 Native connections are supported on the same platforms as the TDengine client driver.
 REST connection supports all platforms that can run Java.
 
-## Version support
-
-Please refer to [version support list](/reference/connector#version-support)
-
 ## Recent update logs
 
-| taos-jdbcdriver version |                                                                   major changes                                                                    |
-| :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: |
-|          3.2.1          |                                      JDBC REST connection supports schemaless/prepareStatement over WebSocket                                      |
-|          3.2.0          |                                                          This version has been deprecated                                                          |
-|          3.1.0          |                                             JDBC REST connection supports subscription over WebSocket                                              |
-|      3.0.1 - 3.0.4      | fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use other version in the JDK 8 environment |
-|          3.0.0          |                                                              Support for TDengine 3.0                                                              |
-|         2.0.42          |                                             fix wasNull interface return value in WebSocket connection                                             |
-|         2.0.41          |                                           fix decode method of username and password in REST connection                                            |
-|     2.0.39 - 2.0.40     |                                                   Add REST connection/request timeout parameters                                                   |
-|         2.0.38          |                                                    JDBC REST connections add bulk pull function                                                    |
-|         2.0.37          |                                                                 Support json tags                                                                  |
-|         2.0.36          |                                                             Support schemaless writing                                                             |
+| taos-jdbcdriver version |                                                                   major changes                                                                    | TDengine version |
+| :---------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------: |
+|          3.2.1          |                                                           subscription add seek function                                                           | 3.0.5.0 or later |
+|          3.2.1          |                                      JDBC REST connection supports schemaless/prepareStatement over WebSocket                                      | 3.0.3.0 or later |
+|          3.2.0          |                                                          This version has been deprecated                                                          |        -         |
+|          3.1.0          |                                             JDBC REST connection supports subscription over WebSocket                                              |        -         |
+|      3.0.1 - 3.0.4      | fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use other version in the JDK 8 environment |        -         |
+|          3.0.0          |                                                              Support for TDengine 3.0                                                              | 3.0.0.0 or later |
+|         2.0.42          |                                             fix wasNull interface return value in WebSocket connection                                             |        -         |
+|         2.0.41          |                                           fix decode method of username and password in REST connection                                            |        -         |
+|     2.0.39 - 2.0.40     |                                                   Add REST connection/request timeout parameters                                                   |        -         |
+|         2.0.38          |                                                    JDBC REST connections add bulk pull function                                                    |        -         |
+|         2.0.37          |                                                                 Support json tags                                                                  |        -         |
+|         2.0.36          |                                                             Support schemaless writing                                                             |        -         |
 
 **Note**: adding `batchfetch` to the REST connection and setting it to true will enable the WebSocket connection.
 
@@ -102,6 +99,8 @@ For specific error codes, please refer to.
 | 0x2319     | user is required                                                | The user name information is missing when creating the connection                                                                  |
 | 0x231a     | password is required                                            | Password information is missing when creating a connection                                                                         |
 | 0x231c     | httpEntity is null, sql:                                        | Execution exception occurred during the REST connection                                                                            |
+| 0x231d     | can't create connection with server within                      | Increase the connection time by adding the httpConnectTimeout parameter, or check the connection to the taos adapter.              |
+| 0x231e     | failed to complete the task within the specified time           | Increase the execution time by adding the messageWaitTimeout parameter, or check the connection to the taos adapter.               |
 | 0x2350     | unknown error                                                   | Unknown exception, please return to the developer on github.                                                                       |
 | 0x2352     | Unsupported encoding                                            | An unsupported character encoding set is specified under the native Connection.                                                    |
 | 0x2353     | internal error of database, please see taoslog for more details | An error occurs when the prepare statement is executed on the native connection. Check the taos log to locate the fault.           |
@@ -117,8 +116,8 @@ For specific error codes, please refer to.
 | 0x2376     | failed to set consumer topic, topic name is empty               | During data subscription creation, the subscription topic name is empty. Check that the specified topic name is correct.           |
 | 0x2377     | consumer reference has been destroyed                           | The subscription data transfer channel has been closed. Please check the connection to TDengine.                                   |
 | 0x2378     | consumer create error                                           | Failed to create a data subscription. Check the taos log according to the error message to locate the fault.                       |
-| -          | can't create connection with server within                      | Increase the connection time by adding the httpConnectTimeout parameter, or check the connection to the taos adapter.              |
-| -          | failed to complete the task within the specified time           | Increase the execution time by adding the messageWaitTimeout parameter, or check the connection to the taos adapter.               |
+| 0x2379     | seek offset must not be a negative number                       | The seek interface parameter cannot be negative. Use the correct parameter                                                         |
+| 0x237a     | vGroup not found in result set                                  | subscription is not bound to the VGroup due to the rebalance mechanism                                                             |
 
 - [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 <!-- - [TDengine_ERROR_CODE](../error-code) -->
@@ -169,7 +168,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>3.2.1</version>
+ <version>3.2.2</version>
 </dependency>
 ```
 
@@ -913,14 +912,15 @@ public class SchemalessWsTest {
 
     public static void main(String[] args) throws SQLException {
         final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata&batchfetch=true";
-        Connection connection = DriverManager.getConnection(url);
-        init(connection);
+        try(Connection connection = DriverManager.getConnection(url)){
+            init(connection);
 
-        SchemalessWriter writer = new SchemalessWriter(connection, "test_ws_schemaless");
-        writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
-        writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
-        writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
-        System.exit(0);
+            try(SchemalessWriter writer = new SchemalessWriter(connection, "test_ws_schemaless")){
+                writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+                writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
+                writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
+            }
+        }
     }
 
     private static void init(Connection connection) throws SQLException {
@@ -990,6 +990,17 @@ while(true) {
 ```
 
 `poll` obtains one message each time it is run.
+
+#### Assignment subscription Offset
+
+```
+long position(TopicPartition partition) throws SQLException;
+Map<TopicPartition, Long> position(String topic) throws SQLException;
+Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
+Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
+
+void seek(TopicPartition partition, long offset) throws SQLException;
+```
 
 #### Close subscriptions
 

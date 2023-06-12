@@ -15,6 +15,13 @@
 
 #include "streamInc.h"
 
+#define MAX_BLOCK_NAME_NUM 1024
+
+typedef struct SBlockName {
+  uint32_t hashValue;
+  char     parTbName[TSDB_TABLE_NAME_LEN];
+} SBlockName;
+
 int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
@@ -331,26 +338,46 @@ FAIL:
 
 int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock, int32_t vgSz,
                                 int64_t groupId) {
-  char* ctbName = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
-  if (ctbName == NULL) {
-    return -1;
-  }
-
-  if (pDataBlock->info.parTbName[0]) {
-    snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->shuffleDispatcher.dbInfo.db, pDataBlock->info.parTbName);
-  } else {
-    char* ctbShortName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, groupId);
-    snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->shuffleDispatcher.dbInfo.db, ctbShortName);
-    taosMemoryFree(ctbShortName);
-  }
-
+  uint32_t   hashValue = 0;
   SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+  if (pTask->pNameMap == NULL) {
+    pTask->pNameMap = tSimpleHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  }
 
-  /*uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));*/
-  SUseDbRsp* pDbInfo = &pTask->shuffleDispatcher.dbInfo;
-  uint32_t   hashValue =
-      taosGetTbHashVal(ctbName, strlen(ctbName), pDbInfo->hashMethod, pDbInfo->hashPrefix, pDbInfo->hashSuffix);
-  taosMemoryFree(ctbName);
+  void* pVal = tSimpleHashGet(pTask->pNameMap, &groupId, sizeof(int64_t));
+  if (pVal) {
+    SBlockName* pBln = (SBlockName*)pVal;
+    hashValue = pBln->hashValue;
+    if (!pDataBlock->info.parTbName[0]) {
+      memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
+    }
+  } else {
+    char* ctbName = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+    if (ctbName == NULL) {
+      return -1;
+    }
+
+    if (pDataBlock->info.parTbName[0]) {
+      snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->shuffleDispatcher.dbInfo.db, pDataBlock->info.parTbName);
+    } else {
+      buildCtbNameByGroupIdImpl(pTask->shuffleDispatcher.stbFullName, groupId, pDataBlock->info.parTbName);
+      snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->shuffleDispatcher.dbInfo.db, pDataBlock->info.parTbName);
+    }
+
+    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+
+    /*uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));*/
+    SUseDbRsp* pDbInfo = &pTask->shuffleDispatcher.dbInfo;
+    hashValue =
+        taosGetTbHashVal(ctbName, strlen(ctbName), pDbInfo->hashMethod, pDbInfo->hashPrefix, pDbInfo->hashSuffix);
+    taosMemoryFree(ctbName);
+    SBlockName bln = {0};
+    bln.hashValue = hashValue;
+    memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));
+    if (tSimpleHashGetSize(pTask->pNameMap) < MAX_BLOCK_NAME_NUM) {
+      tSimpleHashPut(pTask->pNameMap, &groupId, sizeof(int64_t), &bln, sizeof(SBlockName));
+    }
+  }
 
   bool found = false;
   // TODO: optimize search

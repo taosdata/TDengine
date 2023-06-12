@@ -5,7 +5,7 @@ description: "TDengine 客户端和服务配置列表"
 
 ## 为服务端指定配置文件
 
-TDengine 系统后台服务由 taosd 提供，可以在配置文件 taos.cfg 里修改配置参数，以满足不同场景的需求。配置文件的缺省位置在/etc/taos 目录，可以通过 taosd 命令行执行参数 -c 指定配置文件目录。比如，指定配置文件位于`/home/user` 这个目录：
+TDengine 系统后台服务由 taosd 提供，可以在配置文件 taos.cfg 里修改配置参数，以满足不同场景的需求。在 Linux 系统上，配置文件的缺省位置在 `/etc/taos` 目录，在 Windows 系统上缺省位置在 `C:\TDengine` 。可以通过 taosd 命令行执行参数 -c 指定配置文件所在目录。比如，在 Linux 系统上可以指定配置文件位于 `/home/user` 这个目录：
 
 ```
 taosd -c /home/user
