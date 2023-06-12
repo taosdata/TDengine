@@ -470,7 +470,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
         SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
         if (init) {
           taosArrayAddAll(pOutput->pSub->offsetRows, pConsumerEp->offsetRows);
-          mDebug("pSub->offsetRows is init");
+//          mDebug("pSub->offsetRows is init");
         } else {
           for (int j = 0; j < taosArrayGetSize(pConsumerEp->offsetRows); j++) {
             OffsetRows *d1 = taosArrayGet(pConsumerEp->offsetRows, j);
@@ -479,7 +479,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
               if (d1->vgId == d2->vgId) {
                 d2->rows += d1->rows;
                 d2->offset = d1->offset;
-                mDebug("pSub->offsetRows add vgId:%d, after:%lld, before:%lld", d2->vgId, d2->rows, d1->rows);
+//                mDebug("pSub->offsetRows add vgId:%d, after:%"PRId64", before:%"PRId64, d2->vgId, d2->rows, d1->rows);
               }
             }
           }
