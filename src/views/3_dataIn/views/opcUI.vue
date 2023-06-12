@@ -306,7 +306,7 @@
           </el-tabs>
         </template>
       </section>
-      <template v-for="(item,gind) in dbsource[0].groups">
+      <template v-for="(item, gind) in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="gind">
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
@@ -499,7 +499,9 @@
                 <div :key="pind">
                   <opcConnector
                     :opcConfig="opcConfig"
-                    :isEditable='isEditable'
+                    :isEditable="isEditable"
+                    :echoData="echoData"
+                    @changeEchoData="changeEchoData"
                     ref="opcsingleton"
                   ></opcConnector>
                 </div>
@@ -562,7 +564,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
-import { decrypt, debounce } from "@/utils/index";
+import { decrypt, debounce, deepClone } from "@/utils/index";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/mqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
@@ -574,6 +576,12 @@ export default {
     opcConnector,
   },
   props: {
+    echoData: {
+      type: Array,
+      default: () => {
+        return [];
+      },
+    },
     opcConfig: {
       type: Object,
       default: () => {
@@ -688,6 +696,16 @@ export default {
     },
   },
   methods: {
+    //opc需要存入库的字段
+    changeEchoData(arr) {
+      this.$parent.echoData = deepClone(arr);
+      console.log(
+        arr,
+        this.$parent,
+        this.$store.state.app.opcConfig,
+        "修改opc需要存入库的字段"
+      );
+    },
     selectPayload(val) {
       this.payloadVal = val;
     },
@@ -725,7 +743,6 @@ export default {
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       let enterTip = this.$t("dataIn.enterTip");
-      console.log("889999----000");
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
@@ -758,6 +775,8 @@ export default {
               data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
                 .username.value
             }`;
+          } else {
+            dns += `://`;
           }
           if (
             data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
@@ -801,7 +820,6 @@ export default {
         // dns += data.options.subject.value
         //   ? "/" + data.options.subject.value
         //   : "";
-        console.log("8888");
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
@@ -830,7 +848,7 @@ export default {
               } else {
                 console.log("opc---warning", this.$refs.opcsingleton);
                 if (this.tagName.includes("opc")) {
-                  this.$refs.opcsingleton[0].submit()
+                  this.$refs.opcsingleton[0].submit();
                   if (this.$refs.opcsingleton[0].isReject) {
                     Message({
                       type: "warning",
@@ -874,9 +892,11 @@ export default {
                         "&";
                     }
                   } else {
-                    querystr +=
-                      `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                      "&";
+                    if (!this.tagName.includes("opc")) {
+                      querystr +=
+                        `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                        "&";
+                    }
                   }
                 }
               }
@@ -935,7 +955,11 @@ export default {
           });
           return;
         }
-        console.log(this.tagName,this.$store.state.app.opcConfig, "this.tagNamethis.tagNamethis.tagName");
+        console.log(
+          this.tagName,
+          this.$store.state.app.opcConfig,
+          "this.tagNamethis.tagNamethis.tagName"
+        );
         if (this.tagName == "mqtt") {
           this.$refs.mqtt.submit();
           if (this.$refs.mqtt) {
@@ -966,9 +990,28 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", this.constMqttparser);
         }
 
-       if(this.tagName.includes('opc')){
-        dns += '&opc_table_config='+ JSON.stringify(this.$store.state.app.opcConfig)
-       }
+        if (this.tagName.includes("opc")) {
+          let oldData = this.$store.state.app.opcConfig;
+          let columnCons = oldData.column_configs.filter((item) =>
+            this.$parent.echoData.includes(item.column_name)
+          );
+          this.$store.commit("app/SET_OPC_CONFIG", {
+            column_configs: columnCons,
+            stable_prefix: oldData.stable_prefix,
+          });
+          let saveConf = {
+            column_configs: columnCons,
+            stable_prefix: oldData.stable_prefix,
+          };
+          dns += "&opc_table_config=" + JSON.stringify(saveConf);
+          console.log(
+            this.$store.state.app.opcConfig,
+            saveConf,
+            dns,
+            this.$parent.echoData,
+            "opc----编辑--新增"
+          );
+        }
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +

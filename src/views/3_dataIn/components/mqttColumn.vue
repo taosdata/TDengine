@@ -252,6 +252,12 @@ export default {
         this.$emit("changeAddStatus");
       },
     },
+    currentPrimary:{
+        deep:true,
+        handler(val){
+            console.log(val,'最新的主键');
+        }
+    }
   },
 };
 </script>

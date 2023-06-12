@@ -11,8 +11,9 @@
       :protocol="protocol"
       :mqttParser="mqttParser"
       :constMqttparser="parserobj"
-      :opcConfig='opcConfig'
+      :opcConfig="opcConfig"
       :isEditable="isEditable"
+      :echoData='echoData'
       ref="table"
     ></component>
   </div>
@@ -24,7 +25,7 @@ import OpcUI from "./opcUI.vue";
 import { getUIData } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
 import constOpc from "./opcconfig.json";
- import { deepClone } from "@/utils";
+import { deepClone } from "@/utils";
 export default {
   name: "DbSource",
   components: {
@@ -34,8 +35,8 @@ export default {
   },
   data() {
     return {
-      opcConfig:constOpc,
-      parserobj:constparser,
+      opcConfig: constOpc,
+      parserobj: constparser,
       protocol: "ua", //只针对opc的ua/da
       tagName: "datasource",
       currentName: "",
@@ -46,13 +47,14 @@ export default {
       isEditable: false,
       agentID: "",
       mqttParser: null,
-      staticParser:null,
-      staticOpc:null
+      staticParser: null,
+      staticOpc: null,
+      echoData:["value", "received_time"]
     };
   },
   created() {
-    this.staticParser=deepClone(constparser)
-    this.staticOpc=deepClone(constOpc)
+    this.staticParser = deepClone(constparser);
+    this.staticOpc = deepClone(constOpc);
     this.getData();
   },
   methods: {
@@ -63,10 +65,10 @@ export default {
         });
         this.$parent.$parent.$parent.sourceDisabled = false;
       } catch (error) {
-        if (error.response&&error.response.status == 404) {
+        if (error.response && error.response.status == 404) {
           this.$parent.$parent.$parent.sourceDisabled = true;
         }
-        if (error.response&&error.response.status === 500) {
+        if (error.response && error.response.status === 500) {
           this.$parent.$parent.$parent.sourceDisabled = true;
         }
       }
@@ -79,12 +81,12 @@ export default {
         let data = this.sourceList.filter((item) => item.id === type);
         if (type == "mqtt") {
           this.uidata = this.deepClone(data);
-          this.parserobj=deepClone(this.staticParser)
+          this.parserobj = deepClone(this.staticParser);
           this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
           this.uidata = type == "opc" ? data : this.deepClone(data);
-          this.opcConfig=deepClone(this.staticOpc)
-          this.$store.commit('app/SET_OPC_CONFIG',this.opcConfig)
+          this.opcConfig = deepClone(this.staticOpc);
+          this.$store.commit("app/SET_OPC_CONFIG", this.opcConfig);
         }
         this.isEditable = false;
         switch (type) {
@@ -94,12 +96,12 @@ export default {
             break;
           case "opcua":
             this.currentName = "opcui";
-            this.tagName='opcua'
+            this.tagName = "opcua";
             this.protocol = "ua";
             break;
           case "opcda":
             this.currentName = "opcui";
-            this.tagName='opcda'
+            this.tagName = "opcda";
             this.protocol = "da";
             break;
           case "pi":
@@ -132,9 +134,8 @@ export default {
             break;
         }
       } else {
-        console.log(id,'opcbianji----edit',this.uidata[0]);
+        console.log(id, "opcbianji----edit", this.uidata[0]);
         switch (id) {
-          
           case "tmq":
             this.currentName = "ui";
             this.tagName = "datasource";
@@ -143,19 +144,49 @@ export default {
             this.currentName = "opcui";
             this.tagName = "opc";
             this.protocol = "ua";
-            let echoData=(JSON.parse(this.uidata[0].groups[2].params[0].value).column_configs).map(item=>item.column_name)
-            let others=this.staticOpc.column_configs.filter(item=>!echoData.includes(item.column_name))
-            let newEcho={
-              column_configs:deepClone(JSON.parse(this.uidata[0].groups[2].params[0].value).column_configs.concat(others)),
-              stable_prefix:JSON.parse(this.uidata[0].groups[2].params[0].value).stable_prefix
-            }
+            this.echoData = JSON.parse(
+              this.uidata[0].groups[2].params[0].value
+            ).column_configs.map((item) => item.column_name);
+            let others = this.staticOpc.column_configs.filter(
+              (item) => !this.echoData.includes(item.column_name)
+            );
+            let newEcho = {
+              column_configs: deepClone(
+                JSON.parse(
+                  this.uidata[0].groups[2].params[0].value
+                ).column_configs.concat(others)
+              ),
+              stable_prefix: JSON.parse(
+                this.uidata[0].groups[2].params[0].value
+              ).stable_prefix,
+            };
+            this.$store.commit("app/SET_OPC_CONFIG", {
+              column_configs: deepClone(
+                JSON.parse(
+                  this.uidata[0].groups[2].params[0].value
+                ).column_configs.concat(others)
+              ),
+              stable_prefix: JSON.parse(
+                this.uidata[0].groups[2].params[0].value
+              ).stable_prefix,
+            });
             // this.uidata[0].groups[2].params[0].value=JSON.stringify(newEcho)
             // JSON.parse(this.uidata[0].groups[2].params[0].value).column_configs=deepClone(Object.assign(echoData,others))
             // this.$set(JSON.parse(this.uidata[0].groups[2].params[0].value),'column_configs',deepClone(Object.assign(echoData,others)))
-            console.log(this.staticOpc,echoData,others,newEcho,this.uidata[0].groups[2].params,'---bian编辑table',JSON.parse(this.uidata[0].groups[2].params[0].value));
-            this.uidata[0].groups[2].params[0].value=JSON.stringify(newEcho)
-            this.opcConfig=deepClone(JSON.parse(this.uidata[0].groups[2].params[0].value) ) 
-            console.log(this.opcConfig,'this.opcConfig');
+            console.log(
+              this.staticOpc,
+              this.echoData,
+              others,
+              newEcho,
+              this.uidata[0].groups[2].params,
+              "---bian编辑table",
+              JSON.parse(this.uidata[0].groups[2].params[0].value)
+            );
+            this.uidata[0].groups[2].params[0].value = JSON.stringify(newEcho);
+            this.opcConfig = deepClone(
+              JSON.parse(this.uidata[0].groups[2].params[0].value)
+            );
+            console.log(this.opcConfig, "this.opcConfig");
             break;
           case "opcda":
             this.currentName = "opcui";
@@ -174,12 +205,14 @@ export default {
             this.currentName = "opcui";
             this.tagName = "mqtt";
 
-            this.uidata[0].parser.fields = this.uidata[0].parser.fields.map((item) => {
-              if (item.name == "payload") {
-                item["value"] = "json";
+            this.uidata[0].parser.fields = this.uidata[0].parser.fields.map(
+              (item) => {
+                if (item.name == "payload") {
+                  item["value"] = "json";
+                }
+                return item;
               }
-              return item;
-            });
+            );
 
             break;
           case "pibackfill":
@@ -245,15 +278,13 @@ export default {
     "$store.state.app.mqttParser": {
       deep: true,
       handler(val) {
-        this.parserobj=val
-
+        this.parserobj = val;
       },
     },
     "$store.state.app.opcConfig": {
       deep: true,
       handler(val) {
-        this.opcConfig=val
-
+        this.opcConfig = val;
       },
     },
   },

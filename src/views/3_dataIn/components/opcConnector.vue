@@ -74,10 +74,16 @@
 </template>
 <script>
 import { Message } from "element-ui";
-
+import { deepClone } from "@/utils";
 export default {
   name: "OpcConnector",
   props: {
+    echoData:{
+        type:Array,
+        default:()=>{
+            return []
+        }
+    },
     opcConfig: {
       type: Object,
       default: () => {
@@ -100,7 +106,7 @@ export default {
           },
         ],
       },
-      currentPrimary: "received_time",
+      currentPrimary: "",
       //   opcConfig,
       headers: ["colname", "rename", "coltype"],
       saveFileds: ["value", "received_time"],
@@ -108,6 +114,8 @@ export default {
   },
   mounted() {
     this.getDefaultPrimayKey();
+    this.saveFileds=deepClone(this.echoData)
+    console.log('需要存入库的回显',this.echoData);
   },
   methods: {
     getDefaultPrimayKey() {
@@ -134,7 +142,10 @@ export default {
         }
         let index = this.saveFileds.indexOf(val.column_name);
         this.saveFileds.splice(index, 1);
+        
       }
+    
+      this.$emit('changeEchoData',this.saveFileds)
     },
     changePrimary(val) {
       this.currentPrimary = val.column_name;

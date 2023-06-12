@@ -199,6 +199,13 @@ export default {
         if (!columns.includes("ts")) {
           columns.unshift("ts");
           this.defaultSelect='ts'
+        }else{
+            this.defaultSelect='ts'
+            columns.map((item,index)=>{
+                if(item=='ts'){
+                   columns.unshift(columns.splice(index,1)[0]) 
+                }
+            })
         }
       }
         this.$store.commit("app/SET_MQTT_PARSER", oldData);
