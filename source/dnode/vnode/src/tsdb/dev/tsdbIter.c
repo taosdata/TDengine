@@ -544,6 +544,7 @@ static int32_t tsdbTombIterCmprFn(const SRBTreeNode *n1, const SRBTreeNode *n2) 
 
 // SIterMerger ================
 struct SIterMerger {
+  bool       isTomb;
   STsdbIter *iter;
   SRBTree    iterTree[1];
 };
@@ -553,8 +554,11 @@ int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger
   SRBTreeNode *node;
 
   merger[0] = taosMemoryCalloc(1, sizeof(*merger[0]));
-  if (!merger[0]) return TSDB_CODE_OUT_OF_MEMORY;
+  if (merger[0] == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
+  merger[0]->isTomb = isTomb;
   if (isTomb) {
     tRBTreeCreate(merger[0]->iterTree, tsdbTombIterCmprFn);
   } else {
@@ -599,15 +603,22 @@ int32_t tsdbIterMergerNext(SIterMerger *merger) {
     }
   }
 
-  if (!merger->iter && (node = tRBTreeDropMin(merger->iterTree))) {
+  if (merger->iter == NULL && (node = tRBTreeDropMin(merger->iterTree))) {
     merger->iter = TCONTAINER_OF(node, STsdbIter, node);
   }
 
   return 0;
 }
 
-SRowInfo    *tsdbIterMergerGet(SIterMerger *merger) { return merger->iter ? merger->iter->row : NULL; }
-STombRecord *tsdbIterMergerGetTombRecord(SIterMerger *merger) { return merger->iter ? merger->iter->record : NULL; }
+SRowInfo *tsdbIterMergerGetData(SIterMerger *merger) {
+  ASSERT(!merger->isTomb);
+  return merger->iter ? merger->iter->row : NULL;
+}
+
+STombRecord *tsdbIterMergerGetTombRecord(SIterMerger *merger) {
+  ASSERT(merger->isTomb);
+  return merger->iter ? merger->iter->record : NULL;
+}
 
 int32_t tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid) {
   int32_t      code;

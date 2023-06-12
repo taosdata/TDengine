@@ -178,7 +178,7 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // loop iter
-  while ((row = tsdbIterMergerGet(committer->iterMerger)) != NULL) {
+  while ((row = tsdbIterMergerGetData(committer->iterMerger)) != NULL) {
     if (row->uid != committer->ctx->tbid->uid) {
       committer->ctx->tbid->suid = row->suid;
       committer->ctx->tbid->uid = row->uid;

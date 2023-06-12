@@ -199,7 +199,7 @@ static int32_t tsdbMergeToDataLevel(SMerger *merger) {
   int32_t lino = 0;
 
   // data
-  for (SRowInfo *row; (row = tsdbIterMergerGet(merger->dataIterMerger)) != NULL;) {
+  for (SRowInfo *row; (row = tsdbIterMergerGetData(merger->dataIterMerger)) != NULL;) {
     if (row->uid != merger->ctx->tbid->uid) {
       code = tsdbMergeToDataTableEnd(merger);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -273,7 +273,7 @@ static int32_t tsdbMergeToUpperLevel(SMerger *merger) {
 
   // data
   SRowInfo *row;
-  while ((row = tsdbIterMergerGet(merger->dataIterMerger))) {
+  while ((row = tsdbIterMergerGetData(merger->dataIterMerger))) {
     code = tsdbSttFileWriteRow(merger->sttWriter, row);
     TSDB_CHECK_CODE(code, lino, _exit);
 
