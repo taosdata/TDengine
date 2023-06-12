@@ -661,6 +661,8 @@ int32_t tsdbMerge(void *arg) {
       .sttTrigger = tsdb->pVnode->config.sttTrigger,
   }};
 
+  ASSERT(merger->sttTrigger > 1);
+
   code = tsdbFSCreateCopySnapshot(tsdb->pFS, &merger->fsetArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
