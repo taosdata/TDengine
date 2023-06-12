@@ -9,7 +9,7 @@ top_dir = os.path.abspath(os.path.join(script_dir, ".."))
 release_dir = os.path.abspath(os.path.join(top_dir, "release"))
 opc_dir = os.path.abspath(os.path.join(top_dir, "plugins","opc"))
 mqtt_dir = os.path.abspath(os.path.join(top_dir, "plugins","mqtt"))
-influxdb_dir = os.path.abspath(os.path.join(top_dir,"taosx-influxdb"))
+influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","influxdb"))
 
 logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(levelname)s %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -114,7 +114,7 @@ def build_and_install_influxdb_on_linux(mode='release'):
     platform = "linux"
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"plugins","influxdb")
-    binary_file = os.path.join(influxdb_dir,"target","taosx-influxdb-1.0.0.jar")
+    binary_file = os.path.join(influxdb_dir,"target","taosx-influxdb.jar")
     if os.path.exists(dst_dir):
         logging.info(f"{dst_dir} already exists")
     else:

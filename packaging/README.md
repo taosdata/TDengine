@@ -9,6 +9,7 @@ release.py 脚本为 taosx 及 taosx-agent 打包服务，支持 Windows 及 Lin
 - PI System 授权(AF SDK)（pi-connector 依赖）
 - jdk1.8+、maven3(taos-influxdb 依赖)
 - Inno setup 6.2 及以上
+- 在运行release.py之前需要通过命令 pip install toml 来安装toml模块
 
 ## 版本号说明
 ### taosx
