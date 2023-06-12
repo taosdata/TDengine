@@ -65,9 +65,9 @@ enum OpcError {
 pub struct OPCConfig {
     opc_type: OpcType,
     debug: bool,
-    #[serde(skip)]
+    // #[serde(skip)]
     /// use receviced time as ts cloumn value when config true
-    use_received_time: bool,
+    // use_received_time: bool,
     connect: ConnectConfig,
     collect: CollectConfig,
     report: ReportConfig,
@@ -78,7 +78,7 @@ pub struct OPCConfig {
     /// table_info: table_name, Vec<(field, type)>
     // table_info: HashMap<String, Vec<(String, String)>>,
     #[serde(skip)]
-    opc_table_config: TableConfig,
+    opc_table_config: Option<TableConfig>,
 }
 
 #[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
@@ -414,18 +414,18 @@ impl OPCConfig {
         } else {
             false
         };
-        let use_received_time = if let Some(v) = dsn
-            .remove("use_received_time")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| OpcError::ParseError("use_received_time", v))
-            })
-            .transpose()?
-        {
-            v
-        } else {
-            false
-        };
+        // let use_received_time = if let Some(v) = dsn
+        //     .remove("use_received_time")
+        //     .map(|v| {
+        //         v.parse::<bool>()
+        //             .map_err(|err| OpcError::ParseError("use_received_time", v))
+        //     })
+        //     .transpose()?
+        // {
+        //     v
+        // } else {
+        //     false
+        // };
 
         let report = ReportConfig {
             remote,
@@ -433,11 +433,16 @@ impl OPCConfig {
             batch_size,
             batch_timeout,
         };
-        let opc_table_config: TableConfig= serde_json::from_str(dsn.remove("opc_table_config").context("should config opc_table_config").unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?;
+        let opc_table_config = dsn.remove("opc_table_config");
+        let opc_table_config: Option<TableConfig> = if opc_table_config.is_some() {
+            Some(serde_json::from_str(opc_table_config.unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?)
+        } else {
+            None
+        };
         Ok(OPCConfig {
             opc_type,
             debug,
-            use_received_time,
+            // use_received_time,
             connect,
             collect,
             report,
@@ -560,7 +565,7 @@ impl OPCConfig {
             // ts_cloumn_name: ts_cloumn_name_map.clone(),
             // use_received_time: self.use_received_time,
             id_code_map: self.param_mapping.clone(),
-            table_config: self.opc_table_config.clone(),
+            table_config: self.opc_table_config.clone().unwrap(),
         };
         Ok(c)
     }
@@ -689,6 +694,9 @@ pub async fn opc_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
     let config = OPCConfig::new(from, ipc_port, OPCConfigMode::Collect)?;
+    if config.opc_table_config.is_none() {
+        anyhow::bail!("should config opc table config");
+    }
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -871,23 +879,23 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         serde_json::to_string(&res).unwrap_or("".to_string())
     );
     let options = vec![
+        // OptionSet {
+        //     name: "table".to_string(),
+        //     description: Some("Table name".to_string()),
+        //     required: true,
+        // },
+        // OptionSet {
+        //     name: "field".to_string(),
+        //     description: Some("Field name".to_string()),
+        //     required: true,
+        // },
         OptionSet {
-            name: "table".to_string(),
-            description: Some("Table name".to_string()),
-            required: true,
-        },
-        OptionSet {
-            name: "field".to_string(),
-            description: Some("Field name".to_string()),
-            required: true,
-        },
-        OptionSet {
-            name: "type".to_string(),
-            description: Some("Field type".to_string()),
+            name: "code".to_string(),
+            description: Some("Code".to_string()),
             required: true,
         },
     ];
-    let format = Some("{id}::{table}::{field}::{type}".to_string());
+    let format = Some("{id}::{code}".to_string());
     if let Some(pattern) = req.pattern.as_deref() {
         let regex = regex::Regex::from_str(pattern)?;
         // regex.is_match(text)
@@ -967,7 +975,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     let config = OPCConfig {
         opc_type: OpcType::OPCUA,
         debug: true,
-        use_received_time: true,
+        // use_received_time: true,
         connect: ConnectConfig {
             ua: Some(UaConnectConfig {
                 endpoint: String::from("endpoint.123"),
@@ -1014,7 +1022,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
         },
         param_mapping: map,
         // table_info: HashMap::new(),
-        opc_table_config,
+        opc_table_config: Some(opc_table_config),
     };
     let toml = toml::to_string(&config)?;
     assert_eq!(

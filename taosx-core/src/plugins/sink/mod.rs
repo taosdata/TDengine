@@ -434,7 +434,7 @@ async fn consume_point_record(
                 } else {
                     value_type.clone()
                 };
-                columns.push_str(format!("{prinmary_key_column_alias} {},", column_type).as_str());
+                columns.push_str(format!("`{prinmary_key_column_alias}` {},", column_type).as_str());
             }
         }
         // remove last char
@@ -451,42 +451,29 @@ async fn consume_point_record(
             let mut child_table_name = stable_name.clone(); 
             child_table_name.push_str(format!("_{}", code.unwrap()).as_str());
             let mut insert_sql = format!("insert into `{child_table_name}` ");
-            // let mut new_cv_vec = Vec::new();
-            // let mut question_marks = String::new();
             let mut values = String::new();
             let mut value_cloumn_name = "value";
             let mut value_cloumn_length = 128;
-            for (temp_name, _temp_alias) in &columns_insert {
+            let mut columns = String::new();
+            for (temp_name, temp_alias) in &columns_insert {
                 if temp_name == "received_time" {
-                    // new_cv_vec.push(received_ts_cv.slice(i..i + 1).unwrap());
-                    // insert_sql.push_str(format!("{temp_alias},").as_str());
                     values.push_str(format!("{},", received_ts_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
-                    // question_marks.push_str("?,");
                 } else if temp_name == "original_time" {
-                    // new_cv_vec.push(server_ts_cv.slice(i..i + 1).unwrap());
-                    // insert_sql.push_str(format!("{temp_alias},").as_str());
                     values.push_str(format!("{},", server_ts_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
-                    // question_marks.push_str("?,");
                 } else if temp_name == "value" {
-                    // new_cv_vec.push(value_cv.slice(i..i + 1).unwrap());
                     let value_column = value_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value();
                     values.push_str(format!("{value_column},").as_str());
-                    value_cloumn_name = _temp_alias;
+                    value_cloumn_name = temp_alias;
                     value_cloumn_length = value_column.len();
-                    // insert_sql.push_str(format!("{temp_alias},").as_str());
-                    // question_marks.push_str("?,");
                 } else if temp_name == "status" {
-                    // new_cv_vec.push(status_cv.slice(i..i + 1).unwrap());
                     values.push_str(format!("{},", status_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
-                    // insert_sql.push_str(format!("{temp_alias},").as_str());
-                    // question_marks.push_str("?,");
                 }
+                columns.push_str(format!("`{temp_alias}`,").as_str());
             }
-            // insert_sql.pop();
-            // question_marks.pop();
             values.pop();
+            columns.pop();
             let point_name = name_cv.slice(i..i+1).unwrap().get(0).unwrap().to_sql_value();
-            insert_sql.push_str(format!(" USING `{stable_name}` TAGS (\"{id}\", {}) ", &point_name).as_str());
+            insert_sql.push_str(format!(" USING `{stable_name}` TAGS (\"{id}\", {}) ({columns})", &point_name).as_str());
             insert_sql.push_str(format!(" VALUES ({})", values).as_str());
             debug!("insert sql: {}", insert_sql);
             loop {
@@ -499,12 +486,12 @@ async fn consume_point_record(
                     },
                     Err(err) => {
                         let errstr = err.to_string();
-                        log::debug!("error: {}", errstr);
+                        log::warn!("error: {}", errstr);
                         if errstr.contains("[0x2603]") {
                             // stable not exists
-                            debug!("create stable sql: {}", &stable_sql);
+                            log::info!("create stable sql: {}", &stable_sql);
                             taos.exec(&stable_sql).await?;
-                        } else if errstr.contains("[0x2602]") {
+                        } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
                             // Illegal number of columns, alter to add columns
                             for column_config in &table_config.column_configs {
                                 let mut need_add = true;
@@ -518,7 +505,7 @@ async fn consume_point_record(
                                 });
                                 if need_add {
                                     let add_column_sql = format!("alter table `{stable_name}` ADD COLUMN {} {}", get_real_column_name(column_config), column_config.column_type.unwrap());
-                                    println!("add_column_sql:{}", add_column_sql);
+                                    log::info!("add_column_sql:{}", add_column_sql);
                                     taos.exec(&add_column_sql).await?;
                                 }
                             }
