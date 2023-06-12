@@ -662,6 +662,7 @@ static int32_t tsdbDataFileWriterDoOpenReader(SDataFileWriter *writer) {
       SDataFileReaderConfig config[1] = {{
           .tsdb = writer->config->tsdb,
           .szPage = writer->config->szPage,
+          .bufArr = writer->config->bufArr,
       }};
 
       for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
@@ -1030,8 +1031,8 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const TS
                 key->version < writer->ctx->blockData->aVersion[writer->ctx->blockDataIdx])) {
           goto _exit;
         } else {
-          TSDBROW row1 = tsdbRowFromBlockData(writer->ctx->blockData, writer->ctx->blockDataIdx);
-          code = tsdbDataFileDoWriteTSRow(writer, &row1);
+          TSDBROW row = tsdbRowFromBlockData(writer->ctx->blockData, writer->ctx->blockDataIdx);
+          code = tsdbDataFileDoWriteTSRow(writer, &row);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
       }
@@ -1054,9 +1055,7 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const TS
         } else {
           SBrinRecord record[1];
           tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, record);
-          if (key->ts > TARRAY2_GET(writer->ctx->brinBlock->lastKey, writer->ctx->brinBlockIdx)  //
-              || (key->ts == TARRAY2_GET(writer->ctx->brinBlock->lastKey, writer->ctx->brinBlockIdx) &&
-                  key->version > TARRAY2_GET(writer->ctx->brinBlock->lastKeyVer, writer->ctx->brinBlockIdx))) {
+          if (key->ts > record->lastKey || (key->ts == record->lastKey && key->version > record->lastKeyVer)) {
             if (writer->blockData->nRow > 0) {
               code = tsdbDataFileDoWriteBlockData(writer, writer->blockData);
               TSDB_CHECK_CODE(code, lino, _exit);
@@ -1167,6 +1166,8 @@ static int32_t tsdbDataFileWriteTableDataBegin(SDataFileWriter *writer, const TA
   int32_t   code = 0;
   int32_t   lino = 0;
   SMetaInfo info;
+  bool      drop = false;
+  TABLEID   tbid1[1];
 
   ASSERT(writer->ctx->blockDataIdx == writer->ctx->blockData->nRow);
   ASSERT(writer->blockData->nRow == 0);
@@ -1174,29 +1175,35 @@ static int32_t tsdbDataFileWriteTableDataBegin(SDataFileWriter *writer, const TA
   writer->ctx->tbHasOldData = false;
   while (writer->ctx->brinBlkArray) {  // skip data of previous table
     for (; writer->ctx->brinBlockIdx < BRIN_BLOCK_SIZE(writer->ctx->brinBlock); writer->ctx->brinBlockIdx++) {
-      // skip removed table
-      int64_t uid = TARRAY2_GET(writer->ctx->brinBlock->uid, writer->ctx->brinBlockIdx);
-      if (metaGetInfo(writer->config->tsdb->pVnode->pMeta, uid, &info, NULL) == TSDB_CODE_NOT_FOUND) {
-        for (int32_t idx = writer->ctx->brinBlockIdx + 1;   //
-             idx < BRIN_BLOCK_SIZE(writer->ctx->brinBlock)  //
-             && uid == TARRAY2_GET(writer->ctx->brinBlock->uid, idx);
-             idx++, writer->ctx->brinBlockIdx++) {
+      TABLEID tbid2[1] = {{
+          .suid = TARRAY2_GET(writer->ctx->brinBlock->suid, writer->ctx->brinBlockIdx),
+          .uid = TARRAY2_GET(writer->ctx->brinBlock->uid, writer->ctx->brinBlockIdx),
+      }};
+
+      if (tbid2->uid == tbid->uid) {
+        writer->ctx->tbHasOldData = true;
+        goto _begin;
+      } else if (tbid2->suid > tbid->suid || (tbid2->suid == tbid->suid && tbid2->uid > tbid->uid)) {
+        goto _begin;
+      } else {
+        if (tbid2->uid != writer->ctx->tbid->uid) {
+          if (drop && tbid1->uid == tbid2->uid) {
+            continue;
+          } else if (metaGetInfo(writer->config->tsdb->pVnode->pMeta, tbid2->uid, &info, NULL) != 0) {
+            drop = true;
+            *tbid1 = *tbid2;
+            continue;
+          } else {
+            drop = false;
+            writer->ctx->tbid[0] = *tbid2;
+          }
         }
-        continue;
-      }
 
-      SBrinRecord record[1];
-      tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, record);
+        SBrinRecord record[1];
+        tBrinBlockGet(writer->ctx->brinBlock, writer->ctx->brinBlockIdx, record);
 
-      int32_t c = tTABLEIDCmprFn(record, tbid);
-      if (c < 0) {
         code = tsdbDataFileWriteBrinRecord(writer, record);
         TSDB_CHECK_CODE(code, lino, _exit);
-      } else {
-        if (c == 0) {
-          writer->ctx->tbHasOldData = true;
-        }
-        goto _begin;
       }
     }
 
