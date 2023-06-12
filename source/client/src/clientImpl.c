@@ -243,6 +243,7 @@ int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj
     pRequest->relation.prevRefId = (*pNewRequest)->self;
     (*pNewRequest)->relation.nextRefId = pRequest->self;
     (*pNewRequest)->relation.userRefId = pRequest->self;
+    (*pNewRequest)->isSubReq = true;
   }
   return code;
 }

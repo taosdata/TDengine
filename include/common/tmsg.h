@@ -2488,6 +2488,7 @@ typedef struct {
   int64_t  stime;  // timestamp precision ms
   int64_t  reqRid;
   bool     stableQuery;
+  bool     isSubQuery;
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
   SArray*  subDesc;  // SArray<SQuerySubDesc>

@@ -256,6 +256,7 @@ typedef struct SRequestObj {
   bool                 validateOnly;  // todo refactor
   bool                 killed;
   bool                 inRetry;
+  bool                 isSubReq;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
   int64_t              allocatorRefId;
@@ -398,6 +399,7 @@ void    restartAsyncQuery(SRequestObj *pRequest, int32_t code);
 int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj** pNewRequest);
 int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce);
 void    returnToUser(SRequestObj* pRequest);
+void    stopAllQueries(SRequestObj *pRequest);
 
 #ifdef __cplusplus
 }

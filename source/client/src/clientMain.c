@@ -563,22 +563,13 @@ int taos_select_db(TAOS *taos, const char *db) {
   return code;
 }
 
+
 void taos_stop_query(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
     return;
   }
 
-  SRequestObj *pRequest = (SRequestObj *)res;
-  pRequest->killed = true;
-
-  // It is not a query, no need to stop.
-  if (NULL == pRequest->pQuery || QUERY_EXEC_MODE_SCHEDULE != pRequest->pQuery->execMode) {
-    tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
-    return;
-  }
-
-  schedulerFreeJob(&pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
-  tscDebug("request %" PRIx64 " killed", pRequest->requestId);
+  stopAllQueries((SRequestObj*)res);
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
@@ -860,7 +851,7 @@ int32_t cloneCatalogReq(SCatalogReq*     * ppTarget, SCatalogReq* pSrc) {
 void handleSubQueryFromAnalyse(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, SNode* pRoot) {
   SRequestObj* pNewRequest = NULL;
   SSqlCallbackWrapper* pNewWrapper = NULL;
-  int32_t code = buildPreviousRequest(pWrapper->pRequest, "", &pNewRequest);
+  int32_t code = buildPreviousRequest(pWrapper->pRequest, pWrapper->pRequest->sqlstr, &pNewRequest);
   if (code) {
     handleQueryAnslyseRes(pWrapper, pResultMeta, code);
     return;

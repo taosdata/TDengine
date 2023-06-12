@@ -363,6 +363,11 @@ void destroySubRequests(SRequestObj *pRequest) {
   int32_t reqIdx = -1;
   SRequestObj *pReqList[16] = {NULL};
   uint64_t tmpRefId = 0;
+
+  if (pRequest->relation.userRefId && pRequest->relation.userRefId != pRequest->self) {
+    return;
+  }
+  
   SRequestObj* pTmp = pRequest;
   while (pTmp->relation.prevRefId) {
     tmpRefId = pTmp->relation.prevRefId;
@@ -453,6 +458,63 @@ void destroyRequest(SRequestObj *pRequest) {
   taos_stop_query(pRequest);
   removeRequest(pRequest->self);
 }
+
+void taosStopQueryImpl(SRequestObj *pRequest) {
+  pRequest->killed = true;
+
+  // It is not a query, no need to stop.
+  if (NULL == pRequest->pQuery || QUERY_EXEC_MODE_SCHEDULE != pRequest->pQuery->execMode) {
+    tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
+    return;
+  }
+
+  schedulerFreeJob(&pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
+  tscDebug("request %" PRIx64 " killed", pRequest->requestId);
+}
+
+void stopAllQueries(SRequestObj *pRequest) {
+  int32_t reqIdx = -1;
+  SRequestObj *pReqList[16] = {NULL};
+  uint64_t tmpRefId = 0;
+
+  if (pRequest->relation.userRefId && pRequest->relation.userRefId != pRequest->self) {
+    return;
+  }
+  
+  SRequestObj* pTmp = pRequest;
+  while (pTmp->relation.prevRefId) {
+    tmpRefId = pTmp->relation.prevRefId;
+    pTmp = acquireRequest(tmpRefId);
+    if (pTmp) {
+      pReqList[++reqIdx] = pTmp;
+      releaseRequest(tmpRefId);
+    } else {
+      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self,
+               tmpRefId, pTmp->requestId);
+      break;         
+    }
+  }
+
+  for (int32_t i = reqIdx; i >= 0; i--) {
+    taosStopQueryImpl(pReqList[i]);
+  }
+
+  taosStopQueryImpl(pRequest);
+
+  tmpRefId = pRequest->relation.nextRefId;
+  while (tmpRefId) {
+    pTmp = acquireRequest(tmpRefId);
+    if (pTmp) {
+      tmpRefId = pTmp->relation.nextRefId;
+      taosStopQueryImpl(pTmp);
+      releaseRequest(pTmp->self);
+    } else {
+      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      break;         
+    }
+  }
+}
+
 
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
 
