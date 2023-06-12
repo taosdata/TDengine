@@ -17,9 +17,6 @@
 
 typedef struct {
   SFDataPtr brinBlkPtr[1];
-#if 0
-  SFDataPtr blockIdxPtr[1];
-#endif
   SFDataPtr rsrvd[2];
 } SHeadFooter;
 
@@ -39,11 +36,6 @@ struct SDataFileReader {
     bool tombFooterLoaded;
     bool brinBlkLoaded;
     bool tombBlkLoaded;
-
-#if 0
-    TABLEID tbid[1];
-    bool    blockIdxLoaded;
-#endif
   } ctx[1];
 
   STsdbFD *fd[TSDB_FTYPE_MAX];
@@ -52,11 +44,6 @@ struct SDataFileReader {
   STombFooter   tombFooter[1];
   TBrinBlkArray brinBlkArray[1];
   TTombBlkArray tombBlkArray[1];
-
-#if 0
-  TDataBlkArray  dataBlkArray[1];
-  TBlockIdxArray blockIdxArray[1];
-#endif
 };
 
 static int32_t tsdbDataFileReadHeadFooter(SDataFileReader *reader) {
@@ -1065,15 +1052,15 @@ _exit:
 }
 
 static int32_t tsdbDataFileWriteTableDataBegin(SDataFileWriter *writer, const TABLEID *tbid) {
-  int32_t   code = 0;
-  int32_t   lino = 0;
-  SMetaInfo info;
-  bool      drop = false;
-  TABLEID   tbid1[1];
+  int32_t code = 0;
+  int32_t lino = 0;
 
   ASSERT(writer->ctx->blockDataIdx == writer->ctx->blockData->nRow);
   ASSERT(writer->blockData->nRow == 0);
 
+  SMetaInfo info;
+  bool      drop = false;
+  TABLEID   tbid1[1];
   writer->ctx->tbHasOldData = false;
   while (writer->ctx->brinBlkArray) {  // skip data of previous table
     for (; writer->ctx->brinBlockIdx < BRIN_BLOCK_SIZE(writer->ctx->brinBlock); writer->ctx->brinBlockIdx++) {
@@ -1265,13 +1252,8 @@ static int32_t tsdbDataFileDoWriteTombRecord(SDataFileWriter *writer, const STom
 
   while (writer->ctx->hasOldTomb) {
     for (; writer->ctx->tombBlockIdx < TOMB_BLOCK_SIZE(writer->ctx->tombBlock); writer->ctx->tombBlockIdx++) {
-      STombRecord record1[1] = {{
-          .suid = TARRAY2_GET(writer->ctx->tombBlock->suid, writer->ctx->tombBlockIdx),
-          .uid = TARRAY2_GET(writer->ctx->tombBlock->uid, writer->ctx->tombBlockIdx),
-          .version = TARRAY2_GET(writer->ctx->tombBlock->version, writer->ctx->tombBlockIdx),
-          .skey = TARRAY2_GET(writer->ctx->tombBlock->skey, writer->ctx->tombBlockIdx),
-          .ekey = TARRAY2_GET(writer->ctx->tombBlock->ekey, writer->ctx->tombBlockIdx),
-      }};
+      STombRecord record1[1];
+      tTombBlockGet(writer->ctx->tombBlock, writer->ctx->tombBlockIdx, record1);
 
       int32_t c = tTombRecordCompare(record, record1);
       if (c < 0) {
@@ -1363,6 +1345,9 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
     TSDB_CHECK_CODE(code, lino, _exit);
 
     code = tsdbDataFileWriteTableDataBegin(writer, tbid);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tsdbDataFileWriteBrinBlock(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     code = tsdbDataFileWriteBrinBlk(writer);
