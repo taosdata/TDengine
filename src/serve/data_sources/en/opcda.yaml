@@ -125,3 +125,9 @@ groups:
           max: 60
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
+      
+      - name: debug
+        display: Enable Debug Log
+        hint:
+          type: bool
+        description: Set true to enable Debug log
