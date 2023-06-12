@@ -985,6 +985,14 @@ int32_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
 }
 
 int32_t tmq_unsubscribe(tmq_t* tmq) {
+  if (tmq->autoCommit) {
+    int32_t rsp = tmq_commit_sync(tmq, NULL);
+    if (rsp != 0) {
+      return rsp;
+    }
+  }
+  taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
+
   int32_t     rsp;
   int32_t     retryCnt = 0;
   tmq_list_t* lst = tmq_list_new();
