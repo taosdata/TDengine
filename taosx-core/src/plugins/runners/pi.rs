@@ -1,7 +1,12 @@
 use std::{
-    io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc, time::Duration, 
-    fs,
-    process::Stdio,
+    fs, io::prelude::*, num::ParseIntError, path::PathBuf, process::Stdio, str::FromStr, sync::Arc,
+    time::Duration,
+};
+
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 
 use anyhow::Context;
@@ -326,13 +331,18 @@ pub async fn pi_to_taos(
     log_path.push(LOG_FILE);
 
     log::info!("log file dir: {}", &log_path.display());
-    
-    let log_file = fs::OpenOptions::new()
-    .append(true)
-    .create(true)
-    .open(&log_path)
-    .unwrap();
-    let log_io = Stdio::from(log_file);
+
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        None,
+    );
 
     let child_command;
     match driver.as_str() {
@@ -342,7 +352,7 @@ pub async fn pi_to_taos(
                 .arg("-f")
                 .arg(&config_path)
                 .stdout(async_process::Stdio::inherit())
-                .stderr(log_io)
+                .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI collector error")?;
         }
@@ -352,7 +362,7 @@ pub async fn pi_to_taos(
                 .arg("-f")
                 .arg(&config_path)
                 .stdout(async_process::Stdio::inherit())
-                .stderr(log_io)
+                .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI Backfill error")?;
         }
@@ -363,6 +373,9 @@ pub async fn pi_to_taos(
 
     let pid = child_command.id();
     log::info!("waiting for PI connector");
+
+    let output = child_command.output().await?;
+    writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stdout))?;
 
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
@@ -461,12 +474,12 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     log_path.push(LOG_FILE);
 
     log::info!("log file dir: {}", &log_path.display());
-    
+
     let log_file = fs::OpenOptions::new()
-    .append(true)
-    .create(true)
-    .open(&log_path)
-    .unwrap();
+        .append(true)
+        .create(true)
+        .open(&log_path)
+        .unwrap();
     let log_io = Stdio::from(log_file);
 
     let output = command
