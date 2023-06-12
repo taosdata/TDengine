@@ -3108,7 +3108,7 @@ static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
     if ('\0' == pExpr->userAlias[0]) {
       strcpy(pExpr->userAlias, pExpr->aliasName);
     }
-    if (QUERY_NODE_COLUMN == nodeType(pProject) &&
+    if (QUERY_NODE_FUNCTION == nodeType(pProject) &&
         ((0 == strcasecmp("_wstart", pExpr->userAlias) || 0 == strcasecmp("_wend", pExpr->userAlias) ||
           0 == strcasecmp("_wduration", pExpr->userAlias)) &&
          '\0' != pExpr->aliasName[0])) {
