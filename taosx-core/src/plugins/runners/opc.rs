@@ -835,12 +835,12 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     // } else {
     //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
     // };
-    let mut command = async_process::Command::new(exe_path());
+    let mut command = tokio::process::Command::new(exe_path());
     let output = command
         .arg("points")
         .arg(format!("--conf={}", &config_path.display()))
-        .stdout(async_process::Stdio::piped())
-        .stderr(async_process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
         .output()
         .await
         .context("Start OPC collector error")?;

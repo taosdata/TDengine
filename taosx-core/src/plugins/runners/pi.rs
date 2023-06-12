@@ -345,42 +345,47 @@ pub async fn pi_to_taos(
     );
 
     let child_command;
+    let child;
+    let output;
     match driver.as_str() {
         "pi" => {
-            let mut command = async_process::Command::new(pi_exe_path());
-            child_command = command
+            let mut command = tokio::process::Command::new(pi_exe_path());
+            child = command
                 .arg("-f")
                 .arg(&config_path)
-                .stdout(async_process::Stdio::inherit())
-                .stderr(std::process::Stdio::piped())
-                .spawn()
-                .context("Start PI collector error")?;
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::piped());
+
+            output = child.output().await?;
+            writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stdout))?;
+
+            child_command = child.spawn().context("Start PI collector error")?;
         }
         "pibackfill" => {
-            let mut command = async_process::Command::new(pi_backfill_exe_path());
-            child_command = command
+            let mut command = tokio::process::Command::new(pi_backfill_exe_path());
+            child = command
                 .arg("-f")
                 .arg(&config_path)
-                .stdout(async_process::Stdio::inherit())
-                .stderr(std::process::Stdio::piped())
-                .spawn()
-                .context("Start PI Backfill error")?;
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::piped());
+
+            output = child.output().await?;
+            writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stdout))?;
+
+            child_command = child.spawn().context("Start PI Backfill error")?;
         }
         _ => {
             anyhow::bail!("wrong driver configured");
         }
     }
 
-    let pid = child_command.id();
+    let pid = child_command.id().unwrap();
     log::info!("waiting for PI connector");
-
-    let output = child_command.output().await?;
-    writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stdout))?;
 
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
-            output = child_command.output() => {
+            output = child.output() => {
                 let output = output.context("PI connector or PI backfill run error")?;
                 log::info!("PI connector or PI backfill exit with status {}", output.status);
                 if !output.status.success() {
@@ -458,7 +463,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let mut command = async_process::Command::new(pi_exe_path());
+    let mut command = tokio::process::Command::new(pi_exe_path());
     let point_filter = if let Some(pf) = data.pattern.clone() {
         pf
     } else {
@@ -487,7 +492,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .arg(&config_path)
         .arg("-p")
         .arg(point_filter)
-        .stdout(async_process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
         .stderr(log_io)
         .output()
         .await?;

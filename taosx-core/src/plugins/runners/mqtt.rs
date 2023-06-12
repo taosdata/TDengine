@@ -259,7 +259,7 @@ pub async fn mqtt_to_taos(
     let child = command
         .arg("-c")
         .arg(&config_path)
-        .stdout(async_process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
 
     let output = child.output().await?;
