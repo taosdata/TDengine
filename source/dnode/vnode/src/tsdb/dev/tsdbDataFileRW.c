@@ -1209,6 +1209,8 @@ _exit:
 }
 
 static int32_t tsdbDataFileDoWriteTombBlk(SDataFileWriter *writer) {
+  ASSERT(TARRAY2_SIZE(writer->tombBlkArray) == 0);
+
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -1216,12 +1218,10 @@ static int32_t tsdbDataFileDoWriteTombBlk(SDataFileWriter *writer) {
   writer->tombFooter->tombBlkPtr->offset = writer->files[ftype].size;
   writer->tombFooter->tombBlkPtr->size = TARRAY2_DATA_LEN(writer->tombBlkArray);
 
-  if (writer->tombFooter->tombBlkPtr->size) {
-    code = tsdbWriteFile(writer->fd[ftype], writer->tombFooter->tombBlkPtr->offset,
-                         (const uint8_t *)TARRAY2_DATA(writer->tombBlkArray), writer->tombFooter->tombBlkPtr->size);
-    TSDB_CHECK_CODE(code, lino, _exit);
-    writer->files[ftype].size += writer->tombFooter->tombBlkPtr->size;
-  }
+  code = tsdbWriteFile(writer->fd[ftype], writer->tombFooter->tombBlkPtr->offset,
+                       (const uint8_t *)TARRAY2_DATA(writer->tombBlkArray), writer->tombFooter->tombBlkPtr->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  writer->files[ftype].size += writer->tombFooter->tombBlkPtr->size;
 
 _exit:
   if (code) {
