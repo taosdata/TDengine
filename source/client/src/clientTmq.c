@@ -2139,6 +2139,7 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
         return rsp;
       }
     }
+    taosSsleep(2);  // sleep 2s for hb to send offset and rows to server
 
     int32_t     retryCnt = 0;
     tmq_list_t* lst = tmq_list_new();
