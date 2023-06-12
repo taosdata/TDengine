@@ -195,6 +195,7 @@ int32_t streamBackendDoCheckpoint(int64_t backendRid, const char* path) {
   int64_t         st = taosGetTimestampMs();
   int32_t         code = -1;
   SBackendHandle* pHandle = taosAcquireRef(streamBackendId, backendRid);
+  static int      checkpointSuffix = 1;
   if (pHandle == NULL) {
     return -1;
   }
@@ -204,13 +205,18 @@ int32_t streamBackendDoCheckpoint(int64_t backendRid, const char* path) {
     char*                 err = NULL;
     rocksdb_checkpoint_t* cp = rocksdb_checkpoint_object_create(pHandle->db, &err);
     if (cp == NULL || err != NULL) {
-      taosMemoryFree(err);
       qError("stream backend:%p failed to do checkpoint at:%s, reason:%s", pHandle, path, err);
+      taosMemoryFreeClear(err);
+      code = -1;
+      goto _ERROR;
     }
-    rocksdb_checkpoint_create(cp, path, 64 << 20, &err);
+    char buf[256] = {0};
+    sprintf(buf, "%s/checkpoint_%d", path, checkpointSuffix);
+
+    rocksdb_checkpoint_create(cp, buf, 64 << 20, &err);
     if (err != NULL) {
       qError("stream backend:%p failed to do checkpoint at:%s, reason:%s", pHandle, path, err);
-      taosMemoryFree(err);
+      taosMemoryFreeClear(err);
     } else {
       code = 0;
       qDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pHandle, path,
@@ -218,6 +224,8 @@ int32_t streamBackendDoCheckpoint(int64_t backendRid, const char* path) {
     }
     rocksdb_checkpoint_object_destroy(cp);
   }
+  checkpointSuffix += 1;
+_ERROR:
   taosReleaseRef(streamBackendId, backendRid);
   return code;
 }

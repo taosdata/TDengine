@@ -85,6 +85,10 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   return sdbSetTable(pMnode->pSdb, table);
 }
+static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, const SStreamTask *pTask,
+                                                 SMStreamDoCheckpointMsg *pMsg);
+
+static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId);
 
 void mndCleanupStream(SMnode *pMnode) {}
 
@@ -795,36 +799,112 @@ _OVER:
   return code;
 }
 
+static int32_t mndCreateCheckpoint(SMnode *pMnode, int32_t vgId, SList *pStreamList) {
+  void   *buf = NULL;
+  int32_t tlen = 0;
+  int32_t checkpointId = tGenIdPI64();
+
+  SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
+  SArray *stream = taosArrayInit(64, sizeof(void *));
+
+  SListIter iter = {0};
+  tdListInitIter(pStreamList, &iter, TD_LIST_FORWARD);
+  SListNode *pNode = NULL;
+  while ((pNode = tdListNext(&iter)) != NULL) {
+    char streamName[TSDB_STREAM_FNAME_LEN] = {0};
+    tdListNodeGetData(pStreamList, pNode, streamName);
+    SStreamObj *pStream = mndAcquireStream(pMnode, streamName);
+    taosArrayPush(stream, &pStream);
+  }
+
+  if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, vgId, checkpointId) < 0) {
+    mndReleaseVgroup(pMnode, pVgObj);
+    for (int i = 0; i < taosArrayGetSize(stream); i++) {
+      SStreamObj *p = taosArrayGetP(stream, i);
+      mndReleaseStream(pMnode, p);
+    }
+    taosArrayDestroy(stream);
+    return -1;
+
+    STransAction action = {0};
+    action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
+    action.pCont = buf;
+    action.contLen = tlen;
+    action.msgType = TDMT_VND_STREAM_CHECK_POINT_SOURCE;
+  }
+  mndReleaseVgroup(pMnode, pVgObj);
+
+  for (int i = 0; i < taosArrayGetSize(stream); i++) {
+    SStreamObj *p = taosArrayGetP(stream, i);
+    mndReleaseStream(pMnode, p);
+  }
+  taosArrayDestroy(stream);
+  return 0;
+}
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
   void       *pIter = NULL;
   SStreamObj *pStream = NULL;
 
+  // listEleSize();
+
   // iterate all stream obj
+  SHashObj *vgIds = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
-    // incr tick
-    int64_t currentTick = atomic_add_fetch_64(&pStream->currentTick, 1);
-    // if >= checkpointFreq, build msg TDMT_MND_STREAM_BEGIN_CHECKPOINT, put into write q
-    if (currentTick >= pStream->checkpointFreq) {
-      atomic_store_64(&pStream->currentTick, 0);
-      SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
 
-      pMsg->streamId = pStream->uid;
-      pMsg->checkpointId = tGenIdPI64();
-      memcpy(pMsg->streamName, pStream->name, TSDB_STREAM_FNAME_LEN);
-
-      SRpcMsg rpcMsg = {
-          .msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT,
-          .pCont = pMsg,
-          .contLen = sizeof(SMStreamDoCheckpointMsg),
-      };
-
-      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    taosRLockLatch(&pStream->lock);
+    for (int32_t i = 0; i < taosArrayGetSize(pStream->tasks); i++) {
+      SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
+      SStreamTask *pTask = taosArrayGetP(pLevel, 0);
+      if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+        int32_t sz = taosArrayGetSize(pLevel);
+        SList  *list = taosHashGet(vgIds, &pTask->nodeId, sizeof(pTask->nodeId));
+        if (list == NULL) {
+          SList tlist;
+          tdListInit(&tlist, TSDB_STREAM_FNAME_LEN);
+          taosHashPut(vgIds, &pTask->nodeId, sizeof(pTask->nodeId), &tlist, sizeof(tlist));
+          list = taosHashGet(vgIds, &pTask->nodeId, sizeof(pTask->nodeId));
+        }
+        tdListAppend(list, (void *)pStream->name);
+      }
     }
+    taosRUnLockLatch(&pStream->lock);
+
+    // if (pIter == NULL) break;
+    // // incr tick
+    // int64_t currentTick = atomic_add_fetch_64(&pStream->currentTick, 1);
+    // // if >= checkpointFreq, build msg TDMT_MND_STREAM_BEGIN_CHECKPOINT, put into write q
+    // // if (currentTick >= pStream->checkpointFreq) {
+    // atomic_store_64(&pStream->currentTick, 0);
+    // SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
+
+    // pMsg->streamId = pStream->uid;
+    // pMsg->checkpointId = tGenIdPI64();
+    // memcpy(pMsg->streamName, pStream->name, TSDB_STREAM_FNAME_LEN);
+
+    // SRpcMsg rpcMsg = {
+    //     .msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT,
+    //     .pCont = pMsg,
+    //     .contLen = sizeof(SMStreamDoCheckpointMsg),
+    // };
+
+    // tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
+
+  void   *vgIter = taosHashIterate(vgIds, NULL);
+  size_t  klen = 0;
+  int64_t checkpointId = tGenIdPI64();
+  while (vgIter) {
+    int32_t *key = (int32_t *)taosHashGetKey(vgIter, &klen);
+    SList   *val = (SList *)vgIter;
+
+    mndCreateCheckpoint(pMnode, *key, val);
+    vgIter = taosHashIterate(vgIds, vgIter);
+  }
+  taosHashCleanup(vgIds);
 
   return 0;
 }
@@ -863,6 +943,47 @@ static int32_t mndBuildStreamCheckpointSourceReq(void **pBuf, int32_t *pLen, con
   SMsgHead *pMsgHead = (SMsgHead *)buf;
   pMsgHead->contLen = htonl(tlen);
   pMsgHead->vgId = htonl(pTask->nodeId);
+
+  tEncoderClear(&encoder);
+
+  *pBuf = buf;
+  *pLen = tlen;
+
+  return 0;
+}
+static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, int32_t nodeId, int64_t checkpointId) {
+  SStreamCheckpointSourceReq req = {0};
+  req.checkpointId = checkpointId;
+  req.nodeId = nodeId;
+  req.expireTime = -1;
+  req.streamId = 0;  // pTask->id.streamId;
+  req.taskId = 0;    // pTask->id.taskId;
+
+  int32_t code;
+  int32_t blen;
+
+  tEncodeSize(tEncodeSStreamCheckpointSourceReq, &req, blen, code);
+  if (code < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  int32_t tlen = sizeof(SMsgHead) + blen;
+
+  void *buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  tEncodeSStreamCheckpointSourceReq(&encoder, &req);
+
+  SMsgHead *pMsgHead = (SMsgHead *)buf;
+  pMsgHead->contLen = htonl(tlen);
+  pMsgHead->vgId = htonl(nodeId);
 
   tEncoderClear(&encoder);
 
@@ -918,6 +1039,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
         void   *buf;
         int32_t tlen;
         if (mndBuildStreamCheckpointSourceReq(&buf, &tlen, pTask, pMsg) < 0) {
+          mndReleaseVgroup(pMnode, pVgObj);
           taosRUnLockLatch(&pStream->lock);
           mndReleaseStream(pMnode, pStream);
           mndTransDrop(pTrans);

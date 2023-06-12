@@ -1513,7 +1513,7 @@ int32_t tqProcessStreamCheckPointReq(STQ* pTq, int64_t sversion, char* pMsg, int
   int32_t      len = msgLen - sizeof(SMsgHead);
 
   streamDoCheckpoint(pMeta);
-  taosWLockLatch(&pMeta->lock);
-  taosWUnLockLatch(&pMeta->lock);
+  // taosWLockLatch(&pMeta->lock);
+  // taosWUnLockLatch(&pMeta->lock);
   return 0;
 }

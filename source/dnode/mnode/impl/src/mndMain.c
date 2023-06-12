@@ -265,7 +265,7 @@ static void *mndThreadFp(void *param) {
     }
 
     if (sec % tsStreamCheckpointTickInterval == 0) {
-      mndStreamCheckpointTick(pMnode, sec);
+      // mndStreamCheckpointTick(pMnode, sec);
     }
 
     if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
