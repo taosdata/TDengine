@@ -31,13 +31,13 @@ For more details on features, please read through the entire documentation.
 
 ## Competitive Advantages
 
-Time-series data is structured, not transactional, and is rarely deleted or updated. TDengine makes full use of [these characteristics of time series data](https://tdengine.com/2019/07/09/86.html) to build its own innovative storage engine and computing engine to differentiate itself from other time series databases, with the following advantages.
+Time-series data is structured, not transactional, and is rarely deleted or updated. TDengine makes full use of [these characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/) to build its own innovative storage engine and computing engine to differentiate itself from other time series databases, with the following advantages.
 
-- **[High Performance](https://tdengine.com/fast)**: With an innovatively designed and purpose-built storage engine, TDengine outperforms other time series databases in data ingestion and querying while significantly reducing storage costs and compute costs.
+- **[High Performance](https://tdengine.com/tdengine/high-performance-time-series-database/)**: With an innovatively designed and purpose-built storage engine, TDengine outperforms other time series databases in data ingestion and querying while significantly reducing storage costs and compute costs.
 
-- **[Scalable](https://tdengine.com/scalable)**: TDengine provides out-of-box scalability and high-availability through its native distributed design. Nodes can be added through simple configuration to achieve greater data processing power. In addition, this feature is open source.
+- **[Scalable](https://tdengine.com/tdengine/cloud-native-time-series-database/)**: TDengine provides out-of-box scalability and high-availability through its native distributed design. Nodes can be added through simple configuration to achieve greater data processing power. In addition, this feature is open source.
 
-- **[SQL Support](https://tdengine.com/sql-support)**: TDengine uses SQL as the query language, thereby reducing learning and migration costs, while adding SQL extensions to better handle time-series. Keeping NoSQL developers in mind, TDengine also supports convenient and flexible, schemaless data ingestion.
+- **[SQL Support](https://tdengine.com/tdengine/sql-time-series-database/)**: TDengine uses SQL as the query language, thereby reducing learning and migration costs, while adding SQL extensions to better handle time-series. Keeping NoSQL developers in mind, TDengine also supports convenient and flexible, schemaless data ingestion.
 
 - **All in One**: TDengine has built-in caching, stream processing and data subscription functions. It is no longer necessary to integrate Kafka/Redis/HBase/Spark or other software in some scenarios. It makes the system architecture much simpler, cost-effective and easier to maintain.
 
@@ -105,8 +105,7 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 
 ## Comparison with other databases
 
-- [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/performance-comparison-of-tdengine-and-influxdb/)
-- [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/query-performance-comparison-test-report-tdengine-vs-influxdb/)
-- [TDengine vs OpenTSDB](https://tdengine.com/performance-tdengine-vs-opentsdb/)
-- [TDengine vs Cassandra](https://tdengine.com/performance-tdengine-vs-cassandra/)
-- [TDengine vs InfluxDB](https://tdengine.com/performance-tdengine-vs-influxdb/)
+- [TDengine vs. InfluxDB ](https://tdengine.com/tsdb-comparison-influxdb-vs-tdengine/)
+- [TDengine vs. TimescaleDB](https://tdengine.com/tsdb-comparison-timescaledb-vs-tdengine/)
+- [TDengine vs. OpenTSDB](https://tdengine.com/performance-tdengine-vs-opentsdb/)
+- [TDengine vs. Cassandra](https://tdengine.com/performance-tdengine-vs-cassandra/)
