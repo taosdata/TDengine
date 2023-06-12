@@ -2901,7 +2901,7 @@ int32_t tDecodeSMqCMCommitOffsetReq(SDecoder* decoder, SMqCMCommitOffsetReq* pRe
 // tqOffset
 enum {
   TMQ_OFFSET__RESET_NONE = -3,
-  TMQ_OFFSET__RESET_EARLIEAST = -2,
+  TMQ_OFFSET__RESET_EARLIEST = -2,
   TMQ_OFFSET__RESET_LATEST = -1,
   TMQ_OFFSET__LOG = 1,
   TMQ_OFFSET__SNAPSHOT_DATA = 2,

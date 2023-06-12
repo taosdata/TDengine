@@ -107,7 +107,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
     return 0;
   } else {
     // no poll occurs in this vnode for this topic, let's seek to the right offset value.
-    if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
+    if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
       if (pRequest->useSnapshot) {
         tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey:%s, vgId:%d, (earliest) set offset to be snapshot",
                 consumerId, pHandle->subKey, vgId);

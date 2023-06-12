@@ -7131,15 +7131,15 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
 
 int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   if (pVal->type == TMQ_OFFSET__RESET_NONE) {
-    snprintf(buf, maxLen, "offset(reset to none)");
-  } else if (pVal->type == TMQ_OFFSET__RESET_EARLIEAST) {
-    snprintf(buf, maxLen, "offset(reset to earlieast)");
+    snprintf(buf, maxLen, "none");
+  } else if (pVal->type == TMQ_OFFSET__RESET_EARLIEST) {
+    snprintf(buf, maxLen, "earliest");
   } else if (pVal->type == TMQ_OFFSET__RESET_LATEST) {
-    snprintf(buf, maxLen, "offset(reset to latest)");
+    snprintf(buf, maxLen, "latest");
   } else if (pVal->type == TMQ_OFFSET__LOG) {
-    snprintf(buf, maxLen, "offset(log) ver:%" PRId64, pVal->version);
+    snprintf(buf, maxLen, "log:%" PRId64, pVal->version);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
-    snprintf(buf, maxLen, "offset(snapshot) uid:%" PRId64 " ts:%" PRId64, pVal->uid, pVal->ts);
+    snprintf(buf, maxLen, "snapshot:%" PRId64 "|%" PRId64, pVal->uid, pVal->ts);
   } else {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -7157,7 +7157,7 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
       return pLeft->uid == pRight->uid;
     } else {
       ASSERT(0);
-      /*ASSERT(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEAST ||*/
+      /*ASSERT(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEST ||*/
       /*pLeft->type == TMQ_OFFSET__RESET_LATEST);*/
       /*return true;*/
     }

@@ -559,7 +559,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
       } else {
         dataRsp.rspOffset.version = currentVer;  // return current consume offset value
       }
-    } else if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
+    } else if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
       dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
     } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
       dataRsp.rspOffset.version = ever;
@@ -754,7 +754,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       taosArrayDestroy(tbUidList);
     }
 
-    taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
+id    taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
     tqDebug("try to persist handle %s consumer:0x%" PRIx64, req.subKey, pHandle->consumerId);
     ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
     goto end;

@@ -1197,8 +1197,13 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->autoCommitInterval, false);
 
+      char buf[TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE] = {0};
+      STqOffsetVal pVal = {.type = pConsumer->resetOffsetCfg};
+      tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &pVal);
+      varDataSetLen(buf, strlen(varDataVal(buf)));
+
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->resetOffsetCfg, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
 
       numOfRows++;
     }
