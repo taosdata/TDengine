@@ -204,8 +204,6 @@ static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  taosSsleep(5);
-
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
