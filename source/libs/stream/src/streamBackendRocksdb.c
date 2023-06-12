@@ -209,8 +209,8 @@ int32_t streamBackendDoCheckpoint(int64_t backendRid, const char* path) {
     }
     rocksdb_checkpoint_create(cp, path, 64 << 20, &err);
     if (err != NULL) {
-      taosMemoryFree(err);
       qError("stream backend:%p failed to do checkpoint at:%s, reason:%s", pHandle, path, err);
+      taosMemoryFree(err);
     } else {
       code = 0;
       qDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pHandle, path,
