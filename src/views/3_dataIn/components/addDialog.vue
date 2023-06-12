@@ -154,7 +154,7 @@ export default {
   },
   data() {
     return {
-      visible: true,
+      visible: false,
       agentList: [],
       originalTypes: [],
       ruleForm: {
@@ -169,10 +169,26 @@ export default {
         ["opcua", "OPC-UA"],
       ]),
       checked: true,
-      disabledAgent: false
+      disabledAgent: false,
+      rules1: {
+        agent: [
+          {
+            required: this.checked,
+            message: this.$t("datasource.agenttip"),
+          },
+        ],
+        type: [
+          {
+            required: true,
+            message: this.$t("datasource.typetip"),
+          },
+        ],
+        name: [{ required: true, message: this.$t("datasource.nametip") }],
+      },
     };
   },
   mounted() {
+    this.visible = true;
     this.getAgentDataType();
     this.originalTypes = deepClone(this.typeList);
   },
@@ -228,6 +244,7 @@ export default {
       },
     },
     checked(val) {
+        console.log('now trigger checked')
       this.disabledAgent = !val
       this.ruleForm.agent = ''
     }

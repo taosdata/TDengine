@@ -23,7 +23,7 @@
             :content="$t('datasource.selectfieldtip')"
             placement="right-start"
           >
-            <i class="el-icon-info" ></i>
+            <i class="el-icon-info"></i>
           </el-tooltip>
         </li>
         <li>
@@ -80,11 +80,9 @@
           effect="light"
           :content="$t('datasource.addmqtttip')"
           placement="right-start"
-          style="position: absolute;right:5px;"
+          style="position: absolute; right: 5px"
         >
-          <i
-            class="el-icon-info"
-          ></i>
+          <i class="el-icon-info"></i>
         </el-tooltip>
       </div>
     </div>
@@ -155,7 +153,7 @@ export default {
             trigger: "blur",
           },
         ],
-         using: [
+        using: [
           {
             required: true,
             message: this.$t("datasource.usingtip"),
@@ -179,7 +177,7 @@ export default {
         );
       });
     },
-    deleteRow(ind,name) {
+    deleteRow(ind, name) {
       this.$confirm(this.$t("datasource.delcol"), {
         confirmButtonText: this.$t("datasource.ok"),
         cancelButtonText: this.$t("datasource.cancel"),
@@ -187,20 +185,27 @@ export default {
       }).then(() => {
         let oldData = this.$store.state.app.mqttParser;
         oldData.parse.payload.json.splice(ind, 1);
-        let columns=oldData.model.columns
-        let tags=oldData.model.tags
-        if(columns.includes(name)){
-            columns.splice(columns.indexOf(name),1)
+        let columns = oldData.model.columns;
+        let tags = oldData.model.tags;
+        if (columns.includes(name)) {
+          columns.splice(columns.indexOf(name), 1);
         }
-        if(tags.includes(name)){
-            tags.splice(tags.indexOf(name),1)
+        if (tags.includes(name)) {
+          tags.splice(tags.indexOf(name), 1);
         }
         if (this.defaultSelect == name) {
-        if (!columns.includes("ts")) {
-          columns.unshift("ts");
-          this.defaultSelect='ts'
+          if (!columns.includes("ts")) {
+            columns.unshift("ts");
+            this.defaultSelect = "ts";
+          } else {
+            this.defaultSelect = "ts";
+            columns.map((item, index) => {
+              if (item == "ts") {
+                columns.unshift(columns.splice(index, 1)[0]);
+              }
+            });
+          }
         }
-      }
         this.$store.commit("app/SET_MQTT_PARSER", oldData);
         this.disable = false;
       });
@@ -238,7 +243,10 @@ export default {
   },
   mounted() {
     this.changeAddStatus();
-    this.defaultSelect=this.connectorData.model.columns.length>0?this.connectorData.model.columns[0]:'ts'
+    this.defaultSelect =
+      this.connectorData.model.columns.length > 0
+        ? this.connectorData.model.columns[0]
+        : "ts";
   },
 };
 </script>
@@ -251,10 +259,10 @@ export default {
   //   padding-left: 200px;
   margin-bottom: 15px;
   position: relative;
-  .el-icon-info{
+  .el-icon-info {
     color: #4259ce;
-     margin-top: 0px; 
-     margin-left: 4px;
+    margin-top: 0px;
+    margin-left: 4px;
   }
 
   .header {
@@ -276,9 +284,9 @@ export default {
       text-align: center;
     }
   }
-  .footer{
-    .el-button{
-        width:96%;
+  .footer {
+    .el-button {
+      width: 96%;
     }
   }
   .col-content {
