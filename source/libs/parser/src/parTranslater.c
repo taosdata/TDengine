@@ -3108,12 +3108,12 @@ static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
     if ('\0' == pExpr->userAlias[0]) {
       strcpy(pExpr->userAlias, pExpr->aliasName);
     }
-    if (QUERY_NODE_FUNCTION == nodeType(pProject) &&
+    if (QUERY_NODE_FUNCTION == nodeType(pProject) && fmIsWindowPseudoColumnFunc(((SFunctionNode*)pProject)->funcId) &&
         ((0 == strcasecmp("_wstart", pExpr->userAlias) || 0 == strcasecmp("_wend", pExpr->userAlias) ||
           0 == strcasecmp("_wduration", pExpr->userAlias)) &&
          '\0' != pExpr->aliasName[0])) {
-      continue;
-    }
+        continue;
+      }
     sprintf(pExpr->aliasName, "#expr_%d", no++);
   }
   return TSDB_CODE_SUCCESS;
