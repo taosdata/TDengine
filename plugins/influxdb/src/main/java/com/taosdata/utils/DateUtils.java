@@ -59,17 +59,46 @@ public class DateUtils {
     }
 
     /**
+     * 获得某一格式&某一时区的当前时间
+     *
+     * @param dateFormat
+     * @param timeZone
+     * @return
+     */
+    public static String getTime(String dateFormat, TimeZone timeZone) {
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat);
+        Date date = new Date();
+        simpleDateFormat.setTimeZone(timeZone);
+        return simpleDateFormat.format(date);
+    }
+
+    /**
      * 日期转换字符串
      *
      * @param date
      * @param dateFormat
      * @return
+     * @throws Exception
      */
     public static String dateToString(Date date, String dateFormat) throws Exception {
+        return dateToString(date, dateFormat, TimeZone.getDefault());
+    }
+
+    /**
+     * 日期转换字符串
+     *
+     * @param date
+     * @param dateFormat
+     * @param timeZone
+     * @return
+     * @throws Exception
+     */
+    public static String dateToString(Date date, String dateFormat, TimeZone timeZone) throws Exception {
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat);
         if (date == null) {
             throw new Exception("invalid date exception");
         }
+        simpleDateFormat.setTimeZone(timeZone);
         return simpleDateFormat.format(date);
     }
 
@@ -79,6 +108,7 @@ public class DateUtils {
      * @param date
      * @param dateFormat
      * @return
+     * @throws Exception
      */
     public static Date stringToDate(String date, String dateFormat) throws Exception {
         return stringToDate(date, dateFormat, TimeZone.getDefault());
@@ -89,7 +119,9 @@ public class DateUtils {
      *
      * @param date
      * @param dateFormat
+     * @param timeZone
      * @return
+     * @throws Exception
      */
     public static Date stringToDate(String date, String dateFormat, TimeZone timeZone) throws Exception {
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat);

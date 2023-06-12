@@ -1,5 +1,6 @@
 package com.taosdata.caches;
 
+import com.alibaba.fastjson.JSONObject;
 import com.taosdata.model.dto.bum.InfluxdbInfo;
 import com.taosdata.model.dto.bum.NettyInfo;
 import com.taosdata.model.dto.bum.QueueInfo;
@@ -233,15 +234,18 @@ public class StatusCache {
      */
     public static String toPrintString() {
         StringBuffer sb = new StringBuffer();
-        sb.append("\n");
-        sb.append("系统启动时间：" + startTime + "\n");
-        sb.append("系统状态：" + status + ", " + description + "\n");
-        sb.append("线程信息：" + threadInfoMap + "\n");
-        sb.append("InfluxDB信息：" + influxdbInfo + "\n");
-        sb.append("Netty信息：" + nettyInfo + "\n");
-        sb.append("Read Speed：" + FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).getSpeed() + "\n");
-        sb.append("Push Speed：" + FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).getSpeed() + "\n");
-        sb.append("Total Read：" + StatisticCache.totalRead.get() + ", Total Push: " + StatisticCache.totalPush.get() + "\n");
+        sb.append("{");
+        sb.append("\"系统启动时间\":\"" + startTime + "\",");
+        sb.append("\"系统状态\":\"" + status + ", " + description + "\",");
+        sb.append("\"线程信息\":" + JSONObject.toJSON(threadInfoMap) + ",");
+        sb.append("\"队列信息\":" + JSONObject.toJSON(queueInfoMap) + ",");
+        sb.append("\"InfluxDB信息\":" + JSONObject.toJSON(influxdbInfo) + ",");
+        sb.append("\"Netty信息\":" + JSONObject.toJSON(nettyInfo) + ",");
+        sb.append("\"Read Speed\":" + FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).getSpeed() + ",");
+        sb.append("\"Push Speed\":" + FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).getSpeed() + ",");
+        sb.append("\"Total Read\":" + StatisticCache.totalRead.get() + ",");
+        sb.append("\"Total Push\":" + StatisticCache.totalPush.get());
+        sb.append("}");
         return sb.toString();
     }
 

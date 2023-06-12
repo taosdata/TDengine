@@ -54,7 +54,7 @@ public class HeartHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void userEventTriggered(ChannelHandlerContext channelHandlerContext, Object event) throws Exception {
-        logger.info("Receive event: {}", event.toString());
+        logger.debug("receive event: {}", event.toString());
         // 连接空闲
         /*
         if (event instanceof IdleStateEvent) {
