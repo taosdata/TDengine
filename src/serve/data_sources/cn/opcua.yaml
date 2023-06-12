@@ -208,9 +208,5 @@ groups:
           max: 60
         description: 每批次采集数据上报的超时时间间隔，单位为：秒 (s)。
         placeholder: 20
-      - name: use_received_time
-        display: 使用本地时间
-        hint:
-          type: bool
-        description: 使用采集器本地时间替换服务器时间。
+
 

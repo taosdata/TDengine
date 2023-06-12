@@ -170,15 +170,22 @@ groups:
 
   - name: Table Config
     display_order: 4
-    description: Some configurations used in connecting step.
+    description: | 
+      Stable Config
+
+      - **received_time**: time opc collector received<br>
+      - **original_time**: time from opc server <br>
+      - **value**: point value<br>
+      - **status**: point status<br>
+
     params:
       - name: opc_table_config
         display: OPC Table Config
-        description: |-
-          Timeout for connect to endpoint in seconds.
+        required: true
         placeholder: 10
         hint:
           type: json
+
   - name: Others
     display_order: 5
     description: Other configurations.
@@ -206,8 +213,3 @@ groups:
           max: 60
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
-      - name: use_received_time
-        display: use_received_time
-        hint:
-          type: bool
-        description: use data received time as timestamp not server time
