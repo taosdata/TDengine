@@ -362,7 +362,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ##### TaosConnection 类的使用
 
-`TaosConnection` 类既包含对 PEP249 Connection 接口的实现(如：`cursor`方法和 `close` 方法)，也包含很多扩展功能（如： `execute`、 `query`、`schemaless_insert` 和 `subscribe` 方法。
+类似上文介绍的使用方法，增加 `req_id` 参数。
 
 ```python title="execute 方法"
 {{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:insert}}
@@ -372,13 +372,9 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 {{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:query}}
 ```
 
-:::tip
-查询结果只能获取一次。比如上面的示例中 `fetch_all()` 和 `fetch_all_into_dict()` 只能用一个。重复获取得到的结果为空列表。
-:::
-
 ##### TaosResult 类的使用
 
-上面 `TaosConnection` 类的使用示例中，我们已经展示了两种获取查询结果的方法： `fetch_all()` 和 `fetch_all_into_dict()`。除此之外 `TaosResult` 还提供了按行迭代(`rows_iter`)或按数据块迭代(`blocks_iter`)结果集的方法。在查询数据量较大的场景，使用这两个方法会更高效。
+类似上文介绍的使用方法，增加 `req_id` 参数。
 
 ```python title="blocks_iter 方法"
 {{#include docs/examples/python/result_set_with_req_id_examples.py}}
@@ -391,13 +387,10 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 {{#include docs/examples/python/cursor_usage_native_reference_with_req_id.py}}
 ```
 
-:::note
-TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
-
-:::
-
 </TabItem>
 <TabItem value="rest" label="REST 连接">
+
+类似上文介绍的使用方法，增加 `req_id` 参数。
 
 #####  TaosRestCursor 类的使用
 
@@ -420,7 +413,10 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
 </TabItem>
+
 <TabItem value="websocket" label="WebSocket 连接">
+
+类似上文介绍的使用方法，增加 `req_id` 参数。
 
 ```python
 {{#include docs/examples/python/connect_websocket_with_req_id_examples.py:basic}}
@@ -460,25 +456,167 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ### 数据订阅
 
-连接器支持数据订阅功能，数据订阅功能请参考 [数据订阅](../../develop/tmq/)。
+连接器支持数据订阅功能，数据订阅功能请参考 [数据订阅文档](../../develop/tmq/)。
 
 <Tabs defaultValue="native">
 <TabItem value="native" label="原生连接">
 
-`Consumer` 提供了 Python 连接器订阅 TMQ 数据的 API，相关 API 定义请参考 [数据订阅文档](../../develop/tmq/#%E4%B8%BB%E8%A6%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C-api)。
+`Consumer` 提供了 Python 连接器订阅 TMQ 数据的 API。
+
+#### 创建 Consumer
+
+创建 Consumer 语法为 `consumer = Consumer(configs)`，参数定义请参考 [数据订阅文档](../../develop/tmq/#%E5%88%9B%E5%BB%BA%E6%B6%88%E8%B4%B9%E8%80%85-consumer)。
+
+```python
+from taos.tmq import Consumer
+
+consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+```
+
+#### 订阅 topics
+
+Comsumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
+
+```python
+consumer.subscribe(['topic1', 'topic2'])
+```
+
+#### 消费数据
+
+Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
+
+```python
+while True:
+    res = consumer.poll(1)
+    if not res:
+        continue
+    err = res.error()
+    if err is not None:
+        raise err
+    val = res.value()
+
+    for block in val:
+        print(block.fetchall())
+```
+
+#### 获取消费进度
+
+Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
+
+```python
+assignments = consumer.assignment()
+```
+
+#### 重置消费进度
+
+Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置，方法参数类型为 TopicPartition。
+
+```python
+tp = TopicPartition(topic='topic1', partition=0, offset=0)
+consumer.seek(tp)
+```
+
+#### 结束消费
+
+消费结束后，应当取消订阅，并关闭 Consumer。
+
+```python
+consumer.unsubscribe()
+consumer.close()
+```
+
+#### tmq 订阅示例代码
 
 ```python
 {{#include docs/examples/python/tmq_example.py}}
+```
+
+#### 获取和重置消费进度示例代码
+
+```python
+{{#include docs/examples/python/tmq_assignment_example.py:taos_get_assignment_and_seek_demo}}
 ```
 
 </TabItem>
 
 <TabItem value="websocket" label="WebSocket 连接">
 
-除了原生的连接方式，Python 连接器还支持通过 websocket 订阅 TMQ 数据。
+除了原生的连接方式，Python 连接器还支持通过 websocket 订阅 TMQ 数据，使用 websocket 方式订阅 TMQ 数据需要安装 `taos-ws-py`。
+
+taosws `Consumer` API 提供了基于 Websocket 订阅 TMQ 数据的 API。
+
+#### 创建 Consumer
+
+创建 Consumer 语法为 `consumer = Consumer(conf=configs)`，使用时需要指定 `td.connect.websocket.scheme` 参数值为 "ws"，参数定义请参考 [数据订阅文档](../../develop/tmq/#%E5%88%9B%E5%BB%BA%E6%B6%88%E8%B4%B9%E8%80%85-consumer)。
+
+```python
+import taosws
+
+consumer = taosws.(conf={"group.id": "local", "td.connect.websocket.scheme": "ws"})
+```
+
+#### 订阅 topics
+
+Comsumer API 的 `subscribe` 方法用于订阅 topics，consumer 支持同时订阅多个 topic。
+
+```python
+consumer.subscribe(['topic1', 'topic2'])
+```
+
+#### 消费数据
+
+Consumer API 的 `poll` 方法用于消费数据，`poll` 方法接收一个 float 类型的超时时间，超时时间单位为秒（s），`poll` 方法在超时之前返回一条 Message 类型的数据或超时返回 `None`。消费者必须通过 Message 的 `error()` 方法校验返回数据的 error 信息。
+
+```python
+while True:
+    res = consumer.poll(timeout=1.0)
+    if not res:
+        continue
+    err = res.error()
+    if err is not None:
+        raise err
+    for block in message:
+        for row in block:
+            print(row)
+```
+
+#### 获取消费进度
+
+Consumer API 的 `assignment` 方法用于获取 Consumer 订阅的所有 topic 的消费进度，返回结果类型为 TopicPartition 列表。
+
+```python
+assignments = consumer.assignment()
+```
+
+#### 重置消费进度
+
+Consumer API 的 `seek` 方法用于重置 Consumer 的消费进度到指定位置。
+
+```python
+consumer.seek(topic='topic1', partition=0, offset=0)
+```
+
+#### 结束消费
+
+消费结束后，应当取消订阅，并关闭 Consumer。
+
+```python
+consumer.unsubscribe()
+consumer.close()
+```
+
+#### tmq 订阅示例代码
 
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py}}
+```
+
+连接器提供了 `assignment` 接口，用于获取 topic assignment 的功能，可以查询订阅的 topic 的消费进度，并提供 `seek` 接口，用于重置 topic 的消费进度。
+
+#### 获取和重置消费进度示例代码
+
+```python
+{{#include docs/examples/python/tmq_websocket_assgnment_example.py:taosws_get_assignment_and_seek_demo}}
 ```
 
 </TabItem>

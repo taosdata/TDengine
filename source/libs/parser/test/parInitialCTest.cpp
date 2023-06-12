@@ -1145,6 +1145,15 @@ TEST_F(ParserInitialCTest, createTopic) {
   setCreateTopicReq("tp1", 1, "create topic if not exists tp1 with meta as stable st1", nullptr, "test", "st1", 1);
   run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1");
   clearCreateTopicReq();
+
+  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 as stable st1 where tag1 > 0", nullptr, "test", "st1");
+  run("CREATE TOPIC IF NOT EXISTS tp1 AS STABLE st1 WHERE tag1 > 0");
+  clearCreateTopicReq();
+
+  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 with meta as stable st1 where tag1 > 0", nullptr, "test", "st1", 1);
+  run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1 WHERE tag1 > 0");
+  clearCreateTopicReq();
+
 }
 
 /*

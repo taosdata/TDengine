@@ -325,6 +325,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NOT_CATCH_UP,           "Mnode didn't catch th
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ALREADY_IS_VOTER,       "Mnode already is a leader")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ONLY_TWO_MNODE,         "Only two mnodes exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_NO_NEED_RESTORE,        "No need to restore on this dnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE,  "Please use this command when the dnode is offline")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -381,7 +382,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXCEED_TAGS_LIMIT,        "Tag conditon too many
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_READY,                "Query not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_HAS_RSP,                  "Query should response")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_IN_EXEC,                  "Multiple retrieval of this query")
-TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW,      "Too many time window in query")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW,      "Too many groups/time window in query")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER,        "Query buffer limit has reached")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in replica")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
@@ -541,7 +542,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TIMELINE_FUNC,      "Invalid timeline fu
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PASSWD,             "Invalid password")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ALTER_TABLE,        "Invalid alter table statement")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_CANNOT_DROP_PRIMARY_KEY,    "Primary timestamp column cannot be dropped")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_MODIFY_COL,         "Only binary/nchar column length could be modified, and the length can only be increased, not decreased")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_MODIFY_COL,         "Only binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TBNAME,             "Invalid tbname pseudo column")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FUNCTION_NAME,      "Invalid function name")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COMMENT_TOO_LONG,           "Comment too long")

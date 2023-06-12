@@ -2131,27 +2131,32 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
     mInfo("db:%s, vgId:%d, will add 2 vnodes, vn:0 dnode:%d", pVgroup->dbName, pVgroup->vgId,
           pVgroup->vnodeGid[0].dnodeId);
 
-    //add first
+    //add second
     if (mndAddVnodeToVgroup(pMnode, pTrans, &newVgroup, pArray) != 0) return -1;
 
+    //learner stage
     newVgroup.vnodeGid[0].nodeRole = TAOS_SYNC_ROLE_VOTER;
     newVgroup.vnodeGid[1].nodeRole = TAOS_SYNC_ROLE_LEARNER;
     if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pNewDb, &newVgroup, newVgroup.vnodeGid[0].dnodeId) != 0)
       return -1;
 
     if (mndAddCreateVnodeAction(pMnode, pTrans, pNewDb, &newVgroup, &newVgroup.vnodeGid[1]) != 0) return -1;
+
+    //follower stage
     newVgroup.vnodeGid[1].nodeRole = TAOS_SYNC_ROLE_VOTER;
     if (mndAddAlterVnodeTypeAction(pMnode, pTrans, pNewDb, &newVgroup, newVgroup.vnodeGid[1].dnodeId) != 0)
+      return -1;
+    if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pNewDb, &newVgroup, newVgroup.vnodeGid[0].dnodeId) != 0)
       return -1;
 
     if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pNewDb, &newVgroup) != 0) return -1;
 
-    //add second
+    //add third
     if (mndAddVnodeToVgroup(pMnode, pTrans, &newVgroup, pArray) != 0) return -1;
+
     newVgroup.vnodeGid[0].nodeRole = TAOS_SYNC_ROLE_VOTER;
     newVgroup.vnodeGid[1].nodeRole = TAOS_SYNC_ROLE_VOTER;
     newVgroup.vnodeGid[2].nodeRole = TAOS_SYNC_ROLE_VOTER;
-
     if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pNewDb, &newVgroup, newVgroup.vnodeGid[0].dnodeId) != 0)
       return -1;
     if (mndAddAlterVnodeReplicaAction(pMnode, pTrans, pNewDb, &newVgroup, newVgroup.vnodeGid[1].dnodeId) != 0)

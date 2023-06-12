@@ -695,7 +695,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   if (totalMnodes == 2) {
     if (force) {
       mError("cant't force drop dnode, since a mnode on it and replica is 2");
-      terrno = TSDB_CODE_DNODE_OFFLINE;
+      terrno = TSDB_CODE_MNODE_ONLY_TWO_MNODE;
       return -1;
     }
     mInfo("vgId:1, has %d mnodes, exec redo log first", totalMnodes);

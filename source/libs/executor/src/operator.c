@@ -25,7 +25,8 @@
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
-#include "vnode.h"
+
+#include "storageapi.h"
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn,
@@ -233,11 +234,12 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
 }
 
 static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam, const char* pIdStr) {
+  SStorageAPI* pAPI = pParam->pParam;
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pInfo = pOperator->info;
 
     if (pInfo->base.dataReader != NULL) {
-      tsdbReaderSetCloseFlag(pInfo->base.dataReader);
+      pAPI->tsdReader.tsdReaderNotifyClosing(pInfo->base.dataReader);
     }
     return OPTR_FN_RET_ABORT;
   } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -246,7 +248,7 @@ static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam,
     if (pInfo->pTableScanOp != NULL) {
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
       if (pTableScanInfo != NULL && pTableScanInfo->base.dataReader != NULL) {
-        tsdbReaderSetCloseFlag(pTableScanInfo->base.dataReader);
+        pAPI->tsdReader.tsdReaderNotifyClosing(pTableScanInfo->base.dataReader);
       }
     }
 
@@ -256,8 +258,8 @@ static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam,
   return OPTR_FN_RET_CONTINUE;
 }
 
-int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr) {
-  STraverParam p = {0};
+int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SStorageAPI* pAPI) {
+  STraverParam p = {.pParam = pAPI};
   traverseOperatorTree(pOperator, doStopDataReader, &p, pIdStr);
   return p.code;
 }
@@ -378,17 +380,18 @@ SOperatorInfo* createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SR
       STableListInfo*          pTableListInfo = tableListCreate();
 
       if (pBlockNode->tableType == TSDB_SUPER_TABLE) {
-        SArray* pList = taosArrayInit(4, sizeof(STableKeyInfo));
-        int32_t code = vnodeGetAllTableList(pHandle->vnode, pBlockNode->uid, pList);
+        SArray* pList = taosArrayInit(4, sizeof(uint64_t));
+        int32_t code = pTaskInfo->storageAPI.metaFn.getChildTableList(pHandle->vnode, pBlockNode->uid, pList);
         if (code != TSDB_CODE_SUCCESS) {
-          pTaskInfo->code = terrno;
+          pTaskInfo->code = code;
+          taosArrayDestroy(pList);
           return NULL;
         }
 
         size_t num = taosArrayGetSize(pList);
         for (int32_t i = 0; i < num; ++i) {
-          STableKeyInfo* p = taosArrayGet(pList, i);
-          tableListAddTableInfo(pTableListInfo, p->uid, 0);
+          uint64_t* id = taosArrayGet(pList, i);
+          tableListAddTableInfo(pTableListInfo, *id, 0);
         }
 
         taosArrayDestroy(pList);

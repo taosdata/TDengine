@@ -23,7 +23,6 @@
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tref.h"
-#include "ttimer.h"
 
 #define MAX_TABLE_NAME_NUM 200000
 
@@ -91,13 +90,14 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   return winKeyCmprImpl(&pWin1->key, &pWin2->key);
 }
 
-SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
-  qWarn("open stream state, %s", path);
+SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t szPage, int32_t pages) {
+  qDebug("open stream state, %s", path);
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
   pState->pTdbState = taosMemoryCalloc(1, sizeof(STdbState));
   if (pState->pTdbState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -105,29 +105,33 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     return NULL;
   }
 
-  char statePath[1024];
+  SStreamTask* pStreamTask = pTask;
+  char         statePath[1024];
   if (!specPath) {
-    sprintf(statePath, "%s/%d", path, pTask->id.taskId);
+    sprintf(statePath, "%s/%d", path, pStreamTask->id.taskId);
   } else {
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
   }
-  pState->taskId = pTask->id.taskId;
-  pState->streamId = pTask->id.streamId;
+
+  pState->taskId = pStreamTask->id.taskId;
+  pState->streamId = pStreamTask->id.streamId;
+
 #ifdef USE_ROCKSDB
-  // qWarn("open stream state1");
-  taosAcquireRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
-  int code = streamStateOpenBackend(pTask->pMeta->streamBackend, pState);
+  SStreamMeta* pMeta = pStreamTask->pMeta;
+  pState->streamBackendRid = pMeta->streamBackendRid;
+  int code = streamStateOpenBackend(pMeta->streamBackend, pState);
   if (code == -1) {
-    taosReleaseRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
+    taosReleaseRef(streamBackendId, pMeta->streamBackendRid);
     taosMemoryFree(pState);
     pState = NULL;
   }
+
   pState->pTdbState->pOwner = pTask;
   pState->pFileState = NULL;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
-  pState->parNameMap = tSimpleHashInit(1024, hashFn);
 
+  pState->parNameMap = tSimpleHashInit(1024, hashFn);
   return pState;
 
 #else
@@ -218,9 +222,7 @@ _err:
 void streamStateClose(SStreamState* pState, bool remove) {
   SStreamTask* pTask = pState->pTdbState->pOwner;
 #ifdef USE_ROCKSDB
-  // streamStateCloseBackend(pState);
   streamStateDestroy(pState, remove);
-  taosReleaseRef(pTask->pMeta->streamBackendId, pTask->pMeta->streamBackendRid);
 #else
   tdbCommit(pState->pTdbState->db, pState->pTdbState->txn);
   tdbPostCommit(pState->pTdbState->db, pState->pTdbState->txn);
@@ -274,10 +276,10 @@ int32_t streamStateCommit(SStreamState* pState) {
 
 int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
-  void* pVal = NULL;
-  int32_t len = 0;
-  int32_t code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
-  char* buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  void*    pVal = NULL;
+  int32_t  len = 0;
+  int32_t  code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), &pVal, &len);
+  char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
   uint32_t rowSize = streamFileStateGeSelectRowSize(pState->pFileState);
   memcpy(buf + len - rowSize, value, vLen);
   return code;
@@ -287,10 +289,10 @@ int32_t streamStateFuncPut(SStreamState* pState, const SWinKey* key, const void*
 }
 int32_t streamStateFuncGet(SStreamState* pState, const SWinKey* key, void** ppVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
-  void* pVal = NULL;
-  int32_t len = 0;
-  int32_t code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
-  char* buf = ((SRowBuffPos*)pVal)->pRowBuff;
+  void*    pVal = NULL;
+  int32_t  len = 0;
+  int32_t  code = getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), (void**)(&pVal), &len);
+  char*    buf = ((SRowBuffPos*)pVal)->pRowBuff;
   uint32_t rowSize = streamFileStateGeSelectRowSize(pState->pFileState);
   *ppVal = buf + len - rowSize;
   return code;
@@ -449,7 +451,7 @@ int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pV
 #ifdef USE_ROCKSDB
   taosMemoryFree(pVal);
 #else
-  streamFreeVal(pVal);
+  streamStateFreeVal(pVal);
 #endif
   return 0;
 }
@@ -700,7 +702,7 @@ void streamStateFreeCur(SStreamStateCur* pCur) {
   taosMemoryFree(pCur);
 }
 
-void streamFreeVal(void* val) {
+void streamStateFreeVal(void* val) {
 #ifdef USE_ROCKSDB
   taosMemoryFree(val);
 #else
@@ -1058,7 +1060,7 @@ _end:
 }
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
-  qWarn("try to write to cf parname");
+  qDebug("try to write to cf parname");
 #ifdef USE_ROCKSDB
   if (tSimpleHashGetSize(pState->parNameMap) > MAX_TABLE_NAME_NUM) {
     if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {

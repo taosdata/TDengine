@@ -522,6 +522,7 @@ typedef struct {
   char*          physicalPlan;
   SSchemaWrapper schema;
   int64_t        stbUid;
+  char           stbName[TSDB_TABLE_FNAME_LEN];
   // forbid condition
   int64_t ntbUid;
   SArray* ntbColIds;
@@ -663,9 +664,10 @@ typedef struct {
   char    targetDb[TSDB_DB_FNAME_LEN];
   char    targetSTbName[TSDB_TABLE_FNAME_LEN];
   int64_t targetStbUid;
-  int32_t fixedSinkVgId;  // 0 for shuffle
+
   // fixedSinkVg is not applicable for encode and decode
   SVgObj fixedSinkVg;
+  int32_t fixedSinkVgId;  // 0 for shuffle
 
   // transformation
   char*          sql;

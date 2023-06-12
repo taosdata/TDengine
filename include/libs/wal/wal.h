@@ -149,6 +149,7 @@ struct SWalReader {
   TdFilePtr      pIdxFile;
   int64_t        curFileFirstVer;
   int64_t        curVersion;
+  int64_t        skipToVersion; // skip data and jump to destination version, usually used by stream resume ignoring untreated data
   int64_t        capacity;
   TdThreadMutex  mutex;
   SWalFilterCond cond;
@@ -200,6 +201,8 @@ int32_t     walReaderSeekVer(SWalReader *pRead, int64_t ver);
 int32_t     walNextValidMsg(SWalReader *pRead);
 int64_t     walReaderGetCurrentVer(const SWalReader *pReader);
 int64_t     walReaderGetValidFirstVer(const SWalReader *pReader);
+int64_t     walReaderGetSkipToVersion(SWalReader *pReader);
+void        walReaderSetSkipToVersion(SWalReader *pReader, int64_t ver);
 void        walReaderValidVersionRange(SWalReader *pReader, int64_t *sver, int64_t *ever);
 void        walReaderVerifyOffset(SWalReader *pWalReader, STqOffsetVal* pOffset);
 
@@ -209,7 +212,8 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead);
 int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead);
 int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead);
 
-SWalRef *walRefFirstVer(SWal *, SWalRef *);
+void walRefFirstVer(SWal *, SWalRef *);
+void walRefLastVer(SWal *, SWalRef *);
 SWalRef *walRefCommittedVer(SWal *);
 
 SWalRef *walOpenRef(SWal *);

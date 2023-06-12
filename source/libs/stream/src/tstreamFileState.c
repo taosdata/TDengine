@@ -16,6 +16,7 @@
 #include "tstreamFileState.h"
 
 #include "query.h"
+#include "storageapi.h"
 #include "streamBackendRocksdb.h"
 #include "taos.h"
 #include "tcommon.h"
@@ -136,7 +137,7 @@ void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
   SListNode* pNode = NULL;
   while ((pNode = tdListNext(&iter)) != NULL) {
     SRowBuffPos* pPos = *(SRowBuffPos**)(pNode->data);
-    if (all || (pFileState->getTs(pPos->pKey) < ts)) {
+    if (all || (pFileState->getTs(pPos->pKey) < ts && !pPos->beUsed)) {
       ASSERT(pPos->pRowBuff != NULL);
       tdListAppend(pFileState->freeBuffs, &(pPos->pRowBuff));
       pPos->pRowBuff = NULL;
@@ -415,10 +416,13 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     int32_t len = 0;
     memcpy(buf, taskKey, strlen(taskKey));
     code = streamDefaultGet_rocksdb(pFileState->pFileStore, buf, &val, &len);
-    if (code != 0) {
+    if (code != 0 || len == 0 || val == NULL) {
       return TSDB_CODE_FAILED;
     }
-    sscanf(val, "%" PRId64 "", &maxCheckPointId);
+    memcpy(buf, val, len);
+    buf[len] = 0;
+    maxCheckPointId = atol((char*)buf);
+    taosMemoryFree(val);
   }
   for (int64_t i = maxCheckPointId; i > 0; i--) {
     char    buf[128] = {0};
@@ -429,13 +433,16 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     if (code != 0) {
       return TSDB_CODE_FAILED;
     }
+    memcpy(buf, val, len);
+    buf[len] = 0;
+    taosMemoryFree(val);
+
     TSKEY ts;
-    sscanf(val, "%" PRId64 "", &ts);
+    ts = atol((char*)buf);
     if (ts < mark) {
       // statekey winkey.ts < mark
       forceRemoveCheckpoint(pFileState, i);
       break;
-    } else {
     }
   }
   return code;

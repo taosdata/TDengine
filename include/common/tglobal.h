@@ -29,7 +29,6 @@ extern "C" {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
 
-
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -83,6 +82,7 @@ extern int64_t tsVndCommitMaxIntervalMs;
 // mnode
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
+extern bool    tsMndSkipGrant;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -131,7 +131,7 @@ extern int32_t tsSlowLogScope;
 // client
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
-extern int32_t tsMaxMemUsedByInsert;
+extern int32_t tsMaxInsertBatchRows;
 
 // build info
 extern char version[];
@@ -180,6 +180,8 @@ extern int32_t tsRpcRetryInterval;
 extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern int64_t tsCheckpointInterval;
+extern bool    tsFilterScalarMode;
+extern int32_t tsMaxStreamBackendCache;
 
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

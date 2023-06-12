@@ -453,7 +453,8 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   return 0;
 }
 
-static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups,
+                                        SUserObj *pUserDuped) {
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
   if (pDbRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pDbRaw) != 0) return -1;
@@ -464,6 +465,13 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
     if (pVgRaw == NULL) return -1;
     if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) return -1;
     if (sdbSetRawStatus(pVgRaw, SDB_STATUS_READY) != 0) return -1;
+  }
+
+  if (pUserDuped) {
+    SSdbRaw *pUserRaw = mndUserActionEncode(pUserDuped);
+    if (pUserRaw == NULL) return -1;
+    if (mndTransAppendCommitlog(pTrans, pUserRaw) != 0) return -1;
+    if (sdbSetRawStatus(pUserRaw, SDB_STATUS_READY) != 0) return -1;
   }
 
   return 0;
@@ -572,6 +580,15 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     return -1;
   }
 
+  // add database privileges for user
+  SUserObj newUserObj = {0}, *pNewUserDuped = NULL;
+  if (!pUser->superUser) {
+    if (mndUserDupObj(pUser, &newUserObj) != 0) goto _OVER;
+    taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN);
+    taosHashPut(newUserObj.writeDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN);
+    pNewUserDuped = &newUserObj;
+  }
+
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-db");
   if (pTrans == NULL) goto _OVER;
@@ -585,7 +602,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   if (mndSetPrepareNewVgActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
-  if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
+  if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped) != 0) goto _OVER;
   if (mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -594,6 +611,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
 
 _OVER:
   taosMemoryFree(pVgroups);
+  mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);
   return code;
 }
@@ -937,7 +955,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->walRetentionSize = pDb->cfg.walRetentionSize;
   cfgRsp->walSegmentSize = pDb->cfg.walSegmentSize;
   cfgRsp->numOfRetensions = pDb->cfg.numOfRetensions;
-  cfgRsp->pRetensions = pDb->cfg.pRetensions;
+  cfgRsp->pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
   cfgRsp->schemaless = pDb->cfg.schemaless;
   cfgRsp->sstTrigger = pDb->cfg.sstTrigger;
 }
@@ -979,6 +997,8 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   code = 0;
 
 _OVER:
+
+  tFreeSDbCfgRsp(&cfgRsp);
 
   if (code != 0) {
     mError("db:%s, failed to get cfg since %s", cfgReq.db, terrstr());
@@ -1549,6 +1569,13 @@ const char *mndGetDbStr(const char *src) {
   if (pos != NULL) ++pos;
   if (pos == NULL) return src;
   return pos;
+}
+
+const char *mndGetStableStr(const char *src) {
+  char *pos = strstr(src, TS_PATH_DELIMITER);
+  if (pos != NULL) ++pos;
+  if (pos == NULL) return src;
+  return mndGetDbStr(pos);
 }
 
 static int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {

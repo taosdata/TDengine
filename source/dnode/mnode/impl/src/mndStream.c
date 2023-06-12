@@ -700,6 +700,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       if (pStream->sourceDbUid == streamObj.sourceDbUid) {
         ++numOfStream;
       }
+
       sdbRelease(pMnode->pSdb, pStream);
       if (numOfStream > MND_STREAM_MAX_NUM) {
         mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
@@ -723,6 +724,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     pDb = NULL;
     goto _OVER;
   }
+
   mndReleaseDb(pMnode, pDb);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");

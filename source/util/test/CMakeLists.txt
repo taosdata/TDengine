@@ -76,3 +76,11 @@ add_test(
     NAME rbtreeTest
     COMMAND rbtreeTest
 )
+
+# pageBufferTest
+add_executable(pageBufferTest "pageBufferTest.cpp")
+target_link_libraries(pageBufferTest os util gtest_main)
+add_test(
+    NAME pageBufferTest
+    COMMAND pageBufferTest
+)

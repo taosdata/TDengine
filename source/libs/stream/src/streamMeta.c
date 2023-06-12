@@ -20,7 +20,7 @@
 #include "ttimer.h"
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
-static int32_t      streamBackendId = 0;
+int32_t             streamBackendId = 0;
 static void         streamMetaEnvInit() { streamBackendId = taosOpenRef(20, streamBackendCleanup); }
 
 void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
@@ -79,7 +79,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->vgId = vgId;
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
-  pMeta->streamBackendId = streamBackendId;
 
   memset(streamPath, 0, len);
   sprintf(streamPath, "%s/%s", pMeta->path, "state");
@@ -205,24 +204,25 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 
 // add to the ready tasks hash map, not the restored tasks hash map
 int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
-  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
-    tFreeStreamTask(pTask);
-    return -1;
-  }
-
-  if (streamMetaSaveTask(pMeta, pTask) < 0) {
-    tFreeStreamTask(pTask);
-    return -1;
-  }
-
-  if (streamMetaCommit(pMeta) < 0) {
-    tFreeStreamTask(pTask);
-    return -1;
-  }
-
   void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
   if (p == NULL) {
+    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
+      tFreeStreamTask(pTask);
+      return -1;
+    }
+
+    if (streamMetaSaveTask(pMeta, pTask) < 0) {
+      tFreeStreamTask(pTask);
+      return -1;
+    }
+
+    if (streamMetaCommit(pMeta) < 0) {
+      tFreeStreamTask(pTask);
+      return -1;
+    }
     taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+  } else {
+    return 0;
   }
 
   taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, POINTER_BYTES);
@@ -268,12 +268,14 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
+
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
 
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
-
     int32_t num = taosArrayGetSize(pMeta->pTaskList);
+
+    qDebug("s-task:%s set the drop task flag, remain running s-task:%d", pTask->id.idStr, num - 1);
     for (int32_t i = 0; i < num; ++i) {
       int32_t* pTaskId = taosArrayGet(pMeta->pTaskList, i);
       if (*pTaskId == taskId) {
@@ -283,6 +285,8 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
     }
 
     streamMetaReleaseTask(pMeta, pTask);
+  } else {
+    qDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", pMeta->vgId, taskId);
   }
 
   taosWUnLockLatch(&pMeta->lock);
@@ -355,22 +359,29 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     tDecodeStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
 
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.version) < 0) {
+    // remove duplicate
+    void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
+    if (p == NULL) {
+      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.version) < 0) {
+        tdbFree(pKey);
+        tdbFree(pVal);
+        tdbTbcClose(pCur);
+        taosMemoryFree(pTask);
+        return -1;
+      }
+      taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
+    } else {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);
-      return -1;
+      taosMemoryFree(pTask);
+      continue;
     }
-
-    void* p = taosHashGet(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
-    if (p == NULL) {
-      taosArrayPush(pMeta->pTaskList, &pTask->id.taskId);
-    }
-
     if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);
+      taosMemoryFree(pTask);
       return -1;
     }
 
