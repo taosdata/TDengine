@@ -898,11 +898,25 @@ export default {
                     if (
                       data.groups[index].params[g].name == "opc_table_config"
                     ) {
-                      console.log('opc_table_config','---');
+                      console.log("opc_table_config", "---");
                     } else {
-                      querystr +=
-                        `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                        "&";
+                      console.log(
+                        data.groups[index].params[g].name,
+                        data.groups[index].params[g].value,
+                        "group"
+                      );
+                      if (data.groups[index].params[g].name == "debug") {
+                        querystr +=
+                          `${data.groups[index].params[g].name}=${
+                            data.groups[index].params[g].value == 1
+                              ? true
+                              : false
+                          }` + "&";
+                      } else {
+                        querystr +=
+                          `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                          "&";
+                      }
                     }
 
                     // }

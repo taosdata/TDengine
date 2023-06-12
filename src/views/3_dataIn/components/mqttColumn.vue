@@ -28,7 +28,7 @@
         v-model="radio"
         label="2"
         @input="checkTag"
-        :disabled="colData['name'] == ''"
+        :disabled="colData['name'] == ''||colData['name']==currentPrimary"
         >&nbsp;</el-radio
       >
     </li>
