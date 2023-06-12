@@ -357,7 +357,7 @@ pub async fn pi_to_taos(
                 .stderr(std::process::Stdio::piped());
 
             output = child.output().await?;
-            writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stdout))?;
+            writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
 
             child_command = child.spawn().context("Start PI collector error")?;
         }
@@ -370,7 +370,7 @@ pub async fn pi_to_taos(
                 .stderr(std::process::Stdio::piped());
 
             output = child.output().await?;
-            writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stdout))?;
+            writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
 
             child_command = child.spawn().context("Start PI Backfill error")?;
         }
@@ -480,12 +480,17 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     log::info!("log file dir: {}", &log_path.display());
 
-    let log_file = fs::OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(&log_path)
-        .unwrap();
-    let log_io = Stdio::from(log_file);
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        None,
+    );
 
     let output = command
         .arg("-f")
@@ -493,9 +498,11 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .arg("-p")
         .arg(point_filter)
         .stdout(std::process::Stdio::piped())
-        .stderr(log_io)
+        .stderr(std::process::Stdio::piped())
         .output()
         .await?;
+
+    writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
     // .context("Start PI collector error")?;
     log::info!("PI Connector exit with status {}", output.status);
 
