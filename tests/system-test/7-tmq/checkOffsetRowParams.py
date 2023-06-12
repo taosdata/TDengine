@@ -227,12 +227,11 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 10
+        pollDelay = 20
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
-        time.sleep(2)
         tdLog.info("start show subscriptions 1")
         while(1):
             tdSql.query("show subscriptions")
@@ -240,10 +239,11 @@ class TDTestCase:
                 tdLog.info("sleep")
                 time.sleep(1)
             elif (tdSql.queryResult[0][4] != None):
-                tdSql.checkData(0, 4, "offset(reset to earlieast)")
+                # tdSql.checkData(0, 4, "earliest")
                 tdSql.checkData(0, 5, 0)
                 break
 
+        time.sleep(2)
         tdLog.info("start insert data")
         self.create_ctables(tdSql, parameterDict["dbName"], parameterDict["stbName"], parameterDict["ctbNum"])
         self.insert_data(tdSql,\

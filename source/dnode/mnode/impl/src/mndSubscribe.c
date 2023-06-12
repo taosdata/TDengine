@@ -451,24 +451,42 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     taosArrayPush(pOutput->rebVgs, pRebOutput);
     if(taosHashGetSize(pOutput->pSub->consumerHash) == 0){    // if all consumer is removed
       taosArrayPush(pOutput->pSub->unassignedVgs, &pRebOutput->pVgEp);  // put all vg into unassigned
-      SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pInput->pRebInfo->key); // put all offset rows
-      if(pSub){
-        taosRLockLatch(&pSub->lock);
-        if(pOutput->pSub->offsetRows == NULL){
-          pOutput->pSub->offsetRows = taosArrayInit(4, sizeof(OffsetRows));
-        }else{
-          taosArrayClear(pOutput->pSub->offsetRows);
-        }
-        pIter = NULL;
-        while(1){
-          pIter = taosHashIterate(pSub->consumerHash, pIter);
-          if (pIter == NULL) break;
-          SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
-          taosArrayAddAll(pOutput->pSub->offsetRows, pConsumerEp->offsetRows);
-        }
-        taosRUnLockLatch(&pSub->lock);
-        mndReleaseSubscribe(pMnode, pSub);
+    }
+  }
+
+  if(taosHashGetSize(pOutput->pSub->consumerHash) == 0) {                            // if all consumer is removed
+    SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pInput->pRebInfo->key);  // put all offset rows
+    if (pSub) {
+      taosRLockLatch(&pSub->lock);
+      bool init = false;
+      if (pOutput->pSub->offsetRows == NULL) {
+        pOutput->pSub->offsetRows = taosArrayInit(4, sizeof(OffsetRows));
+        init = true;
       }
+      pIter = NULL;
+      while (1) {
+        pIter = taosHashIterate(pSub->consumerHash, pIter);
+        if (pIter == NULL) break;
+        SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
+        if (init) {
+          taosArrayAddAll(pOutput->pSub->offsetRows, pConsumerEp->offsetRows);
+          mDebug("pSub->offsetRows is init");
+        } else {
+          for (int j = 0; j < taosArrayGetSize(pConsumerEp->offsetRows); j++) {
+            OffsetRows *d1 = taosArrayGet(pConsumerEp->offsetRows, j);
+            for (int i = 0; i < taosArrayGetSize(pOutput->pSub->offsetRows); i++) {
+              OffsetRows *d2 = taosArrayGet(pOutput->pSub->offsetRows, i);
+              if (d1->vgId == d2->vgId) {
+                d2->rows += d1->rows;
+                d2->offset = d1->offset;
+                mDebug("pSub->offsetRows add vgId:%d, after:%lld, before:%lld", d2->vgId, d2->rows, d1->rows);
+              }
+            }
+          }
+        }
+      }
+      taosRUnLockLatch(&pSub->lock);
+      mndReleaseSubscribe(pMnode, pSub);
     }
   }
 

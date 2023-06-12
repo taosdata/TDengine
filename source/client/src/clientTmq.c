@@ -99,6 +99,7 @@ struct tmq_t {
   // poll info
   int64_t pollCnt;
   int64_t totalRows;
+  bool    needReportOffsetRows;
 
   // timer
   tmr_h       hbLiveTimer;
@@ -796,20 +797,24 @@ void tmqSendHbReq(void* param, void* tmrId) {
   SMqHbReq req = {0};
   req.consumerId = tmq->consumerId;
   req.epoch = tmq->epoch;
-  req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
-  for(int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++){
-    SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-    int32_t         numOfVgroups = taosArrayGetSize(pTopic->vgs);
-    TopicOffsetRows* data = taosArrayReserve(req.topics, 1);
-    strcpy(data->topicName, pTopic->topicName);
-    data->offsetRows = taosArrayInit(numOfVgroups, sizeof(OffsetRows));
-    for(int j = 0; j < numOfVgroups; j++){
-      SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
-      OffsetRows* offRows = taosArrayReserve(data->offsetRows, 1);
-      offRows->vgId = pVg->vgId;
-      offRows->rows = pVg->numOfRows;
-      offRows->offset = pVg->offsetInfo.committedOffset;
+  if(tmq->needReportOffsetRows){
+    req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
+    for(int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++){
+      SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
+      int32_t         numOfVgroups = taosArrayGetSize(pTopic->vgs);
+      TopicOffsetRows* data = taosArrayReserve(req.topics, 1);
+      strcpy(data->topicName, pTopic->topicName);
+      data->offsetRows = taosArrayInit(numOfVgroups, sizeof(OffsetRows));
+      for(int j = 0; j < numOfVgroups; j++){
+        SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
+        OffsetRows* offRows = taosArrayReserve(data->offsetRows, 1);
+        offRows->vgId = pVg->vgId;
+        offRows->rows = pVg->numOfRows;
+        offRows->offset = pVg->offsetInfo.committedOffset;
+        tscDebug("report offset: %d", offRows->offset.type);
+      }
     }
+    tmq->needReportOffsetRows = false;
   }
 
   int32_t tlen = tSerializeSMqHbReq(NULL, 0, &req);
@@ -1087,6 +1092,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->status = TMQ_CONSUMER_STATUS__INIT;
   pTmq->pollCnt = 0;
   pTmq->epoch = 0;
+  pTmq->needReportOffsetRows = true;
 
   // set conf
   strcpy(pTmq->clientId, conf->clientId);
@@ -2449,6 +2455,7 @@ int32_t tmqCommitDone(SMqCommitCbParamSet* pParamSet) {
   // if no more waiting rsp
   pParamSet->callbackFn(tmq, pParamSet->code, pParamSet->userParam);
   taosMemoryFree(pParamSet);
+  tmq->needReportOffsetRows = true;
 
   taosReleaseRef(tmqMgmt.rsetId, refId);
   return 0;
