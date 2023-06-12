@@ -113,7 +113,6 @@ datasets:
       selectable: true
 
 groups:
-
   - name: Connection
     display_order: 2
     description: Some configurations used in connecting step.
@@ -169,8 +168,26 @@ groups:
             - observe
             - subscribe
 
-  - name: Others
+  - name: Table Config
     display_order: 4
+    description: | 
+      Stable Config
+
+      - **received_time**: time opc collector received<br>
+      - **original_time**: time from opc server <br>
+      - **value**: point value<br>
+      - **status**: point status<br>
+
+    params:
+      - name: opc_table_config
+        display: OPC Table Config
+        required: true
+        placeholder: 10
+        hint:
+          type: json
+
+  - name: Others
+    display_order: 5
     description: Other configurations.
     params:
       - name: concurrent
@@ -196,8 +213,9 @@ groups:
           max: 60
         description: Reporting timeout for a batch in seconds.
         placeholder: 20
-      - name: use_received_time
-        display: use_received_time
+        
+      - name: debug
+        display: Enable Debug Log
         hint:
           type: bool
-        description: use data received time as timestamp not server time
+        description: Set true to enable Debug log

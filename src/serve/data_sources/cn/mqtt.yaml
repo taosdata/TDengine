@@ -17,14 +17,6 @@ options:
     description: |
       Mqtt server endpoint. e.g: 127.0.0.1:1883
     placeholder: 127.0.0.1:1883
-  username:
-    display: 用户名
-    description: MQTT Broker 用户名。
-    placeholder: username
-  password:
-    display: 密码
-    description: MQTT Broker 密码。
-    placeholder: password
 
 authentication:
   display: 认证
@@ -37,11 +29,9 @@ authentication:
       username:
         display: 用户
         placeholder: username
-        required: true
       password:
         display: 密码
         placeholder: password
-        required: false
 
 groups:
   - name: SSL 证书

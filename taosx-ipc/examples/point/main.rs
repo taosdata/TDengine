@@ -5,7 +5,7 @@ use anyhow::Result;
 use arrow::{
     array::{
         make_builder, Float32Builder, StringBuilder, StructBuilder, TimestampMillisecondBuilder,
-        UInt8Array,
+        UInt8Array, Int32Builder,
     },
     datatypes::{DataType, Field, Fields, Schema},
     ipc::writer::StreamWriter,
@@ -33,31 +33,15 @@ async fn main() -> Result<()> {
             false,
         ),
         Field::new("id", ArrowDataType::Utf8, false),
-        Field::new("value", ArrowDataType::Float32, false),
+        Field::new("value", ArrowDataType::Utf8, false),
+        Field::new("received", DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None), false),
+        Field::new("name", ArrowDataType::Utf8, false),
+        Field::new("status", ArrowDataType::Int32, false),
     ];
     // let opc_columns = Fields::from_iter(&opc_columns);
     let fields = Fields::from((&opc_columns).clone());
     let record = DataType::Struct(fields);
-    let record_list = DataType::List(Arc::new(Field::new("item", record.clone(), true)));
-    let schema = Schema::new(vec![
-        Field::new("__type__", DataType::UInt8, false),
-        // Field::new_dict(
-        //     "__tables__",
-        //     DataType::List(Box::new(Field::new("item", DataType::Utf8, true))),
-        //     true,
-        //     LushMessageType::Children as u8 as _,
-        //     false,
-        // ),
-        // Field::new_dict(
-        //     "__attrs__",
-        //     DataType::Utf8,
-        //     true,
-        //     0,
-        //     false,
-        // ),
-        Field::new_dict("__records__", record_list, true, 3, false),
-    ])
-    .with_metadata(metadata);
+    let schema = Schema::new(opc_columns).with_metadata(metadata);
 
     let mut writer = StreamWriter::try_new(&stream, &schema)?;
     // let schema = Arc::new(schema);
@@ -67,58 +51,38 @@ async fn main() -> Result<()> {
     let mut ms = now.timestamp_millis() - 10000;
 
     loop {
-        let mut list_struct_builder = ListOfStructBuilder::new(opc_columns.clone(), 3);
-        let builder = list_struct_builder.values();
-        builder.append(true);
-        builder
-            .field_builder::<TimestampMillisecondBuilder>(0)
-            .unwrap()
-            .append_value(ms + 1000);
+        let mut timestamp_builder = TimestampMillisecondBuilder::new();
+        timestamp_builder.append_value(ms + 1000);
+        let timestamp = timestamp_builder.finish();
+        let mut id_builder = StringBuilder::new();
+        id_builder.append_value("1");
+        let id = id_builder.finish();
+        let mut value_builder = StringBuilder::new();
+        value_builder.append_value("12312311111111111111");
+        let value = value_builder.finish();
+        let mut received_builder = TimestampMillisecondBuilder::new();
+        received_builder.append_value(ms + 1000);
+        let received = received_builder.finish();
+        let mut name_builder = StringBuilder::new();
+        name_builder.append_value("ddddd0---name-------");
+        let name = name_builder.finish();
 
-        builder
-            .field_builder::<StringBuilder>(1)
-            .unwrap()
-            .append_value("1");
-        builder
-            .field_builder::<Float32Builder>(2)
-            .unwrap()
-            .append_value(101.);
-        builder.append(true);
-        builder
-            .field_builder::<TimestampMillisecondBuilder>(0)
-            .unwrap()
-            .append_value(ms + 1000);
-
-        builder
-            .field_builder::<StringBuilder>(1)
-            .unwrap()
-            .append_value("3");
-        builder
-            .field_builder::<Float32Builder>(2)
-            .unwrap()
-            .append_value(101.);
-
-        let list = list_struct_builder.finish();
-        let _attrs = StructBuilder::new(
-            opc_columns.clone(),
-            opc_columns
-                .iter()
-                .map(|f| make_builder(f.data_type(), 3))
-                .collect(),
-        )
-        .finish();
-
+        let mut status_builder = Int32Builder::new();
+        status_builder.append_value(123);
+        let status = status_builder.finish();
+        // dbg!(&timestamp);
         let batch = RecordBatch::try_new(
             Arc::new(schema.clone()),
             vec![
-                Arc::new(UInt8Array::from(vec![3 as u8])), // __type
-                // Arc::new(StructArray::from(vec![])),                   // __tables__
-                // Arc::new(StructArray::from(vec![])),                   // __tables__
-                Arc::new(list),
+                Arc::new(timestamp),
+                Arc::new(id),
+                Arc::new(value),
+                Arc::new(received),
+                Arc::new(name),
+                Arc::new(status),
             ],
         )?;
         dbg!(&batch);
-
         writer.write(&batch)?;
 
         records += batch.num_rows();

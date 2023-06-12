@@ -57,7 +57,7 @@ enum OpcError {
     FileParseFound(String),
     #[error("config file content is empty in {0}")]
     EmptyConfig(String),
-    #[error("node config length is not 4, length is {0}")]
+    #[error("node config error {0}")]
     NodeConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
@@ -69,18 +69,34 @@ enum OpcError {
 pub struct OPCConfig {
     opc_type: OpcType,
     debug: bool,
-    #[serde(skip)]
+    // #[serde(skip)]
     /// use receviced time as ts cloumn value when config true
-    use_received_time: bool,
+    // use_received_time: bool,
     connect: ConnectConfig,
     collect: CollectConfig,
     report: ReportConfig,
 
     #[serde(skip)]
-    param_mapping: HashMap<String, (String, String, IpcDataType)>,
-    #[serde(skip)]
+    param_mapping: HashMap<String, String>,
+    // #[serde(skip)]
     /// table_info: table_name, Vec<(field, type)>
-    table_info: HashMap<String, Vec<(String, String)>>,
+    // table_info: HashMap<String, Vec<(String, String)>>,
+    #[serde(skip)]
+    opc_table_config: Option<TableConfig>,
+}
+
+#[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
+pub struct TableConfig {
+    pub stable_prefix: String,
+    pub column_configs: Vec<ColumnConfig>,
+}
+
+#[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
+pub struct ColumnConfig {
+    pub column_name: String,
+    pub column_type: Option<Ty>,
+    pub column_alias: Option<String>,
+    pub is_primary_key: bool,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -153,7 +169,7 @@ impl FromStr for CollectMode {
 #[derive(Debug, serde::Serialize)]
 struct UANodeConfig {
     id: String,
-    value_type: String,
+    // value_type: String,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -164,7 +180,7 @@ struct DaCollectConfig {
 #[derive(Debug, serde::Serialize)]
 struct DaNodeConfig {
     tag: String,
-    value_type: String,
+    // value_type: String,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -281,27 +297,29 @@ impl OPCConfig {
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
-                    if pair.len() != 4 {
-                        return Err(OpcError::NodeConfig(pair.len().to_string()));
+                    if pair.len() != 2 {
+                        let pair = pair.join("::");
+                        return Err(OpcError::NodeConfig(format!("node config: {pair} split result len is not 2")));
                     }
                     let id = String::from(pair[0]);
-                    let table = String::from(pair[1]);
-                    let field = String::from(pair[2]);
-                    let value_type = String::from(pair[3]);
+                    let code = String::from(pair[1]);
+                    // let field = String::from(pair[2]);
+                    // let value_type = String::from(pair[3]);
                     let ua_node_config = UANodeConfig {
                         id: id.clone(),
-                        value_type: value_type.clone(),
+                        // value_type: value_type.clone(),
                     };
                     param_mapping.insert(
                         id,
-                        (
-                            table.clone(),
-                            field.clone(),
-                            IpcDataType::from_str(value_type.to_lowercase().as_str()).unwrap(),
-                        ),
+                        code,
+                        // (
+                        //     table.clone(),
+                        //     field.clone(),
+                        //     IpcDataType::from_str(value_type.to_lowercase().as_str()).unwrap(),
+                        // ),
                     );
                     ua_node_config_vec.push(ua_node_config);
-                    process_table_info(&mut table_info, table, field, value_type);
+                    // process_table_info(&mut table_info, table, field, value_type);
                 }
                 let collect_mode = dsn.remove("collect_mode").unwrap_or("observe".to_string());
                 let collect_ua_config = UaCollectConfig {
@@ -346,23 +364,28 @@ impl OPCConfig {
                 let mut da_nodes_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
+                    if pair.len() != 2 {
+                        let pair = pair.join("::");
+                        return Err(OpcError::NodeConfig(format!("node config: {pair} split result len is not 2")));
+                    }
                     let tag = String::from(pair[0]);
-                    let table = String::from(pair[1]);
-                    let field = String::from(pair[2]);
-                    let value_type = String::from(pair[3]);
+                    let code = String::from(pair[1]);
+                    // let field = String::from(pair[2]);
+                    // let value_type = String::from(pair[3]);
                     da_nodes_vec.push(DaNodeConfig {
                         tag: tag.clone(),
-                        value_type: value_type.clone(),
+                        // value_type: value_type.clone(),
                     });
                     param_mapping.insert(
                         tag,
-                        (
-                            table.clone(),
-                            field.clone(),
-                            IpcDataType::from_str(&value_type.to_lowercase().as_str()).unwrap(),
-                        ),
+                        code,
+                        // (
+                            // table.clone(),
+                            // field.clone(),
+                            // IpcDataType::from_str(&value_type.to_lowercase().as_str()).unwrap(),
+                        // ),
                     );
-                    process_table_info(&mut table_info, table, field, value_type);
+                    // process_table_info(&mut table_info, table, field, value_type);
                 }
                 collect = CollectConfig {
                     interval,
@@ -395,18 +418,18 @@ impl OPCConfig {
         } else {
             false
         };
-        let use_received_time = if let Some(v) = dsn
-            .remove("use_received_time")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| OpcError::ParseError("use_received_time", v))
-            })
-            .transpose()?
-        {
-            v
-        } else {
-            false
-        };
+        // let use_received_time = if let Some(v) = dsn
+        //     .remove("use_received_time")
+        //     .map(|v| {
+        //         v.parse::<bool>()
+        //             .map_err(|err| OpcError::ParseError("use_received_time", v))
+        //     })
+        //     .transpose()?
+        // {
+        //     v
+        // } else {
+        //     false
+        // };
 
         let report = ReportConfig {
             remote,
@@ -414,130 +437,139 @@ impl OPCConfig {
             batch_size,
             batch_timeout,
         };
+        let opc_table_config = dsn.remove("opc_table_config");
+        let opc_table_config: Option<TableConfig> = if opc_table_config.is_some() {
+            Some(serde_json::from_str(opc_table_config.unwrap().as_str()).map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?)
+        } else {
+            None
+        };
         Ok(OPCConfig {
             opc_type,
             debug,
-            use_received_time,
+            // use_received_time,
             connect,
             collect,
             report,
             param_mapping,
-            table_info,
+            // table_info,
+            opc_table_config
         })
     }
 
     pub async fn parse_tables_with(&self, taos: &Taos) -> anyhow::Result<OpcTableConfig> {
-        let mut ts_cloumn_name_map = HashMap::new();
-        for (table_name, field_info) in &self.table_info {
-            let res = taos.describe(&table_name).await;
-            if res.is_err() {
-                // table not exists, will create normal table
-                let mut sql = if self.use_received_time {
-                    ts_cloumn_name_map.insert(
-                        table_name.clone(),
-                        (
-                            String::from(DEFAULT_TS_COLUMN_NAME),
-                            Some(String::from(DEFAULT_SERVER_TS_COLUMN_NAME)),
-                        ),
-                    );
-                    log::info!("table {table_name} use `ts` as ts column, use `server_ts` as second ts column");
-                    format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP, {DEFAULT_SERVER_TS_COLUMN_NAME} TIMESTAMP ")
-                } else {
-                    ts_cloumn_name_map.insert(
-                        table_name.clone(),
-                        (String::from(DEFAULT_TS_COLUMN_NAME), None),
-                    );
-                    log::info!("table {table_name} use `ts` as ts column");
-                    format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP")
-                };
-                for (field, field_type) in field_info {
-                    sql.push_str(format!(", `{field}` {field_type}").as_str());
-                }
-                sql.push_str(")");
-                log::info!("create normal table: {table_name}, sql: {sql}");
-                taos.exec(&sql).await?;
-            } else {
-                // table exists and check normal table or child table
-                let desc = res.unwrap();
-                let mut field_map = HashMap::new();
-                desc.iter().for_each(|c: &ColumnMeta| match c {
-                    ColumnMeta::Column(d) => {
-                        field_map.insert(d.field.clone(), d.ty.to_string());
-                    }
-                    _ => (),
-                });
-                // insert ts column
-                if self.use_received_time {
-                    if desc.len() < 2 || desc[1].ty != Ty::Timestamp {
-                        anyhow::bail!("table: {} column type not match[len < 2 or second column is not timestamp]", table_name);
-                    }
-                    log::info!(
-                        "table {table_name} use `{}` as ts column, use `{}` as sever ts column",
-                        desc[0].field,
-                        desc[1].field
-                    );
-                    ts_cloumn_name_map.insert(
-                        table_name.clone(),
-                        (desc[0].field.clone(), Some(desc[1].field.clone())),
-                    );
-                } else {
-                    log::info!("table {table_name} use `{}` as ts column", desc[0].field);
-                    ts_cloumn_name_map.insert(table_name.clone(), (desc[0].field.clone(), None));
-                }
-                if desc.is_stable() {
-                    // child table.
-                    for (field, field_type) in field_info {
-                        let field_get = field_map.get(field);
-                        if field_get.is_none() {
-                            anyhow::bail!("field: {} not found in table: {}", field, table_name);
-                        }
-                        if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
-                            anyhow::bail!(
-                                "field: {} type: {} not match in child table: {} which type is {}",
-                                field,
-                                field_type,
-                                table_name,
-                                field_get.unwrap()
-                            );
-                        }
-                    }
-                } else {
-                    // ordinary table.
-                    let mut columns_to_add = HashMap::new();
-                    for (field, field_type) in field_info {
-                        let field_get = field_map.get(field);
-                        if field_get.is_none() {
-                            // column not exists and alter table
-                            columns_to_add.insert(field, field_type);
-                        } else if !check_field_type(
-                            field_get.unwrap(),
-                            field_type.to_ascii_lowercase(),
-                        ) {
-                            anyhow::bail!(
-                                "field: {} type: {} not match in normal table: {} which type is {} ",
-                                field,
-                                field_type,
-                                table_name,
-                                field_get.unwrap()
-                            );
-                        }
-                    }
-                    if columns_to_add.len() > 0 {
-                        for (field_name, field_type) in columns_to_add {
-                            let alter_sql = format!(
-                                "ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}"
-                            );
-                            log::info!("alter table sql: {}", alter_sql);
-                            taos.exec(alter_sql).await?;
-                        }
-                    }
-                }
-            }
-        }
+        // let mut ts_cloumn_name_map = HashMap::new();
+        // for (table_name, field_info) in &self.table_info {
+        //     let res = taos.describe(&table_name).await;
+        //     if res.is_err() {
+        //         // table not exists, will create normal table
+        //         let mut sql = if self.use_received_time {
+        //             ts_cloumn_name_map.insert(
+        //                 table_name.clone(),
+        //                 (
+        //                     String::from(DEFAULT_TS_COLUMN_NAME),
+        //                     Some(String::from(DEFAULT_SERVER_TS_COLUMN_NAME)),
+        //                 ),
+        //             );
+        //             log::info!("table {table_name} use `ts` as ts column, use `server_ts` as second ts column");
+        //             format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP, {DEFAULT_SERVER_TS_COLUMN_NAME} TIMESTAMP ")
+        //         } else {
+        //             ts_cloumn_name_map.insert(
+        //                 table_name.clone(),
+        //                 (String::from(DEFAULT_TS_COLUMN_NAME), None),
+        //             );
+        //             log::info!("table {table_name} use `ts` as ts column");
+        //             format!("CREATE TABLE IF NOT EXISTS {table_name} (`{DEFAULT_TS_COLUMN_NAME}` TIMESTAMP")
+        //         };
+        //         for (field, field_type) in field_info {
+        //             sql.push_str(format!(", `{field}` {field_type}").as_str());
+        //         }
+        //         sql.push_str(")");
+        //         log::info!("create normal table: {table_name}, sql: {sql}");
+        //         taos.exec(&sql).await?;
+        //     } else {
+        //         // table exists and check normal table or child table
+        //         let desc = res.unwrap();
+        //         let mut field_map = HashMap::new();
+        //         desc.iter().for_each(|c: &ColumnMeta| match c {
+        //             ColumnMeta::Column(d) => {
+        //                 field_map.insert(d.field.clone(), d.ty.to_string());
+        //             }
+        //             _ => (),
+        //         });
+        //         // insert ts column
+        //         if self.use_received_time {
+        //             if desc.len() < 2 || desc[1].ty != Ty::Timestamp {
+        //                 anyhow::bail!("table: {} column type not match[len < 2 or second column is not timestamp]", table_name);
+        //             }
+        //             log::info!(
+        //                 "table {table_name} use `{}` as ts column, use `{}` as sever ts column",
+        //                 desc[0].field,
+        //                 desc[1].field
+        //             );
+        //             ts_cloumn_name_map.insert(
+        //                 table_name.clone(),
+        //                 (desc[0].field.clone(), Some(desc[1].field.clone())),
+        //             );
+        //         } else {
+        //             log::info!("table {table_name} use `{}` as ts column", desc[0].field);
+        //             ts_cloumn_name_map.insert(table_name.clone(), (desc[0].field.clone(), None));
+        //         }
+        //         if desc.is_stable() {
+        //             // child table.
+        //             for (field, field_type) in field_info {
+        //                 let field_get = field_map.get(field);
+        //                 if field_get.is_none() {
+        //                     anyhow::bail!("field: {} not found in table: {}", field, table_name);
+        //                 }
+        //                 if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
+        //                     anyhow::bail!(
+        //                         "field: {} type: {} not match in child table: {} which type is {}",
+        //                         field,
+        //                         field_type,
+        //                         table_name,
+        //                         field_get.unwrap()
+        //                     );
+        //                 }
+        //             }
+        //         } else {
+        //             // ordinary table.
+        //             let mut columns_to_add = HashMap::new();
+        //             for (field, field_type) in field_info {
+        //                 let field_get = field_map.get(field);
+        //                 if field_get.is_none() {
+        //                     // column not exists and alter table
+        //                     columns_to_add.insert(field, field_type);
+        //                 } else if !check_field_type(
+        //                     field_get.unwrap(),
+        //                     field_type.to_ascii_lowercase(),
+        //                 ) {
+        //                     anyhow::bail!(
+        //                         "field: {} type: {} not match in normal table: {} which type is {} ",
+        //                         field,
+        //                         field_type,
+        //                         table_name,
+        //                         field_get.unwrap()
+        //                     );
+        //                 }
+        //             }
+        //             if columns_to_add.len() > 0 {
+        //                 for (field_name, field_type) in columns_to_add {
+        //                     let alter_sql = format!(
+        //                         "ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}"
+        //                     );
+        //                     log::info!("alter table sql: {}", alter_sql);
+        //                     taos.exec(alter_sql).await?;
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
         let c = OpcTableConfig {
-            table_info: self.param_mapping.clone(),
-            ts_cloumn_name: ts_cloumn_name_map.clone(),
-            use_received_time: self.use_received_time,
+            // table_info: self.param_mapping.clone(),
+            // ts_cloumn_name: ts_cloumn_name_map.clone(),
+            // use_received_time: self.use_received_time,
+            id_code_map: self.param_mapping.clone(),
+            table_config: self.opc_table_config.clone().unwrap(),
         };
         Ok(c)
     }
@@ -666,6 +698,9 @@ pub async fn opc_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
     let config = OPCConfig::new(from, ipc_port, OPCConfigMode::Collect)?;
+    if config.opc_table_config.is_none() {
+        anyhow::bail!("should config opc table config");
+    }
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -713,7 +748,6 @@ pub async fn opc_to_taos(
     let mut command = tokio::process::Command::new(exe_path());
 
     let mut log_path = log_path();
-
     fs::create_dir_all(&log_path)?;
 
     log::info!("log path created: {}", &log_path.display());
@@ -806,12 +840,16 @@ fn check_field_type(field_type_config: &String, field_type: String) -> bool {
 #[derive(Clone, Debug)]
 pub struct OpcTableConfig {
     /// table_info: table_name, Vec<(field, type)>
-    pub(crate) table_info: HashMap<String, (String, String, IpcDataType)>,
+    // pub(crate) table_info: HashMap<String, (String, String, IpcDataType)>,
 
     /// table_name, ts column
-    pub(crate) ts_cloumn_name: HashMap<String, (String, Option<String>)>,
+    // pub(crate) ts_cloumn_name: HashMap<String, (String, Option<String>)>,
 
-    pub(crate) use_received_time: bool,
+    // pub(crate) use_received_time: bool,
+
+    pub(crate) id_code_map: HashMap<String, String>,
+
+    pub(crate) table_config: TableConfig,
 }
 
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
@@ -855,23 +893,23 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         serde_json::to_string(&res).unwrap_or("".to_string())
     );
     let options = vec![
+        // OptionSet {
+        //     name: "table".to_string(),
+        //     description: Some("Table name".to_string()),
+        //     required: true,
+        // },
+        // OptionSet {
+        //     name: "field".to_string(),
+        //     description: Some("Field name".to_string()),
+        //     required: true,
+        // },
         OptionSet {
-            name: "table".to_string(),
-            description: Some("Table name".to_string()),
-            required: true,
-        },
-        OptionSet {
-            name: "field".to_string(),
-            description: Some("Field name".to_string()),
-            required: true,
-        },
-        OptionSet {
-            name: "type".to_string(),
-            description: Some("Field type".to_string()),
+            name: "code".to_string(),
+            description: Some("Code".to_string()),
             required: true,
         },
     ];
-    let format = Some("{id}::{table}::{field}::{type}".to_string());
+    let format = Some("{id}::{code}".to_string());
     if let Some(pattern) = req.pattern.as_deref() {
         let regex = regex::Regex::from_str(pattern)?;
         // regex.is_match(text)
@@ -915,16 +953,43 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     let mut map = HashMap::new();
     map.insert(
         String::from("123"),
-        (
-            String::from("meter"),
-            String::from("cu"),
-            IpcDataType::Float32,
-        ),
+        String::from("567"),
+        // (
+        //     String::from("meter"),
+        //     String::from("cu"),
+        //     IpcDataType::Float32,
+        // ),
     );
+    let mut column_configs = Vec::new();
+    let column_config = ColumnConfig {
+        column_name: String::from("received_time"),
+        column_type: Some(Ty::Timestamp),
+        column_alias: Some("ts".to_string()),
+        is_primary_key: true,
+    };
+    column_configs.push(column_config);
+    let column_config = ColumnConfig {
+        column_name: String::from("original_time"),
+        column_type: Some(Ty::Timestamp),
+        column_alias: None,
+        is_primary_key: false,
+    };
+    column_configs.push(column_config);
+    let column_config = ColumnConfig {
+        column_name: String::from("value"),
+        column_type: Some(Ty::Timestamp),
+        column_alias: None,
+        is_primary_key: true,
+    };
+    column_configs.push(column_config);
+    let opc_table_config = TableConfig {
+        stable_prefix: "meters".to_string(),
+        column_configs,
+    };
     let config = OPCConfig {
         opc_type: OpcType::OPCUA,
         debug: true,
-        use_received_time: true,
+        // use_received_time: true,
         connect: ConnectConfig {
             ua: Some(UaConnectConfig {
                 endpoint: String::from("endpoint.123"),
@@ -953,13 +1018,13 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
                     .map_err(|err| OpcError::ParseError("collect_mode", err))?,
                 nodes: vec![UANodeConfig {
                     id: String::from("1"),
-                    value_type: String::from("DOUBLE"),
+                    // value_type: String::from("DOUBLE"),
                 }],
             }),
             da: Some(DaCollectConfig {
                 tags: vec![DaNodeConfig {
                     tag: String::from("123"),
-                    value_type: String::from("VARCHAR"),
+                    // value_type: String::from("VARCHAR"),
                 }],
             }),
         },
@@ -970,7 +1035,8 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
             batch_timeout: Some(100),
         },
         param_mapping: map,
-        table_info: HashMap::new(),
+        // table_info: HashMap::new(),
+        opc_table_config: Some(opc_table_config),
     };
     let toml = toml::to_string(&config)?;
     assert_eq!(
@@ -998,11 +1064,9 @@ collect_mode = "observe"
 
 [[collect.ua.nodes]]
 id = "1"
-value_type = "DOUBLE"
 
 [[collect.da.tags]]
 tag = "123"
-value_type = "VARCHAR"
 
 [report]
 remote = "remote.remote"

@@ -3,15 +3,16 @@ use std::{
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path,
+    path::Path, 
 };
 use taos::sync::*;
+use taos_query::{AsyncQueryable, RawBlock, AsyncFetchable};
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
-    stream::{flat::FlatMessage, point::PointMessage},
+    stream::{flat::FlatMessage, point::{PointMessage, self}},
 };
 use tokio::runtime::Runtime;
-use tracing::{info, instrument};
+use tracing::{info, instrument, log};
 
 use taosx_ipc::prelude::*;
 
@@ -40,7 +41,7 @@ fn ipc_test<R: Read, W: Write>(
     ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
     let dsn =
-        std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://192.168.0.201:56041/pi".to_string());
+        std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://192.168.0.201:46041/opc".to_string());
     let mut dsn: Dsn = dsn.parse()?;
     let builder = TaosBuilder::from_dsn(&dsn)?;
 
@@ -49,7 +50,7 @@ fn ipc_test<R: Read, W: Write>(
         let subject = dsn.subject.take();
         let new_builder = TaosBuilder::from_dsn(&dsn).unwrap();
         let taos = new_builder.build().unwrap();
-        taos.exec(format!("create database `{}`", subject.unwrap()))
+        taos.exec_sync(format!("create database `{}`", subject.unwrap()))
             .unwrap();
         builder.build().unwrap()
     });
@@ -154,7 +155,7 @@ fn handle_lush_message<R: Read, W: Write>(
     let _rt = Runtime::new().unwrap();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         info!("{sql}");
-        taos.exec(&sql)?;
+        taos.exec_sync(&sql)?;
         // taos.exec_sync(&sql).unwrap();
     }
     let columns = ipc_reader
@@ -175,7 +176,7 @@ fn handle_lush_message<R: Read, W: Write>(
                 LushMessage::Tables(tables) => {
                     for table in tables {
                         let sql = table.to_sql(None).unwrap();
-                        taos.exec(&sql)?;
+                        taos.exec_sync(&sql)?;
                     }
                 }
                 LushMessage::Insert(record) => {
@@ -200,7 +201,7 @@ fn handle_lush_message<R: Read, W: Write>(
                                     {
                                         info!("sql: {tb}");
                                         // taos.exec_sync(&tb).unwrap();
-                                        taos.exec(&tb)?;
+                                        taos.exec_sync(&tb)?;
                                         // stmt.set_tbname(table_name).unwrap();
                                     }
                                 }
@@ -255,7 +256,7 @@ fn handle_lush_message<R: Read, W: Write>(
                                         "insert into {table_name} {column_names} VALUES {values}"
                                     );
                                     println!("sql: {sql}");
-                                    let res = taos.exec(sql).unwrap();
+                                    let res = taos.exec_sync(sql).unwrap();
                                     info!("written [{res}] records for table {table_name}");
                                 });
                             } else {
@@ -278,40 +279,61 @@ fn handle_lush_message<R: Read, W: Write>(
     Ok(())
 }
 
+#[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
+pub struct TableConfig {
+    pub stable_prefix: String,
+    pub column_configs: Vec<ColumnConfig>,
+}
+
+#[derive(Clone, serde::Deserialize, Debug, serde::Serialize)]
+pub struct ColumnConfig {
+    pub column_name: String,
+    pub column_type: Option<Ty>,
+    pub column_latest_alias: Option<String>,
+    pub column_alias: Option<String>,
+    pub is_primary_key: bool,
+}
+
+use anyhow::Context;
 fn handle_point_message<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     taos: Taos,
     mut ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
-    // let rt = Runtime::new().unwrap();
-    // TODO use the map initialized
-    let mut map = HashMap::new();
-    map.insert(
-        String::from("1"),
-        (
-            String::from("d1004"),
-            String::from("current"),
-            IpcDataType::Float32,
-        ),
-    );
-    map.insert(
-        String::from("2"),
-        (
-            String::from("d1004"),
-            String::from("voltage"),
-            IpcDataType::Int32,
-        ),
-    );
-    map.insert(
-        String::from("3"),
-        (
-            String::from("d1004"),
-            String::from("phase"),
-            IpcDataType::Float32,
-        ),
-    );
-
+    let mut id_code_map = HashMap::new();
+    id_code_map.insert("1".to_string(), "d110".to_string());
+    id_code_map.insert("2".to_string(), "d112".to_string());
+    let table_config: TableConfig = serde_json::from_str(r#"{
+        "stable_prefix": "meters",
+        "column_configs":
+        [
+            {
+                "column_name": "received_time",
+                "column_type": "timestamp",
+                "column_alias": "ts",
+                "is_primary_key": true
+            },
+            {
+                "column_name": "original_time",
+                "column_type": "timestamp",
+                "is_primary_key": false
+            },
+            {
+                "column_name": "value",
+                "column_alias": "valueaa",
+                "is_primary_key": false
+            },
+            {
+                "column_name": "status",
+                "column_alias": "ss",
+                "column_type": "int",
+                "is_primary_key": false
+            }
+        ]
+    }"#).unwrap();
+    let mut stmt = Stmt::init(&taos)?;
     let mut records_count = 0;
+    let runtime = tokio::runtime::Runtime::new()?;
     for record in ipc_reader {
         if let Ok(record) = record {
             let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
@@ -321,36 +343,213 @@ fn handle_point_message<R: Read, W: Write>(
             dbg!(&record);
             // let record = record.as_any().downcast_ref::<PointMessage>().unwrap();
             for message in record.records() {
-                dbg!(&message.record());
-                let mut cv_vec =
-                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
-                let mut stmt = Stmt::init(&taos)?;
-                // process id, ts, value
+                let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+                // process id, name, ts, value, status
                 let schema = message.schema();
-                let id_index = schema.index_of("id").unwrap();
-                let ts_index = schema.index_of("ts").unwrap();
-                let value_index = schema.index_of("value").unwrap();
-                let id_cv = cv_vec.remove(id_index);
-                dbg!(&cv_vec);
+                let id_index = schema.index_of("id")?;
+                let name_index = schema.index_of("name")?;
+                let server_ts_index = schema.index_of("ts")?;
+                let value_index = schema.index_of("value")?;
+                let value_field = schema.field_with_name("value")?;
+                let received_index = schema.index_of("received")?;
+                let status_index = schema.index_of("status")?;
+                let id_cv = cv_vec.get(id_index).unwrap();
+                let name_cv = cv_vec.get(name_index).unwrap();
+                let server_ts_cv = cv_vec.get(server_ts_index).unwrap();
+                let received_ts_cv = cv_vec.get(received_index).unwrap();
+                let value_cv = cv_vec.get(value_index).unwrap();
+                let status_cv = cv_vec.get(status_index).unwrap();
+        
+                // let table_info = &config.table_info;
+                // let ts_cloumn = &config.ts_cloumn_name;
+                let value_type = IpcDataType::from(value_field.data_type()).sql_repr();
+        
+                let mut stable_prefix = table_config.stable_prefix.clone();
+                let stable_name = if value_type.contains("varchar") {
+                    stable_prefix.push_str("_varchar");
+                    stable_prefix
+                } else if value_type.contains("nchar") {
+                    stable_prefix.push_str("_nchar");
+                    stable_prefix
+                } else {
+                    stable_prefix.push_str(format!("_{value_type}").as_str());
+                    stable_prefix
+                };
+                let mut columns = String::new();
+                let mut columns_insert: Vec<(String, String)> = Vec::new(); // first is primary key info, its type should be timestamp
+                for column_config in &table_config.column_configs {
+                    if column_config.is_primary_key {
+                        let primary_key_column_name = column_config.column_name.clone();
+                        let prinmary_key_column_alias = column_config.column_alias.clone().unwrap_or(primary_key_column_name.clone());
+                        columns_insert.insert(0, (primary_key_column_name, prinmary_key_column_alias.clone()));
+                        columns.insert_str(0, format!("{prinmary_key_column_alias} TIMESTAMP,").as_str());
+                    } else {
+                        let primary_key_column_name = column_config.column_name.clone();
+                        let prinmary_key_column_alias = column_config.column_alias.clone().unwrap_or(primary_key_column_name.clone());
+                        columns_insert.push((primary_key_column_name, prinmary_key_column_alias.clone()));
+                        let column_type = if column_config.column_type.is_some() {
+                            column_config.column_type.unwrap().to_string()
+                        } else {
+                            value_type.clone()
+                        };
+                        columns.push_str(format!("{prinmary_key_column_alias} {},", column_type).as_str());
+                    }
+                }
+                // remove last char
+                columns.pop();
+                let tags = "`point_id` VARCHAR(2), `point_name` VARCHAR(2)";
+                let stable_sql = format!("create table if not exists `{}` ({}) tags ({}) COMMENT '{}'", stable_name, columns, tags, serde_json::to_string(&table_config).unwrap().replace("\"", "\\\""));
                 for i in 0..id_cv.len() {
                     let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
-                    let (table, field, _) = map.get(&id).unwrap();
-                    let sql = if ts_index > value_index {
-                        format!("insert into {table} ({field}, ts) values (?, ?)")
-                    } else {
-                        format!("insert into {table} (ts, {field}) values (?, ?)")
-                    };
-                    stmt.prepare(&sql).unwrap();
-                    let new_cv_vec = cv_vec
-                        .iter()
-                        .map(|t_cv| t_cv.slice(i..i + 1).unwrap())
-                        .collect_vec();
-                    info!(sql);
-                    dbg!(&new_cv_vec);
-                    stmt.bind(&new_cv_vec.as_slice()).unwrap();
-                    stmt.add_batch().unwrap();
-                    let n = stmt.execute().unwrap();
-                    records_count += n;
+                    let code = id_code_map.get(&id);
+                    if code.is_none() {
+                        log::warn!("id: {} cannot get code", id);
+                        continue;
+                    }
+                    let mut child_table_name = stable_name.clone(); 
+                    child_table_name.push_str(format!("_{}", code.unwrap()).as_str());
+                    let mut insert_sql = format!("insert into `{child_table_name}` ");
+                    // let mut new_cv_vec = Vec::new();
+                    // let mut question_marks = String::new();
+                    let mut values = String::new();
+                    let mut value_cloumn_name = "value";
+                    let mut value_cloumn_length = 128;
+                    let mut field_names = String::new();
+                    for (temp_name, temp_alias) in &columns_insert {
+                        if temp_name == "received_time" {
+                            // new_cv_vec.push(received_ts_cv.slice(i..i + 1).unwrap());
+                            values.push_str(format!("{},", received_ts_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
+                            // question_marks.push_str("?,");
+                        } else if temp_name == "original_time" {
+                            // new_cv_vec.push(server_ts_cv.slice(i..i + 1).unwrap());
+                            // insert_sql.push_str(format!("{temp_alias},").as_str());
+                            values.push_str(format!("{},", server_ts_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
+                            // question_marks.push_str("?,");
+                        } else if temp_name == "value" {
+                            // new_cv_vec.push(value_cv.slice(i..i + 1).unwrap());
+                            let value_column = value_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value();
+                            value_cloumn_length = value_column.len();
+                            values.push_str(format!("{value_column},").as_str());
+                            value_cloumn_name = temp_alias;
+                            // insert_sql.push_str(format!("{temp_alias},").as_str());
+                            // question_marks.push_str("?,");
+                        } else if temp_name == "status" {
+                            // new_cv_vec.push(status_cv.slice(i..i + 1).unwrap());
+                            values.push_str(format!("{},", status_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
+                            // insert_sql.push_str(format!("{temp_alias},").as_str());
+                            // question_marks.push_str("?,");
+                        }
+                        field_names.push_str(format!("{temp_alias},").as_str());
+                    }
+                    // insert_sql.pop();
+                    // question_marks.pop();
+                    values.pop();
+                    field_names.pop();
+                    let point_name = name_cv.slice(i..i+1).unwrap().get(0).unwrap().to_sql_value();
+                    insert_sql.push_str(format!(" USING `{stable_name}` TAGS (\"{id}\", {}) ", &point_name).as_str());
+                    insert_sql.push_str(format!(" ({field_names}) VALUES ({})", values).as_str());
+                    println!("insert sql: {}", insert_sql);
+                    loop {
+                        let sql_res = taos_query::Queryable::exec(&taos, &insert_sql);
+                        match sql_res {
+                            Ok(n) => {
+                                break;
+                            },
+                            Err(err) => {
+                                let errstr = err.to_string();
+                                log::debug!("error: {}", errstr);
+                                if errstr.contains("[0x2603]") {
+                                    // stable not exists
+                                    println!("create stable sql: {}", &stable_sql);
+                                    taos_query::Queryable::exec(&taos, &stable_sql).unwrap();
+                                } else if errstr.contains("[0x2602]") {
+                                    // Illegal number of columns, alter to add columns
+                                    // let query_info_sql = format!("select table_comment from information_schema.ins_stables where stable_name = '{}'", &stable_name);
+                                    // comment should't be null
+                                    // let res: String = taos_query::Queryable::query_one(&taos, &query_info_sql).unwrap().unwrap();
+                                    // let res = res.replace("\\", "");
+                                    // let old_config: TableConfig = serde_json::from_str(&res).unwrap();
+                                    // desc.into_iter().for_each(|column_meta| {
+                                    //     if column_meta.is_tag() {
+                                    //         return;
+                                    //     }
+                                    //     let mut need_add = true;
+                                    //     for column_config in &table_config.column_configs { 
+                                    //         if get_real_column_name(column_config) == column_meta.field() {
+                                    //             need_add = false;
+                                    //             break;
+                                    //         }
+                                    //     }
+                                    //     if need_add {
+                                    //         let add_column_sql = format!("alter table `{stable_name}` ADD COLUMN {} {}", get_real_column_name(column_config), column_config.column_type.unwrap());
+                                    //         println!("add_column_sql:{}", add_column_sql);
+                                    //         taos_query::Queryable::exec(&taos, &add_column_sql).unwrap();
+                                    //     }
+                                    // });
+                                    for column_config in &table_config.column_configs {
+                                        let mut need_add = true;
+                                        let column_name = get_real_column_name(column_config);
+                                        // alter stable column not supported by taosd
+                                        // for old_column_config in &old_config.column_configs {
+                                            // if column_name == &old_column_config.column_name {
+                                        //         if get_real_column_name(&old_column_config) != get_real_column_name(&column_config) {
+                                        //             let modify_column_name_sql = format!("ALTER TABLE `{stable_name}` MODIFY")
+                                        //         }
+                                            // }
+                                        // }
+                                        let desc = taos_query::Queryable::describe(&taos, &stable_name).unwrap();
+                                        desc.into_iter().for_each(|column_meta| {
+                                            if column_name == column_meta.field() {
+                                                need_add = false;
+                                            }
+                                        });
+                                        if need_add {
+                                            let add_column_sql = format!("alter table `{stable_name}` ADD COLUMN {} {}", get_real_column_name(column_config), column_config.column_type.unwrap());
+                                            println!("add_column_sql:{}", add_column_sql);
+                                            taos_query::Queryable::exec(&taos, &add_column_sql).unwrap();
+                                        }
+                                    }
+
+                                    // let update_stable_comment = format!("ALTER TABLE `{stable_name}` COMMENT '{}'", serde_json::to_string(&table_config.column_configs).unwrap());
+                                    // println!("update_stable_comment :{}", &update_stable_comment);
+                                    // taos_query::Queryable::exec(&taos, &update_stable_comment).unwrap();
+                                } else if errstr.contains("[0x2653]") {
+                                    // column length not enough
+                                    runtime.block_on(async {
+                                        let desc = taos_query::Queryable::describe(&taos, &stable_name.as_str()).unwrap();
+                                        desc.into_iter().for_each(|column_meta| {
+                                            let column_type;
+                                            let length;
+                                            if column_meta.field() == "point_id" && id.len() > column_meta.length() {
+                                                column_type = "tag";
+                                                length = id.len();
+                                            } else if column_meta.field() == "point_name" && point_name.len() > column_meta.length() {
+                                                column_type = "tag";
+                                                length = point_name.len();
+                                            } else if (column_meta.ty == Ty::VarChar || column_meta.ty == Ty::NChar) 
+                                                && column_meta.field() == value_cloumn_name && value_cloumn_length > column_meta.length() {
+                                                column_type = "column";
+                                                length = value_cloumn_length;
+                                            } else {
+                                                return;
+                                            }
+                                            let sql = format!(
+                                                "alter table `{stable_name}` modify {column_type} `{}` {}({})",
+                                                column_meta.field(),
+                                                column_meta.ty(),
+                                                length,
+                                                );
+                                            log::info!("add execute sql: {}", &sql);
+                                            taos.exec_sync(sql).unwrap();
+                                        });
+                                    });
+                                } else {
+                                    break;
+                                }
+                            },
+                        }
+                        
+                    }
                 }
             }
             ipc_ack_writer.write_ok().unwrap();
@@ -358,6 +557,11 @@ fn handle_point_message<R: Read, W: Write>(
     }
     println!("finished, totally {records_count} rows");
     Ok(())
+}
+
+#[inline]
+fn get_real_column_name(column_config: &ColumnConfig) -> &String {
+    &column_config.column_alias.as_ref().unwrap_or(&column_config.column_name)
 }
 
 #[cfg(not(target_os = "windows"))]

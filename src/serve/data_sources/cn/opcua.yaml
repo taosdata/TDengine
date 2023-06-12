@@ -164,7 +164,23 @@ groups:
           choices:
             - observe
             - subscribe
+  - name: 库表配置
+    display_order: 4
+    description: | 
+      超级表创建配置
+ 
+      - **received_time**: 采集时间戳。<br>
+      - **original_time**: 原始时间戳。<br>
+      - **value**: 采集点值。<br>
+      - **status**: 点位质量。<br>
 
+    params:
+      - name: opc_table_config
+        display: OPC Table Config
+        required: true
+        placeholder: 10
+        hint:
+          type: json
   - name: 其他
     display_order: 4
     description: 其他配置项。
@@ -192,9 +208,9 @@ groups:
           max: 60
         description: 每批次采集数据上报的超时时间间隔，单位为：秒 (s)。
         placeholder: 20
-      - name: use_received_time
-        display: 使用本地时间
+      - name: debug
+        display: 开启 Debug 日志
         hint:
           type: bool
-        description: 使用采集器本地时间替换服务器时间。
+        description: 是否开启 opc 连接器的点位
 
