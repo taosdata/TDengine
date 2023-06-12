@@ -1113,6 +1113,7 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
+    primaryColTagtip:'The primary key column does not support being used as a tag again',
     opcvaluetip:'Please enter the value alias',
     primaryvaluetip:'Primary column and value column can not be canceled',
     stable_prefix:'Stable Prefix',

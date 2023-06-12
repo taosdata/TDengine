@@ -823,6 +823,7 @@ export default {
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
+        console.log(dns, "group----之前");
         for (let index = 0; index < data.groups.length; index++) {
           for (let g = 0; g < data.groups[index].params.length; g++) {
             if (
@@ -892,11 +893,19 @@ export default {
                         "&";
                     }
                   } else {
-                    if (!this.tagName.includes("opc")) {
+                    // if (!this.tagName.includes("opc")) {
+                    console.log(querystr, "querystrquerystr");
+                    if (
+                      data.groups[index].params[g].name == "opc_table_config"
+                    ) {
+                      console.log('opc_table_config','---');
+                    } else {
                       querystr +=
                         `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                         "&";
                     }
+
+                    // }
                   }
                 }
               }

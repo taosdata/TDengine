@@ -145,7 +145,9 @@ export default {
   data() {
     return {
       num: 1,
-      mqttTypes: [...dataType, ...timestamps].filter(item=>item.value!=='NCHAR'&&item.value!='VARCHAR'),
+      mqttTypes: [...dataType, ...timestamps].filter(
+        (item) => item.value !== "NCHAR" && item.value != "VARCHAR"
+      ),
       constcols: ["ts", "topic", "qos"],
       primaryradio: "ts",
       radio: "",
@@ -180,10 +182,24 @@ export default {
     },
     changePrimary(val) {
       this.$emit("changePrimary", val);
+      let oldparser = this.$store.state.app.mqttParser;
+      let columns = oldparser.model.columns;
+      if (!columns.includes(val)) {
+        columns.unshift(val);
+        this.radio = "1";
+        this.$store.commit("app/SET_MQTT_PARSER", oldparser);
+      }
+      console.log(
+        val,
+        "主键--mqtt",
+        this.radio,
+        this.colData,
+        this.$store.state.app.mqttParser
+      );
     },
     watchFieldVal(val) {
       if (this.constcols.includes(val)) {
-        Message.error(this.$t('datasource.repeattip'));
+        Message.error(this.$t("datasource.repeattip"));
         return;
       } else {
         this.colData["name"] = val;
@@ -205,6 +221,11 @@ export default {
       }
     },
     checkTag() {
+      console.log(this.colData.name, this.currentPrimary, "主键--tag--column");
+      if (this.colData.name == this.currentPrimary) {
+        Message.warning(this.$t("datasource.primaryColTagtip"));
+        return;
+      }
       if (this.colData.name) {
         let oldparser = this.$store.state.app.mqttParser;
         let columns = oldparser.model.columns;
@@ -221,7 +242,6 @@ export default {
     },
     deleteRow() {
       this.$emit("deleteRow", this.index, this.colData["name"]);
-      
     },
     addRow() {
       if (this.addStatus) return;
@@ -252,12 +272,12 @@ export default {
         this.$emit("changeAddStatus");
       },
     },
-    currentPrimary:{
-        deep:true,
-        handler(val){
-            console.log(val,'最新的主键');
-        }
-    }
+    // currentPrimary:{
+    //     deep:true,
+    //     handler(val){
+    //         console.log(val,this.radio,'最新的主键');
+    //     }
+    // }
   },
 };
 </script>
