@@ -143,8 +143,19 @@ export default {
             this.currentName = "opcui";
             this.tagName = "opc";
             this.protocol = "ua";
-            console.log(this.uidata[0].groups[2].params,'---bian编辑table',JSON.parse(this.uidata[0].groups[2].params[0].value));
+            let echoData=(JSON.parse(this.uidata[0].groups[2].params[0].value).column_configs).map(item=>item.column_name)
+            let others=this.staticOpc.column_configs.filter(item=>!echoData.includes(item.column_name))
+            let newEcho={
+              column_configs:deepClone(JSON.parse(this.uidata[0].groups[2].params[0].value).column_configs.concat(others)),
+              stable_prefix:JSON.parse(this.uidata[0].groups[2].params[0].value).stable_prefix
+            }
+            // this.uidata[0].groups[2].params[0].value=JSON.stringify(newEcho)
+            // JSON.parse(this.uidata[0].groups[2].params[0].value).column_configs=deepClone(Object.assign(echoData,others))
+            // this.$set(JSON.parse(this.uidata[0].groups[2].params[0].value),'column_configs',deepClone(Object.assign(echoData,others)))
+            console.log(this.staticOpc,echoData,others,newEcho,this.uidata[0].groups[2].params,'---bian编辑table',JSON.parse(this.uidata[0].groups[2].params[0].value));
+            this.uidata[0].groups[2].params[0].value=JSON.stringify(newEcho)
             this.opcConfig=deepClone(JSON.parse(this.uidata[0].groups[2].params[0].value) ) 
+            console.log(this.opcConfig,'this.opcConfig');
             break;
           case "opcda":
             this.currentName = "opcui";

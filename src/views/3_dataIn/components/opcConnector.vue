@@ -1,7 +1,7 @@
 <template>
   <div class="opc-connector">
     <ul class="singleton-header">
-      <li style="display:flex;align-items:center;">
+      <li style="display: flex; align-items: center">
         <span>
           {{ $t("datasource.primarykey") }}
         </span>
@@ -29,7 +29,7 @@
     >
       <li>
         <el-checkbox
-          :disabled="item.column_type != 'timestamp'||isEditable"
+          :disabled="item.column_type != 'timestamp' || isEditable"
           @change="changePrimary(item)"
           :value="item.column_name == currentPrimary"
         ></el-checkbox>
@@ -45,7 +45,11 @@
         <span>{{ item.column_name }}</span>
       </li>
       <li>
-        <el-input v-model="item.column_alias" size="mini" :disabled='isEditable'></el-input>
+        <el-input
+          v-model="item.column_alias"
+          size="mini"
+          :disabled="isEditable"
+        ></el-input>
       </li>
       <li>
         <span>{{ item.column_type }}</span>
@@ -87,10 +91,7 @@ export default {
   },
   data() {
     return {
-      isReject:false,
-      ruleForm: {
-        stable_prefix: "",
-      },
+      isReject: false,
       rules: {
         stable_prefix: [
           {
@@ -106,9 +107,20 @@ export default {
     };
   },
   mounted() {
-    console.log(this.opcConfig, "opcConfig",this.isEditable,'判断是否编辑状态');
+    this.getDefaultPrimayKey();
   },
   methods: {
+    getDefaultPrimayKey() {
+      let primary = this.opcConfig.column_configs.filter(
+        (item) => item.is_primary_key
+      )[0].column_name;
+      if(primary){
+        if(!this.saveFileds.includes(primary)){
+            this.saveFileds.push(primary)
+        }
+      }
+      this.currentPrimary = primary ? primary : "received_time";
+    },
     saveToDb(val) {
       if (!this.saveFileds.includes(val.column_name)) {
         this.saveFileds.push(val.column_name);
@@ -117,13 +129,12 @@ export default {
           val.column_name == this.currentPrimary ||
           val.column_name == "value"
         ) {
-          Message.warning(this.$t('datasource.primaryvaluetip'));
+          Message.warning(this.$t("datasource.primaryvaluetip"));
           return;
         }
         let index = this.saveFileds.indexOf(val.column_name);
         this.saveFileds.splice(index, 1);
       }
-      console.log(val, "xuyao 入库的字段");
     },
     changePrimary(val) {
       this.currentPrimary = val.column_name;
@@ -131,32 +142,32 @@ export default {
         //主键列一定会入库
         this.saveFileds.push(val.column_name);
       }
-      console.log(val, "change", this.currentPrimary);
     },
     structureData() {},
     submit() {
-      let savedata = this.opcConfig.column_configs.filter((item) => {
-        return this.saveFileds.includes(item.column_name)
-      }).map(val=>{
-        if(val.column_name==this.currentPrimary){
-            val['is_primary_key']=true
-        }else{
-            val['is_primary_key']=false
-        }
-        return val
-      });
+      let savedata = this.opcConfig.column_configs
+        .filter((item) => {
+          return this.saveFileds.includes(item.column_name);
+        })
+        .map((val) => {
+          if (val.column_name == this.currentPrimary) {
+            val["is_primary_key"] = true;
+          } else {
+            val["is_primary_key"] = false;
+          }
+          return val;
+        });
 
-      if(!this.opcConfig.stable_prefix){
-        this.isReject=true
-        return
-      }else{
-        this.isReject=false
+      if (!this.opcConfig.stable_prefix) {
+        this.isReject = true;
+        return;
+      } else {
+        this.isReject = false;
       }
-      this.$store.commit('app/SET_OPC_CONFIG',{
-        column_configs:savedata,
-        stable_prefix:this.ruleForm.stable_prefix
-      })
-      console.log(this.$store.state.app.opcConfig,this.isReject, savedata,this.opcConfig, this.saveFileds, "submit");
+      this.$store.commit("app/SET_OPC_CONFIG", {
+        column_configs: savedata,
+        stable_prefix: this.opcConfig.stable_prefix,
+      });
     },
   },
 };
@@ -166,8 +177,8 @@ export default {
   display: flex;
   flex-direction: column;
 }
-::v-deep.el-form-item__label{
-    color: #4259ce;
+::v-deep.el-form-item__label {
+  color: #4259ce;
 }
 .singleton-header {
   display: grid;
