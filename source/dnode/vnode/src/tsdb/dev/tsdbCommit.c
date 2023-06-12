@@ -602,6 +602,11 @@ static int32_t tsdbCommitFileSetEnd(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  if (committer->sttReader) {
+    code = tsdbSttFileReaderClose(&committer->sttReader);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   if (committer->dataWriter) {
     code = tsdbDataFileWriterClose(&committer->dataWriter, 0, committer->fopArray);
     TSDB_CHECK_CODE(code, lino, _exit);
