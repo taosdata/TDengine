@@ -732,49 +732,6 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   return code;
 }
 
-static int32_t eraseDuplicatedPseudoColumnFuncs(SNodeList* pFuncs, SNodeList* pProjections) {
-  int32_t    code = 0;
-  int32_t    funcIndex = 0;
-  SSHashObj* pFuncHash = NULL;
-  SNode*     pFuncNode = NULL;
-  FOREACH(pFuncNode, pFuncs) {
-    SFunctionNode* pFunc = (SFunctionNode*)pFuncNode;
-    if (!fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
-      ++funcIndex;
-      continue;
-    }
-    if (!pFuncHash && !(pFuncHash = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT)))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      break;
-    }
-
-    void* hashVal = tSimpleHashGet(pFuncHash, &pFunc->funcId, sizeof(pFunc->funcId));
-    if (!hashVal) {
-      tSimpleHashPut(pFuncHash, &pFunc->funcId, sizeof(pFunc->funcId), &funcIndex, sizeof(funcIndex));
-      ++funcIndex;
-      continue;
-    }
-
-    bool   exist = false;
-    SNode* pProject = NULL;
-    FOREACH(pProject, pProjections) {
-      if (QUERY_NODE_COLUMN == nodeType(pProject) && 0 != pFunc->node.aliasName[0] &&
-          0 == strncmp(pFunc->node.aliasName, ((SColumnNode*)pProject)->colName, TSDB_COL_NAME_LEN)) {
-        exist = true;
-        break;
-      }
-    }
-    if (!exist) {
-      nodesListErase(pFuncs, nodesListGetCell(pFuncs, funcIndex));
-    } else {
-      nodesListErase(pFuncs, nodesListGetCell(pFuncs, *(int32_t*)hashVal));
-      tSimpleHashPut(pFuncHash, &pFunc->funcId, sizeof(pFunc->funcId), &funcIndex, sizeof(funcIndex));
-    }
-  }
-  tSimpleHashCleanup(pFuncHash);
-  return code;
-}
-
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
   if (pCxt->pPlanCxt->streamQuery) {
@@ -790,11 +747,6 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, fmIsWindowClauseFunc, &pWindow->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL);
-  }
-
-  if (TSDB_CODE_SUCCESS == code && WINDOW_TYPE_INTERVAL == pWindow->winType && pSelect->pProjectionList) {
-    // erase duplicated Window Pseudo funcNode by filtering colNode in pSelect->pProjectionList
-    code = eraseDuplicatedPseudoColumnFuncs(pWindow->pFuncs, pSelect->pProjectionList);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
