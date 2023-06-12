@@ -270,6 +270,7 @@ typedef struct SStreamStatus {
   int8_t taskStatus;
   int8_t schedStatus;
   int8_t keepTaskStatus;
+  bool   transferState;
 } SStreamStatus;
 
 typedef struct SHistDataRange {
@@ -454,10 +455,10 @@ typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t childId;
-} SStreamRecoverFinishReq;
+} SStreamRecoverFinishReq, SStreamTransferReq;
 
-int32_t tEncodeSStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFinishReq* pReq);
-int32_t tDecodeSStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishReq* pReq);
+int32_t tEncodeStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFinishReq* pReq);
+int32_t tDecodeStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishReq* pReq);
 
 typedef struct {
   int64_t streamId;
@@ -583,6 +584,9 @@ int32_t streamSourceRecoverScanStep1(SStreamTask* pTask);
 int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req* pReq);
 int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver);
 int32_t streamDispatchRecoverFinishMsg(SStreamTask* pTask);
+
+int32_t streamDispatchTransferStateMsg(SStreamTask* pTask);
+
 // agg level
 int32_t streamAggRecoverPrepare(SStreamTask* pTask);
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId);

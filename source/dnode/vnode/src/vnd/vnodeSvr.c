@@ -326,10 +326,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 
   if (!syncUtilUserCommit(pMsg->msgType)) goto _exit;
 
-  if (pMsg->msgType == TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE || pMsg->msgType == TDMT_STREAM_TASK_CHECK_RSP) {
-    if (tqCheckLogInWal(pVnode->pTq, ver)) return 0;
-  }
-
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
@@ -422,11 +418,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     } break;
     case TDMT_STREAM_TASK_RESUME: {
       if (pVnode->restored && tqProcessTaskResumeReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
-        goto _err;
-      }
-    } break;
-    case TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE: {
-      if (tqProcessTaskRecover2Req(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
     } break;
@@ -593,6 +584,8 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE:
       return tqProcessTaskRecover1Req(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE: 
+      return tqProcessTaskTransferStateReq(pVnode->pTq, 0, pMsg->pCont, pMsg->contLen);
     case TDMT_STREAM_RECOVER_FINISH:
       return tqProcessTaskRecoverFinishReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RECOVER_FINISH_RSP:

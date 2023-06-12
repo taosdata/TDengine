@@ -277,7 +277,7 @@ int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
 
   SDecoder decoder;
   tDecoderInit(&decoder, msg, msgLen);
-  tDecodeSStreamRecoverFinishReq(&decoder, &req);
+  tDecodeStreamRecoverFinishReq(&decoder, &req);
   tDecoderClear(&decoder);
 
   // find task

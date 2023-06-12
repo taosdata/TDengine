@@ -386,6 +386,23 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     }
 
     if (pInput == NULL) {
+      if (pTask->info.fillHistory && pTask->status.transferState) {
+        //  todo transfer task state here
+        SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
+        ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
+
+        ASSERT(pStreamTask->status.taskStatus == STREAM_STATUS__PAUSE);
+
+        // update the scan data range for source task.
+
+
+        streamSetStatusNormal(pStreamTask);
+        streamSchedExec(pStreamTask);
+
+        streamMetaReleaseTask(pTask->pMeta, pStreamTask);
+
+        // todo set the task with specified status, to avoid execute this process again
+      }
       break;
     }
 

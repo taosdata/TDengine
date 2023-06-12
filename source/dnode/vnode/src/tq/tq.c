@@ -1102,29 +1102,35 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   double el = (taosGetTimestampMs() - st) / 1000.0;
   tqDebug("s-task:%s history data scan stage(step 1) ended, elapsed time:%.2fs", pTask->id.idStr, el);
 
-  if (pTask->info.fillHistory) {/*
-    // 1. stop the related stream task, get the current scan wal version of stream task, ver1.
+  if (pTask->info.fillHistory) {
+    // 1. stop the related stream task, get the current scan wal version of stream task, ver.
     SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
     if (pStreamTask == NULL) {
       // todo handle error
     }
 
+    // todo here we should use another flag to avoid user resume the task
     pStreamTask->status.taskStatus = TASK_STATUS__PAUSE;
 
-
     // if it's an source task, extract the last version in wal.
+    int64_t ver = pTask->dataRange.range.maxVer;
+    int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+    ASSERT(latestVer >= ver);
+    ver = latestVer;
 
-    // 2. wait for downstream tasks to completed
+    // 2. do secondary scan of the history data, the time window remain, and the version range is updated to [pTask->dataRange.range.maxVer, ver1]
 
 
-    // 3. do secondary scan of the history data scan, the time window remain, and the version range is updated to [pTask->dataRange.range.maxVer, ver1]
-
+    // 3. notify the downstream tasks to transfer executor state after handle all history blocks.
+    code = streamDispatchTransferStateMsg(pTask);
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo handle error
+    }
 
     // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
-
-
     // 5. resume the related stream task.
-*/
+
+    streamMetaReleaseTask(pMeta, pTask);
   } else {
     // todo update the chkInfo version for current task.
     // this task has an associated history stream task, so we need to scan wal from the end version of
@@ -1138,53 +1144,23 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
     return code;
   }
 
-#if 0
-  // build msg to launch next step
-  SStreamRecoverStep2Req req;
-  code = streamBuildSourceRecover2Req(pTask, &req);
-  if (code < 0) {
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    return -1;
-  }
-
-  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
-    return 0;
-  }
-
-  // serialize msg
-  int32_t len = sizeof(SStreamRecoverStep1Req);
-
-  void* serializedReq = rpcMallocCont(len);
-  if (serializedReq == NULL) {
-    tqError("s-task:%s failed to prepare the step2 stage, out of memory", pTask->id.idStr);
-    return -1;
-  }
-
-  memcpy(serializedReq, &req, len);
-
-  // dispatch msg
-  tqDebug("s-task:%s start recover block stage", pTask->id.idStr);
-
-  SRpcMsg rpcMsg = {
-      .code = 0, .contLen = len, .msgType = TDMT_VND_STREAM_RECOVER_BLOCKING_STAGE, .pCont = serializedReq};
-  tmsgPutToQueue(&pTq->pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
-#endif
-
   return 0;
 }
 
-int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  int32_t code = 0;
-
-  SStreamRecoverStep2Req* pReq = (SStreamRecoverStep2Req*)msg;
+// notify the downstream tasks to transfer executor state after handle all history blocks.
+int32_t tqProcessTaskTransferStateReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
+  SStreamTransferReq* pReq = (SStreamTransferReq*)msg;
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
   if (pTask == NULL) {
     return -1;
   }
 
-  // do recovery step 2
+  ASSERT(pTask->streamTaskId.taskId != 0);
+  pTask->status.transferState = true;  // persistent data?
+
+#if 0
+  // do check if current task handle all data in the input queue
   int64_t st = taosGetTimestampMs();
   tqDebug("s-task:%s start step2 recover, ts:%" PRId64, pTask->id.idStr, st);
 
@@ -1231,8 +1207,11 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
 
   atomic_store_8(&pTask->info.fillHistory, 0);
   streamMetaSaveTask(pTq->pStreamMeta, pTask);
+#endif
 
+  streamSchedExec(pTask);
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+
   return 0;
 }
 
@@ -1245,7 +1224,7 @@ int32_t tqProcessTaskRecoverFinishReq(STQ* pTq, SRpcMsg* pMsg) {
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  tDecodeSStreamRecoverFinishReq(&decoder, &req);
+  tDecodeStreamRecoverFinishReq(&decoder, &req);
   tDecoderClear(&decoder);
 
   // find task

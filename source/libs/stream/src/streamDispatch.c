@@ -267,8 +267,8 @@ int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pR
   msg.pCont = buf;
   msg.msgType = TDMT_STREAM_TASK_CHECK;
 
-  qDebug("s-task:%s dispatch check msg to s-task:%" PRIx64 ":0x%x (vgId:%d)", pTask->id.idStr,
-         pReq->streamId, pReq->downstreamTaskId, nodeId);
+  qDebug("s-task:%s (level:%d) dispatch check msg to s-task:%" PRIx64 ":0x%x (vgId:%d)", pTask->id.idStr,
+         pTask->info.taskLevel, pReq->streamId, pReq->downstreamTaskId, nodeId);
 
   tmsgSendReq(pEpSet, &msg);
   return 0;
@@ -281,7 +281,7 @@ int32_t streamDoDispatchRecoverFinishMsg(SStreamTask* pTask, const SStreamRecove
   SRpcMsg msg = {0};
 
   int32_t tlen;
-  tEncodeSize(tEncodeSStreamRecoverFinishReq, pReq, tlen, code);
+  tEncodeSize(tEncodeStreamRecoverFinishReq, pReq, tlen, code);
   if (code < 0) {
     return -1;
   }
@@ -297,7 +297,7 @@ int32_t streamDoDispatchRecoverFinishMsg(SStreamTask* pTask, const SStreamRecove
 
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeSStreamRecoverFinishReq(&encoder, pReq)) < 0) {
+  if ((code = tEncodeStreamRecoverFinishReq(&encoder, pReq)) < 0) {
     if (buf) {
       rpcFreeCont(buf);
     }
@@ -384,8 +384,6 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
       buildCtbNameByGroupIdImpl(pTask->shuffleDispatcher.stbFullName, groupId, pDataBlock->info.parTbName);
       snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->shuffleDispatcher.dbInfo.db, pDataBlock->info.parTbName);
     }
-
-    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
 
     /*uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));*/
     SUseDbRsp* pDbInfo = &pTask->shuffleDispatcher.dbInfo;

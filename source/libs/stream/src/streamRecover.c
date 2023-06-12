@@ -285,6 +285,72 @@ int32_t streamDispatchRecoverFinishMsg(SStreamTask* pTask) {
   return 0;
 }
 
+static int32_t doDispatchTransferMsg(SStreamTask* pTask, const SStreamTransferReq* pReq, int32_t vgId, SEpSet* pEpSet) {
+  void*   buf = NULL;
+  int32_t code = -1;
+  SRpcMsg msg = {0};
+
+  int32_t tlen;
+  tEncodeSize(tEncodeStreamRecoverFinishReq, pReq, tlen, code);
+  if (code < 0) {
+    return -1;
+  }
+
+  buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  ((SMsgHead*)buf)->vgId = htonl(vgId);
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  if ((code = tEncodeStreamRecoverFinishReq(&encoder, pReq)) < 0) {
+    if (buf) {
+      rpcFreeCont(buf);
+    }
+    return code;
+  }
+
+  tEncoderClear(&encoder);
+
+  msg.contLen = tlen + sizeof(SMsgHead);
+  msg.pCont = buf;
+  msg.msgType = TDMT_STREAM_TRANSFER_STATE;
+  msg.info.noResp = 1;
+
+  tmsgSendReq(pEpSet, &msg);
+  qDebug("s-task:%s dispatch transfer state msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, pReq->taskId, vgId);
+
+  return 0;
+}
+
+int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
+  SStreamTransferReq req = { .streamId = pTask->id.streamId, .childId = pTask->info.selfChildId };
+
+  // serialize
+  if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+    qDebug("s-task:%s send recover finish msg to downstream (fix-dispatch) to taskId:0x%x, status:%d", pTask->id.idStr,
+           pTask->fixedEpDispatcher.taskId, pTask->status.taskStatus);
+
+    req.taskId = pTask->fixedEpDispatcher.taskId;
+    doDispatchTransferMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
+  } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+
+    int32_t numOfVgs = taosArrayGetSize(vgInfo);
+    for (int32_t i = 0; i < numOfVgs; i++) {
+      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      req.taskId = pVgInfo->taskId;
+      doDispatchTransferMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
+    }
+  }
+
+  return 0;
+}
+
 // agg
 int32_t streamAggRecoverPrepare(SStreamTask* pTask) {
   pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->pUpstreamEpInfoList);
@@ -465,7 +531,7 @@ int32_t tDecodeSStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp
   return 0;
 }
 
-int32_t tEncodeSStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFinishReq* pReq) {
+int32_t tEncodeStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFinishReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
@@ -473,7 +539,7 @@ int32_t tEncodeSStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverF
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
-int32_t tDecodeSStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishReq* pReq) {
+int32_t tDecodeStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
