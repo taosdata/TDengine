@@ -695,7 +695,7 @@ static int32_t tsdbDataFileWriteBrinBlock(SDataFileWriter *writer) {
                          brinBlk->size[i]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    brinBlk->dp[i].size += brinBlk->size[i];
+    brinBlk->dp->size += brinBlk->size[i];
     writer->files[TSDB_FTYPE_HEAD].size += brinBlk->size[i];
   }
 
@@ -710,7 +710,7 @@ static int32_t tsdbDataFileWriteBrinBlock(SDataFileWriter *writer) {
                          brinBlk->size[j]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    brinBlk->dp[i].size += brinBlk->size[j];
+    brinBlk->dp->size += brinBlk->size[j];
     writer->files[TSDB_FTYPE_HEAD].size += brinBlk->size[j];
   }
 
