@@ -953,6 +953,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pQuery);
       nodesDestroyList(pStmt->pTags);
       nodesDestroyNode(pStmt->pSubtable);
+      tFreeSCMCreateStreamReq(pStmt->pReq);
+      taosMemoryFreeClear(pStmt->pReq);
       break;
     }
     case QUERY_NODE_DROP_STREAM_STMT:            // no pointer field
@@ -1052,6 +1054,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_QUERY: {
       SQuery* pQuery = (SQuery*)pNode;
       nodesDestroyNode(pQuery->pRoot);
+      nodesDestroyNode(pQuery->pPostRoot);
       taosMemoryFreeClear(pQuery->pResSchema);
       if (NULL != pQuery->pCmdMsg) {
         taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);

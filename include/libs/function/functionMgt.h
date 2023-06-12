@@ -233,6 +233,7 @@ bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
+SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

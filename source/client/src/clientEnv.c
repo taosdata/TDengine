@@ -358,6 +358,44 @@ int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, ri
 
 int32_t removeRequest(int64_t rid) { return taosRemoveRef(clientReqRefPool, rid); }
 
+
+void destroySubRequests(SRequestObj *pRequest) {
+  int32_t reqIdx = -1;
+  SRequestObj *pReqList[16] = {NULL};
+  uint64_t tmpRefId = 0;
+  SRequestObj* pTmp = pRequest;
+  while (pTmp->relation.prevRefId) {
+    tmpRefId = pTmp->relation.prevRefId;
+    pTmp = acquireRequest(tmpRefId);
+    if (pTmp) {
+      pReqList[++reqIdx] = pTmp;
+      releaseRequest(tmpRefId);
+    } else {
+      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self,
+               tmpRefId, pTmp->requestId);
+      break;         
+    }
+  }
+
+  for (int32_t i = reqIdx; i >= 0; i--) {
+    removeRequest(pReqList[i]->self);
+  }
+
+  tmpRefId = pRequest->relation.nextRefId;
+  while (tmpRefId) {
+    pTmp = acquireRequest(tmpRefId);
+    if (pTmp) {
+      tmpRefId = pTmp->relation.nextRefId;
+      removeRequest(pTmp->self);      
+      releaseRequest(pTmp->self);
+    } else {
+      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      break;         
+    }
+  }
+}
+
+
 void doDestroyRequest(void *p) {
   if (NULL == p) {
     return;
@@ -368,9 +406,13 @@ void doDestroyRequest(void *p) {
   uint64_t reqId = pRequest->requestId;
   tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 
+  destroySubRequests(pRequest);
+  
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
   schedulerFreeJob(&pRequest->body.queryJob, 0);
+
+  destorySqlCallbackWrapper(pRequest->pWrapper);
 
   taosMemoryFreeClear(pRequest->msgBuf);
   taosMemoryFreeClear(pRequest->pDb);

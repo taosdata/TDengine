@@ -97,6 +97,12 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qContinuePlanPostQuery(void *pPostPlan) {
+  //TODO
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
   planDebug("QID:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.queryId, groupId);
   return setSubplanExecutionNode(subplan->pNode, groupId, pSource);

@@ -1975,6 +1975,7 @@ typedef struct {
   SArray*  fillNullCols;  // array of SColLocation
   int64_t  deleteMark;
   int8_t   igUpdate;
+  int64_t  lastTs;
 } SCMCreateStreamReq;
 
 typedef struct {
