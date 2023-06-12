@@ -198,6 +198,7 @@ int  tdbPagerAbort(SPager *pPager, TXN *pTxn);
 int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
+int  tdbPagerInsertFreePage(SPager *pPager, SPgno pgno, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 int  tdbPagerRestoreJournals(SPager *pPager);
 int  tdbPagerRollback(SPager *pPager);
@@ -373,6 +374,7 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
 
 #ifdef USE_MAINDB
 #define TDB_MAINDB_NAME "main.tdb"
+#define TDB_FREEDB_NAME "_free.db"
 #endif
 
 struct STDB {
@@ -386,6 +388,7 @@ struct STDB {
   SPager **pgrHash;
 #ifdef USE_MAINDB
   TTB *pMainDb;
+  TTB *pFreeDb;
 #endif
   int64_t txnId;
 };

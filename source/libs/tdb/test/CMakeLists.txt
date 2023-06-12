@@ -14,3 +14,7 @@ target_link_libraries(tdbExOVFLTest tdb gtest gtest_main)
 add_executable(tdbPageDefragmentTest "tdbPageDefragmentTest.cpp")
 target_link_libraries(tdbPageDefragmentTest tdb gtest gtest_main)
 
+# page recycling testing
+add_executable(tdbPageRecycleTest "tdbPageRecycleTest.cpp")
+target_link_libraries(tdbPageRecycleTest tdb gtest gtest_main)
+

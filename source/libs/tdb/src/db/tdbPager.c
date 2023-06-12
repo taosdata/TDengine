@@ -316,6 +316,10 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
       return -1;
     }
 
+    if (!TDB_PAGE_TOTAL_CELLS(pPage) && TDB_PAGE_PGNO(pPage) > 1) {
+      tdbDebug("pager/commit: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
+    }
+
     ret = tdbPagerPWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
@@ -695,9 +699,59 @@ void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   //        TDB_PAGE_PGNO(pPage), pPage);
 }
 
+int tdbPagerInsertFreePage(SPager *pPager, SPgno pgno, TXN *pTxn) {
+  int code = 0;
+
+  code = tdbTbInsert(pPager->pEnv->pFreeDb, &pgno, sizeof(pgno), NULL, 0, pTxn);
+  if (code < 0) {
+    return -1;
+  }
+
+  return code;
+}
+
+static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno) {
+  int  code = 0;
+  TBC *pCur;
+
+  if (!pPager->pEnv->pFreeDb) {
+    return 0;
+  }
+
+  code = tdbTbcOpen(pPager->pEnv->pFreeDb, &pCur, NULL);
+  if (code < 0) {
+    return 0;
+  }
+
+  code = tdbTbcMoveToFirst(pCur);
+  if (code) {
+    tdbTbcClose(pCur);
+    return 0;
+  }
+
+  void *pKey = NULL;
+  int   nKey = 0;
+
+  code = tdbTbcGet(pCur, (const void **)&pKey, &nKey, NULL, NULL);
+  if (code < 0) {
+    tdbTbcClose(pCur);
+    return 0;
+  }
+
+  *pPgno = *(SPgno *)pKey;
+
+  code = tdbTbcDelete(pCur);
+  if (code < 0) {
+    tdbTbcClose(pCur);
+    return 0;
+  }
+  tdbTbcClose(pCur);
+  return 0;
+}
+
 static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno) {
   // TODO: Allocate a page from the free list
-  return 0;
+  return tdbPagerRemoveFreePage(pPager, ppgno);
 }
 
 static int tdbPagerAllocNewPage(SPager *pPager, SPgno *ppgno) {

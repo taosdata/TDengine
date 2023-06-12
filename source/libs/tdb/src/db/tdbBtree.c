@@ -860,6 +860,9 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
     if (!TDB_BTREE_PAGE_IS_LEAF(pNews[0])) {
       ((SIntHdr *)(pParent->pData))->pgno = ((SIntHdr *)(pNews[0]->pData))->pgno;
+    } else {
+      // printf("tdb/balance: btree balance delete pgno: %d.\n", TDB_PAGE_PGNO(pNews[0]));
+      tdbPagerInsertFreePage(pBt->pPager, TDB_PAGE_PGNO(pNews[0]), pTxn);
     }
   }
 
@@ -870,9 +873,15 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
   }
 
   for (pageIdx = 0; pageIdx < nOlds; ++pageIdx) {
+    // printf("tdb/balance: btree balance old pgno: %d.\n", TDB_PAGE_PGNO(pOlds[pageIdx]));
+    if (pageIdx >= nNews) {
+      // printf("tdb/balance: btree balance delete pgno: %d.\n", TDB_PAGE_PGNO(pOlds[pageIdx]));
+      tdbPagerInsertFreePage(pBt->pPager, TDB_PAGE_PGNO(pOlds[pageIdx]), pTxn);
+    }
     tdbPagerReturnPage(pBt->pPager, pOlds[pageIdx], pTxn);
   }
   for (; pageIdx < nNews; ++pageIdx) {
+    // printf("tdb/balance: btree balance new pgno: %d.\n", TDB_PAGE_PGNO(pNews[pageIdx]));
     tdbPagerReturnPage(pBt->pPager, pNews[pageIdx], pTxn);
   }
 
@@ -2112,6 +2121,8 @@ int tdbBtcDelete(SBTC *pBtc) {
         tdbError("tdb/btc-delete: page to be deleted should be empty.");
         return -1;
       }
+
+      // printf("tdb/btc-delete: btree balance delete pgno: %d.\n", TDB_PAGE_PGNO(pBtc->pPage));
 
       ret = tdbBtreeBalance(pBtc);
       if (ret < 0) {
