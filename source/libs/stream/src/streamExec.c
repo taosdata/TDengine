@@ -388,20 +388,23 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     if (pInput == NULL) {
       if (pTask->info.fillHistory && pTask->status.transferState) {
         //  todo transfer task state here
-        SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
-        ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
 
-        ASSERT(pStreamTask->status.taskStatus == STREAM_STATUS__PAUSE);
+        SStreamTask* pStreamTask = streamMetaAcquireTask(pTask->pMeta, pTask->streamTaskId.taskId);
+        qDebug("s-task:%s scan history task end, update stream task:%s info and launch it", pTask->id.idStr, pStreamTask->id.idStr);
+
+        ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
+        ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__HALT);
 
         // update the scan data range for source task.
-
+        STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
+        qDebug("s-task:%s stream task window %"PRId64" - %"PRId64" transfer to %"PRId64" - %"PRId64", status:%d, sched-status:%d", pStreamTask->id.idStr,
+               pTimeWindow->skey, pTimeWindow->ekey, INT64_MIN, pTimeWindow->ekey, TASK_STATUS__NORMAL, pStreamTask->status.schedStatus);
+        pTimeWindow->skey = INT64_MIN;
 
         streamSetStatusNormal(pStreamTask);
         streamSchedExec(pStreamTask);
 
         streamMetaReleaseTask(pTask->pMeta, pStreamTask);
-
-        // todo set the task with specified status, to avoid execute this process again
       }
       break;
     }
@@ -479,7 +482,8 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
     // todo the task should be commit here
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-    qDebug("s-task:%s exec completed, status:%d", pTask->id.idStr, pTask->status.taskStatus);
+    qDebug("s-task:%s exec completed, status:%d, sched-status:%d", pTask->id.idStr, pTask->status.taskStatus,
+           pTask->status.schedStatus);
 
     if (!taosQueueEmpty(pTask->inputQueue->queue) && (!streamTaskShouldStop(&pTask->status)) &&
         (!streamTaskShouldPause(&pTask->status))) {

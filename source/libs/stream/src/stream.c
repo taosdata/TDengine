@@ -117,6 +117,8 @@ int32_t streamSchedExec(SStreamTask* pTask) {
     SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
     tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
     qDebug("trigger to run s-task:%s", pTask->id.idStr);
+  } else {
+    qDebug("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
   }
 
   return 0;

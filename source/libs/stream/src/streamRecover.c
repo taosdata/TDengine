@@ -21,16 +21,17 @@ const char* streamGetTaskStatusStr(int32_t status) {
   switch(status) {
     case TASK_STATUS__NORMAL: return "normal";
     case TASK_STATUS__WAIT_DOWNSTREAM: return "wait-for-downstream";
-    case TASK_STATUS__RECOVER_PREPARE: return "scan-history-prepare";
-    case TASK_STATUS__RECOVER1: return "scan-history-data";
+    case TASK_STATUS__SCAN_HISTORY_PREPARE: return "scan-history-prepare";
+    case TASK_STATUS__HALT: return "halt";
     default:return "";
   }
 }
+
 int32_t streamTaskLaunchRecover(SStreamTask* pTask) {
   qDebug("s-task:%s (vgId:%d) launch recover", pTask->id.idStr, pTask->info.nodeId);
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__RECOVER_PREPARE);
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__SCAN_HISTORY_PREPARE);
 
     SVersionRange* pRange = &pTask->dataRange.range;
     qDebug("s-task:%s set task status:%s and start to recover, ver:%" PRId64 "-%" PRId64, pTask->id.idStr,
@@ -51,7 +52,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask) {
 
     memcpy(serializedReq, &req, len);
 
-    SRpcMsg rpcMsg = { .contLen = len, .pCont = serializedReq, .msgType = TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE };
+    SRpcMsg rpcMsg = { .contLen = len, .pCont = serializedReq, .msgType = TDMT_VND_STREAM_SCAN_HISTORY };
     if (tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg) < 0) {
       /*ASSERT(0);*/
     }
@@ -473,6 +474,7 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
     return -1;
   }
 
+  atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
   streamMetaSaveTask(pMeta, pTask);
   return 0;
 }

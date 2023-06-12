@@ -45,8 +45,8 @@ enum {
   TASK_STATUS__FAIL,
   TASK_STATUS__STOP,
   TASK_STATUS__WAIT_DOWNSTREAM,
-  TASK_STATUS__RECOVER_PREPARE,
-  TASK_STATUS__RECOVER1,
+  TASK_STATUS__SCAN_HISTORY_PREPARE,
+  TASK_STATUS__HALT,   // stream task halt to wait for the secondary scan history, this status is invisible for user
   TASK_STATUS__PAUSE,
 };
 
@@ -577,6 +577,8 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 int32_t streamSetParamForRecover(SStreamTask* pTask);
 int32_t streamRestoreParam(SStreamTask* pTask);
 int32_t streamSetStatusNormal(SStreamTask* pTask);
+const char* streamGetTaskStatusStr(int32_t status);
+
 // source level
 int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq);

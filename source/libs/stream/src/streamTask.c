@@ -89,6 +89,9 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
 
   if (tEncodeI64(pEncoder, pTask->historyTaskId.streamId)) return -1;
   if (tEncodeI32(pEncoder, pTask->historyTaskId.taskId)) return -1;
+  if (tEncodeI64(pEncoder, pTask->streamTaskId.streamId)) return -1;
+  if (tEncodeI32(pEncoder, pTask->streamTaskId.taskId)) return -1;
+
   if (tEncodeU64(pEncoder, pTask->dataRange.range.minVer)) return -1;
   if (tEncodeU64(pEncoder, pTask->dataRange.range.maxVer)) return -1;
   if (tEncodeI64(pEncoder, pTask->dataRange.window.skey)) return -1;
@@ -149,6 +152,9 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
   if (tDecodeI64(pDecoder, &pTask->historyTaskId.streamId)) return -1;
   if (tDecodeI32(pDecoder, &pTask->historyTaskId.taskId)) return -1;
+  if (tDecodeI64(pDecoder, &pTask->streamTaskId.streamId)) return -1;
+  if (tDecodeI32(pDecoder, &pTask->streamTaskId.taskId)) return -1;
+
   if (tDecodeU64(pDecoder, &pTask->dataRange.range.minVer)) return -1;
   if (tDecodeU64(pDecoder, &pTask->dataRange.range.maxVer)) return -1;
   if (tDecodeI64(pDecoder, &pTask->dataRange.window.skey)) return -1;

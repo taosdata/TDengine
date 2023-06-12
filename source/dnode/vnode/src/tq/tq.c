@@ -1065,7 +1065,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   return 0;
 }
 
-int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
+int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   int32_t code = TSDB_CODE_SUCCESS;
   char*   msg = pMsg->pCont;
   int32_t msgLen = pMsg->contLen;
@@ -1091,10 +1091,17 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("s-task:%s start history data scan stage(step 1)", pTask->id.idStr);
   int64_t st = taosGetTimestampMs();
 
+  // todo set the correct status flag
+  int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
+                                                     TASK_SCHED_STATUS__WAITING);
+  if (schedStatus != TASK_SCHED_STATUS__INACTIVE) {
+    ASSERT(0);
+    return 0;
+  }
+
   streamSourceRecoverScanStep1(pTask);
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     tqDebug("s-task:%s is dropped, abort recover in step1", pTask->id.idStr);
-
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
@@ -1109,19 +1116,23 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
       // todo handle error
     }
 
-    // todo here we should use another flag to avoid user resume the task
-    pStreamTask->status.taskStatus = TASK_STATUS__PAUSE;
+    pStreamTask->status.taskStatus = TASK_STATUS__HALT;
 
     // if it's an source task, extract the last version in wal.
     int64_t ver = pTask->dataRange.range.maxVer;
     int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
-    ASSERT(latestVer >= ver);
-    ver = latestVer;
+    if (latestVer >= ver) {
+      ver = latestVer;
+    } else {
+      ASSERT(latestVer == -1);
+    }
 
     // 2. do secondary scan of the history data, the time window remain, and the version range is updated to [pTask->dataRange.range.maxVer, ver1]
 
 
     // 3. notify the downstream tasks to transfer executor state after handle all history blocks.
+    pTask->status.transferState = true;
+
     code = streamDispatchTransferStateMsg(pTask);
     if (code != TSDB_CODE_SUCCESS) {
       // todo handle error
@@ -1129,7 +1140,9 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
 
     // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
     // 5. resume the related stream task.
+    streamTryExec(pTask);
 
+    streamMetaReleaseTask(pMeta, pStreamTask);
     streamMetaReleaseTask(pMeta, pTask);
   } else {
     // todo update the chkInfo version for current task.
@@ -1318,10 +1331,12 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
               pTask->chkInfo.version);
       streamProcessRunReq(pTask);
     } else {
-      if (streamTaskShouldPause(&pTask->status)) {
+      if (streamTaskShouldPause(&pTask->status) || (pTask->status.taskStatus == TASK_STATUS__HALT)) {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
       }
-      tqDebug("vgId:%d s-task:%s ignore run req since not in ready state", vgId, pTask->id.idStr);
+
+      tqDebug("vgId:%d s-task:%s ignore run req since not in ready state, status:%s, sched-status:%d", vgId,
+              pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
     }
 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
