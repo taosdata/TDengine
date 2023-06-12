@@ -570,7 +570,6 @@ static int32_t tsdbMergeFileSetEndCloseReader(SMerger *merger) {
 static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t vid = TD_VID(merger->tsdb->pVnode);
 
   code = tsdbMergeFileSetEndCloseWriter(merger);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -583,7 +582,7 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
+    TSDB_ERROR_LOG(TD_VID(merger->tsdb->pVnode), lino, code);
   }
   return code;
 }

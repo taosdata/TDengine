@@ -600,7 +600,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
   }
 
   // check if need to merge
-  if (fs->mergeTaskOn == false) {
+  if (fs->tsdb->pVnode->config.sttTrigger > 1 && fs->mergeTaskOn == false) {
     STFileSet *fset;
     TARRAY2_FOREACH_REVERSE(fs->fSetArr, fset) {
       if (TARRAY2_SIZE(fset->lvlArr) == 0) continue;
