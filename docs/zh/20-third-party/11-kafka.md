@@ -214,7 +214,7 @@ TDengine Source Connector 的作用是将 TDengine 某个数据库某一时刻�
 
 TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](/develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](/develop/insert-data/opentsdb-json)， 然后写入 Kafka。
 
-下面的示例程序同步数据库 test 中的数据到主题 tdengine-source-test。
+下面的示例程序同步数据库 test 中的数据到主题 tdengine-test-meters。
 
 ### 添加 Source Connector 配置文件
 
@@ -236,7 +236,8 @@ vi source-demo.json
     "connection.database": "test",
     "connection.attempts": 3,
     "connection.backoff.ms": 5000,
-    "topic.prefix": "tdengine-source",
+    "topic.prefix": "tdengine",
+    "topic.delimiter": "-",
     "poll.interval.ms": 1000,
     "fetch.max.rows": 100,
     "topic.per.stable": true,
@@ -282,10 +283,10 @@ curl -X POST -d @source-demo.json http://localhost:8083/connectors -H "Content-T
 
 ### 查看 topic 数据
 
-使用 kafka-console-consumer 命令行工具监控主题 tdengine-source-test 中的数据。一开始会输出所有历史数据， 往 TDengine 插入两条新的数据之后，kafka-console-consumer 也立即输出了新增的两条数据。 输出数据 InfluxDB line protocol 的格式。
+使用 kafka-console-consumer 命令行工具监控主题 tdengine-test-meters 中的数据。一开始会输出所有历史数据， 往 TDengine 插入两条新的数据之后，kafka-console-consumer 也立即输出了新增的两条数据。 输出数据 InfluxDB line protocol 的格式。
 
 ```shell
-kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic tdengine-source-test-meters
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic tdengine-test-meters
 ```
 
 输出：
@@ -365,8 +366,9 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 5. `fetch.max.rows` : 检索数据库时最大检索条数。 默认为 100。
 6. `query.interval.ms`: 从 TDengine 一次读取数据的时间跨度，需要根据表中的数据特征合理配置，避免一次查询的数据量过大或过小；在具体的环境中建议通过测试设置一个较优值，默认值为 0，即获取到当前最新时间的所有数据。
 7. `out.format` : 结果集输出格式。`line` 表示输出格式为 InfluxDB Line 协议格式，`json` 表示输出格式是 json。默认为 line。
-8. `topic.per.stable`: 如果设置为 true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix>-<connection.database>-<stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix>-<connection.database>`
-9. `topic.ignore.db`: topic 命名规则是否包含 database 名称，true 表示规则为 `<topic.prefix>-<stable.name>`，false 表示规则为 `<topic.prefix>-<connection.database>-<stable.name>`，默认 false。在 `topic.per.stable` 设置为 false 时不生效。
+8. `topic.per.stable`: 如果设置为 true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix><topic.delimiter><connection.database>`
+9. `topic.ignore.db`: topic 命名规则是否包含 database 名称，true 表示规则为 `<topic.prefix><topic.delimiter><stable.name>`，false 表示规则为 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`，默认 false。此配置项在 `topic.per.stable` 设置为 false 时不生效。
+10. `topic.delimiter`: topic 名称分割符，默认为 `-`。
 
 ## 其他说明
 
