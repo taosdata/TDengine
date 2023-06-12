@@ -1,6 +1,9 @@
-use std::{io::prelude::*, path::PathBuf, sync::Arc, time::Duration,
-    fs,
-    process::Stdio,
+use std::{fs, io::prelude::*, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
+
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 
 use anyhow::Context;
@@ -226,23 +229,31 @@ pub async fn influxdb_to_taos(
     log_path.push(LOG_FILE);
 
     log::info!("log file dir: {}", &log_path.display());
-    
-    let log_file = fs::OpenOptions::new()
-    .append(true)
-    .create(true)
-    .open(&log_path)
-    .unwrap();
-    let log_io = Stdio::from(log_file);
+
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        None,
+    );
 
     let child = command
         .arg("-jar")
         .arg(&connector_path)
         .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
-        .stderr(log_io);
+        .stderr(std::process::Stdio::piped());
 
     let port_pool = port_pool.clone();
     {
+        let output = child.output().await?;
+        writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
+        
         let mut child = child.spawn().context("Start InfluxDB collector error")?;
         // waiting until the end
         log::info!("waiting for InfluxDB connector");

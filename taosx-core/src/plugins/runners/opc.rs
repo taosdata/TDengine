@@ -1,8 +1,12 @@
 use std::{
-    collections::HashMap, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr,
+    collections::HashMap, fs, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr,
     sync::Arc, time::Duration,
-    fs,
-    process::Stdio,
+};
+
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 
 use anyhow::Context;
@@ -751,55 +755,65 @@ pub async fn opc_to_taos(
     log_path.push(LOG_FILE);
 
     log::info!("log file dir: {}", &log_path.display());
-    
-    let log_file = fs::OpenOptions::new()
-    .append(true)
-    .create(true)
-    .open(&log_path)
-    .unwrap();
-    let log_io = Stdio::from(log_file);
+
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        None,
+    );
 
     let child = command
         .arg("collect")
         .arg(format!("--conf={}", &config_path.display()))
         .stdout(std::process::Stdio::inherit())
-        .stderr(log_io);
-    let mut child = child.spawn()?;
-    tokio::spawn(async move {
-        tokio::select! {
-            status = child.wait() => {
-                let status = status?;
-                log::info!("OPC exit with {}", status);
-                if !status.success() {
-                    let _ = ipc.send(());
-                    anyhow::bail!("OPC exist with {}", status);
-                    // anyhow::bail!("OPC error: {}", child.stderr.map(|err| String::from_utf8_lossy(&err) ).unwrap_or("".into()));
-                }
-            },
-            // _ = tokio::signal::ctrl_c() => {
-            //     log::info!("Ctrl+C triggered, cancel tasks");
-            //     cancel.cancel();
-            // },
-            err = receiver.recv() => {
-                log::info!("have received worker thread panicked message, terminate child process");
-                if let Some(err) = err {
-                    let _ = ipc.send(());
-                    anyhow::bail!("OPC writer error: {err}");
-                }
-            },
-            _ = cancel.cancelled() => {
-                log::info!("opc task cancelled");
-            },
-        };
-        ipc.send(())?;
-        let _ = child.kill().await;
-        // terminate_child_process(pid)?;
-        log::info!("OPC to taos task done");
-        temp_path.close().unwrap();
-        port_pool.put(ipc_port);
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        Ok(())
-    }).await??;
+        .stderr(std::process::Stdio::piped());
+    {
+        let output = child.output().await?;
+        writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
+
+        let mut child = child.spawn()?;
+        tokio::spawn(async move {
+            tokio::select! {
+                status = child.wait() => {
+                    let status = status?;
+                    log::info!("OPC exit with {}", status);
+                    if !status.success() {
+                        let _ = ipc.send(());
+                        anyhow::bail!("OPC exist with {}", status);
+                        // anyhow::bail!("OPC error: {}", child.stderr.map(|err| String::from_utf8_lossy(&err) ).unwrap_or("".into()));
+                    }
+                },
+                // _ = tokio::signal::ctrl_c() => {
+                //     log::info!("Ctrl+C triggered, cancel tasks");
+                //     cancel.cancel();
+                // },
+                err = receiver.recv() => {
+                    log::info!("have received worker thread panicked message, terminate child process");
+                    if let Some(err) = err {
+                        let _ = ipc.send(());
+                        anyhow::bail!("OPC writer error: {err}");
+                    }
+                },
+                _ = cancel.cancelled() => {
+                    log::info!("opc task cancelled");
+                },
+            };
+            ipc.send(())?;
+            let _ = child.kill().await;
+            // terminate_child_process(pid)?;
+            log::info!("OPC to taos task done");
+            temp_path.close().unwrap();
+            port_pool.put(ipc_port);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Ok(())
+        }).await??;
+    }
     Ok(())
 }
 
@@ -859,12 +873,12 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     // } else {
     //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
     // };
-    let mut command = async_process::Command::new(exe_path());
+    let mut command = tokio::process::Command::new(exe_path());
     let output = command
         .arg("points")
         .arg(format!("--conf={}", &config_path.display()))
-        .stdout(async_process::Stdio::piped())
-        .stderr(async_process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
         .output()
         .await
         .context("Start OPC collector error")?;
