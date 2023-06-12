@@ -41,6 +41,8 @@ pub enum ParseError {
     JsonPathError(#[from] serde_json_path::ParseError),
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
+    #[error(transparent)]
+    RegexError(#[from] regex::RegexError)
 }
 
 /// Parse will be applied to one filed of data with [ArrayRef].
