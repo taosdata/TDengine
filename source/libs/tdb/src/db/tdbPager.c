@@ -316,10 +316,6 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
       return -1;
     }
 
-    if (!TDB_PAGE_TOTAL_CELLS(pPage) && TDB_PAGE_PGNO(pPage) > 1) {
-      tdbDebug("pager/commit: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
-    }
-
     ret = tdbPagerPWritePageToDB(pPager, pPage);
     if (ret < 0) {
       tdbError("failed to write page to db since %s", tstrerror(terrno));
