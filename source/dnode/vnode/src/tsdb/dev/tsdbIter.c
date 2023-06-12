@@ -17,6 +17,7 @@
 
 // STsdbIter ================
 struct STsdbIter {
+  EIterType type;
   struct {
     bool noMoreData;
   } ctx[1];
@@ -25,86 +26,80 @@ struct STsdbIter {
     STombRecord record[1];
   };
   SRBTreeNode node[1];
-  EIterType   type;
   union {
     struct {
       SSttSegReader      *reader;
       const TSttBlkArray *sttBlkArray;
       int32_t             sttBlkArrayIdx;
-      SBlockData          bData[1];
-      int32_t             iRow;
-    } stt[1];
+      SBlockData          blockData[1];
+      int32_t             blockDataIdx;
+    } sttData[1];
     struct {
       SDataFileReader     *reader;
       const TBrinBlkArray *brinBlkArray;
       int32_t              brinBlkArrayIdx;
       SBrinBlock           brinBlock[1];
       int32_t              brinBlockIdx;
-      SBlockData           bData[1];
-      int32_t              iRow;
-    } data[1];
+      SBlockData           blockData[1];
+      int32_t              blockDataIdx;
+    } dataData[1];
     struct {
       SMemTable  *memt;
       TSDBKEY     from[1];
       SRBTreeIter iter[1];
       STbData    *tbData;
       STbDataIter tbIter[1];
-    } memt[1];
+    } memtData[1];
     struct {
       SSttSegReader       *reader;
       const TTombBlkArray *tombBlkArray;
       int32_t              tombBlkArrayIdx;
-      STombBlock           tData[1];
-      int32_t              iRow;
+      STombBlock           tombBlock[1];
+      int32_t              tombBlockIdx;
     } sttTomb[1];
     struct {
       SDataFileReader     *reader;
       const TTombBlkArray *tombBlkArray;
       int32_t              tombBlkArrayIdx;
-      STombBlock           tData[1];
-      int32_t              iRow;
+      STombBlock           tombBlock[1];
+      int32_t              tombBlockIdx;
     } dataTomb[1];
-    struct {
-      SMemTable  *memt;
-      SRBTreeIter iter[1];
-      STbData    *tbData;
-      STbDataIter tbIter[1];
-    } memtTomb[1];
   };
 };
 
 static int32_t tsdbSttIterNext(STsdbIter *iter, const TABLEID *tbid) {
   while (!iter->ctx->noMoreData) {
-    for (; iter->stt->iRow < iter->stt->bData->nRow; iter->stt->iRow++) {
-      iter->row->suid = iter->stt->bData->suid;
-      iter->row->uid = iter->stt->bData->uid ? iter->stt->bData->uid : iter->stt->bData->aUid[iter->stt->iRow];
+    for (; iter->sttData->blockDataIdx < iter->sttData->blockData->nRow; iter->sttData->blockDataIdx++) {
+      iter->row->suid = iter->sttData->blockData->suid;
+      iter->row->uid = iter->sttData->blockData->uid ? iter->sttData->blockData->uid
+                                                     : iter->sttData->blockData->aUid[iter->sttData->blockDataIdx];
 
       if (tbid && iter->row->suid == tbid->suid && iter->row->uid == tbid->uid) {
         continue;
       }
 
-      iter->row->row = tsdbRowFromBlockData(iter->stt->bData, iter->stt->iRow);
-      iter->stt->iRow++;
+      iter->row->row = tsdbRowFromBlockData(iter->sttData->blockData, iter->sttData->blockDataIdx);
+      iter->sttData->blockDataIdx++;
       goto _exit;
     }
 
-    if (iter->stt->sttBlkArrayIdx >= TARRAY2_SIZE(iter->stt->sttBlkArray)) {
+    if (iter->sttData->sttBlkArrayIdx >= TARRAY2_SIZE(iter->sttData->sttBlkArray)) {
       iter->ctx->noMoreData = true;
       break;
     }
 
-    for (; iter->stt->sttBlkArrayIdx < TARRAY2_SIZE(iter->stt->sttBlkArray); iter->stt->sttBlkArrayIdx++) {
-      const SSttBlk *sttBlk = TARRAY2_GET_PTR(iter->stt->sttBlkArray, iter->stt->sttBlkArrayIdx);
+    for (; iter->sttData->sttBlkArrayIdx < TARRAY2_SIZE(iter->sttData->sttBlkArray); iter->sttData->sttBlkArrayIdx++) {
+      const SSttBlk *sttBlk = TARRAY2_GET_PTR(iter->sttData->sttBlkArray, iter->sttData->sttBlkArrayIdx);
 
       if (tbid && tbid->suid == sttBlk->suid && tbid->uid == sttBlk->minUid && tbid->uid == sttBlk->maxUid) {
         continue;
       }
 
-      int32_t code = tsdbSttFileReadBlockData(iter->stt->reader, sttBlk, iter->stt->bData);
+      int32_t code = tsdbSttFileReadBlockData(iter->sttData->reader, sttBlk, iter->sttData->blockData);
       if (code) return code;
 
-      iter->stt->iRow = 0;
-      iter->stt->sttBlkArrayIdx++;
+      iter->sttData->blockDataIdx = 0;
+      iter->sttData->sttBlkArrayIdx++;
       break;
     }
   }
@@ -119,25 +114,26 @@ static int32_t tsdbDataIterNext(STsdbIter *iter, const TABLEID *tbid) {
   while (!iter->ctx->noMoreData) {
     for (;;) {
       // SBlockData
-      for (; iter->data->iRow < iter->data->bData->nRow; iter->data->iRow++) {
-        if (tbid && tbid->suid == iter->data->bData->suid && tbid->uid == iter->data->bData->uid) {
-          iter->data->iRow = iter->data->bData->nRow;
+      for (; iter->dataData->blockDataIdx < iter->dataData->blockData->nRow; iter->dataData->blockDataIdx++) {
+        if (tbid && tbid->suid == iter->dataData->blockData->suid && tbid->uid == iter->dataData->blockData->uid) {
+          iter->dataData->blockDataIdx = iter->dataData->blockData->nRow;
           break;
         }
 
-        iter->row->row = tsdbRowFromBlockData(iter->data->bData, iter->data->iRow);
-        iter->data->iRow++;
+        iter->row->row = tsdbRowFromBlockData(iter->dataData->blockData, iter->dataData->blockDataIdx);
+        iter->dataData->blockDataIdx++;
         goto _exit;
       }
 
       // SBrinBlock
-      if (iter->data->brinBlockIdx >= BRIN_BLOCK_SIZE(iter->data->brinBlock)) {
+      if (iter->dataData->brinBlockIdx >= BRIN_BLOCK_SIZE(iter->dataData->brinBlock)) {
         break;
       }
 
-      for (; iter->data->brinBlockIdx < BRIN_BLOCK_SIZE(iter->data->brinBlock); iter->data->brinBlockIdx++) {
+      for (; iter->dataData->brinBlockIdx < BRIN_BLOCK_SIZE(iter->dataData->brinBlock);
+           iter->dataData->brinBlockIdx++) {
         SBrinRecord record[1];
-        tBrinBlockGet(iter->data->brinBlock, iter->data->brinBlockIdx, record);
+        tBrinBlockGet(iter->dataData->brinBlock, iter->dataData->brinBlockIdx, record);
 
         if (tbid && tbid->suid == record->suid && tbid->uid == record->uid) {
           continue;
@@ -146,32 +142,33 @@ static int32_t tsdbDataIterNext(STsdbIter *iter, const TABLEID *tbid) {
         iter->row->suid = record->suid;
         iter->row->uid = record->uid;
 
-        code = tsdbDataFileReadBlockData(iter->data->reader, record, iter->data->bData);
+        code = tsdbDataFileReadBlockData(iter->dataData->reader, record, iter->dataData->blockData);
         if (code) return code;
 
-        iter->data->iRow = 0;
-        iter->data->brinBlockIdx++;
+        iter->dataData->blockDataIdx = 0;
+        iter->dataData->brinBlockIdx++;
         break;
       }
     }
 
-    if (iter->data->brinBlkArrayIdx >= TARRAY2_SIZE(iter->data->brinBlkArray)) {
+    if (iter->dataData->brinBlkArrayIdx >= TARRAY2_SIZE(iter->dataData->brinBlkArray)) {
       iter->ctx->noMoreData = true;
       break;
     }
 
-    for (; iter->data->brinBlkArrayIdx < TARRAY2_SIZE(iter->data->brinBlkArray); iter->data->brinBlkArrayIdx++) {
-      const SBrinBlk *brinBlk = TARRAY2_GET_PTR(iter->data->brinBlkArray, iter->data->brinBlkArrayIdx);
+    for (; iter->dataData->brinBlkArrayIdx < TARRAY2_SIZE(iter->dataData->brinBlkArray);
+         iter->dataData->brinBlkArrayIdx++) {
+      const SBrinBlk *brinBlk = TARRAY2_GET_PTR(iter->dataData->brinBlkArray, iter->dataData->brinBlkArrayIdx);
 
       if (tbid && tbid->uid == brinBlk->minTbid.uid && tbid->uid == brinBlk->maxTbid.uid) {
         continue;
       }
 
-      code = tsdbDataFileReadBrinBlock(iter->data->reader, brinBlk, iter->data->brinBlock);
+      code = tsdbDataFileReadBrinBlock(iter->dataData->reader, brinBlk, iter->dataData->brinBlock);
       if (code) return code;
 
-      iter->data->brinBlockIdx = 0;
-      iter->data->brinBlkArrayIdx++;
+      iter->dataData->brinBlockIdx = 0;
+      iter->dataData->brinBlkArrayIdx++;
       break;
     }
   }
@@ -184,31 +181,31 @@ static int32_t tsdbMemTableIterNext(STsdbIter *iter, const TABLEID *tbid) {
   SRBTreeNode *node;
 
   while (!iter->ctx->noMoreData) {
-    for (TSDBROW *row; iter->memt->tbData && (row = tsdbTbDataIterGet(iter->memt->tbIter));) {
-      if (tbid && tbid->suid == iter->memt->tbData->suid && tbid->uid == iter->memt->tbData->uid) {
-        iter->memt->tbData = NULL;
+    for (TSDBROW *row; iter->memtData->tbData && (row = tsdbTbDataIterGet(iter->memtData->tbIter));) {
+      if (tbid && tbid->suid == iter->memtData->tbData->suid && tbid->uid == iter->memtData->tbData->uid) {
+        iter->memtData->tbData = NULL;
         break;
       }
       iter->row->row = row[0];
 
-      tsdbTbDataIterNext(iter->memt->tbIter);
+      tsdbTbDataIterNext(iter->memtData->tbIter);
       goto _exit;
     }
 
     for (;;) {
-      node = tRBTreeIterNext(iter->memt->iter);
+      node = tRBTreeIterNext(iter->memtData->iter);
       if (!node) {
         iter->ctx->noMoreData = true;
-        break;
+        goto _exit;
       }
 
-      iter->memt->tbData = TCONTAINER_OF(node, STbData, rbtn);
-      if (tbid && tbid->suid == iter->memt->tbData->suid && tbid->uid == iter->memt->tbData->uid) {
+      iter->memtData->tbData = TCONTAINER_OF(node, STbData, rbtn);
+      if (tbid && tbid->suid == iter->memtData->tbData->suid && tbid->uid == iter->memtData->tbData->uid) {
         continue;
       } else {
-        iter->row->suid = iter->memt->tbData->suid;
-        iter->row->uid = iter->memt->tbData->uid;
-        tsdbTbDataIterOpen(iter->memt->tbData, iter->memt->from, 0, iter->memt->tbIter);
+        iter->row->suid = iter->memtData->tbData->suid;
+        iter->row->uid = iter->memtData->tbData->uid;
+        tsdbTbDataIterOpen(iter->memtData->tbData, iter->memtData->from, 0, iter->memtData->tbIter);
         break;
       }
     }
@@ -220,24 +217,24 @@ _exit:
 
 static int32_t tsdbDataTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
   while (!iter->ctx->noMoreData) {
-    for (; iter->dataTomb->iRow < TOMB_BLOCK_SIZE(iter->dataTomb->tData); iter->dataTomb->iRow++) {
-      iter->record->suid = TARRAY2_GET(iter->dataTomb->tData->suid, iter->dataTomb->iRow);
-      iter->record->uid = TARRAY2_GET(iter->dataTomb->tData->uid, iter->dataTomb->iRow);
+    for (; iter->dataTomb->tombBlockIdx < TOMB_BLOCK_SIZE(iter->dataTomb->tombBlock); iter->dataTomb->tombBlockIdx++) {
+      iter->record->suid = TARRAY2_GET(iter->dataTomb->tombBlock->suid, iter->dataTomb->tombBlockIdx);
+      iter->record->uid = TARRAY2_GET(iter->dataTomb->tombBlock->uid, iter->dataTomb->tombBlockIdx);
 
       if (tbid && iter->record->suid == tbid->suid && iter->record->uid == tbid->uid) {
         continue;
       }
 
-      iter->record->version = TARRAY2_GET(iter->dataTomb->tData->version, iter->dataTomb->iRow);
-      iter->record->skey = TARRAY2_GET(iter->dataTomb->tData->skey, iter->dataTomb->iRow);
-      iter->record->ekey = TARRAY2_GET(iter->dataTomb->tData->ekey, iter->dataTomb->iRow);
-      iter->dataTomb->iRow++;
+      iter->record->version = TARRAY2_GET(iter->dataTomb->tombBlock->version, iter->dataTomb->tombBlockIdx);
+      iter->record->skey = TARRAY2_GET(iter->dataTomb->tombBlock->skey, iter->dataTomb->tombBlockIdx);
+      iter->record->ekey = TARRAY2_GET(iter->dataTomb->tombBlock->ekey, iter->dataTomb->tombBlockIdx);
+      iter->dataTomb->tombBlockIdx++;
       goto _exit;
     }
 
     if (iter->dataTomb->tombBlkArrayIdx >= TARRAY2_SIZE(iter->dataTomb->tombBlkArray)) {
       iter->ctx->noMoreData = true;
-      break;
+      goto _exit;
     }
 
     for (; iter->dataTomb->tombBlkArrayIdx < TARRAY2_SIZE(iter->dataTomb->tombBlkArray);
@@ -249,10 +246,10 @@ static int32_t tsdbDataTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
         continue;
       }
 
-      int32_t code = tsdbDataFileReadTombBlock(iter->dataTomb->reader, tombBlk, iter->dataTomb->tData);
+      int32_t code = tsdbDataFileReadTombBlock(iter->dataTomb->reader, tombBlk, iter->dataTomb->tombBlock);
       if (code) return code;
 
-      iter->dataTomb->iRow = 0;
+      iter->dataTomb->tombBlockIdx = 0;
       iter->dataTomb->tombBlkArrayIdx++;
       break;
     }
@@ -262,25 +259,20 @@ _exit:
   return 0;
 }
 
-static int32_t tsdbMemTableTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
-  ASSERTS(0, "Not implemented yet!");
-  return 0;
-}
-
 static int32_t tsdbSttIterOpen(STsdbIter *iter) {
   int32_t code;
 
-  code = tsdbSttFileReadSttBlk(iter->stt->reader, &iter->stt->sttBlkArray);
+  code = tsdbSttFileReadSttBlk(iter->sttData->reader, &iter->sttData->sttBlkArray);
   if (code) return code;
 
-  if (TARRAY2_SIZE(iter->stt->sttBlkArray) == 0) {
+  if (TARRAY2_SIZE(iter->sttData->sttBlkArray) == 0) {
     iter->ctx->noMoreData = true;
     return 0;
   }
 
-  iter->stt->sttBlkArrayIdx = 0;
-  tBlockDataCreate(iter->stt->bData);
-  iter->stt->iRow = 0;
+  iter->sttData->sttBlkArrayIdx = 0;
+  tBlockDataCreate(iter->sttData->blockData);
+  iter->sttData->blockDataIdx = 0;
 
   return tsdbSttIterNext(iter, NULL);
 }
@@ -289,34 +281,34 @@ static int32_t tsdbDataIterOpen(STsdbIter *iter) {
   int32_t code;
 
   // SBrinBlk
-  code = tsdbDataFileReadBrinBlk(iter->data->reader, &iter->data->brinBlkArray);
+  code = tsdbDataFileReadBrinBlk(iter->dataData->reader, &iter->dataData->brinBlkArray);
   if (code) return code;
 
-  if (TARRAY2_SIZE(iter->data->brinBlkArray) == 0) {
+  if (TARRAY2_SIZE(iter->dataData->brinBlkArray) == 0) {
     iter->ctx->noMoreData = true;
     return 0;
   }
 
-  iter->data->brinBlkArrayIdx = 0;
+  iter->dataData->brinBlkArrayIdx = 0;
 
   // SBrinBlock
-  tBrinBlockInit(iter->data->brinBlock);
-  iter->data->brinBlockIdx = 0;
+  tBrinBlockInit(iter->dataData->brinBlock);
+  iter->dataData->brinBlockIdx = 0;
 
   // SBlockData
-  tBlockDataCreate(iter->data->bData);
-  iter->data->iRow = 0;
+  tBlockDataCreate(iter->dataData->blockData);
+  iter->dataData->blockDataIdx = 0;
 
   return tsdbDataIterNext(iter, NULL);
 }
 
 static int32_t tsdbMemTableIterOpen(STsdbIter *iter) {
-  iter->memt->iter[0] = tRBTreeIterCreate(iter->memt->memt->tbDataTree, 1);
+  iter->memtData->iter[0] = tRBTreeIterCreate(iter->memtData->memt->tbDataTree, 1);
   return tsdbMemTableIterNext(iter, NULL);
 }
 
 static int32_t tsdbSttIterClose(STsdbIter *iter) {
-  tBlockDataDestroy(iter->stt->bData);
+  tBlockDataDestroy(iter->sttData->blockData);
   return 0;
 }
 
@@ -332,15 +324,15 @@ static int32_t tsdbDataTombIterOpen(STsdbIter *iter) {
   }
   iter->dataTomb->tombBlkArrayIdx = 0;
 
-  tTombBlockInit(iter->dataTomb->tData);
-  iter->dataTomb->iRow = 0;
+  tTombBlockInit(iter->dataTomb->tombBlock);
+  iter->dataTomb->tombBlockIdx = 0;
 
   return tsdbDataTombIterNext(iter, NULL);
 }
 
 static int32_t tsdbDataIterClose(STsdbIter *iter) {
-  tBrinBlockDestroy(iter->data->brinBlock);
-  tBlockDataDestroy(iter->data->bData);
+  tBrinBlockDestroy(iter->dataData->brinBlock);
+  tBlockDataDestroy(iter->dataData->blockData);
   return 0;
 }
 
@@ -348,24 +340,24 @@ static int32_t tsdbMemTableIterClose(STsdbIter *iter) { return 0; }
 
 static int32_t tsdbSttTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
   while (!iter->ctx->noMoreData) {
-    for (; iter->sttTomb->iRow < TOMB_BLOCK_SIZE(iter->sttTomb->tData); iter->sttTomb->iRow++) {
-      iter->record->suid = TARRAY2_GET(iter->sttTomb->tData->suid, iter->sttTomb->iRow);
-      iter->record->uid = TARRAY2_GET(iter->sttTomb->tData->uid, iter->sttTomb->iRow);
+    for (; iter->sttTomb->tombBlockIdx < TOMB_BLOCK_SIZE(iter->sttTomb->tombBlock); iter->sttTomb->tombBlockIdx++) {
+      iter->record->suid = TARRAY2_GET(iter->sttTomb->tombBlock->suid, iter->sttTomb->tombBlockIdx);
+      iter->record->uid = TARRAY2_GET(iter->sttTomb->tombBlock->uid, iter->sttTomb->tombBlockIdx);
 
       if (tbid && iter->record->suid == tbid->suid && iter->record->uid == tbid->uid) {
         continue;
       }
 
-      iter->record->version = TARRAY2_GET(iter->sttTomb->tData->version, iter->sttTomb->iRow);
-      iter->record->skey = TARRAY2_GET(iter->sttTomb->tData->skey, iter->sttTomb->iRow);
-      iter->record->ekey = TARRAY2_GET(iter->sttTomb->tData->ekey, iter->sttTomb->iRow);
-      iter->sttTomb->iRow++;
+      iter->record->version = TARRAY2_GET(iter->sttTomb->tombBlock->version, iter->sttTomb->tombBlockIdx);
+      iter->record->skey = TARRAY2_GET(iter->sttTomb->tombBlock->skey, iter->sttTomb->tombBlockIdx);
+      iter->record->ekey = TARRAY2_GET(iter->sttTomb->tombBlock->ekey, iter->sttTomb->tombBlockIdx);
+      iter->sttTomb->tombBlockIdx++;
       goto _exit;
     }
 
     if (iter->sttTomb->tombBlkArrayIdx >= TARRAY2_SIZE(iter->sttTomb->tombBlkArray)) {
       iter->ctx->noMoreData = true;
-      break;
+      goto _exit;
     }
 
     for (; iter->sttTomb->tombBlkArrayIdx < TARRAY2_SIZE(iter->sttTomb->tombBlkArray);
@@ -377,10 +369,10 @@ static int32_t tsdbSttTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
         continue;
       }
 
-      int32_t code = tsdbSttFileReadTombBlock(iter->sttTomb->reader, tombBlk, iter->sttTomb->tData);
+      int32_t code = tsdbSttFileReadTombBlock(iter->sttTomb->reader, tombBlk, iter->sttTomb->tombBlock);
       if (code) return code;
 
-      iter->sttTomb->iRow = 0;
+      iter->sttTomb->tombBlockIdx = 0;
       iter->sttTomb->tombBlkArrayIdx++;
       break;
     }
@@ -402,8 +394,8 @@ static int32_t tsdbSttTombIterOpen(STsdbIter *iter) {
   }
 
   iter->sttTomb->tombBlkArrayIdx = 0;
-  tTombBlockInit(iter->sttTomb->tData);
-  iter->sttTomb->iRow = 0;
+  tTombBlockInit(iter->sttTomb->tombBlock);
+  iter->sttTomb->tombBlockIdx = 0;
 
   return tsdbSttTombIterNext(iter, NULL);
 }
@@ -412,22 +404,24 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
   int32_t code;
 
   iter[0] = taosMemoryCalloc(1, sizeof(*iter[0]));
-  if (iter[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (iter[0] == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   iter[0]->type = config->type;
   iter[0]->ctx->noMoreData = false;
   switch (config->type) {
     case TSDB_ITER_TYPE_STT:
-      iter[0]->stt->reader = config->sttReader;
+      iter[0]->sttData->reader = config->sttReader;
       code = tsdbSttIterOpen(iter[0]);
       break;
     case TSDB_ITER_TYPE_DATA:
-      iter[0]->data->reader = config->dataReader;
+      iter[0]->dataData->reader = config->dataReader;
       code = tsdbDataIterOpen(iter[0]);
       break;
     case TSDB_ITER_TYPE_MEMT:
-      iter[0]->memt->memt = config->memt;
-      iter[0]->memt->from[0] = config->from[0];
+      iter[0]->memtData->memt = config->memt;
+      iter[0]->memtData->from[0] = config->from[0];
       code = tsdbMemTableIterOpen(iter[0]);
       break;
     case TSDB_ITER_TYPE_STT_TOMB:
@@ -438,10 +432,8 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
       iter[0]->dataTomb->reader = config->dataReader;
       code = tsdbDataTombIterOpen(iter[0]);
       break;
-    case TSDB_ITER_TYPE_MEMT_TOMB:
-      ASSERTS(0, "Not implemented");
-      break;
     default:
+      code = TSDB_CODE_INVALID_PARA;
       ASSERTS(false, "Not implemented");
   }
 
@@ -453,12 +445,12 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
 }
 
 static int32_t tsdbSttTombIterClose(STsdbIter *iter) {
-  tTombBlockDestroy(iter->sttTomb->tData);
+  tTombBlockDestroy(iter->sttTomb->tombBlock);
   return 0;
 }
 
 static int32_t tsdbDataTombIterClose(STsdbIter *iter) {
-  tTombBlockDestroy(iter->dataTomb->tData);
+  tTombBlockDestroy(iter->dataTomb->tombBlock);
   return 0;
 }
 
@@ -478,9 +470,6 @@ int32_t tsdbIterClose(STsdbIter **iter) {
       break;
     case TSDB_ITER_TYPE_DATA_TOMB:
       tsdbDataTombIterClose(iter[0]);
-      break;
-    case TSDB_ITER_TYPE_MEMT_TOMB:
-      ASSERTS(false, "Not implemented");
       break;
     default:
       ASSERT(false);
@@ -502,8 +491,6 @@ int32_t tsdbIterNext(STsdbIter *iter) {
       return tsdbSttTombIterNext(iter, NULL);
     case TSDB_ITER_TYPE_DATA_TOMB:
       return tsdbDataTombIterNext(iter, NULL);
-    case TSDB_ITER_TYPE_MEMT_TOMB:
-      return tsdbMemTableTombIterNext(iter, NULL);
     default:
       ASSERT(false);
   }

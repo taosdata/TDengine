@@ -35,7 +35,6 @@ typedef enum {
   TSDB_ITER_TYPE_MEMT,
   TSDB_ITER_TYPE_STT_TOMB,
   TSDB_ITER_TYPE_DATA_TOMB,
-  TSDB_ITER_TYPE_MEMT_TOMB,
 } EIterType;
 
 typedef struct {
@@ -46,7 +45,7 @@ typedef struct {
     struct {
       SMemTable *memt;
       TSDBKEY    from[1];
-    };  // TSDB_ITER_TYPE_MEMT || TSDB_ITER_TYPE_MEMT_TOMB
+    };  // TSDB_ITER_TYPE_MEMT
   };
 } STsdbIterConfig;
 
