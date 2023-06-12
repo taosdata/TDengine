@@ -27,11 +27,11 @@ TDengine Source Connector is used to read data from TDengine in real-time and se
 
 Execute in any directory:
 
-````
+```shell
 curl -O https://downloads.apache.org/kafka/3.4.0/kafka_2.13-3.4.0.tgz
 tar xzf kafka_2.13-3.4.0.tgz -C /opt/
 ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
-````
+```
 
 Then you need to add the `$KAFKA_HOME/bin` directory to the PATH.
 
@@ -181,7 +181,7 @@ meters,location=California.LoSangeles,groupid=3 current=11.3,voltage=221,phase=0
 
 Use kafka-console-producer to write test data to the topic `meters`.
 
-```
+```shell
 cat test-data.txt | kafka-console-producer.sh --broker-list localhost:9092 --topic meters
 ```
 
@@ -215,7 +215,7 @@ The role of the TDengine Source Connector is to push all the data of a specific 
 
 TDengine Source Connector will convert the data in TDengine data table into [InfluxDB Line protocol format](/develop/insert-data/influxdb-line/) or [OpenTSDB JSON protocol format](/develop/insert-data/opentsdb-json ) and then write to Kafka.
 
-The following sample program synchronizes the data in the database test to the topic tdengine-source-test.
+The following sample program synchronizes the data in the database test to the topic tdengine-test-meters.
 
 ### Add Source Connector configuration file
 
@@ -237,7 +237,8 @@ Input following content:
     "connection.database": "test",
     "connection.attempts": 3,
     "connection.backoff.ms": 5000,
-    "topic.prefix": "tdengine-source",
+    "topic.prefix": "tdengine",
+    "topic.delimiter": "-",
     "poll.interval.ms": 1000,
     "fetch.max.rows": 100,
     "topic.per.stable": true,
@@ -283,10 +284,10 @@ curl -X POST -d @source-demo.json http://localhost:8083/connectors -H "Content-T
 
 ### View topic data
 
-Use the kafka-console-consumer command-line tool to monitor data in the topic tdengine-source-test. In the beginning, all historical data will be output. After inserting two new data into TDengine, kafka-console-consumer immediately outputs the two new data. The output is in InfluxDB line protocol format.
+Use the kafka-console-consumer command-line tool to monitor data in the topic tdengine-test-meters. In the beginning, all historical data will be output. After inserting two new data into TDengine, kafka-console-consumer immediately outputs the two new data. The output is in InfluxDB line protocol format.
 
 ````shell
-kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic tdengine-source-test-meters
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic tdengine-test-meters
 ````
 
 output:
@@ -360,8 +361,9 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 5. `fetch.max.rows`: The maximum number of rows retrieved when retrieving the database, default is 100.
 6. `query.interval.ms`: The time range of reading data from TDengine each time, its unit is millisecond. It should be adjusted according to the data flow in rate, the default value is 0, this means to get all the data to the latest time.
 7. `out.format`: Result output format. `line` indicates that the output format is InfluxDB line protocol format, `json` indicates that the output format is json. The default is line.
-8. `topic.per.stable`: If it's set to true, it means one super table in TDengine corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>-<stable.name>`; if it's set to false, it means the whole DB corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix>-<connection.database>`.
-9. `topic.ignore.db`: Whether the topic naming rule contains the database name: true indicates that the rule is `<topic.prefix>-<stable.name>`, false indicates that the rule is `<topic.prefix>-<connection.database>-<stable.name>`, and the default is false. Does not take effect when `topic.per.stable` is set to false.
+8. `topic.per.stable`: If it's set to true, it means one super table in TDengine corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`; if it's set to false, it means the whole DB corresponds to a topic in Kafka, the topic naming rule is `<topic.prefix><topic.delimiter><connection.database>`.
+9. `topic.ignore.db`: Whether the topic naming rule contains the database name: true indicates that the rule is `<topic.prefix><topic.delimiter><stable.name>`, false indicates that the rule is `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`, and the default is false. Does not take effect when `topic.per.stable` is set to false.
+10. `topic.delimiter`: topic name delimiter，default is `-`。
 
 ## Other notes
 
