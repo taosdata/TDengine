@@ -27,11 +27,11 @@ TDengine Source Connector is used to read data from TDengine in real-time and se
 
 Execute in any directory:
 
-````
+```shell
 curl -O https://downloads.apache.org/kafka/3.4.0/kafka_2.13-3.4.0.tgz
 tar xzf kafka_2.13-3.4.0.tgz -C /opt/
 ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
-````
+```
 
 Then you need to add the `$KAFKA_HOME/bin` directory to the PATH.
 
@@ -181,7 +181,7 @@ meters,location=California.LoSangeles,groupid=3 current=11.3,voltage=221,phase=0
 
 Use kafka-console-producer to write test data to the topic `meters`.
 
-```
+```shell
 cat test-data.txt | kafka-console-producer.sh --broker-list localhost:9092 --topic meters
 ```
 
