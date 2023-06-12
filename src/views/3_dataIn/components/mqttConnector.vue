@@ -206,7 +206,6 @@ export default {
             });
           }
         }
-        console.log(oldData,'删除后的充值---');
         this.$store.commit("app/SET_MQTT_PARSER", oldData);
         this.disable = false;
       });

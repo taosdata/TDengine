@@ -115,7 +115,6 @@ export default {
   mounted() {
     this.getDefaultPrimayKey();
     this.saveFileds=deepClone(this.echoData)
-    console.log('需要存入库的回显',this.echoData);
   },
   methods: {
     getDefaultPrimayKey() {

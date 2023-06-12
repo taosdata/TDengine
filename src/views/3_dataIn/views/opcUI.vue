@@ -392,8 +392,8 @@
                     <template v-else>
                       <el-checkbox
                         v-model="p.value"
-                        true-label="true"
-                        false-label="false"
+                        :true-label="true"
+                        :false-label="false"
                       ></el-checkbox>
                     </template>
                   </template>
@@ -699,12 +699,6 @@ export default {
     //opc需要存入库的字段
     changeEchoData(arr) {
       this.$parent.echoData = deepClone(arr);
-      console.log(
-        arr,
-        this.$parent,
-        this.$store.state.app.opcConfig,
-        "修改opc需要存入库的字段"
-      );
     },
     selectPayload(val) {
       this.payloadVal = val;
@@ -823,7 +817,6 @@ export default {
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
-        console.log(dns, "group----之前");
         for (let index = 0; index < data.groups.length; index++) {
           for (let g = 0; g < data.groups[index].params.length; g++) {
             if (
@@ -835,7 +828,6 @@ export default {
                 data.groups[index].params[g]["value"] == "")
             ) {
               if (this.tagName == "mqtt") {
-                console.log(data.groups[index], "data.groups[index]--000");
                 if (data.groups[index].collapsed) {
                   Message({
                     type: "warning",
@@ -847,7 +839,6 @@ export default {
                   return;
                 }
               } else {
-                console.log("opc---warning", this.$refs.opcsingleton);
                 if (this.tagName.includes("opc")) {
                   this.$refs.opcsingleton[0].submit();
                   if (this.$refs.opcsingleton[0].isReject) {
@@ -893,18 +884,9 @@ export default {
                         "&";
                     }
                   } else {
-                    // if (!this.tagName.includes("opc")) {
-                    console.log(querystr, "querystrquerystr");
                     if (
-                      data.groups[index].params[g].name == "opc_table_config"
+                      data.groups[index].params[g].name != "opc_table_config"
                     ) {
-                      console.log("opc_table_config", "---");
-                    } else {
-                      console.log(
-                        data.groups[index].params[g].name,
-                        data.groups[index].params[g].value,
-                        "group"
-                      );
                       if (data.groups[index].params[g].name == "debug") {
                         querystr +=
                           `${data.groups[index].params[g].name}=${
@@ -978,11 +960,6 @@ export default {
           });
           return;
         }
-        console.log(
-          this.tagName,
-          this.$store.state.app.opcConfig,
-          "this.tagNamethis.tagNamethis.tagName"
-        );
         if (this.tagName == "mqtt") {
           this.$refs.mqtt.submit();
           if (this.$refs.mqtt) {
@@ -1027,13 +1004,6 @@ export default {
             stable_prefix: oldData.stable_prefix,
           };
           dns += "&opc_table_config=" + JSON.stringify(saveConf);
-          console.log(
-            this.$store.state.app.opcConfig,
-            saveConf,
-            dns,
-            this.$parent.echoData,
-            "opc----编辑--新增"
-          );
         }
         let piParams = {
           from:
@@ -1055,7 +1025,6 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
-        console.log("add");
         if (this.tagName == "mqtt") {
           piParams["parser"] = this.$store.state.app.mqttParser;
         }

@@ -189,13 +189,6 @@ export default {
         this.radio = "1";
         this.$store.commit("app/SET_MQTT_PARSER", oldparser);
       }
-      console.log(
-        val,
-        "主键--mqtt",
-        this.radio,
-        this.colData,
-        this.$store.state.app.mqttParser
-      );
     },
     watchFieldVal(val) {
       if (this.constcols.includes(val)) {
@@ -221,7 +214,6 @@ export default {
       }
     },
     checkTag() {
-      console.log(this.colData.name, this.currentPrimary, "主键--tag--column");
       if (this.colData.name == this.currentPrimary) {
         Message.warning(this.$t("datasource.primaryColTagtip"));
         return;
