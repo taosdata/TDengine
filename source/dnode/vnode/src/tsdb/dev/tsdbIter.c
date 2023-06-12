@@ -64,6 +64,12 @@ struct STsdbIter {
       STombBlock           tombBlock[1];
       int32_t              tombBlockIdx;
     } dataTomb[1];
+    struct {
+      SMemTable  *memt;
+      SRBTreeIter rbtIter[1];
+      STbData    *tbData;
+      SDelData   *delData;
+    } memtTomb[1];
   };
 };
 
@@ -259,6 +265,45 @@ _exit:
   return 0;
 }
 
+static int32_t tsdbMemTombIterNext(STsdbIter *iter, const TABLEID *tbid) {
+  while (!iter->ctx->noMoreData) {
+    for (; iter->memtTomb->delData;) {
+      if (tbid && tbid->uid == iter->memtTomb->tbData->uid) {
+        iter->memtTomb->delData = NULL;
+        break;
+      }
+
+      iter->record->suid = iter->memtTomb->tbData->suid;
+      iter->record->uid = iter->memtTomb->tbData->uid;
+      iter->record->version = iter->memtTomb->delData->version;
+      iter->record->skey = iter->memtTomb->delData->sKey;
+      iter->record->ekey = iter->memtTomb->delData->eKey;
+
+      iter->memtTomb->delData = iter->memtTomb->delData->pNext;
+      goto _exit;
+    }
+
+    for (;;) {
+      SRBTreeNode *node = tRBTreeIterNext(iter->memtTomb->rbtIter);
+      if (node == NULL) {
+        iter->ctx->noMoreData = true;
+        goto _exit;
+      }
+
+      iter->memtTomb->tbData = TCONTAINER_OF(node, STbData, rbtn);
+      if (tbid && tbid->uid == iter->memtTomb->tbData->uid) {
+        continue;
+      } else {
+        iter->memtTomb->delData = iter->memtTomb->tbData->pHead;
+        break;
+      }
+    }
+  }
+
+_exit:
+  return 0;
+}
+
 static int32_t tsdbSttIterOpen(STsdbIter *iter) {
   int32_t code;
 
@@ -328,6 +373,13 @@ static int32_t tsdbDataTombIterOpen(STsdbIter *iter) {
   iter->dataTomb->tombBlockIdx = 0;
 
   return tsdbDataTombIterNext(iter, NULL);
+}
+
+static int32_t tsdbMemTombIterOpen(STsdbIter *iter) {
+  int32_t code;
+
+  iter->memtTomb->rbtIter[0] = tRBTreeIterCreate(iter->memtTomb->memt->tbDataTree, 1);
+  return tsdbMemTombIterNext(iter, NULL);
 }
 
 static int32_t tsdbDataIterClose(STsdbIter *iter) {
@@ -432,6 +484,10 @@ int32_t tsdbIterOpen(const STsdbIterConfig *config, STsdbIter **iter) {
       iter[0]->dataTomb->reader = config->dataReader;
       code = tsdbDataTombIterOpen(iter[0]);
       break;
+    case TSDB_ITER_TYPE_MEMT_TOMB:
+      iter[0]->memtTomb->memt = config->memt;
+      code = tsdbMemTombIterOpen(iter[0]);
+      break;
     default:
       code = TSDB_CODE_INVALID_PARA;
       ASSERTS(false, "Not implemented");
@@ -470,6 +526,8 @@ int32_t tsdbIterClose(STsdbIter **iter) {
       break;
     case TSDB_ITER_TYPE_DATA_TOMB:
       tsdbDataTombIterClose(iter[0]);
+      break;
+    case TSDB_ITER_TYPE_MEMT_TOMB:
       break;
     default:
       ASSERT(false);
