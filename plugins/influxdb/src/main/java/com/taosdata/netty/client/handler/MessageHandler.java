@@ -19,7 +19,7 @@ public class MessageHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext channelHandlerContext, Object msg) throws Exception {
-        logger.info("Receive message: {}", msg.toString());
+        logger.debug("receive message: {}", msg.toString());
         /*
         // 对象类型正确则处理
         if (msg instanceof MessageDto) {

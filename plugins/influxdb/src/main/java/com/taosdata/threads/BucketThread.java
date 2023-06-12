@@ -182,7 +182,7 @@ public class BucketThread implements Runnable {
             throw new Exception("parameter beginTime configuration error.");
         }
         if (StringUtils.isEmpty(endTime)) {
-            endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_15);
+            endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
         } else if (endTime.matches(DateUtils.PATTERN_YMD)) {
             endTime += " 23:59:59";
         } else if (!endTime.matches(DateUtils.PATTERN_YMDHMS)) {
