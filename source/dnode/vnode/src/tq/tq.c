@@ -243,8 +243,8 @@ int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId) {
   tqDoSendDataRsp(&pHandle->msg->info, &dataRsp, pHandle->epoch, pHandle->consumerId, TMQ_MSG_TYPE__POLL_RSP, sver,
                   ever);
 
-  char buf1[80] = {0};
-  char buf2[80] = {0};
+  char buf1[TSDB_OFFSET_LEN] = {0};
+  char buf2[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(buf1, tListLen(buf1), &dataRsp.reqOffset);
   tFormatOffset(buf2, tListLen(buf2), &dataRsp.rspOffset);
   tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s", vgId,
@@ -259,10 +259,10 @@ int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq*
 
   tqDoSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type, sver, ever);
 
-  char buf1[80] = {0};
-  char buf2[80] = {0};
-  tFormatOffset(buf1, 80, &pRsp->reqOffset);
-  tFormatOffset(buf2, 80, &pRsp->rspOffset);
+  char buf1[TSDB_OFFSET_LEN] = {0};
+  char buf2[TSDB_OFFSET_LEN] = {0};
+  tFormatOffset(buf1, TSDB_OFFSET_LEN, &pRsp->reqOffset);
+  tFormatOffset(buf2, TSDB_OFFSET_LEN, &pRsp->rspOffset);
 
   tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, reqId:0x%" PRIx64, vgId,
           pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
@@ -481,8 +481,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     pHandle->epoch = reqEpoch;
   }
 
-  char buf[80];
-  tFormatOffset(buf, 80, &reqOffset);
+  char buf[TSDB_OFFSET_LEN];
+  tFormatOffset(buf, TSDB_OFFSET_LEN, &reqOffset);
   tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, reqId:0x%" PRIx64,
           consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
 
@@ -559,7 +559,7 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
       } else {
         dataRsp.rspOffset.version = currentVer;  // return current consume offset value
       }
-    } else if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
+    } else if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEST) {
       dataRsp.rspOffset.version = sver;  // not consume yet, set the earliest position
     } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
       dataRsp.rspOffset.version = ever;

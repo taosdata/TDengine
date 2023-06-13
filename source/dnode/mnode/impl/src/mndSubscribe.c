@@ -24,7 +24,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_SUBSCRIBE_VER_NUMBER   1
+#define MND_SUBSCRIBE_VER_NUMBER   2
 #define MND_SUBSCRIBE_RESERVE_SIZE 64
 
 #define MND_SUBSCRIBE_REBALANCE_CNT 3
@@ -269,7 +269,7 @@ static void doAddNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputObj *pI
   for (int32_t i = 0; i < numOfNewConsumers; i++) {
     int64_t consumerId = *(int64_t *)taosArrayGet(pInput->pRebInfo->newConsumers, i);
 
-    SMqConsumerEp newConsumerEp;
+    SMqConsumerEp newConsumerEp = {0};
     newConsumerEp.consumerId = consumerId;
     newConsumerEp.vgs = taosArrayInit(0, sizeof(void *));
 
@@ -463,8 +463,44 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 
     SMqRebOutputVg* pRebOutput = (SMqRebOutputVg *)pRemovedIter;
     taosArrayPush(pOutput->rebVgs, pRebOutput);
-    if(taosHashGetSize(pOutput->pSub->consumerHash) == 0){    // if all consumer is removed, put all vg into unassigned
-      taosArrayPush(pOutput->pSub->unassignedVgs, &pRebOutput->pVgEp);
+    if(taosHashGetSize(pOutput->pSub->consumerHash) == 0){    // if all consumer is removed
+      taosArrayPush(pOutput->pSub->unassignedVgs, &pRebOutput->pVgEp);  // put all vg into unassigned
+    }
+  }
+
+  if(taosHashGetSize(pOutput->pSub->consumerHash) == 0) {                            // if all consumer is removed
+    SMqSubscribeObj *pSub = mndAcquireSubscribeByKey(pMnode, pInput->pRebInfo->key);  // put all offset rows
+    if (pSub) {
+      taosRLockLatch(&pSub->lock);
+      bool init = false;
+      if (pOutput->pSub->offsetRows == NULL) {
+        pOutput->pSub->offsetRows = taosArrayInit(4, sizeof(OffsetRows));
+        init = true;
+      }
+      pIter = NULL;
+      while (1) {
+        pIter = taosHashIterate(pSub->consumerHash, pIter);
+        if (pIter == NULL) break;
+        SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
+        if (init) {
+          taosArrayAddAll(pOutput->pSub->offsetRows, pConsumerEp->offsetRows);
+//          mDebug("pSub->offsetRows is init");
+        } else {
+          for (int j = 0; j < taosArrayGetSize(pConsumerEp->offsetRows); j++) {
+            OffsetRows *d1 = taosArrayGet(pConsumerEp->offsetRows, j);
+            for (int i = 0; i < taosArrayGetSize(pOutput->pSub->offsetRows); i++) {
+              OffsetRows *d2 = taosArrayGet(pOutput->pSub->offsetRows, i);
+              if (d1->vgId == d2->vgId) {
+                d2->rows += d1->rows;
+                d2->offset = d1->offset;
+//                mDebug("pSub->offsetRows add vgId:%d, after:%"PRId64", before:%"PRId64, d2->vgId, d2->rows, d1->rows);
+              }
+            }
+          }
+        }
+      }
+      taosRUnLockLatch(&pSub->lock);
+      mndReleaseSubscribe(pMnode, pSub);
     }
   }
 
@@ -836,7 +872,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto SUB_DECODE_OVER;
 
-  if (sver != MND_SUBSCRIBE_VER_NUMBER) {
+  if (sver > MND_SUBSCRIBE_VER_NUMBER || sver < 1) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto SUB_DECODE_OVER;
   }
@@ -855,7 +891,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, SUB_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_SUBSCRIBE_RESERVE_SIZE, SUB_DECODE_OVER);
 
-  if (tDecodeSubscribeObj(buf, pSub) == NULL) {
+  if (tDecodeSubscribeObj(buf, pSub, sver) == NULL) {
     goto SUB_DECODE_OVER;
   }
 
@@ -916,6 +952,10 @@ static int32_t mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubsc
   SArray *tmp1 = pOldSub->unassignedVgs;
   pOldSub->unassignedVgs = pNewSub->unassignedVgs;
   pNewSub->unassignedVgs = tmp1;
+
+  SArray *tmp2 = pOldSub->offsetRows;
+  pOldSub->offsetRows = pNewSub->offsetRows;
+  pNewSub->offsetRows = tmp2;
 
   taosWUnLockLatch(&pOldSub->lock);
   return 0;
@@ -1055,6 +1095,61 @@ END:
   return code;
 }
 
+static int32_t buildResult(SSDataBlock *pBlock, int32_t* numOfRows, int64_t consumerId, const char* topic, const char* cgroup, SArray* vgs, SArray *offsetRows){
+  int32_t sz = taosArrayGetSize(vgs);
+  for (int32_t j = 0; j < sz; j++) {
+    SMqVgEp *pVgEp = taosArrayGetP(vgs, j);
+
+    SColumnInfoData *pColInfo;
+    int32_t          cols = 0;
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, *numOfRows, (const char *)topic, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, *numOfRows, (const char *)cgroup, false);
+
+    // vg id
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, *numOfRows, (const char *)&pVgEp->vgId, false);
+
+    // consumer id
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, *numOfRows, (const char *)&consumerId, consumerId == -1);
+
+    mDebug("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic),
+           consumerId, varDataVal(cgroup), pVgEp->vgId);
+
+    // offset
+    OffsetRows *data = NULL;
+    for(int i = 0; i < taosArrayGetSize(offsetRows); i++){
+      OffsetRows *tmp = taosArrayGet(offsetRows, i);
+      if(tmp->vgId != pVgEp->vgId){
+        continue;
+      }
+      data = tmp;
+    }
+    if(data){
+      // vg id
+      char buf[TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE] = {0};
+      tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &data->offset);
+      varDataSetLen(buf, strlen(varDataVal(buf)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, *numOfRows, (const char *)buf, false);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, *numOfRows, (const char *)&data->rows, false);
+    }else{
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetNULL(pColInfo, *numOfRows);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetNULL(pColInfo, *numOfRows);
+      mError("mnd show subscriptions: do not find vgId:%d in offsetRows", pVgEp->vgId);
+    }
+    (*numOfRows)++;
+  }
+  return 0;
+}
+
 int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
   SMnode          *pMnode = pReq->info.node;
   SSdb            *pSdb = pMnode->pSdb;
@@ -1075,6 +1170,13 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
       blockDataEnsureCapacity(pBlock, numOfRows + pSub->vgNum);
     }
 
+    // topic and cgroup
+    char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
+    mndSplitSubscribeKey(pSub->key, varDataVal(topic), varDataVal(cgroup), false);
+    varDataSetLen(topic, strlen(varDataVal(topic)));
+    varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
+
     SMqConsumerEp *pConsumerEp = NULL;
     void          *pIter = NULL;
     while (1) {
@@ -1082,97 +1184,11 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
       if (pIter == NULL) break;
       pConsumerEp = (SMqConsumerEp *)pIter;
 
-      int32_t sz = taosArrayGetSize(pConsumerEp->vgs);
-      for (int32_t j = 0; j < sz; j++) {
-        SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
-
-        SColumnInfoData *pColInfo;
-        int32_t          cols = 0;
-
-        // topic and cgroup
-        char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-        char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-        mndSplitSubscribeKey(pSub->key, varDataVal(topic), varDataVal(cgroup), false);
-        varDataSetLen(topic, strlen(varDataVal(topic)));
-        varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
-
-        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)topic, false);
-
-        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)cgroup, false);
-
-        // vg id
-        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)&pVgEp->vgId, false);
-
-        // consumer id
-        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumerEp->consumerId, false);
-
-        mDebug("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic),
-               pConsumerEp->consumerId, varDataVal(cgroup), pVgEp->vgId);
-
-        // offset
-#if 0
-      // subscribe time
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
-
-      // rebalance time
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
-#endif
-
-        numOfRows++;
-      }
+      buildResult(pBlock, &numOfRows, pConsumerEp->consumerId, topic, cgroup, pConsumerEp->vgs, pConsumerEp->offsetRows);
     }
 
     // do not show for cleared subscription
-    int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
-    for (int32_t i = 0; i < sz; i++) {
-      SMqVgEp *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);
-
-      SColumnInfoData *pColInfo;
-      int32_t          cols = 0;
-
-      // topic and cgroup
-      char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-      mndSplitSubscribeKey(pSub->key, varDataVal(topic), varDataVal(cgroup), false);
-      varDataSetLen(topic, strlen(varDataVal(topic)));
-      varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)topic, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)cgroup, false);
-
-      // vg id
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pVgEp->vgId, false);
-
-      // consumer id
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, NULL, true);
-
-      mDebug("mnd show subscriptions(unassigned): topic %s, cgroup %s vgid %d", varDataVal(topic), varDataVal(cgroup),
-             pVgEp->vgId);
-
-      // offset
-#if 0
-      // subscribe time
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
-
-      // rebalance time
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
-#endif
-
-      numOfRows++;
-    }
+    buildResult(pBlock, &numOfRows, -1, topic, cgroup, pSub->unassignedVgs, pSub->offsetRows);
 
     pBlock->info.rows = numOfRows;
 
