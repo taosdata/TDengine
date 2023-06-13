@@ -378,6 +378,11 @@ static int32_t tsdbDataTombIterOpen(STsdbIter *iter) {
 static int32_t tsdbMemTombIterOpen(STsdbIter *iter) {
   int32_t code;
 
+  if (iter->memtTomb->memt->nDel == 0) {
+    iter->ctx->noMoreData = true;
+    return 0;
+  }
+
   iter->memtTomb->rbtIter[0] = tRBTreeIterCreate(iter->memtTomb->memt->tbDataTree, 1);
   return tsdbMemTombIterNext(iter, NULL);
 }
