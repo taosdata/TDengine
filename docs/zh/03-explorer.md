@@ -148,7 +148,7 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 #### 从 OPC-UA 同步数据到 TDengine
 
-@chenyang
+
 
 #### 从 OPC-DA 同步数据到 TDengine (Windows)
 
@@ -156,7 +156,11 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 #### 从 Pi 同步数据到 TDengine (Windows)
 
-@chenyang
+1. 在 PI 数据接入页面，设置 PI 服务器的名称、AF 数据库名称
+2. 在监测点集栏，可以配置选择 Point 模式监测点集合、Point 模式监测的 AF 模板、AF 模式监测的 AF 模板。
+3. 在 PI 系统设置栏，可以配置 PI 系统名，默认为 PI 服务器名
+4. 在 Data Queue 栏，可以配置 PI 连接器运行参数：MaxWaitLen（数据最大缓冲条数），默认值为 1000 ,有效取值范围为 [1,10000]；UpdateInterval（PI System 取数据频率），默认值为 10000(毫秒：ms),有效取值范围为 [10,600000]；重启补偿时间（Max Backfill Range，单位：天），每次重启服务时向前补偿该天数的数据，默认为1天。
+5. 在目标数据库栏，选择需要写入的 TDengine 数据库，点击 submit ，即可启动一个 PI 数据接入任务。
 
 #### 从 InfluxDB 同步数据到 TDengine
 
