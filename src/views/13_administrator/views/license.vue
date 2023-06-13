@@ -1,73 +1,14 @@
 <template>
   <div class="dnode-block">
-    <!-- <div class="flexEnd">
+    <div class="flexEnd">
       <el-button
         plain
-        @click="refresh"
+        @click="add"
         size="small"
-        icon="el-icon-refresh"
-        :disabled="loading"
-        >{{ $t("refresh") }}</el-button
+        >{{ $t("taosuser.activationLicense") }}</el-button
       >
-    </div> -->
-    <!-- <el-table style="margin-top: 20px" :data="licenseList" size="mini">
-      <el-table-column
-        :label="$t('topic.accounts')"
-        prop="accounts"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.connections')"
-        prop="connections"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.cpu_cores')"
-        prop="cpu_cores"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.databases')"
-        prop="databases"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.dnodes')"
-        prop="dnodes"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.expire_time')"
-        prop="expire_time"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.expired')"
-        prop="expired"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.querytime')"
-        prop="querytime"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.speed')"
-        prop="speed"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.storage')"
-        prop="storage"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.streams')"
-        prop="streams"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.timeseries')"
-        prop="timeseries"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.users')"
-        prop="users"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.version')"
-        prop="version"
-      ></el-table-column>
-    </el-table> -->
+    </div>
+    
     <!-- <el-table :data="tableData" :show-header="false" border>
       <el-table-column prop="header" label="表头"> </el-table-column>
       <el-table-column
@@ -86,6 +27,28 @@
         <span style="color:#333;"> {{item.value}}</span>
       </el-descriptions-item>
     </el-descriptions>
+    <el-table style="margin-top: 20px" :data="tableData" size="mini">
+      <el-table-column
+        :label="$t('topic.type')"
+        prop="type"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.number')"
+        prop="number"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.speed')"
+        prop="speed"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.expire_time')"
+        prop="expire"
+      >
+      <template slot-scope="scope">
+        <span>{{ expireTime(scope.row.expire) }}</span>
+      </template>
+    </el-table-column>
+    </el-table>
     <el-pagination
       class="pagination"
       layout="total, prev, pager, next"
@@ -95,11 +58,59 @@
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
-   
+    <el-dialog
+      align="center"
+      :title="$t('taosuser.activationLicense')"
+      width="600px"
+      :visible.sync="dialog"
+      :destroy-on-close='true'
+    >
+      <el-form
+        :model="ruleForm"
+        :rules="rules"
+        ref="ruleForm"
+        size="mini"
+        label-width="120px"
+        class="demo-ruleForm"
+      >
+        <el-form-item
+          :label="$t('taosuser.activeCode')"
+          prop="active_code"
+        >
+          <el-input v-model.trim="ruleForm.active_code"></el-input>
+        </el-form-item>
+        <el-form-item
+          :label="$t('taosuser.cActiveCode')"
+          prop="c_active_code"
+        >
+          <el-input v-model.trim="ruleForm.c_active_code "></el-input>
+        </el-form-item>
+      </el-form>
+
+      <el-row style="margin-top: 20px">
+        <el-col :span="5" :offset="6">
+          <el-button size="small" @click="dialog = false" class="w100">{{
+            $t("cancel")
+          }}</el-button>
+        </el-col>
+        <el-col :span="5" :push="4">
+          <el-button
+            size="small"
+            :disabled="confirmStatus"
+            @click="submit"
+            class="w100"
+            type="primary"
+            >{{ $t("confirm") }}</el-button
+          >
+        </el-col>
+      </el-row>
+    </el-dialog>
   </div>
 </template>
 <script>
+import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
+import { activeLicence } from '@/api/explorer/licence'
 export default {
   data() {
     return {
@@ -109,27 +120,18 @@ export default {
       dialog: false,
       loading: false,
       ruleForm: {
-        name: "",
-        language: "",
-        content: "",
+        active_code: "",
+        c_active_code: "",
       },
       rules: {
-        name: [
+        active_code: [
           {
-            message: "Please enter the name",
-            trigger: "blur",
+            message: this.$t('dataIn.enterTip'),
           },
         ],
-        language: [
+        c_active_code: [
           {
-            message: "Please select the language",
-            trigger: "change",
-          },
-        ],
-        content: [
-          {
-            message: "Please enter the content",
-            trigger: "blur",
+            message: this.$t('dataIn.enterTip'),
           },
         ],
       },
@@ -146,13 +148,7 @@ export default {
       }
     },
     confirmStatus() {
-      if (!this.ruleForm.name) {
-        return true;
-      }
-      if (!this.ruleForm.language) {
-        return true;
-      }
-      if (!this.ruleForm.content) {
+      if (!this.ruleForm.active_code && !this.ruleForm.c_active_code) {
         return true;
       }
       return false;
@@ -187,12 +183,16 @@ export default {
               })
             );
           });
-          this.licenseList=array.length>0?Object.keys(array[0]).map(key=>{
+          let allLicence =array.length>0?Object.keys(array[0]).map(key=>{
             return {
               key:key,
               value:array[0][key]
             }
           }):[]
+          this.licenseList = allLicence.filter(item => item.value.indexOf('{') == -1)
+          this.tableData = allLicence.filter(item => item.value.indexOf('{') == 0).map(data => {
+            return JSON.parse(data.value)
+          })
           // this.columns = new Array(this.licenseList.length).fill(0);
           // this.tableData=JSON.parse(JSON.stringify(cols))
           // const tableData = cols.map((item) => {
@@ -211,6 +211,22 @@ export default {
         this.loading = false;
       }
     },
+    add() {
+      this.dialog = true
+    },
+    async submit() {
+      try {
+        await activeLicence(this.ruleForm).then(res => {
+          console.log('res',res);
+          this.$message.success(this.$t('operateSucc'))
+        })     
+      } catch (error) {
+        this.$message.error(error)
+      }
+    }, 
+    expireTime(data){
+      return moment(Number(data)).format("YYYY-MM-DD")
+    }
   },
 };
 </script>

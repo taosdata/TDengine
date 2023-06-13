@@ -15,19 +15,19 @@
       </el-tabs> -->
       <section>
         <p class="title">
-          <span>{{ $t("topic.dnodes") }}</span>
+          <span>{{ $t("taoscluster.dnodes") }}</span>
         </p>
         <MgDnodes @sendData="getData"></MgDnodes>
       </section>
       <section>
         <p class="title">
-          <span>{{ $t("topic.mnodes") }}</span>
+          <span>{{ $t("taoscluster.mnodes") }}</span>
         </p>
         <MgMnodes :dnodes="dnodeLists"></MgMnodes>
       </section>
       <section>
         <p class="title">
-          <span>{{ $t("topic.qnodes") }}</span>
+          <span>{{ $t("taoscluster.qnodes") }}</span>
         </p>
         <MgQnodes :dnodes="dnodeLists"></MgQnodes>
       </section>
