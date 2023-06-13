@@ -157,9 +157,8 @@ IF(TD_BULID_TAOSX)
                 DEPENDS             taos
                 BUILD_IN_SOURCE     1
                 CONFIGURE_COMMAND
-                COMMAND git stash && git checkout main && git pull
-                BUILD_COMMAND
-                COMMAND git stash && git checkout main && git pull
+                COMMAND git status
+                BUILD_COMMAND                
                 COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
                 INSTALL_COMMAND
                 COMMAND cmake -E copy target/release/taosx ${CMAKE_BINARY_DIR}/build/bin
@@ -173,9 +172,8 @@ IF(TD_BULID_TAOSX)
                DEPENDS             taos
                BUILD_IN_SOURCE     1
                CONFIGURE_COMMAND
-               COMMAND git stash && git checkout main && git pull
-               BUILD_COMMAND
-               COMMAND git stash && git checkout main && git pull
+               COMMAND git status
+               BUILD_COMMAND               
                COMMAND CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} ${TAOSX_BULID_COMMAND}
                INSTALL_COMMAND
                COMMAND cmake -E copy ${TAOSX_BINARY} ${CMAKE_BINARY_DIR}/build/bin
@@ -190,9 +188,8 @@ IF(TD_BULID_TAOSX)
             DEPENDS             taos
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
-            COMMAND git stash && git checkout main && git pull
-            BUILD_COMMAND
-            COMMAND git stash && git checkout main && git pull
+            COMMAND git status
+            BUILD_COMMAND            
             COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && cargo build --release
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taosx.exe ${CMAKE_BINARY_DIR}/build/bin
@@ -230,12 +227,9 @@ IF(TD_BULID_EXPLORER)
             BUILD_ALWAYS        off
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
             # COMMAND cargo update
+            COMMAND git status
             BUILD_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
             COMMAND yarn --version || npm install -g yarn
             COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && yarn && yarn build && cargo build --release
             COMMAND git checkout .
@@ -251,11 +245,8 @@ IF(TD_BULID_EXPLORER)
             BUILD_ALWAYS        off
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
+            COMMAND git status
             BUILD_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
             COMMAND yarn --version || npm install -g yarn
             COMMAND yarn && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} yarn build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
             COMMAND git checkout .
