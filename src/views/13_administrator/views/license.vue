@@ -38,11 +38,19 @@
       <el-table-column
         :label="$t('topic.number')"
         prop="number"
-      ></el-table-column>
+      >
+      <template slot-scope="scope">
+        <span>{{ scope.row.number == -1 ? 'unlimited': scope.row.expire }}</span>
+      </template>
+      </el-table-column>
       <el-table-column
         :label="$t('topic.speed')"
         prop="speed"
-      ></el-table-column>
+      >
+      <template slot-scope="scope">
+        <span>{{ scope.row.speed == -1 ? 'unlimited': scope.row.expire }}</span>
+      </template>
+      </el-table-column>
       <el-table-column
         :label="$t('topic.expire_time')"
         prop="expire"
@@ -244,15 +252,7 @@ export default {
   .el-select.el-select--mini {
     flex: 1;
   }
-  tr.el-table__row {
-    td {
-      &:first-child {
-        background: #fafafa;
-        color: #333;
-        font-weight: 500;
-      }
-    }
-  }
+  
 th.el-descriptions-item__cell.el-descriptions-item__label.is-bordered-label{
   width:80px;
 }

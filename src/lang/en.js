@@ -1762,7 +1762,7 @@ export default {
     fromsourceRequired: 'Please select the source',
     targetdsnRequired: 'Please input the target dsn',
     directoryRequired: 'Please input the directory',
-    activationLicense: 'Activate license',
+    activationLicense: 'Activate',
     activeCode: 'Activation code',
     cActiveCode: 'Activation Code for Connectors',
   },

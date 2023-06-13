@@ -1538,7 +1538,7 @@ export default {
     fromsourceRequired: '请选择来源',
     targetdsnRequired: '请输入目标DSN',
     directoryRequired: '请输入目录',
-    activationLicense: '激活许可证',
+    activationLicense: '激活',
     activeCode: '激活码',
     cActiveCode: '连接器激活码',
   },
