@@ -38,9 +38,16 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
       .closeFn = closeFn,
       .reqBufFn = reqBufFn,
       .getExplainFn = explain,
+      .releaseStreamStateFn = NULL,
+      .reloadStreamStateFn = NULL,
   };
 
   return fpSet;
+}
+
+void setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn) {
+  pOperator->fpSet.releaseStreamStateFn = relaseFn;
+  pOperator->fpSet.reloadStreamStateFn = reloadFn;
 }
 
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {

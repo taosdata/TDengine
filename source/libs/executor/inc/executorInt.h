@@ -503,6 +503,8 @@ typedef struct SStreamSessionAggOperatorInfo {
   SArray*             pUpdated;
   SSHashObj*          pStUpdated;
   int64_t             dataVersion;
+  SArray*             historyWins;
+  bool                isHistoryOp;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -522,6 +524,8 @@ typedef struct SStreamStateAggOperatorInfo {
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
   int64_t             dataVersion;
+  bool                isHistoryOp;
+  SArray*             historyWins;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
