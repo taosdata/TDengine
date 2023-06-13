@@ -44,6 +44,7 @@ int32_t scanDebug = 0;
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 #define STREAM_SCAN_OP_NAME          "StreamScanOperator"
+#define STREAM_SCAN_OP_STATE_NAME    "StreamScanFillHistoryState"
 
 typedef struct STableMergeScanExecInfo {
   SFileBlockLoadRecorder blockRecorder;
@@ -2317,6 +2318,47 @@ static void destroyStreamScanOperatorInfo(void* param) {
   taosMemoryFree(pStreamScan);
 }
 
+void streamScanReleaseState(SOperatorInfo* pOperator) {
+  SStreamScanInfo* pInfo = pOperator->info;
+  if (!pInfo->pUpdateInfo) {
+    return;
+  }
+  int32_t len = pInfo->stateStore.updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo);
+  void* pBuff = taosMemoryCalloc(1, len);
+  pInfo->stateStore.updateInfoSerialize(pBuff, len, pInfo->pUpdateInfo);
+  pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME), pBuff, len);
+}
+
+void streamScanReloadState(SOperatorInfo* pOperator) {
+  SStreamScanInfo* pInfo = pOperator->info;
+  void*   pBuff = NULL;
+  int32_t len = 0;
+  pInfo->stateStore.streamStateGetInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME), &pBuff, &len);
+  SUpdateInfo* pUpInfo = pInfo->stateStore.updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0);
+  int32_t      code = pInfo->stateStore.updateInfoDeserialize(pBuff, len, pUpInfo);
+  if (code == TSDB_CODE_SUCCESS && pInfo->pUpdateInfo) {
+    if (pInfo->pUpdateInfo->minTS < 0) {
+      pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);
+      pInfo->pUpdateInfo = pUpInfo;
+    } else {
+      pInfo->pUpdateInfo->minTS = TMAX(pInfo->pUpdateInfo->minTS, pUpInfo->minTS);
+      pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pUpInfo->maxDataVersion);
+      SHashObj* curMap = pInfo->pUpdateInfo->pMap;
+      void *pIte = taosHashIterate(curMap, NULL);
+      while (pIte != NULL) {
+        size_t keySize = 0;
+        int64_t* pUid = taosHashGetKey(pIte, &keySize);
+        taosHashPut(pUpInfo->pMap, pUid, sizeof(int64_t), pIte, sizeof(TSKEY));
+        pIte = taosHashIterate(curMap, pIte);
+      }
+      taosHashCleanup(curMap);
+      pInfo->pUpdateInfo->pMap = pUpInfo->pMap;
+      pUpInfo->pMap = NULL;
+      pInfo->stateStore.updateInfoDestroy(pUpInfo);
+    }
+  }
+}
+
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                             STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
   SArray*          pColIds = NULL;
@@ -2489,6 +2531,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
   setOperatorInfo(pOperator, STREAM_SCAN_OP_NAME, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
+  setOperatorStreamStateFn(pOperator, streamScanReleaseState, streamScanReloadState);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
   __optr_fn_t nextFn = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) ? doStreamScan : doQueueScan;

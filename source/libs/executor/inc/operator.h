@@ -35,6 +35,7 @@ typedef SSDataBlock* (*__optr_fn_t)(struct SOperatorInfo* pOptr);
 typedef void (*__optr_close_fn_t)(void* param);
 typedef int32_t (*__optr_explain_fn_t)(struct SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len);
 typedef int32_t (*__optr_reqBuf_fn_t)(struct SOperatorInfo* pOptr);
+typedef void (*__optr_state_fn_t)(struct SOperatorInfo* pOptr);
 
 typedef struct SOperatorFpSet {
   __optr_open_fn_t    _openFn;  // DO NOT invoke this function directly
@@ -45,6 +46,8 @@ typedef struct SOperatorFpSet {
   __optr_encode_fn_t  encodeResultRow;
   __optr_decode_fn_t  decodeResultRow;
   __optr_explain_fn_t getExplainFn;
+  __optr_state_fn_t   releaseStreamStateFn;
+  __optr_state_fn_t   reloadStreamStateFn;
 } SOperatorFpSet;
 
 enum {
@@ -143,6 +146,7 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn, __optr_explain_fn_t explain);
+void           setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn);
 int32_t        optrDummyOpenFn(SOperatorInfo* pOperator);
 int32_t        appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
 void           setOperatorCompleted(SOperatorInfo* pOperator);
