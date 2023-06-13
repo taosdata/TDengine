@@ -46,22 +46,25 @@
       <div class="col-content">
         <Mqttcolumn
           v-for="item in fields.filter((item) => item.name != 'payload')"
-          :key="item.name"
+          :key="item.name + Math.random() * 1000"
           :colData="item"
           @deleteRow="deleteRow"
           :currentPrimary="defaultSelect"
           @changePrimary="changePrimary"
           @changeAddStatus="changeAddStatus"
+          :isEditable="isEditable"
+          ref="staticmqtt"
         >
         </Mqttcolumn>
         <Mqttcolumn
           v-for="(item, index) in connectorData.parse.payload.json"
-          :key="index"
+          :key="index + Math.random() * 1000"
           :index="index"
           :colData="item"
           @deleteRow="deleteRow"
           :currentPrimary="defaultSelect"
           @changePrimary="changePrimary"
+          :isEditable="isEditable"
           @changeAddStatus="changeAddStatus"
           ref="mqtt"
         >
@@ -119,6 +122,7 @@
   </div>
 </template>
 <script>
+import { deepClone } from "@/utils";
 import Mqttcolumn from "./mqttColumn.vue";
 export default {
   name: "MqttConnector",
@@ -135,6 +139,10 @@ export default {
       default: () => {
         return [];
       },
+    },
+    isEditable: {
+      type: Boolean,
+      default: false,
     },
   },
   data() {
@@ -183,31 +191,29 @@ export default {
         cancelButtonText: this.$t("datasource.cancel"),
         type: "warning",
       }).then(() => {
-        let oldData = this.$store.state.app.mqttParser;
+        let oldData = deepClone(this.$store.state.app.mqttParser);
         oldData.parse.payload.json.splice(ind, 1);
-        let columns = oldData.model.columns;
-        let tags = oldData.model.tags;
-        if (columns.includes(name)) {
-          columns.splice(columns.indexOf(name), 1);
-        }
-        if (tags.includes(name)) {
-          tags.splice(tags.indexOf(name), 1);
-        }
-        if (this.defaultSelect == name) {
-          if (!columns.includes("ts")) {
-            columns.unshift("ts");
-            this.defaultSelect = "ts";
-          } else {
-            this.defaultSelect = "ts";
-            columns.map((item, index) => {
-              if (item == "ts") {
-                columns.unshift(columns.splice(index, 1)[0]);
-              }
-            });
+
+        if (name) {
+          let columns = oldData.model.columns;
+          let tags = oldData.model.tags;
+          if (columns.includes(name)) {
+            columns.splice(columns.indexOf(name), 1);
           }
+          if (tags.includes(name)) {
+            tags.splice(tags.indexOf(name), 1);
+          }
+          if (this.defaultSelect == name) {
+            //删的是主键，只有在新增时候才可以删除主键
+            if (!columns.includes("ts")) {
+              columns.unshift("ts");
+              this.defaultSelect = "ts";
+              this.$refs.staticmqtt[0].changePrimary("ts");
+            }
+          }
+          this.disable = false;
         }
         this.$store.commit("app/SET_MQTT_PARSER", oldData);
-        this.disable = false;
       });
     },
     addRow() {
