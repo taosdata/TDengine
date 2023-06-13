@@ -1,5 +1,6 @@
 # vnode
 add_library(vnode STATIC "")
+link_libraries("${TD_SOURCE_DIR}/rocksdb_static")
 target_sources(
     vnode
     PRIVATE
