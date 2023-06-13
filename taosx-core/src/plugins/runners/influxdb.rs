@@ -9,6 +9,7 @@ use file_rotate::{
 use anyhow::Context;
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::{plugins::sink, utils::port_pool::PortPool, Action, Transferred};
@@ -251,10 +252,24 @@ pub async fn influxdb_to_taos(
 
     let port_pool = port_pool.clone();
     {
-        let output = child.output().await?;
-        writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
-        
         let mut child = child.spawn().context("Start InfluxDB collector error")?;
+
+        let stderr = child.stderr.take().expect("Failed to capture stderr");
+        tokio::spawn(async move {
+            let mut reader = tokio::io::BufReader::new(stderr);
+            let mut line = String::new();
+            loop {
+                // Read a line from stderr
+                let bytes_read = reader.read_line(&mut line).await.unwrap();
+                if bytes_read == 0 {
+                    break; // End of stream, exit the loop
+                }
+                // Write the line to log_rotation
+                write!(log_rotation, "{}", line).unwrap();
+                line.clear();
+            }
+            Ok::<(), std::io::Error>(())
+        });
         // waiting until the end
         log::info!("waiting for InfluxDB connector");
         tokio::spawn(async move {
