@@ -8,10 +8,10 @@ fn labeling(mut file: &File) -> SdResult<()> {
     let readme = manifest_dir.join("src").join("CLI.md");
     let target_dir = manifest_dir.parent().unwrap().join("target");
 
-    let cus_name = std::env::var("CUS_NAME").unwrap_or("TDengine".to_string());
+    let cus_name = std::env::var("CUS_NAME").unwrap_or("taosX".to_string());
     let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("taos".to_string());
     let cus_name = if cus_name.trim().is_empty() {
-        "TDengine"
+        "taosX"
     } else {
         cus_name.trim()
     };
