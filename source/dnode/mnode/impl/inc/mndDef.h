@@ -572,7 +572,7 @@ typedef struct {
 //SMqVgEp* tCloneSMqVgEp(const SMqVgEp* pVgEp);
 //void     tDeleteSMqVgEp(SMqVgEp* pVgEp);
 int32_t  tEncodeSMqVgEp(void** buf, const SMqVgEp* pVgEp);
-void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp);
+void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
 
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
