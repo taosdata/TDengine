@@ -27,6 +27,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.sml_type = "influxdb"
         self.tdCom.drop_all_db()
         self.dbname = self.tdCom.get_long_name()
+        self.dbname = "test"
         self.tdCom.createDb(dbname=self.dbname, precision="us")
         self._remote: Remote = Remote(self.logger)
         self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
@@ -1111,8 +1112,86 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         end_time = time.time()
         self.tdSql.checkEqual(int(end_time-start_time)<2, True)
 
+    def escape_test(self):
+        # odd/enen escape for all
+        for stbname in ["esca\pe_test", "esca\\pe_test"]:
+            lines = f'{stbname},ta\g1="ta\g1_value",ta\\g2="ta\\g2_value" co\l0="co\l0_value",co\\l1="co\\l1_value" 1680918783010000000'
+            self.tdSql._conn.schemaless_insert([lines], TDSmlProtocolType.LINE.value, None)
+            self.tdSql.query(f'desc `{stbname}`')
+            colname_list = self.tdSql.getColNameList()
+            self.tdSql.checkEqual(colname_list, ['_ts', 'co\\l0', 'co\\l1', 'ta\\g1', 'ta\\g2'])
+            self.tdSql.query(f'select * from `{stbname}`')
+            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2023, 4, 8, 9, 53, 3, 10000), 'co\\l0_value', 'co\\l1_value', '"ta\\g1_value"', '"ta\\g2_value"')])
+            self.tdSql.execute(f'drop table `{stbname}`')
+        for stbname in ["esca\\\pe_test", "esca\\\\pe_test"]:
+            lines = f'{stbname},ta\\\g1="ta\\\g1_value",ta\\\\g2="ta\\\\g2_value" co\\\l0="co\\\l0_value",co\\\\l1="co\\\\l1_value" 1680918783010000000'
+            self.tdSql._conn.schemaless_insert([lines], TDSmlProtocolType.LINE.value, None)
+            self.tdSql.query(f'desc `{stbname}`')
+            colname_list = self.tdSql.getColNameList()
+            self.tdSql.checkEqual(colname_list, ['_ts', 'co\\\l0', 'co\\\\l1', 'ta\\\g1', 'ta\\\\g2'])
+            self.tdSql.query(f'select * from `{stbname}`')
+            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2023, 4, 8, 9, 53, 3, 10000), 'co\\l0_value', 'co\\l1_value', '"ta\\\\g1_value"', '"ta\\\\g2_value"')])
+            self.tdSql.execute(f'drop table `{stbname}`')
+        for stbname in ["esca\\\\\pe_test", "esca\\\\\\pe_test"]:
+            lines = f'{stbname},ta\\\\\g1="ta\\\\\g1_value",ta\\\\\\g2="ta\\\\\\g2_value" co\\\\\l0="co\\\\\l0_value",co\\\\\\l1="co\\\\\\l1_value" 1680918783010000000'
+            self.tdSql._conn.schemaless_insert([lines], TDSmlProtocolType.LINE.value, None)
+            self.tdSql.query(f'desc `{stbname}`')
+            colname_list = self.tdSql.getColNameList()
+            self.tdSql.checkEqual(colname_list, ['_ts', 'co\\\\\l0', 'co\\\\\\l1', 'ta\\\\\g1', 'ta\\\\\\g2'])
+            self.tdSql.query(f'select * from `{stbname}`')
+            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2023, 4, 8, 9, 53, 3, 10000), 'co\\\l0_value', 'co\\\l1_value', '"ta\\\\\g1_value"', '"ta\\\\\\g2_value"')])
+            self.tdSql.execute(f'drop table `{stbname}`')
+
+        # space for all, but not support field value
+        for stbname in ["esca\ pe_test", "esca\\ pe_test"]:
+            lines = f'{stbname},ta\ g1="ta\ g1_value",ta\\ g2="ta\\ g2_value" co\ l0="co\ l0_value",co\\ l1="co\\ l1_value" 1680918783010000000'
+            self.tdSql._conn.schemaless_insert([lines], TDSmlProtocolType.LINE.value, None)
+            self.tdSql.query(f'desc `esca pe_test`')
+            colname_list = self.tdSql.getColNameList()
+            self.tdSql.checkEqual(colname_list, ['_ts', 'co l0', 'co l1', 'ta g1', 'ta g2'])
+            self.tdSql.query(f'select * from `esca pe_test`')
+            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2023, 4, 8, 9, 53, 3, 10000), 'co\\ l0_value', 'co\\ l1_value', '"ta g1_value"', '"ta g2_value"')])
+            self.tdSql.execute(f'drop table `esca pe_test`')
+        for stbname in ["esca\\\ pe_test", "esca\\\\ pe_test"]:
+            lines = f'{stbname},ta\\\ g1="ta\\\ g1_value",ta\\\\ g2="ta\\ g2_value" co\\\ l0="co\\\ l0_value",co\\\\ l1="co\\\\ l1_value" 1680918783010000000'
+            self.tdSql._conn.schemaless_insert([lines], TDSmlProtocolType.LINE.value, None)
+            self.tdSql.query(f'desc `esca\\ pe_test`')
+            colname_list = self.tdSql.getColNameList()
+            self.tdSql.checkEqual(colname_list, ['_ts', 'co\\ l0', 'co\\ l1', 'ta\\ g1', 'ta\\ g2'])
+            self.tdSql.query(f'select * from `esca\\ pe_test`')
+            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2023, 4, 8, 9, 53, 3, 10000), 'co\\ l0_value', 'co\\ l1_value', '"ta\\ g1_value"', '"ta g2_value"')])
+            self.tdSql.execute(f'drop table `esca\\ pe_test`')
+        # # comma
+        # for stbname in ["esca\,pe_test", "esca\\,pe_test"]:
+        #     lines = f'{stbname},tag1="tag1_value",tag2="tag2_value" col0="col0_value",col1="col1_value" 1680918783010000000'
+        #     self.tdSql._conn.schemaless_insert([lines], TDSmlProtocolType.LINE.value, None)
+        #     self.tdSql.query('select * from `esca,pe_test`')
+        #     self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2023, 4, 8, 9, 53, 3, 10000), 'col0_value', 'col1_value', '"tag1_value"', '"tag2_value"')])
+        #     self.tdSql.execute('drop table `esca,pe_test`')
+        # for stbname in ["esca\\\,pe_test", "esca\\\\,pe_test"]:
+        #     lines = f'{stbname},tag1="tag1_value",tag2="tag2_value" col0="col0_value",col1="col1_value" 1680918783010000000'
+        #     self.tdSql._conn.schemaless_insert([lines], TDSmlProtocolType.LINE.value, None)
+        #     self.tdSql.query('select * from `esca\,pe_test`')
+        #     self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2023, 4, 8, 9, 53, 3, 10000), 'col0_value', 'col1_value', '"tag1_value"', '"tag2_value"')])
+        #     self.tdSql.execute('drop table `esca\,pe_test`')
+
+        # lines = 'escape_test,t\1="tag1_value",t2="tag2_value" c0="col0_value",c1="col1_value" 1680918783010000000'
+        # # # * [('_ts', 'TIMESTAMP', 8, ''), ('c0', 'VARCHAR', 16, ''), ('c1', 'VARCHAR', 8, ''), ('t\x01', 'NCHAR', 16, 'TAG'), ('t2', 'NCHAR', 16, 'TAG')]
+        # # lines = 'escape_test,t1="tag1_value",t2="tag2_value" c\0="col0_value",c1="col1_value" 1680918783010000000'
+        # # # ! taos.error.SchemalessError: [0x021f]: invalid key or key is too long than 64:c(affected rows: 0)
+        # # lines = 'escape_test,t1="tag1_value",t2="tag2_value" c0="col0_value",c\1="col1_value" 1680918783010000000'
+        # # # * [('_ts', 'TIMESTAMP', 8, ''), ('c0', 'VARCHAR', 16, ''), ('c\x01', 'VARCHAR', 8, ''), ('t1', 'NCHAR', 16, 'TAG'), ('t2', 'NCHAR', 16, 'TAG')]
+
+        # self.tdSql._conn.schemaless_insert([lines], TDSmlProtocolType.LINE.value, None)
+        # self.tdSql.query(f'desc `escape_test`')
+        # print(self.tdSql.query_data)
+        # self.tdSql.query(f'select * from `escape_test`')
+        # print(self.tdSql.query_data)
+        # self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2023, 4, 8, 9, 53, 3, 10000), 'col0_value', 'col1_value', '"tag1_value"', '"tag2_value"')])
+
     def test(self):
-        self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+        self.escape_test()
+        # self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
         return
         self.tdSql.execute('drop database if exists iot_dev;')
         self.tdSql.execute('create database if not exists iot_dev precision "ns";')
@@ -1158,8 +1237,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         #             ]
 
     def run(self):
-        # self.test()
-        # return
+        self.test()
+        return
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.no_id_stb_exist_check()
