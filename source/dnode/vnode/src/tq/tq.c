@@ -446,7 +446,7 @@ int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
 
     taosHashClear(pTq->pPushMgr);
   }
-  taosWLockLatch(&pTq->lock);
+  taosWUnLockLatch(&pTq->lock);
   return 0;
 }
 
