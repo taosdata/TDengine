@@ -227,6 +227,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 3)) != 0) {
+    mGError("version not compatible. client version: %s, server version: %s", connReq.sVer, version);
     terrno = code;
     goto _OVER;
   }
