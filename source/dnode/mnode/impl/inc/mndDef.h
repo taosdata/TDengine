@@ -570,8 +570,8 @@ typedef struct {
   SEpSet  epSet;
 } SMqVgEp;
 
-//SMqVgEp* tCloneSMqVgEp(const SMqVgEp* pVgEp);
-//void     tDeleteSMqVgEp(SMqVgEp* pVgEp);
+SMqVgEp* tCloneSMqVgEp(const SMqVgEp* pVgEp);
+void     tDeleteSMqVgEp(SMqVgEp* pVgEp);
 int32_t  tEncodeSMqVgEp(void** buf, const SMqVgEp* pVgEp);
 void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
 

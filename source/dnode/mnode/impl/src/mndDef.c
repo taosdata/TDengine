@@ -183,21 +183,21 @@ void tFreeStreamObj(SStreamObj *pStream) {
   }
 }
 
-//SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
-//  SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));
-//  if (pVgEpNew == NULL) return NULL;
-//  pVgEpNew->vgId = pVgEp->vgId;
-////  pVgEpNew->qmsg = taosStrdup(pVgEp->qmsg);
-//  pVgEpNew->epSet = pVgEp->epSet;
-//  return pVgEpNew;
-//}
+SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
+  SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));
+  if (pVgEpNew == NULL) return NULL;
+  pVgEpNew->vgId = pVgEp->vgId;
+//  pVgEpNew->qmsg = taosStrdup(pVgEp->qmsg);
+  pVgEpNew->epSet = pVgEp->epSet;
+  return pVgEpNew;
+}
 
-//void tDeleteSMqVgEp(SMqVgEp *pVgEp) {
-//  if (pVgEp) {
-////    taosMemoryFreeClear(pVgEp->qmsg);
-//    taosMemoryFree(pVgEp);
-//  }
-//}
+void tDeleteSMqVgEp(SMqVgEp *pVgEp) {
+  if (pVgEp) {
+//    taosMemoryFreeClear(pVgEp->qmsg);
+    taosMemoryFree(pVgEp);
+  }
+}
 
 int32_t tEncodeSMqVgEp(void **buf, const SMqVgEp *pVgEp) {
   int32_t tlen = 0;
@@ -517,11 +517,11 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
     pConsumerEp = (SMqConsumerEp *)pIter;
     SMqConsumerEp newEp = {
         .consumerId = pConsumerEp->consumerId,
-        .vgs = taosArrayDup(pConsumerEp->vgs, NULL),
+        .vgs = taosArrayDup(pConsumerEp->vgs, (__array_item_dup_fn_t)tCloneSMqVgEp),
     };
     taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp, sizeof(SMqConsumerEp));
   }
-  pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, NULL);
+  pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, (__array_item_dup_fn_t)tCloneSMqVgEp);
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
   memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
   pSubNew->qmsg = taosStrdup(pSub->qmsg);
@@ -534,11 +534,11 @@ void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
     pIter = taosHashIterate(pSub->consumerHash, pIter);
     if (pIter == NULL) break;
     SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
-    taosArrayDestroy(pConsumerEp->vgs);
+    taosArrayDestroyP(pConsumerEp->vgs, (FDelete)tDeleteSMqVgEp);
     taosArrayDestroy(pConsumerEp->offsetRows);
   }
   taosHashCleanup(pSub->consumerHash);
-  taosArrayDestroy(pSub->unassignedVgs);
+  taosArrayDestroyP(pSub->unassignedVgs, (FDelete)tDeleteSMqVgEp);
   taosMemoryFreeClear(pSub->qmsg);
   taosArrayDestroy(pSub->offsetRows);
 }
