@@ -158,9 +158,6 @@ taosx run \
   -t 'taos://root:taosdata@another.com:6030/db2'
 ```
 
-常见错误排查：
-(1)
-(2)
 
 
 2. TDengine 2.6 -> TDengine 3.0
@@ -192,13 +189,11 @@ taosx run \
 示例：
 ```shell
 taosx run \
-  -f 'taos://td1:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all' \
+  -f 'taos://td1:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all&assert' \
   -t 'taos://td2:6030/db2?libraryPath=./libtaos.so.3.0.1.8' \
   -v
 ```
 
-常见错误排查：
-1.
 
 
 #### 从 TDengine 备份数据文件到本地
@@ -233,11 +228,55 @@ taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?asse
 
 目标源(-t 参数的 DSN)中的 object 支持配置为数据库(dbname)、超级表(dbname.stablename)、子表/普通表(dbname.tablename)，对应备份数据的级别数据库级、超级表级、子表/普通表级，前提是备份的数据文件也是对应的数据库级、超级表级、子表/普通表级数据。
 
+
 常见错误排查：
 
-(1)
-(2)
-(3)
+(1) 如果使用原生连接，任务启动失败并报以下错误：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    [0x000B] Unable to establish connection
+```
+产生原因是与数据源的端口链接异常，需检查数据源 FQDN 是否联通及端口 6030 是否可正常访问。
+
+(2) 如果使用 WebSocket 连接，任务启动失败并报以下错误：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: WebSocket internal error: IO error: failed to lookup address information: Temporary failure in name resolution
+    1: IO error: failed to lookup address information: Temporary failure in name resolution
+    2: failed to lookup address information: Temporary failure in name resolution
+```
+
+使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在 ”Caused by“ 后查看，以下是几种可能的错误：
+
+- "Temporary failure in name resolution": DNS 解析错误，检查 IP 或 FQDN 是否能够正常访问。
+- "IO error: Connection refused (os error 111)": 端口访问失败，检查端口是否配置正确或是否已开启和可访问。
+- "IO error: received corrupt message": 消息解析失败，可能是使用了 wss 方式启用了 SSL，但源端口不支持。
+- "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
+- "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
+
+(3) 如果任务启动失败并报以下错误：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    [0x038C] WAL retention period is zero
+```
+
+是由于源端数据库 WAL 配置错误，无法订阅。
+
+解决方式：
+修改数据 WAL 配置：
+
+```sql
+alter database test wal_retention_period 3600;
+```
 
 #### 从 OPC-UA 同步数据到 TDengine
 
@@ -262,11 +301,37 @@ taosx run \
 
 采集 localhost 的 opc-server 中 nodeid 为 ns=2;i=2 测点的数据，将其写入到集群 tdengine 的 opc 库中，并以 meters 为表名，current 为列名，double 为列类型的 schema 来创建表（如果对应表已存在，则直接采集数据并写入）。
 
+
 常见错误排查：
 
-(1)
-(2)
-(3)
+(1) 如果使用原生连接，任务启动失败并打印如下错误：
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: Error occurred while creating a new object: [0x000B] Unable to establish connection
+```
+解决方式：
+
+检查目标端 TDengine 的 FQDN 是否联通及端口 6030 是否可正常访问。
+
+(2) 如果使用 WebSocket 连接任务启动失败并打印如下错误：：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: WebSocket internal error: IO error: failed to lookup address information: Temporary failure in name resolution
+    1: IO error: failed to lookup address information: Temporary failure in name resolution
+    2: failed to lookup address information: Temporary failure in name resolution
+```
+
+使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在 ”Caused by“ 后查看，以下是几种可能的错误：
+
+- "Temporary failure in name resolution": DNS 解析错误，检查目标端 TDengine的 IP 或 FQDN 是否能够正常访问。
+- "IO error: Connection refused (os error 111)": 端口访问失败，检查目标端口是否配置正确或是否已开启和可访问（通常为6041端口）。
+- "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
+- "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
 
 #### 从 OPC-DA 同步数据到 TDengine (Windows)
 
@@ -295,9 +360,35 @@ taosx run \
 
 常见错误排查：
 
-(1)
-(2)
-(3)
+(1) 如果使用原生连接，任务启动失败并打印如下错误：
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: Error occurred while creating a new object: [0x000B] Unable to establish connection
+```
+解决方式：
+
+检查目标端 TDengine 的 FQDN 是否联通及端口 6030 是否可正常访问。
+
+(2) 如果使用 WebSocket 连接任务启动失败并打印如下错误：：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: WebSocket internal error: IO error: failed to lookup address information: Temporary failure in name resolution
+    1: IO error: failed to lookup address information: Temporary failure in name resolution
+    2: failed to lookup address information: Temporary failure in name resolution
+```
+
+使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在 ”Caused by“ 后查看，以下是几种可能的错误：
+
+- "Temporary failure in name resolution": DNS 解析错误，检查目标端 TDengine的 IP 或 FQDN 是否能够正常访问。
+- "IO error: Connection refused (os error 111)": 端口访问失败，检查目标端口是否配置正确或是否已开启和可访问（通常为6041端口）。
+- "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
+- "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
+
 
 
 
