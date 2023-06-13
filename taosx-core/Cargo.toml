@@ -74,7 +74,6 @@ r2d2 = "0.8.10"
 serde_with = "2.3.1"
 tokio-cron-scheduler = "0.9.4"
 
-async-process = "1.6"
 bitvec = "1"
 socket2 = "0.5"
 tempfile = "3"
