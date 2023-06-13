@@ -6932,20 +6932,26 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void
   SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
   STranslateContext cxt = {0};
   SInterval interval = {0};
-
-  if (NULL == pResRow || NULL == pResRow[0]) {
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
-  }
+  int64_t lastTs = 0;
 
   int32_t code = initTranslateContext(pParseCxt, NULL, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildIntervalForCreateStream(pStmt, &interval);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (interval.interval > 0) {
-      pStmt->pReq->lastTs = taosTimeTruncate(*(int64_t*)pResRow[0], &interval);
+    if (pResRow && pResRow[0]) {
+      lastTs = *(int64_t*)pResRow[0];
+    } else if (interval.interval > 0) {
+      lastTs = convertTimePrecision(taosGetTimestampMs(), TSDB_TIME_PRECISION_MILLI, interval.precision);
     } else {
-      pStmt->pReq->lastTs = *(int64_t*)pResRow[0];
+      lastTs = taosGetTimestampMs();
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (interval.interval > 0) {
+      pStmt->pReq->lastTs = taosTimeTruncate(lastTs, &interval);
+    } else {
+      pStmt->pReq->lastTs = lastTs;
     }
     code = buildCmdMsg(&cxt, TDMT_MND_CREATE_STREAM, (FSerializeFunc)tSerializeSCMCreateStreamReq, pStmt->pReq);
   }
