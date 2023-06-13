@@ -248,7 +248,12 @@ PARTITION BY 子句是 TDengine 特色语法，按 part_list 对数据进行切�
 - 与 GROUP BY 后表达式相同的表达式
 - 包含前面表达式的表达式。
 
-例如
+2. 当 having_clause 用在 window_clause 之后时，表示在窗口查询后过滤数据，其中只能包含：
+- 常量
+- 聚集函数
+- 包含上面表达式的表达式
+
+例 1， 先对数据进行分组然后进行过滤。
 
 ```sql
 taos> select tbname, i from st1 partition by tbname having i > 5;
@@ -258,13 +263,7 @@ taos> select tbname, i from st1 partition by tbname having i > 5;
  st1s3                          |          10 |
 ```
 
-  
-2. 当 having_clause 用在 window_clause 之后时，表示在窗口查询后过滤数据，其中只能包含：
-- 常量
-- 聚集函数
-- 包含上面表达式的表达式
-
-例如
+例 2， 先对数据进行窗口查询然后进行过滤 。
 
 ```sql
 taos> select tbname, count(*) from st1 partition by tbname interval(10s) having count(*) = 1;
