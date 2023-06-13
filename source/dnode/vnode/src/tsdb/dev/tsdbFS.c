@@ -16,6 +16,7 @@
 #include "inc/tsdbFS.h"
 
 extern int vnodeScheduleTask(int (*execute)(void *), void *arg);
+extern int vnodeScheduleTaskEx(int tpid, int (*execute)(void *), void *arg);
 
 #define TSDB_FS_EDIT_MIN TSDB_FEDIT_COMMIT
 #define TSDB_FS_EDIT_MAX (TSDB_FEDIT_MERGE + 1)
@@ -612,7 +613,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
       if (fobj->f->stt->nseg < fs->tsdb->pVnode->config.sttTrigger) continue;
 
-      code = vnodeScheduleTask(tsdbMerge, fs->tsdb);
+      code = vnodeScheduleTaskEx(1, tsdbMerge, fs->tsdb);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       fs->mergeTaskOn = true;
