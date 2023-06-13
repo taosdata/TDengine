@@ -248,6 +248,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pData
                                     tb_uid_t suid);
 
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
+int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
 
 static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)) + blockDataGetSize(pBlock);

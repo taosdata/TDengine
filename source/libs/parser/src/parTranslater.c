@@ -713,6 +713,10 @@ static bool isWindowPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsWindowPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isInterpFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsInterpFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isInterpPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsInterpPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
@@ -3036,7 +3040,7 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static EDealRes needFillImpl(SNode* pNode, void* pContext) {
-  if (isAggFunc(pNode) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType) {
+  if ((isAggFunc(pNode) || isInterpFunc(pNode)) && FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType) {
     *(bool*)pContext = true;
     return DEAL_RES_END;
   }
@@ -3060,7 +3064,7 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
     code = scalarCalculateConstants(pCaseFunc, &pCell->pNode);
   }
   if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE != nodeType(pCell->pNode)) {
-    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Fill value is just a constant");
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Fill value can only accept constant");
   } else if (TSDB_CODE_SUCCESS != code) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled data type mismatch");
   }
@@ -3084,6 +3088,7 @@ static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeL
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
+
       ++fillNo;
     }
   }
@@ -3503,6 +3508,22 @@ static int32_t createDefaultFillNode(STranslateContext* pCxt, SNode** pOutput) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t createDefaultEveryNode(STranslateContext* pCxt, SNode** pOutput) {
+  SValueNode* pEvery = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (NULL == pEvery) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pEvery->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  pEvery->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  pEvery->isDuration = true;
+  pEvery->literal = taosStrdup("1s");
+
+
+  *pOutput = (SNode*)pEvery;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
   int32_t len = strlen(pInterval->literal);
 
@@ -3518,7 +3539,12 @@ static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
 static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  code = checkEvery(pCxt, (SValueNode*)(*pEvery));
+  if (NULL == *pEvery) {
+    code = createDefaultEveryNode(pCxt, pEvery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkEvery(pCxt, (SValueNode*)(*pEvery));
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExpr(pCxt, pEvery);
   }
@@ -3547,6 +3573,9 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList);
+  }
 
   return code;
 }
@@ -3564,8 +3593,12 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
 
   if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                   "Missing RANGE clause, EVERY clause or FILL clause");
+    if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
+      // single point interp every can be omitted
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                     "Missing RANGE clause, EVERY clause or FILL clause");
+    }
   }
 
   int32_t code = translateExpr(pCxt, &pSelect->pRange);
@@ -3792,7 +3825,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceTbName(pCxt, pSelect);
   }
-  
+
   return code;
 }
 

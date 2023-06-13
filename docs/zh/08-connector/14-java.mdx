@@ -32,25 +32,22 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
 REST 连接支持所有能运行 Java 的平台。
 
-## 版本支持
+## 版本历史
 
-请参考[版本支持列表](../#版本支持)
-
-## 最近更新记录
-
-| taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |
-| :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: |
-|        3.2.1         | 新增功能：WebSocket 连接支持 schemaless 与 prepareStatement 写入。变更：consumer poll 返回结果集为 ConsumerRecord，可通过 value() 获取指定结果集数据。 |
-|        3.2.0         |                                                                存在连接问题，不推荐使用                                                                |
-|        3.1.0         |                                                               WebSocket 连接支持订阅功能                                                               |
-|    3.0.1 - 3.0.4     |                             修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本                             |
-|        3.0.0         |                                                                   支持 TDengine 3.0                                                                    |
-|        2.0.42        |                                                        修在 WebSocket 连接中 wasNull 接口返回值                                                        |
-|        2.0.41        |                                                          修正 REST 连接中用户名和密码转码方式                                                          |
-|   2.0.39 - 2.0.40    |                                                              增加 REST 连接/请求 超时设置                                                              |
-|        2.0.38        |                                                             JDBC REST 连接增加批量拉取功能                                                             |
-|        2.0.37        |                                                                  增加对 json tag 支持                                                                  |
-|        2.0.36        |                                                               增加对 schemaless 写入支持                                                               |
+| taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
+| :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------: |
+|        3.2.2         |                                                           新增功能：数据订阅支持 seek 功能。                                                           | 3.0.5.0 及更高版本 |
+|        3.2.1         | 新增功能：WebSocket 连接支持 schemaless 与 prepareStatement 写入。变更：consumer poll 返回结果集为 ConsumerRecord，可通过 value() 获取指定结果集数据。 | 3.0.3.0 及更高版本 |
+|        3.2.0         |                                                                存在连接问题，不推荐使用                                                                |         -          |
+|        3.1.0         |                                                               WebSocket 连接支持订阅功能                                                               |         -          |
+|    3.0.1 - 3.0.4     |                             修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本                             |         -          |
+|        3.0.0         |                                                                   支持 TDengine 3.0                                                                    | 3.0.0.0 及更高版本 |
+|        2.0.42        |                                                        修在 WebSocket 连接中 wasNull 接口返回值                                                        |         -          |
+|        2.0.41        |                                                          修正 REST 连接中用户名和密码转码方式                                                          |         -          |
+|   2.0.39 - 2.0.40    |                                                              增加 REST 连接/请求 超时设置                                                              |         -          |
+|        2.0.38        |                                                             JDBC REST 连接增加批量拉取功能                                                             |         -          |
+|        2.0.37        |                                                                  增加对 json tag 支持                                                                  |         -          |
+|        2.0.36        |                                                               增加对 schemaless 写入支持                                                               |         -          |
 
 **注**：REST 连接中增加 `batchfetch` 参数并设置为 true，将开启 WebSocket 连接。
 
@@ -80,45 +77,47 @@ JDBC 连接器可能报错的错误码包括 4 种：
 
 具体的错误码请参考：
 
-| Error Code | Description                                                     | Suggested Actions                                                                       |
-| ---------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| 0x2301     | connection already closed                                       | 连接已经关闭，检查连接情况，或重新创建连接去执行相关指令。                              |
-| 0x2302     | this operation is NOT supported currently!                      | 当前使用接口不支持，可以更换其他连接方式。                                              |
-| 0x2303     | invalid variables                                               | 参数不合法，请检查相应接口规范，调整参数类型及大小。                                    |
-| 0x2304     | statement is closed                                             | statement 已经关闭，请检查 statement 是否关闭后再次使用，或是连接是否正常。             |
-| 0x2305     | resultSet is closed                                             | resultSet 结果集已经释放，请检查 resultSet 是否释放后再次使用。                         |
-| 0x2306     | Batch is empty!                                                 | prepareStatement 添加参数后再执行 executeBatch。                                        |
-| 0x2307     | Can not issue data manipulation statements with executeQuery()  | 更新操作应该使用 executeUpdate()，而不是 executeQuery()。                               |
-| 0x2308     | Can not issue SELECT via executeUpdate()                        | 查询操作应该使用 executeQuery()，而不是 executeUpdate()。                               |
-| 0x230d     | parameter index out of range                                    | 参数越界，请检查参数的合理范围。                                                        |
-| 0x230e     | connection already closed                                       | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。                  |
-| 0x230f     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                                 |
-| 0x2310     | can't register JDBC-JNI driver                                  | 不能注册 JNI 驱动，请检查 url 是否填写正确。                                            |
-| 0x2312     | url is not set                                                  | 请检查 REST 连接 url 是否填写正确。                                                     |
-| 0x2314     | numeric value out of range                                      | 请检查获取结果集中数值类型是否使用了正确的接口。                                        |
-| 0x2315     | unknown taos type in tdengine                                   | 在 TDengine 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine 数据类型。        |
-| 0x2317     |                                                                 | REST 连接中使用了错误的请求类型。                                                       |
-| 0x2318     |                                                                 | REST 连接中出现了数据传输异常，请检查网络情况并重试。                                   |
-| 0x2319     | user is required                                                | 创建连接时缺少用户名信息                                                                |
-| 0x231a     | password is required                                            | 创建连接时缺少密码信息                                                                  |
-| 0x231c     | httpEntity is null, sql:                                        | REST 连接中执行出现异常                                                                 |
-| 0x2350     | unknown error                                                   | 未知异常，请在 github 反馈给开发人员。                                                  |
-| 0x2352     | Unsupported encoding                                            | 本地连接下指定了不支持的字符编码集                                                      |
-| 0x2353     | internal error of database, please see taoslog for more details | 本地连接执行 prepareStatement 时出现错误，请检查 taos log 进行问题定位。                |
-| 0x2354     | JNI connection is NULL                                          | 本地连接执行命令时，Connection 已经关闭。请检查与 TDengine 的连接情况。                 |
-| 0x2355     | JNI result set is NULL                                          | 本地连接获取结果集，结果集异常，请检查连接情况，并重试。                                |
-| 0x2356     | invalid num of fields                                           | 本地连接获取结果集的 meta 信息不匹配。                                                  |
-| 0x2357     | empty sql string                                                | 填写正确的 SQL 进行执行。                                                               |
-| 0x2359     | JNI alloc memory failed, please see taoslog for more details    | 本地连接分配内存错误，请检查 taos log 进行问题定位。                                    |
-| 0x2371     | consumer properties must not be null!                           | 创建订阅时参数为空，请填写正确的参数。                                                  |
-| 0x2372     | configs contain empty key, failed to set consumer property      | 参数 key 中包含空值，请填写正确的参数。                                                 |
-| 0x2373     | failed to set consumer property,                                | 参数 value 中包含空值，请填写正确的参数。                                               |
-| 0x2375     | topic reference has been destroyed                              | 创建数据订阅过程中，topic 引用被释放。请检查与 TDengine 的连接情况。                    |
-| 0x2376     | failed to set consumer topic, topic name is empty               | 创建数据订阅过程中，订阅 topic 名称为空。请检查指定的 topic 名称是否填写正确。          |
-| 0x2377     | consumer reference has been destroyed                           | 订阅数据传输通道已经关闭，请检查与 TDengine 的连接情况。                                |
-| 0x2378     | consumer create error                                           | 创建数据订阅失败，请根据错误信息检查 taos log 进行问题定位。                            |
-| -          | can't create connection with server within                      | 通过增加参数 httpConnectTimeout 增加连接耗时，或是请检查与 taosAdapter 之间的连接情况。 |
-| -          | failed to complete the task within the specified time           | 通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况。 |
+| Error Code | Description                                                     | Suggested Actions                                                                         |
+| ---------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 0x2301     | connection already closed                                       | 连接已经关闭，检查连接情况，或重新创建连接去执行相关指令。                                |
+| 0x2302     | this operation is NOT supported currently!                      | 当前使用接口不支持，可以更换其他连接方式。                                                |
+| 0x2303     | invalid variables                                               | 参数不合法，请检查相应接口规范，调整参数类型及大小。                                      |
+| 0x2304     | statement is closed                                             | statement 已经关闭，请检查 statement 是否关闭后再次使用，或是连接是否正常。               |
+| 0x2305     | resultSet is closed                                             | resultSet 结果集已经释放，请检查 resultSet 是否释放后再次使用。                           |
+| 0x2306     | Batch is empty!                                                 | prepareStatement 添加参数后再执行 executeBatch。                                          |
+| 0x2307     | Can not issue data manipulation statements with executeQuery()  | 更新操作应该使用 executeUpdate()，而不是 executeQuery()。                                 |
+| 0x2308     | Can not issue SELECT via executeUpdate()                        | 查询操作应该使用 executeQuery()，而不是 executeUpdate()。                                 |
+| 0x230d     | parameter index out of range                                    | 参数越界，请检查参数的合理范围。                                                          |
+| 0x230e     | connection already closed                                       | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。                    |
+| 0x230f     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                                   |
+| 0x2310     | can't register JDBC-JNI driver                                  | 不能注册 JNI 驱动，请检查 url 是否填写正确。                                              |
+| 0x2312     | url is not set                                                  | 请检查 REST 连接 url 是否填写正确。                                                       |
+| 0x2314     | numeric value out of range                                      | 请检查获取结果集中数值类型是否使用了正确的接口。                                          |
+| 0x2315     | unknown taos type in tdengine                                   | 在 TDengine 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine 数据类型。          |
+| 0x2317     |                                                                 | REST 连接中使用了错误的请求类型。                                                         |
+| 0x2318     |                                                                 | REST 连接中出现了数据传输异常，请检查网络情况并重试。                                     |
+| 0x2319     | user is required                                                | 创建连接时缺少用户名信息                                                                  |
+| 0x231a     | password is required                                            | 创建连接时缺少密码信息                                                                    |
+| 0x231c     | httpEntity is null, sql:                                        | REST 连接中执行出现异常                                                                   |
+| 0x231d     | can't create connection with server within                      | 通过增加参数 httpConnectTimeout 增加连接耗时，或是请检查与 taosAdapter 之间的连接情况。   |
+| 0x231e     | failed to complete the task within the specified time           | 通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况。   |
+| 0x2350     | unknown error                                                   | 未知异常，请在 github 反馈给开发人员。                                                    |
+| 0x2352     | Unsupported encoding                                            | 本地连接下指定了不支持的字符编码集                                                        |
+| 0x2353     | internal error of database, please see taoslog for more details | 本地连接执行 prepareStatement 时出现错误，请检查 taos log 进行问题定位。                  |
+| 0x2354     | JNI connection is NULL                                          | 本地连接执行命令时，Connection 已经关闭。请检查与 TDengine 的连接情况。                   |
+| 0x2355     | JNI result set is NULL                                          | 本地连接获取结果集，结果集异常，请检查连接情况，并重试。                                  |
+| 0x2356     | invalid num of fields                                           | 本地连接获取结果集的 meta 信息不匹配。                                                    |
+| 0x2357     | empty sql string                                                | 填写正确的 SQL 进行执行。                                                                 |
+| 0x2359     | JNI alloc memory failed, please see taoslog for more details    | 本地连接分配内存错误，请检查 taos log 进行问题定位。                                      |
+| 0x2371     | consumer properties must not be null!                           | 创建订阅时参数为空，请填写正确的参数。                                                    |
+| 0x2372     | configs contain empty key, failed to set consumer property      | 参数 key 中包含空值，请填写正确的参数。                                                   |
+| 0x2373     | failed to set consumer property,                                | 参数 value 中包含空值，请填写正确的参数。                                                 |
+| 0x2375     | topic reference has been destroyed                              | 创建数据订阅过程中，topic 引用被释放。请检查与 TDengine 的连接情况。                      |
+| 0x2376     | failed to set consumer topic, topic name is empty               | 创建数据订阅过程中，订阅 topic 名称为空。请检查指定的 topic 名称是否填写正确。            |
+| 0x2377     | consumer reference has been destroyed                           | 订阅数据传输通道已经关闭，请检查与 TDengine 的连接情况。                                  |
+| 0x2378     | consumer create error                                           | 创建数据订阅失败，请根据错误信息检查 taos log 进行问题定位。                              |
+| 0x2379     | seek offset must not be a negative number                       | seek 接口参数不能为负值，请使用正确的参数                                                 |
+| 0x237a     | vGroup not found in result set                                  | VGroup 没有分配给当前 consumer，由于 Rebalance 机制导致 Consumer 与 VGroup 不是绑定的关系 |
 
 - [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 <!-- - [TDengine_ERROR_CODE](../error-code) -->
@@ -169,7 +168,7 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.2.1</version>
+  <version>3.2.2</version>
 </dependency>
 ```
 
@@ -916,14 +915,15 @@ public class SchemalessWsTest {
 
     public static void main(String[] args) throws SQLException {
         final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata&batchfetch=true";
-        Connection connection = DriverManager.getConnection(url);
-        init(connection);
+        try(Connection connection = DriverManager.getConnection(url)){
+            init(connection);
 
-        SchemalessWriter writer = new SchemalessWriter(connection, "test_ws_schemaless");
-        writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
-        writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
-        writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
-        System.exit(0);
+            try(SchemalessWriter writer = new SchemalessWriter(connection, "test_ws_schemaless")){
+                writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+                writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
+                writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.SECONDS);
+            }
+        }
     }
 
     private static void init(Connection connection) throws SQLException {
@@ -993,6 +993,17 @@ while(true) {
 ```
 
 `poll` 每次调用获取一个消息。
+
+#### 指定订阅 Offset
+
+```
+long position(TopicPartition partition) throws SQLException;
+Map<TopicPartition, Long> position(String topic) throws SQLException;
+Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
+Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
+
+void seek(TopicPartition partition, long offset) throws SQLException;
+```
 
 #### 关闭订阅
 
