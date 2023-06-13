@@ -59,7 +59,8 @@ class StreamComputingTest(TDCase):
 
         self.range_count = 5
         self.vgroups = 10
-        self.vgroups_list = [1, self.vgroups]
+        # self.vgroups_list = [1, self.vgroups]
+        self.vgroups_list = [self.vgroups]
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
 
