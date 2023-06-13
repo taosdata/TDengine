@@ -365,6 +365,16 @@ The charset that takes effect is UTF-8.
 | Unit          | GB                                                                                                |
 | Default Value | 2.0                                                                                               |
 
+### metaCacheMaxSize
+
+| Attribute     | Description                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| Applicable    | Client Only                                                                                       |
+| Meaning       | Maximum meta cache size in single client process                                                  |
+| Unit          | MB                                                                                                |
+| Default Value | -1 (No limitation)                                                                                |
+
+
 ## Cluster Parameters
 
 ### supportVnodes
