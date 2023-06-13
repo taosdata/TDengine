@@ -17,7 +17,7 @@ taos-query = { version = "0.8.11", default-features = false, features = ["deadpo
 
 [package]
 name = "taosx"
-version = "0.5.1"
+version = "0.5.2"
 build = "build.rs"
 edition = "2021"
 exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
