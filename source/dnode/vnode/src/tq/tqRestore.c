@@ -135,9 +135,8 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    if (streamTaskShouldStop(&pTask->status) || status == TASK_STATUS__SCAN_HISTORY_PREPARE ||
-        status == TASK_STATUS__WAIT_DOWNSTREAM || streamTaskShouldPause(&pTask->status)) {
-      tqDebug("s-task:%s not ready for new submit block from wal, status:%d", pTask->id.idStr, status);
+    if (status != TASK_STATUS__NORMAL) {
+      tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }

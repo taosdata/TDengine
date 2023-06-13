@@ -45,7 +45,7 @@ enum {
   TASK_STATUS__FAIL,
   TASK_STATUS__STOP,
   TASK_STATUS__WAIT_DOWNSTREAM,
-  TASK_STATUS__SCAN_HISTORY_PREPARE,
+  TASK_STATUS__SCAN_HISTORY,
   TASK_STATUS__HALT,   // stream task halt to wait for the secondary scan history, this status is invisible for user
   TASK_STATUS__PAUSE,
 };
@@ -271,6 +271,7 @@ typedef struct SStreamStatus {
   int8_t schedStatus;
   int8_t keepTaskStatus;
   bool   transferState;
+  TdThreadMutex lock;
 } SStreamStatus;
 
 typedef struct SHistDataRange {
@@ -585,7 +586,7 @@ int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req*
 int32_t streamSourceRecoverScanStep1(SStreamTask* pTask);
 int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req* pReq);
 int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver);
-int32_t streamDispatchRecoverFinishMsg(SStreamTask* pTask);
+int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
 int32_t streamDispatchTransferStateMsg(SStreamTask* pTask);
 

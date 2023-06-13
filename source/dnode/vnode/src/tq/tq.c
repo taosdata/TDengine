@@ -820,7 +820,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->dataRange.range.minVer = ver;
 
   // expand executor
-  pTask->status.taskStatus = /*(pTask->info.fillHistory) ? */TASK_STATUS__WAIT_DOWNSTREAM /*: TASK_STATUS__NORMAL*/;
+  pTask->status.taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
@@ -923,8 +923,8 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
     rsp.status = streamTaskCheckStatus(pTask);
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
-    tqDebug("s-task:%s recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), status:%d, rsp status %d",
-            pTask->id.idStr, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, pTask->status.taskStatus, rsp.status);
+    tqDebug("s-task:%s recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), status:%s, rsp status %d",
+            pTask->id.idStr, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, streamGetTaskStatusStr(pTask->status.taskStatus), rsp.status);
   } else {
     rsp.status = 0;
     tqDebug("tq recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64 ") from task:0x%x (vgId:%d), rsp status %d",
@@ -1088,7 +1088,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // do recovery step 1
-  tqDebug("s-task:%s start history data scan stage(step 1)", pTask->id.idStr);
+  tqDebug("s-task:%s start history data scan stage(step 1), status:%s", pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus));
+
   int64_t st = taosGetTimestampMs();
 
   // todo set the correct status flag
@@ -1116,7 +1117,19 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       // todo handle error
     }
 
+    ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
+
+    // wait for the stream task get ready for scan history data
+    while (pStreamTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM ||
+           pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
+      tqDebug("s-task:%s level:%d not ready for halt, wait for 100ms and recheck", pStreamTask->id.idStr,
+              pStreamTask->info.taskLevel);
+      taosMsleep(100);
+    }
+
     pStreamTask->status.taskStatus = TASK_STATUS__HALT;
+    tqDebug("s-task:%s level:%d status is set to halt by history scan task:%s", pStreamTask->id.idStr,
+            pStreamTask->info.taskLevel, pTask->id.idStr);
 
     // if it's an source task, extract the last version in wal.
     int64_t ver = pTask->dataRange.range.maxVer;
@@ -1158,14 +1171,20 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   return 0;
+
 }
 
 // notify the downstream tasks to transfer executor state after handle all history blocks.
 int32_t tqProcessTaskTransferStateReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
-  SStreamTransferReq* pReq = (SStreamTransferReq*)msg;
+  SStreamTransferReq req;
 
-  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
+  int32_t code = tDecodeStreamRecoverFinishReq(&decoder, &req);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.taskId);
   if (pTask == NULL) {
+    tqError("failed to find task:0x%x", req.taskId);
     return -1;
   }
 
@@ -1212,7 +1231,7 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, int64_t sversion, char* msg, int
   tqDebug("s-task:%s step2 recover finished, el:%.2fs", pTask->id.idStr, el);
 
   // dispatch recover finish req to all related downstream task
-  code = streamDispatchRecoverFinishMsg(pTask);
+  code = streamDispatchScanHistoryFinishMsg(pTask);
   if (code < 0) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;

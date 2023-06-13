@@ -21,22 +21,19 @@ const char* streamGetTaskStatusStr(int32_t status) {
   switch(status) {
     case TASK_STATUS__NORMAL: return "normal";
     case TASK_STATUS__WAIT_DOWNSTREAM: return "wait-for-downstream";
-    case TASK_STATUS__SCAN_HISTORY_PREPARE: return "scan-history-prepare";
+    case TASK_STATUS__SCAN_HISTORY: return "scan-history";
     case TASK_STATUS__HALT: return "halt";
+    case TASK_STATUS__PAUSE: return "paused";
     default:return "";
   }
 }
 
 int32_t streamTaskLaunchRecover(SStreamTask* pTask) {
-  qDebug("s-task:%s (vgId:%d) launch recover", pTask->id.idStr, pTask->info.nodeId);
-
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__SCAN_HISTORY_PREPARE);
-
     SVersionRange* pRange = &pTask->dataRange.range;
-    qDebug("s-task:%s set task status:%s and start to recover, ver:%" PRId64 "-%" PRId64, pTask->id.idStr,
-           streamGetTaskStatusStr(pTask->status.taskStatus), pTask->dataRange.range.minVer,
-           pTask->dataRange.range.maxVer);
+    qDebug("s-task:%s vgId:%d task status:%s and start to scan-history-data task, ver:%" PRId64 " - %" PRId64,
+           pTask->id.idStr, pTask->info.nodeId, streamGetTaskStatusStr(pTask->status.taskStatus),
+           pTask->dataRange.range.minVer, pTask->dataRange.range.maxVer);
 
     streamSetParamForRecover(pTask);
     streamSourceRecoverPrepareStep1(pTask, pRange, &pTask->dataRange.window);
@@ -63,7 +60,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask) {
     streamAggRecoverPrepare(pTask);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     streamSetStatusNormal(pTask);
-    qDebug("s-task:%s sink task convert to normal immediately", pTask->id.idStr);
+    qDebug("s-task:%s sink task convert to normal status immediately", pTask->id.idStr);
   }
 
   return 0;
@@ -181,7 +178,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         taosArrayDestroy(pTask->checkReqIds);
         pTask->checkReqIds = NULL;
 
-        qDebug("s-task:%s all %d downstream tasks are ready, now enter into recover stage", id, numOfReqs);
+        qDebug("s-task:%s all %d downstream tasks are ready, now enter into scan-history-data stage", id, numOfReqs);
         streamTaskLaunchRecover(pTask);
       } else {
         qDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, remain not ready:%d", id,
@@ -192,7 +189,12 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         return -1;
       }
 
-      qDebug("s-task:%s fixed downstream tasks is ready, now enter into recover stage", id);
+      ASSERT(pTask->status.taskStatus != TASK_STATUS__HALT);
+      pTask->status.taskStatus = TASK_STATUS__SCAN_HISTORY;
+
+      qDebug("s-task:%s fixed downstream task is ready, now enter into scan-history-data stage, status:%s", id,
+             streamGetTaskStatusStr(pTask->status.taskStatus));
+
       streamTaskLaunchRecover(pTask);
     } else {
       ASSERT(0);
@@ -219,6 +221,7 @@ int32_t streamRestoreParam(SStreamTask* pTask) {
 }
 
 int32_t streamSetStatusNormal(SStreamTask* pTask) {
+  qDebug("s-task:%s set task status to be normal, prev:%s", pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus));
   atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
   return 0;
 }
@@ -264,25 +267,29 @@ int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
   return code;
 }
 
-int32_t streamDispatchRecoverFinishMsg(SStreamTask* pTask) {
+int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
   SStreamRecoverFinishReq req = { .streamId = pTask->id.streamId, .childId = pTask->info.selfChildId };
 
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-    qDebug("s-task:%s send recover finish msg to downstream (fix-dispatch) to taskId:0x%x, status:%d", pTask->id.idStr,
-           pTask->fixedEpDispatcher.taskId, pTask->status.taskStatus);
+    qDebug("s-task:%s send scan-history-data complete msg to downstream (fix-dispatch) to taskId:0x%x, status:%s", pTask->id.idStr,
+           pTask->fixedEpDispatcher.taskId, streamGetTaskStatusStr(pTask->status.taskStatus));
 
     req.taskId = pTask->fixedEpDispatcher.taskId;
     streamDoDispatchRecoverFinishMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
-    int32_t vgSz = taosArrayGetSize(vgInfo);
-    for (int32_t i = 0; i < vgSz; i++) {
+    int32_t numOfVgs = taosArrayGetSize(vgInfo);
+
+    qDebug("s-task:%s send scan-history-data complete msg to downstream (shuffle-dispatch) %d tasks, status:%s", pTask->id.idStr,
+           numOfVgs, streamGetTaskStatusStr(pTask->status.taskStatus));
+    for (int32_t i = 0; i < numOfVgs; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       req.taskId = pVgInfo->taskId;
       streamDoDispatchRecoverFinishMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
   }
+
   return 0;
 }
 
@@ -333,7 +340,7 @@ int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
 
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-    qDebug("s-task:%s send recover finish msg to downstream (fix-dispatch) to taskId:0x%x, status:%d", pTask->id.idStr,
+    qDebug("s-task:%s send transfer state msg to downstream (fix-dispatch) to taskId:0x%x, status:%d", pTask->id.idStr,
            pTask->fixedEpDispatcher.taskId, pTask->status.taskStatus);
 
     req.taskId = pTask->fixedEpDispatcher.taskId;
@@ -375,11 +382,15 @@ int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask) {
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId) {
   if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     int32_t left = atomic_sub_fetch_32(&pTask->numOfWaitingUpstream, 1);
-    qDebug("s-task:%s remain unfinished child tasks:%d", pTask->id.idStr, left);
     ASSERT(left >= 0);
+
     if (left == 0) {
+      qDebug("s-task:%s all %d upstream tasks finish scan-history data", pTask->id.idStr, left);
       streamAggChildrenRecoverFinish(pTask);
+    } else {
+      qDebug("s-task:%s remain unfinished upstream tasks:%d", pTask->id.idStr, left);
     }
+
   }
   return 0;
 }
@@ -388,10 +399,14 @@ static void doCheckDownstreamStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   pHTask->dataRange.range.minVer = 0;
   pHTask->dataRange.range.maxVer = pTask->chkInfo.currentVer;
 
-  qDebug("s-task:%s set the launch condition for fill history s-task:%s, window:%" PRId64 " - %" PRId64
-         " ver range:%" PRId64 " - %" PRId64,
-         pTask->id.idStr, pHTask->id.idStr, pHTask->dataRange.window.skey, pHTask->dataRange.window.ekey,
-         pHTask->dataRange.range.minVer, pHTask->dataRange.range.maxVer);
+  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    qDebug("s-task:%s set the launch condition for fill history s-task:%s, window:%" PRId64 " - %" PRId64
+               " ver range:%" PRId64 " - %" PRId64,
+           pTask->id.idStr, pHTask->id.idStr, pHTask->dataRange.window.skey, pHTask->dataRange.window.ekey,
+           pHTask->dataRange.range.minVer, pHTask->dataRange.range.maxVer);
+  } else {
+    qDebug("s-task:%s no fill history condition for non-source task:%s", pTask->id.idStr, pHTask->id.idStr);
+  }
 
   // check if downstream tasks have been ready
   streamTaskCheckDownstreamTasks(pHTask);
@@ -444,13 +459,6 @@ int32_t streamTaskStartHistoryTask(SStreamTask* pTask, int64_t ver) {
 
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
-
-  qDebug("s-task:%s set start wal scan start ver:%" PRId64, pTask->id.idStr, pTask->chkInfo.currentVer);
-  ASSERT(walReaderGetCurrentVer(pTask->exec.pWalReader) == -1);
-
-//        walReaderSeekVer(pTask->exec.pWalReader, sversion);
-//        pTask->chkInfo.currentVer = sversion;
-
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     return 0;
   }
@@ -462,17 +470,13 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
   }
 
   // dispatch recover finish req to all related downstream task
-  code = streamDispatchRecoverFinishMsg(pTask);
+  code = streamDispatchScanHistoryFinishMsg(pTask);
   if (code < 0) {
     return -1;
   }
 
-  // set status normal
-  qDebug("s-task:%s set the status to be normal, and start wal scan", pTask->id.idStr);
-  code = streamSetStatusNormal(pTask);
-  if (code < 0) {
-    return -1;
-  }
+  ASSERT(pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY);
+  /*code = */streamSetStatusNormal(pTask);
 
   atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
   streamMetaSaveTask(pMeta, pTask);

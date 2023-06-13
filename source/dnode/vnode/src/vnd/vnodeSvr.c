@@ -573,16 +573,22 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_CHECK:
       return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECK_RSP:
-      return tqProcessStreamTaskCheckRsp(pVnode->pTq, 0, pMsg->pCont, pMsg->contLen);
+    case TDMT_STREAM_TASK_CHECK_RSP: {
+      char* pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+      int32_t len = pMsg->contLen - sizeof(SMsgHead);
+      return tqProcessStreamTaskCheckRsp(pVnode->pTq, 0, pReq, len);
+    }
     case TDMT_STREAM_RETRIEVE:
       return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_SCAN_HISTORY:
       return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_TRANSFER_STATE:
-      return tqProcessTaskTransferStateReq(pVnode->pTq, 0, pMsg->pCont, pMsg->contLen);
+    case TDMT_STREAM_TRANSFER_STATE: {
+      char* pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+      int32_t len = pMsg->contLen - sizeof(SMsgHead);
+      return tqProcessTaskTransferStateReq(pVnode->pTq, 0, pReq, len);
+    }
     case TDMT_STREAM_RECOVER_FINISH:
       return tqProcessTaskRecoverFinishReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RECOVER_FINISH_RSP:
