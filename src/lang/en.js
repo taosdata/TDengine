@@ -944,6 +944,7 @@ export default {
     type: 'Type',
     number: 'Number',
     dnodes: 'Number of DNodes',
+    connectors:'Connectors',
     //admin-user
     title: 'Topic',
     name: 'Name',
@@ -1761,9 +1762,9 @@ export default {
     fromsourceRequired: 'Please select the source',
     targetdsnRequired: 'Please input the target dsn',
     directoryRequired: 'Please input the directory',
-    activationLicense: 'Activation license',
+    activationLicense: 'Activate license',
     activeCode: 'Activation code',
-    cActiveCode: 'Connector activation code',
+    cActiveCode: 'Activation Code for Connectors',
   },
   taosagents: {
     edittitle: 'Edit Agent',

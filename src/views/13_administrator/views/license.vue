@@ -27,6 +27,9 @@
         <span style="color:#333;"> {{item.value}}</span>
       </el-descriptions-item>
     </el-descriptions>
+    <p class="title">
+      <span>{{ $t("topic.connectors") }}</span>
+    </p>
     <el-table style="margin-top: 20px" :data="tableData" size="mini">
       <el-table-column
         :label="$t('topic.type')"
@@ -225,7 +228,7 @@ export default {
       }
     }, 
     expireTime(data){
-      return moment(Number(data)).format("YYYY-MM-DD")
+      return moment(Number(data) * 24 * 60 * 60 * 1000).format('YYYY-MM-DD')
     }
   },
 };
@@ -259,6 +262,20 @@ td.el-descriptions-item__cell.el-descriptions-item__content{
 .el-descriptions .el-descriptions-item__cell{
   padding:12px 5px;
   border-bottom: 1px solid #dfe6ec;
+}
+.el-form-item--mini .el-form-item__label {
+  word-break: break-word;
+}
+.title{
+    background-color: #ecf8ff;
+    border-left-color: #50bfff;
+    color: #333;
+    border-left-width: 5px;
+    border-left-style: solid;
+    border-radius: 4px;
+    font-size: 16px;
+    margin: 30px 0 10px 0;
+    padding: 8px 16px;
 }
 }
 </style>
