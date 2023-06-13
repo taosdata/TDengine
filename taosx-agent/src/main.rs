@@ -105,6 +105,7 @@ impl Args {
         .unwrap_or_else(|| {
             if cfg!(windows) {
                 std::path::Path::new("C:\\")
+                    .join("Program Files")
                     .join(build::CUS_NAME)
                     .join("cfg")
                     .join("agent.toml")
