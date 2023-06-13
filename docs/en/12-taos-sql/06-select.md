@@ -248,8 +248,13 @@ For more information, see TDengine Extensions.
 - Same expression following `GROUP BY`
 - Expression composed of the above
 
-For example,
+2. When `having_clause` is used after `window_clause`, it means filtering data after window query, it can only includes: 
+- Constant
+- Aggregate function
+- Expression composed of the above
 
+
+For example, firstly group data then filter data.
 ```sql
 taos> select tbname, i from st1 partition by tbname having i > 5;
              tbname             |      i      |
@@ -258,13 +263,7 @@ taos> select tbname, i from st1 partition by tbname having i > 5;
  st1s3                          |          10 |
 ```
 
-  
-1. When `having_clause` is used after `window_clause`, it means filtering data after window query, it can only includes: 
-- Constant
-- Aggregate function
-- Expression composed of the above
-
-For example,
+Another example, firstly perform window query then filter data.
 
 ```sql
 taos> select tbname, count(*) from st1 partition by tbname interval(10s) having count(*) = 1;
