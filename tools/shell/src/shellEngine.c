@@ -326,6 +326,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
   char quotationStr[2];
   quotationStr[0] = '\"';
   quotationStr[1] = 0;
+  int32_t width;
 
   int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
@@ -358,7 +359,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       taosFprintfFile(pFile, "%" PRIu64, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      int32_t width = SHELL_FLOAT_WIDTH;
+      width = SHELL_FLOAT_WIDTH;
       if (tsEnableScience) {
         taosFprintfFile(pFile, "%*e", width, GET_FLOAT_VAL(val));
       } else {
@@ -371,7 +372,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      int32_t width = SHELL_DOUBLE_WIDTH;
+      width = SHELL_DOUBLE_WIDTH;
       if (tsEnableScience) {
         snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.9e", GET_DOUBLE_VAL(val));
         taosFprintfFile(pFile, "%*s", width, buf);
