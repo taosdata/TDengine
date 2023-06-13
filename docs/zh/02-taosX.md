@@ -108,7 +108,150 @@ taosX 是进行数据同步与复制的核心组件，以下运行模式指 taos
 
 ### 从 MQTT 同步数据到 TDengine
 
-@xuwang
+目前，MQTT 连接器仅支持从 MQTT 服务端消费 JSON 格式的消息，并将其同步至 TDengine. 命令如下所示：
+
+```
+taosx run --from "<MQTT-DSN>" --to "<TDengine-DSN>" --parser parser.json
+```
+
+其中：
+- `--from` 用于指定 MQTT 数据源的 DSN
+- `--to` 用于指定 TDengine 的 DSN
+- `--parser` 用于指定一个 JSON 格式的配置文件，该文件决定了如何解析 JSON 格式的 MQTT 消息，以及写入 TDengine 时的超级表名、子表名、字段名称和类型，以及标签名称和类型等。
+
+#### MQTT DSN 配置
+
+MQTT DSN 的符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
+- topics: 必填，用于配置监听的 MQTT 主题名称；支持配置多个主题，使用逗号分隔；配置主题时，可以使用 MQTT 协议的支持的通配符#和+;
+- version: 非必填，用于配置 MQTT 协议的版本，支持的版本包括：3.1/3.1.1/5.0, 默认值为3.1;
+- clean_session: 非必填，用于配置连接器作为 MQTT 客户端连接至 MQTT 服务端时，服务端是否保存该会话信息，其默认值为 true, 即不保存会话信息；
+- client_id: 必填，用于配置连接器作为 MQTT 客户端连接至 MQTT 服务端时的客户端 id;
+- keep_alive: 非必填，用于配置连接器作为 MQTT 客户端，向 MQTT 服务端发出 PINGREG 消息后的等待时间，如果连接器在该时间内，未收到来自 MQTT 服务端的 PINGREQ, 连接器则主动断开连接；该配置的单位为秒，默认值为 60;
+- ca: 非必填，用于指定连接器与 MQTT 服务端建立 SSL/TLS 连接时，使用的 CA 证书，其值为在证书文件的绝对路径前添加@, 例如：@/home/admin/certs/ca.crt;
+- cert: 非必填，用于指定连接器与 MQTT 服务端建立 SSL/TLS 连接时，使用的客户端证书，其值为在证书文件的绝对路径前添加@, 例如：@/home/admin/certs/client.crt;
+- cert_key: 非必填，用于指定连接器与 MQTT 服务端建立 SSL/TLS 连接时，使用的客户端私钥，其值为在私钥文件的绝对路径前添加@, 例如：@/home/admin/certs/client.key;
+- log_level: 非必填，用于配置连接器的日志级别，连接器支持 error/warn/info/debug/trace 5种日志级别，默认值为 info.
+
+一个完整的 MQTT DSN 示例如下：
+```
+mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version=3.1&clean_session=true&log_level=info&client_id=taosdata_1234&keep_alive=60&ca=@/home/admin/certs/ca.crt&cert=@/home/admin/certs/client.crt&cert_key=@/home/admin/certs/client.key
+```
+
+#### MQTT 连接器的解释器配置
+
+连接器的解释器配置文件，即`--parser`配置项的参数，它的值为一个 JSON 文件，其配置可分为`parse`和`model`两部分，模板如下所示：
+
+```
+{
+  "parse": {
+    "payload": {
+      "json": [
+        {
+          "name": "ts",
+          "alias": "ts",
+          "cast": "TIMESTAMP"
+        },
+        ...
+      ]
+    }
+  },
+  "model": {
+    "using": "<stable-name>",
+    "name": "<subtable-prefix>{alias}",
+    "columns": [ ... ],
+    "tags": [ ... ]
+  }
+}
+```
+
+各字段的说明如下：
+- parse 部分目前仅支持 json 一种 payload, json 字段的值是一个由 JSON Object 构成的 JSON Array:
+  - 每个 JSON Ojbect 包括 name, alias, cast 三个字段；
+  - name 字段用于指定如何从 MQTT 消息中提取字段，如果 MQTT 消息是一个简单的 JSON Object, 这里可以直接设置其字段名；如果 MQTT 消息是一个复杂的 JSON Object, 这里可以使用 JSON Path 提取字段，例如：`$.data.city`;
+  - alias 字段用于命名 MQTT 消息中的字段同步至 TDengine 后使用的名称；
+  - cast 字段用于指定 MQTT 消息中的字段同步至 TDengine 后使用的类型。
+- model 部分用于设置 TDengine 超级表、子表、列和标签等信息：
+  - using 字段用于指定超级表名称；
+  - name 字段用于指定子表名称，它的值可以分为前缀和变量两部分，变量为 parse 部分设置的 alias 的值，需要使用{}, 例如：d{id}；
+  - columns 字段用于设置 MQTT 消息中的哪些字段作为 TDengine 超级表中的列，取值为 parse 部分设置的 alias 的值；需要注意的是，这里的顺序会决定 TDengine 超级表中列的顺序，因此第一列必须为 TIMESTAMP 类型；
+  - tags 字段用于设置 MQTT 消息中的哪些字段作为 TDengine 超级表中的标签，取值为 parse 部分设置的 alias 的值。
+
+#### 解释器配置举例说明
+
+对于以下 JSON 格式的 MQTT 消息，将其同步至 TDengine 时, 如果采用 meters 作为超级表名，前缀d拼接id字段的值作为子表名，ts, id, current, voltage, phase作为超级表的列，groupid, location作为超级表的标签：
+```
+{
+  "id": 1,
+  "current": 10.77,
+  "voltage": 222,
+  "phase": 0.77,
+  "groupid": 7,
+  "location": "California.SanDiego"
+}
+```
+
+其解释器的配置如下：
+```
+{
+  "parse": {
+    "payload": {
+      "json": [
+        {
+          "name": "ts",
+          "alias": "ts",
+          "cast": "TIMESTAMP"
+        },
+        {
+          "name": "id",
+          "alias": "id",
+          "cast": "INT"
+        },
+        {
+          "name": "voltage",
+          "alias": "voltage",
+          "cast": "INT"
+        },
+        {
+          "name": "phase",
+          "alias": "phase",
+          "cast": "FLOAT"
+        },
+        {
+          "name": "current",
+          "alias": "current",
+          "cast": "FLOAT"
+        },
+        {
+          "name": "groupid",
+          "alias": "groupid",
+          "cast": "INT"
+        },
+        {
+          "name": "location",
+          "alias": "location",
+          "cast": "VARCHAR(20)"
+        }
+      ]
+    }
+  },
+  "model": {
+    "name": "d{id}",
+    "using": "meters",
+    "columns": [
+      "ts",
+      "id",
+      "current",
+      "voltage",
+      "phase"
+    ],
+    "tags": [
+      "groupid",
+      "location"
+    ]
+  }
+}
+```
+
 
 ### 服务模式
 
@@ -172,14 +315,38 @@ journalctl -u taosx -f
 
 #### 配置
 
+Agent 默认的配置文件位于`/etc/taos/agent.toml`, 包含以下配置项：
+- endpoint: 必填，taosX 的 GRPC endpoint
+- token: 必填，在 taosExplorer 上创建 agent 时，产生的token
+- debug_level: 非必填，默认为 info, 还支持 debug, trace 等级别
+
+如下所示：
+
+```
+endpoint = "grpc://<taosx-ip>:6055"
+token = "<token>"
+```
+
 #### 启动
+
+Agent 可以通过 Systemd 命令启动：
+
+```
+systemctl start taosx-agent
+```
 
 #### 问题排查
 
+可以通过 journalctl 查看 Agent 的日志
+
+```
+journalctl -u taosx-agent -f
+```
+
+
 ### 部署 taosExplorer
 
-请参考  taosExplorer
-
+请参考 taosExplorer
 
 ### 数据同步功能
 
