@@ -529,6 +529,7 @@
             :connectorData="constMqttparser"
             :fields="constmqttCols"
             ref="mqtt"
+            :isEditable='isEditable'
           ></MqttConnector>
         </div>
       </section>

@@ -1,5 +1,5 @@
 <template>
-  <ul class="mqtt-column">
+  <ul :class="['mqtt-column', (isEditable&&(this.nonEditableCols.includes(colData['name'])||colData['name']==currentPrimary)) ? 'edit' : '']">
     <li class="primary">
       <el-checkbox
         :value="colData['name'] == currentPrimary"
@@ -9,26 +9,40 @@
           !colData['name'] ||
           (!colData['cast'] && colData['name'] != 'ts') ||
           (colData['cast'] &&
-            !colData['cast'].toLowerCase().includes('timestamp'))
+            !colData['cast'].toLowerCase().includes('timestamp'))||isEditable
         "
         >&nbsp;</el-checkbox
       >
     </li>
     <li class="ascolumn">
       <el-radio
-        v-model="radio"
+        :value="radio === '1' || colData.name == currentPrimary ? '1' : '2'"
         label="1"
-        @input="checkColumn"
+        @click.native="checkColumn"
         :disabled="colData['name'] == ''"
+        :style="
+          !constcols.includes(colData['name'])
+            ? { display: 'flex', paddingLeft: '6px' }
+            : ''
+        "
         >&nbsp;</el-radio
       >
     </li>
     <li class="astag">
       <el-radio
-        v-model="radio"
+        :value="radio"
         label="2"
-        @input="checkTag"
-        :disabled="colData['name'] == ''||colData['name']==currentPrimary"
+        :style="
+          !constcols.includes(colData['name'])
+            ? { display: 'flex', paddingLeft: '6px' }
+            : ''
+        "
+        @click.native="
+          () =>
+            !(colData['name'] == '' || colData['name'] == currentPrimary) &&
+            checkTag()
+        "
+        :disabled="colData['name'] == '' || colData['name'] == currentPrimary"
         >&nbsp;</el-radio
       >
     </li>
@@ -141,9 +155,14 @@ export default {
         return null;
       },
     },
+    isEditable: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
+      nonEditableCols: ["ts", "qos", "topic"],
       num: 1,
       mqttTypes: [...dataType, ...timestamps].filter(
         (item) => item.value !== "NCHAR" && item.value != "VARCHAR"
@@ -175,20 +194,30 @@ export default {
   },
   methods: {
     changeType() {
-      this.num = 1;
+      if (
+        !this.colData["cast"].toLowerCase().includes("timestamp") &&
+        this.colData["name"] == this.currentPrimary
+      ) {
+        this.changePrimary("ts");
+      }
     },
     handleChange(val) {
       this.colData["cast"] = this.colData["cast"] + "(" + val + ")";
     },
     changePrimary(val) {
+      this.radio = "1";
       this.$emit("changePrimary", val);
       let oldparser = this.$store.state.app.mqttParser;
       let columns = oldparser.model.columns;
+      let tags = oldparser.model.tags;
+      if (tags.includes(val)) {
+        tags.splice(tags.indexOf(val), 1);
+      }
       if (!columns.includes(val)) {
         columns.unshift(val);
-        this.radio = "1";
         this.$store.commit("app/SET_MQTT_PARSER", oldparser);
       }
+
     },
     watchFieldVal(val) {
       if (this.constcols.includes(val)) {
@@ -199,6 +228,7 @@ export default {
       }
     },
     checkColumn() {
+      this.radio = "1";
       if (this.colData.name) {
         let oldparser = this.$store.state.app.mqttParser;
         let columns = oldparser.model.columns;
@@ -218,6 +248,7 @@ export default {
         Message.warning(this.$t("datasource.primaryColTagtip"));
         return;
       }
+      this.radio = "2";
       if (this.colData.name) {
         let oldparser = this.$store.state.app.mqttParser;
         let columns = oldparser.model.columns;
@@ -250,11 +281,16 @@ export default {
         this.radio = "1";
       }
       if (tags.includes(this.colData.name)) {
+        console.error('echoColorTag')
         this.radio = "2";
       }
     },
   },
   mounted() {
+    if (!this.nonEditableCols.includes(this.currentPrimary)) {
+      this.nonEditableCols.concat(this.currentPrimary);
+    }
+
     this.echoColOrTag();
   },
   watch: {
@@ -264,12 +300,48 @@ export default {
         this.$emit("changeAddStatus");
       },
     },
-    // currentPrimary:{
-    //     deep:true,
-    //     handler(val){
-    //         console.log(val,this.radio,'最新的主键');
+    // colData: {
+    //   deep: true,
+    //   handler(val) {
+    //     let oldparser = this.$store.state.app.mqttParser;
+    //     let columns = oldparser.model.columns;
+    //     if (!columns.includes(val.name)) {
+    //       //   this.radio = "";
     //     }
-    // }
+    //   },
+    // },
+    currentPrimary: {
+      deep: true,
+      immediate: true,
+      handler(val, oldVal) {
+        let oldparser = this.$store.state.app.mqttParser;
+        let columns = oldparser.model.columns;
+        columns.map((item, index) => {
+          if (item == val) {
+            columns.unshift(columns.splice(index, 1)[0]);
+          }
+        });
+        if (columns.includes(oldVal)) {
+          columns.splice(columns.indexOf(oldVal), 1);
+        }
+        this.$store.commit("app/SET_MQTT_PARSER", oldparser);
+        // this.radio = '1'
+        if (
+          this.colData.name !== this.currentPrimary &&
+          this.colData.name === oldVal
+        ) {
+          this.radio = "";
+        }
+        if (this.colData.name === this.currentPrimary) {
+            const timer = setTimeout(() => {
+                if (this.radio !== '1') {
+                    this.radio = "1";
+                }
+                clearTimeout(timer)
+            }, 150)
+        }
+      },
+    },
   },
 };
 </script>
@@ -297,6 +369,19 @@ export default {
   border-top: 1px solid #ebeef5;
   padding-top: 8px;
   padding-bottom: 8px;
+  &.edit {
+    position: relative;
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: 0;
+      background: #f2f6fc66;
+      z-index: 99;
+    }
+  }
   .primary {
     display: flex;
     justify-content: center;
