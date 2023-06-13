@@ -443,6 +443,26 @@ The charset that takes effect is UTF-8.
 | Default Value | 0                                                                                                                                           |
 | Note          | When it's bigger than 0, the log file would be renamed to "taosdlog.xxx" in which "xxx" is the timestamp when the file is changed last time |
 
+### slowLogThreshold
+
+| Attribute     | Description                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| Applicable    | Client only                                                                                              |
+| Meaning       | When an operation execution time exceeds this threshold, the operation will be logged in slow log file   |
+| Unit          | second                                                                                                   |
+| Default Value | 3                                                                                                        |
+| Note          | All slow operations will be logged in file "taosSlowLog" in the log directory                            |
+
+### slowLogScope
+
+| Attribute       | Description                                                             |
+| --------------- | ----------------------------------------------------------------------- |
+| Applicable      | Client only                                                             |
+| Meaning         | Slow log type to be logged                                              |
+| Optional Values | ALL, QUERY, INSERT, OTHERS, NONE                                        |
+| Default Value   | ALL                                                                     |
+| Note            | All slow operations will be logged by default, one option could be set  |
+
 ### debugFlag
 
 | Attribute     | Description                                               |
