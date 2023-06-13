@@ -163,9 +163,9 @@ taosx run \
 (2)
 
 
-2. TDengine 2.4(2.6) -> TDengine 3.0
+2. TDengine 2.6 -> TDengine 3.0
 
-将 2.4（2.6） 版本 TDengine 集群中的数据迁移到 3.0 版本 TDengine 集群。
+将 2.6 版本 TDengine 集群中的数据迁移到 3.0 版本 TDengine 集群。
 
 命令行模式下支持的参数如下：
 
