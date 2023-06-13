@@ -62,7 +62,10 @@ partition_by_clause:
     PARTITION BY expr [, expr] ...
 
 group_by_clause:
-    GROUP BY expr [, expr] ... HAVING condition
+    GROUP BY expr [, expr] ... 
+    
+having_clause:
+    HAVING condition
 
 order_by_clasue:
     ORDER BY order_expr [, order_expr] ...
