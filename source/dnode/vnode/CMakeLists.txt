@@ -80,6 +80,15 @@ IF (TD_VNODE_PLUGINS)
   )
 ENDIF ()
 
+IF (TD_LINUX)
+target_include_directories(
+    vnode
+    PUBLIC "inc"
+    PUBLIC "src/inc"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+    PUBLIC "${TD_SOURCE_DIR}/deps/rocksdb_static"
+)
+ELSE()
 target_include_directories(
     vnode
     PUBLIC "inc"
@@ -87,6 +96,8 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
     PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
 )
+
+ENDIF (TD_LINUX)
 IF (TD_LINUX)
 target_link_libraries(
     vnode
@@ -108,6 +119,14 @@ target_link_libraries(
     PUBLIC stream
     PUBLIC index
 )
+  target_include_directories(
+    vnode 
+    PUBLIC "${TD_SOURCE_DIR}/deps/rocksdb_static"
+  )
+  target_link_directories(
+    vnode 
+    PUBLIC "${TD_SOURCE_DIR}/deps/rocksdb_static"
+  )
 ELSE()
 target_link_libraries(
     vnode

@@ -1,7 +1,9 @@
 # rocksdb
+IF (NOT ${TD_LINUX})
 if(${BUILD_WITH_ROCKSDB})
     add_subdirectory(rocksdb)
 endif(${BUILD_WITH_ROCKSDB})
+ENDIF(NOT ${TD_LINUX})
 
 if(${BUILD_WITH_LUCENE})
     add_subdirectory(lucene)
