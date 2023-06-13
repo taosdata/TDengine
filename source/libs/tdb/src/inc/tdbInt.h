@@ -199,9 +199,9 @@ int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initP
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerInsertFreePage(SPager *pPager, SPgno pgno, TXN *pTxn);
-int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
-int  tdbPagerRestoreJournals(SPager *pPager);
-int  tdbPagerRollback(SPager *pPager);
+// int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
+int tdbPagerRestoreJournals(SPager *pPager);
+int tdbPagerRollback(SPager *pPager);
 
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \
