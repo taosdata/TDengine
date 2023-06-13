@@ -14,6 +14,7 @@ use chrono::{Local, NaiveDateTime};
 use itertools::Itertools;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 
@@ -344,40 +345,53 @@ pub async fn pi_to_taos(
         None,
     );
 
-    let child_command;
-    let child;
-    let output;
+    let mut child_command;
+
     match driver.as_str() {
         "pi" => {
             let mut command = tokio::process::Command::new(pi_exe_path());
-            child = command
+            child_command = command
                 .arg("-f")
                 .arg(&config_path)
                 .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::piped());
-
-            output = child.output().await?;
-            writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
-
-            child_command = child.spawn().context("Start PI collector error")?;
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .context("Start PI collector error")?;
         }
         "pibackfill" => {
             let mut command = tokio::process::Command::new(pi_backfill_exe_path());
-            child = command
+            child_command = command
                 .arg("-f")
                 .arg(&config_path)
                 .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::piped());
-
-            output = child.output().await?;
-            writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
-
-            child_command = child.spawn().context("Start PI Backfill error")?;
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .context("Start PI Backfill error")?;
         }
         _ => {
             anyhow::bail!("wrong driver configured");
         }
     }
+
+    let stderr = child_command
+        .stderr
+        .take()
+        .expect("Failed to capture stderr");
+    tokio::spawn(async move {
+        let mut reader = tokio::io::BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            // Read a line from stderr
+            let bytes_read = reader.read_line(&mut line).await.unwrap();
+            if bytes_read == 0 {
+                break; // End of stream, exit the loop
+            }
+            // Write the line to log_rotation
+            write!(log_rotation, "{}", line).unwrap();
+            line.clear();
+        }
+        Ok::<(), std::io::Error>(())
+    });
 
     let pid = child_command.id().unwrap();
     log::info!("waiting for PI connector");
@@ -385,20 +399,13 @@ pub async fn pi_to_taos(
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
-            output = child.output() => {
-                let output = output.context("PI connector or PI backfill run error")?;
-                log::info!("PI connector or PI backfill exit with status {}", output.status);
-                if !output.status.success() {
-                    let len = output.stdout.len();
-                    let err = if len > 200 {
-                        String::from_utf8_lossy(&output.stdout[len - 200..])
-                    } else {
-                        String::from_utf8_lossy(&output.stdout[..])
-                    };
-
+            status = child_command.wait() => {
+                let status = status?;
+                log::info!("PI connector or PI backfill exit with {}", status);
+                if !status.success() {
                     let _ = ipc.send(());
                     stop_thread(server);
-                    anyhow::bail!("PI error: {}", err);
+                    anyhow::bail!("PI connector or PI backfill exist with {}", status);
                 }
             },
             _ = tokio::signal::ctrl_c() => {

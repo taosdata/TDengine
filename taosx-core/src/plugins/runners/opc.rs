@@ -15,6 +15,7 @@ use taos::{
     taos_query::helpers::ColumnMeta, AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty,
 };
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
+use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
@@ -740,10 +741,25 @@ pub async fn opc_to_taos(
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
     {
-        let output = child.output().await?;
-        writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
-
         let mut child = child.spawn()?;
+
+        let stderr = child.stderr.take().expect("Failed to capture stderr");
+        tokio::spawn(async move {
+            let mut reader = tokio::io::BufReader::new(stderr);
+            let mut line = String::new();
+            loop {
+                // Read a line from stderr
+                let bytes_read = reader.read_line(&mut line).await.unwrap();
+                if bytes_read == 0 {
+                    break; // End of stream, exit the loop
+                }
+                // Write the line to log_rotation
+                write!(log_rotation, "{}", line).unwrap();
+                line.clear();
+            }
+            Ok::<(), std::io::Error>(())
+        });
+
         tokio::spawn(async move {
             tokio::select! {
                 status = child.wait() => {
