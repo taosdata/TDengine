@@ -941,6 +941,10 @@ export default {
     activities: 'Activities',
     cvs: 'CVS',
     stable: "Super Table",
+    type: 'Type',
+    number: 'Number',
+    dnodes: 'Number of DNodes',
+    connectors:'Connectors',
     //admin-user
     title: 'Topic',
     name: 'Name',
@@ -978,9 +982,6 @@ export default {
     create_time: 'Create Time',
     offline_reason: 'Offline Reason',
     users: 'Users',
-    dnodes: 'DNodes',
-    mnodes: 'MNodes',
-    qnodes: 'QNodes',
     datain: 'Data In',
     datacollection: 'Data Collection Agents ',
     csv: 'CSV',
@@ -1773,7 +1774,10 @@ export default {
     every30day: 'Every 30 days',
     fromsourceRequired: 'Please select the source',
     targetdsnRequired: 'Please input the target dsn',
-    directoryRequired: 'Please input the directory'
+    directoryRequired: 'Please input the directory',
+    activationLicense: 'Activate',
+    activeCode: 'Activation code',
+    cActiveCode: 'Activation Code for Connectors',
   },
   taosagents: {
     edittitle: 'Edit Agent',
