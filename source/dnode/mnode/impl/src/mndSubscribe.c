@@ -549,7 +549,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   }
 
   mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mndTransDrop(pTrans);
     nodesDestroyNode((SNode*)pPlan);
     return -1;
