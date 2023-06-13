@@ -340,28 +340,66 @@ async fn sync_single_table(
         while let Some(mut block) = blocks.try_next().await? {
             block.with_table_name(table);
 
-            let ok = to.write_raw_block(&block).await;
-
-            if let Err(err) = ok {
-                let err_str = err.to_string();
-                if err_str.contains("0x2603") {
-                    if let Some(stable) = stable {
-                        sync_super_table_schema_with_subs_without_pool(
-                            from,
-                            stable,
-                            &[table],
-                            to,
-                            1,
-                            &target_opts,
-                            true,
-                            0,
-                            &metrics,
-                        )
-                        .await?;
+            loop {
+                let ok = to.write_raw_block(&block).await;
+                if let Err(err) = ok {
+                    let err_str = err.to_string();
+                    if err_str.contains("0x2603") {
+                        if let Some(stable) = stable {
+                            sync_super_table_schema_with_subs_without_pool(
+                                from,
+                                stable,
+                                &[table],
+                                to,
+                                1,
+                                &target_opts,
+                                true,
+                                0,
+                                &metrics,
+                            )
+                            .await?;
+                        } else {
+                            sync_normal_table_schema(from, table, to).await?;
+                        }
+                        continue;
+                    } else if err_str.contains("0x0118") {
+                        let desc = to.describe(table).await.map_err(|err| {
+                            anyhow::format_err!("Describe table {table} error: {err}")
+                        })?;
+                        let fields: HashMap<_, Ty> = block
+                            .field_names()
+                            .iter()
+                            .map(|name| {
+                                desc.iter()
+                                    .find(|f| f.field() == name)
+                                    .map(|f| (name, f.ty()))
+                                    .ok_or_else(|| {
+                                        anyhow::format_err!("Column {name} does not exist")
+                                    })
+                            })
+                            .try_collect()?;
+                        let views: Vec<ColumnView> = block
+                            .column_views()
+                            .iter()
+                            .zip(block.field_names())
+                            .map(|(view, name)| view.cast(fields[name]))
+                            .try_collect()?;
+                        let mut new = RawBlock::from_views(views.as_slice(), block.precision());
+                        new.with_table_name(table);
+                        new.with_field_names(block.field_names());
+                        // dbg!(&new);
+                        // new.pretty_format();
+                        to.write_raw_block(&new).await.map_err(|err| {
+                            anyhow::format_err!(
+                                "[{}:{}]write raw block of table {table} ({} rows): {}\nData:{}",
+                                std::file!(),
+                                std::line!(),
+                                new.nrows(),
+                                err,
+                                new.pretty_format()
+                            )
+                        })?;
                     } else {
-                        sync_normal_table_schema(from, table, to).await?;
-                    }
-                    if let Err(err) = to.write_raw_block(&block).await {
                         Err(err).with_context(|| {
                             format!(
                                 "write raw block of table {table} ({} rows): {}",
@@ -370,15 +408,8 @@ async fn sync_single_table(
                             )
                         })?;
                     }
-                } else {
-                    Err(err).with_context(|| {
-                        format!(
-                            "write raw block of table {table} ({} rows): {}",
-                            block.nrows(),
-                            err_str
-                        )
-                    })?;
                 }
+                break;
             }
 
             metrics.blocks.fetch_add(1, Ordering::SeqCst);
