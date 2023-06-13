@@ -22,9 +22,8 @@ import (
 )
 
 type uaNode struct {
-	nodeID    *ua.NodeID
-	name      string
-	valueType common.ValueType
+	nodeID *ua.NodeID
+	name   string
 }
 
 type reader struct {
@@ -158,42 +157,16 @@ func (r *reader) initNodeMetricMapping() error {
 		}
 		existing[node.ID] = struct{}{}
 
-		vt, err := common.ValueTypeFromString(node.ValueType)
-		if err != nil {
-			return err
-		}
-
 		nid, err := ua.ParseNodeID(node.ID)
 		if err != nil {
 			return err
 		}
 
-		r.nodes = append(r.nodes, &uaNode{nodeID: nid, name: r.nodeToPoint(ctx, r.client.Node(nid)).Name, valueType: vt})
+		name, _ := r.getNodeName(ctx, r.client.Node(nid))
+		r.nodes = append(r.nodes, &uaNode{nodeID: nid, name: name})
+		r.nodesToRead = append(r.nodesToRead, &ua.ReadValueID{NodeID: nid})
 	}
 
-	if err := r.registerNodes(); err != nil {
-		return fmt.Errorf("register nodes error %v", err)
-	}
-
-	return nil
-}
-
-func (r *reader) registerNodes() error {
-	if len(r.nodes) > 0 {
-		nodeToRegister := make([]*ua.NodeID, len(r.nodes))
-		for i, v := range r.nodes {
-			nodeToRegister[i] = v.nodeID
-		}
-		regResp, err := r.client.RegisterNodes(&ua.RegisterNodesRequest{NodesToRegister: nodeToRegister})
-		if err != nil {
-			return fmt.Errorf("register node failed: %w", err)
-		}
-		nodesToRead := make([]*ua.ReadValueID, len(regResp.RegisteredNodeIDs))
-		for i, v := range regResp.RegisteredNodeIDs {
-			nodesToRead[i] = &ua.ReadValueID{NodeID: v}
-		}
-		r.nodesToRead = nodesToRead
-	}
 	return nil
 }
 
@@ -226,7 +199,7 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 			case <-notifyCtx.Done():
 				return
 			case <-ticker.C:
-				values, err := r.observeValue(ctx)
+				values, err := r.readValue(ctx, r.nodes, r.nodesToRead)
 				if err != nil {
 					logger.Error("## observe metric error", "error", err)
 					continue
@@ -243,23 +216,23 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 	return nil
 }
 
-func (r *reader) observeValue(ctx context.Context) ([]*common.NodeValue, error) {
-	res, err := r.client.ReadWithContext(
-		ctx,
-		&ua.ReadRequest{
-			MaxAge:             2000,
-			TimestampsToReturn: ua.TimestampsToReturnBoth,
-			NodesToRead:        r.nodesToRead,
-		},
-	)
+func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*ua.ReadValueID) ([]*common.NodeValue, error) {
+	res, err := r.client.ReadWithContext(ctx,
+		&ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: nodesToRead})
 	if err != nil {
 		return nil, fmt.Errorf("observe failed: %w", err)
 	}
 
 	values := make([]*common.NodeValue, 0, len(res.Results))
 	for i, item := range res.Results {
-		node := r.nodes[i]
+		node := nodes[i]
 		identifier := node.nodeID.String()
+		name := node.name
+
+		if item == nil || item.Value == nil {
+			logger.Error("## observe opc ua item is nil", "identifier", identifier, "item", item)
+			continue
+		}
 		logger.DebugF("## observe opc ua identifier [%s] value [%v] type [%v]", identifier, item.Value.Value(),
 			item.Value.Type())
 
@@ -268,8 +241,9 @@ func (r *reader) observeValue(ctx context.Context) ([]*common.NodeValue, error) 
 			continue
 		}
 
-		if err = r.checkValueType(identifier, item, node.valueType); err != nil {
-			logger.ErrorF("## check value type for identifier [%q] error [%v]", identifier, err)
+		valueType, err := transValueType(item.Value.Type())
+		if err != nil {
+			logger.ErrorF("## transform value type for identifier [%q] error [%v]", identifier, err)
 			continue
 		}
 
@@ -284,11 +258,11 @@ func (r *reader) observeValue(ctx context.Context) ([]*common.NodeValue, error) 
 
 		values = append(values, &common.NodeValue{
 			Identifier: identifier,
-			Name:       node.name,
+			Name:       name,
 			Timestamp:  ts,
 			Now:        time.Now(),
 			Value:      item.Value.Value(),
-			ValueType:  node.valueType,
+			ValueType:  valueType,
 			Status:     int64(item.Status),
 		})
 	}
@@ -349,7 +323,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 
 				v, ok := value.Value.(*ua.DataChangeNotification)
 				if !ok {
-					logger.WarnF("what's this publish result? %#v", value)
+					logger.WarnF("## subscribe data type is not *ua.DataChangeNotification, got %T", value.Value)
 					continue
 				}
 				if r.debug {
@@ -374,7 +348,13 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 
 					status := item.Value.Status
 					if status != ua.StatusOK && !r.containsBad {
-						logger.WarnF("## observe data for identifier [%q] status [%v] is not ok(0x0) ", id, status)
+						logger.WarnF("## subscribe data for identifier [%q] status [%v] is not ok(0x0) ", id, status)
+						continue
+					}
+
+					valueType, err := transValueType(item.Value.Value.Type())
+					if err != nil {
+						logger.ErrorF("## get value type for identifier [%q] error [%v]", id, err)
 						continue
 					}
 
@@ -384,7 +364,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 						Timestamp:  ts,
 						Now:        time.Now(),
 						Value:      item.Value.Value.Value(),
-						ValueType:  node.valueType,
+						ValueType:  valueType,
 						Status:     int64(status),
 					}
 				}
@@ -418,33 +398,27 @@ func (r *reader) OpcConnected() bool {
 	return r.client.State() == opcua.Connected
 }
 
-var types = map[ua.TypeID][]common.ValueType{
-	ua.TypeIDBoolean:  {common.BOOL},
-	ua.TypeIDSByte:    {common.TINYINT, common.SMALLINT, common.INT, common.BIGINT},
-	ua.TypeIDByte:     {common.TINYINT, common.SMALLINT, common.INT, common.BIGINT},
-	ua.TypeIDInt16:    {common.SMALLINT, common.INT, common.BIGINT},
-	ua.TypeIDUint16:   {common.SMALLINTUNSIGNED, common.INT, common.INTUNSIGNED, common.BIGINT, common.BIGINTUNSIGNED},
-	ua.TypeIDInt32:    {common.INT, common.BIGINT},
-	ua.TypeIDUint32:   {common.INTUNSIGNED, common.BIGINT, common.BIGINTUNSIGNED},
-	ua.TypeIDInt64:    {common.BIGINT},
-	ua.TypeIDUint64:   {common.BIGINTUNSIGNED},
-	ua.TypeIDFloat:    {common.FLOAT, common.DOUBLE},
-	ua.TypeIDDouble:   {common.DOUBLE},
-	ua.TypeIDString:   {common.BINARY, common.NCHAR, common.JSON, common.VARCHAR},
-	ua.TypeIDDateTime: {common.TIMESTAMP},
+func transValueType(t ua.TypeID) (common.ValueType, error) {
+	if valueTypes, ok := types[t]; ok {
+		return valueTypes, nil
+	}
+	return common.Invalid, fmt.Errorf("unsupported opc ua type %s", t.String())
 }
 
-func (r *reader) checkValueType(identifier string, value *ua.DataValue, nodeType common.ValueType) error {
-	valueTypes, ok := types[value.Value.Type()]
-	if !ok {
-		return fmt.Errorf("unsupported value type for %s for opcua reader %s", identifier, value.Value.Type().String())
-	}
-
-	if !common.InSlice[common.ValueType](nodeType, valueTypes) {
-		return fmt.Errorf("%s value type unmatch. expect %s, but get %s", identifier, nodeType.String(),
-			value.Value.Type().String())
-	}
-	return nil
+var types = map[ua.TypeID]common.ValueType{
+	ua.TypeIDBoolean:  common.BOOL,
+	ua.TypeIDSByte:    common.TINYINT,
+	ua.TypeIDByte:     common.TINYINT,
+	ua.TypeIDInt16:    common.SMALLINT,
+	ua.TypeIDUint16:   common.SMALLINTUNSIGNED,
+	ua.TypeIDInt32:    common.INT,
+	ua.TypeIDUint32:   common.INTUNSIGNED,
+	ua.TypeIDInt64:    common.BIGINT,
+	ua.TypeIDUint64:   common.BIGINTUNSIGNED,
+	ua.TypeIDFloat:    common.FLOAT,
+	ua.TypeIDDouble:   common.DOUBLE,
+	ua.TypeIDString:   common.VARCHAR,
+	ua.TypeIDDateTime: common.TIMESTAMP,
 }
 
 func (r *reader) setupOptions(ctx context.Context) (opts []opcua.Option, err error) {
@@ -577,7 +551,8 @@ func (r *reader) browse(ctx context.Context, root *opcua.Node) (points []common.
 	l := list.New()
 	l.PushBack(root)
 
-	pointMap := make(map[string]common.Point)
+	//pointMap := make(map[string]common.Point)
+	nodeMap := make(map[string]*opcua.Node)
 
 BK:
 	for {
@@ -593,13 +568,15 @@ BK:
 		}
 
 		for _, n := range leaves {
-			point := r.nodeToPoint(ctx, n)
-			if r.pointRegex != nil && !r.pointRegex.MatchString(point.Name) {
+			name, _ := r.getNodeName(ctx, n) // node name
+
+			if r.pointRegex != nil && !r.pointRegex.MatchString(name) {
 				continue
 			}
 
-			pointMap[point.ID] = point
-			if r.pointsLimit > 0 && len(pointMap) >= r.pointsLimit {
+			nodeMap[n.String()] = n
+
+			if r.pointsLimit > 0 && len(nodeMap) >= r.pointsLimit {
 				break BK
 			}
 		}
@@ -609,8 +586,9 @@ BK:
 		}
 	}
 
-	points = make([]common.Point, 0, len(pointMap))
-	for _, point := range pointMap {
+	points = make([]common.Point, 0, len(nodeMap))
+	for _, node := range nodeMap {
+		point := r.nodeToPoint(ctx, node)
 		points = append(points, point)
 	}
 
@@ -637,11 +615,14 @@ func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leav
 	return
 }
 
-func (r *reader) nodeToPoint(ctx context.Context, node *opcua.Node) common.Point {
-	var name string
+func (r *reader) getNodeName(ctx context.Context, node *opcua.Node) (name string, err error) {
 	if browseName, err := node.BrowseNameWithContext(ctx); err == nil {
 		name = browseName.Name
 	}
+	return
+}
 
+func (r *reader) nodeToPoint(ctx context.Context, node *opcua.Node) common.Point {
+	name, _ := r.getNodeName(ctx, node)
 	return common.Point{ID: node.String(), Name: name}
 }

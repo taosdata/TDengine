@@ -111,12 +111,12 @@ func (w *ArrowWriter) doWrite(ctx context.Context, values []*common.NodeValue) e
 	}
 	record, err := w.pack(ctx, values)
 	if err != nil {
-		logger.ErrorF("## pack record error %v", "error", err)
+		logger.ErrorF("## pack record error %v", err)
 		return err
 	}
 
 	if err = w.writeRecord(ctx, record); err != nil {
-		logger.ErrorF("## write record error %v", "error", err)
+		logger.ErrorF("## write record error %v", err)
 		return err
 	}
 	return nil

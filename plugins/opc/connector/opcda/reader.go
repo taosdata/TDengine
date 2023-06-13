@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os/signal"
+	"reflect"
 	"regexp"
 	"sync"
 	"syscall"
@@ -94,11 +95,7 @@ func newReader(config common.Config) (*reader, error) {
 
 	tags := make(map[string]*daTag, len(config.Collect.Da.Tags))
 	for _, tag := range config.Collect.Da.Tags {
-		vt, err := common.ValueTypeFromString(tag.ValueType)
-		if err != nil {
-			return nil, fmt.Errorf("create opc da connector error %v", err)
-		}
-		tags[tag.Tag] = &daTag{tag: tag.Tag, name: tagName[tag.Tag], valueType: vt}
+		tags[tag.Tag] = &daTag{tag: tag.Tag, name: tagName[tag.Tag]}
 	}
 	r.tags = tags
 
@@ -188,27 +185,50 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 			case <-notifyCtx.Done():
 				return
 			case <-ticker.C:
-				for id, item := range r.client.Read() {
-					logger.DebugF("## read data for identifier. id %s. item %v, value type %T", id, item, item.Value)
-					if !item.Good() && !r.containsBad {
-						logger.WarnF("## read data for identifier %q status %v is not ok ", id, item)
-						continue
-					}
-					ch <- &common.NodeValue{
-						Identifier: id,
-						Name:       r.tags[id].name,
-						Timestamp:  item.Timestamp,
-						Now:        time.Now(),
-						Value:      item.Value,
-						ValueType:  r.tags[id].valueType,
-						Status:     int64(uint32(item.Quality)),
-					}
+				values := r.readItems(r.tags)
+				for _, val := range values {
+					ch <- val
 				}
 			}
 		}
 	}()
 
 	return ch, nil
+}
+
+func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) {
+	items := r.client.Read()
+	values = make([]*common.NodeValue, 0, len(items))
+	for id, item := range items {
+		if !item.Good() && !r.containsBad {
+			logger.WarnF("## read data for identifier %q status %v is not ok ", id, item)
+			continue
+		}
+
+		value := item.Value
+		valueType := tags[id].valueType
+		if valueType == common.Invalid {
+			t := reflect.TypeOf(value).Kind()
+			var err error
+			valueType, err = toValueType(t)
+			if err != nil {
+				logger.Warn("## read data for identifier %q. value type %T is not supported", id, value)
+				continue
+			}
+			tags[id].valueType = valueType
+		}
+
+		values = append(values, &common.NodeValue{
+			Identifier: id,
+			Name:       tags[id].name,
+			Timestamp:  item.Timestamp,
+			Now:        time.Now(),
+			Value:      value,
+			ValueType:  valueType,
+			Status:     int64(uint32(item.Quality)),
+		})
+	}
+	return values
 }
 
 func (r *reader) getAllTags(ctx context.Context) ([]common.Point, error) {
@@ -220,7 +240,9 @@ func (r *reader) getAllTags(ctx context.Context) ([]common.Point, error) {
 		return nil, fmt.Errorf("get all tags error. create browser error %v", err)
 	}
 
-	return r.browse(tree), nil
+	tags := r.browse(tree)
+
+	return tags, nil
 }
 
 func (r *reader) browse(tree *opc.Tree) (points []common.Point) {
@@ -252,4 +274,39 @@ func (r *reader) browse(tree *opc.Tree) (points []common.Point) {
 		}
 	}
 	return
+}
+
+func toValueType(k reflect.Kind) (common.ValueType, error) {
+	switch k {
+	case reflect.Bool:
+		return common.BOOL, nil
+	case reflect.Int:
+		return common.INT, nil
+	case reflect.Int8:
+		return common.TINYINT, nil
+	case reflect.Int16:
+		return common.SMALLINT, nil
+	case reflect.Int32:
+		return common.INT, nil
+	case reflect.Int64:
+		return common.BIGINT, nil
+	case reflect.Uint:
+		return common.INTUNSIGNED, nil
+	case reflect.Uint8:
+		return common.TINYINTUNSIGNED, nil
+	case reflect.Uint16:
+		return common.SMALLINTUNSIGNED, nil
+	case reflect.Uint32:
+		return common.INTUNSIGNED, nil
+	case reflect.Uint64:
+		return common.BIGINTUNSIGNED, nil
+	case reflect.Float32:
+		return common.FLOAT, nil
+	case reflect.Float64:
+		return common.DOUBLE, nil
+	case reflect.String:
+		return common.VARCHAR, nil
+	default:
+		return common.Invalid, fmt.Errorf("unsupported type %s", k.String())
+	}
 }

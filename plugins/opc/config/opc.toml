@@ -1,4 +1,4 @@
-opc_type = "fake" # opcua or opcda (only for windows)
+opc_type = "opcua" # opcua or opcda (only for windows)
 debug = true # debug mode. only for testing, should not be used in production
 
 [connect]
@@ -32,16 +32,13 @@ contains_bad = false # collect bad node when collect data
 collect_mode = "subscribe" # observe or subscribe. default is observe
 
 [[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=2;i=2"
-value_type = "bigint"
+id = "ns=9;i=1003"
 
 [[collect.ua.nodes]] # opc ua nodes. needs node id and value type. value type is same with data type in tdengine
-id = "ns=2;i=6"
-value_type = "double"
+id = "ns=11;i=1007"
 
 #[[collect.da.tags]] # opc da tags. needs tag name and value type. value type is same with data type in tdengine
 #tag = "g1.r1"
-#value_type = "INT"
 
 [report]
 remote = "127.0.0.1:8000" # taosx's address ip:port or socket path
