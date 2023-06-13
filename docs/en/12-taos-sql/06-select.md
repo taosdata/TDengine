@@ -16,6 +16,7 @@ SELECT [DISTINCT] select_list
     [interp_clause]
     [window_clause]
     [group_by_clause]
+    [having_clause]
     [order_by_clasue]
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
@@ -233,6 +234,42 @@ The GROUP BY clause does not guarantee that the results are ordered. If you want
 The PARTITION BY clause is a TDengine-specific extension to standard SQL. This clause partitions data based on the part_list and performs computations per partition.
 
 For more information, see TDengine Extensions.
+
+## HAVING
+
+`having_clause` is separated from `group_by_clause` so that it can be used together with `partition_by_clause` or `window_clause` to enforce the functional integrity of single level SQL.
+
+1. When `having_clause` is used after `group_by_clause`, it means filtering data after data grouping, it can only includes:
+- Constant
+- Aggregate function
+- Same expression following `GROUP BY`
+- Expression composed of the above
+
+For example,
+
+```sql
+taos> select tbname, i from st1 partition by tbname having i > 5;
+             tbname             |      i      |
+===============================================
+ st1s2                          |          10 |
+ st1s3                          |          10 |
+```
+
+  
+1. When `having_clause` is used after `window_clause`, it means filtering data after window query, it can only includes: 
+- Constant
+- Aggregate function
+- Expression composed of the above
+
+For example,
+
+```sql
+taos> select tbname, count(*) from st1 partition by tbname interval(10s) having count(*) = 1;
+             tbname             |       count(*)        |
+=========================================================
+ st1s2                          |                     1 |
+ st1s3                          |                     1 |
+```
 
 ## ORDER BY
 

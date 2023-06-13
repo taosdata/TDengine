@@ -16,6 +16,7 @@ SELECT [DISTINCT] select_list
     [interp_clause]
     [window_clause]
     [group_by_clause]
+    [having_clause]
     [order_by_clasue]
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
@@ -233,6 +234,44 @@ GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些�
 PARTITION BY 子句是 TDengine 特色语法，按 part_list 对数据进行切分，在每个切分的分片中进行计算。
 
 详见 [TDengine 特色查询](../distinguished)
+
+## HAVING
+
+将 `having_clause` 从 `group_by_clause` 中提取出来，使其可以与 `partition_by_clause` 和 `window_clause` 一起使用，增强单层 SQL 的功能完整性。
+
+1. 当 having_clause 用在 group_by_clause 之后时，表示在数据切分后过滤数据，其中只能包含：
+- 常量
+- 聚集函数
+- 与 GROUP BY 后表达式相同的表达式
+- 包含前面表达式的表达式。
+
+例如
+
+```sql
+taos> select tbname, i from st1 partition by tbname having i > 5;
+             tbname             |      i      |
+===============================================
+ st1s2                          |          10 |
+ st1s3                          |          10 |
+```
+
+  
+2. 当 having_clause 用在 window_clause 之后时，表示在窗口查询后过滤数据，其中只能包含：
+- 常量
+- 聚集函数
+- 包含上面表达式的表达式
+
+例如
+
+```sql
+taos> select tbname, count(*) from st1 partition by tbname interval(10s) having count(*) = 1;
+             tbname             |       count(*)        |
+=========================================================
+ st1s2                          |                     1 |
+ st1s3                          |                     1 |
+```
+
+
 
 ## ORDER BY
 
