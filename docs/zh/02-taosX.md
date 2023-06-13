@@ -283,8 +283,12 @@ alter database test wal_retention_period 3600;
 可配置参数如下：
 | 参数名称 | 类型    | 描述                                   |
 |-----------------|--------|-----------------------------------------------------------------------------|
-| connect_timeout | int    | 连接的超时时间（单位：秒）                                   |
-| request_timeout | int    | 请求的超时时间（单位：秒）                                               |
+| interval | int    | 采集间隔（单位：秒）                                   |
+| concurrent | int    | 采集器并发数，默认为1                                   |
+| batch_size | int    | 采集器上报的批次点位数，默认为100                                   |
+| batch_timeout | int    | 采集器上报的超时时间（单位：秒），默认为20秒                                   |
+| connect_timeout | int    | 连接的超时时间（单位：秒），默认为10秒                                  |
+| request_timeout | int    | 请求的超时时间（单位：秒），默认为10秒                                              |
 | security_policy | string | OPC-UA连接安全策略（可配置为None/Basic128Rsa15/Basic256/Basic256Sha256）                                  |
 | security_mode   | string | OPC-UA连接模式（可配置为None/Sign/SignAndEncrypt）                                                    |
 | certificate     | string | cert.pem的路径。当安全模式或策略不是”无”时生效        |
@@ -301,6 +305,30 @@ taosx run \
 
 采集 localhost 的 opc-server 中 nodeid 为 ns=2;i=2 测点的数据，将其写入到集群 tdengine 的 opc 库中，并以 meters 为表名，current 为列名，double 为列类型的 schema 来创建表（如果对应表已存在，则直接采集数据并写入）。
 
+
+#### 从 OPC-DA 同步数据到 TDengine (Windows)
+
+可配置参数如下：
+| 参数名称 | 类型    | 描述                                   |
+|-----------------|--------|-----------------------------------------------------------------------------|
+| interval | int    | 采集间隔（单位：秒）                                   |
+| concurrent | int    | 采集器并发数，默认为1                                   |
+| batch_size | int    | 采集器上报的批次点位数，默认为100                                   |
+| batch_timeout | int    | 采集器上报的超时时间（单位：秒），默认为20秒                                   |
+| connect_timeout | int    | 连接的超时时间（单位：秒），默认为10秒                                  |
+| request_timeout | int    | 请求的超时时间（单位：秒），默认为10秒                                              |
+
+应用示例如下：
+
+```shell
+taosx run \
+    -f "opc+da://Matrikon.OPC.Simulation.1?nodes=localhost&da.tags=Random.Real8::tb3::c1::int"
+    -t "taos://tdengine:6030/opc"
+```
+
+以上示例的执行结果：
+
+采集 Matrikon.OPC.Simulation.1 服务器上 OPC DA 中 da.tags 为 Random.Real8的数据，数据类型为int，对应在 TDengine 中以表名为 tb3 ，列名为c1，列类型为 int 型 schema 来创建表（如果对应表已存在，则直接采集数据并写入）。
 
 常见错误排查：
 
@@ -332,10 +360,6 @@ Caused by:
 - "IO error: Connection refused (os error 111)": 端口访问失败，检查目标端口是否配置正确或是否已开启和可访问（通常为6041端口）。
 - "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
 - "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
-
-#### 从 OPC-DA 同步数据到 TDengine (Windows)
-
-@zhengqin
 
 #### 从 PI 同步数据到 TDengine (Windows)
 
@@ -388,7 +412,6 @@ Caused by:
 - "IO error: Connection refused (os error 111)": 端口访问失败，检查目标端口是否配置正确或是否已开启和可访问（通常为6041端口）。
 - "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
 - "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
-
 
 
 
