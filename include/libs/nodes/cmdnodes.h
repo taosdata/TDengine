@@ -425,16 +425,18 @@ typedef struct SStreamOptions {
 } SStreamOptions;
 
 typedef struct SCreateStreamStmt {
-  ENodeType       type;
-  char            streamName[TSDB_TABLE_NAME_LEN];
-  char            targetDbName[TSDB_DB_NAME_LEN];
-  char            targetTabName[TSDB_TABLE_NAME_LEN];
-  bool            ignoreExists;
-  SStreamOptions* pOptions;
-  SNode*          pQuery;
-  SNodeList*      pTags;
-  SNode*          pSubtable;
-  SNodeList*      pCols;
+  ENodeType           type;
+  char                streamName[TSDB_TABLE_NAME_LEN];
+  char                targetDbName[TSDB_DB_NAME_LEN];
+  char                targetTabName[TSDB_TABLE_NAME_LEN];
+  bool                ignoreExists;
+  SStreamOptions*     pOptions;
+  SNode*              pQuery;
+  SNode*              pPrevQuery;
+  SNodeList*          pTags;
+  SNode*              pSubtable;
+  SNodeList*          pCols;
+  SCMCreateStreamReq* pReq;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

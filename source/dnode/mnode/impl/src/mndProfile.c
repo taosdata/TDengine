@@ -835,6 +835,9 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       colDataSetVal(pColInfo, numOfRows, (const char *)&pQuery->stableQuery, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pQuery->isSubQuery, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)&pQuery->subPlanNum, false);
 
       char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
