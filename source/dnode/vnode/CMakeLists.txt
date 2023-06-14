@@ -94,10 +94,10 @@ target_include_directories(
     PUBLIC "inc"
     PUBLIC "src/inc"
     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
 )
 
 ENDIF(NOT ${TD_LINUX})
+
 IF (TD_LINUX)
     target_include_directories(
       vnode 
