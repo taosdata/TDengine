@@ -783,21 +783,6 @@ export default {
             }`;
           }
           dns += `@`;
-          // if (this.tagName == "mqtt") {
-          //   let currentAuth = data.authentication.alternatives.filter(
-          //     (item) => item.name == "plain"
-          //   );
-          //   if (!currentAuth[0].username.value) {
-          //     Message({
-          //       type: "warning",
-          //       message:
-          //         this.$t("datasource.msg") +
-          //         ":" +
-          //         `${currentAuth[0].username.display} `,
-          //     });
-          //     return;
-          //   }
-          // }
         } else {
           dns += `://`;
         }
@@ -829,7 +814,8 @@ export default {
                 data.groups[index].params[g]["value"] == "")
             ) {
               if (this.tagName == "mqtt") {
-                if (data.groups[index].collapsed) {
+                console.log(data.groups[index],'mqtt的required');
+                if (data.groups[index].collapsed||!Object.hasOwnProperty.call(data.groups[index],'collapsed')) {
                   Message({
                     type: "warning",
                     message:
@@ -909,7 +895,7 @@ export default {
             }
           }
         }
-
+        console.log(querystr,'querystr');
         if (data.authentication.value == "certificates") {
           data.authentication.alternatives[2].params.forEach((val) => {
             querystr += val.value ? `${val.name}=${val.value}&` : "";
@@ -963,6 +949,7 @@ export default {
         }
         if (this.tagName == "mqtt") {
           this.$refs.mqtt.submit();
+          console.log(this.$refs.mqtt,'mqtt');
           if (this.$refs.mqtt) {
             if (this.$refs.mqtt.showSuperTip) {
               Message({
@@ -1006,6 +993,7 @@ export default {
           };
           dns += "&opc_table_config=" + JSON.stringify(saveConf);
         }
+        console.log(dns,querystr,'mqtt调用接口前的参数拼接');
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
