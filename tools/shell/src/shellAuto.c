@@ -443,7 +443,10 @@ void showHelp() {
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
     kill transaction <transaction_id>;\n\
+  ----- P ----- \n\
+    pause stream <stream_name>;\n\
   ----- R ----- \n\
+    resume stream <stream_name>;\n\
     reset query cache;\n\
     restore dnode <dnode_id> ;\n\
     restore vnode on dnode <dnode_id> ;\n\
