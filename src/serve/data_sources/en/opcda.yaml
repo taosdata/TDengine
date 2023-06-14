@@ -44,7 +44,7 @@ datasets:
     target:
       name: da.tags
       description: A OPC DA tags list.
-      required: false
+      required: true
       multiple: true
       editable: true
       selectable: true

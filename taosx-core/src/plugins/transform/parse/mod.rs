@@ -16,12 +16,13 @@ use arrow::{
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
+use taosx_ipc::prelude::IpcDataType;
 use thiserror::Error;
 use tinytemplate::TinyTemplate;
 
-use crate::plugins::transform::MessageTableMeta;
+use crate::{plugins::transform::MessageTableMeta, };
 
-use super::{Message, MessageArrowRecords, TransformExt};
+use super::{Message, MessageArrowRecords, TransformExt, Select};
 
 mod json;
 
@@ -434,6 +435,36 @@ fn test_indices_to_ranges() {
     assert_eq!(ranges, vec![0..4, 5..9, 10..11]);
 }
 impl Parser {
+
+    pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
+        let payload = self.parse.get("payload");
+        if payload.is_none() {
+            return None;
+        }
+        let payload = payload.unwrap();
+        match payload {
+            FieldParser::Json(json) => {
+                if json.json.is_none() {
+                    None
+                } else {
+                    let select = json.json.as_ref().unwrap();
+                    match select {
+                        Select::Include(incl) => {
+                            for item in incl.iter() {
+                                if item.name() == column_name {
+                                    return item.cast();
+                                }
+                            }
+                            None
+                        }
+                        _ => None,
+                    }
+                }
+            }
+            _ => None
+        }
+    }
+
     pub fn parse_schema(&self, schema: &Arc<Schema>) -> Arc<Schema> {
         todo!()
     }

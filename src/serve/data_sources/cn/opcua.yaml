@@ -104,7 +104,7 @@ datasets:
     target:
       name: ua.nodes
       description: 点位配置列表，使用英文逗号分隔。
-      required: false
+      required: true
       multiple: true
       editable: true
       selectable: true

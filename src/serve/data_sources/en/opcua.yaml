@@ -107,7 +107,7 @@ datasets:
     target:
       name: ua.nodes
       description: Node id list separated by a ','.
-      required: false
+      required: true
       multiple: true
       editable: true
       selectable: true

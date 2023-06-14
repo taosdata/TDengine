@@ -38,7 +38,7 @@ datasets:
       name: da.tags
       display: DA Tags
       description: OPC DA 数据采集点位列表。
-      required: false
+      required: true
       multiple: true
       editable: true
       selectable: true
