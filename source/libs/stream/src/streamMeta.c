@@ -377,6 +377,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       taosMemoryFree(pTask);
       continue;
     }
+
     if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
@@ -385,12 +386,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       return -1;
     }
 
-    // todo handle the fill history task
-    ASSERT(0);
-    if (pTask->info.fillHistory) {
-      ASSERT(pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM);
-      streamTaskCheckDownstreamTasks(pTask);
-    }
+    ASSERT(pTask->status.checkDownstream == 0);
   }
 
   tdbFree(pKey);

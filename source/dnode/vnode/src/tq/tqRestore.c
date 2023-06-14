@@ -16,6 +16,7 @@
 #include "tq.h"
 
 static int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle);
+static int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId);
 
 // this function should be executed by stream threads.
 // extract submit block from WAL, and add them into the input queue for the sources tasks.
@@ -57,7 +58,110 @@ int32_t tqStreamTasksScanWal(STQ* pTq) {
   return 0;
 }
 
-static int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId) {
+int32_t tqStreamTasksStatusCheck(STQ* pTq) {
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  tqDebug("vgId:%d start to check all (%d) stream tasks downstream status", vgId, numOfTasks);
+  if (numOfTasks == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pTaskList = NULL;
+  taosWLockLatch(&pMeta->lock);
+  pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
+  taosWUnLockLatch(&pMeta->lock);
+
+  for (int32_t i = 0; i < numOfTasks; ++i) {
+    int32_t*     pTaskId = taosArrayGet(pTaskList, i);
+    SStreamTask* pTask = streamMetaAcquireTask(pMeta, *pTaskId);
+    if (pTask == NULL) {
+      continue;
+    }
+
+    streamTaskCheckDownstreamTasks(pTask);
+    streamMetaReleaseTask(pMeta, pTask);
+  }
+
+  return 0;
+}
+
+int32_t tqCheckforStreamStatus(STQ* pTq) {
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+
+  taosWLockLatch(&pMeta->lock);
+
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  if (numOfTasks == 0) {
+    tqInfo("vgId:%d no stream tasks exist", vgId);
+    taosWUnLockLatch(&pMeta->lock);
+    return 0;
+  }
+
+  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
+  if (pRunReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tqError("vgId:%d failed to create msg to start wal scanning to launch stream tasks, code:%s", vgId, terrstr());
+    taosWUnLockLatch(&pMeta->lock);
+    return -1;
+  }
+
+  tqDebug("vgId:%d check for stream tasks status, numOfTasks:%d", vgId, numOfTasks);
+  pRunReq->head.vgId = vgId;
+  pRunReq->streamId = 0;
+  pRunReq->taskId = STREAM_TASK_STATUS_CHECK_ID;
+
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
+  tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
+  taosWUnLockLatch(&pMeta->lock);
+
+  return 0;
+}
+
+int32_t tqStartStreamTasks(STQ* pTq) {
+  int32_t      vgId = TD_VID(pTq->pVnode);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+
+  taosWLockLatch(&pMeta->lock);
+
+  int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  if (numOfTasks == 0) {
+    tqInfo("vgId:%d no stream tasks exist", vgId);
+    taosWUnLockLatch(&pMeta->lock);
+    return 0;
+  }
+
+  pMeta->walScanCounter += 1;
+
+  if (pMeta->walScanCounter > 1) {
+    tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->walScanCounter);
+    taosWUnLockLatch(&pMeta->lock);
+    return 0;
+  }
+
+  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
+  if (pRunReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tqError("vgId:%d failed to create msg to start wal scanning to launch stream tasks, code:%s", vgId, terrstr());
+    taosWUnLockLatch(&pMeta->lock);
+    return -1;
+  }
+
+  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d", vgId, numOfTasks);
+  pRunReq->head.vgId = vgId;
+  pRunReq->streamId = 0;
+  pRunReq->taskId = EXTRACT_DATA_FROM_WAL_ID;
+
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
+  tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
+  taosWUnLockLatch(&pMeta->lock);
+
+  return 0;
+}
+
+int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId) {
   // seek the stored version and extract data from WAL
   int64_t firstVer = walReaderGetValidFirstVer(pTask->exec.pWalReader);
   if (pTask->chkInfo.currentVer < firstVer) {
@@ -192,3 +296,4 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   taosArrayDestroy(pTaskList);
   return 0;
 }
+

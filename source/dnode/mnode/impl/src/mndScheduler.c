@@ -250,7 +250,8 @@ static int32_t addSourceStreamTask(SMnode* pMnode, SVgObj* pVgroup, SArray* pTas
   pTask->dataRange.window.skey = INT64_MIN;
   pTask->dataRange.window.ekey = 1685959190000;//taosGetTimestampMs();
 
-  mDebug("0x%x----------------window:%"PRId64" - %"PRId64, pTask->id.taskId, pTask->dataRange.window.skey, pTask->dataRange.window.ekey);
+  mDebug("add source task 0x%x window:%" PRId64 " - %" PRId64, pTask->id.taskId, pTask->dataRange.window.skey,
+         pTask->dataRange.window.ekey);
 
   // sink or dispatch
   if (hasExtraSink) {
@@ -323,7 +324,8 @@ static void setHTasksId(SArray* pTaskList, const SArray* pHTaskList) {
     (*pHTask)->streamTaskId.taskId = (*pStreamTask)->id.taskId;
     (*pHTask)->streamTaskId.streamId = (*pStreamTask)->id.streamId;
 
-    mDebug("s-task:0x%x related history task:0x%x", (*pStreamTask)->id.taskId, (*pHTask)->id.taskId);
+    mDebug("s-task:0x%x related history task:0x%x, level:%d", (*pStreamTask)->id.taskId, (*pHTask)->id.taskId,
+           (*pHTask)->info.taskLevel);
   }
 }
 

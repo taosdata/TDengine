@@ -389,8 +389,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     }
 
     if (pInput == NULL) {
-        qDebug("789 %s", pTask->id.idStr);
-
         if (pTask->info.fillHistory && pTask->status.transferState) {
         //  todo transfer task state here
 
@@ -414,14 +412,18 @@ int32_t streamExecForAll(SStreamTask* pTask) {
           // OR wait for the inputQ && outputQ of agg tasks are all consumed, and then start the state transfer
 
 
-          qDebug("s-task:%s no need to update time window", pStreamTask->id.idStr);
+          qDebug("s-task:%s no need to update time window, for non-source task", pStreamTask->id.idStr);
         }
 
         pTimeWindow->skey = INT64_MIN;
 
         streamSetStatusNormal(pStreamTask);
-        streamSchedExec(pStreamTask);
+        streamMetaSaveTask(pTask->pMeta, pStreamTask);
+        if (streamMetaCommit(pTask->pMeta)) {
+          // persistent to disk for
+        }
 
+        streamSchedExec(pStreamTask);
         streamMetaReleaseTask(pTask->pMeta, pStreamTask);
       }
 

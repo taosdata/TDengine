@@ -268,6 +268,7 @@ typedef struct SCheckpointInfo {
 
 typedef struct SStreamStatus {
   int8_t taskStatus;
+  int8_t checkDownstream;
   int8_t schedStatus;
   int8_t keepTaskStatus;
   bool   transferState;
@@ -528,11 +529,11 @@ typedef struct {
   SArray* checkpointVer;  // SArray<SStreamCheckpointInfo>
 } SStreamRecoverDownstreamRsp;
 
-int32_t tEncodeSStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq);
-int32_t tDecodeSStreamTaskCheckReq(SDecoder* pDecoder, SStreamTaskCheckReq* pReq);
+int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq);
+int32_t tDecodeStreamTaskCheckReq(SDecoder* pDecoder, SStreamTaskCheckReq* pReq);
 
-int32_t tEncodeSStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp* pRsp);
-int32_t tDecodeSStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp);
+int32_t tEncodeStreamTaskCheckRsp(SEncoder* pEncoder, const SStreamTaskCheckRsp* pRsp);
+int32_t tDecodeStreamTaskCheckRsp(SDecoder* pDecoder, SStreamTaskCheckRsp* pRsp);
 
 int32_t tEncodeSStreamTaskRecoverReq(SEncoder* pEncoder, const SStreamRecoverDownstreamReq* pReq);
 int32_t tDecodeSStreamTaskRecoverReq(SDecoder* pDecoder, SStreamRecoverDownstreamReq* pReq);
@@ -568,10 +569,10 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
 // recover and fill history
 int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask);
-int32_t streamTaskLaunchRecover(SStreamTask* pTask);
+int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask);
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp);
-int32_t streamTaskStartHistoryTask(SStreamTask* pTask, int64_t ver);
+int32_t streamTaskStartHistoryTask(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 
 // common

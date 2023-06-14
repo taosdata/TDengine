@@ -45,27 +45,10 @@ extern "C" {
 typedef struct STqOffsetStore STqOffsetStore;
 
 // tqPush
-
-// typedef struct {
-//   // msg info
-//   int64_t consumerId;
-//   int64_t reqOffset;
-//   int64_t processedVer;
-//   int32_t epoch;
-//   // rpc info
-//   int64_t        reqId;
-//   SRpcHandleInfo rpcInfo;
-//   tmr_h          timerId;
-//   int8_t         tmrStopped;
-//   // exec
-//   int8_t       inputStatus;
-//   int8_t       execStatus;
-//   SStreamQueue inputQ;
-//   SRWLatch     lock;
-// } STqPushHandle;
+#define EXTRACT_DATA_FROM_WAL_ID    (-1)
+#define STREAM_TASK_STATUS_CHECK_ID (-2)
 
 // tqExec
-
 typedef struct {
   char* qmsg;  // SubPlanToString
 } STqExecCol;
@@ -181,6 +164,7 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 // tqStream
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqStreamTasksScanWal(STQ* pTq);
+int32_t tqStreamTasksStatusCheck(STQ* pTq);
 
 // tq util
 int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock);

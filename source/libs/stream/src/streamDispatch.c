@@ -241,7 +241,7 @@ int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pR
   SRpcMsg msg = {0};
 
   int32_t tlen;
-  tEncodeSize(tEncodeSStreamTaskCheckReq, pReq, tlen, code);
+  tEncodeSize(tEncodeStreamTaskCheckReq, pReq, tlen, code);
   if (code < 0) {
     return -1;
   }
@@ -256,7 +256,7 @@ int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pR
 
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
-  if ((code = tEncodeSStreamTaskCheckReq(&encoder, pReq)) < 0) {
+  if ((code = tEncodeStreamTaskCheckReq(&encoder, pReq)) < 0) {
     rpcFreeCont(buf);
     return code;
   }
