@@ -56,6 +56,8 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "table_interp"
+    db_1 = "table_interp_1"
+    db_2 = "table_interp_2"
     
     table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
@@ -203,18 +205,24 @@ class TDTestQuery(TDCase):
         range_ends = ['2022-08-15 00:00:00',1629000000000]
         range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","")
         single_range_right_11 = 'range' +'(' +range_start + ','+ range_end + ')'
+        single_range_right_111 = 'range' +'(' + range_start + ','+ range_start + ')'
+        single_range_right_112 = 'range' +'(' + range_end + ')'
          
         range_starts = ['2021-08-01 00:00:00',1625000000000]
         range_start = str(random.sample(range_starts,1)).replace("[","").replace("]","").replace(", ","")
         range_ends = ['2022-09-01 00:00:00',1631000000000]
         range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","")
-        single_range_right_12 = 'range' +'(' +range_start + ','+ range_end + ')'
+        single_range_right_12 = 'range' +'(' + range_start + ','+ range_end + ')'
+        single_range_right_121 = 'range' +'(' + range_start + ','+ range_start + ')'
+        single_range_right_122 = 'range' +'(' + range_end + ')'
          
         range_starts = ['2021-08-30 00:00:00',1630090000000]
         range_start = str(random.sample(range_starts,1)).replace("[","").replace("]","").replace(", ","")
         range_ends = ['2022-09-10 00:00:00',1631000000000]
         range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","")
-        single_range_right_13 = 'range' +'(' +range_start + ','+ range_end + ')'
+        single_range_right_13 = 'range' +'(' + range_start + ','+ range_end + ')'
+        single_range_right_131 = 'range' +'(' + range_start + ','+ range_start + ')'
+        single_range_right_132 = 'range' +'(' + range_end + ')'
          
         t = time.time()  
         t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))  
@@ -222,13 +230,17 @@ class TDTestQuery(TDCase):
         range_start = str(random.sample(range_starts,1)).replace("[","").replace("]","").replace(", ","")
         range_ends = ['2022-01-01 00:00:00',1640000100000,' (now()) ','t_to_s']
         range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","").replace("t_to_s","%s" %t_to_s)
-        single_range_right_14 = 'range' +'(' +range_start + ','+ range_end + ')'
+        single_range_right_14 = 'range' +'(' + range_start + ','+ range_end + ')'
+        single_range_right_141 = 'range' +'(' + range_start + ','+ range_start + ')'
+        single_range_right_142 = 'range' +'(' + range_end + ')'
                 
         range_starts = ['2021-08-01 00:00:00',1625000000000]
         range_start = str(random.sample(range_starts,1)).replace("[","").replace("]","").replace(", ","")
         range_ends = ['2022-01-01 00:00:00',1640000100000,' (now()) ','t_to_s']
         range_end = str(random.sample(range_ends,1)).replace("[","").replace("]","").replace(", ","").replace("' (","").replace(") '","").replace("t_to_s","%s" %t_to_s)
-        single_range_right_15 = 'range' +'(' +range_start + ','+ range_end + ')'
+        single_range_right_15 = 'range' +'(' + range_start + ','+ range_end + ')'
+        single_range_right_151 = 'range' +'(' + range_start + ','+ range_start + ')'
+        single_range_right_152 = 'range' +'(' + range_end + ')'
 
         if i == 1:
             range_fill_every = single_fill
@@ -255,22 +267,64 @@ class TDTestQuery(TDCase):
             range_fill_every = single_range_right_14 + ' ' + single_every_right + ' ' + single_fill
         elif i == 15:
             range_fill_every = single_range_right_15 + ' ' + single_every_right + ' ' + single_fill
+            
+        #right INTERP支持单点查询
+        elif i == 21:
+            range_fill_every = single_range_right_111 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 22:
+            range_fill_every = single_range_right_121 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 23:
+            range_fill_every = single_range_right_131 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 24:
+            range_fill_every = single_range_right_141 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 25:
+            range_fill_every = single_range_right_151 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 26:
+            range_fill_every = single_range_right_111 + ' ' + single_fill
+        elif i == 27:
+            range_fill_every = single_range_right_121 + ' ' + single_fill
+        elif i == 28:
+            range_fill_every = single_range_right_131 + ' ' + single_fill
+        elif i == 29:
+            range_fill_every = single_range_right_141 + ' ' + single_fill
+        elif i == 30:
+            range_fill_every = single_range_right_151 + ' ' + single_fill
+        elif i == 31:
+            range_fill_every = single_range_right_112 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 32:
+            range_fill_every = single_range_right_122 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 33:
+            range_fill_every = single_range_right_132 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 34:
+            range_fill_every = single_range_right_142 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 35:
+            range_fill_every = single_range_right_152 + ' ' + single_every_right + ' ' + single_fill
+        elif i == 36:
+            range_fill_every = single_range_right_112 + ' ' + single_fill
+        elif i == 37:
+            range_fill_every = single_range_right_122 + ' ' + single_fill
+        elif i == 38:
+            range_fill_every = single_range_right_132 + ' ' + single_fill
+        elif i == 39:
+            range_fill_every = single_range_right_142 + ' ' + single_fill
+        elif i == 40:
+            range_fill_every = single_range_right_152 + ' ' + single_fill
                                
         return range_fill_every    
  
     
-    def interp_check(self,sql1,sql2):            
+    def interp_check(self,db,sql1,sql2):            
         rows = -1;
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,db)
         cur1 = case_common[1]
         
         try:
-            self.tdSql.query(sql1,queryTimes=1)
-            self.tdSql.query(sql2,queryTimes=1)            
-            rows = self.tdSql.query(sql1).row_count   
+            # self.tdSql.query(sql1,queryTimes=1)
+            # self.tdSql.query(sql2,queryTimes=1)            
+            rows = self.tdSql.query(sql1,queryTimes=1).row_count   
             if rows>=0:
                 rows_1 = rows 
-                rows_2 = self.tdSql.query(sql2).row_count 
+                rows_2 = self.tdSql.query(sql2,queryTimes=1).row_count 
                 if (rows_1 == 0) and (rows_2 == 0):
                     self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
                     self.tdCreateData.explain_sql(sql2) 
@@ -294,7 +348,7 @@ class TDTestQuery(TDCase):
          
     def right_case_1_range(self):
         self.logger.info("\n==========================right case 1==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_1)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -304,7 +358,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
-                cur1.execute('use %s;' %self.db)              
+                cur1.execute('use %s;' %self.db_1)              
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
@@ -320,17 +374,6 @@ class TDTestQuery(TDCase):
              
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
-                            
-                        # list_intervals = [11,12,13,14,15]
-                        # for i in list_intervals:                        
-                        #     range_fill_every = self.interp_range_fill_every(i)
-                        #     self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
-                            
-                        #     sql2 = "select %s from %s  %s ;"  % (func,self.table,range_fill_every)
-                        #     print(sql2)
-                        #     cur1.execute(sql2)
-                        #     #self.tdSql.error(sql2)
-                        #     sql= sql + sql2
                                 
                         list_intervals = [1,2,3,4,5,6,7,]
                         for i in list_intervals:                        
@@ -357,68 +400,107 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                             
-                        list_intervals = [11,12,13,14,15,]
+                        list_intervals = [11,12,13,14,15,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,]
                         for i in list_intervals:                        
                             range_fill_every = self.interp_range_fill_every(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s from %s  %s ;"  % (func,self.table,range_fill_every)
 
                             sql2 = "select %s from %s where  %s %s %s ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
                             
                             sql2 = "select %s from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
                             
                             sql1 = "select %s as ii from %s  %s order by ii;"  % (func,self.table,range_fill_every)
 
                             sql2 = "select %s as ii from %s where  %s %s %s order by ii ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
                             
                             sql2 = "select %s as ii from %s where tbname in ('%s') %s order by ii ;"  % (func,self.table,self.table,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s as ii from %s where %s %s %s %s order by ii);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_1,sql1,sql2)
                             sql= sql + sql2
                             
-                        list_intervals = [11,12,13,14,15,]
+            except Exception as e:
+                raise e   
+                        
+        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        
+        num1 = sql.count('where')
+        self.logger.info("sqlnum1 %d" % num1) 
+        cur1.close()
+        conn1.close() 
+         
+    def right_case_2_range(self):
+        self.logger.info("\n==========================right case 1==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2)
+        conn1 = case_common[0]
+        cur1 = case_common[1]
+        sql = 'Count the number of sqls'         
+                           
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
+        for i in (33,):
+            func = tdFunction.func_stable_special(i)
+            try:
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db_2)              
+
+                self.logger.info("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
+                
+                stable_where = tdWhere.regular_where()
+                sql1 = 'select %s from %s;'  % (func,self.table)
+                
+                for i in range(2,len(stable_where[2])+1):
+                    qt_where = list(combinations(stable_where[2],i))
+                    for qt_where in qt_where:
+                        qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        qt_like_match = stable_where[3]
+                        qt_in_where = stable_where[4]
+             
+                        interval_fill = ' where ts between 1630000001000 and 1630100001000 '
+                        interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
+                            
+                        list_intervals = [11,12,13,14,15,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,]
                         for i in list_intervals:                        
                             range_fill_every = self.interp_range_fill_every(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = "select %s,_irowts,_isfilled  from %s  %s ;"  % (func,self.table,range_fill_every)
 
                             sql2 = "select %s,_irowts,_isfilled from %s where  %s %s %s ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
                             
                             sql2 = "select %s,_irowts,_isfilled  from %s where tbname in ('%s') %s ;"  % (func,self.table,self.table,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s,_irowts,_isfilled  from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
                             
                             sql1 = "select %s,_irowts,_isfilled  as ii from %s  %s order by ii;"  % (func,self.table,range_fill_every)
 
                             sql2 = "select %s,_irowts,_isfilled  as ii from %s where  %s %s %s order by ii ;" %(func,self.table,qt_like_match,qt_in_where,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
                             
                             sql2 = "select %s,_irowts,_isfilled  as ii from %s where tbname in ('%s') %s order by ii ;"  % (func,self.table,self.table,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s,_irowts,_isfilled as ii from %s where %s %s %s %s order by ii);" %(func,self.table,qt_where,qt_like_match,qt_in_where,range_fill_every)
-                            self.interp_check(sql1,sql2)
+                            self.interp_check(self.db_2,sql1,sql2)
                             sql= sql + sql2
                             
             except Exception as e:
@@ -431,6 +513,7 @@ class TDTestQuery(TDCase):
         cur1.close()
         conn1.close() 
         
+                
     def right_case_1_tbname(self):
         self.logger.info("\n==========================right case 1_tbname==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
@@ -1561,16 +1644,17 @@ class TDTestQuery(TDCase):
         conn1.close() 
    
          
-    def rm_sql(self):
+    def rm_sql(self,db):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
-        self.tdCreateData.drop_db("%s" % self.db)  
+        self.tdCreateData.drop_db("%s" % db)  
                   
     def run(self):
         startTime = time.time() 
         
         self.data_create(self.db)
         
-        self.right_case_1_range()
+        #self.right_case_1_range()
+        #self.right_case_2_range()
           
         startTime1 = time.time()
         self.right_case_1()
@@ -1598,7 +1682,7 @@ class TDTestQuery(TDCase):
         self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
         endTime = time.time()
-        self.rm_sql()
+        self.rm_sql(self.db)
         self.logger.info("total time %ds" % (endTime - startTime))
 
 
