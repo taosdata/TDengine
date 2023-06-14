@@ -351,6 +351,7 @@ pub async fn pi_to_taos(
         ),
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
+        #[cfg(unix)]
         None,
     );
 
@@ -505,6 +506,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         ),
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
+        #[cfg(unix)]
         None,
     );
 
