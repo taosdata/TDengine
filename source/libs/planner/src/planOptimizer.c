@@ -116,25 +116,27 @@ static EDealRes optRebuildTbanme(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static void optSetParentOrder(SLogicNode* pNode, EOrder order) {
+static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNodeForcePropagate) {
   if (NULL == pNode) {
     return;
   }
+  pNode->inputTsOrder = order;
   switch (nodeType(pNode)) {
-    case QUERY_NODE_LOGIC_PLAN_WINDOW:
-      ((SWindowLogicNode*)pNode)->inputTsOrder = order;
-      // window has a sorting function, and the operator behind it uses its output order
-      return;
+    // for those nodes that will change the order, stop propagating
+    //case QUERY_NODE_LOGIC_PLAN_WINDOW:
     case QUERY_NODE_LOGIC_PLAN_JOIN:
-      ((SJoinLogicNode*)pNode)->inputTsOrder = order;
-      break;
-    case QUERY_NODE_LOGIC_PLAN_FILL:
-      ((SFillLogicNode*)pNode)->inputTsOrder = order;
-      break;
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      if (pNode == pNodeForcePropagate) {
+        pNode->outputTsOrder = order;
+        break;
+      } else
+        return;
     default:
+      pNode->outputTsOrder = order;
       break;
   }
-  optSetParentOrder(pNode->pParent, order);
+  optSetParentOrder(pNode->pParent, order, pNodeForcePropagate);
 }
 
 EDealRes scanPathOptHaveNormalColImpl(SNode* pNode, void* pContext) {
@@ -339,12 +341,12 @@ static void scanPathOptSetScanOrder(EScanOrder scanOrder, SScanLogicNode* pScan)
     case SCAN_ORDER_ASC:
       pScan->scanSeq[0] = 1;
       pScan->scanSeq[1] = 0;
-      optSetParentOrder(pScan->node.pParent, ORDER_ASC);
+      optSetParentOrder(pScan->node.pParent, ORDER_ASC, NULL);
       break;
     case SCAN_ORDER_DESC:
       pScan->scanSeq[0] = 0;
       pScan->scanSeq[1] = 1;
-      optSetParentOrder(pScan->node.pParent, ORDER_DESC);
+      optSetParentOrder(pScan->node.pParent, ORDER_DESC, NULL);
       break;
     case SCAN_ORDER_BOTH:
       pScan->scanSeq[0] = 1;
@@ -1246,9 +1248,9 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
       }
       pScan->sortPrimaryKey = true;
     } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pSequencingNode)) {
-      ((SWindowLogicNode*)pSequencingNode)->outputTsOrder = order;
+      ((SLogicNode*)pSequencingNode)->outputTsOrder = order;
     }
-    optSetParentOrder(((SLogicNode*)pSequencingNode)->pParent, order);
+    optSetParentOrder(((SLogicNode*)pSequencingNode)->pParent, order, (SLogicNode*)pSort);
   }
 
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
@@ -2881,10 +2883,54 @@ static int32_t tableCountScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLo
   return code;
 }
 
+static SSortLogicNode* sortNonPriKeySatisfied(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pNode)) {
+    return NULL;
+  }
+  SSortLogicNode* pSort = (SSortLogicNode*)pNode;
+  if (sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) || 1 != LIST_LENGTH(pSort->node.pChildren)) {
+    return NULL;
+  }
+
+  SNode* pSortKeyNode = ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->pExpr;
+  if (nodeType(pSortKeyNode) != QUERY_NODE_COLUMN || ((SColumnNode*)pSortKeyNode)->projIdx != 1 ||
+      ((SColumnNode*)pSortKeyNode)->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return NULL;
+  }
+  return pSort;
+}
+
+static bool sortNonPriKeyShouldOptimize(SLogicNode* pNode, void* pInfo) {
+  SSortLogicNode* pSort = sortNonPriKeySatisfied(pNode);
+  if (!pSort) return false;
+  SNodeList* pSortNodeList = pInfo;
+  nodesListAppend(pSortNodeList, (SNode*)pSort);
+  return true;
+}
+
+static int32_t sortNonPriKeyOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SNodeList* pNodeList = nodesMakeList();
+  if (!optFindEligibleNode(pLogicSubplan->pNode, sortNonPriKeyShouldOptimize, pNodeList)) {
+    nodesDestroyList(pNodeList);
+    return TSDB_CODE_SUCCESS;
+  }
+  SNode* pNode = NULL;
+  FOREACH(pNode, pNodeList) {
+    SSortLogicNode* pSort = (SSortLogicNode*)pNode;
+    SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
+    pSort->node.outputTsOrder = pOrderByExpr->order;
+    optSetParentOrder(pSort->node.pParent, pOrderByExpr->order, NULL);
+  }
+  pCxt->optimized = false;
+  nodesDestroyList(pNodeList);
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
   {.pName = "PushDownCondition",          .optimizeFunc = pushDownCondOptimize},
+  {.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
   {.pName = "SortPrimaryKey",             .optimizeFunc = sortPrimaryKeyOptimize},
   {.pName = "SmaIndex",                   .optimizeFunc = smaIndexOptimize},
   {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},

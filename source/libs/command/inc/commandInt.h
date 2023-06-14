@@ -91,7 +91,7 @@ extern "C" {
 #define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
 #define EXPLAIN_MODE_FORMAT "mode=%s"
 #define EXPLAIN_STRING_TYPE_FORMAT "%s"
-#define EXPLAIN_INPUT_ORDER_FORMAT "input_order=%s"
+#define EXPLAIN_INPUT_ORDER_FORMAT "input_ts_order=%s"
 #define EXPLAIN_OUTPUT_ORDER_TYPE_FORMAT "output_order=%s"
 #define EXPLAIN_OFFSET_FORMAT "offset=%" PRId64
 #define EXPLAIN_SOFFSET_FORMAT "soffset=%" PRId64
@@ -145,7 +145,7 @@ typedef struct SExplainCtx {
   SHashObj    *groupHash;     // Hash<SExplainGroup>
 } SExplainCtx;
 
-#define EXPLAIN_ORDER_STRING(_order) ((ORDER_ASC == _order) ? "asc" : "desc")
+#define EXPLAIN_ORDER_STRING(_order) ((ORDER_ASC == _order) ? "asc" : ORDER_DESC == _order ? "desc" : "unknown")
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
 
 #define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p) (((_u) == 'n' || (_u) == 'y') ? (_t) : (convertTimeFromPrecisionToUnit(_t, _p, _u)))

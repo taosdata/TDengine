@@ -1920,6 +1920,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   uint64_t groupId = *(uint64_t*)p;
   p += sizeof(uint64_t);
 
+  p += sizeof(uint8_t);
+
+
   // check fields
   for (int32_t i = 0; i < numOfCols; ++i) {
     int8_t type = *(int8_t*)p;

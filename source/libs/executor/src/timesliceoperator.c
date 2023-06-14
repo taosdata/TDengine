@@ -795,6 +795,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   blockDataCleanup(pResBlock);
+  pResBlock->info.scanFlag = MAIN_SCAN;
 
   while (1) {
     if (pSliceInfo->pNextGroupRes != NULL) {

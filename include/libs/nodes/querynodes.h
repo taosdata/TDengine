@@ -69,6 +69,7 @@ typedef struct SColumnNode {
   uint64_t    tableId;
   int8_t      tableType;
   col_id_t    colId;
+  uint16_t    projIdx;  // the idx in project list, start from 1
   EColumnType colType;  // column or tag
   bool        hasIndex;
   char        dbName[TSDB_DB_NAME_LEN];

@@ -53,6 +53,8 @@ typedef struct SLogicNode {
   EDataOrderLevel    requireDataOrder;  // requirements for input data
   EDataOrderLevel    resultDataOrder;   // properties of the output data
   EGroupAction       groupAction;
+  EOrder             inputTsOrder;
+  EOrder             outputTsOrder;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -111,7 +113,6 @@ typedef struct SJoinLogicNode {
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   bool       isSingleTableJoin;
-  EOrder     inputTsOrder;
   SNode*     pColEqualOnConditions;
 } SJoinLogicNode;
 
@@ -229,8 +230,6 @@ typedef struct SWindowLogicNode {
   int8_t           igExpired;
   int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
-  EOrder           inputTsOrder;
-  EOrder           outputTsOrder;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -241,7 +240,6 @@ typedef struct SFillLogicNode {
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
   STimeWindow timeRange;
-  EOrder      inputTsOrder;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -310,6 +308,8 @@ typedef struct SDataBlockDescNode {
 
 typedef struct SPhysiNode {
   ENodeType           type;
+  EOrder              inputTsOrder;
+  EOrder              outputTsOrder;
   SDataBlockDescNode* pOutputDataBlockDesc;
   SNode*              pConditions;
   SNodeList*          pChildren;
@@ -406,7 +406,6 @@ typedef struct SSortMergeJoinPhysiNode {
   SNode*     pMergeCondition;
   SNode*     pOnConditions;
   SNodeList* pTargets;
-  EOrder     inputTsOrder;
   SNode*     pColEqualOnConditions;
 } SSortMergeJoinPhysiNode;
 
@@ -460,8 +459,6 @@ typedef struct SWindowPhysiNode {
   int64_t    watermark;
   int64_t    deleteMark;
   int8_t     igExpired;
-  EOrder     inputTsOrder;
-  EOrder     outputTsOrder;
   bool       mergeDataBlock;
 } SWindowPhysiNode;
 
@@ -488,7 +485,6 @@ typedef struct SFillPhysiNode {
   SNode*      pWStartTs;  // SColumnNode
   SNode*      pValues;    // SNodeListNode
   STimeWindow timeRange;
-  EOrder      inputTsOrder;
 } SFillPhysiNode;
 
 typedef SFillPhysiNode SStreamFillPhysiNode;

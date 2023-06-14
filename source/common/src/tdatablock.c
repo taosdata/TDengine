@@ -791,10 +791,10 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  * @return
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
-  // length |
+  // | version | total length | total rows | total columns | flag seg| block group id | block scan flag | column schema
+  // | each column length |
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
-         numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
+         sizeof(uint8_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
@@ -2534,6 +2534,10 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
   uint64_t* groupId = (uint64_t*)data;
   data += sizeof(uint64_t);
 
+  uint8_t* bkScanFlag = (uint8_t*)data;
+  *bkScanFlag = pBlock->info.scanFlag;
+  data += sizeof(uint8_t);
+
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
@@ -2627,6 +2631,10 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   // group id sizeof(uint64_t)
   pBlock->info.id.groupId = *(uint64_t*)pStart;
   pStart += sizeof(uint64_t);
+
+  // block scan flag(uint8_t)
+  pBlock->info.scanFlag = *(uint8_t*)pStart;
+  pStart += sizeof(uint8_t);
 
   if (pBlock->pDataBlock == NULL) {
     pBlock->pDataBlock = taosArrayInit_s(sizeof(SColumnInfoData), numOfCols);
