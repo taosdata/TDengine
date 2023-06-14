@@ -64,6 +64,8 @@ enum OpcError {
     ParseNumberError(&'static str, String, ParseIntError),
     #[error("Parse param error from {1} while parsing parameter {0}")]
     ParseError(&'static str, String),
+    #[error("plugin not found: {0}")]
+    ExeNotFound(String),
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -692,6 +694,13 @@ pub async fn opc_to_taos(
     transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OPC");
+
+    let exe_exists = std::path::Path::new(&exe_path()).exists();
+    if !exe_exists {
+        log::error!("plugin not found {}", exe_path().to_str().unwrap());
+        Err(OpcError::ExeNotFound(format!("{}", exe_path().to_str().unwrap())))?;
+    }
+
     if to.subject.is_none() {
         Err(OpcError::DatabaseIsRequired(to.clone()))?;
     }
@@ -766,6 +775,7 @@ pub async fn opc_to_taos(
         ),
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
+        #[cfg(unix)]
         None,
     );
 
@@ -899,6 +909,24 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .await
         .context("Start OPC collector error")?;
     // dbg!(output);
+    let mut log_path = log_path();
+    log_path.push(LOG_FILE);
+    
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    );
+
+    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).unwrap();
+
     log::info!("OPC exit with status {}", output.status);
 
     temp_path.close()?;

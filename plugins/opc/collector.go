@@ -19,7 +19,9 @@ import (
 func main() {
 	logger.Init(logger.WithWriter(os.Stderr), logger.WithAttr("pid", os.Getpid()))
 
-	logger.InfoF("## opc collector version [%s] start ...", version.ShowVersion())
+	logger.InfoF("## opc collector version: %s", version.GetVersion())
+	logger.InfoF("## opc collector commit id: %s", version.GetCommitID())
+	logger.InfoF("## opc collector build date: %s", version.GetBuildDate())
 	ctx := context.Background()
 	points := flag.NewFlagSet("points", flag.ExitOnError)
 	pointConfigPath := points.String("conf", "", "use --conf to set config path")

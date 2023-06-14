@@ -93,6 +93,8 @@ pub enum PiError {
     ParseKeyValueError(&'static str, String),
     #[error("Parse param error from {1} while parsing parameter {0}")]
     ParseError(&'static str, String),
+    #[error("plugin not found: {0}")]
+    ExeNotFound(String),
 }
 
 impl PiConfig {
@@ -268,6 +270,13 @@ pub async fn pi_to_taos(
     {
         anyhow::bail!("PI connector support only windows platform");
     }
+
+    let exe_exists = std::path::Path::new(&pi_exe_path()).exists();
+    if !exe_exists {
+        log::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
+        Err(PiError::ExeNotFound(format!("{}", pi_exe_path().to_str().unwrap())))?;
+    }
+
     let td_database = to.subject.clone();
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
 
@@ -342,6 +351,7 @@ pub async fn pi_to_taos(
         ),
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
+        #[cfg(unix)]
         None,
     );
 
@@ -496,6 +506,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         ),
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
+        #[cfg(unix)]
         None,
     );
 

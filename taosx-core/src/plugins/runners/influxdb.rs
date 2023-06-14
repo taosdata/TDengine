@@ -75,6 +75,8 @@ pub enum InfluxdbError {
     TaskBeginTimeIsRequired(Dsn),
     #[error("The bucket is required: {0}")]
     TaskBucketIsRequired(Dsn),
+    #[error("plugin not found: {0}")]
+    ExeNotFound(String),
 }
 
 impl InfluxdbConfig {
@@ -182,6 +184,13 @@ pub async fn influxdb_to_taos(
     transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: InfluxDB");
+
+    let exe_exists = std::path::Path::new(&influxdb_jar_path()).exists();
+    if !exe_exists {
+        log::error!("plugin not found {}", influxdb_jar_path().to_str().unwrap());
+        Err(InfluxdbError::ExeNotFound(format!("{}", influxdb_jar_path().to_str().unwrap())))?;
+    }
+
     // tdengine
     let td_database = to.subject.clone();
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
@@ -240,6 +249,7 @@ pub async fn influxdb_to_taos(
         ),
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
+        #[cfg(unix)]
         None,
     );
 

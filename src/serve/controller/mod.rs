@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Arc;
 use std::{
     collections::HashMap,
@@ -15,14 +15,14 @@ use chrono::{DateTime, Utc};
 use dashmap::{DashMap, DashSet};
 use flume::Sender;
 use itertools::Itertools;
-use serde::de::IntoDeserializer;
+use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{DataSet, DataSetsReq, Response, TaskOpts};
-use tokio::sync::{Mutex, OnceCell};
+use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
@@ -102,7 +102,6 @@ mod option_datetime_format {
 
 use self::agent::{
     Agent, AgentActivity, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
-    AgentWorker,
 };
 use self::transferred::Transferred;
 
@@ -203,6 +202,8 @@ pub(super) struct TaskController {
             ),
         >,
     >,
+    /// Hashmap of kv: (connector, cluster_id) -> running tasks
+    pub runnings: Arc<DashMap<(String, i64), Arc<AtomicU64>>>,
     pub scheduler: Arc<JobScheduler>,
     pub secret: RwLock<Option<Bytes>>,
     /// An Agent-to-Tasks-Vector hashmap.
@@ -268,7 +269,31 @@ impl TaskControllerRef {
             .await?;
         // Ok(tasks)
         for task in &tasks {
-            self.start_task(task).await?;
+            if let Err(err) = self.start_task(task).await {
+                let id = task.id;
+                tracing::error!(task = ?task, "Start task {id} error: {err:?}");
+                let err = err.to_string();
+                let now = Utc::now();
+                let status = Status::Failed;
+                let _ = sqlx::query!(
+                    "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+                    now,
+                    status,
+                    err,
+                    id
+                )
+                .execute(&self.pool)
+                .await?;
+                sqlx::query!(
+                    "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    id,
+                    now,
+                    "failed",
+                    err
+                )
+                .execute(&self.pool)
+                .await?;
+            }
         }
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
             "select * from task_with_labels where trigger is not null and status != ? and `deleted` != TRUE order by created_at desc")
@@ -383,6 +408,7 @@ impl TaskController {
             pool,
             runtime: None,
             tasks: Default::default(),
+            runnings: Default::default(),
             scheduler: Arc::new(scheduler),
             secret: RwLock::new(None),
             agent_tasks: Default::default(),
@@ -396,11 +422,26 @@ impl TaskController {
         self
     }
 
+    fn assert_running(&self, driver: impl ToString, cluster_id: i64) {
+        let driver = driver.to_string();
+        let key = (driver, cluster_id);
+        lazy_static::lazy_static! {
+            static ref MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        }
+        if !self.runnings.contains_key(&key) {
+            let _guard = MUTEX.lock().unwrap();
+            if !self.runnings.contains_key(&key) {
+                self.runnings.insert(key, Arc::new(AtomicU64::new(0)));
+            };
+        }
+    }
+
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         let id = task.id;
         let now = Utc::now();
 
         let mut remove_finished_task = false;
+
         {
             // for read guard lifetime
             if let Some(h) = self.tasks.read().await.get(&id) {
@@ -445,38 +486,6 @@ impl TaskController {
         let offsets = Arc::new(DashMap::new());
         self.offsets.write().await.insert(id, offsets.clone());
 
-        let transferred = match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
-                let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
-                let cluster_id: i64 = taos
-                    .query_one("select id from information_schema.ins_cluster")
-                    .await
-                    .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
-                    .unwrap();
-                self.transferred
-                    .get(&(cluster_id, from.driver.clone()))
-                    .await
-            }
-            _ => None,
-        };
-        let opts = TaskOpts {
-            transform: vec![],
-            from,
-            to: task.to.parse()?,
-            parser: task
-                .parser
-                .as_ref()
-                .map(|v| serde_json::from_value(v.clone()).unwrap()),
-            jobs: task.jobs as _,
-            compression_level: task.compression_level.map(Into::into),
-            force: task.force,
-            cancel: CancellationToken::new(),
-            // port_pool: ONCE,
-            with_agent: None,
-            offsets,
-            transferred,
-        };
-        // dbg!(&opts);
         let agent_task_worker = if let Some(id) = task.via {
             if !self.agent_alive(id).await {
                 anyhow::bail!("Agent {id} is not alive");
@@ -495,7 +504,7 @@ impl TaskController {
         } else {
             None
         };
-        // dbg!(&agent_task_worker);
+
         sqlx::query!(
             "INSERT INTO task_activities values(?, ?, ?, ?)",
             id,
@@ -506,6 +515,95 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         let pool = self.pool.clone();
+
+        let (runnings, transferred) = match from.driver.as_str() {
+            "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
+                let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
+                let cluster_id: i64 = taos
+                    .query_one("select id from information_schema.ins_cluster")
+                    .await
+                    .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
+                    .unwrap();
+
+                self.assert_running(&from.driver, cluster_id);
+
+                let runnings = self
+                    .runnings
+                    .get(&(from.driver.clone(), cluster_id))
+                    .unwrap()
+                    .value()
+                    .clone();
+
+                // let license = taos.query_one(sql)
+                let connector = match from.driver.as_str() {
+                    "opcua" => "opc_ua",
+                    "opcda" => "opc_da",
+                    "influxdb" => "influxdb",
+                    "pi" => "pi",
+                    "kafka" => "kafka",
+                    "mqtt" => "mqtt",
+                    _ => unreachable!(),
+                };
+                let number = runnings.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
+                let license: Option<ConnectorLicense> = taos
+                    .query_one::<_, String>(format!(
+                        "select `{connector}` from information_schema.ins_grants"
+                    ))
+                    .await
+                    .unwrap_or(None)
+                    .and_then(|s| serde_json::from_str(&s).ok());
+
+                if let Some(license) = license {
+                    if license.is_expired() {
+                        anyhow::bail!(
+                            "Connector {connector} expired, please contact the database administrator for license",
+                        )
+                    } else {
+                        match license.number {
+                            0 => anyhow::bail!("Connector {connector} is disabled by license"),
+                            n if n > 0 => {
+                                if number >= n as u64 {
+                                    anyhow::bail!("Connector {connector} reaches connection number limit by license");
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+                }
+                (
+                    Some(runnings),
+                    self.transferred
+                        .get(&(cluster_id, from.driver.clone()))
+                        .await,
+                )
+            }
+            _ => (None, None),
+        };
+        let opts = TaskOpts {
+            transform: vec![],
+            from: from.clone(),
+            to: to_dsn.clone(),
+            parser: task
+                .parser
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()).unwrap()),
+            jobs: task.jobs as _,
+            compression_level: task.compression_level.map(Into::into),
+            force: task.force,
+            cancel: CancellationToken::new(),
+            // port_pool: ONCE,
+            with_agent: None,
+            offsets,
+            transferred,
+        };
+        // dbg!(&opts);
+        // dbg!(&agent_task_worker);
+
+        // if let Some(atomic) = &runnings {
+        //     atomic.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        // }
+
         let task_handler = async move {
             let now = Utc::now();
             let _ = sqlx::query!(
@@ -518,6 +616,7 @@ impl TaskController {
             .await?;
             let sender2 = agent_task_worker.clone();
             let cloned_token2 = cloned_token.clone();
+            let runnings2 = runnings.clone();
             tokio::select! {
                 _ = cloned_token.cancelled() => {
                     if let Some((id, sender, agent_id)) = agent_task_worker.as_ref() {
@@ -528,6 +627,10 @@ impl TaskController {
                     log::debug!("cancel task {id}");
                     let now = Utc::now();
                     let status = Status::Cancelled;
+
+                    if let Some(runnings) = runnings.as_ref() {
+                        runnings.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                    }
                     sqlx::query!(
                         "INSERT INTO task_activities values(?, ?, ?, ?)",
                         id,
@@ -745,6 +848,9 @@ impl TaskController {
                     }
                     return Ok::<(), anyhow::Error>(())
                 } => {
+                    if let Some(runnings) = runnings2.as_ref() {
+                        runnings.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                    }
                     let _ = result?;
                     log::info!("task {} done", id);
                 }
@@ -870,7 +976,32 @@ impl TaskController {
         task.backport_labels();
         task.agent = agent;
 
-        self.start_task(&task).await?;
+        if let Err(err) = self.start_task(&task).await {
+            tracing::error!(task = ?task, "Start task {id} error: {err:?}");
+            let err = err.to_string();
+            let now = Utc::now();
+            let status = Status::Failed;
+            let _ = sqlx::query!(
+                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+                now,
+                status,
+                err,
+                id
+            )
+            .execute(&self.pool)
+            .await?;
+            sqlx::query!(
+                "INSERT INTO task_activities values(?, ?, ?, ?)",
+                id,
+                now,
+                "failed",
+                err
+            )
+            .execute(&self.pool)
+            .await?;
+            task.reason.replace(err.to_string());
+            task.status = status;
+        }
         Ok(task.into())
     }
 
@@ -2457,7 +2588,10 @@ mod tests {
         let task = controller.create(task_props).await;
         assert!(task.is_err());
         dbg!(&task);
-        assert!(task.unwrap_err().to_string().contains("Agent 1 is not alive"));
+        assert!(task
+            .unwrap_err()
+            .to_string()
+            .contains("Agent 1 is not alive"));
 
         Ok(())
     }
@@ -2466,7 +2600,7 @@ mod tests {
         std::env::set_var("RUST_LOG", "taos=info");
         pretty_env_logger::init();
 
-        let mut dsn = "taos://localhost:6030".to_string();
+        let dsn = "taos://localhost:6030".to_string();
         log::info!("dsn: {}", dsn);
 
         let taos = taos::TaosBuilder::from_dsn(&dsn)?.build().await?;
