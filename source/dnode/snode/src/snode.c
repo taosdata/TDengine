@@ -165,7 +165,7 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
   // 3.go through recover steps to fill history
   if (pTask->info.fillHistory) {
-    streamSetParamForRecover(pTask);
+    streamSetParamForScanHistoryData(pTask);
     streamAggRecoverPrepare(pTask);
   }
 

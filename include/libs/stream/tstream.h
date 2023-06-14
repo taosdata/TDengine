@@ -339,7 +339,7 @@ struct SStreamTask {
   SStreamState* pState;  // state backend
 
   // the followings attributes don't be serialized
-  int32_t             recoverTryingDownstream;
+  int32_t             notReadyTasks;
   int32_t             numOfWaitingUpstream;
   int64_t             checkReqId;
   SArray*             checkReqIds;  // shuffle
@@ -576,7 +576,7 @@ int32_t streamTaskStartHistoryTask(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 
 // common
-int32_t streamSetParamForRecover(SStreamTask* pTask);
+int32_t streamSetParamForScanHistoryData(SStreamTask* pTask);
 int32_t streamRestoreParam(SStreamTask* pTask);
 int32_t streamSetStatusNormal(SStreamTask* pTask);
 const char* streamGetTaskStatusStr(int32_t status);
@@ -585,8 +585,7 @@ const char* streamGetTaskStatusStr(int32_t status);
 int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq);
 int32_t streamSourceRecoverScanStep1(SStreamTask* pTask);
-int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req* pReq);
-int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver);
+//int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
 int32_t streamDispatchTransferStateMsg(SStreamTask* pTask);
