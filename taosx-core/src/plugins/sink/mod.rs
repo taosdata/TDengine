@@ -32,7 +32,7 @@ use tracing::{debug, info, instrument};
 
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
-use super::runners::opc::{opc_config_blocking, OpcTableConfig, TableConfig, ColumnConfig};
+use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig, TableConfig};
 use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
@@ -423,25 +423,41 @@ async fn consume_point_record(
         for column_config in &table_config.column_configs {
             if column_config.is_primary_key {
                 let primary_key_column_name = column_config.column_name.clone();
-                let prinmary_key_column_alias = column_config.column_alias.clone().unwrap_or(primary_key_column_name.clone());
-                columns_insert.insert(0, (primary_key_column_name, prinmary_key_column_alias.clone()));
-                columns.insert_str(0, format!("{prinmary_key_column_alias} TIMESTAMP,").as_str());
+                let prinmary_key_column_alias = column_config
+                    .column_alias
+                    .clone()
+                    .unwrap_or(primary_key_column_name.clone());
+                columns_insert.insert(
+                    0,
+                    (primary_key_column_name, prinmary_key_column_alias.clone()),
+                );
+                columns.insert_str(
+                    0,
+                    format!("{prinmary_key_column_alias} TIMESTAMP,").as_str(),
+                );
             } else {
                 let primary_key_column_name = column_config.column_name.clone();
-                let prinmary_key_column_alias = column_config.column_alias.clone().unwrap_or(primary_key_column_name.clone());
+                let prinmary_key_column_alias = column_config
+                    .column_alias
+                    .clone()
+                    .unwrap_or(primary_key_column_name.clone());
                 columns_insert.push((primary_key_column_name, prinmary_key_column_alias.clone()));
                 let column_type = if column_config.column_type.is_some() {
                     column_config.column_type.unwrap().to_string()
                 } else {
                     value_type.clone()
                 };
-                columns.push_str(format!("`{prinmary_key_column_alias}` {},", column_type).as_str());
+                columns
+                    .push_str(format!("`{prinmary_key_column_alias}` {},", column_type).as_str());
             }
         }
         // remove last char
         columns.pop();
         let tags = "`point_id` VARCHAR(256), `point_name` VARCHAR(256)";
-        let stable_sql = format!("create table if not exists `{}` ({}) tags ({})", stable_name, columns, tags);
+        let stable_sql = format!(
+            "create table if not exists `{}` ({}) tags ({})",
+            stable_name, columns, tags
+        );
         for i in 0..id_cv.len() {
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
@@ -449,7 +465,7 @@ async fn consume_point_record(
                 log::warn!("id: {} cannot get code", id);
                 continue;
             }
-            let mut child_table_name = stable_name.clone(); 
+            let mut child_table_name = stable_name.clone();
             child_table_name.push_str(format!("_{}", code.unwrap()).as_str());
             let mut insert_sql = format!("insert into `{child_table_name}` ");
             let mut values = String::new();
@@ -458,23 +474,76 @@ async fn consume_point_record(
             let mut columns = String::new();
             for (temp_name, temp_alias) in &columns_insert {
                 if temp_name == "received_time" {
-                    values.push_str(format!("{},", received_ts_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
+                    values.push_str(
+                        format!(
+                            "{},",
+                            received_ts_cv
+                                .slice(i..i + 1)
+                                .unwrap()
+                                .get(0)
+                                .unwrap()
+                                .into_value()
+                                .to_sql_value()
+                        )
+                        .as_str(),
+                    );
                 } else if temp_name == "original_time" {
-                    values.push_str(format!("{},", server_ts_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
+                    values.push_str(
+                        format!(
+                            "{},",
+                            server_ts_cv
+                                .slice(i..i + 1)
+                                .unwrap()
+                                .get(0)
+                                .unwrap()
+                                .into_value()
+                                .to_sql_value()
+                        )
+                        .as_str(),
+                    );
                 } else if temp_name == "value" {
-                    let value_column = value_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value();
+                    let value_column = value_cv
+                        .slice(i..i + 1)
+                        .unwrap()
+                        .get(0)
+                        .unwrap()
+                        .into_value()
+                        .to_sql_value();
                     values.push_str(format!("{value_column},").as_str());
                     value_cloumn_name = temp_alias;
                     value_cloumn_length = value_column.len();
                 } else if temp_name == "status" {
-                    values.push_str(format!("{},", status_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
+                    values.push_str(
+                        format!(
+                            "{},",
+                            status_cv
+                                .slice(i..i + 1)
+                                .unwrap()
+                                .get(0)
+                                .unwrap()
+                                .into_value()
+                                .to_sql_value()
+                        )
+                        .as_str(),
+                    );
                 }
                 columns.push_str(format!("`{temp_alias}`,").as_str());
             }
             values.pop();
             columns.pop();
-            let point_name = name_cv.slice(i..i+1).unwrap().get(0).unwrap().to_sql_value();
-            insert_sql.push_str(format!(" USING `{stable_name}` TAGS (\"{id}\", {}) ({columns})", &point_name).as_str());
+            let point_name = name_cv
+                .slice(i..i + 1)
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .to_sql_value();
+            insert_sql.push_str(
+                format!(
+                    " USING `{stable_name}` TAGS (\"{id}\", {}) ({columns})",
+                    &point_name
+                )
+                .as_str(),
+            );
             insert_sql.push_str(format!(" VALUES ({})", values).as_str());
             debug!("insert sql: {}", insert_sql);
             loop {
@@ -484,7 +553,7 @@ async fn consume_point_record(
                         *count += n;
                         points += n;
                         break;
-                    },
+                    }
                     Err(err) => {
                         let errstr = err.to_string();
                         log::warn!("error: {}", errstr);
@@ -505,7 +574,11 @@ async fn consume_point_record(
                                     }
                                 });
                                 if need_add {
-                                    let add_column_sql = format!("alter table `{stable_name}` ADD COLUMN {} {}", get_real_column_name(column_config), column_config.column_type.unwrap());
+                                    let add_column_sql = format!(
+                                        "alter table `{stable_name}` ADD COLUMN {} {}",
+                                        get_real_column_name(column_config),
+                                        column_config.column_type.unwrap()
+                                    );
                                     log::info!("add_column_sql:{}", add_column_sql);
                                     taos.exec(&add_column_sql).await?;
                                 }
@@ -516,14 +589,21 @@ async fn consume_point_record(
                             desc.into_iter().for_each(|column_meta| {
                                 let column_type;
                                 let length;
-                                if column_meta.field() == "point_id" && id.len() > column_meta.length() {
+                                if column_meta.field() == "point_id"
+                                    && id.len() > column_meta.length()
+                                {
                                     column_type = "tag";
                                     length = id.len();
-                                } else if column_meta.field() == "point_name" && point_name.len() > column_meta.length() {
+                                } else if column_meta.field() == "point_name"
+                                    && point_name.len() > column_meta.length()
+                                {
                                     column_type = "tag";
                                     length = point_name.len();
-                                } else if (column_meta.ty == Ty::VarChar || column_meta.ty == Ty::NChar) 
-                                    && column_meta.field() == value_cloumn_name && value_cloumn_length > column_meta.length() {
+                                } else if (column_meta.ty == Ty::VarChar
+                                    || column_meta.ty == Ty::NChar)
+                                    && column_meta.field() == value_cloumn_name
+                                    && value_cloumn_length > column_meta.length()
+                                {
                                     column_type = "column";
                                     length = value_cloumn_length;
                                 } else {
@@ -534,14 +614,14 @@ async fn consume_point_record(
                                     column_meta.field(),
                                     column_meta.ty(),
                                     length,
-                                    );
+                                );
                                 log::info!("add execute sql: {}", &sql);
                                 taos.exec_sync(sql).unwrap();
                             });
                         } else {
                             break;
                         }
-                    },
+                    }
                 }
             }
         }
@@ -551,7 +631,10 @@ async fn consume_point_record(
 
 #[inline]
 fn get_real_column_name(column_config: &ColumnConfig) -> &String {
-    &column_config.column_alias.as_ref().unwrap_or(&column_config.column_name)
+    &column_config
+        .column_alias
+        .as_ref()
+        .unwrap_or(&column_config.column_name)
 }
 
 async fn consume_flat_record(
@@ -562,16 +645,16 @@ async fn consume_flat_record(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
-    if let Some((license, transferred)) = license.zip(transferred) {
-        let used = transferred.records.load(Ordering::SeqCst);
-        if used > license.number as _ {
+    if let Some((_license, transferred)) = license.zip(transferred) {
+        let _used = transferred.records.load(Ordering::SeqCst);
+        /*if used > license.number as _ {
             anyhow::bail!(
                 "Connector {} out of number: {}/{}",
                 license.r#type,
                 used,
                 license.number
             );
-        }
+        }*/
     }
     // let stmt = Stmt::init(_taos)?;
     let mut max_lengths = HashMap::new();
@@ -918,23 +1001,29 @@ async fn ipc_point_reader<R: Read, W: Write>(
     let mut stmt = Stmt::init(taos)?;
     for record in ipc_reader {
         if let Ok(record) = record {
-            if let Some((license, transferred)) = license.zip(transferred) {
-                let used = transferred.points.load(Ordering::SeqCst);
-                if used > license.number as _ {
-                    anyhow::bail!(
-                        "Connector {} out of points: {}/{}",
-                        license.r#type,
-                        used,
-                        license.number
-                    )
-                }
+            if let Some((_license, transferred)) = license.zip(transferred) {
+                let _used = transferred.points.load(Ordering::SeqCst);
+                // if used > license.number as _ {
+                //     anyhow::bail!(
+                //         "Connector {} out of points: {}/{}",
+                //         license.r#type,
+                //         used,
+                //         license.number
+                //     )
+                // }
             }
             let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            let n = consume_point_record(taos, &mut stmt, &record, &mut count, config.as_ref().unwrap())
-                .await?;
+            let n = consume_point_record(
+                taos,
+                &mut stmt,
+                &record,
+                &mut count,
+                config.as_ref().unwrap(),
+            )
+            .await?;
 
             ipc_ack_writer.write_ok()?;
 
@@ -1003,11 +1092,12 @@ async fn ipc_process<R: Read, W: Write>(
                     "Connector {connector} expired, please contact the database administrator for license",
                 )
             } else {
-                if license.number == -1 {
-                    None
-                } else {
-                    Some(license)
-                }
+                None
+                // if license.number == -1 {
+                //     None
+                // } else {
+                //     Some(license)
+                // }
             }
         } else {
             None
@@ -1210,16 +1300,16 @@ impl<'a> IpcStreamWorker<'a> {
                 Ok(count)
             }
             StreamType::Point => {
-                if let Some((license, transferred)) = self.license.zip(self.transferred) {
-                    let used = transferred.points.load(Ordering::SeqCst);
-                    if used > license.number as _ {
-                        anyhow::bail!(
-                            "Connector {} out of points: {}/{}",
-                            license.r#type,
-                            used,
-                            license.number
-                        )
-                    }
+                if let Some((_license, transferred)) = self.license.zip(self.transferred) {
+                    let _used = transferred.points.load(Ordering::SeqCst);
+                    // if used > license.number as _ {
+                    //     anyhow::bail!(
+                    //         "Connector {} out of points: {}/{}",
+                    //         license.r#type,
+                    //         used,
+                    //         license.number
+                    //     )
+                    // }
                 }
                 let message = self.parser.parse(record)?;
                 let mut count = 0;
@@ -1246,7 +1336,8 @@ impl<'a> IpcStreamWorker<'a> {
                     }
                 };
                 drop(guard);
-                let _n = consume_point_record(&self.taos, stmt, &record, &mut count, config).await?;
+                let _n =
+                    consume_point_record(&self.taos, stmt, &record, &mut count, config).await?;
                 if let Some(transferred) = self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }

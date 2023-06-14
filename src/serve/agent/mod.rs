@@ -8,7 +8,7 @@ use taos::Code;
 use crate::serve::{
     controller::{
         agent::{AgentProps, AgentUpdates},
-        AgentFilter, TaskController, TaskControllerRef,
+        AgentFilter, TaskControllerRef,
     },
     task::Failed,
 };
