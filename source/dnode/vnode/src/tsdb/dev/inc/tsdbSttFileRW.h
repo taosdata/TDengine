@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbFS.h"
-#include "tsdbUtil.h"
+#include "tsdbFS2.h"
+#include "tsdbUtil2.h"
 
 #ifndef _TSDB_STT_FILE_RW_H
 #define _TSDB_STT_FILE_RW_H

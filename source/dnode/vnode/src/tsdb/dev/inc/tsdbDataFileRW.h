@@ -14,9 +14,9 @@
  */
 
 #include "tsdbDef.h"
-#include "tsdbFSet.h"
+#include "tsdbFSet2.h"
 #include "tsdbSttFileRW.h"
-#include "tsdbUtil.h"
+#include "tsdbUtil2.h"
 
 #ifndef _TSDB_DATA_FILE_RW_H
 #define _TSDB_DATA_FILE_RW_H

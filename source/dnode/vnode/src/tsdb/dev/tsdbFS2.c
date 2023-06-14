@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "inc/tsdbFS.h"
+#include "inc/tsdbFS2.h"
 
 extern int vnodeScheduleTask(int (*execute)(void *), void *arg);
 extern int vnodeScheduleTaskEx(int tpid, int (*execute)(void *), void *arg);

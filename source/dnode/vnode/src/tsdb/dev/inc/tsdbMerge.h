@@ -14,10 +14,10 @@
  */
 
 #include "tsdbDataFileRW.h"
-#include "tsdbFS.h"
+#include "tsdbFS2.h"
 #include "tsdbIter.h"
 #include "tsdbSttFileRW.h"
-#include "tsdbUtil.h"
+#include "tsdbUtil2.h"
 
 #ifndef _TD_TSDB_MERGE_H_
 #define _TD_TSDB_MERGE_H_

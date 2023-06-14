@@ -22,13 +22,13 @@
 extern "C" {
 #endif
 
-#include "inc/tsdbUtil.h"
+#include "inc/tsdbUtil2.h"
 
-#include "inc/tsdbFile.h"
+#include "inc/tsdbFile2.h"
 
-#include "inc/tsdbFSet.h"
+#include "inc/tsdbFSet2.h"
 
-#include "inc/tsdbFS.h"
+#include "inc/tsdbFS2.h"
 
 #include "inc/tsdbSttFileRW.h"
 
