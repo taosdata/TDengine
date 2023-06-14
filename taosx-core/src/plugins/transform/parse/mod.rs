@@ -468,6 +468,15 @@ impl Parser {
     pub fn parse_schema(&self, schema: &Arc<Schema>) -> Arc<Schema> {
         todo!()
     }
+
+    fn get_shcema_column_with_name<'a>(schema: &'a Arc<Schema>, name: &str) -> Option<(usize, &'a Field)> {
+        let (idx, field) = schema.fields().into_iter().enumerate().find(|(_, b)| {
+            let meta_name = b.metadata().get("name");
+            (meta_name.is_some() && name == meta_name.unwrap()) || b.name() == name
+        })?;
+        Some((idx, field.as_ref()))
+    }
+
     pub fn parse_message_from_records(
         &self,
         records: &RecordBatch,
@@ -491,10 +500,12 @@ impl Parser {
                 //
                 let mut indices = Vec::new();
                 for name in cols {
-                    let (index, _) = schema.column_with_name(name).ok_or_else(|| {
-                        anyhow::format_err!("Selected column {} not found in stream message", name)
-                    })?;
-                    indices.push(index);
+                    // if let Some((index, _)) = schema.column_with_name(name) {
+                    if let Some((index, _)) = Self::get_shcema_column_with_name(&schema, name.as_str()) {
+                        indices.push(index);
+                    } else {
+                        log::warn!("Selected column {} not found in stream message", name);
+                    }
                 }
                 Some(indices)
             } else {
@@ -503,9 +514,11 @@ impl Parser {
             let (tags, columns) = if let Some(tags) = &table.tags {
                 let mut indices = vec![];
                 for name in tags {
-                    let (i, _) = schema
-                        .column_with_name(&name)
+                    let (i, _) = Self::get_shcema_column_with_name(&schema, name.as_str())
                         .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
+                    // let (i, _) = schema
+                        // .column_with_name(&name)
+                        // .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
 
                     indices.push(i);
                     columns_indices[i] = usize::MAX;
