@@ -552,7 +552,6 @@ typedef struct {
   int64_t rebalanceTime;
 
   int8_t         withTbName;
-  int8_t         useSnapshot;
   int8_t         autoCommit;
   int32_t        autoCommitInterval;
   int32_t        resetOffsetCfg;

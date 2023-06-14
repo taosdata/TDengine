@@ -22,8 +22,8 @@ class TDTestCase:
         tdSql.execute("insert into db.ctb using db.stb tags(1) (ts, c1) values (now, 1)")
 
         tdSql.query("select count(*) from information_schema.ins_columns")
-        # enterprise version: 295, community version: 285
-        tdSql.checkData(0, 0, 295)
+        # enterprise version: 291, community version: 281
+        tdSql.checkData(0, 0, 291)
 
         tdSql.query("select * from information_schema.ins_columns where table_name = 'ntb'")
         tdSql.checkRows(14)
