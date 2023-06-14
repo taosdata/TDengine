@@ -24,6 +24,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.info.GitProperties;
 import org.springframework.stereotype.Component;
 import org.tomlj.Toml;
 import org.tomlj.TomlParseResult;
@@ -66,8 +67,14 @@ public class PreLoading implements CommandLineRunner {
     @Resource
     private InfluxdbService influxdbService;
 
+    @Resource
+    private GitProperties gitProperties;
+
     @Override
     public void run(String... args) {
+        System.err.println("InfluxDB Connector version: 1.0.0");
+        System.err.println("InfluxDB Connector commit: " + gitProperties.getCommitId());
+        System.err.println("InfluxDB Connector build time: " + gitProperties.getInstant("build.time"));
         /** 监控信息及系统初始化 */
         try {
             // 设置启动时间
