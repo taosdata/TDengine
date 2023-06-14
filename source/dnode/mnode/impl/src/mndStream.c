@@ -1053,6 +1053,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
     code = mndProcessStreamCheckpointTrans(pMnode, pStream, vgIds, checkpointId);
     sdbRelease(pSdb, pStream);
   }
+  taosHashCleanup(vgIds);
   return 0;
 }
 
