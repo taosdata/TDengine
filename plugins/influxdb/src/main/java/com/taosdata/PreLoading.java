@@ -74,7 +74,7 @@ public class PreLoading implements CommandLineRunner {
     public void run(String... args) {
         System.err.println("InfluxDB Connector version: 1.0.0");
         System.err.println("InfluxDB Connector commit: " + gitProperties.getCommitId());
-        System.err.println("InfluxDB Connector built at: " + gitProperties.getInstant("build.time"));
+        System.err.println("InfluxDB Connector build time: " + gitProperties.getInstant("build.time"));
         /** 监控信息及系统初始化 */
         try {
             // 设置启动时间
