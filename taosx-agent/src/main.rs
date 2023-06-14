@@ -263,8 +263,12 @@ fn main() -> anyhow::Result<()> {
     }
     tracing_subscriber::registry().with(layers).init();
 
-    let version = build::VERBOSE_VERSION;
+    let version = build::PKG_VERSION;
+    let commit_id = build::COMMIT_HASH;
+    let build_time = build::BUILD_TIME;
     log::info!("taosx version: {version}");
+    log::info!("commit id: {commit_id}");
+    log::info!("build time: {build_time}");
 
     log::info!("Start");
 
