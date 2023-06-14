@@ -17,11 +17,12 @@ import (
 )
 
 func main() {
-	logger.Init(logger.WithWriter(os.Stderr), logger.WithAttr("pid", os.Getpid()))
+	logger.Init(logger.WithWriter(os.Stderr))
 
-	logger.InfoF("## opc collector version: %s", version.GetVersion())
-	logger.InfoF("## opc collector commit id: %s", version.GetCommitID())
-	logger.InfoF("## opc collector build date: %s", version.GetBuildDate())
+	logger.InfoF("## version: %s", version.GetVersion())
+	logger.InfoF("## commit id: %s", version.GetCommitID())
+	logger.InfoF("## build time: %s", version.GetBuildDate())
+	logger.InfoF("## pid: %d", os.Getpid())
 	ctx := context.Background()
 	points := flag.NewFlagSet("points", flag.ExitOnError)
 	pointConfigPath := points.String("conf", "", "use --conf to set config path")
