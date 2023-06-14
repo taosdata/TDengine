@@ -1468,7 +1468,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     atomic_store_8(&pTask->status.taskStatus, pTask->status.keepTaskStatus);
 
     // no lock needs to secure the access of the version
-    if (pReq->igUntreated && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+    if (pReq->igUntreated && pTask->info.taskLevel == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
       // discard all the data  when the stream task is suspended.
       walReaderSetSkipToVersion(pTask->exec.pWalReader, sversion);
       tqDebug("vgId:%d s-task:%s resume to exec, prev paused version:%" PRId64 ", start from vnode ver:%" PRId64
@@ -1479,7 +1479,9 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
               vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
     }
 
-    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && taosQueueItemSize(pTask->inputQueue->queue) == 0) {
+    if (pTask->info.fillHistory && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+      streamStartRecoverTask(pTask, pReq->igUntreated);
+    } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && taosQueueItemSize(pTask->inputQueue->queue) == 0) {
       tqStartStreamTasks(pTq);
     } else {
       streamSchedExec(pTask);

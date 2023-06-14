@@ -17,6 +17,26 @@
 #include "ttimer.h"
 #include "wal.h"
 
+int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated) {
+  SStreamScanHistoryReq req;
+  streamBuildSourceRecover1Req(pTask, &req, igUntreated);
+  int32_t len = sizeof(SStreamScanHistoryReq);
+
+  void* serializedReq = rpcMallocCont(len);
+  if (serializedReq == NULL) {
+    return -1;
+  }
+
+  memcpy(serializedReq, &req, len);
+
+  SRpcMsg rpcMsg = {.contLen = len, .pCont = serializedReq, .msgType = TDMT_VND_STREAM_SCAN_HISTORY};
+  if (tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg) < 0) {
+    /*ASSERT(0);*/
+  }
+
+  return 0;
+}
+
 const char* streamGetTaskStatusStr(int32_t status) {
   switch(status) {
     case TASK_STATUS__NORMAL: return "normal";
@@ -38,23 +58,8 @@ static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
   streamSetParamForScanHistoryData(pTask);
   streamSetParamForStreamScanner(pTask, pRange, &pTask->dataRange.window);
 
-  SStreamScanHistoryReq req;
-  streamBuildSourceRecover1Req(pTask, &req);
-  int32_t len = sizeof(SStreamScanHistoryReq);
-
-  void* serializedReq = rpcMallocCont(len);
-  if (serializedReq == NULL) {
-    return -1;
-  }
-
-  memcpy(serializedReq, &req, len);
-
-  SRpcMsg rpcMsg = {.contLen = len, .pCont = serializedReq, .msgType = TDMT_VND_STREAM_SCAN_HISTORY};
-  if (tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg) < 0) {
-    /*ASSERT(0);*/
-  }
-
-  return 0;
+  int32_t code = streamStartRecoverTask(pTask, 0);
+  return code;
 }
 
 int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
@@ -262,10 +267,11 @@ int32_t streamSetParamForStreamScanner(SStreamTask* pTask, SVersionRange *pVerRa
   return qStreamSourceScanParamForHistoryScan(pTask->exec.pExecutor, pVerRange, pWindow);
 }
 
-int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamScanHistoryReq* pReq) {
+int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated) {
   pReq->msgHead.vgId = pTask->info.nodeId;
   pReq->streamId = pTask->id.streamId;
   pReq->taskId = pTask->id.taskId;
+  pReq->igUntreated = igUntreated;
   return 0;
 }
 

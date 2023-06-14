@@ -451,7 +451,8 @@ typedef struct {
   SMsgHead msgHead;
   int64_t  streamId;
   int32_t  taskId;
-} SStreamScanHistoryReq, SStreamRecoverStep2Req;
+  int8_t   igUntreated;
+} SStreamScanHistoryReq;
 
 typedef struct {
   int64_t streamId;
@@ -574,6 +575,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask);
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp);
 int32_t streamTaskStartHistoryTask(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
+int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated);
 
 // common
 int32_t streamSetParamForScanHistoryData(SStreamTask* pTask);
@@ -583,7 +585,7 @@ const char* streamGetTaskStatusStr(int32_t status);
 
 // source level
 int32_t streamSetParamForStreamScanner(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow);
-int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamScanHistoryReq* pReq);
+int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated);
 int32_t streamSourceScanHistoryData(SStreamTask* pTask);
 //int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
