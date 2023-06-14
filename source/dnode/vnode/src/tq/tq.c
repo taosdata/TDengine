@@ -1066,10 +1066,9 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   int32_t code = TSDB_CODE_SUCCESS;
   char*   msg = pMsg->pCont;
-  int32_t msgLen = pMsg->contLen;
 
   SStreamMeta* pMeta = pTq->pStreamMeta;
-  SStreamRecoverStep1Req* pReq = (SStreamRecoverStep1Req*)msg;
+  SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)msg;
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->taskId);
   if (pTask == NULL) {
@@ -1089,16 +1088,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("s-task:%s start history data scan stage(step 1), status:%s", pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus));
 
   int64_t st = taosGetTimestampMs();
-
-  // todo set the correct status flag
-  int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
-                                                     TASK_SCHED_STATUS__WAITING);
+  int8_t  schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
+                                                      TASK_SCHED_STATUS__WAITING);
   if (schedStatus != TASK_SCHED_STATUS__INACTIVE) {
     ASSERT(0);
     return 0;
   }
 
-  streamSourceRecoverScanStep1(pTask);
+  streamSourceScanHistoryData(pTask);
   if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     tqDebug("s-task:%s is dropped, abort recover in step1", pTask->id.idStr);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1124,21 +1121,47 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       taosMsleep(100);
     }
 
+    taosMsleep(10000);
+
+    // now we can stop the stream task execution
     pStreamTask->status.taskStatus = TASK_STATUS__HALT;
     tqDebug("s-task:%s level:%d status is set to halt by history scan task:%s", pStreamTask->id.idStr,
             pStreamTask->info.taskLevel, pTask->id.idStr);
 
     // if it's an source task, extract the last version in wal.
-    int64_t ver = pTask->dataRange.range.maxVer;
+    int64_t ver = pTask->dataRange.range.maxVer + 1;
     int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
     if (latestVer >= ver) {
       ver = latestVer;
-    } else {
-      ASSERT(latestVer == -1);
     }
 
     // 2. do secondary scan of the history data, the time window remain, and the version range is updated to [pTask->dataRange.range.maxVer, ver1]
+    SVersionRange* pRange = &pTask->dataRange.range;
 
+    pRange->minVer = pRange->maxVer + 1;
+    pRange->maxVer = ver;
+    if (pRange->minVer == pRange->maxVer) {
+      tqDebug("s-task:%s no need to perform secondary scan-history-data(step 2), since no new data ingest", pTask->id.idStr);
+    } else {
+      tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64
+              " do secondary scan-history-data after halt the related stream task:%s",
+              pTask->id.idStr, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pStreamTask->id.idStr);
+
+      ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
+      st = taosGetTimestampMs();
+
+      streamSetParamForStreamScanner(pTask, pRange, &pTask->dataRange.window);
+
+      streamSourceScanHistoryData(pTask);
+      if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
+        tqDebug("s-task:%s is dropped, abort recover in step1", pTask->id.idStr);
+        streamMetaReleaseTask(pMeta, pTask);
+        return 0;
+      }
+
+      el = (taosGetTimestampMs() - st) / 1000.0;
+      tqDebug("s-task:%s history data scan stage(step 2) ended, elapsed time:%.2fs", pTask->id.idStr, el);
+    }
 
     // 3. notify the downstream tasks to transfer executor state after handle all history blocks.
     pTask->status.transferState = true;
@@ -1177,7 +1200,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   return 0;
-
 }
 
 // notify the downstream tasks to transfer executor state after handle all history blocks.

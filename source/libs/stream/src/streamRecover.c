@@ -36,11 +36,11 @@ static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
          pRange->minVer, pRange->maxVer);
 
   streamSetParamForScanHistoryData(pTask);
-  streamSourceRecoverPrepareStep1(pTask, pRange, &pTask->dataRange.window);
+  streamSetParamForStreamScanner(pTask, pRange, &pTask->dataRange.window);
 
-  SStreamRecoverStep1Req req;
+  SStreamScanHistoryReq req;
   streamBuildSourceRecover1Req(pTask, &req);
-  int32_t len = sizeof(SStreamRecoverStep1Req);
+  int32_t len = sizeof(SStreamScanHistoryReq);
 
   void* serializedReq = rpcMallocCont(len);
   if (serializedReq == NULL) {
@@ -242,13 +242,13 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
 
 // common
 int32_t streamSetParamForScanHistoryData(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  return qStreamSetParamForRecover(exec);
+  qDebug("s-task:%s set operator option for scan-history-data", pTask->id.idStr);
+  return qSetStreamOperatorOptionForScanHistory(pTask->exec.pExecutor);
 }
 
 int32_t streamRestoreParam(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  return qStreamRestoreParam(exec);
+  qDebug("s-task:%s restore operator param after scan-history-data", pTask->id.idStr);
+  return qRestoreStreamOperatorOption(pTask->exec.pExecutor);
 }
 
 int32_t streamSetStatusNormal(SStreamTask* pTask) {
@@ -258,19 +258,18 @@ int32_t streamSetStatusNormal(SStreamTask* pTask) {
 }
 
 // source
-int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow) {
-  void* exec = pTask->exec.pExecutor;
-  return qStreamSourceRecoverStep1(exec, pVerRange, pWindow);
+int32_t streamSetParamForStreamScanner(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow) {
+  return qStreamSourceScanParamForHistoryScan(pTask->exec.pExecutor, pVerRange, pWindow);
 }
 
-int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq) {
+int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamScanHistoryReq* pReq) {
   pReq->msgHead.vgId = pTask->info.nodeId;
   pReq->streamId = pTask->id.streamId;
   pReq->taskId = pTask->id.taskId;
   return 0;
 }
 
-int32_t streamSourceRecoverScanStep1(SStreamTask* pTask) {
+int32_t streamSourceScanHistoryData(SStreamTask* pTask) {
   return streamScanExec(pTask, 100);
 }
 
@@ -393,7 +392,7 @@ int32_t streamAggRecoverPrepare(SStreamTask* pTask) {
 
 int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask) {
   void* exec = pTask->exec.pExecutor;
-  if (qStreamRestoreParam(exec) < 0) {
+  if (qRestoreStreamOperatorOption(exec) < 0) {
     return -1;
   }
   if (qStreamRecoverFinish(exec) < 0) {
