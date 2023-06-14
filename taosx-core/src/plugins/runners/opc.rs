@@ -899,6 +899,23 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .await
         .context("Start OPC collector error")?;
     // dbg!(output);
+    let mut log_path = log_path();
+    log_path.push(LOG_FILE);
+    
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        None,
+    );
+
+    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).unwrap();
+
     log::info!("OPC exit with status {}", output.status);
 
     temp_path.close()?;
