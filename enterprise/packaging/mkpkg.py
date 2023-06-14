@@ -175,10 +175,10 @@ def copyJemllocFiles(packageComponent, type):
                 baseDir, 'jemalloc', 'include', 'jemalloc'))
             utilCopyFile(os.path.join(buildDir, 'lib', 'libjemalloc.so.2'),
                          os.path.join(baseDir, 'jemalloc', 'lib'))
-            utilCopyFile(os.path.join(buildDir, 'lib', 'libjemalloc.a'),
-                         os.path.join(baseDir, 'jemalloc', 'lib'))
-            utilCopyFile(os.path.join(buildDir, 'lib', 'libjemalloc_pic.a'), os.path.join(
-                baseDir, 'jemalloc', 'lib'))
+            # utilCopyFile(os.path.join(buildDir, 'lib', 'libjemalloc.a'),
+            #              os.path.join(baseDir, 'jemalloc', 'lib'))
+            # utilCopyFile(os.path.join(buildDir, 'lib', 'libjemalloc_pic.a'), os.path.join(
+            #     baseDir, 'jemalloc', 'lib'))
             utilCopyFile(os.path.join(buildDir, 'lib', 'pkgconfig', 'jemalloc.pc'), os.path.join(
                 baseDir, 'jemalloc', 'lib', 'pkgconfig'))
             utilCopyFile(os.path.join(buildDir, 'share', 'doc', 'jemalloc', 'jemalloc.html'), os.path.join(
