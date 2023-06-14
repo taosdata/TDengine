@@ -100,15 +100,15 @@ impl IncludeItem {
         self
     }
 
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.0.name
     }
 
-    fn alias(&self) -> Option<&str> {
+    pub fn alias(&self) -> Option<&str> {
         self.0.alias.as_deref()
     }
 
-    fn cast(&self) -> Option<&IpcDataType> {
+    pub fn cast(&self) -> Option<&IpcDataType> {
         self.0.cast.as_ref()
     }
 

@@ -8,6 +8,7 @@ use arrow::{
 use arrow_flight::{FlightClient, PutResult};
 use bytes::Bytes;
 use futures::TryStreamExt;
+use parquet::column;
 use std::{
     any::Any,
     collections::HashMap,
@@ -19,7 +20,7 @@ use std::{
         Arc,
     },
     task::Poll,
-    time::Duration,
+    time::Duration, ops::DerefMut,
 };
 use taos::{
     taos_query::common::views::views_to_raw_block, AsyncQueryable, Bindable, Dsn, Itertools,
@@ -589,13 +590,15 @@ async fn consume_flat_record(
                         if records.records.num_rows() == 0 {
                             continue;
                         }
-                        // dbg!(&records);
+                        dbg!(&records);
                         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
                             &records.records,
                         );
+                        dbg!(&views);
                         let schema = records.records.schema();
                         let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
                         let table_name = records.table.name.as_str();
+                        
                         let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
                         raw.with_field_names(&columns).with_table_name(table_name);
                         info!("{}", &raw.pretty_format());
@@ -682,6 +685,34 @@ async fn consume_flat_record(
                                                                     _taos.exec(&sql).await.unwrap();
                                                                     continue;
                                                                 }
+                                                            } else if err.to_string().contains("[0x260D]") {
+                                                                // Tags number not matched
+                                                                // add Tag
+                                                                let table = records
+                                                                    .table
+                                                                    .using
+                                                                    .as_deref()
+                                                                    .unwrap();
+                                                                let tags = records.tag_meta().unwrap();
+                                                                for tag_meta in tags {
+                                                                    let mut need_add = true;
+                                                                    let res = _taos.describe(table).await.unwrap();
+                                                                    res.into_iter().for_each(|tag_added| {
+                                                                        if tag_added.is_tag() && tag_added.field() == tag_meta.field() {
+                                                                            need_add = false;
+                                                                        }
+                                                                    });
+                                                                    if need_add {
+                                                                        let add_tag_sql = format!(
+                                                                            "alter table `{table}` add tag `{}` {}",
+                                                                            tag_meta.field(),
+                                                                            parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
+                                                                            );
+                                                                        log::info!("table {table} add tag sql: {add_tag_sql}");
+                                                                        _taos.exec(add_tag_sql).await.unwrap();
+                                                                    }
+                                                                }
+
                                                             } else {
                                                                 Err(err)?;
                                                             }
@@ -766,6 +797,37 @@ async fn consume_flat_record(
                                         );
                                         _taos.exec(&sql).await.unwrap();
                                     }
+                                } else if err_str.contains("[0x0118]") {
+                                    // Code([0x0118] Unknown or common error)
+                                    // column or tag not exists
+                                    let mut index = 0;
+                                    while index < columns.len() {
+                                        // let column_view = views.get(index).unwrap();
+                                        let column_name = columns.get(index).unwrap().as_str();
+                                        let desc = _taos.describe(table_name).await?;
+                                        let mut need_add = true;
+                                        desc.into_iter().for_each(|column_meta| {
+                                            if column_meta.field() == column_name {
+                                                need_add = false;
+                                            }
+                                        });
+                                        if need_add {
+                                            let ipc_data_type = parser.get_ipcdatatype_from_parser(column_name);
+                                            if ipc_data_type.is_none() {
+                                                log::warn!("column name {column_name} not config in parser");
+                                                break;
+                                            }
+                                            let sql = format!(
+                                                "alter table `{}` add column `{}` {}",
+                                                records.table.using.as_ref().unwrap_or(&table_name.to_string()),
+                                                &column_name,
+                                                ipc_data_type.unwrap(),
+                                            );
+                                            log::info!("alter table column sql: {}", sql);
+                                            _taos.exec(&sql).await.unwrap();
+                                        }
+                                        index += 1;
+                                    }
                                 } else {
                                     Err(err)?;
                                     break;
@@ -797,6 +859,7 @@ async fn consume_flat_record(
     }
     Ok(())
 }
+
 
 // #[instrument(skip_all)]
 async fn ipc_lush_stream_reader<R: Read, W: Write>(
