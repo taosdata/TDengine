@@ -467,7 +467,7 @@ export default {
             "type::restore",
             `cluster-id::${localStorage.getItem("local_clusterID")}`,
           ],
-          trigger: row.trigger,
+          force: true,
           to: row.from,
           from: row.to,
         };
