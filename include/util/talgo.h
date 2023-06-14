@@ -31,7 +31,7 @@ typedef void *(*__array_item_dup_fn_t)(void *);
 
 typedef void (*FDelete)(void *);
 typedef int32_t (*FEncode)(void **buf, const void *dst);
-typedef void *(*FDecode)(const void *buf, void *dst);
+typedef void *(*FDecode)(const void *buf, void *dst, int8_t sver);
 
 #define TD_EQ 0x1
 #define TD_GT 0x2

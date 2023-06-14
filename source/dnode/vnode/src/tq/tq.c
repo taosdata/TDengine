@@ -62,7 +62,7 @@ void tqCleanUp() {
   }
 }
 
-static void destroyTqHandle(void* data) {
+void tqDestroyTqHandle(void* data) {
   STqHandle* pData = (STqHandle*)data;
   qDestroyTask(pData->execHandle.task);
 
@@ -102,7 +102,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   pTq->walLogLastVer = pVnode->pWal->vers.lastVer;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
-  taosHashSetFreeFp(pTq->pHandle, destroyTqHandle);
+  taosHashSetFreeFp(pTq->pHandle, tqDestroyTqHandle);
 
   taosInitRWLatch(&pTq->lock);
   pTq->pPushMgr = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
@@ -661,13 +661,17 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     return -1;
   }
 
-  SVnode* pVnode = pTq->pVnode;
-  int32_t vgId = TD_VID(pVnode);
-
-  tqDebug("vgId:%d, tq process sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pVnode->config.vgId, req.subKey,
+  tqDebug("vgId:%d, tq process sub req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
           req.oldConsumerId, req.newConsumerId);
 
-  STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
+  STqHandle* pHandle = NULL;
+  while(1){
+    pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
+    if (pHandle || tqMetaGetHandle(pTq, req.subKey) < 0){
+      break;
+    }
+  }
+
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
       tqError("vgId:%d, build new consumer handle %s for consumer:0x%" PRIx64 ", but old consumerId:0x%" PRIx64,
@@ -678,86 +682,13 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       tqError("vgId:%d, tq invalid re-balance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
       goto end;
     }
-
-    STqHandle tqHandle = {0};
-    pHandle = &tqHandle;
-
-    memcpy(pHandle->subKey, req.subKey, TSDB_SUBSCRIBE_KEY_LEN);
-    pHandle->consumerId = req.newConsumerId;
-    pHandle->epoch = -1;
-
-    pHandle->execHandle.subType = req.subType;
-    pHandle->fetchMeta = req.withMeta;
-
-    // TODO version should be assigned and refed during preprocess
-    SWalRef* pRef = walRefCommittedVer(pVnode->pWal);
-    if (pRef == NULL) {
-      ret = -1;
+    STqHandle handle = {0};
+    ret = tqCreateHandle(pTq, &req, &handle);
+    if(ret < 0){
+      tqDestroyTqHandle(&handle);
       goto end;
     }
-
-    int64_t ver = pRef->refVer;
-    pHandle->pRef = pRef;
-
-    SReadHandle handle = {.vnode = pVnode, .initTableReader = true, .initTqReader = true, .version = ver};
-    initStorageAPI(&handle.api);
-
-    pHandle->snapshotVer = ver;
-
-    if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      pHandle->execHandle.execCol.qmsg = taosStrdup(req.qmsg);
-
-      pHandle->execHandle.task = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, vgId,
-                                                          &pHandle->execHandle.numOfCols, req.newConsumerId);
-      void* scanner = NULL;
-      qExtractStreamScanner(pHandle->execHandle.task, &scanner);
-      pHandle->execHandle.pTqReader = qExtractReaderFromStreamScanner(scanner);
-    } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
-      pHandle->pWalReader = walOpenReader(pVnode->pWal, NULL);
-      pHandle->execHandle.pTqReader = tqReaderOpen(pVnode);
-
-      pHandle->execHandle.execDb.pFilterOutTbUid =
-          taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-      buildSnapContext(handle.vnode, handle.version, 0, pHandle->execHandle.subType, pHandle->fetchMeta,
-                       (SSnapContext**)(&handle.sContext));
-
-      pHandle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &handle, vgId, NULL, req.newConsumerId);
-    } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
-      pHandle->pWalReader = walOpenReader(pVnode->pWal, NULL);
-      pHandle->execHandle.execTb.suid = req.suid;
-      pHandle->execHandle.execTb.qmsg = taosStrdup(req.qmsg);
-
-      if (strcmp(pHandle->execHandle.execTb.qmsg, "") != 0) {
-        if (nodesStringToNode(pHandle->execHandle.execTb.qmsg, &pHandle->execHandle.execTb.node) != 0) {
-          tqError("nodesStringToNode error in sub stable, since %s, vgId:%d, subkey:%s consumer:0x%" PRIx64, terrstr(),
-                  pVnode->config.vgId, req.subKey, pHandle->consumerId);
-          return -1;
-        }
-      }
-
-      buildSnapContext(handle.vnode, handle.version, req.suid, pHandle->execHandle.subType, pHandle->fetchMeta,
-                       (SSnapContext**)(&handle.sContext));
-      pHandle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &handle, vgId, NULL, req.newConsumerId);
-
-      SArray* tbUidList = NULL;
-      ret = qGetTableList(req.suid, pVnode, pHandle->execHandle.execTb.node, &tbUidList, pHandle->execHandle.task);
-      if (ret != TDB_CODE_SUCCESS) {
-        tqError("qGetTableList error:%d vgId:%d, subkey:%s consumer:0x%" PRIx64, ret, pVnode->config.vgId, req.subKey,
-                pHandle->consumerId);
-        taosArrayDestroy(tbUidList);
-        goto end;
-      }
-      tqDebug("tq try to get ctb for stb subscribe, vgId:%d, subkey:%s consumer:0x%" PRIx64 " suid:%" PRId64,
-              pVnode->config.vgId, req.subKey, pHandle->consumerId, req.suid);
-      pHandle->execHandle.pTqReader = tqReaderOpen(pVnode);
-      tqReaderSetTbUidList(pHandle->execHandle.pTqReader, tbUidList, NULL);
-      taosArrayDestroy(tbUidList);
-    }
-
-    taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
-    tqDebug("try to persist handle %s consumer:0x%" PRIx64, req.subKey, pHandle->consumerId);
-    ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
-    goto end;
+    ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
   } else {
     taosWLockLatch(&pTq->lock);
 
