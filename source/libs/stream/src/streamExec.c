@@ -383,8 +383,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       if (pInput) {
         streamFreeQitem(pInput);
       }
-
-      qDebug("456 %s", pTask->id.idStr);
       return 0;
     }
 
