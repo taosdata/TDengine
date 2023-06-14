@@ -487,9 +487,11 @@ endif(${BUILD_ADDR2LINE})
 
 # geos
 if(${BUILD_GEOS})
+    if(${TD_LINUX})
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
+    endif(${TD_LINUX})
     set(CMAKE_BUILD_TYPE Release)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
     option(BUILD_SHARED_LIBS "Build GEOS with shared libraries" OFF)
     add_subdirectory(geos EXCLUDE_FROM_ALL)
     target_include_directories(
