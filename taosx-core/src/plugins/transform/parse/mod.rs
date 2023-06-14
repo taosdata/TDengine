@@ -451,7 +451,8 @@ impl Parser {
                     match select {
                         Select::Include(incl) => {
                             for item in incl.iter() {
-                                if item.name() == column_name {
+                                if (item.alias().is_some() && item.alias().unwrap() == column_name) || 
+                                    item.name() == column_name {
                                     return item.cast();
                                 }
                             }
