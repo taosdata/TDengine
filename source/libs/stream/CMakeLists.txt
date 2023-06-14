@@ -9,6 +9,19 @@ target_include_directories(
 
 if(${BUILD_WITH_ROCKSDB})
   IF (TD_LINUX)
+    target_include_directories(
+    stream
+    PUBLIC "${TD_SOURCE_DIR}/deps/rocksdb_static"
+  )
+  target_link_directories(
+    stream 
+    PUBLIC "${TD_SOURCE_DIR}/deps/rocksdb_static"
+  )
+  target_link_libraries(
+    stream
+    PUBLIC rocksdb tdb
+    PRIVATE  os util transport qcom executor wal index
+  )
   target_link_libraries(
     stream
     PUBLIC rocksdb tdb
