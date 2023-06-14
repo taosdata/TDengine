@@ -40,7 +40,7 @@
         prop="number"
       >
       <template slot-scope="scope">
-        <span>{{ scope.row.number == -1 ? 'unlimited': scope.row.expire }}</span>
+        <span>{{ scope.row.number == -1 ? 'unlimited': scope.row.number }}</span>
       </template>
       </el-table-column>
       <el-table-column
@@ -48,7 +48,7 @@
         prop="speed"
       >
       <template slot-scope="scope">
-        <span>{{ scope.row.speed == -1 ? 'unlimited': scope.row.expire }}</span>
+        <span>{{ scope.row.speed == -1 ? 'unlimited': scope.row.speed }}</span>
       </template>
       </el-table-column>
       <el-table-column
@@ -252,7 +252,7 @@ export default {
   .el-select.el-select--mini {
     flex: 1;
   }
-  
+
 th.el-descriptions-item__cell.el-descriptions-item__label.is-bordered-label{
   width:80px;
 }
