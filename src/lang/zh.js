@@ -1553,6 +1553,7 @@ export default {
     activationLicense: '激活',
     activeCode: '激活码',
     cActiveCode: '连接器激活码',
+    dataRestoration: '数据恢复'
   },
   taosagents:{
     edittitle:'编辑代理',

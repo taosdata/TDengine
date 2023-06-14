@@ -71,7 +71,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column :label="$t('taosuser.operation')" width="150">
+      <el-table-column :label="$t('taosuser.operation')" width="200">
         <template slot-scope="scope">
           <el-switch
             :value="scope.row.status.toLowerCase() == 'running'"
@@ -98,6 +98,15 @@
             @click="stop(scope.row, scope.$index)"
             icon="el-icon-tingzhi"
           ></el-button> -->
+          <el-tooltip placement="top" :content="$t('taosuser.dataRestoration')" effect="light">  
+            <el-button
+             :disabled="scope.row.status.toLowerCase() == 'running'"
+             plain
+             size="small"
+             @click="restorBackup(scope.row, scope.$index)"
+             icon="el-icon-refresh-right"
+           ></el-button>
+          </el-tooltip>
           <el-button
             plain
             size="small"
@@ -188,6 +197,7 @@ import {
   getBackupList,
   addBackupData,
   editBackup,
+  restorBackupData
 } from "@/api/explorer/backup";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import { Message } from "element-ui";
@@ -408,6 +418,7 @@ export default {
           }
         });
       } catch (err) {
+        Message.error(err);
         return Promise.reject(err);
       }
     },
@@ -446,6 +457,29 @@ export default {
         return callback(new Error(this.$t('formatWrong')));
       } else {
         callback()
+      }
+    },
+    async restorBackup(row) {
+      try {
+        let params = {
+          name: "restore",
+          labels: [
+            "type::restore",
+            `cluster-id::${localStorage.getItem("local_clusterID")}`,
+          ],
+          trigger: row.trigger,
+          to: row.from,
+          from: row.to,
+        };
+        await restorBackupData(this.clusterid, params).then((res) => {
+          if (res && Object.hasOwnProperty.call(res, "id")) {
+            Message.success(this.$t('operateSucc'));
+            this.getBackData();
+          }
+        });
+      } catch (err) {
+        Message.error(err);
+        return Promise.reject(err);
       }
     }
   },
