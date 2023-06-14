@@ -48,6 +48,8 @@ typedef struct {
       TSDBKEY    from[1];
     };  // TSDB_ITER_TYPE_MEMT
   };
+  bool    filterByVersion;
+  int64_t verRange[2];
 } STsdbIterConfig;
 
 // STsdbIter ===============

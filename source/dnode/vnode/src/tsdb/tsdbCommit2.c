@@ -190,7 +190,7 @@ static int32_t tsdbCommitTSDataOpenIterMerger(SCommitter2 *committer) {
   ASSERT(committer->iterMerger == NULL);
 
   STsdbIter      *iter;
-  STsdbIterConfig config[1];
+  STsdbIterConfig config[1] = {0};
 
   // memtable iter
   config->type = TSDB_ITER_TYPE_MEMT;
@@ -479,7 +479,7 @@ static int32_t tsdbCommitTombDataOpenIter(SCommitter2 *committer) {
   int32_t lino = 0;
 
   STsdbIter      *iter;
-  STsdbIterConfig config[1];
+  STsdbIterConfig config[1] = {0};
 
   if (committer->sttReader) {
     const TSttSegReaderArray *readerArray;
