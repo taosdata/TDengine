@@ -228,6 +228,8 @@ endif(${BUILD_WITH_LEVELDB})
 # rocksdb
 # To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
 if(${BUILD_WITH_ROCKSDB})
+    SET(CMAKE_BUILD_TYPE Release)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
     if(${TD_LINUX})
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=unused-function -Wno-errno=unused-private-field -Wno-error=unused-result")
     endif(${TD_LINUX})
@@ -253,7 +255,7 @@ if(${BUILD_WITH_ROCKSDB})
     endif(${TD_DARWIN})
 
     if(${TD_WINDOWS})
-	    option(WITH_JNI "" OFF)
+        option(WITH_JNI "" OFF)
     endif(${TD_WINDOWS})
 
     if(${TD_WINDOWS})
@@ -485,6 +487,9 @@ endif(${BUILD_ADDR2LINE})
 
 # geos
 if(${BUILD_GEOS})
+    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
     option(BUILD_SHARED_LIBS "Build GEOS with shared libraries" OFF)
     add_subdirectory(geos EXCLUDE_FROM_ALL)
     target_include_directories(
