@@ -117,6 +117,7 @@ export default {
         if (type == "mqtt") {
           this.uidata = this.deepClone(data);
           this.parserobj = deepClone(this.staticParser);
+          this.parserobj.model.columns.push('ts')//默认新增时候选中ts列
           this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
           this.uidata = type == "opc" ? data : this.deepClone(data);

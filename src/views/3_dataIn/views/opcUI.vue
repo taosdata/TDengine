@@ -529,7 +529,7 @@
             :connectorData="constMqttparser"
             :fields="constmqttCols"
             ref="mqtt"
-            :isEditable='isEditable'
+            :isEditable="isEditable"
           ></MqttConnector>
         </div>
       </section>
@@ -814,8 +814,18 @@ export default {
                 data.groups[index].params[g]["value"] == "")
             ) {
               if (this.tagName == "mqtt") {
-                console.log(data.groups[index],'mqtt的required');
-                if (data.groups[index].collapsed||!Object.hasOwnProperty.call(data.groups[index],'collapsed')) {
+
+                if (data.groups[index].collapsed) {
+                  Message({
+                    type: "warning",
+                    message:
+                      this.$t("datasource.msg") +
+                      ":" +
+                      `${data.groups[index].params[g].display} `,
+                  });
+                  return;
+                }
+                if (data.groups[index].params[g].name == "topics") {
                   Message({
                     type: "warning",
                     message:
@@ -895,7 +905,7 @@ export default {
             }
           }
         }
-        console.log(querystr,'querystr');
+        console.log(querystr, "querystr");
         if (data.authentication.value == "certificates") {
           data.authentication.alternatives[2].params.forEach((val) => {
             querystr += val.value ? `${val.name}=${val.value}&` : "";
@@ -949,7 +959,7 @@ export default {
         }
         if (this.tagName == "mqtt") {
           this.$refs.mqtt.submit();
-          console.log(this.$refs.mqtt,'mqtt');
+          console.log(this.$refs.mqtt, "mqtt");
           if (this.$refs.mqtt) {
             if (this.$refs.mqtt.showSuperTip) {
               Message({
@@ -993,7 +1003,7 @@ export default {
           };
           dns += "&opc_table_config=" + JSON.stringify(saveConf);
         }
-        console.log(dns,querystr,'mqtt调用接口前的参数拼接');
+        console.log(dns, querystr, "mqtt调用接口前的参数拼接");
         let piParams = {
           from:
             (this.tagName == "mqtt" ? "mqtt" : "opc" + this.protocol) +
@@ -1180,7 +1190,7 @@ export default {
   },
 };
 </script>
-<style  >
+<style>
 .el-select-dropdown__item {
   font-family: "element-icons" !important;
   font-weight: 500;
