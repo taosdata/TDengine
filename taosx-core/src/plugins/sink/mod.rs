@@ -590,11 +590,11 @@ async fn consume_flat_record(
                         if records.records.num_rows() == 0 {
                             continue;
                         }
-                        dbg!(&records);
+                        // dbg!(&records);
                         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
                             &records.records,
                         );
-                        dbg!(&views);
+                        // dbg!(&views);
                         let schema = records.records.schema();
                         let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
                         let table_name = records.table.name.as_str();
