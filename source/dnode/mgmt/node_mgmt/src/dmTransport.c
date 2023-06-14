@@ -23,7 +23,7 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
   dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
 
-  if (epSet.numOfEps == 1) {
+  if(epSet.numOfEps == 0){
     return;
   }
 
