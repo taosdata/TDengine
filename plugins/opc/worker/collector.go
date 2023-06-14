@@ -51,7 +51,7 @@ func NewCollector(_ context.Context, config common.Config) (*OpcCollector, error
 		logger.Error("## create connector for worker error ", "error", err)
 		return nil, fmt.Errorf("create connector for worker error %v", err)
 	}
-	r, err := reporter.NewOpcReporter(config)
+	r, err := reporter.NewDataReporter(config)
 	if err != nil {
 		logger.Error("## create reporter for worker error ", "error", err)
 		return nil, fmt.Errorf("create reporter for worker error %v", err)

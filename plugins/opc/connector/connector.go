@@ -3,7 +3,6 @@ package connector
 import (
 	"collector/common"
 	"context"
-	"fmt"
 	"math"
 	"math/rand"
 	"os/signal"
@@ -84,10 +83,7 @@ func (f *FakeConnector) getAllNodes() ([]fakePoint, error) {
 	points := make([]fakePoint, 0, len(f.config.Ua.Nodes)+len(f.config.Da.Tags))
 	if len(f.config.Ua.Nodes) > 0 {
 		for _, node := range f.config.Ua.Nodes {
-			vt, err := common.ValueTypeFromString(node.ValueType)
-			if err != nil {
-				return nil, fmt.Errorf("value type %s not supported", node.ValueType)
-			}
+			vt := f.randomValueType()
 			points = append(points, fakePoint{
 				id:        node.ID,
 				valueType: vt,
@@ -97,10 +93,7 @@ func (f *FakeConnector) getAllNodes() ([]fakePoint, error) {
 
 	if len(f.config.Da.Tags) > 0 {
 		for _, tag := range f.config.Da.Tags {
-			vt, err := common.ValueTypeFromString(tag.ValueType)
-			if err != nil {
-				return nil, fmt.Errorf("value type %s not supported", tag.ValueType)
-			}
+			vt := f.randomValueType()
 			points = append(points, fakePoint{
 				id:        tag.Tag,
 				valueType: vt,
@@ -109,6 +102,10 @@ func (f *FakeConnector) getAllNodes() ([]fakePoint, error) {
 	}
 
 	return points, nil
+}
+
+func (r *FakeConnector) randomValueType() common.ValueType {
+	return common.ValueType(rand.Int()%15 + 1)
 }
 
 func (f *FakeConnector) GetAllPoints(_ context.Context) ([]common.Point, error) {

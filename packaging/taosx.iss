@@ -23,8 +23,8 @@ Source: "{#MyAppSourceDir}\cfg\agent.example.toml"; DestDir: "{app}\cfg"
 
 
 [run]
-Filename: {sys}\sc.exe; Parameters: "create taosx start= DEMAND binPath= ""C:\\Program Files\\taosX\\bin\\taosx.exe --win_service""" ; Flags: runhidden
-Filename: {sys}\sc.exe; Parameters: "create taosx-agent start= DEMAND binPath= ""C:\\Program Files\\taosX\\bin\\taosx-agent.exe --win_service""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosx start= DEMAND binPath= ""C:\\Program Files\\taosX\\bin\\taosx.exe""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosx-agent start= DEMAND binPath= ""C:\\Program Files\\taosX\\bin\\taosx-agent.exe""" ; Flags: runhidden
 
 
 [UninstallRun]
