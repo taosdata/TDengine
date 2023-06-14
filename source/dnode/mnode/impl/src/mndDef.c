@@ -187,14 +187,14 @@ SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));
   if (pVgEpNew == NULL) return NULL;
   pVgEpNew->vgId = pVgEp->vgId;
-  pVgEpNew->qmsg = taosStrdup(pVgEp->qmsg);
+//  pVgEpNew->qmsg = taosStrdup(pVgEp->qmsg);
   pVgEpNew->epSet = pVgEp->epSet;
   return pVgEpNew;
 }
 
 void tDeleteSMqVgEp(SMqVgEp *pVgEp) {
   if (pVgEp) {
-    taosMemoryFreeClear(pVgEp->qmsg);
+//    taosMemoryFreeClear(pVgEp->qmsg);
     taosMemoryFree(pVgEp);
   }
 }
@@ -202,14 +202,18 @@ void tDeleteSMqVgEp(SMqVgEp *pVgEp) {
 int32_t tEncodeSMqVgEp(void **buf, const SMqVgEp *pVgEp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pVgEp->vgId);
-  tlen += taosEncodeString(buf, pVgEp->qmsg);
+//  tlen += taosEncodeString(buf, pVgEp->qmsg);
   tlen += taosEncodeSEpSet(buf, &pVgEp->epSet);
   return tlen;
 }
 
-void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp) {
+void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp, int8_t sver) {
   buf = taosDecodeFixedI32(buf, &pVgEp->vgId);
-  buf = taosDecodeString(buf, &pVgEp->qmsg);
+  if(sver == 1){
+    uint64_t size = 0;
+    buf = taosDecodeVariantU64(buf, &size);
+    buf = POINTER_SHIFT(buf, size);
+  }
   buf = taosDecodeSEpSet(buf, &pVgEp->epSet);
   return (void *)buf;
 }
@@ -387,7 +391,6 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
     buf = taosDecodeFixedI32(buf, &pConsumer->autoCommitInterval);
     buf = taosDecodeFixedI32(buf, &pConsumer->resetOffsetCfg);
   }
-
   return (void *)buf;
 }
 
@@ -395,13 +398,13 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
 //  SMqConsumerEp *pConsumerEpNew = taosMemoryMalloc(sizeof(SMqConsumerEp));
 //  if (pConsumerEpNew == NULL) return NULL;
 //  pConsumerEpNew->consumerId = pConsumerEpOld->consumerId;
-//  pConsumerEpNew->vgs = taosArrayDup(pConsumerEpOld->vgs, (__array_item_dup_fn_t)tCloneSMqVgEp);
+//  pConsumerEpNew->vgs = taosArrayDup(pConsumerEpOld->vgs, NULL);
 //  return pConsumerEpNew;
 //}
 //
 //void tDeleteSMqConsumerEp(void *data) {
 //  SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)data;
-//  taosArrayDestroyP(pConsumerEp->vgs, (FDelete)tDeleteSMqVgEp);
+//  taosArrayDestroy(pConsumerEp->vgs);
 //}
 
 int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
@@ -437,7 +440,7 @@ int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
 
 void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t sver) {
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
-  buf = taosDecodeArray(buf, &pConsumerEp->vgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp));
+  buf = taosDecodeArray(buf, &pConsumerEp->vgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp), sver);
   if (sver > 1){
     int32_t szVgs = 0;
     buf = taosDecodeFixedI32(buf, &szVgs);
@@ -521,6 +524,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
   pSubNew->unassignedVgs = taosArrayDup(pSub->unassignedVgs, (__array_item_dup_fn_t)tCloneSMqVgEp);
   pSubNew->offsetRows = taosArrayDup(pSub->offsetRows, NULL);
   memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
+  pSubNew->qmsg = taosStrdup(pSub->qmsg);
   return pSubNew;
 }
 
@@ -535,6 +539,7 @@ void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
   }
   taosHashCleanup(pSub->consumerHash);
   taosArrayDestroyP(pSub->unassignedVgs, (FDelete)tDeleteSMqVgEp);
+  taosMemoryFreeClear(pSub->qmsg);
   taosArrayDestroy(pSub->offsetRows);
 }
 
@@ -579,6 +584,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
       // do nothing
     }
   }
+  tlen += taosEncodeString(buf, pSub->qmsg);
   return tlen;
 }
 
@@ -601,7 +607,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
     taosHashPut(pSub->consumerHash, &consumerEp.consumerId, sizeof(int64_t), &consumerEp, sizeof(SMqConsumerEp));
   }
 
-  buf = taosDecodeArray(buf, &pSub->unassignedVgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp));
+  buf = taosDecodeArray(buf, &pSub->unassignedVgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp), sver);
   buf = taosDecodeStringTo(buf, pSub->dbName);
 
   if (sver > 1){
@@ -625,6 +631,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
         }
       }
     }
+    buf = taosDecodeString(buf, &pSub->qmsg);
   }
   return (void *)buf;
 }
