@@ -82,6 +82,8 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/n
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_twa.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_irate.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_interp.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/split/table_numeric_interp_1.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/split/table_numeric_interp_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_sample_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_sample_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_sample_3.py --keep --containers
