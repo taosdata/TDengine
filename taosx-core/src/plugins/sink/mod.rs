@@ -681,7 +681,7 @@ async fn consume_flat_record(
                         let schema = records.records.schema();
                         let columns = schema.fields().iter().map(|f| f.name()).collect_vec();
                         let table_name = records.table.name.as_str();
-                        
+
                         let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
                         raw.with_field_names(&columns).with_table_name(table_name);
                         info!("{}", &raw.pretty_format());
