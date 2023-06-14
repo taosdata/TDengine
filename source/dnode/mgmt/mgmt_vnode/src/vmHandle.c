@@ -264,6 +264,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
 
+#if 0
   if (pMgmt->pTfs) {
     if (tfsDirExistAt(pMgmt->pTfs, path, (SDiskID){0})) {
       terrno = TSDB_CODE_VND_DIR_ALREADY_EXIST;
@@ -277,6 +278,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       return -1;
     }
   }
+#endif
 
   if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
     tFreeSCreateVnodeReq(&req);
