@@ -15,7 +15,7 @@
 
 #include "tsdb.h"
 #ifdef USE_DEV_CODE
-#include "dev/dev.h"
+#include "tsdbFS2.h"
 #endif
 
 int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {

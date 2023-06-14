@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "inc/tsdbFSet2.h"
+#include "tsdbFSet2.h"
 
 static int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
   if (!(lvl[0] = taosMemoryMalloc(sizeof(SSttLvl)))) return TSDB_CODE_OUT_OF_MEMORY;

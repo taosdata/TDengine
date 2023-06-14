@@ -35,23 +35,23 @@ set(
   "src/sma/smaSnapshot.c"
   "src/sma/smaTimeRange.c"
 
-  # tsdb
-  "src/tsdb/tsdbCommit.c"
-  "src/tsdb/tsdbFile.c"
-  "src/tsdb/tsdbFS.c"
-  "src/tsdb/tsdbOpen.c"
-  "src/tsdb/tsdbMemTable.c"
-  "src/tsdb/tsdbRead.c"
-  "src/tsdb/tsdbCache.c"
-  "src/tsdb/tsdbWrite.c"
-  "src/tsdb/tsdbReaderWriter.c"
-  "src/tsdb/tsdbUtil.c"
-  "src/tsdb/tsdbSnapshot.c"
-  "src/tsdb/tsdbCacheRead.c"
-  "src/tsdb/tsdbRetention.c"
-  "src/tsdb/tsdbDiskData.c"
-  "src/tsdb/tsdbMergeTree.c"
-  "src/tsdb/tsdbDataIter.c"
+  # # tsdb
+  # "src/tsdb/tsdbCommit.c"
+  # "src/tsdb/tsdbFile.c"
+  # "src/tsdb/tsdbFS.c"
+  # "src/tsdb/tsdbOpen.c"
+  # "src/tsdb/tsdbMemTable.c"
+  # "src/tsdb/tsdbRead.c"
+  # "src/tsdb/tsdbCache.c"
+  # "src/tsdb/tsdbWrite.c"
+  # "src/tsdb/tsdbReaderWriter.c"
+  # "src/tsdb/tsdbUtil.c"
+  # "src/tsdb/tsdbSnapshot.c"
+  # "src/tsdb/tsdbCacheRead.c"
+  # "src/tsdb/tsdbRetention.c"
+  # "src/tsdb/tsdbDiskData.c"
+  # "src/tsdb/tsdbMergeTree.c"
+  # "src/tsdb/tsdbDataIter.c"
 
     # tq
     "src/tq/tq.c"
@@ -68,14 +68,12 @@ set(
     "src/tq/tqOffsetSnapshot.c"
 )
 
-if (USE_DEV_CODE)
-  aux_source_directory("src/tsdb/dev" VNODE_SOURCE_DEV_FILES)
-  list(
-    APPEND
-    VNODE_SOURCE_FILES
-    ${VNODE_SOURCE_DEV_FILES}
-  )
-endif(USE_DEV_CODE)
+aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
+list(
+  APPEND
+  VNODE_SOURCE_FILES
+  ${TSDB_SOURCE_FILES}
+)
 
 target_sources(
     vnode

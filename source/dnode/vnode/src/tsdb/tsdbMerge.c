@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "inc/tsdbMerge.h"
+#include "tsdbMerge.h"
 
 typedef struct {
   STsdb         *tsdb;

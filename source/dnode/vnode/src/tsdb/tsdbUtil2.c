@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dev.h"
+#include "tsdbUtil2.h"
 
 // SDelBlock ----------
 int32_t tTombBlockInit(STombBlock *tombBlock) {

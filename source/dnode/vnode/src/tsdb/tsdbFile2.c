@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "inc/tsdbFile2.h"
+#include "tsdbFile2.h"
 
 // to_json
 static int32_t head_to_json(const STFile *file, cJSON *json);
