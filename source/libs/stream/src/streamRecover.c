@@ -40,7 +40,6 @@ int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated) {
 const char* streamGetTaskStatusStr(int32_t status) {
   switch(status) {
     case TASK_STATUS__NORMAL: return "normal";
-    case TASK_STATUS__WAIT_DOWNSTREAM: return "wait-for-downstream";
     case TASK_STATUS__SCAN_HISTORY: return "scan-history";
     case TASK_STATUS__HALT: return "halt";
     case TASK_STATUS__PAUSE: return "paused";
@@ -217,18 +216,17 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         return -1;
       }
 
+      // set the downstream tasks have been checked flag
       ASSERT(pTask->status.checkDownstream == 0);
       pTask->status.checkDownstream = 1;
 
-      ASSERT(pTask->status.taskStatus != TASK_STATUS__HALT);
-
+      ASSERT(pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY || pTask->status.taskStatus == TASK_STATUS__NORMAL);
       if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
         qDebug("s-task:%s fixed downstream task is ready, now enter into scan-history-data stage, status:%s", id,
                streamGetTaskStatusStr(pTask->status.taskStatus));
         streamTaskLaunchScanHistory(pTask);
       } else {
-        ASSERT(pTask->status.taskStatus == TASK_STATUS__NORMAL);
-        qDebug("s-task:%s fixed downstream task is ready, now ready for data from wal, status:%s", id,
+        qDebug("s-task:%s fixed downstream task is ready, ready for data from inputQ, status:%s", id,
                streamGetTaskStatusStr(pTask->status.taskStatus));
       }
     } else {
@@ -396,15 +394,17 @@ int32_t streamAggRecoverPrepare(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask) {
+int32_t streamAggUpstreamScanHistoryFinish(SStreamTask* pTask) {
   void* exec = pTask->exec.pExecutor;
   if (qRestoreStreamOperatorOption(exec) < 0) {
     return -1;
   }
+
   if (qStreamRecoverFinish(exec) < 0) {
     return -1;
   }
-  streamSetStatusNormal(pTask);
+
+//  streamSetStatusNormal(pTask);
   return 0;
 }
 
@@ -414,8 +414,9 @@ int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId) {
     ASSERT(left >= 0);
 
     if (left == 0) {
-      qDebug("s-task:%s all %d upstream tasks finish scan-history data", pTask->id.idStr, left);
-      streamAggChildrenRecoverFinish(pTask);
+      int32_t numOfTasks = taosArrayGetSize(pTask->pUpstreamEpInfoList);
+      qDebug("s-task:%s all %d upstream tasks finish scan-history data", pTask->id.idStr, numOfTasks);
+      streamAggUpstreamScanHistoryFinish(pTask);
     } else {
       qDebug("s-task:%s remain unfinished upstream tasks:%d", pTask->id.idStr, left);
     }

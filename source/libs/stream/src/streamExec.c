@@ -189,6 +189,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       if (qExecTask(exec, &output, &ts) < 0) {
         continue;
       }
+
       if (output == NULL) {
         if (qStreamRecoverScanFinished(exec)) {
           finished = true;
@@ -396,16 +397,30 @@ int32_t streamExecForAll(SStreamTask* pTask) {
         ASSERT(pStreamTask != NULL && pStreamTask->historyTaskId.taskId == pTask->id.taskId);
         STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
+        // here we need to wait for the stream task handle all data in the input queue.
         if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
           ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__HALT);
+        } else {
+          ASSERT(pStreamTask->status.taskStatus == TASK_STATUS__NORMAL);
+          pStreamTask->status.taskStatus = TASK_STATUS__HALT;
+        }
 
+          {// wait for the stream task to be idle
+            while(!streamTaskIsIdle(pStreamTask)) {
+              qDebug("s-task:%s level:%d wait for stream task:%s to be idle, check again in 100ms", pTask->id.idStr,
+                     pTask->info.taskLevel, pStreamTask->id.idStr);
+              taosMsleep(100);
+            }
+          }
+
+        if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
           // update the scan data range for source task.
           qDebug("s-task:%s level:%d stream task window %" PRId64 " - %" PRId64 " transfer to %" PRId64 " - %" PRId64
                  ", status:%s, sched-status:%d",
                  pStreamTask->id.idStr, TASK_LEVEL__SOURCE, pTimeWindow->skey, pTimeWindow->ekey, INT64_MIN,
                  pTimeWindow->ekey, streamGetTaskStatusStr(TASK_STATUS__NORMAL), pStreamTask->status.schedStatus);
         } else {
-          // for agg task and sink task, they are continue to execute, no need to be halt.
+          // for sink tasks, they are continue to execute, no need to be halt.
           // the process should be stopped for a while, during the term of transfer task state.
           // OR wait for the inputQ && outputQ of agg tasks are all consumed, and then start the state transfer
 
@@ -413,12 +428,13 @@ int32_t streamExecForAll(SStreamTask* pTask) {
           qDebug("s-task:%s no need to update time window, for non-source task", pStreamTask->id.idStr);
         }
 
+        // expand the query time window for stream scanner
         pTimeWindow->skey = INT64_MIN;
 
         streamSetStatusNormal(pStreamTask);
         streamMetaSaveTask(pTask->pMeta, pStreamTask);
         if (streamMetaCommit(pTask->pMeta)) {
-          // persistent to disk for
+          // persistent to disk
         }
 
         streamSchedExec(pStreamTask);
@@ -481,10 +497,30 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     double  el = (taosGetTimestampMs() - st) / 1000.0;
     qDebug("s-task:%s batch of (%d)input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d",
            id, batchSize, el, resSize / 1048576.0, totalBlocks);
+
     streamFreeQitem(pInput);
   }
 
   return 0;
+}
+
+bool streamTaskIsIdle(const SStreamTask* pTask) {
+  int32_t numOfItems = taosQueueItemSize(pTask->inputQueue->queue);
+  if (numOfItems > 0) {
+    return false;
+  }
+
+  numOfItems = taosQallItemSize(pTask->inputQueue->qall);
+  if (numOfItems > 0) {
+    return false;
+  }
+
+  // blocked by downstream task
+  if (pTask->outputStatus == TASK_OUTPUT_STATUS__BLOCKED) {
+    return false;
+  }
+
+  return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE);
 }
 
 int32_t streamTryExec(SStreamTask* pTask) {

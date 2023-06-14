@@ -44,9 +44,8 @@ enum {
   TASK_STATUS__DROPPING,
   TASK_STATUS__FAIL,
   TASK_STATUS__STOP,
-  TASK_STATUS__WAIT_DOWNSTREAM,
-  TASK_STATUS__SCAN_HISTORY,
-  TASK_STATUS__HALT,   // stream task halt to wait for the secondary scan history, this status is invisible for user
+  TASK_STATUS__SCAN_HISTORY, // stream task scan history data by using tsdbread in the stream scanner
+  TASK_STATUS__HALT,   // stream task will handle all data in the input queue, and then paused
   TASK_STATUS__PAUSE,
 };
 
@@ -565,6 +564,7 @@ int32_t streamSchedExec(SStreamTask* pTask);
 int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
 bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 bool    streamTaskShouldPause(const SStreamStatus* pStatus);
+bool    streamTaskIsIdle(const SStreamTask* pTask);
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
