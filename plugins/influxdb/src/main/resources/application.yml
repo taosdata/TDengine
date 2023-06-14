@@ -12,6 +12,7 @@ logging:
 spring:
   main:
     log-startup-info: false
+    banner-mode: off
   profiles:
     include: db-source, netty
 

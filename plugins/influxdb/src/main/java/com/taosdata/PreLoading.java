@@ -68,6 +68,7 @@ public class PreLoading implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        System.err.println("influxdb connector version: 1.0.0(built 2023-06-14 10:40:21 +08:00)");
         /** 监控信息及系统初始化 */
         try {
             // 设置启动时间
