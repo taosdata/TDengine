@@ -46,14 +46,21 @@ impl PutStream {
             .unwrap();
         dbg!(&task);
 
-        let pool = TaosBuilder::from_dsn(&task.to)?.pool()?;
+        let builder = TaosBuilder::from_dsn(&task.to)?;
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        if !builder.is_enterprise_edition().await? {
+            anyhow::bail!(
+                "Only enterprise edition is supported. If it's not your case, please contact us."
+            )
+        }
+        let pool = builder.pool()?;
 
         // return self.req.map_ok(|data| PutResult {
         //     app_metadata: data.app_metadata,
         // });
         let mut stream = arrow_flight::decode::FlightDataDecoder::new(self.req.map_err(Into::into));
-        let schema = stream.schema();
-        dbg!(schema);
+        // let schema = stream.schema();
+        // dbg!(schema);
 
         let lock = Arc::new(tokio::sync::Mutex::new(()));
 
@@ -99,7 +106,8 @@ impl PutStream {
                         if license.number == -1 {
                             None
                         } else {
-                            Some(license)
+                            // Some(license)
+                            None
                         }
                     }
                 } else {
