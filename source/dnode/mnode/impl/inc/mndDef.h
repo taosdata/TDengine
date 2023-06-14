@@ -108,7 +108,7 @@ typedef enum {
   TRN_STAGE_UNDO_ACTION = 3,
   TRN_STAGE_COMMIT = 4,
   TRN_STAGE_COMMIT_ACTION = 5,
-  TRN_STAGE_FINISHED = 6,
+  TRN_STAGE_FINISH = 6,
   TRN_STAGE_PRE_FINISH = 7
 } ETrnStage;
 
@@ -157,6 +157,7 @@ typedef struct {
   void*       rpcRsp;
   int32_t     rpcRspLen;
   int32_t     redoActionPos;
+  SArray*     prepareActions;
   SArray*     redoActions;
   SArray*     undoActions;
   SArray*     commitActions;
@@ -564,14 +565,14 @@ void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer
 
 typedef struct {
   int32_t vgId;
-  char*   qmsg;  // SubPlanToString
+//  char*   qmsg;  // SubPlanToString
   SEpSet  epSet;
 } SMqVgEp;
 
 SMqVgEp* tCloneSMqVgEp(const SMqVgEp* pVgEp);
 void     tDeleteSMqVgEp(SMqVgEp* pVgEp);
 int32_t  tEncodeSMqVgEp(void** buf, const SMqVgEp* pVgEp);
-void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp);
+void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
 
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
@@ -596,6 +597,7 @@ typedef struct {
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
+  char*     qmsg;           // SubPlanToString
 } SMqSubscribeObj;
 
 SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);
@@ -694,12 +696,12 @@ int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
 
-typedef struct {
-  char    streamName[TSDB_STREAM_FNAME_LEN];
-  int64_t uid;
-  int64_t streamUid;
-  SArray* childInfo;  // SArray<SStreamChildEpInfo>
-} SStreamCheckpointObj;
+//typedef struct {
+//  char    streamName[TSDB_STREAM_FNAME_LEN];
+//  int64_t uid;
+//  int64_t streamUid;
+//  SArray* childInfo;  // SArray<SStreamChildEpInfo>
+//} SStreamCheckpointObj;
 
 #ifdef __cplusplus
 }

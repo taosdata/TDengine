@@ -257,7 +257,8 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
 
   // output the result
-  bool hasInterp = true;
+  int32_t fillColIndex = 0;
+  bool       hasInterp = true;
   for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
 
@@ -307,7 +308,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
       case TSDB_FILL_SET_VALUE:
       case TSDB_FILL_SET_VALUE_F: {
-        SVariant* pVar = &pSliceInfo->pFillColInfo[j].fillVal;
+        SVariant* pVar = &pSliceInfo->pFillColInfo[fillColIndex].fillVal;
 
         if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
           float v = 0;
@@ -342,6 +343,8 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           }
           colDataSetVal(pDst, rows, (char*)&v, false);
         }
+
+        ++fillColIndex;
         break;
       }
 

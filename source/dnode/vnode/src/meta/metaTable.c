@@ -879,9 +879,13 @@ static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {
     SDecoder   dc = {0};
     tDecoderInit(&dc, pData, nData);
     metaDecodeEntry(&dc, &me);
+
     if (me.type != TSDB_SUPER_TABLE) {
-      int32_t ret = vnodeValidateTableHash(pMeta->pVnode, me.name);
-      if (TSDB_CODE_VND_HASH_MISMATCH == ret) {
+      char tbFName[TSDB_TABLE_FNAME_LEN + 1];
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", pMeta->pVnode->config.dbname, me.name);
+      tbFName[TSDB_TABLE_FNAME_LEN] = '\0';
+      int32_t ret = vnodeValidateTableHash(pMeta->pVnode, tbFName);
+      if (ret < 0 && terrno == TSDB_CODE_VND_HASH_MISMATCH) {
         taosArrayPush(uidList, &me.uid);
       }
     }
@@ -910,6 +914,7 @@ int32_t metaTrimTables(SMeta *pMeta) {
     goto end;
   }
 
+  metaInfo("vgId:%d, trim %ld tables", TD_VID(pMeta->pVnode), taosArrayGetSize(tbUids));
   metaDropTables(pMeta, tbUids);
 
 end:
