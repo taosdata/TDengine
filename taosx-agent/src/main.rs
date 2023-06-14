@@ -263,6 +263,9 @@ fn main() -> anyhow::Result<()> {
     }
     tracing_subscriber::registry().with(layers).init();
 
+    let version = build::VERBOSE_VERSION;
+    log::info!("taosx version: {version}");
+
     log::info!("Start");
 
     // todo: arrow flight rpc client.
