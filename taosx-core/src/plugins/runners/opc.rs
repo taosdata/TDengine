@@ -728,7 +728,14 @@ pub async fn opc_to_taos(
     };
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
-        let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
+        let builder = TaosBuilder::from_dsn(&to)?;
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        if !builder.is_enterprise_edition().await? {
+            anyhow::bail!(
+                "Only enterprise edition is supported. If it's not your case, please contact us."
+            )
+        }
+        let target_pool = builder.pool()?;
         let taos = target_pool.get().await?;
         let target_pool_for_ipc = target_pool.clone();
 
@@ -910,7 +917,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     // dbg!(output);
     let mut log_path = log_path();
     log_path.push(LOG_FILE);
-    
+
     let mut log_rotation = FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(

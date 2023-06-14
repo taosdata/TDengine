@@ -278,7 +278,7 @@ pub async fn pi_to_taos(
     }
 
     let td_database = to.subject.clone();
-    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
+    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
 
     // let taos = target_pool.get().await?;
 
@@ -305,17 +305,35 @@ pub async fn pi_to_taos(
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = sink::listen_tcp_socket(
-        target_pool_for_ipc,
-        config.ipc_stream,
-        sender,
-        None,
-        cancel.clone(),
-        with_agent,
-        None,
-        Some("pi"),
-        transferred,
-    )?;
+    let ipc = if with_agent.is_none() {
+        let builder = TaosBuilder::from_dsn(&to)?;
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        if !builder.is_enterprise_edition().await? {
+            anyhow::bail!(
+                "Only enterprise edition is supported. If it's not your case, please contact us."
+            )
+        }
+        let target_pool = builder.pool()?;
+        sink::listen_tcp_socket(
+            target_pool,
+            config.ipc_stream,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent,
+            None,
+            Some("pi"),
+            transferred,
+        )?
+    } else {
+        sink::listen_tcp_socket_with_agent(
+            config.ipc_stream,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent.unwrap(),
+        )?
+    };
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();

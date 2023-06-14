@@ -193,7 +193,7 @@ pub async fn influxdb_to_taos(
 
     // tdengine
     let td_database = to.subject.clone();
-    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
+    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
     let target_pool_for_ipc = target_pool.clone();
     // a random port
     let ipc_port = port_pool
@@ -213,17 +213,34 @@ pub async fn influxdb_to_taos(
     log::info!("Using config file {} \n{}", config_path.display(), toml);
     // create socket channel
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = sink::listen_tcp_socket(
-        target_pool_for_ipc,
-        config.ipc_stream,
-        sender,
-        None,
-        cancel.clone(),
-        with_agent,
-        None,
-        Some("influxdb"),
-        transferred,
-    )?;
+    let ipc = if with_agent.is_none() {
+        let builder = TaosBuilder::from_dsn(&to)?;
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        if !builder.is_enterprise_edition().await? {
+            anyhow::bail!(
+                "Only enterprise edition is supported. If it's not your case, please contact us."
+            )
+        }
+        sink::listen_tcp_socket(
+            target_pool_for_ipc,
+            config.ipc_stream,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent,
+            None,
+            Some("influxdb"),
+            transferred,
+        )?
+    } else {
+        sink::listen_tcp_socket_with_agent(
+            config.ipc_stream,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent.unwrap(),
+        )?
+    };
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connector_path = influxdb_jar_path();
