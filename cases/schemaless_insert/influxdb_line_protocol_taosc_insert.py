@@ -27,7 +27,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.sml_type = "influxdb"
         self.tdCom.drop_all_db()
         self.dbname = self.tdCom.get_long_name()
-        self.dbname = "test"
         self.tdCom.createDb(dbname=self.dbname, precision="us")
         self._remote: Remote = Remote(self.logger)
         self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
