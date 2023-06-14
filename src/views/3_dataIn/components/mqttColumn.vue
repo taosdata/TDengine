@@ -281,7 +281,6 @@ export default {
         this.radio = "1";
       }
       if (tags.includes(this.colData.name)) {
-        console.error('echoColorTag')
         this.radio = "2";
       }
     },

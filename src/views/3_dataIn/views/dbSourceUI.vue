@@ -1031,7 +1031,7 @@ export default {
           }
         }
       } catch (err) {
-        err.response.data.message && Message.error(err.response.data.message);
+        err.response&&err.response.data&&err.response.data.message && Message.error(err.response.data.message);
       }
     },
 

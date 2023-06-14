@@ -13,7 +13,7 @@
       :constMqttparser="parserobj"
       :opcConfig="opcConfig"
       :isEditable="isEditable"
-      :echoData='echoData'
+      :echoData="echoData"
       ref="table"
     ></component>
   </div>
@@ -26,6 +26,7 @@ import { getUIData } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
 import constOpc from "./opcconfig.json";
 import { deepClone } from "@/utils";
+const opcDefaultChecked=["value", "received_time"]
 export default {
   name: "DbSource",
   components: {
@@ -49,7 +50,7 @@ export default {
       mqttParser: null,
       staticParser: null,
       staticOpc: null,
-      echoData:["value", "received_time"]
+      echoData: opcDefaultChecked,
     };
   },
   created() {
@@ -58,6 +59,40 @@ export default {
     this.getData();
   },
   methods: {
+    //回显opc的数据
+    echoOpcData() {
+      let opcconfigData=this.uidata[0].groups.filter(item=>item.name==this.$t('datasource.opcconfig'))[0].params[0]
+      this.echoData = deepClone(
+        JSON.parse(opcconfigData.value).column_configs.map(
+          (item) => item.column_name
+        )
+      );
+      let others = this.staticOpc.column_configs.filter(
+        (item) => !this.echoData.includes(item.column_name)
+      );
+      let newEcho = {
+        column_configs: deepClone(
+          JSON.parse(opcconfigData.value
+          ).column_configs.concat(others)
+        ),
+        stable_prefix: JSON.parse(opcconfigData.value)
+          .stable_prefix,
+      };
+      this.$store.commit("app/SET_OPC_CONFIG", {
+        column_configs: deepClone(
+          JSON.parse(
+            opcconfigData.value
+          ).column_configs.concat(others)
+        ),
+        stable_prefix: JSON.parse(opcconfigData.value)
+          .stable_prefix,
+      });
+
+      opcconfigData.value = JSON.stringify(newEcho);
+      this.opcConfig = deepClone(
+        JSON.parse(opcconfigData.value)
+      );
+    },
     async getData() {
       try {
         await getUIData().then((result) => {
@@ -103,6 +138,7 @@ export default {
             this.currentName = "opcui";
             this.tagName = "opcda";
             this.protocol = "da";
+            this.echoData=deepClone(opcDefaultChecked)
             break;
           case "pi":
             this.currentName = "ui";
@@ -134,7 +170,6 @@ export default {
             break;
         }
       } else {
-        console.log(id, "opcbianji----edit", this.uidata[0]);
         switch (id) {
           case "tmq":
             this.currentName = "ui";
@@ -144,54 +179,13 @@ export default {
             this.currentName = "opcui";
             this.tagName = "opc";
             this.protocol = "ua";
-            this.echoData = JSON.parse(
-              this.uidata[0].groups[2].params[0].value
-            ).column_configs.map((item) => item.column_name);
-            let others = this.staticOpc.column_configs.filter(
-              (item) => !this.echoData.includes(item.column_name)
-            );
-            let newEcho = {
-              column_configs: deepClone(
-                JSON.parse(
-                  this.uidata[0].groups[2].params[0].value
-                ).column_configs.concat(others)
-              ),
-              stable_prefix: JSON.parse(
-                this.uidata[0].groups[2].params[0].value
-              ).stable_prefix,
-            };
-            this.$store.commit("app/SET_OPC_CONFIG", {
-              column_configs: deepClone(
-                JSON.parse(
-                  this.uidata[0].groups[2].params[0].value
-                ).column_configs.concat(others)
-              ),
-              stable_prefix: JSON.parse(
-                this.uidata[0].groups[2].params[0].value
-              ).stable_prefix,
-            });
-            // this.uidata[0].groups[2].params[0].value=JSON.stringify(newEcho)
-            // JSON.parse(this.uidata[0].groups[2].params[0].value).column_configs=deepClone(Object.assign(echoData,others))
-            // this.$set(JSON.parse(this.uidata[0].groups[2].params[0].value),'column_configs',deepClone(Object.assign(echoData,others)))
-            console.log(
-              this.staticOpc,
-              this.echoData,
-              others,
-              newEcho,
-              this.uidata[0].groups[2].params,
-              "---bian编辑table",
-              JSON.parse(this.uidata[0].groups[2].params[0].value)
-            );
-            this.uidata[0].groups[2].params[0].value = JSON.stringify(newEcho);
-            this.opcConfig = deepClone(
-              JSON.parse(this.uidata[0].groups[2].params[0].value)
-            );
-            console.log(this.opcConfig, "this.opcConfig");
+            this.echoOpcData();
             break;
           case "opcda":
             this.currentName = "opcui";
             this.tagName = "opc";
             this.protocol = "da";
+            this.echoOpcData();
             break;
           case "pi":
             this.currentName = "ui";
@@ -228,7 +222,7 @@ export default {
           if (!this.uidata[0].protocol.value) {
             this.uidata[0].protocol.value =
               this.uidata[0].protocol.choices.filter((item) => {
-                return item.display === "Native";
+                return item.display === this.$t("datasource.tmqprotocol");
               })[0]?.name;
           }
         }

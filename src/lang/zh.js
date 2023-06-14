@@ -895,6 +895,9 @@ export default {
   },
 
   datasource: {
+    taskid:'任务ID',
+    opcconfig:'库表配置',
+    tmqprotocol:'原生连接',
     primaryColTagtip:'主键列不支持再作为Tag',
     opcvaluetip:'请输入value列的别名',
     primaryvaluetip:'主键列和value列不能取消',

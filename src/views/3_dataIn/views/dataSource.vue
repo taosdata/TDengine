@@ -19,6 +19,11 @@
         size="mini"
         max-height="250"
       >
+      <el-table-column
+          :label="$t('datasource.taskid')"
+          prop="taskid"
+          width="100"
+        ></el-table-column>
         <el-table-column
           :label="$t('datasource.name2')"
           prop="localname"
@@ -262,6 +267,7 @@ export default {
         await getDatain(id).then((res) => {
           if (res) {
             this.topicList = res.map((item) => {
+              item['taskid']=item.id,
               item["localname"] = item.name ? item.name : "tmq+" + item.id;
               item["localtype"] = item.from_detail ? item.from_detail.name : "";
               item["target"] = item.to_expand ? item.to_expand.subject : "";
