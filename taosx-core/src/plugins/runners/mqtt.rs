@@ -65,6 +65,8 @@ enum MqttConfigError {
     CAConfigReadError(String),
     #[error("Mqtt config parse error, cause: {0}")]
     MqttConfigParseError(String),
+    #[error("plugin not found: {0}")]
+    ExeNotFound(String),
 }
 
 impl MqttConfig {
@@ -187,6 +189,13 @@ pub async fn mqtt_to_taos(
     transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: MQTT");
+
+    let exe_exists = std::path::Path::new(&mqtt_exe_path()).exists();
+    if !exe_exists {
+        log::error!("plugin not found {}", mqtt_exe_path().to_str().unwrap());
+        Err(MqttConfigError::ExeNotFound(format!("{}", mqtt_exe_path().to_str().unwrap())))?;
+    }
+
     if to.subject.is_none() {
         Err(MqttConfigError::DatabaseIsRequired(to.clone()))?;
     }
