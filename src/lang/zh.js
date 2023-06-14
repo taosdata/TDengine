@@ -781,7 +781,7 @@ export default {
     tables: "表",
     dnodes: 'dnode 数量',
     type: '类型',
-    number: '点数',
+    number: '连接数',
     connectors:'连接器',
     select_topic_tip:'请选择订阅主题',
     add_new_user:'添加新用户',
