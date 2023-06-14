@@ -505,10 +505,10 @@ void showHelp() {
 
 #ifdef TD_ENTERPRISE
   printf(
-      "\n\
+      "\n\n\
   ----- special commands on enterpise version ----- \n\
     compact database <db_name>; \n\
-    split vgroup <vgroup_id>;\n");
+    split vgroup <vgroup_id>;");
 #endif
 
   printf("\n\n");
