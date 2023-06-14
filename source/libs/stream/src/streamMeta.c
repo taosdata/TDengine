@@ -405,7 +405,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
 
 int32_t streamDoCheckpoint(SStreamMeta* pMeta) {
   int  code = -1;
-  char buf[256];
+  char buf[256] = {0};
 
   sprintf(buf, "%s/%s", pMeta->path, "checkpoints");
   code = taosMulModeMkDir(buf, 0755);

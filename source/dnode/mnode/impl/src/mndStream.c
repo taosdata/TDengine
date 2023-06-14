@@ -850,61 +850,61 @@ static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   // listEleSize();
 
   // iterate all stream obj
-  SHashObj *vgIds = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
+  // SHashObj *vgIds = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-    taosRLockLatch(&pStream->lock);
-    for (int32_t i = 0; i < taosArrayGetSize(pStream->tasks); i++) {
-      SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
-      SStreamTask *pTask = taosArrayGetP(pLevel, 0);
-      if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-        int32_t sz = taosArrayGetSize(pLevel);
-        SList  *list = taosHashGet(vgIds, &pTask->nodeId, sizeof(pTask->nodeId));
-        if (list == NULL) {
-          SList tlist;
-          tdListInit(&tlist, TSDB_STREAM_FNAME_LEN);
-          taosHashPut(vgIds, &pTask->nodeId, sizeof(pTask->nodeId), &tlist, sizeof(tlist));
-          list = taosHashGet(vgIds, &pTask->nodeId, sizeof(pTask->nodeId));
-        }
-        tdListAppend(list, (void *)pStream->name);
-      }
-    }
-    taosRUnLockLatch(&pStream->lock);
+    // taosRLockLatch(&pStream->lock);
+    // for (int32_t i = 0; i < taosArrayGetSize(pStream->tasks); i++) {
+    //   SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
+    //   SStreamTask *pTask = taosArrayGetP(pLevel, 0);
+    //   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+    //     int32_t sz = taosArrayGetSize(pLevel);
+    //     SList  *list = taosHashGet(vgIds, &pTask->nodeId, sizeof(pTask->nodeId));
+    //     if (list == NULL) {
+    //       SList tlist;
+    //       tdListInit(&tlist, TSDB_STREAM_FNAME_LEN);
+    //       taosHashPut(vgIds, &pTask->nodeId, sizeof(pTask->nodeId), &tlist, sizeof(tlist));
+    //       list = taosHashGet(vgIds, &pTask->nodeId, sizeof(pTask->nodeId));
+    //     }
+    //     tdListAppend(list, (void *)pStream->name);
+    //   }
+    // }
+    // taosRUnLockLatch(&pStream->lock);
 
-    // if (pIter == NULL) break;
-    // // incr tick
-    // int64_t currentTick = atomic_add_fetch_64(&pStream->currentTick, 1);
-    // // if >= checkpointFreq, build msg TDMT_MND_STREAM_BEGIN_CHECKPOINT, put into write q
-    // // if (currentTick >= pStream->checkpointFreq) {
-    // atomic_store_64(&pStream->currentTick, 0);
-    // SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
+    if (pIter == NULL) break;
+    // incr tick
+    int64_t currentTick = atomic_add_fetch_64(&pStream->currentTick, 1);
+    // if >= checkpointFreq, build msg TDMT_MND_STREAM_BEGIN_CHECKPOINT, put into write q
+    // if (currentTick >= pStream->checkpointFreq) {
+    atomic_store_64(&pStream->currentTick, 0);
+    SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
 
-    // pMsg->streamId = pStream->uid;
-    // pMsg->checkpointId = tGenIdPI64();
-    // memcpy(pMsg->streamName, pStream->name, TSDB_STREAM_FNAME_LEN);
+    pMsg->streamId = pStream->uid;
+    pMsg->checkpointId = tGenIdPI64();
+    memcpy(pMsg->streamName, pStream->name, TSDB_STREAM_FNAME_LEN);
 
-    // SRpcMsg rpcMsg = {
-    //     .msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT,
-    //     .pCont = pMsg,
-    //     .contLen = sizeof(SMStreamDoCheckpointMsg),
-    // };
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT,
+        .pCont = pMsg,
+        .contLen = sizeof(SMStreamDoCheckpointMsg),
+    };
 
-    // tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 
-  void   *vgIter = taosHashIterate(vgIds, NULL);
-  size_t  klen = 0;
-  int64_t checkpointId = tGenIdPI64();
-  while (vgIter) {
-    int32_t *key = (int32_t *)taosHashGetKey(vgIter, &klen);
-    SList   *val = (SList *)vgIter;
+  // void   *vgIter = taosHashIterate(vgIds, NULL);
+  // size_t  klen = 0;
+  // int64_t checkpointId = tGenIdPI64();
+  // while (vgIter) {
+  //   int32_t *key = (int32_t *)taosHashGetKey(vgIter, &klen);
+  //   SList   *val = (SList *)vgIter;
 
-    mndCreateCheckpoint(pMnode, *key, val);
-    vgIter = taosHashIterate(vgIds, vgIter);
-  }
-  taosHashCleanup(vgIds);
+  //   mndCreateCheckpoint(pMnode, *key, val);
+  //   vgIter = taosHashIterate(vgIds, vgIter);
+  // }
+  // taosHashCleanup(vgIds);
 
   return 0;
 }
