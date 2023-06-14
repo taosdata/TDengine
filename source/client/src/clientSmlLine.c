@@ -443,6 +443,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       if (unlikely(*(*sql) == QUOTE && (*(*sql - 1) != SLASH || (*sql - 1) == escapeChar))) {
         isInQuote = !isInQuote;
         (*sql)++;
+        if(!isInQuote) break;
         continue;
       }
       if (!isInQuote) {
