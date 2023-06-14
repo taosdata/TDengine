@@ -115,7 +115,13 @@ const ENV_TAOSX_PLUGINS_HOME: &'static str = concatcp!(build::CUS_PROMPT, "_PLUG
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let args = Args::parse();
-    println!("taosx version: {CLAP_SHORT_VERSION}");
+    let version = build::PKG_VERSION;
+    let commit_id = build::COMMIT_HASH;
+    let build_time = build::BUILD_TIME;
+    // println!("taosx version: {CLAP_SHORT_VERSION}");
+    println!("taosx version: {version}");
+    println!("commit id: {commit_id}");
+    println!("build time: {build_time}");
 
     let plugins_home = std::env::var(ENV_PLUGINS_HOME).or(std::env::var(ENV_TAOSX_PLUGINS_HOME));
     match plugins_home {
@@ -192,6 +198,10 @@ fn main() -> Result<()> {
         .init();
 
     let worker_threads = args.globals.executor_worker_threads();
+
+    log::info!("taosx version: {version}");
+    log::info!("commit id: {commit_id}");
+    log::info!("build time: {build_time}");
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(4096)
