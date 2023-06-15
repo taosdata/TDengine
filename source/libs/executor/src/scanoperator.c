@@ -466,7 +466,12 @@ static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
 }
 
 // const void *key, size_t keyLen, void *value
-static void freeCachedMetaItem(const void* key, size_t keyLen, void* value) { freeTableCachedVal(value); }
+static void freeCachedMetaItem(const void* key, size_t keyLen, void* value, void* ud) {
+  (void)key;
+  (void)keyLen;
+  (void)ud;
+  freeTableCachedVal(value);
+}
 
 static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t numOfExpr) {
   for (int32_t j = 0; j < numOfExpr; ++j) {
@@ -554,7 +559,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       freeReader = true;
 
       int32_t ret = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
-                                       sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW);
+                                       sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
       if (ret != TAOS_LRU_STATUS_OK) {
         qError("failed to put meta into lru cache, code:%d, %s", ret, idStr);
         freeTableCachedVal(pVal);
