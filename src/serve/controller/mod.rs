@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, AtomicU32};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::{
     collections::HashMap,
@@ -15,7 +15,6 @@ use chrono::{DateTime, Utc};
 use dashmap::{DashMap, DashSet};
 use flume::Sender;
 use itertools::Itertools;
-use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
@@ -202,8 +201,6 @@ pub(super) struct TaskController {
             ),
         >,
     >,
-    /// Hashmap of kv: (connector, cluster_id) -> running tasks
-    pub runnings: Arc<DashMap<(String, i64), Arc<AtomicU64>>>,
     pub scheduler: Arc<JobScheduler>,
     pub secret: RwLock<Option<Bytes>>,
     /// An Agent-to-Tasks-Vector hashmap.
@@ -408,7 +405,6 @@ impl TaskController {
             pool,
             runtime: None,
             tasks: Default::default(),
-            runnings: Default::default(),
             scheduler: Arc::new(scheduler),
             secret: RwLock::new(None),
             agent_tasks: Default::default(),
@@ -420,20 +416,6 @@ impl TaskController {
     pub fn with_runtime(mut self, rt: tokio::runtime::Runtime) -> Self {
         self.runtime = Some(rt);
         self
-    }
-
-    fn assert_running(&self, driver: impl ToString, cluster_id: i64) {
-        let driver = driver.to_string();
-        let key = (driver, cluster_id);
-        lazy_static::lazy_static! {
-            static ref MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        }
-        if !self.runnings.contains_key(&key) {
-            let _guard = MUTEX.lock().unwrap();
-            if !self.runnings.contains_key(&key) {
-                self.runnings.insert(key, Arc::new(AtomicU64::new(0)));
-            };
-        }
     }
 
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
@@ -516,7 +498,7 @@ impl TaskController {
         .await?;
         let pool = self.pool.clone();
 
-        let (runnings, transferred) = match from.driver.as_str() {
+        let transferred = match from.driver.as_str() {
             "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
                 let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
                 let cluster_id: i64 = taos
@@ -524,16 +506,6 @@ impl TaskController {
                     .await
                     .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
                     .unwrap();
-
-                self.assert_running(&from.driver, cluster_id);
-
-                let runnings = self
-                    .runnings
-                    .get(&(from.driver.clone(), cluster_id))
-                    .unwrap()
-                    .value()
-                    .clone();
-
                 // let license = taos.query_one(sql)
                 let connector = match from.driver.as_str() {
                     "opcua" => "opc_ua",
@@ -544,8 +516,6 @@ impl TaskController {
                     "mqtt" => "mqtt",
                     _ => unreachable!(),
                 };
-                let number = runnings.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-
                 let license: Option<ConnectorLicense> = taos
                     .query_one::<_, String>(format!(
                         "select `{connector}` from information_schema.ins_grants"
@@ -559,26 +529,14 @@ impl TaskController {
                         anyhow::bail!(
                             "Connector {connector} expired, please contact the database administrator for license",
                         )
-                    } else {
-                        match license.number {
-                            0 => anyhow::bail!("Connector {connector} is disabled by license"),
-                            n if n > 0 => {
-                                if number >= n as u64 {
-                                    anyhow::bail!("Connector {connector} reaches connection number limit by license");
-                                }
-                            }
-                            _ => (),
-                        }
                     }
                 }
-                (
-                    Some(runnings),
-                    self.transferred
-                        .get(&(cluster_id, from.driver.clone()))
-                        .await,
-                )
+
+                self.transferred
+                    .get(&(cluster_id, from.driver.clone()))
+                    .await
             }
-            _ => (None, None),
+            _ => None,
         };
         let opts = TaskOpts {
             transform: vec![],
@@ -614,12 +572,11 @@ impl TaskController {
             )
             .execute(&pool)
             .await?;
-            let sender2 = agent_task_worker.clone();
+            // let sender2 = agent_task_worker.clone();
             let cloned_token2 = cloned_token.clone();
-            let runnings2 = runnings.clone();
             tokio::select! {
                 _ = cloned_token.cancelled() => {
-                    if let Some((id, sender, agent_id)) = agent_task_worker.as_ref() {
+                    if let Some((id, sender, _)) = agent_task_worker.as_ref() {
                         let _ = sender.send(AgentAction::Cancel(*id));
                     } else {
                         opts.cancel();
@@ -628,9 +585,6 @@ impl TaskController {
                     let now = Utc::now();
                     let status = Status::Cancelled;
 
-                    if let Some(runnings) = runnings.as_ref() {
-                        runnings.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-                    }
                     sqlx::query!(
                         "INSERT INTO task_activities values(?, ?, ?, ?)",
                         id,
@@ -848,9 +802,6 @@ impl TaskController {
                     }
                     return Ok::<(), anyhow::Error>(())
                 } => {
-                    if let Some(runnings) = runnings2.as_ref() {
-                        runnings.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-                    }
                     let _ = result?;
                     log::info!("task {} done", id);
                 }
@@ -888,8 +839,70 @@ impl TaskController {
         Ok(tasks.len())
     }
 
+    pub async fn validate_connector_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
+        let taos = TaosBuilder::from_dsn(to)?.build().await?;
+        let endpoint = match (
+            from.addresses[0].host.as_deref(),
+            from.addresses[0].port.as_ref(),
+        ) {
+            (Some(host), Some(port)) => format!("{host}:{port}"),
+            (Some(host), None) => format!("{host}"),
+            (None, Some(port)) => format!(":{port}"),
+            (None, None) => format!(""),
+        };
+        let cluster_id: i64 = taos
+            .query_one("select id from information_schema.ins_cluster")
+            .await
+            .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
+            .unwrap();
+        let used : u32 =
+                    sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
+                        .fetch_one(&self.pool)
+                        .await?;
+
+        // let license = taos.query_one(sql)
+        let connector = match from.driver.as_str() {
+            "opcua" => "opc_ua",
+            "opcda" => "opc_da",
+            "influxdb" => "influxdb",
+            "pi" => "pi",
+            "kafka" => "kafka",
+            "mqtt" => "mqtt",
+            _ => unreachable!(),
+        };
+
+        let license: Option<ConnectorLicense> = taos
+            .query_one::<_, String>(format!(
+                "select `{connector}` from information_schema.ins_grants"
+            ))
+            .await
+            .unwrap_or(None)
+            .and_then(|s| serde_json::from_str(&s).ok());
+
+        if let Some(license) = license {
+            if license.is_expired() {
+                anyhow::bail!(
+                            "Connector {connector} expired, please contact the database administrator for license",
+                        )
+            } else {
+                match license.number {
+                    0 => anyhow::bail!("Connector {connector} is disabled by license"),
+                    n if n > 0 => {
+                        if used >= n as u32 {
+                            anyhow::bail!("Connector {connector} reaches connection number limit({n}) by license");
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        } else {
+            anyhow::bail!("Only enterprise version is supported for connector {connector}")
+        }
+        Ok(())
+    }
+
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
-        let _: Dsn = task
+        let from: Dsn = task
             .from
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
@@ -899,6 +912,12 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
+        match from.driver.as_str() {
+            "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
+                self.validate_connector_license(&from, &to).await?;
+            }
+            _ => (),
+        }
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
