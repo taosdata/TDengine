@@ -269,7 +269,7 @@ static void doAddNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputObj *pI
   for (int32_t i = 0; i < numOfNewConsumers; i++) {
     int64_t consumerId = *(int64_t *)taosArrayGet(pInput->pRebInfo->newConsumers, i);
 
-    SMqConsumerEp newConsumerEp;
+    SMqConsumerEp newConsumerEp = {0};
     newConsumerEp.consumerId = consumerId;
     newConsumerEp.vgs = taosArrayInit(0, sizeof(void *));
 
