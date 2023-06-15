@@ -821,7 +821,7 @@ async fn consume_flat_record(
                             if let Err(err) = _taos.write_raw_block(&raw).await {
                                 dbg!(&err);
                                 let err_str = err.to_string();
-                                if err_str.contains("[0x2603]") {
+                                if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
                                     if let Some(sql) = records.stable_sql() {
                                         dbg!(&sql);
                                         _taos.exec(&sql).await.unwrap();
