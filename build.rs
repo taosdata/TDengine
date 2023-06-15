@@ -65,6 +65,8 @@ fn main() {
     println!("cargo:rerun-if-changed=src/CLI.md");
     println!("cargo:rerun-if-changed=src/systemd.service");
 
+    println!("cargo:rerun-if-env-changed=PKG_TIME");
+
     if let Ok(dsn) = std::env::var("DATABASE_URL") {
         let file = dsn.replacen("sqlite:", "", 1);
         println!("cargo:rerun-if-changed={file}");

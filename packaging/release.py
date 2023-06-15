@@ -315,8 +315,12 @@ def build_and_install_taosx(mode):
     taox_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taox_install_path)
     taosx_path = os.path.join(taosx_dir, "target", mode.lower(), get_taosx_output_name())
+    taosx_server_path = os.path.join(taosx_dir, "bin", "taosx-srv.exe")
+    taosx_server_xml_path = os.path.join(taosx_dir, "bin", "taosx-srv.xml")
     try:
         shutil.copy2(taosx_path, taox_install_path)
+        shutil.copy2(taosx_server_path, taox_install_path)
+        shutil.copy2(taosx_server_xml_path, taox_install_path)
     except FileNotFoundError as e:
         print("Copy TaosX to {} failed: {}".format(taosx_path,  e.strerror))
         sys.exit()
@@ -340,6 +344,7 @@ def build_and_install_taosx_agent(mode):
 
     copy_taos_agent_service_file(taox_install_path)
     taos_cfg_path = os.path.join(release_info.InstallPath, "cfg")
+    check_directory(taos_cfg_path)
     copy_taos_agent_cfg(taos_cfg_path)
 
 def build_and_install_influxdb(mode):
