@@ -49,6 +49,7 @@ int32_t          recoverSnapshot(SStreamFileState* pFileState);
 int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list);
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark);
 int32_t streamFileStateGeSelectRowSize(SStreamFileState* pFileState);
+void    streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts);
 
 #ifdef __cplusplus
 }

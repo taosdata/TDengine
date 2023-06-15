@@ -1327,3 +1327,15 @@ SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo) {
   extractTableList(pArray, pOperator);
   return pArray;
 }
+
+int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tInfo;
+  pTaskInfo->pRoot->fpSet.releaseStreamStateFn(pTaskInfo->pRoot);
+  return 0;
+}
+
+int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tInfo;
+  pTaskInfo->pRoot->fpSet.reloadStreamStateFn(pTaskInfo->pRoot);
+  return 0;
+}

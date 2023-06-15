@@ -101,6 +101,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateCommit = streamStateCommit;
   pStore->streamStateDestroy= streamStateDestroy;
   pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
+  pStore->streamStateReloadInfo = streamStateReloadInfo;
 }
 
 void initFunctionStateStore(SFunctionStateStore* pStore) {

@@ -524,3 +524,8 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
 }
 
 int32_t streamFileStateGeSelectRowSize(SStreamFileState* pFileState) { return pFileState->selectivityRowSize; }
+
+void streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts) {
+  pFileState->flushMark = TMAX(pFileState->flushMark, ts);
+  pFileState->maxTs = TMAX(pFileState->maxTs, ts);
+}

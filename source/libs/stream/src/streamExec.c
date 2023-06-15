@@ -562,3 +562,15 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
   return 0;
 }
+
+int32_t streamTaskReleaseState(SStreamTask* pTask) {
+  void* exec = pTask->exec.pExecutor;
+  int32_t code = qStreamOperatorReleaseState(exec);
+  return code;
+}
+
+int32_t streamTaskReloadState(SStreamTask* pTask) {
+  void* exec = pTask->exec.pExecutor;
+  int32_t code = qStreamOperatorReloadState(exec);
+  return code;
+}

@@ -1111,6 +1111,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     if (pStreamTask == NULL) {
       // todo handle error
     }
+    // streamTaskReleaseState(pTask);
+    // streamTaskReloadState(pStreamTask);
 
     ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
 

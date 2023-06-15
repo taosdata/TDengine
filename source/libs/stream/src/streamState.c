@@ -1113,6 +1113,10 @@ int32_t streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark) {
 #endif
 }
 
+void streamStateReloadInfo(SStreamState* pState, TSKEY ts) {
+  streamFileStateReloadInfo(pState->pFileState, ts);
+}
+
 #if 0
 char* streamStateSessionDump(SStreamState* pState) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));

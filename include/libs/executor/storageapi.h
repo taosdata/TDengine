@@ -392,6 +392,7 @@ typedef struct SStateStore {
   int32_t (*streamStateCommit)(SStreamState* pState);
   void (*streamStateDestroy)(SStreamState* pState, bool remove);
   int32_t (*streamStateDeleteCheckPoint)(SStreamState* pState, TSKEY mark);
+  void (*streamStateReloadInfo)(SStreamState* pState, TSKEY ts);
 } SStateStore;
 
 typedef struct SStorageAPI {

@@ -28,6 +28,7 @@
 
 #define IS_FINAL_OP(op)    ((op)->isFinal)
 #define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL * 24LL * 365LL * 10LL);
+#define STREAM_INTERVAL_OP_STATE_NAME "StreamIntervalHistoryState"
 #define STREAM_SESSION_OP_STATE_NAME "StreamSessionHistoryState"
 #define STREAM_STATE_OP_STATE_NAME "StreamStateHistoryState"
 
@@ -2724,8 +2725,10 @@ int32_t getMaxFunResSize(SExprSupp* pSup, int32_t numOfCols) {
 }
 
 void streamIntervalReleaseState(SOperatorInfo* pOperator) {
-  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL) {
-    return;
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL) {
+    SStreamIntervalOperatorInfo* pInfo = pOperator->info;
+    int32_t resSize = sizeof(TSKEY);
+    pInfo->statestore.streamStateSaveInfo(pInfo->pState, STREAM_INTERVAL_OP_STATE_NAME, strlen(STREAM_INTERVAL_OP_STATE_NAME), &pInfo->twAggSup.maxTs, resSize);
   }
   SStreamIntervalOperatorInfo* pInfo = pOperator->info;
   SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
@@ -2737,6 +2740,15 @@ void streamIntervalReleaseState(SOperatorInfo* pOperator) {
 }
 
 void streamIntervalReloadState(SOperatorInfo* pOperator) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL) {
+    SStreamIntervalOperatorInfo* pInfo = pOperator->info;
+    int32_t size = 0;
+    void* pBuf = NULL;
+    int32_t code = pInfo->statestore.streamStateGetInfo(pInfo->pState, STREAM_INTERVAL_OP_STATE_NAME,
+                                                        strlen(STREAM_INTERVAL_OP_STATE_NAME), &pBuf, &size);
+    TSKEY ts = *(TSKEY*)pBuf;
+    pInfo->statestore.streamStateReloadInfo(pInfo->pState, ts);
+  }
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
@@ -3651,7 +3663,6 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
   SResultWindowInfo winInfo = {0};
-  SSessionKey seKey = {.win.skey = INT64_MIN, .win.ekey = INT64_MIN, .groupId = 0};
   int32_t size = 0;
   void* pBuf = NULL;
   int32_t code = pAggSup->stateStore.streamStateGetInfo(pAggSup->pState, STREAM_SESSION_OP_STATE_NAME,
@@ -4352,7 +4363,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
                   pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamStateAgg, NULL, destroyStreamStateOperatorInfo,
                                          optrDefaultBufFn, NULL);
-  setOperatorStreamStateFn(pOperator, streamStateReleaseState, streamSessionReloadState);
+  setOperatorStreamStateFn(pOperator, streamStateReleaseState, streamStateReloadState);
   initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex, &pInfo->twAggSup);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

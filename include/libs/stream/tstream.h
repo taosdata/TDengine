@@ -620,6 +620,9 @@ int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask,
 int32_t streamProcessCheckpointReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointReq* pReq);
 int32_t streamProcessCheckpointRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointRsp* pRsp);
 
+int32_t streamTaskReleaseState(SStreamTask* pTask);
+int32_t streamTaskReloadState(SStreamTask* pTask);
+
 #ifdef __cplusplus
 }
 #endif

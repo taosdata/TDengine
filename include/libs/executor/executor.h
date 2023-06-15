@@ -229,6 +229,9 @@ bool    qStreamRecoverScanFinished(qTaskInfo_t tinfo);
 void    qStreamCloseTsdbReader(void* task);
 void    resetTaskInfo(qTaskInfo_t tinfo);
 
+int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
+int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
+
 #ifdef __cplusplus
 }
 #endif
