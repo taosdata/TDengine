@@ -29,8 +29,8 @@ options:
     display: Server endpoint
     required: true
     description: |
-      OPC server endpoint, such as `Matrikon.OPC.Simulation.1`.
-    placeholder: Matrikon.OPC.Simulation.1
+      OPC server endpoint, such as `127.0.0.1<,localhost>/Matrikon.OPC.Simulation.1`.
+    placeholder: 127.0.0.1/Matrikon.OPC.Simulation.1
 
 strict: false
 
@@ -54,13 +54,6 @@ groups:
     display_order: 2
     description: Some configurations used in connecting step.
     params:
-      - name: nodes
-        display: DA Nodes
-        description: A OPC DA node list separated by ','.
-        hint:
-          type: str
-        placeholder: localhost
-
       - name: connect_timeout
         display: Connect Timeout
         description: |-

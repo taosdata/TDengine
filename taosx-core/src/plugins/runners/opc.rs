@@ -66,6 +66,8 @@ enum OpcError {
     ParseError(&'static str, String),
     #[error("plugin not found: {0}")]
     ExeNotFound(String),
+    #[error("{0} config error: {1}")]
+    ConfigError(&'static str, String),
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -340,20 +342,17 @@ impl OPCConfig {
             }
             Some("da") => {
                 opc_type = OpcType::OPCDA;
-                let server = dsn
-                    .addresses
-                    .first()
-                    .and_then(|addr| addr.host.clone())
-                    .expect("should config server");
-                let nodes = dsn
-                    .remove("nodes")
-                    .unwrap_or_default()
-                    .split(",")
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string())
+                let server = dsn.subject.clone();
+                if server.is_none() {
+                    return Err(OpcError::ConfigError("subject", format!("should config subject for opc da")));
+                }
+                let nodes = dsn.addresses.clone();
+                if nodes.is_empty() {
+                    return Err(OpcError::ConfigError("host", format!("should config at least one host")));
+                }
+                let nodes = nodes.into_iter().map(|addr| addr.host.unwrap().clone())
                     .collect_vec();
-                let connect_da_config = DaConnectConfig { server, nodes };
+                let connect_da_config = DaConnectConfig { server: server.unwrap(), nodes };
                 connect = ConnectConfig {
                     ua: None,
                     da: Some(connect_da_config),
