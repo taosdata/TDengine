@@ -897,8 +897,7 @@ async fn consume_flat_record(
                                         if need_add {
                                             let ipc_data_type = parser.get_ipcdatatype_from_parser(column_name);
                                             if ipc_data_type.is_none() {
-                                                log::warn!("column name {column_name} not config in parser");
-                                                break;
+                                                anyhow::bail!("column name {column_name} not config in parser");
                                             }
                                             let sql = format!(
                                                 "alter table `{}` add column `{}` {}",
