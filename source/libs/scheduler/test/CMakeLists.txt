@@ -7,10 +7,18 @@ IF(NOT TD_DARWIN)
         AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
         ADD_EXECUTABLE(schedulerTest ${SOURCE_LIST})
-        TARGET_LINK_LIBRARIES(
-                schedulerTest
-                PUBLIC os util common catalog transport gtest qcom taos_static planner scheduler
-        )
+
+        IF (TD_GRANT)
+                TARGET_LINK_LIBRARIES(
+                        schedulerTest
+                        PUBLIC os util common catalog transport gtest qcom taos_static planner scheduler grant
+                )
+        ELSE ()
+                TARGET_LINK_LIBRARIES(
+                        schedulerTest
+                        PUBLIC os util common catalog transport gtest qcom taos_static planner scheduler
+                )
+        ENDIF()
 
         TARGET_INCLUDE_DIRECTORIES(
                 schedulerTest
