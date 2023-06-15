@@ -31,7 +31,6 @@ export const watchScroll = function ({ containerId = "app", onSlideOnce = noop, 
 const handlerArray = [];
 export const bindScroll = function (handler, handlerAll) {
   if (Object.prototype.toString.call(handler).toLowerCase() !== "[object function]") {
-    console.error("bindScroll: handler必须是函数，请核查代码");
     return;
   }
   // 如果是全量监听，则给函数添加标记
