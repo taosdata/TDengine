@@ -813,6 +813,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/systable_func.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py
