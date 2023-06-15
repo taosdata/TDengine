@@ -691,6 +691,7 @@ static int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
                         .colVal = COL_VAL_NONE(idxKey->key.cid, pr->pSchema->columns[slotIds[i]].type)};
     if (!pLastCol) {
       pLastCol = &noneCol;
+      reallocVarData(&pLastCol->colVal);
     }
 
     taosArraySet(pLastArray, idxKey->idx, pLastCol);
@@ -2848,14 +2849,16 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
         tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
 
         *pCol = (SLastCol){.ts = rowTs, .colVal = *pColVal};
-        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
+        if (IS_VAR_DATA_TYPE(pColVal->type) /*&& pColVal->value.nData > 0*/) {
           pCol->colVal.value.pData = taosMemoryMalloc(pCol->colVal.value.nData);
           if (pCol->colVal.value.pData == NULL) {
             terrno = TSDB_CODE_OUT_OF_MEMORY;
             code = TSDB_CODE_OUT_OF_MEMORY;
             goto _err;
           }
-          memcpy(pCol->colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+          if (pColVal->value.nData > 0) {
+            memcpy(pCol->colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+          }
         }
 
         if (!COL_VAL_IS_VALUE(pColVal)) {
@@ -3016,14 +3019,16 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
         tsdbRowGetColVal(pRow, pTSchema, slotIds[iCol], pColVal);
 
         *pCol = (SLastCol){.ts = rowTs, .colVal = *pColVal};
-        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
+        if (IS_VAR_DATA_TYPE(pColVal->type) /*&& pColVal->value.nData > 0*/) {
           pCol->colVal.value.pData = taosMemoryMalloc(pCol->colVal.value.nData);
           if (pCol->colVal.value.pData == NULL) {
             terrno = TSDB_CODE_OUT_OF_MEMORY;
             code = TSDB_CODE_OUT_OF_MEMORY;
             goto _err;
           }
-          memcpy(pCol->colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+          if (pColVal->value.nData > 0) {
+            memcpy(pCol->colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+          }
         }
 
         /*if (COL_VAL_IS_NONE(pColVal)) {

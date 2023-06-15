@@ -665,7 +665,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SCMSubscribeReq subscribe = {0};
   tDeserializeSCMSubscribeReq(msgStr, &subscribe);
 
-  uint64_t        consumerId = subscribe.consumerId;
+  int64_t        consumerId = subscribe.consumerId;
   char           *cgroup = subscribe.cgroup;
   SMqConsumerObj *pExistedConsumer = NULL;
   SMqConsumerObj *pConsumerNew = NULL;
@@ -697,7 +697,6 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     tstrncpy(pConsumerNew->clientId, subscribe.clientId, tListLen(pConsumerNew->clientId));
 
     pConsumerNew->withTbName = subscribe.withTbName;
-    pConsumerNew->useSnapshot = subscribe.useSnapshot;
     pConsumerNew->autoCommit = subscribe.autoCommit;
     pConsumerNew->autoCommitInterval = subscribe.autoCommitInterval;
     pConsumerNew->resetOffsetCfg = subscribe.resetOffsetCfg;
@@ -1186,25 +1185,16 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->rebalanceTime, pConsumer->rebalanceTime == 0);
 
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->withTbName, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->useSnapshot, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->autoCommit, false);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->autoCommitInterval, false);
-
-      char buf[TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE] = {0};
+      char buf[TSDB_OFFSET_LEN] = {0};
       STqOffsetVal pVal = {.type = pConsumer->resetOffsetCfg};
-      tFormatOffset(varDataVal(buf), TSDB_OFFSET_LEN, &pVal);
-      varDataSetLen(buf, strlen(varDataVal(buf)));
+      tFormatOffset(buf, TSDB_OFFSET_LEN, &pVal);
+
+      char parasStr[64 + TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE] = {0};
+      sprintf(varDataVal(parasStr), "tbname:%d,commit:%d,interval:%d,reset:%s", pConsumer->withTbName, pConsumer->autoCommit, pConsumer->autoCommitInterval, buf);
+      varDataSetLen(parasStr, strlen(varDataVal(parasStr)));
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)parasStr, false);
 
       numOfRows++;
     }

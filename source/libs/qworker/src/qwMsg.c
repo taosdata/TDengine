@@ -366,7 +366,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  if (chkGrant && (!TEST_SHOW_REWRITE_MASK(msg.msgMask)) && (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS)) {
+  if (chkGrant && (!TEST_SHOW_REWRITE_MASK(msg.msgMask)) && !taosGranted()) {
     QW_ELOG("query failed cause of grant expired, msgMask:%d", msg.msgMask);
     tFreeSSubQueryMsg(&msg);
     QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);

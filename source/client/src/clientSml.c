@@ -1553,17 +1553,8 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
       }
     }
 
-    char cTmp = 0;  // for print tmp if is raw
-    if (info->isRawLine) {
-      cTmp = tmp[len];
-      tmp[len] = '\0';
-    }
-
     uDebug("SML:0x%" PRIx64 " smlParseLine israw:%d, numLines:%d, protocol:%d, len:%d, sql:%s", info->id,
-           info->isRawLine, numLines, info->protocol, len, tmp);
-    if (info->isRawLine) {
-      tmp[len] = cTmp;
-    }
+           info->isRawLine, numLines, info->protocol, len, info->isRawLine ? "rawdata" : tmp);
 
     if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
       if (info->dataFormat) {
@@ -1584,8 +1575,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
       code = TSDB_CODE_SML_INVALID_PROTOCOL_TYPE;
     }
     if (code != TSDB_CODE_SUCCESS) {
-      tmp[len] = '\0';
-      uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, tmp);
+      uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, info->isRawLine ? "rawdata" : tmp);
       return code;
     }
     if (info->reRun) {
@@ -1756,9 +1746,8 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
     request->code = code;
     info->cost.endTime = taosGetTimestampUs();
     info->cost.code = code;
-    if (code == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || code == TSDB_CODE_SDB_OBJ_CREATING ||
-        code == TSDB_CODE_PAR_VALUE_TOO_LONG || code == TSDB_CODE_MND_TRANS_CONFLICT ||
-        code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    if (NEED_CLIENT_HANDLE_ERROR(code) || code == TSDB_CODE_SDB_OBJ_CREATING ||
+        code == TSDB_CODE_PAR_VALUE_TOO_LONG || code == TSDB_CODE_MND_TRANS_CONFLICT) {
       if (cnt++ >= 10) {
         uInfo("SML:%" PRIx64 " retry:%d/10 end code:%d, msg:%s", info->id, cnt, code, tstrerror(code));
         break;
