@@ -19,19 +19,20 @@ Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 Source: "{#MyAppSourceDir}\plugins\*"; DestDir: "{app}\plugins"; Flags: recursesubdirs
 Source: "{#MyAppSourceDir}\bin\{#TaosXAgentName}.exe"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\{#TaosXName}.exe"; DestDir: "{app}\bin"
+Source: "{#MyAppSourceDir}\bin\taosx-agent-srv.*"; DestDir: "{app}\bin"
+Source: "{#MyAppSourceDir}\bin\{#TaosXName}-srv.*"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\cfg\agent.example.toml"; DestDir: "{app}\cfg"
 
 
 [run]
-Filename: {sys}\sc.exe; Parameters: "create taosx start= DEMAND binPath= ""C:\\Program Files\\taosX\\bin\\taosx.exe""" ; Flags: runhidden
-Filename: {sys}\sc.exe; Parameters: "create taosx-agent start= DEMAND binPath= ""C:\\Program Files\\taosX\\bin\\taosx-agent.exe""" ; Flags: runhidden
-
+Filename: "C:\\Program Files\\taosX\\bin\\taosx-srv.exe"; Parameters: "install" ; Flags: runhidden
+Filename: "C:\\Program Files\\taosX\\bin\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden
 
 [UninstallRun]
 RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
 RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent" ; Flags: runhidden
-RunOnceId: "deltaosx"; Filename: {sys}\sc.exe; Parameters: "delete taosx" ; Flags: runhidden
-RunOnceId: "deltaosx-agent"; Filename: {sys}\sc.exe; Parameters: "delete taosx-agent" ; Flags: runhidden
+RunOnceId: "deltaosx"; Filename: "C:\\Program Files\\taosX\\bin\\taosx-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "deltaosx-agent"; Filename: "C:\\Program Files\\taosX\\bin\\taosx-agent-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
 
 [CODE]
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -58,6 +59,8 @@ Type: files; Name: "{app}\xplugins\influxdb\*.*"
 Type: dirifempty; Name: "{app}\xplugins\pi";
 Type: dirifempty; Name: "{app}\xplugins\opc";
 Type: dirifempty; Name: "{app}\xplugins\mqtt";
+Type: files; Name: "{app}\bin\taosx-agent-srv.*"
+Type: files; Name: "{app}\bin\{#TaosXName}-srv.*"
 
 [UninstallRun]
 Filename: "{app}\uninstall.exe"; Parameters: "/SILENT"; Check: fileexists('{app}\uninstall.exe')
