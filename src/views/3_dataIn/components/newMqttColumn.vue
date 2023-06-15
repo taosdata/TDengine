@@ -1,5 +1,14 @@
 <template>
-  <ul :class="['mqtt-column', (isEditable&&(this.nonEditableCols.includes(colData['name'])||colData['name']==currentPrimary)) ? 'edit' : '']">
+  <ul
+    :class="[
+      'mqtt-column',
+      isEditable &&
+      (this.nonEditableCols.includes(colData['name']) ||
+        colData['name'] == currentPrimary)
+        ? 'edit'
+        : '',
+    ]"
+  >
     <li class="primary">
       <el-checkbox
         :value="colData['name'] == currentPrimary"
@@ -9,13 +18,18 @@
           !colData['name'] ||
           (!colData['cast'] && colData['name'] != 'ts') ||
           (colData['cast'] &&
-            !colData['cast'].toLowerCase().includes('timestamp'))||isEditable
+            !colData['cast'].toLowerCase().includes('timestamp')) ||
+          isEditable
         "
         >&nbsp;</el-checkbox
       >
     </li>
     <li class="ascolumn">
-      <el-radio
+      <span style="color: red; font-size: 24px">{{ columnChecked }}</span>
+      <el-checkbox v-model="columnChecked" @change="setColumnChecked">
+        &nbsp;
+      </el-checkbox>
+      <!-- <el-radio
         :value="radio === '1' || colData.name == currentPrimary ? '1' : '2'"
         label="1"
         @click.native="checkColumn"
@@ -25,11 +39,18 @@
             ? { display: 'flex', paddingLeft: '6px' }
             : ''
         "
-        >&nbsp;</el-radio
-      >
+        >&nbsp;</el-radio -->
+      <!-- > -->
     </li>
     <li class="astag">
-      <el-radio
+      <el-checkbox
+        v-model="tagChecked"
+        @change="setTagChecked"
+        :disabled="tagDisable"
+      >
+        &nbsp;
+      </el-checkbox>
+      <!-- <el-radio
         :value="radio"
         label="2"
         :style="
@@ -44,7 +65,7 @@
         "
         :disabled="colData['name'] == '' || colData['name'] == currentPrimary"
         >&nbsp;</el-radio
-      >
+      > -->
     </li>
     <li>
       <template v-if="constcols.includes(colData['name'])">
@@ -139,7 +160,8 @@ const timestamps = [
   },
 ];
 export default {
-  name: "MqttColumn",
+  name: "NewMqttColumn",
+  inject: ["mqttParserObj", "currentKey"],
   props: {
     index: {
       type: Number,
@@ -160,8 +182,12 @@ export default {
       default: false,
     },
   },
+
   data() {
     return {
+      columnChecked: false,
+      tagChecked: false,
+      tagDisable: false,
       nonEditableCols: ["ts", "qos", "topic"],
       num: 1,
       mqttTypes: [...dataType, ...timestamps].filter(
@@ -179,6 +205,15 @@ export default {
     };
   },
   computed: {
+    getParserObj() {
+      return this.mqttParserObj();
+    },
+    primary() {
+      return this.currentPrimary.primary;
+    },
+    // getCurrentKey(){
+    //   return this.currentKey
+    // },
     addStatus() {
       if (!this.colData.name) {
         return true;
@@ -193,6 +228,45 @@ export default {
     },
   },
   methods: {
+    //获取上次store中parser的值
+    getPreveiousParser(val, type) {
+      let oldparser = this.$store.state.app.mqttParser;
+      let columns = oldparser.model.columns;
+      let tags = oldparser.model.tags;
+      if (type == "tag") {
+        if (this.tagChecked) {
+          tags.push(val);
+        } else {
+          tags.splice(tags.indexOf(val), 1);
+        }
+      }
+      if (type == "column") {
+        if (this.columnChecked) {
+          if (!columns.includes(val)) {
+            if (this.colData.name == this.$parent.defaultSelect) {
+              columns.unshift(val);
+            } else {
+              columns.push(val);
+            }
+          }
+        } else {
+          columns.splice(columns.indexOf(val), 1);
+        }
+      }
+      console.log(oldparser, "处理过需要保存到store的parser");
+      this.$store.commit("app/SET_MQTT_PARSER", oldparser);
+    },
+    setColumnChecked() {
+      // if(this.colData['name']==this.currentPrimary){//主键状态必然选中
+      //   this.columnChecked=true
+      // }
+      this.getPreveiousParser(this.colData["name"], "column");
+      this.tagChecked = false;
+    },
+    setTagChecked() {
+      this.columnChecked = false;
+      this.getPreveiousParser(this.colData["name"], "tag");
+    },
     changeType() {
       if (
         !this.colData["cast"].toLowerCase().includes("timestamp") &&
@@ -205,20 +279,27 @@ export default {
       this.colData["cast"] = this.colData["cast"] + "(" + val + ")";
     },
     changePrimary(val) {
-      this.radio = "1";
+      this.columnChecked = true;
       this.$emit("changePrimary", val);
-      let oldparser = this.$store.state.app.mqttParser;
-      let columns = oldparser.model.columns;
-      let tags = oldparser.model.tags;
-      console.log(columns,tags,'切换主键',this.currentPrimary);
-      if (tags.includes(val)) {
-        tags.splice(tags.indexOf(val), 1);
-      }
-      if (!columns.includes(val)) {
-        columns.unshift(val);
-        this.$store.commit("app/SET_MQTT_PARSER", oldparser);
-      }
-
+      this.getPreveiousParser(val, "column");
+      // let oldparser = this.$store.state.app.mqttParser;
+      // let columns = oldparser.model.columns;
+      // let tags = oldparser.model.tags;
+      // console.log(
+      //   columns,
+      //   tags,
+      //   val,
+      //   "切换主键",
+      //   this.$parent,
+      //   this.currentPrimary
+      // );
+      // if (tags.includes(val)) {
+      //   tags.splice(tags.indexOf(val), 1);
+      // }
+      // if (!columns.includes(val)) {
+      //   columns.unshift(val);
+      //   this.$store.commit("app/SET_MQTT_PARSER", oldparser);
+      // }
     },
     watchFieldVal(val) {
       if (this.constcols.includes(val)) {
@@ -287,6 +368,9 @@ export default {
     },
   },
   mounted() {
+    if(this.$parent.defaultSelect==this.colData.name){
+      this.columnChecked=true
+    } 
     if (!this.nonEditableCols.includes(this.currentPrimary)) {
       this.nonEditableCols.concat(this.currentPrimary);
     }
@@ -300,21 +384,17 @@ export default {
         this.$emit("changeAddStatus");
       },
     },
-    // colData: {
-    //   deep: true,
-    //   handler(val) {
-    //     let oldparser = this.$store.state.app.mqttParser;
-    //     let columns = oldparser.model.columns;
-    //     if (!columns.includes(val.name)) {
-    //       //   this.radio = "";
-    //     }
-    //   },
-    // },
     currentPrimary: {
       deep: true,
       immediate: true,
       handler(val, oldVal) {
-        console.log(val, oldVal,'新老主键');
+        if (this.colData.name == val) {
+          this.columnChecked = true;
+          this.tagDisable = true;
+        } else {
+          this.columnChecked = false;
+          this.tagDisable = false;
+        }
         let oldparser = this.$store.state.app.mqttParser;
         let columns = oldparser.model.columns;
         columns.map((item, index) => {
@@ -326,21 +406,29 @@ export default {
           columns.splice(columns.indexOf(oldVal), 1);
         }
         this.$store.commit("app/SET_MQTT_PARSER", oldparser);
-        // this.radio = '1'
-        if (
-          this.colData.name !== this.currentPrimary &&
-          this.colData.name === oldVal
-        ) {
-          this.radio = "";
-        }
-        if (this.colData.name === this.currentPrimary) {
-            const timer = setTimeout(() => {
-                if (this.radio !== '1') {
-                    this.radio = "1";
-                }
-                clearTimeout(timer)
-            }, 150)
-        }
+
+        console.log(val, oldVal, "新老主键");
+        // // this.radio = '1'
+        // if (
+        //   this.colData.name !== this.currentPrimary &&
+        //   this.colData.name === oldVal
+        // ) {
+        //   this.radio = "";
+        // }
+        // if (this.colData.name === this.currentPrimary) {
+        //   const timer = setTimeout(() => {
+        //     if (this.radio !== "1") {
+        //       this.radio = "1";
+        //     }
+        //     clearTimeout(timer);
+        //   }, 150);
+        // }
+      },
+    },
+    'currentKey.primary': {
+      immediate:true,
+      handler(val) {
+        console.error(this.currentKey, this.currentKey.primary, "监听父组件主键");
       },
     },
   },

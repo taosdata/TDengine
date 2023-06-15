@@ -567,7 +567,7 @@ import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt, debounce, deepClone } from "@/utils/index";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
-import MqttConnector from "../components/mqttConnector.vue";
+import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 export default {
   name: "DbSourceUI",
@@ -681,6 +681,7 @@ export default {
   mounted() {
     if (this.tagName == "mqtt") {
       this.constmqttCols = this.dbsource[0].parser.fields;
+      console.log(this.constMqttparser,'mqtt编辑回显');
     }
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
