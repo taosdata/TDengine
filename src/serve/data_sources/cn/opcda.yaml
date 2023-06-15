@@ -22,8 +22,8 @@ options:
     display: 服务地址
     required: true
     description: |
-      OPC 服务器地址。如： `Matrikon.OPC.Simulation.1`。
-    placeholder: Matrikon.OPC.Simulation.1
+      OPC 服务器地址。如： `127.0.0.1<,localhost>/Matrikon.OPC.Simulation.1`。
+    placeholder: 127.0.0.1/Matrikon.OPC.Simulation.1
 
 strict: false
 
@@ -48,13 +48,6 @@ groups:
     display_order: 2
     description: 连接配置选项。
     params:
-      - name: nodes
-        display: DA 节点
-        description: 以逗号分隔的 DA 节点列表。
-        hint:
-          type: str
-        placeholder: localhost
-
       - name: connect_timeout
         display: 连接超时
         description: |-
