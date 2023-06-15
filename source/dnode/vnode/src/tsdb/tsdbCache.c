@@ -1200,6 +1200,9 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
 
   taosThreadMutexInit(&pTsdb->lruMutex, NULL);
 
+  pTsdb->flushState.pTsdb = pTsdb;
+  pTsdb->flushState.flush_count = 0;
+
 _err:
   pTsdb->lruCache = pCache;
   return code;
