@@ -260,7 +260,7 @@ static int32_t apply_commit(STFileSystem *fs) {
         TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetRemove);
       } else if (fset1->fid > fset2->fid) {
         // create new file set with fid of fset2->fid
-        code = tsdbTFileSetInitEx(fs->tsdb, fset2, &fset1);
+        code = tsdbTFileSetInitDup(fs->tsdb, fset2, &fset1);
         if (code) return code;
         code = TARRAY2_SORT_INSERT(fsetArray1, fset1, tsdbTFileSetCmprFn);
         if (code) return code;
@@ -278,7 +278,7 @@ static int32_t apply_commit(STFileSystem *fs) {
       TARRAY2_REMOVE(fsetArray1, i1, tsdbTFileSetRemove);
     } else {
       // create new file set with fid of fset2->fid
-      code = tsdbTFileSetInitEx(fs->tsdb, fset2, &fset1);
+      code = tsdbTFileSetInitDup(fs->tsdb, fset2, &fset1);
       if (code) return code;
       code = TARRAY2_SORT_INSERT(fsetArray1, fset1, tsdbTFileSetCmprFn);
       if (code) return code;
@@ -383,7 +383,7 @@ static int32_t tsdbFSDupState(STFileSystem *fs) {
   const STFileSet *fset1;
   TARRAY2_FOREACH(src, fset1) {
     STFileSet *fset2;
-    code = tsdbTFileSetInitEx(fs->tsdb, fset1, &fset2);
+    code = tsdbTFileSetInitDup(fs->tsdb, fset1, &fset2);
     if (code) return code;
     code = TARRAY2_APPEND(dst, fset2);
     if (code) return code;
@@ -656,7 +656,7 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
 
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    code = tsdbTFileSetInitEx(fs->tsdb, fset, &fset1);
+    code = tsdbTFileSetInitDup(fs->tsdb, fset, &fset1);
     if (code) break;
 
     code = TARRAY2_APPEND(fsetArr[0], fset1);
@@ -689,7 +689,8 @@ int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
 
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    // TODO: create ref fset of fset1
+    code = tsdbTFileSetInitRef(fs->tsdb, fset, &fset1);
+    if (code) break;
 
     code = TARRAY2_APPEND(fsetArr[0], fset1);
     if (code) break;
@@ -697,7 +698,7 @@ int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
 
   if (code) {
-    TARRAY2_DESTROY(fsetArr[0], NULL /* TODO */);
+    TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
     fsetArr[0] = NULL;
   }
   return code;
@@ -705,7 +706,7 @@ int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
 
 int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   if (fsetArr[0]) {
-    TARRAY2_DESTROY(fsetArr[0], NULL /* TODO */);
+    TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
     fsetArr[0] = NULL;
   }
   return 0;

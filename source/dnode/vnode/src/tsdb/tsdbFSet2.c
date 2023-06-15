@@ -48,6 +48,19 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
   return 0;
 }
 
+static int32_t tsdbSttLvlInitRef(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl) {
+  int32_t code = tsdbSttLvlInit(lvl1->level, lvl);
+  if (code) return code;
+
+  STFileObj *fobj1;
+  TARRAY2_FOREACH(lvl1->fobjArr, fobj1) {
+    tsdbTFileObjRef(fobj1);
+    code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj1);
+    if (code) return code;
+  }
+  return 0;
+}
+
 static void tsdbSttLvlRemoveFObj(void *data) { tsdbTFileObjRemove(*(STFileObj **)data); }
 static void tsdbSttLvlRemove(SSttLvl **lvl) {
   TARRAY2_DESTROY(lvl[0]->fobjArr, tsdbSttLvlRemoveFObj);
@@ -405,7 +418,7 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   return 0;
 }
 
-int32_t tsdbTFileSetInitEx(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset) {
+int32_t tsdbTFileSetInitDup(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset) {
   int32_t code = tsdbTFileSetInit(fset1->fid, fset);
   if (code) return code;
 
@@ -423,6 +436,33 @@ int32_t tsdbTFileSetInitEx(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fse
   TARRAY2_FOREACH(fset1->lvlArr, lvl1) {
     SSttLvl *lvl;
     code = tsdbSttLvlInitEx(pTsdb, lvl1, &lvl);
+    if (code) {
+      tsdbTFileSetClear(fset);
+      return code;
+    }
+
+    code = TARRAY2_APPEND(fset[0]->lvlArr, lvl);
+    if (code) return code;
+  }
+
+  return 0;
+}
+
+int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset) {
+  int32_t code = tsdbTFileSetInit(fset1->fid, fset);
+  if (code) return code;
+
+  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset1->farr[ftype] == NULL) continue;
+
+    tsdbTFileObjRef(fset1->farr[ftype]);
+    fset[0]->farr[ftype] = fset1->farr[ftype];
+  }
+
+  const SSttLvl *lvl1;
+  TARRAY2_FOREACH(fset1->lvlArr, lvl1) {
+    SSttLvl *lvl;
+    code = tsdbSttLvlInitRef(pTsdb, lvl1, &lvl);
     if (code) {
       tsdbTFileSetClear(fset);
       return code;
