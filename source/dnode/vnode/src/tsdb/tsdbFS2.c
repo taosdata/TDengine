@@ -684,7 +684,7 @@ int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
   int32_t    code = 0;
   STFileSet *fset, *fset1;
 
-  fsetArr[0] = taosMemoryCalloc(sizeof(*fsetArr[0]));
+  fsetArr[0] = taosMemoryMalloc(sizeof(*fsetArr[0]));
   if (fsetArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);

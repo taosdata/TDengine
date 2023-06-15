@@ -36,6 +36,9 @@ typedef enum {
   TSDB_FOP_MODIFY,
 } tsdb_fop_t;
 
+#define TFILE_SET(fid_) \
+  (STFileSet) { .fid = (fid_) }
+
 // init/clear
 int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset);
 int32_t tsdbTFileSetInitEx(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
