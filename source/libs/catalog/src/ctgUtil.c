@@ -969,13 +969,21 @@ int32_t ctgHashValueComp(void const* lp, void const* rp) {
   return 0;
 }
 
-int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName* pTableName, SVgroupInfo* pVgroup) {
+int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* dbInfo, const SName* pTableName, SVgroupInfo* pVgroup) {
   int32_t code = 0;
   CTG_ERR_RET(ctgMakeVgArray(dbInfo));
 
   int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
   char    db[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(pTableName, db);
+
+  if (IS_SYS_DBNAME(pTableName->dbname)) {
+    pVgroup->vgId = MNODE_HANDLE;
+    if (pMgmtEps) {
+      memcpy(&pVgroup->epSet, pMgmtEps, sizeof(pVgroup->epSet));
+    }
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (vgNum <= 0) {
     ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", db, vgNum);
@@ -1020,22 +1028,52 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName
   CTG_RET(code);
 }
 
-int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo* dbInfo, SCtgTbHashsCtx* pCtx,
+int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskReq* tReq, SDBVgInfo* dbInfo, SCtgTbHashsCtx* pCtx,
                                    char* dbFName, SArray* pNames, bool update) {
   int32_t   code = 0;
   SCtgTask* pTask = tReq->pTask;
   SMetaRes  res = {0};
+  SVgroupInfo* vgInfo = NULL;
 
   CTG_ERR_RET(ctgMakeVgArray(dbInfo));
+
+  int32_t      tbNum = taosArrayGetSize(pNames);
+
+  char* pSep = strchr(dbFName, '.');
+  if (pSep && IS_SYS_DBNAME(pSep + 1)) {
+    SVgroupInfo mgmtInfo = {0};
+    mgmtInfo.vgId = MNODE_HANDLE;
+    if (pMgmgEpSet) {
+      memcpy(&mgmtInfo.epSet, pMgmgEpSet, sizeof(mgmtInfo.epSet));
+    }
+    for (int32_t i = 0; i < tbNum; ++i) {
+      vgInfo = taosMemoryMalloc(sizeof(SVgroupInfo));
+      if (NULL == vgInfo) {
+        CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+
+      memcpy(vgInfo, &mgmtInfo, sizeof(mgmtInfo));
+
+      ctgDebug("Got tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
+               vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
+
+      if (update) {
+        SCtgFetch* pFetch = taosArrayGet(pCtx->pFetchs, tReq->msgIdx);
+        SMetaRes*  pRes = taosArrayGet(pCtx->pResList, pFetch->resIdx + i);
+        pRes->pRes = vgInfo;
+      } else {
+        res.pRes = vgInfo;
+        taosArrayPush(pCtx->pResList, &res);
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
 
   int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
   if (vgNum <= 0) {
     ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
-
-  SVgroupInfo* vgInfo = NULL;
-  int32_t      tbNum = taosArrayGetSize(pNames);
 
   if (1 == vgNum) {
     for (int32_t i = 0; i < tbNum; ++i) {

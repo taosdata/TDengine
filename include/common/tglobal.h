@@ -82,6 +82,7 @@ extern int64_t tsVndCommitMaxIntervalMs;
 // mnode
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
+extern int8_t  tsGrant;
 extern bool    tsMndSkipGrant;
 
 // monitor
@@ -198,6 +199,7 @@ void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
 void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
 int32_t taosApplyLocalCfg(SConfig *pCfg, char *name);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
+int8_t  taosGranted();
 
 #ifdef __cplusplus
 }

@@ -52,7 +52,7 @@ TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBench
 ### Ubuntu 18.04 及以上版本 & Debian：
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev libgeos-dev
+sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev
 ```
 
 #### 为 taos-tools 安装编译需要的软件
@@ -68,14 +68,14 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ```bash
 sudo yum install epel-release
 sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel geos geos-devel
+sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
 ### CentOS 8/Fedora/Rocky Linux
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel geos geos-devel
+sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 ```
 
 #### 在 CentOS 上构建 taosTools 安装依赖软件
@@ -117,7 +117,7 @@ scl enable devtoolset-9 -- bash
 ### macOS
 
 ```
-brew install argp-standalone pkgconfig geos
+brew install argp-standalone pkgconfig
 ```
 
 ### 设置 golang 开发环境
