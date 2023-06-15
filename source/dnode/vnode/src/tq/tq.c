@@ -1177,12 +1177,13 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     tqDebug("s-task:%s set status to be dropping", pTask->id.idStr);
 
     streamMetaSaveTask(pMeta, pTask);
+    streamMetaSaveTask(pMeta, pStreamTask);
+
     streamMetaReleaseTask(pMeta, pTask);
-//    streamMetaRemoveTask(pMeta, pTask->id.taskId);
-
     streamMetaReleaseTask(pMeta, pStreamTask);
-    if (streamMetaCommit(pTask->pMeta) < 0) {
 
+    if (streamMetaCommit(pTask->pMeta) < 0) {
+      // persist to disk
     }
   } else {
     // todo update the chkInfo version for current task.
