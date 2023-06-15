@@ -350,7 +350,7 @@ void dmRotateMnodeEpSet(SDnodeData *pData) {
 }
 
 void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  if(pData->validMnodeEps) return;
+  if(!pData->validMnodeEps) return;
   dmGetMnodeEpSet(pData, pEpSet);
   dTrace("msg is redirected, handle:%p num:%d use:%d", pMsg->info.handle, pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
