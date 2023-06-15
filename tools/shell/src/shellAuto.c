@@ -91,9 +91,14 @@ SWords shellCommands[] = {
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
     {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
+    {"create or replace <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
     {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
+    {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"compact database <db_name>", 0, 0, NULL},
+#endif
     {"describe <all_table>", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>", 0, 0, NULL},
@@ -117,7 +122,11 @@ SWords shellCommands[] = {
     {"kill connection <anyword> ;", 0, 0, NULL},
     {"kill query ", 0, 0, NULL},
     {"kill transaction ", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"merge vgroup ", 0, 0, NULL},
+#endif
+    {"pause stream <stream_name> ;", 0, 0, NULL},
+    {"resume stream <stream_name> ;", 0, 0, NULL},
     {"reset query cache;", 0, 0, NULL},
     {"restore dnode <dnode_id> ;", 0, 0, NULL},
     {"restore vnode on dnode <dnode_id> ;", 0, 0, NULL},
@@ -173,7 +182,9 @@ SWords shellCommands[] = {
     {"show vgroups;", 0, 0, NULL},
     {"show consumers;", 0, 0, NULL},
     {"show grants;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"split vgroup ", 0, 0, NULL},
+#endif    
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
@@ -432,9 +443,10 @@ void showHelp() {
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
     kill transaction <transaction_id>;\n\
-  ----- M ----- \n\
-    merge vgroup ...\n\
+  ----- P ----- \n\
+    pause stream <stream_name>;\n\
   ----- R ----- \n\
+    resume stream <stream_name>;\n\
     reset query cache;\n\
     restore dnode <dnode_id> ;\n\
     restore vnode on dnode <dnode_id> ;\n\
@@ -489,14 +501,20 @@ void showHelp() {
     show vgroups;\n\
     show consumers;\n\
     show grants;\n\
-    split vgroup ...\n\
   ----- T ----- \n\
     trim database <db_name>;\n\
   ----- U ----- \n\
     use <db_name>;");
 
-  printf("\n\n");
+#ifdef TD_ENTERPRISE
+  printf(
+      "\n\n\
+  ----- special commands on enterpise version ----- \n\
+    compact database <db_name>; \n\
+    split vgroup <vgroup_id>;");
+#endif
 
+  printf("\n\n");
   // define in getDuration() function
   printf(
       "\
