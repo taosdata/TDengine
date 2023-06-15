@@ -247,8 +247,7 @@ static int32_t adjustPartitionDataRequirement(SPartitionLogicNode* pPart, EDataO
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   pPart->node.resultDataOrder = requirement;
-  pPart->node.requireDataOrder =
-      (requirement >= DATA_ORDER_LEVEL_IN_BLOCK ? DATA_ORDER_LEVEL_GLOBAL : DATA_ORDER_LEVEL_NONE);
+  pPart->node.requireDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
 }
 
