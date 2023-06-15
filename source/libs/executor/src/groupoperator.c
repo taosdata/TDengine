@@ -647,6 +647,8 @@ uint64_t calcGroupId(char* pData, int32_t len) {
   // NOTE: only extract the initial 8 bytes of the final MD5 digest
   uint64_t id = 0;
   memcpy(&id, context.digest, sizeof(uint64_t));
+  if (0 == id)
+    memcpy(&id, context.digest + 8, sizeof(uint64_t));
   return id;
 }
 

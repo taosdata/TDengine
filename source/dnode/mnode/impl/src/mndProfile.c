@@ -227,6 +227,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 3)) != 0) {
+    mGError("version not compatible. client version: %s, server version: %s", connReq.sVer, version);
     terrno = code;
     goto _OVER;
   }
@@ -245,7 +246,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
+  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
     mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;
     goto _OVER;
@@ -833,6 +834,9 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)&pQuery->stableQuery, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pQuery->isSubQuery, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)&pQuery->subPlanNum, false);

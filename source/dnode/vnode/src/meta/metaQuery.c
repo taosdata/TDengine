@@ -17,8 +17,8 @@
 #include "osMemory.h"
 #include "tencode.h"
 
-void _metaReaderInit(SMetaReader* pReader, void* pVnode, int32_t flags, SStoreMeta* pAPI) {
-  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
+void _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI) {
+  SMeta *pMeta = ((SVnode *)pVnode)->pMeta;
   metaReaderInit(pReader, pMeta, flags);
   pReader->pAPI = pAPI;
 }
@@ -71,7 +71,7 @@ _err:
 }
 
 bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
-  SVnode* pVnodeObj = pVnode;
+  SVnode *pVnodeObj = pVnode;
   metaRLock(pVnodeObj->pMeta);  // query uid.idx
 
   if (tdbTbGet(pVnodeObj->pMeta->pUidIdx, &uid, sizeof(uid), NULL, NULL) < 0) {
@@ -143,7 +143,7 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
 int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  metaReaderInit(&mr, ((SVnode *)pVnode)->pMeta, 0);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
@@ -179,7 +179,7 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   SMetaReader *pReader = &mr;
 
   // query name.idx
-  if (tdbTbGet(((SMeta*)pReader->pMeta)->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+  if (tdbTbGet(((SMeta *)pReader->pMeta)->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     metaReaderClear(&mr);
     return -1;
@@ -195,7 +195,7 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
 int metaGetTableTypeByName(void *pVnode, char *tbName, ETableType *tbType) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
+  metaReaderInit(&mr, ((SVnode *)pVnode)->pMeta, 0);
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;
@@ -221,12 +221,13 @@ SMTbCursor *metaOpenTbCursor(void *pVnode) {
     return NULL;
   }
 
-  SVnode* pVnodeObj = pVnode;
-  metaReaderInit(&pTbCur->mr, pVnodeObj->pMeta, 0);
+  SVnode *pVnodeObj = pVnode;
+  // metaReaderInit(&pTbCur->mr, pVnodeObj->pMeta, 0);
 
-  tdbTbcOpen(pVnodeObj->pMeta->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
-
-  tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
+  // tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
+  pTbCur->pMeta = pVnodeObj->pMeta;
+  pTbCur->paused = 1;
+  metaResumeTbCursor(pTbCur, 1);
   return pTbCur;
 }
 
@@ -234,11 +235,42 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
   if (pTbCur) {
     tdbFree(pTbCur->pKey);
     tdbFree(pTbCur->pVal);
-    metaReaderClear(&pTbCur->mr);
-    if (pTbCur->pDbc) {
-      tdbTbcClose((TBC *)pTbCur->pDbc);
+    if (!pTbCur->paused) {
+      metaReaderClear(&pTbCur->mr);
+      if (pTbCur->pDbc) {
+        tdbTbcClose((TBC *)pTbCur->pDbc);
+      }
     }
     taosMemoryFree(pTbCur);
+  }
+}
+
+void metaPauseTbCursor(SMTbCursor *pTbCur) {
+  if (!pTbCur->paused) {
+    metaReaderClear(&pTbCur->mr);
+    tdbTbcClose((TBC *)pTbCur->pDbc);
+    pTbCur->paused = 1;
+  }
+}
+void metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first) {
+  if (pTbCur->paused) {
+    metaReaderInit(&pTbCur->mr, pTbCur->pMeta, 0);
+
+    tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
+
+    if (first) {
+      tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
+    } else {
+      int c = 0;
+      tdbTbcMoveTo(pTbCur->pDbc, pTbCur->pKey, pTbCur->kLen, &c);
+      if (c < 0) {
+        tdbTbcMoveToPrev(pTbCur->pDbc);
+      } else {
+        tdbTbcMoveToNext(pTbCur->pDbc);
+      }
+    }
+
+    pTbCur->paused = 0;
   }
 }
 
@@ -974,7 +1006,7 @@ typedef struct {
 } SIdxCursor;
 
 int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
-  SMeta         *pMeta = ((SVnode*)pVnode)->pMeta;
+  SMeta         *pMeta = ((SVnode *)pVnode)->pMeta;
   SMetaFltParam *param = arg;
   int32_t        ret = 0;
 
@@ -1034,7 +1066,7 @@ END:
 }
 
 int32_t metaFilterTableName(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
-  SMeta         *pMeta = ((SVnode*)pVnode)->pMeta;
+  SMeta         *pMeta = ((SVnode *)pVnode)->pMeta;
   SMetaFltParam *param = arg;
   int32_t        ret = 0;
   char          *buf = NULL;
@@ -1101,7 +1133,7 @@ END:
   return ret;
 }
 int32_t metaFilterTtl(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
-  SMeta         *pMeta = ((SVnode*)pVnode)->pMeta;
+  SMeta         *pMeta = ((SVnode *)pVnode)->pMeta;
   SMetaFltParam *param = arg;
   int32_t        ret = 0;
   char          *buf = NULL;
@@ -1132,7 +1164,7 @@ END:
   return 0;
 }
 int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
-  SMeta         *pMeta = ((SVnode*)pVnode)->pMeta;
+  SMeta         *pMeta = ((SVnode *)pVnode)->pMeta;
   SMetaFltParam *param = arg;
 
   SMetaEntry oStbEntry = {0};
@@ -1318,7 +1350,7 @@ static int32_t metaGetTableTagByUid(SMeta *pMeta, int64_t suid, int64_t uid, voi
 }
 
 int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
-  SMeta* pMeta = ((SVnode*) pVnode)->pMeta;
+  SMeta        *pMeta = ((SVnode *)pVnode)->pMeta;
   const int32_t LIMIT = 128;
 
   int32_t isLock = false;
@@ -1350,8 +1382,8 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
   return 0;
 }
 
-int32_t metaGetTableTags(void* pVnode, uint64_t suid, SArray *pUidTagInfo) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(((SVnode*)pVnode)->pMeta, suid, 1);
+int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
+  SMCtbCursor *pCur = metaOpenCtbCursor(((SVnode *)pVnode)->pMeta, suid, 1);
 
   // If len > 0 means there already have uids, and we only want the
   // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
@@ -1456,11 +1488,11 @@ _exit:
   return code;
 }
 
-int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t* numOfTables) {
+int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables) {
   int32_t code = 0;
   *numOfTables = 0;
 
-  SVnode* pVnodeObj = pVnode;
+  SVnode *pVnodeObj = pVnode;
   metaRLock(pVnodeObj->pMeta);
 
   // fast path: search cache

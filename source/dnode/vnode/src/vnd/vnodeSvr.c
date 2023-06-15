@@ -1484,6 +1484,7 @@ static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t ver) {
         pVnode->config.hashBegin, pVnode->config.hashEnd, ver);
 
   // TODO: trim meta of tables from TDB per hash range [pVnode->config.hashBegin, pVnode->config.hashEnd]
+  code = metaTrimTables(pVnode->pMeta);
 
   return code;
 }

@@ -2482,19 +2482,31 @@ _end:
 }
 
 char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
-  if (stbFullName[0] == 0) {
+  char* pBuf = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
+  if (!pBuf) {
     return NULL;
+  }
+  int32_t code = buildCtbNameByGroupIdImpl(stbFullName, groupId, pBuf);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pBuf);
+    return NULL;
+  }
+  return pBuf;
+}
+
+int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, char* cname) {
+  if (stbFullName[0] == 0) {
+    return TSDB_CODE_FAILED;
   }
 
   SArray* tags = taosArrayInit(0, sizeof(SSmlKv));
   if (tags == NULL) {
-    return NULL;
+    return TSDB_CODE_FAILED;
   }
 
-  void* cname = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
   if (cname == NULL) {
     taosArrayDestroy(tags);
-    return NULL;
+    return TSDB_CODE_FAILED;
   }
 
   SSmlKv pTag = {.key = "group_id",
@@ -2516,9 +2528,9 @@ char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
   taosArrayDestroy(tags);
 
   if ((rname.ctbShortName && rname.ctbShortName[0]) == 0) {
-    return NULL;
+    return TSDB_CODE_FAILED;
   }
-  return rname.ctbShortName;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
