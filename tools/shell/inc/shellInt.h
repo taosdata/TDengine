@@ -45,6 +45,8 @@
 #define SHELL_MAX_PKG_NUM                      1 * 1024 * 1024
 #define SHELL_MIN_PKG_NUM                      1
 #define SHELL_DEF_PKG_NUM                      100
+#define SHELL_FLOAT_WIDTH                      20
+#define SHELL_DOUBLE_WIDTH                     25
 
 typedef struct {
   char*   hist[SHELL_MAX_HISTORY_SIZE];

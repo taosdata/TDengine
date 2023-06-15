@@ -3354,6 +3354,17 @@ static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
   taosArrayDestroyEx(pRsp->topics, (FDelete)tDeleteMqSubTopicEp);
 }
 
+typedef struct {
+  int32_t      vgId;
+  STqOffsetVal offset;
+  int64_t      rows;
+}OffsetRows;
+
+typedef struct{
+  char       topicName[TSDB_TOPIC_FNAME_LEN];
+  SArray*    offsetRows;
+}TopicOffsetRows;
+
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t       suid;

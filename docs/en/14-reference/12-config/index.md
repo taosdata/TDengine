@@ -5,7 +5,7 @@ description: This document describes the configuration parameters for the TDengi
 
 ## Configuration File on Server Side
 
-On the server side, the actual service of TDengine is provided by an executable `taosd` whose parameters can be configured in file `taos.cfg` to meet the requirements of different use cases. The default location of `taos.cfg` is `/etc/taos`, but can be changed by using `-c` parameter on the CLI of `taosd`. For example, the configuration file can be put under `/home/user` and used like below
+On the server side, the actual service of TDengine is provided by an executable `taosd` whose parameters can be configured in file `taos.cfg` to meet the requirements of different use cases. The default location of `taos.cfg` is `/etc/taos` on Linux system, it's located under `C:\TDengine` on Windows system. The location of configuration file can be specified by using `-c` parameter on the CLI of `taosd`. For example, on Linux system the configuration file can be put under `/home/user` and used like below
 
 ```
 taosd -c /home/user
@@ -365,6 +365,16 @@ The charset that takes effect is UTF-8.
 | Unit          | GB                                                                                                |
 | Default Value | 2.0                                                                                               |
 
+### metaCacheMaxSize
+
+| Attribute     | Description                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| Applicable    | Client Only                                                                                       |
+| Meaning       | Maximum meta cache size in single client process                                                  |
+| Unit          | MB                                                                                                |
+| Default Value | -1 (No limitation)                                                                                |
+
+
 ## Cluster Parameters
 
 ### supportVnodes
@@ -432,6 +442,26 @@ The charset that takes effect is UTF-8.
 | Unit          | day                                                                                                                                         |
 | Default Value | 0                                                                                                                                           |
 | Note          | When it's bigger than 0, the log file would be renamed to "taosdlog.xxx" in which "xxx" is the timestamp when the file is changed last time |
+
+### slowLogThreshold
+
+| Attribute     | Description                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| Applicable    | Client only                                                                                              |
+| Meaning       | When an operation execution time exceeds this threshold, the operation will be logged in slow log file   |
+| Unit          | second                                                                                                   |
+| Default Value | 3                                                                                                        |
+| Note          | All slow operations will be logged in file "taosSlowLog" in the log directory                            |
+
+### slowLogScope
+
+| Attribute       | Description                                                             |
+| --------------- | ----------------------------------------------------------------------- |
+| Applicable      | Client only                                                             |
+| Meaning         | Slow log type to be logged                                              |
+| Optional Values | ALL, QUERY, INSERT, OTHERS, NONE                                        |
+| Default Value   | ALL                                                                     |
+| Note            | All slow operations will be logged by default, one option could be set  |
 
 ### debugFlag
 

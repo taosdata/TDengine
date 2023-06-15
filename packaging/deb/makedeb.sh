@@ -31,7 +31,6 @@ cd ${pkg_dir}
 
 libfile="libtaos.so.${tdengine_ver}"
 wslibfile="libtaosws.so"
-rocksdblib="librocksdb.so.8"
 
 # create install dir
 install_home_path="/usr/local/taos"
@@ -95,7 +94,6 @@ fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
-[ -f ${compile_dir}/build/lib/${rocksdblib} ] && cp ${compile_dir}/build/lib/${rocksdblib}            ${pkg_dir}${install_home_path}/driver ||:
 [ -f ${compile_dir}/build/lib/${wslibfile} ] && cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver ||:
 cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
@@ -126,12 +124,12 @@ if [ -f ${compile_dir}/build/bin/jemalloc-config ]; then
         cp ${compile_dir}/build/lib/libjemalloc.so.2 ${pkg_dir}${install_user_local_path}/lib/
         ln -sf libjemalloc.so.2 ${pkg_dir}${install_user_local_path}/lib/libjemalloc.so
     fi
-    if [ -f ${compile_dir}/build/lib/libjemalloc.a ]; then
-        cp ${compile_dir}/build/lib/libjemalloc.a ${pkg_dir}${install_user_local_path}/lib/
-    fi
-    if [ -f ${compile_dir}/build/lib/libjemalloc_pic.a ]; then
-        cp ${compile_dir}/build/lib/libjemalloc_pic.a ${pkg_dir}${install_user_local_path}/lib/
-    fi
+    # if [ -f ${compile_dir}/build/lib/libjemalloc.a ]; then
+    #     cp ${compile_dir}/build/lib/libjemalloc.a ${pkg_dir}${install_user_local_path}/lib/
+    # fi
+    # if [ -f ${compile_dir}/build/lib/libjemalloc_pic.a ]; then
+    #     cp ${compile_dir}/build/lib/libjemalloc_pic.a ${pkg_dir}${install_user_local_path}/lib/
+    # fi
     if [ -f ${compile_dir}/build/lib/pkgconfig/jemalloc.pc ]; then
         cp ${compile_dir}/build/lib/pkgconfig/jemalloc.pc ${pkg_dir}${install_user_local_path}/lib/pkgconfig/
     fi
