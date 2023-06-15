@@ -222,8 +222,6 @@ SMTbCursor *metaOpenTbCursor(void *pVnode) {
   }
 
   SVnode* pVnodeObj = pVnode;
-  metaReaderDoInit(&pTbCur->mr, pVnodeObj->pMeta, 0);
-
   // tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
   pTbCur->pMeta = pVnodeObj->pMeta;
   pTbCur->paused = 1;
