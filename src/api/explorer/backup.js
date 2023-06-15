@@ -40,3 +40,16 @@ export function deleteBackup(id){
         method: "delete"
     });
 }
+
+//恢复backup
+export function restorBackupData(clusterID,data) {
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        headers:{
+            "Content-Type":"application/json"
+        },
+        url: `/tasks?lang=${language}&labels=type::restore,cluster-id::${clusterID}`,
+        method: "post",
+        data
+    });
+}

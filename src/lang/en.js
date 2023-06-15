@@ -1781,6 +1781,7 @@ export default {
     activationLicense: 'Activate',
     activeCode: 'Activation code',
     cActiveCode: 'Activation Code for Connectors',
+    dataRestoration: 'Restore'
   },
   taosagents: {
     edittitle: 'Edit Agent',
