@@ -441,7 +441,9 @@ typedef struct SQuery {
   EQueryExecStage execStage;
   EQueryExecMode  execMode;
   bool            haveResultSet;
+  SNode*          pPrevRoot;
   SNode*          pRoot;
+  SNode*          pPostRoot;
   int32_t         numOfResCols;
   SSchema*        pResSchema;
   int8_t          precision;

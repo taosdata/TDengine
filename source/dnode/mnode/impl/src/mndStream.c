@@ -771,7 +771,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mndTransDrop(pTrans);
     goto _OVER;
   }
@@ -926,7 +926,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "stream-checkpoint");
   if (pTrans == NULL) return -1;
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     mndReleaseStream(pMnode, pStream);
     mndTransDrop(pTrans);
     return -1;
@@ -1037,7 +1037,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   mInfo("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return -1;
@@ -1405,7 +1405,7 @@ static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
   mInfo("trans:%d, used to pause stream:%s", pTrans->id, pauseReq.name);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return -1;
@@ -1513,7 +1513,7 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   mInfo("trans:%d, used to pause stream:%s", pTrans->id, pauseReq.name);
 
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return -1;

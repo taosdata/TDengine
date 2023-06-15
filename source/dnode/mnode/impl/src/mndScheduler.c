@@ -712,23 +712,19 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
     mDebug("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp->vgId);
 
-    if (pSubplan) {
-      int32_t msgLen;
-
-      pSubplan->execNode.epSet = pVgEp->epSet;
-      pSubplan->execNode.nodeId = pVgEp->vgId;
-
-      if (qSubPlanToString(pSubplan, &pVgEp->qmsg, &msgLen) < 0) {
-        sdbRelease(pSdb, pVgroup);
-        qDestroyQueryPlan(pPlan);
-        terrno = TSDB_CODE_QRY_INVALID_INPUT;
-        return -1;
-      }
-    } else {
-      pVgEp->qmsg = taosStrdup("");
-    }
-
     sdbRelease(pSdb, pVgroup);
+  }
+
+  if (pSubplan) {
+    int32_t msgLen;
+
+    if (qSubPlanToString(pSubplan, &pSub->qmsg, &msgLen) < 0) {
+      qDestroyQueryPlan(pPlan);
+      terrno = TSDB_CODE_QRY_INVALID_INPUT;
+      return -1;
+    }
+  } else {
+    pSub->qmsg = taosStrdup("");
   }
 
   qDestroyQueryPlan(pPlan);

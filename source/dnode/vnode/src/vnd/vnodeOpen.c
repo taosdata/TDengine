@@ -129,6 +129,12 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   return 0;
 }
 
+static int32_t vnodeVgroupIdLen(int32_t vgId) {
+  char tmp[TSDB_FILENAME_LEN];
+  sprintf(tmp, "%d", vgId);
+  return strlen(tmp);
+}
+
 int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs) {
   int32_t ret = tfsRename(pTfs, srcPath, dstPath);
   if (ret != 0) return ret;
@@ -154,8 +160,7 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
 
     int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + 6);
     if (tsdbFileVgId == srcVgId) {
-      char *tsdbFileSurfixPos = strstr(tsdbFilePrefixPos, "f");
-      if (tsdbFileSurfixPos == NULL) continue;
+      char *tsdbFileSurfixPos = tsdbFilePrefixPos + 6 + vnodeVgroupIdLen(srcVgId);
 
       tsdbFilePrefixPos[6] = 0;
       snprintf(newRname, TSDB_FILENAME_LEN, "%s%d%s", oldRname, dstVgId, tsdbFileSurfixPos);
