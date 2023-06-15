@@ -227,6 +227,16 @@ endif(${BUILD_WITH_LEVELDB})
 
 # rocksdb
 # To support rocksdb build on ubuntu: sudo apt-get install libgflags-dev
+if (${BUILD_WITH_UV})
+    if(${TD_LINUX})
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
+        IF ("${CMAKE_BUILD_TYPE}" STREQUAL "")
+            SET(CMAKE_BUILD_TYPE Release)
+        endif()
+    endif(${TD_LINUX})
+endif (${BUILD_WITH_UV})
+
 if(${BUILD_WITH_ROCKSDB})
     if(${TD_LINUX})
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL} -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=unused-function -Wno-errno=unused-private-field -Wno-error=unused-result")
