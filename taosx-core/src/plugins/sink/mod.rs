@@ -46,7 +46,7 @@ use taosx_ipc::{
 //     Records(Vec<(String, Vec<ColumnView>)>),
 // }
 
-#[instrument(skip(stream, cancel))]
+#[instrument(skip(stream, cancel, token))]
 async fn ipc_tcp_forward(
     client: String,
     stream: socket2::Socket,
