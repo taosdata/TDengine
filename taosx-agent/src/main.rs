@@ -242,9 +242,6 @@ fn main() -> anyhow::Result<()> {
 
     layers.push(
         tracing_subscriber::fmt::layer()
-            .with_timer(LocalTime::new(format_description!(
-                "[year]-[month]-[day] [hour repr:24]:[minute]:[second].[subsecond digits:6]"
-            )))
             .with_level(true)
             .with_thread_ids(true)
             .with_thread_names(true)
@@ -258,9 +255,6 @@ fn main() -> anyhow::Result<()> {
     if atty::is(atty::Stream::Stdout) {
         layers.push(
             tracing_subscriber::fmt::layer()
-                .with_timer(LocalTime::new(format_description!(
-                    "[year]-[month]-[day] [hour repr:24]:[minute]:[second].[subsecond digits:6]"
-                )))
                 .with_level(true)
                 .with_writer(std::io::stdout)
                 .pretty()
