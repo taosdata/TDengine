@@ -254,7 +254,6 @@ void streamBackendCleanup(void* arg) {
 }
 void streamBackendHandleCleanup(void* arg) {
   SBackendWrapper* wrapper = arg;
-  bool             remove = false;
 
   qDebug("start to do-close backendwrapper %p, %s", wrapper, wrapper->idstr);
   if (wrapper->rocksdb == NULL) {
@@ -296,7 +295,7 @@ void streamBackendHandleCleanup(void* arg) {
     rocksdb_block_based_options_destroy(((RocksdbCfParam*)wrapper->param)[i].tableOpt);
   }
 
-  if (remove) {
+  if (wrapper->remove) {
     streamBackendDelCompare(wrapper->pBackend, wrapper->pComparNode);
   }
   rocksdb_writeoptions_destroy(wrapper->writeOpts);
@@ -1001,6 +1000,7 @@ void streamStateCloseBackend(SStreamState* pState, bool remove) {
   char* status[] = {"close", "drop"};
   qInfo("start to close %s state %p on backendWrapper %p %s", status[remove == false ? 0 : 1], pState, wrapper,
         wrapper->idstr);
+  wrapper->remove |= remove;  // update by other pState
   taosReleaseRef(streamBackendWrapperId, pState->pTdbState->backendWrapperId);
 }
 void streamStateDestroyCompar(void* arg) {
