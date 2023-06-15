@@ -3055,9 +3055,9 @@ static bool needFill(SNode* pNode) {
 
 static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList* pValues, int32_t index) {
   SListCell* pCell = nodesListGetCell(pValues, index);
-  //if (dataTypeEqual(&dt, &((SExprNode*)pCell->pNode)->resType)) {
-  //  return TSDB_CODE_SUCCESS;
-  //}
+  if (dataTypeEqual(&dt, &((SExprNode*)pCell->pNode)->resType) && (QUERY_NODE_VALUE == nodeType(pCell->pNode))) {
+    return TSDB_CODE_SUCCESS;
+  }
   SNode*  pCastFunc = NULL;
   int32_t code = createCastFunc(pCxt, pCell->pNode, dt, &pCastFunc);
   if (TSDB_CODE_SUCCESS == code) {
