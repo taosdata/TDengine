@@ -841,6 +841,7 @@ impl TaskController {
 
     pub async fn validate_connector_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
         let taos = TaosBuilder::from_dsn(to)?.build().await?;
+
         let endpoint = match (
             from.addresses[0].host.as_deref(),
             from.addresses[0].port.as_ref(),
@@ -855,11 +856,22 @@ impl TaskController {
             .await
             .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
             .unwrap();
-        let used : u32 =
-                    sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
+        let exists : u32 =
+                    sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
                         .fetch_one(&self.pool)
                         .await?;
+        if exists > 0 {
+            return Ok(());
+        }
 
+        let used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%';",cluster_id, from.driver))
+                        .fetch_all(&self.pool)
+                        .await?;
+        let used = used
+            .into_iter()
+            .map(|s| s.parse::<Dsn>().unwrap().addresses[0].to_string())
+            .collect::<std::collections::HashSet<_>>()
+            .len();
         // let license = taos.query_one(sql)
         let connector = match from.driver.as_str() {
             "opcua" => "opc_ua",
@@ -888,7 +900,7 @@ impl TaskController {
                 match license.number {
                     0 => anyhow::bail!("Connector {connector} is disabled by license"),
                     n if n > 0 => {
-                        if used >= n as u32 {
+                        if used >= n as _ {
                             anyhow::bail!("Connector {connector} reaches connection number limit({n}) by license");
                         }
                     }
