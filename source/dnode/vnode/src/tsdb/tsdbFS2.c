@@ -679,3 +679,34 @@ int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr) {
   }
   return 0;
 }
+
+int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
+  int32_t    code = 0;
+  STFileSet *fset, *fset1;
+
+  fsetArr[0] = taosMemoryCalloc(sizeof(*fsetArr[0]));
+  if (fsetArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  TARRAY2_FOREACH(fs->fSetArr, fset) {
+    // TODO: create ref fset of fset1
+
+    code = TARRAY2_APPEND(fsetArr[0], fset1);
+    if (code) break;
+  }
+  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+
+  if (code) {
+    TARRAY2_DESTROY(fsetArr[0], NULL /* TODO */);
+    fsetArr[0] = NULL;
+  }
+  return code;
+}
+
+int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
+  if (fsetArr[0]) {
+    TARRAY2_DESTROY(fsetArr[0], NULL /* TODO */);
+    fsetArr[0] = NULL;
+  }
+  return 0;
+}

@@ -38,6 +38,8 @@ int32_t tsdbCloseFS(STFileSystem **fs);
 // snapshot
 int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
 int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr);
+int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
+int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr);
 // txn
 int64_t tsdbFSAllocEid(STFileSystem *fs);
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
