@@ -129,30 +129,38 @@ typedef struct SSerializeDataHandle {
 } SSerializeDataHandle;
 
 // incremental state storage
-typedef struct STdbState {
-  void               *rocksdb;
-  void              **pHandle;
-  void               *writeOpts;
-  void               *readOpts;
-  void              **cfOpts;
-  void               *dbOpt;
-  struct SStreamTask *pOwner;
-  void               *param;
-  void               *env;
-  SListNode          *pComparNode;
-  void               *pBackend;
-  char                idstr[64];
-  void               *compactFactory;
-  TdThreadRwlock      rwLock;
 
-  void *db;
-  void *pStateDb;
-  void *pFuncStateDb;
-  void *pFillStateDb;  // todo refactor
-  void *pSessionStateDb;
-  void *pParNameDb;
-  void *pParTagDb;
-  void *txn;
+typedef struct SBackendWrapper {
+  void          *rocksdb;
+  void         **pHandle;
+  void          *writeOpts;
+  void          *readOpts;
+  void         **cfOpts;
+  void          *dbOpt;
+  void          *param;
+  void          *env;
+  SListNode     *pComparNode;
+  void          *pBackend;
+  void          *compactFactory;
+  TdThreadRwlock rwLock;
+  bool           remove;
+  int64_t        backendId;
+  char           idstr[64];
+} SBackendWrapper;
+typedef struct STdbState {
+  SBackendWrapper *pBackendWrapper;
+  int64_t          backendWrapperId;
+  char             idstr[64];
+
+  struct SStreamTask *pOwner;
+  void               *db;
+  void               *pStateDb;
+  void               *pFuncStateDb;
+  void               *pFillStateDb;  // todo refactor
+  void               *pSessionStateDb;
+  void               *pParNameDb;
+  void               *pParTagDb;
+  void               *txn;
 } STdbState;
 
 typedef struct {

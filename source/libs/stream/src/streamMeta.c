@@ -21,10 +21,17 @@
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
-static void         streamMetaEnvInit() { streamBackendId = taosOpenRef(20, streamBackendCleanup); }
+int32_t             streamBackendWrapperId = 0;
+static void         streamMetaEnvInit() {
+  streamBackendId = taosOpenRef(64, streamBackendCleanup);
+  streamBackendWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
+}
 
 void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
-void streamMetaCleanup() { taosCloseRef(streamBackendId); }
+void streamMetaCleanup() {
+  taosCloseRef(streamBackendId);
+  taosCloseRef(streamBackendWrapperId);
+}
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
   int32_t      code = -1;
@@ -90,10 +97,14 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   pMeta->streamBackend = streamBackendInit(streamPath);
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
+  pMeta->pTaskBackendUnique =
+      taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 
   taosMemoryFree(streamPath);
 
   taosInitRWLatch(&pMeta->lock);
+  taosThreadMutexInit(&pMeta->backendMutex, NULL);
+
   return pMeta;
 
 _err:
@@ -136,6 +147,8 @@ void streamMetaClose(SStreamMeta* pMeta) {
   taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
   pMeta->pTaskList = taosArrayDestroy(pMeta->pTaskList);
   taosMemoryFree(pMeta->path);
+  taosThreadMutexDestroy(&pMeta->backendMutex);
+  taosHashCleanup(pMeta->pTaskBackendUnique);
   taosMemoryFree(pMeta);
 }
 
