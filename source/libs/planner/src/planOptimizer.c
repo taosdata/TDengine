@@ -1241,6 +1241,7 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
       if ((ORDER_DESC == order && pScan->scanSeq[0] > 0) || (ORDER_ASC == order && pScan->scanSeq[1] > 0)) {
         TSWAP(pScan->scanSeq[0], pScan->scanSeq[1]);
       }
+      pScan->node.outputTsOrder = order;
       if (TSDB_SUPER_TABLE == pScan->tableType) {
         pScan->scanType = SCAN_TYPE_TABLE_MERGE;
         pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
@@ -2922,7 +2923,7 @@ static int32_t sortNonPriKeyOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
     optSetParentOrder(pSort->node.pParent, pOrderByExpr->order, NULL);
   }
   pCxt->optimized = false;
-  nodesDestroyList(pNodeList);
+  nodesClearList(pNodeList);
   return TSDB_CODE_SUCCESS;
 }
 

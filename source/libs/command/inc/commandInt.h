@@ -91,7 +91,7 @@ extern "C" {
 #define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
 #define EXPLAIN_MODE_FORMAT "mode=%s"
 #define EXPLAIN_STRING_TYPE_FORMAT "%s"
-#define EXPLAIN_INPUT_ORDER_FORMAT "input_ts_order=%s"
+#define EXPLAIN_INPUT_ORDER_FORMAT "input_order=%s"
 #define EXPLAIN_OUTPUT_ORDER_TYPE_FORMAT "output_order=%s"
 #define EXPLAIN_OFFSET_FORMAT "offset=%" PRId64
 #define EXPLAIN_SOFFSET_FORMAT "soffset=%" PRId64
