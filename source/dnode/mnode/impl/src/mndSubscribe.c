@@ -724,6 +724,23 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     return -1;
   }
 
+  void           *pIter = NULL;
+  SMqConsumerObj *pConsumer;
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (strcmp(dropReq.cgroup, pConsumer->cgroup) == 0) {
+      sdbRelease(pMnode->pSdb, pConsumer);
+      terrno = TSDB_CODE_MND_CGROUP_USED;
+      mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+      return -1;
+    }
+    sdbRelease(pMnode->pSdb, pConsumer);
+  }
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "drop-cgroup");
   if (pTrans == NULL) {
     mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());

@@ -140,7 +140,7 @@ typedef enum {
   CONSUMER_UPDATE_REB_MODIFY_NOTOPIC = 1,   // topic do not need modified after rebalance
   CONSUMER_UPDATE_REB_MODIFY_TOPIC,         // topic need modified after rebalance
   CONSUMER_UPDATE_REB_MODIFY_REMOVE,        // topic need removed after rebalance
-  CONSUMER_UPDATE_TIMER_LOST,
+//  CONSUMER_UPDATE_TIMER_LOST,
   CONSUMER_UPDATE_RECOVER,
   CONSUMER_UPDATE_SUB_MODIFY,      // modify after subscribe req
 } ECsmUpdateType;

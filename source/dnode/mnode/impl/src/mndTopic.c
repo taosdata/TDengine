@@ -697,8 +697,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       break;
     }
 
-    if (pConsumer->status == MQ_CONSUMER_STATUS__LOST_REBD) continue;
-
     int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
     for (int32_t i = 0; i < sz; i++) {
       char *name = taosArrayGetP(pConsumer->assignedTopics, i);
