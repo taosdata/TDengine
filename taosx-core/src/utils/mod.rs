@@ -64,10 +64,9 @@ pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
         } else {
             let file = file.unwrap();
             let f = std::fs::File::open(&file[1..]);
-            if f.is_err() {
-                log::warn!("file: {} read error", file);
+            if let Err(err) = f {
+                log::error!("file: {} read error, cause: {}", file, err.to_string());
                 None
-                // return Err("file read error".to_string());
             } else {
                 let buf = std::io::BufReader::new(f.unwrap());
                 let file_data = buf.lines().collect_vec().iter().filter_map(|r| r.as_ref().ok()).join("");

@@ -210,11 +210,14 @@ impl Cli {
                     if file_content.is_none() {
                         None
                     } else {
-                        Some(serde_json::from_str(file_content.unwrap().as_str()).unwrap())
+                        Some(serde_json::from_str(file_content.unwrap().as_str()).with_context(|| format!("file content deserialize error")).unwrap())
                     }
                 } else {
                     None
                 };
+                if parser.is_none() {
+                    anyhow::bail!("parser config error");
+                }
                 mqtt_to_taos(
                     args.from,
                     parser,
