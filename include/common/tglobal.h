@@ -83,6 +83,7 @@ extern int64_t tsVndCommitMaxIntervalMs;
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern int8_t  tsGrant;
+extern bool    tsMndSkipGrant;
 
 // monitor
 extern bool     tsEnableMonitor;

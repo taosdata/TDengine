@@ -75,6 +75,7 @@ int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
 int64_t tsMndSdbWriteDelta = 200;
 int64_t tsMndLogRetention = 2000;
 int8_t  tsGrant = 1;
+bool    tsMndSkipGrant = false;
 
 // monitor
 bool     tsEnableMonitor = true;
