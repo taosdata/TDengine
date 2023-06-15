@@ -7,6 +7,14 @@
       <div class="flexEnd">
         <el-button
           plain
+          @click="refresh"
+          size="small"
+          icon="el-icon-refresh"
+          :disabled="requestIng"
+          >{{ $t("refresh") }}</el-button
+        >
+        <el-button
+          plain
           @click="dialog = true"
           size="small"
           icon="el-icon-plus"
@@ -18,6 +26,7 @@
         :data="topicList"
         size="mini"
         max-height="250"
+        v-loading="requestIng"
       >
       <el-table-column
           :label="$t('datasource.taskid')"
@@ -190,6 +199,7 @@ export default {
       total: 10,
       dialog: false,
       topicList: [],
+      requestIng: false
     };
   },
   methods: {
@@ -262,6 +272,7 @@ export default {
 
     async getList() {
       try {
+        this.requestIng = true
         this.topicList = [];
         let id = localStorage.getItem("local_clusterID");
         await getDatain(id).then((res) => {
@@ -277,9 +288,11 @@ export default {
                 : "";
               return item;
             });
+            this.requestIng = false
           }
         });
       } catch (err) {
+        this.requestIng = false
         return Promise.reject(err);
       }
     },
