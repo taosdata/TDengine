@@ -176,6 +176,7 @@ void tFreeStreamObj(SStreamObj *pStream) {
   }
 
   taosArrayDestroy(pStream->tasks);
+  taosArrayDestroy(pStream->pHTasksList);
 
   // tagSchema.pSchema
   if (pStream->tagSchema.nCols > 0) {

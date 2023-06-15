@@ -2903,12 +2903,14 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
     }
     taosArrayDestroy(pInfo->pChildren);
   }
+
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
   blockDataDestroy(pInfo->pWinBlock);
   blockDataDestroy(pInfo->pUpdateRes);
   tSimpleHashCleanup(pInfo->pStDeleted);
 
+  taosArrayDestroy(pInfo->historyWins);
   taosMemoryFreeClear(param);
 }
 
