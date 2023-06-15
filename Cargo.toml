@@ -101,6 +101,9 @@ taosx-ipc = { path = "./taosx-ipc" }
 taos = { workspace = true }
 taosx-core = { path = "./taosx-core", default-features = false }
 
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = { version = "0.5", optional = true }
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 
@@ -119,6 +122,7 @@ tower = "0.4"
 default = ["optin", "rustls"]
 optin = ["taos/optin", "taosx-core/optin"]
 sys = ["taos/native", "taosx-core/sys"]
+jemallocator = ["tikv-jemallocator"]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls", "taosx-core/rustls"]
 native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls", "taosx-core/native-tls"]
 disable-enterprise-only-validation = ["taosx-core/disable-enterprise-only-validation"]
