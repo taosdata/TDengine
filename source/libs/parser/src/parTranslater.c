@@ -1666,8 +1666,9 @@ static int32_t translateForbidSysTableFunc(STranslateContext* pCxt, SFunctionNod
   }
 
   SSelectStmt*   pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
-  if (NULL != pTable && TSDB_SYSTEM_TABLE == pTable->pMeta->tableType) {
+  SNode*          pTable = pSelect->pFromTable;
+  if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable) &&
+      TSDB_SYSTEM_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC, pFunc->functionName);
   }
   return TSDB_CODE_SUCCESS;
