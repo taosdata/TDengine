@@ -244,7 +244,7 @@ int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t 
 void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param);
 
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode);
-void*   taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz);
+void* taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz, int8_t sver);
 
 #ifdef __cplusplus
 }
