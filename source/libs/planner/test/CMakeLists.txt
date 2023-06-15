@@ -12,10 +12,17 @@ IF(NOT TD_DARWIN)
         "${SOURCE_LIST}/../../../parser/test/mockCatalogService.cpp"
     )
 
-    TARGET_LINK_LIBRARIES(
-            plannerTest
-            PUBLIC os util common nodes planner parser catalog transport gtest function qcom
-    )
+    IF (TD_GRANT)
+        TARGET_LINK_LIBRARIES(
+                plannerTest
+                PUBLIC os util common nodes planner parser catalog transport gtest function qcom grant
+        )
+    ELSE ()
+        TARGET_LINK_LIBRARIES(
+                plannerTest
+                PUBLIC os util common nodes planner parser catalog transport gtest function qcom
+        )
+    ENDIF()
 
     TARGET_INCLUDE_DIRECTORIES(
             plannerTest
