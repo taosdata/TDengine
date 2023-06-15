@@ -49,6 +49,8 @@ fn labeling(mut file: &File) -> SdResult<()> {
     )?;
     writeln!(file, r#"pub const CUS_CLI_ABOUT: &str = "{}";"#, content)?;
 
+    println!("cargo:rerun-if-env-changed=PKG_TIME");
+
     Ok(())
 }
 fn main() {
