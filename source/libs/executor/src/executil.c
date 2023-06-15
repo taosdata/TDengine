@@ -1246,7 +1246,7 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
   return TSDB_CODE_SUCCESS;
 }
 
-SArray* extractPartitionColInfo(SNodeList* pNodeList) {
+SArray* makeColumnArrayFromList(SNodeList* pNodeList) {
   if (!pNodeList) {
     return NULL;
   }

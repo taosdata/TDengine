@@ -410,6 +410,17 @@ typedef struct SSortMergeJoinPhysiNode {
   SNode*     pColEqualOnConditions;
 } SSortMergeJoinPhysiNode;
 
+typedef struct SHashJoinPhysiNode {
+  SPhysiNode node;
+  EJoinType  joinType;
+  SNodeList* pOnLeft;
+  SNodeList* pOnRight;
+  SNode*     pOnConditions;
+  SNode*     pFilterConditions;
+  SNodeList* pTargets;
+  SQueryStat inputStat[2];
+} SHashJoinPhysiNode;
+
 typedef struct SAggPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of group_by_clause and parameter expression of aggregate function

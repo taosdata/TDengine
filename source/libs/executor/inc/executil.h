@@ -162,7 +162,7 @@ int32_t  getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode
 size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
 SArray* createSortInfo(SNodeList* pNodeList);
-SArray* extractPartitionColInfo(SNodeList* pNodeList);
+SArray* makeColumnArrayFromList(SNodeList* pNodeList);
 int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type, SColMatchInfo* pMatchInfo);
 

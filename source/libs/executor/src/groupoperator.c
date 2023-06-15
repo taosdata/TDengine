@@ -846,7 +846,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
 
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pPartNode->pTargets, NULL, &numOfCols);
-  pInfo->pGroupCols = extractPartitionColInfo(pPartNode->pPartitionKeys);
+  pInfo->pGroupCols = makeColumnArrayFromList(pPartNode->pPartitionKeys);
 
   if (pPartNode->pExprs != NULL) {
     int32_t    num = 0;
@@ -1240,7 +1240,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
     goto _error;
   }
 
-  pInfo->partitionSup.pGroupCols = extractPartitionColInfo(pPartNode->part.pPartitionKeys);
+  pInfo->partitionSup.pGroupCols = makeColumnArrayFromList(pPartNode->part.pPartitionKeys);
 
   if (pPartNode->part.pExprs != NULL) {
     int32_t    num = 0;

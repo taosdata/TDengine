@@ -26,7 +26,7 @@
 #include "tmsg.h"
 #include "ttypes.h"
 
-typedef struct SJoinRowCtx {
+typedef struct SMJoinRowCtx {
   bool    rowRemains;
   int64_t ts;
   SArray* leftRowLocations;
@@ -37,9 +37,9 @@ typedef struct SJoinRowCtx {
 
   bool    rightUseBuildTable;
   SArray* rightRowLocations;
-} SJoinRowCtx;
+} SMJoinRowCtx;
 
-typedef struct SJoinOperatorInfo {
+typedef struct SMJoinOperatorInfo {
   SSDataBlock* pRes;
   int32_t      joinType;
   int32_t      inputOrder;
@@ -63,16 +63,16 @@ typedef struct SJoinOperatorInfo {
   int32_t      rightEqOnCondKeyLen;
 
   SSHashObj*   rightBuildTable;
-  SJoinRowCtx  rowCtx;
-} SJoinOperatorInfo;
+  SMJoinRowCtx  rowCtx;
+} SMJoinOperatorInfo;
 
 static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void         destroyMergeJoinOperator(void* param);
-static void         extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t num,
+static void         extractTimeCondition(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t num,
                                          SSortMergeJoinPhysiNode* pJoinNode, const char* idStr);
 
-static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream,  int32_t num,
+static void extractTimeCondition(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream,  int32_t num,
                                  SSortMergeJoinPhysiNode* pJoinNode, const char* idStr) {
   SNode* pMergeCondition = pJoinNode->pMergeCondition;
   if (nodeType(pMergeCondition) != QUERY_NODE_OPERATOR) {
@@ -104,7 +104,7 @@ static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDown
   setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
 }
 
-static void extractEqualOnCondColsFromOper(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstreams, SOperatorNode* pOperNode,
+static void extractEqualOnCondColsFromOper(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstreams, SOperatorNode* pOperNode,
                                        SColumn* pLeft, SColumn* pRight) {
   SColumnNode* pLeftNode = (SColumnNode*)pOperNode->pLeft;
   SColumnNode* pRightNode = (SColumnNode*)pOperNode->pRight;
@@ -117,7 +117,7 @@ static void extractEqualOnCondColsFromOper(SJoinOperatorInfo* pInfo, SOperatorIn
   }
 }
 
-static void extractEqualOnCondCols(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownStream, SNode* pEqualOnCondNode,
+static void extractEqualOnCondCols(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownStream, SNode* pEqualOnCondNode,
                                     SArray* leftTagEqCols, SArray* rightTagEqCols) {
   SColumn left = {0};
   SColumn right = {0};
@@ -200,7 +200,7 @@ static int32_t fillKeyBufFromTagCols(SArray* pCols, SSDataBlock* pBlock, int32_t
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
-  SJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SJoinOperatorInfo));
+  SMJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMJoinOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -308,7 +308,7 @@ static void mergeJoinDestoryBuildTable(SSHashObj* pBuildTable) {
 }
 
 void destroyMergeJoinOperator(void* param) {
-  SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
+  SMJoinOperatorInfo* pJoinOperator = (SMJoinOperatorInfo*)param;
   if (pJoinOperator->pColEqualOnConditions != NULL) {
     mergeJoinDestoryBuildTable(pJoinOperator->rightBuildTable);
     taosMemoryFreeClear(pJoinOperator->rightEqOnCondKeyBuf);
@@ -331,7 +331,7 @@ void destroyMergeJoinOperator(void* param) {
 static void mergeJoinJoinLeftRight(struct SOperatorInfo* pOperator, SSDataBlock* pRes, int32_t currRow,
                                    SSDataBlock* pLeftBlock, int32_t leftPos, SSDataBlock* pRightBlock,
                                    int32_t rightPos) {
-  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+  SMJoinOperatorInfo* pJoinInfo = pOperator->info;
 
   for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
     SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, i);
@@ -408,7 +408,7 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
                                                         SArray* createdBlocks) {
   ASSERT(whichChild == 0 || whichChild == 1);
 
-  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+  SMJoinOperatorInfo* pJoinInfo = pOperator->info;
   int32_t            endPos = -1;
   SSDataBlock*       dataBlock = startDataBlock;
   mergeJoinGetBlockRowsEqualTs(dataBlock, tsSlotId, startPos, timestamp, &endPos, rowLocations, createdBlocks);
@@ -441,7 +441,7 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
   return 0;
 }
 
-static int32_t mergeJoinFillBuildTable(SJoinOperatorInfo* pInfo, SArray* rightRowLocations) {
+static int32_t mergeJoinFillBuildTable(SMJoinOperatorInfo* pInfo, SArray* rightRowLocations) {
   for (int32_t i = 0; i < taosArrayGetSize(rightRowLocations); ++i) {
     SRowLocation* rightRow = taosArrayGet(rightRowLocations, i);
     int32_t keyLen = fillKeyBufFromTagCols(pInfo->rightEqOnCondCols, rightRow->pDataBlock, rightRow->pos, pInfo->rightEqOnCondKeyBuf);
@@ -462,7 +462,7 @@ static int32_t mergeJoinLeftRowsRightRows(SOperatorInfo* pOperator, SSDataBlock*
                                        int32_t rightRowIdx, bool useBuildTableTSRange, SArray* rightRowLocations, bool* pReachThreshold) {
   *pReachThreshold = false;
   uint32_t limitRowNum = pOperator->resultInfo.threshold;
-  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+  SMJoinOperatorInfo* pJoinInfo = pOperator->info;
   size_t leftNumJoin = taosArrayGetSize(leftRowLocations);
 
   int32_t i,j;
@@ -505,7 +505,7 @@ static int32_t mergeJoinLeftRowsRightRows(SOperatorInfo* pOperator, SSDataBlock*
   return TSDB_CODE_SUCCESS;
 }
 
-static void mergeJoinDestroyTSRangeCtx(SJoinOperatorInfo* pJoinInfo, SArray* leftRowLocations, SArray* leftCreatedBlocks,
+static void mergeJoinDestroyTSRangeCtx(SMJoinOperatorInfo* pJoinInfo, SArray* leftRowLocations, SArray* leftCreatedBlocks,
                                        SArray* rightCreatedBlocks, bool rightUseBuildTable, SArray* rightRowLocations) {
   for (int i = 0; i < taosArrayGetSize(rightCreatedBlocks); ++i) {
     SSDataBlock* pBlock = taosArrayGetP(rightCreatedBlocks, i);
@@ -543,7 +543,7 @@ static void mergeJoinDestroyTSRangeCtx(SJoinOperatorInfo* pJoinInfo, SArray* lef
 static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t timestamp, SSDataBlock* pRes,
                                                int32_t* nRows) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+  SMJoinOperatorInfo* pJoinInfo = pOperator->info;
   SArray* leftRowLocations = NULL;
   SArray* rightRowLocations = NULL;
   SArray* leftCreatedBlocks = NULL;
@@ -611,7 +611,7 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
 }
 
 static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs, int64_t* pRightTs) {
-  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+  SMJoinOperatorInfo* pJoinInfo = pOperator->info;
 
   if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
     SOperatorInfo* ds1 = pOperator->pDownstream[0];
@@ -647,7 +647,7 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
 }
 
 static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) {
-  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+  SMJoinOperatorInfo* pJoinInfo = pOperator->info;
 
   int32_t nrows = pRes->info.rows;
 
@@ -691,7 +691,7 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
 }
 
 SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
-  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+  SMJoinOperatorInfo* pJoinInfo = pOperator->info;
 
   SSDataBlock* pRes = pJoinInfo->pRes;
   blockDataCleanup(pRes);
