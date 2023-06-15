@@ -1033,7 +1033,7 @@ void appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTagSup
     }
 
     void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
-    colDataAppend(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
+    colDataSetVal(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
     pDestBlock->info.rows++;
     blockDataDestroy(pTmpBlock);
   } else {

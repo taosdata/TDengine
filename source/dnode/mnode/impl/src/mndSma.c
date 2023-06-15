@@ -1278,13 +1278,13 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     STR_TO_VARSTR(col, (char *)"");
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)col, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)col, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
     char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tag, (char *)"sma_index");
-    colDataAppend(pColInfo, numOfRows, (const char *)tag, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)tag, false);
 
     numOfRows++;
     sdbRelease(pSdb, pSma);

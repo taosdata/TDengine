@@ -874,7 +874,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     // if (pDb == NULL || pDb->compactStartTime <= 0) {
     //   colDataSetNULL(pColInfo, numOfRows);
     // } else {
-    //   colDataAppend(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
+    //   colDataSetVal(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
     // }
 
     numOfRows++;

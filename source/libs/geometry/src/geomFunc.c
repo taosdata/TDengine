@@ -145,7 +145,7 @@ int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32
     goto _exit;
   }
 
-  colDataAppend(pOutputData, TMAX(iLeft, iRight), output, (output == NULL));
+  colDataSetVal(pOutputData, TMAX(iLeft, iRight), output, (output == NULL));
 
 _exit:
   if (output) {
@@ -165,7 +165,7 @@ int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnI
     goto _exit;
   }
 
-  colDataAppend(pOutputData, i, output, (output == NULL));
+  colDataSetVal(pOutputData, i, output, (output == NULL));
 
 _exit:
   if (output) {
@@ -185,7 +185,7 @@ int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoDat
     goto _exit;
   }
 
-  colDataAppend(pOutputData, i, output, (output == NULL));
+  colDataSetVal(pOutputData, i, output, (output == NULL));
 
 _exit:
   if (output) {
@@ -213,7 +213,7 @@ int32_t executeRelationFunc(const GEOSGeometry *geom1, const GEOSPreparedGeometr
     }
   }
 
-  colDataAppend(pOutputData, i, &res, (res==-1));
+  colDataSetVal(pOutputData, i, &res, (res==-1));
 
   return code;
 }

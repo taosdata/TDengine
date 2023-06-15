@@ -270,7 +270,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
       continue;
     } else if (isIsfilledPseudoColumn(pExprInfo)) {
       bool isFilled = true;
-      colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
+      colDataSetVal(pDst, pResBlock->info.rows, (char*)&isFilled, false);
       continue;
     } else if (!isInterpFunc(pExprInfo)) {
       if (isGroupKeyFunc(pExprInfo)) {

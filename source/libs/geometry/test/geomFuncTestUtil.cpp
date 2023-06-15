@@ -84,7 +84,7 @@ void setScalarParam(SScalarParam *sclParam, int32_t type, void *valueArray, TDRo
       }
       else {
         const char *val = (const char *)valueArray + (i * bytes);
-        colDataAppend(sclParam->columnData, i, val, false);
+        colDataSetVal(sclParam->columnData, i, val, false);
       }
     }
   }
