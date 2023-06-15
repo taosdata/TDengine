@@ -1340,13 +1340,13 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "cloud";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1357,7 +1357,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1368,7 +1368,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1379,7 +1379,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1390,13 +1390,13 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 #else
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     const char      *src = GRANT_VERSION;
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1408,13 +1408,13 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     src = grantStatus.expireTimeSec != GRANT_EXPIRE_TIME ? expire : "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = grantStatus.expired ? "true" : "false";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1426,7 +1426,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1437,7 +1437,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1448,7 +1448,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1459,7 +1459,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1470,7 +1470,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1481,19 +1481,19 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // connections
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // connections
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // streams
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // streams
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1504,19 +1504,19 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // cpu_cores
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // cpu_cores
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // speed
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // speed
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // querytime
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // querytime
 #endif
     // connectors
     ++cols;
@@ -1526,7 +1526,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
             pItem->speed, pItem->expire);
 
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // opc_da
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // opc_da
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1534,7 +1534,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"OPC_UA\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
             pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // opc_ua
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // opc_ua
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1542,7 +1542,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"Pi\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
             pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // pi
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // pi
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1550,7 +1550,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"Kafka\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
             pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // kafka
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // kafka
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1558,7 +1558,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"InfluxDB\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}",
             pItem->number, pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // influxdb
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // influxdb
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1566,7 +1566,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"MQTT\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
             pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // mqtt
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // mqtt
 
     numOfRows++;
   }
