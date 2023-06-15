@@ -2,7 +2,7 @@
     <id>taosx-agent</id>
     <name>taosX Agent</name>
     <description>taosX Agent service powered by WinSW</description>
-    <logpath>C:\TDengine\logs</logpath>
+    <logpath>C:\Program Files\taosX\logs\agent</logpath>
     <logmode>roll</logmode>
-    <executable>C:\TDengine\bin\taosx-agent.exe</executable>
+    <executable>C:\Program Files\taosX\bin\taosx-agent.exe</executable>
 </service>
