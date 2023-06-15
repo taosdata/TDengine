@@ -161,6 +161,27 @@ uint64_t     tsdbGetReaderMaxVersion(STsdbReader *pReader);
 void         tsdbReaderSetCloseFlag(STsdbReader *pReader);
 int64_t      tsdbGetLastTimestamp(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
 
+//======================================================================================================================
+int32_t      tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
+                            SSDataBlock *pResBlock, void **ppReader, const char *idstr, bool countOnly,
+                            SHashObj **pIgnoreTables);
+int32_t      tsdbSetTableList2(STsdbReader *pReader, const void *pTableList, int32_t num);
+void         tsdbReaderSetId2(STsdbReader *pReader, const char *idstr);
+void         tsdbReaderClose2(STsdbReader *pReader);
+int32_t      tsdbNextDataBlock2(STsdbReader *pReader, bool *hasNext);
+int32_t      tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
+void         tsdbReleaseDataBlock2(STsdbReader *pReader);
+SSDataBlock *tsdbRetrieveDataBlock2(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+int32_t      tsdbReaderReset2(STsdbReader *pReader, SQueryTableDataCond *pCond);
+int32_t      tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+int64_t      tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle);
+void        *tsdbGetIdx2(SMeta *pMeta);
+void        *tsdbGetIvtIdx2(SMeta *pMeta);
+uint64_t     tsdbGetReaderMaxVersion2(STsdbReader *pReader);
+void         tsdbReaderSetCloseFlag2(STsdbReader *pReader);
+int64_t      tsdbGetLastTimestamp2(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
+//======================================================================================================================
+
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 SArray *pCidList, int32_t *pSlotIds, uint64_t suid, void **pReader, const char *idstr);
