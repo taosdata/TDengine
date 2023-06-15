@@ -6,7 +6,7 @@ import (
 )
 
 var Version = "1.0.0"
-var BuildAt = time.Now().Format("2006-01-02")
+var BuildAt = time.Now().Format("2006-01-02 15:04:05")
 var CommitID = ""
 
 func GetVersion() string {
@@ -26,6 +26,6 @@ func GetBuildDate() string {
 }
 
 func ShowVersion() string {
-	return fmt.Sprintf("version: %s \r\ncommit id: %s \r\nbuild date %s", GetVersion(), GetCommitID(),
+	return fmt.Sprintf("version: %s \r\ncommit id: %s \r\nbuild time %s", GetVersion(), GetCommitID(),
 		GetBuildDate())
 }
