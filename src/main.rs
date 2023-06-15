@@ -199,7 +199,7 @@ fn main() -> Result<()> {
 
     let worker_threads = args.globals.executor_worker_threads();
 
-    log::info!("taosx version: {version}");
+    log::info!("version: {version}");
     log::info!("commit id: {commit_id}");
     log::info!("build time: {build_time}");
 
