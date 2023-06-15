@@ -1532,7 +1532,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
             pItem->speed, pItem->expire);
 
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // opc_da
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // opc_da
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1540,7 +1540,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"OPC_UA\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
             pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // opc_ua
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // opc_ua
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1548,7 +1548,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"Pi\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
             pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // pi
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // pi
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1556,7 +1556,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"Kafka\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
             pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // kafka
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // kafka
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1564,7 +1564,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"InfluxDB\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}",
             pItem->number, pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // influxdb
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // influxdb
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1572,7 +1572,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     sprintf(tmp1, "{\"type\":\"MQTT\",\"number\":%d,\"speed\":%" PRIi16 ",\"expire\":\"%" PRIu16 "\"}", pItem->number,
             pItem->speed, pItem->expire);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    colDataAppend(pColInfo, numOfRows, tmp, false);  // mqtt
+    colDataSetVal(pColInfo, numOfRows, tmp, false);  // mqtt
 
     numOfRows++;
   }
