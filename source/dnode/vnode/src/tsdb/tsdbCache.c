@@ -331,7 +331,7 @@ int32_t tsdbCacheCommit(STsdb *pTsdb) {
 
   taosThreadMutexLock(&pTsdb->lruMutex);
 
-  taosLRUCacheApply(pCache, tsdbCacheFlushDirty, wb);
+  taosLRUCacheApply(pCache, tsdbCacheFlushDirty, &pTsdb->flushState);
 
   rocksMayWrite(pTsdb, true, false, true);
   rocksMayWrite(pTsdb, true, true, true);
