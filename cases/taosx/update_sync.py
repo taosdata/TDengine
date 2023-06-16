@@ -55,7 +55,7 @@ class AddSync(TDCase):
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
-        self.replica = [1,3]
+        self.replica = [3]
         # update param
         self.add_drop_flag = 'no'
         self.add_child_table_exist_flag = 'yes'

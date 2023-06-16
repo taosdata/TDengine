@@ -64,7 +64,7 @@ class StaticFullSync(TDCase):
         self.ntb_row_num = 10000
         # param for taosx
         self.timeout = '10s'
-        self.replica = [1,3]
+        self.replica = [3]
         # create user param
         self.source_user_name = self.tdCom.get_long_name(5)
         self.source_user_password = self.tdCom.get_long_name(8)
