@@ -156,7 +156,7 @@ static int taosLRUEntryTableApplyF(SLRUEntryTable *table, _taos_lru_functor_t fu
       SLRUEntry *n = h->nextHash;
       ASSERT(TAOS_LRU_ENTRY_IN_CACHE(h));
       ret = functor(h->keyData, h->keyLength, h->value, ud);
-      if (!ret) {
+      if (ret) {
         return ret;
       }
       h = n;
@@ -758,7 +758,7 @@ void taosLRUCacheErase(SLRUCache *cache, const void *key, size_t keyLen) {
 void taosLRUCacheApply(SLRUCache *cache, _taos_lru_functor_t functor, void *ud) {
   int numShards = cache->numShards;
   for (int i = 0; i < numShards; ++i) {
-    if (0 != taosLRUCacheShardApply(&cache->shards[i], functor, ud)) {
+    if (taosLRUCacheShardApply(&cache->shards[i], functor, ud)) {
       break;
     }
   }

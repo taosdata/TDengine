@@ -235,6 +235,7 @@ static void rocksMayWrite(STsdb *pTsdb, bool force, bool read, bool lock) {
       tsdbError("vgId:%d, %s failed at line %d, count: %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, count,
                 err);
       rocksdb_free(err);
+      // pTsdb->flushState.flush_count = 0;
     }
 
     rocksdb_writebatch_clear(wb);
@@ -485,7 +486,9 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
           }
         }
 
-        pLastCol->dirty = 1;
+        if (!pLastCol->dirty) {
+          pLastCol->dirty = 1;
+        }
         /*
         char  *value = NULL;
         size_t vlen = 0;
@@ -530,7 +533,9 @@ int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSDBROW *pRow
             }
           }
 
-          pLastCol->dirty = 1;
+          if (!pLastCol->dirty) {
+            pLastCol->dirty = 1;
+          }
           /*
             char  *value = NULL;
             size_t vlen = 0;
