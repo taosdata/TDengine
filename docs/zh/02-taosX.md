@@ -104,7 +104,31 @@ taosX 是进行数据同步与复制的核心组件，以下运行模式指 taos
 
 ### 从 InfluxDB 同步数据到 TDengine
 
-@zhengqin
+将数据从 InfluxDB 同步至 TDengine 的命令，如下所示：
+
+```bash
+taosx run --from "<InfluxDB-DSN>" --to "<TDengine-DSN>"
+```
+
+其中，InfluxDB DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
+- orgId: 必填，InfluxDB 中的 Orgnization ID;
+- bucket: 必填，InfluxDB 中的 Bucket 名称，一次只能同步一个 Bucket;
+- token: 必填，InfluxDB 中生成的 API token, 这个 token 至少要拥有以上 Bucket 的 Read 权限；
+- beginTime: 必填，格式为：YYYY-MM-DD HH:MM:SS, 时区采用 UTC 时区，例如：2023-06-01 00:00:00, 即北京时间2023-06-01 08:00:00;
+- endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步。
+
+#### 使用举例
+
+将位于 192.168.1.10 的 InfluxDB 中, Bucket 名称为 test_bucket, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taoskeeper, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
+
+```bash
+taosx run \
+  --from "influxdb://192.168.1.10:8086/?token=OZ2sB6Ie6qcKcYAmcHnL-i3STfLVg_IRPQjPIzjsAQ4aUxCWzYhDesNape1tp8IsX9AH0ld41C-clTgo08CGYA==&orgId=3233855dc7e37d8d&bucket=test_bucket&beginTime=2023-06-01 00:00:00" \
+  --to "taos+http://192.168.1.20:6041/test_db" \
+  -vv
+```
+
+在这个命令中，未指定endTime, 所以任务会长期运行，持续同步最新的数据。
 
 ### 从 MQTT 同步数据到 TDengine
 
@@ -121,7 +145,7 @@ taosx run --from "<MQTT-DSN>" --to "<TDengine-DSN>" --parser parser.json
 
 #### MQTT DSN 配置
 
-MQTT DSN 的符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
+MQTT DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
 - topics: 必填，用于配置监听的 MQTT 主题名称；支持配置多个主题，使用逗号分隔；配置主题时，可以使用 MQTT 协议的支持的通配符#和+;
 - version: 非必填，用于配置 MQTT 协议的版本，支持的版本包括：3.1/3.1.1/5.0, 默认值为3.1;
 - clean_session: 非必填，用于配置连接器作为 MQTT 客户端连接至 MQTT 服务端时，服务端是否保存该会话信息，其默认值为 true, 即不保存会话信息；
