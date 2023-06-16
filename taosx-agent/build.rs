@@ -9,14 +9,14 @@ fn labeling(mut file: &File) -> SdResult<()> {
     let target_dir = manifest_dir.parent().unwrap().join("target");
 
     let cus_name = std::env::var("CUS_NAME").unwrap_or("taosX".to_string());
-    let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("taos".to_string());
+    let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("taosX".to_string());
     let cus_name = if cus_name.trim().is_empty() {
         "taosX"
     } else {
         cus_name.trim()
     };
     let cus_prompt = if cus_prompt.trim().is_empty() {
-        "taos"
+        "taosX"
     } else {
         cus_prompt.trim()
     };
