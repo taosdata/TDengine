@@ -376,8 +376,8 @@ static int32_t tsmaProcessDelReq(SSma *pSma, int64_t indexUid, SBatchDeleteReq *
 _exit:
   taosArrayDestroy(pDelReq->deleteReqs);
   if (code) {
-    smaError("vgId:%d, failed to process delete req for smaIndex %" PRIi64 " since %s", SMA_VID(pSma), indexUid,
-             tstrerror(code));
+    smaError("vgId:%d, failed at line %d to process delete req for smaIndex %" PRIi64 " since %s", SMA_VID(pSma), lino,
+             indexUid, tstrerror(code));
   }
 
   return code;
