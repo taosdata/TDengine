@@ -870,7 +870,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   while (1) {
     if (pSliceInfo->pNextGroupRes != NULL) {
       doHandleTimeslice(pOperator, pSliceInfo->pNextGroupRes);
-      if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+      if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
         if (pSliceInfo->pRemainRes == NULL) {
           pSliceInfo->pNextGroupRes = NULL;
@@ -898,7 +898,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
       }
 
       doHandleTimeslice(pOperator, pBlock);
-      if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+      if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
         goto _finished;
       }
@@ -979,7 +979,6 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->pNextGroupRes = NULL;
   pInfo->pRemainRes = NULL;
   pInfo->remainIndex = 0;
-  pOperator->resultInfo.threshold = 1;
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pScanInfo = (STableScanInfo*)downstream->info;
