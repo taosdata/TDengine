@@ -329,7 +329,7 @@
               class="switch-ssl"
               style="display: flex; align-items: flex-start"
             >
-              <span style="color: #4259ce; margin-right: 10px">SSL/TSL</span>
+              <span style="color: #4259ce; margin-right: 10px">SSL/TLS</span>
               <!-- <template v-if="item.hasOwnProperty('collapsed')">
                 <el-switch v-model="item.collapsed"> </el-switch>
               </template> -->
