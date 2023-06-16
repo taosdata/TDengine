@@ -300,7 +300,7 @@ def copy_taos_agent_service_file(taosx_install_path):
 
 
 def copy_taos_agent_cfg(taos_cfg_path):
-    taosx_agent_cfg = os.path.join(taosx_dir, "taosx-agent", "examples", "agent.example.toml")
+    taosx_agent_cfg = os.path.join(taosx_dir, "taosx-agent", "examples", "agent.toml")
     try:
         shutil.copy2(taosx_agent_cfg, taos_cfg_path)
     except FileNotFoundError as e:
