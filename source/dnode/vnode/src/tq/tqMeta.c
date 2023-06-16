@@ -379,7 +379,7 @@ int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
     handle->execHandle.execTb.qmsg = taosStrdup(req->qmsg);
   }
 
-  handle->snapshotVer = walGetLastVer(pTq->pVnode->pWal);
+  handle->snapshotVer = walGetCommittedVer(pTq->pVnode->pWal);
 
   if(buildHandle(pTq, handle) < 0){
     return -1;
