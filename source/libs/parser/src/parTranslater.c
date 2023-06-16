@@ -884,6 +884,10 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
     if (isInternalPrimaryKey(pCol)) {
+      if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
+      }
+
       setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema, -1, pCol);
       *pFound = true;
       return TSDB_CODE_SUCCESS;
@@ -2255,7 +2259,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     }
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
-    if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
+    if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc || (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     } else {
       return rewriteColToSelectValFunc(pCxt, pNode);
