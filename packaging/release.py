@@ -13,6 +13,7 @@ from datetime import datetime
 cus_name = "TDengine"
 taosx_name = "taosx"
 taosx_agent_name = "taosx-agent"
+taos_explorer_name = "taos-explorer"
 
 script_path = os.path.abspath(sys.argv[0])
 script_dir = os.path.dirname(script_path)
@@ -138,6 +139,7 @@ def init_build_info():
         test_process = args.test_process
     sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
     sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
+    sub_module.append(SubmoduleBuildInfo(taos_explorer_name, release_info.DefaultBuildMode))
     if args.connector_list:
         for i, arg in enumerate(args.connector_list):
             sub_module.append(SubmoduleBuildInfo(arg, release_info.DefaultBuildMode))
@@ -363,6 +365,47 @@ def build_and_install_influxdb(mode):
         print("Build influxdb failed: ", e.strerror)
         sys.exit()
 
+def init_explorer_code(explorer_path):
+    if os.path.exists(explorer_path):
+        os.chdir(explorer_path)
+        os.system('git checkout main')
+        os.system('git reset --hard')
+        os.system('git prune')
+        os.system('git pull')
+    else:
+        os.system('git clone git@github.com:taosdata/explorer.git')
+        os.system('yarn install')
+
+def build_taos_explorer(explorer_path, mode):
+    init_explorer_code(explorer_path)
+    os.chdir(explorer_path)
+    os.system('yarn build:bin')
+
+def copy_taos_explorer_on_windows(explorer_path):
+    explorer_exe_path = os.path.join(explorer_path, "target", "release", "taos-explorer.exe")
+    explorer_srv_path = os.path.join(explorer_path, "bin", "explorer-srv.exe")
+    explorer_srv_xml_path = os.path.join(explorer_path, "bin", "explorer-srv.xml")
+    explorer_toml_path = os.path.join(explorer_path, "server","examples", "explorer.toml")
+
+    taos_explorer_install_path = os.path.join(release_info.InstallPath, "bin")
+    taos_explorer_cfg_path = os.path.join(release_info.InstallPath, "cfg")
+    check_directory(taos_explorer_install_path)
+    try:
+        shutil.copy2(explorer_exe_path, taos_explorer_install_path)
+        shutil.copy2(explorer_srv_path, taos_explorer_install_path)
+        shutil.copy2(explorer_srv_xml_path, taos_explorer_install_path)
+        shutil.copy2(explorer_toml_path, taos_explorer_cfg_path)
+    except FileNotFoundError as e:
+        print("Copy taos-explorer to {} failed: {}".format(taos_explorer_install_path,  e.strerror))
+        sys.exit()
+
+def build_and_install_taos_explorer(mode):
+    print("build_and_install taos_explorer start...")
+    explorer_path = os.path.join(taosx_dir, "..", "explorer")
+    build_taos_explorer(explorer_path, mode)
+    if release_info.OS.lower() == 'windows':
+        copy_taos_explorer_on_windows(explorer_path)
+
 def package_on_windows():
     os.chdir(script_dir) 
     result = subprocess.run(f'iscc /F"{release_info.PackageName}" '
@@ -452,6 +495,9 @@ def test_handle(process):
     elif process == "agent":
         print("Calling taosx agent function...")
         build_and_install_taosx_agent("Debug")
+    elif process == "explorer":
+        print("Calling taos-explorer function...")
+        build_and_install_taos_explorer("Debug")
     else:
         print(f"Invalid -t param: {process}. Please enter valid input.")
 
@@ -471,21 +517,24 @@ if __name__ == '__main__':
             if taosx_name == task.Name:
                 print("build taosx")
                 build_and_install_taosx(task.VersionMode)
-            if taosx_agent_name == task.Name:
+            elif taosx_agent_name == task.Name:
                 print("build taosx-agent")
                 build_and_install_taosx_agent(task.VersionMode)
-            if pi_connector == task.Name:
+            elif pi_connector == task.Name:
                 print("build pi")
                 build_and_install_pi(task.VersionMode)
-            if opc_connector == task.Name:
+            elif opc_connector == task.Name:
                 print("build taosx-opc")
                 build_and_install_opc(task.VersionMode)
-            if mqtt_connector == task.Name:
+            elif mqtt_connector == task.Name:
                 print("build taosx-mqtt")
                 build_and_install_mqtt(task.VersionMode)
-            if influxdb_connector == task.Name:
+            elif influxdb_connector == task.Name:
                 print("build influxdb_connector")
                 build_and_install_influxdb(task.VersionMode)
+            elif taos_explorer_name == task.Name:
+                print("build taos_explorer")
+                build_and_install_taos_explorer(task.VersionMode)
         init_release_directory()
         package()
     else:
