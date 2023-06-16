@@ -4,7 +4,7 @@ set -e
 PREFIX="taos"
 INSTALL_DIR="/usr/local/${PREFIX}X"
 BIN_LINK_DIR="/usr/bin"
-CONFIG_DIR="/etc/${PREFIX}x"
+CONFIG_DIR="/etc/${PREFIX}X"
 service_config_dir="/etc/systemd/system"
 xName="${PREFIX}x"
 agentname="${PREFIX}x-agent"
@@ -144,16 +144,16 @@ install_taosx() {
         ${csudo}mkdir -p /etc/taosx
     fi
     
-    if [ -f /etc/taosx/${PREFIX}x-agent.toml ]; then
-        ${csudo}cp ./config/agent.toml /etc/taosx/agent.toml.new
+    if [ -f ${CONFIG_DIR}/${PREFIX}x-agent.toml ]; then
+        ${csudo}cp ./config/agent.toml ${CONFIG_DIR}/agent.toml.new
     else
-       ${csudo}cp ./config/agent.toml /etc/taosx/
+       ${csudo}cp ./config/agent.toml ${CONFIG_DIR}/
     fi
 
-    if [ -f /etc/taosx/explorer.toml ]; then
-        ${csudo}cp ./config/explorer.toml /etc/taosx/explorer.toml.new
+    if [ -f ${CONFIG_DIR}/explorer.toml ]; then
+        ${csudo}cp ./config/explorer.toml ${CONFIG_DIR}/explorer.toml.new
     else
-       ${csudo}cp ./config/explorer.toml /etc/taosx/
+       ${csudo}cp ./config/explorer.toml ${CONFIG_DIR}/
     fi
 
     [ -x ${INSTALL_DIR}/rm${PREFIX}X.sh ] && ${csudo}ln -sf ${INSTALL_DIR}/rm${PREFIX}X.sh  ${BIN_LINK_DIR}/rm${PREFIX}x || :
