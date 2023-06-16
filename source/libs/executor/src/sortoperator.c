@@ -69,6 +69,8 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
+  pInfo->binfo.inputTsOrder = pSortNode->node.inputTsOrder;
+  pInfo->binfo.outputTsOrder = pSortNode->node.outputTsOrder;
   initLimitInfo(pSortNode->node.pLimit, pSortNode->node.pSlimit, &pInfo->limitInfo);
 
   setOperatorInfo(pOperator, "SortOperator", QUERY_NODE_PHYSICAL_PLAN_SORT, true, OP_NOT_OPENED, pInfo, pTaskInfo);
@@ -114,6 +116,7 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   }
 
   pBlock->info.dataLoad = 1;
+  pBlock->info.scanFlag = ((SDataBlockInfo*)tsortGetBlockInfo(pTupleHandle))->scanFlag;
   pBlock->info.rows += 1;
 }
 
@@ -155,6 +158,7 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
 
     pDataBlock->info.dataLoad = 1;
     pDataBlock->info.rows = p->info.rows;
+    pDataBlock->info.scanFlag = p->info.scanFlag;
   }
 
   blockDataDestroy(p);
@@ -331,6 +335,7 @@ SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlo
 
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.capacity = p->info.rows;
+    pDataBlock->info.scanFlag = p->info.scanFlag;
   }
 
   blockDataDestroy(p);
@@ -505,6 +510,8 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
+  pInfo->binfo.inputTsOrder = pSortPhyNode->node.inputTsOrder;
+  pInfo->binfo.outputTsOrder = pSortPhyNode->node.outputTsOrder;
 
   int32_t numOfOutputCols = 0;
   int32_t code = extractColMatchInfo(pSortPhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
@@ -698,6 +705,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     }
 
     pDataBlock->info.rows = p->info.rows;
+    pDataBlock->info.scanFlag = p->info.scanFlag;
     if (pInfo->ignoreGroupId) {
       pDataBlock->info.id.groupId = 0;
     } else {
@@ -799,6 +807,8 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   size_t numOfCols = taosArrayGetSize(pInfo->binfo.pRes->pDataBlock);
   pInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);
   pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
+  pInfo->binfo.inputTsOrder = pMergePhyNode->node.inputTsOrder;
+  pInfo->binfo.outputTsOrder = pMergePhyNode->node.outputTsOrder;
 
   setOperatorInfo(pOperator, "MultiwayMergeOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(openMultiwayMergeOperator, doMultiwayMerge, NULL,

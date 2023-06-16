@@ -120,6 +120,8 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
 
   initBasicInfo(&pInfo->binfo, pResBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
+  pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
+  pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
 
   pInfo->twAggSup = (STimeWindowAggSupp){.waterMark = pEventWindowNode->window.watermark,
                                          .calTrigger = pEventWindowNode->window.triggerType};
@@ -182,11 +184,12 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
 
   SExprSupp* pSup = &pOperator->exprSupp;
-  int32_t    order = TSDB_ORDER_ASC;
+  int32_t    order = pInfo->binfo.inputTsOrder;
 
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   blockDataCleanup(pRes);
+  pRes->info.scanFlag = MAIN_SCAN;
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
