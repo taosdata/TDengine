@@ -510,6 +510,10 @@ if __name__ == '__main__':
         sys.exit()
         
     if release_info.OS.lower() == 'linux':
+        for task in sub_module:
+            if taos_explorer_name == task.Name:
+                print("build taos_explorer on linux")
+                build_and_install_taos_explorer(task.VersionMode)
         linux_release.release(release_info=release_info, build_info=sub_module)
     elif release_info.OS.lower() == 'windows':
         init_install_directory()
