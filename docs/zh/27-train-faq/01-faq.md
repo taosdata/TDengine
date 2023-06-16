@@ -64,7 +64,7 @@ description: 一些常见问题的解决方法汇总
 
 7. 对于 Linux 上的 JDBC（ODBC, Python, Go 等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/taos/driver*里, 并且*/usr/local/taos/driver*在系统库函数搜索路径*LD_LIBRARY_PATH*里
 
-8. 对于 macOS 上的 JDBC（ODBC, Python, Go 等接口类似）连接, 确保*libtaos.dylib*在目录*/usr/local/lib*里, 并且*/usr/local/lib*在系统库函数搜索路径*LD_LIBRARY_PATH*里
+8. 对于 macOS 上的 JDBC（ODBC, Python, Go 等接口类似）连接, 确保*libtaos.dylib*在目录*/usr/local/lib*里, 并且*/usr/local/lib*在系统库函数搜索路径*DYLD_LIBRARY_PATH*里
 
 9. 对于 Windows 上的 JDBC, ODBC, Python, Go 等连接，确保*C:\TDengine\driver\taos.dll*在你的系统库函数搜索目录里 (建议*taos.dll*放在目录 _C:\Windows\System32_)
 
