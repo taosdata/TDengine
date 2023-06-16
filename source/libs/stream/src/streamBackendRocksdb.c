@@ -997,6 +997,7 @@ void streamStateCloseBackend(SStreamState* pState, bool remove) {
     taosHashRemove(pHandle->cfInst, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1);
   }
   taosThreadMutexUnlock(&pHandle->cfMutex);
+
   char* status[] = {"close", "drop"};
   qInfo("start to close %s state %p on backendWrapper %p %s", status[remove == false ? 0 : 1], pState, wrapper,
         wrapper->idstr);
