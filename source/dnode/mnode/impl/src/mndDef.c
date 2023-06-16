@@ -154,18 +154,10 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   return 0;
 }
 
-void tFreeStreamObj(SStreamObj *pStream) {
-  taosMemoryFree(pStream->sql);
-  taosMemoryFree(pStream->ast);
-  taosMemoryFree(pStream->physicalPlan);
-
-  if (pStream->outputSchema.nCols) {
-    taosMemoryFree(pStream->outputSchema.pSchema);
-  }
-
-  int32_t sz = taosArrayGetSize(pStream->tasks);
-  for (int32_t i = 0; i < sz; i++) {
-    SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+static void* freeStreamTasks(SArray* pTaskLevel) {
+  int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
+  for (int32_t i = 0; i < numOfLevel; i++) {
+    SArray *pLevel = taosArrayGetP(pTaskLevel, i);
     int32_t taskSz = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < taskSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
@@ -175,8 +167,20 @@ void tFreeStreamObj(SStreamObj *pStream) {
     taosArrayDestroy(pLevel);
   }
 
-  taosArrayDestroy(pStream->tasks);
-  taosArrayDestroy(pStream->pHTasksList);
+  return taosArrayDestroy(pTaskLevel);
+}
+
+void tFreeStreamObj(SStreamObj *pStream) {
+  taosMemoryFree(pStream->sql);
+  taosMemoryFree(pStream->ast);
+  taosMemoryFree(pStream->physicalPlan);
+
+  if (pStream->outputSchema.nCols) {
+    taosMemoryFree(pStream->outputSchema.pSchema);
+  }
+
+  pStream->tasks = freeStreamTasks(pStream->tasks);
+  pStream->pHTasksList = freeStreamTasks(pStream->pHTasksList);
 
   // tagSchema.pSchema
   if (pStream->tagSchema.nCols > 0) {

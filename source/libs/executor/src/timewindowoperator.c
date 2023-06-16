@@ -3963,6 +3963,7 @@ void destroyStreamStateOperatorInfo(void* param) {
   }
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
+  taosArrayDestroy(pInfo->historyWins);
   tSimpleHashCleanup(pInfo->pSeDeleted);
   taosMemoryFreeClear(param);
 }
