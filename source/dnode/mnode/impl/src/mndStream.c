@@ -28,7 +28,7 @@
 #include "parser.h"
 #include "tname.h"
 
-#define MND_STREAM_VER_NUMBER   2
+#define MND_STREAM_VER_NUMBER   3
 #define MND_STREAM_RESERVE_SIZE 64
 
 #define MND_STREAM_MAX_NUM 60
@@ -147,7 +147,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto STREAM_DECODE_OVER;
 
-  if (sver != 1 && sver != 2) {
+  if (sver != 1 && sver != 2 && sver != 3) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto STREAM_DECODE_OVER;
   }
@@ -946,6 +946,9 @@ static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, in
 }
 static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStream, SHashObj *vgIds,
                                                int64_t checkpointId) {
+  if (checkpointId == pStream->checkpointId) {
+    return -1;
+  }
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-checkpoint");
   if (pTrans == NULL) return -1;
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
@@ -955,7 +958,8 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
     mndTransDrop(pTrans);
     return -1;
   }
-  taosRLockLatch(&pStream->lock);
+  atomic_store_64(&pStream->currentTick, 1);
+  taosWLockLatch(&pStream->lock);
   // 1. redo action: broadcast checkpoint source msg for all source vg
   int32_t totLevel = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < totLevel; i++) {
@@ -1003,10 +1007,11 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   }
   // 2. reset tick
   pStream->checkpointFreq = checkpointId;
+  pStream->checkpointId = checkpointId;
   atomic_store_64(&pStream->currentTick, 0);
   // 3. commit log: stream checkpoint info
-
-  taosRUnLockLatch(&pStream->lock);
+  pStream->version = pStream->version + 1;
+  taosWUnLockLatch(&pStream->lock);
 
   //   // code condtion
 
@@ -1051,6 +1056,9 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
     code = mndProcessStreamCheckpointTrans(pMnode, pStream, vgIds, checkpointId);
+    if (code == -1) {
+      mInfo("stream:%s failed to do checkpoint, reason: last checkpoint not finished", pStream->name);
+    }
     sdbRelease(pSdb, pStream);
   }
   taosHashCleanup(vgIds);

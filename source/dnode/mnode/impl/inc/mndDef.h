@@ -137,48 +137,48 @@ typedef enum {
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE__TOUCH = 1,   // rebalance req do not need change consume topic
+  CONSUMER_UPDATE__TOUCH = 1,  // rebalance req do not need change consume topic
   CONSUMER_UPDATE__ADD,
   CONSUMER_UPDATE__REMOVE,
   CONSUMER_UPDATE__LOST,
   CONSUMER_UPDATE__RECOVER,
-  CONSUMER_UPDATE__REBALANCE,      // subscribe req need change consume topic
+  CONSUMER_UPDATE__REBALANCE,  // subscribe req need change consume topic
 } ECsmUpdateType;
 
 typedef struct {
-  int32_t     id;
-  ETrnStage   stage;
-  ETrnPolicy  policy;
-  ETrnConflct conflict;
-  ETrnExec    exec;
-  EOperType   oper;
-  int32_t     code;
-  int32_t     failedTimes;
-  void*       rpcRsp;
-  int32_t     rpcRspLen;
-  int32_t     redoActionPos;
-  SArray*     prepareActions;
-  SArray*     redoActions;
-  SArray*     undoActions;
-  SArray*     commitActions;
-  int64_t     createdTime;
-  int64_t     lastExecTime;
-  int32_t     lastAction;
-  int32_t     lastErrorNo;
-  SEpSet      lastEpset;
-  tmsg_t      lastMsgType;
-  tmsg_t      originRpcType;
-  char        dbname[TSDB_TABLE_FNAME_LEN];
-  char        stbname[TSDB_TABLE_FNAME_LEN];
-  int32_t     startFunc;
-  int32_t     stopFunc;
-  int32_t     paramLen;
-  void*       param;
-  char        opername[TSDB_TRANS_OPER_LEN];
-  SArray*     pRpcArray;
-  SRWLatch    lockRpcArray;
-  int64_t     mTraceId;
-  TdThreadMutex    mutex;
+  int32_t       id;
+  ETrnStage     stage;
+  ETrnPolicy    policy;
+  ETrnConflct   conflict;
+  ETrnExec      exec;
+  EOperType     oper;
+  int32_t       code;
+  int32_t       failedTimes;
+  void*         rpcRsp;
+  int32_t       rpcRspLen;
+  int32_t       redoActionPos;
+  SArray*       prepareActions;
+  SArray*       redoActions;
+  SArray*       undoActions;
+  SArray*       commitActions;
+  int64_t       createdTime;
+  int64_t       lastExecTime;
+  int32_t       lastAction;
+  int32_t       lastErrorNo;
+  SEpSet        lastEpset;
+  tmsg_t        lastMsgType;
+  tmsg_t        originRpcType;
+  char          dbname[TSDB_TABLE_FNAME_LEN];
+  char          stbname[TSDB_TABLE_FNAME_LEN];
+  int32_t       startFunc;
+  int32_t       stopFunc;
+  int32_t       paramLen;
+  void*         param;
+  char          opername[TSDB_TRANS_OPER_LEN];
+  SArray*       pRpcArray;
+  SRWLatch      lockRpcArray;
+  int64_t       mTraceId;
+  TdThreadMutex mutex;
 } STrans;
 
 typedef struct {
@@ -445,20 +445,20 @@ typedef struct {
 } SStbObj;
 
 typedef struct {
-  char    name[TSDB_FUNC_NAME_LEN];
-  int64_t createdTime;
-  int8_t  funcType;
-  int8_t  scriptType;
-  int8_t  align;
-  int8_t  outputType;
-  int32_t outputLen;
-  int32_t bufSize;
-  int64_t signature;
-  int32_t commentSize;
-  int32_t codeSize;
-  char*   pComment;
-  char*   pCode;
-  int32_t funcVersion;
+  char     name[TSDB_FUNC_NAME_LEN];
+  int64_t  createdTime;
+  int8_t   funcType;
+  int8_t   scriptType;
+  int8_t   align;
+  int8_t   outputType;
+  int32_t  outputLen;
+  int32_t  bufSize;
+  int64_t  signature;
+  int32_t  commentSize;
+  int32_t  codeSize;
+  char*    pComment;
+  char*    pCode;
+  int32_t  funcVersion;
   SRWLatch lock;
 } SFuncObj;
 
@@ -552,11 +552,11 @@ typedef struct {
   int64_t subscribeTime;
   int64_t rebalanceTime;
 
-  int8_t         withTbName;
-  int8_t         useSnapshot;
-  int8_t         autoCommit;
-  int32_t        autoCommitInterval;
-  int32_t        resetOffsetCfg;
+  int8_t  withTbName;
+  int8_t  useSnapshot;
+  int8_t  autoCommit;
+  int32_t autoCommitInterval;
+  int32_t resetOffsetCfg;
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
@@ -566,8 +566,8 @@ void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer
 
 typedef struct {
   int32_t vgId;
-//  char*   qmsg;  // SubPlanToString
-  SEpSet  epSet;
+  //  char*   qmsg;  // SubPlanToString
+  SEpSet epSet;
 } SMqVgEp;
 
 SMqVgEp* tCloneSMqVgEp(const SMqVgEp* pVgEp);
@@ -581,10 +581,10 @@ typedef struct {
   SArray* offsetRows;  // SArray<OffsetRows*>
 } SMqConsumerEp;
 
-//SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
-//void           tDeleteSMqConsumerEp(void* pEp);
-int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
-void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
+// SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
+// void           tDeleteSMqConsumerEp(void* pEp);
+int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
+void*   tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
 
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -598,7 +598,7 @@ typedef struct {
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
-  char*     qmsg;           // SubPlanToString
+  char*     qmsg;  // SubPlanToString
 } SMqSubscribeObj;
 
 SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);
@@ -675,7 +675,7 @@ typedef struct {
   int64_t targetStbUid;
 
   // fixedSinkVg is not applicable for encode and decode
-  SVgObj fixedSinkVg;
+  SVgObj  fixedSinkVg;
   int32_t fixedSinkVgId;  // 0 for shuffle
 
   // transformation
@@ -691,18 +691,21 @@ typedef struct {
   int64_t currentTick;     // do not serialize
   int64_t deleteMark;
   int8_t  igCheckUpdate;
+
+  // 3.0.5.
+  int64_t checkpointId;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
 
-//typedef struct {
-//  char    streamName[TSDB_STREAM_FNAME_LEN];
-//  int64_t uid;
-//  int64_t streamUid;
-//  SArray* childInfo;  // SArray<SStreamChildEpInfo>
-//} SStreamCheckpointObj;
+// typedef struct {
+//   char    streamName[TSDB_STREAM_FNAME_LEN];
+//   int64_t uid;
+//   int64_t streamUid;
+//   SArray* childInfo;  // SArray<SStreamChildEpInfo>
+// } SStreamCheckpointObj;
 
 #ifdef __cplusplus
 }
