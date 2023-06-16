@@ -61,11 +61,11 @@ WantedBy=multi-user.target
 
 打开浏览器，输入正确的用户名和密码（注：这里的用户名和密码是所连接的 TDengine 中的用户名和密码）
 
-![登录界面](./login.png)
+![登录界面](./pics/login.png)
 
 点击登录按钮进入主界面，主界面功能展示如下：
 
-![主界面示例](./ui.png)
+![主界面示例](./pics/ui.png)
 
 ### 面板
 
@@ -74,7 +74,7 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 - 默认的仪表盘会返回对应 Grafana 的安装配置向导
 - 配置过 Grafana 的仪表盘在点击' 面板' 时会跳转到对应的配置地址（该地址来源于 /profile 接口的返回值）
 
-![仪表盘](./dashboard.png)
+![仪表盘](./pics/dashboard.png)
 
 ### 数据浏览器
 
@@ -94,19 +94,19 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 例：图为超级管理员权限，展示所有可操作内容
 
-![数据浏览和管理](./data.png)
+![数据浏览和管理](./pics/data.png)
 
 每个数据库下只有一个 STables 和 Tables 文件夹，分别用来添加超级表和普通表
 
-![管理超级表和普通表](./stable.png)
+![管理超级表和普通表](./pics/stable.png)
 
 ### 系统管理
 
 点击功能列表中的“系统管理”入口，可以创建用户、对用户进行访问授权、以及删除用户。还能够对当前所管理的集群中的数据进行备份和恢复。也可以配置一个远程 TDengine 的地址进行数据同步。同时也提供了集群信息和许可证的信息以及代理信息以供查看。系统管理 菜单只有 root 用户才有权限看到
 
-![用户管理](./admin1.png)
+![用户管理](./pics/admin1.png)
 
-![添加用户](./admin2.png)
+![添加用户](./pics/admin2.png)
 
 ### 数据写入
 
@@ -114,27 +114,27 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 1.可以对已有的数据源进行删除和编辑操作，以及状态修改的操作
 
-![数据接入](./in.png)
+![数据接入](./pics/in.png)
 
 2.目前可以通过启用代理和常规方式添加数据源，代理方式添加只限于当前用户是  root 的情况下。目前提供六种可添加的数据源类型，如图：
 
-![添加数据源](./add-source.png)
+![添加数据源](./pics/add-source.png)
 
 3.添加PI数据类型如图：有红色星号的为必输项，其他的根据需求填写，点击 Submit 即可创建一条新的通过PI数据写入
 
-![添加Pi数据源](./pi.png)
+![添加Pi数据源](./pics/pi.png)
 
 4.新增 opcua 如下。红色星号为必输项，填写对应数据点击 Submit 即可创建一条线的 opcua
 
-![添加 OPCA UA 数据源](./opcua.png)
+![添加 OPCA UA 数据源](./pics/opcua.png)
 
 5.创建opcda如下：
 
-![添加 OPC DA 数据源](./opcda.png)
+![添加 OPC DA 数据源](./pics/opcda.png)
 
 6.创建InfluxDB如下：
 
-![添加 InfluxDB 数据源](./influxdb.png)
+![添加 InfluxDB 数据源](./pics/influxdb.png)
 
 
 #### 从 TDengine 备份数据文件到本地
@@ -188,19 +188,19 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 1.主题：该区域可以进行主题的创建和管理
 
-![创建 Topic](./create-topic.png)
+![创建 Topic](./pics/create-topic.png)
 
 2.消费者：展示消费者信息
 
-![消费者](./consumer.png)
+![消费者](./pics/consumer.png)
 
 3.共享主题：可将用户添加到共享的主题
 
-![共享主题](./share-topic.png)
+![共享主题](./pics/share-topic.png)
 
 4.示例代码：以文档形式展现
 
-![示例代码](./sample.png)
+![示例代码](./pics/sample.png)
 
 ### 流计算
 
@@ -208,32 +208,32 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 可通过向导和sql语句两种方式进行流计算的创建。向导目前不支持分组
 
-![流计算](./stream.png)
+![流计算](./pics/stream.png)
 
-![创建流计算](./create-stream.png)
+![创建流计算](./pics/create-stream.png)
 
 ### 可视化
 
 展示grafana和google data studio文档
 
-![可视化](./visual.png)
+![可视化](./pics/visual.png)
 
 ### 编程
 
 展示不同连接器语言的文档
 
-![编程](./program.png)
+![编程](./pics/program.png)
 
 ### 工具
 
 展示工具文档
 
-![工具](./tool.png)
+![工具](./pics/tool.png)
 
 ### 数据输出
 
 展示taosdump文档
 
-![数据输出](./dataOut1.png)
+![数据输出](./pics/dataOut1.png)
 
-![数据输出展示](./dataOut2.png)
+![数据输出展示](./pics/dataOut2.png)
