@@ -202,7 +202,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     bool        keyEscaped = false;
     size_t      keyLenEscaped = 0;
     while (*sql < sqlEnd) {
-      if (unlikely(IS_COMMA(*sql))) {
+      if (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql))) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
@@ -410,7 +410,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     bool        keyEscaped = false;
     size_t      keyLenEscaped = 0;
     while (*sql < sqlEnd) {
-      if (unlikely(IS_COMMA(*sql))) {
+      if (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql))) {
         smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
@@ -443,7 +443,14 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       if (unlikely(*(*sql) == QUOTE && (*(*sql - 1) != SLASH || (*sql - 1) == escapeChar))) {
         isInQuote = !isInQuote;
         (*sql)++;
-        if(!isInQuote) break;
+        if(!isInQuote) {
+          if (unlikely(IS_SPACE(*sql) || IS_COMMA(*sql))) {
+            break;
+          }else{
+            smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
+            return TSDB_CODE_SML_INVALID_DATA;
+          }
+        }
         continue;
       }
       if (!isInQuote) {
