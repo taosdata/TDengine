@@ -139,6 +139,7 @@ static STqMgmt tqMgmt = {0};
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
+void    tqDestroyTqHandle(void* data);
 
 // tqRead
 int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
@@ -161,6 +162,8 @@ int32_t tqMetaRestoreHandle(STQ* pTq);
 int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen);
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
 int32_t tqMetaRestoreCheckInfo(STQ* pTq);
+int32_t tqMetaGetHandle(STQ* pTq, const char* key);
+int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
 
 STqOffsetStore* tqOffsetOpen(STQ* pTq);
 void            tqOffsetClose(STqOffsetStore*);

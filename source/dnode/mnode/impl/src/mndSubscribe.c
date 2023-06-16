@@ -24,7 +24,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_SUBSCRIBE_VER_NUMBER   1
+#define MND_SUBSCRIBE_VER_NUMBER   2
 #define MND_SUBSCRIBE_RESERVE_SIZE 64
 
 #define MND_SUBSCRIBE_REBALANCE_CNT 3
@@ -99,13 +99,23 @@ static SMqSubscribeObj *mndCreateSubscription(SMnode *pMnode, const SMqTopicObj 
   return pSub;
 }
 
-static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscribeObj *pSub,
-                                    const SMqRebOutputVg *pRebVg) {
+static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, SMqSubscribeObj *pSub,
+                                    const SMqRebOutputVg *pRebVg, SSubplan* pPlan) {
   SMqRebVgReq req = {0};
   req.oldConsumerId = pRebVg->oldConsumerId;
   req.newConsumerId = pRebVg->newConsumerId;
   req.vgId = pRebVg->pVgEp->vgId;
-  req.qmsg = pRebVg->pVgEp->qmsg;
+  if(pPlan){
+    pPlan->execNode.epSet = pRebVg->pVgEp->epSet;
+    pPlan->execNode.nodeId = pRebVg->pVgEp->vgId;
+    int32_t msgLen;
+    if (qSubPlanToString(pPlan, &req.qmsg, &msgLen) < 0) {
+      terrno = TSDB_CODE_QRY_INVALID_INPUT;
+      return -1;
+    }
+  }else{
+    req.qmsg = taosStrdup("");
+  }
   req.subType = pSub->subType;
   req.withMeta = pSub->withMeta;
   req.suid = pSub->stbUid;
@@ -115,6 +125,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
   int32_t ret = 0;
   tEncodeSize(tEncodeSMqRebVgReq, &req, tlen, ret);
   if (ret < 0) {
+    taosMemoryFree(req.qmsg);
     return -1;
   }
 
@@ -122,6 +133,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
   void   *buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(req.qmsg);
     return -1;
   }
 
@@ -135,17 +147,19 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
   if (tEncodeSMqRebVgReq(&encoder, &req) < 0) {
     taosMemoryFreeClear(buf);
     tEncoderClear(&encoder);
+    taosMemoryFree(req.qmsg);
     return -1;
   }
   tEncoderClear(&encoder);
   *pBuf = buf;
   *pLen = tlen;
 
+  taosMemoryFree(req.qmsg);
   return 0;
 }
 
-static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SMqSubscribeObj *pSub,
-                                        const SMqRebOutputVg *pRebVg) {
+static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub,
+                                        const SMqRebOutputVg *pRebVg, SSubplan* pPlan) {
 //  if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
 //    terrno = TSDB_CODE_MND_INVALID_SUB_OPTION;
 //    return -1;
@@ -153,7 +167,7 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SM
 
   void   *buf;
   int32_t tlen;
-  if (mndBuildSubChangeReq(&buf, &tlen, pSub, pRebVg) < 0) {
+  if (mndBuildSubChangeReq(&buf, &tlen, pSub, pRebVg, pPlan) < 0) {
     return -1;
   }
 
@@ -255,7 +269,7 @@ static void doAddNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputObj *pI
   for (int32_t i = 0; i < numOfNewConsumers; i++) {
     int64_t consumerId = *(int64_t *)taosArrayGet(pInput->pRebInfo->newConsumers, i);
 
-    SMqConsumerEp newConsumerEp;
+    SMqConsumerEp newConsumerEp = {0};
     newConsumerEp.consumerId = consumerId;
     newConsumerEp.vgs = taosArrayInit(0, sizeof(void *));
 
@@ -483,14 +497,25 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 }
 
 static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOutputObj *pOutput) {
+  struct SSubplan* pPlan = NULL;
+  if(strcmp(pOutput->pSub->qmsg, "") != 0){
+    int32_t code = qStringToSubplan(pOutput->pSub->qmsg, &pPlan);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      return -1;
+    }
+  }
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "tmq-reb");
   if (pTrans == NULL) {
+    nodesDestroyNode((SNode*)pPlan);
     return -1;
   }
 
   mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
     mndTransDrop(pTrans);
+    nodesDestroyNode((SNode*)pPlan);
     return -1;
   }
 
@@ -500,11 +525,13 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   int32_t       vgNum = taosArrayGetSize(rebVgs);
   for (int32_t i = 0; i < vgNum; i++) {
     SMqRebOutputVg *pRebVg = taosArrayGet(rebVgs, i);
-    if (mndPersistSubChangeVgReq(pMnode, pTrans, pOutput->pSub, pRebVg) < 0) {
+    if (mndPersistSubChangeVgReq(pMnode, pTrans, pOutput->pSub, pRebVg, pPlan) < 0) {
       mndTransDrop(pTrans);
+      nodesDestroyNode((SNode*)pPlan);
       return -1;
     }
   }
+  nodesDestroyNode((SNode*)pPlan);
 
   // 2. redo log: subscribe and vg assignment
   // subscribe
@@ -809,7 +836,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto SUB_DECODE_OVER;
 
-  if (sver != MND_SUBSCRIBE_VER_NUMBER) {
+  if (sver > MND_SUBSCRIBE_VER_NUMBER || sver < 1) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto SUB_DECODE_OVER;
   }
@@ -828,7 +855,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, SUB_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_SUBSCRIBE_RESERVE_SIZE, SUB_DECODE_OVER);
 
-  if (tDecodeSubscribeObj(buf, pSub) == NULL) {
+  if (tDecodeSubscribeObj(buf, pSub, sver) == NULL) {
     goto SUB_DECODE_OVER;
   }
 

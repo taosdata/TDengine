@@ -1,11 +1,16 @@
 
 # rocksdb
+#set(librocksdb_src ${TD_CONTRIB_DIR}/rocksdb)
+#set(librocksdb_binary ${TD_CONTRIB_DIR}/rocksdb/build)
+
 ExternalProject_Add(rocksdb
-        GIT_REPOSITORY https://github.com/facebook/rocksdb.git
-        GIT_TAG v8.1.1
-        SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-        TEST_COMMAND ""
-        )
+	URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+  	URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+  	DOWNLOAD_NO_PROGRESS 1
+	DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download" 
+	SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb" 
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    INSTALL_COMMAND ""
+    TEST_COMMAND ""
+    )
