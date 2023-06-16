@@ -27,7 +27,7 @@
 #define MND_CONSUMER_RESERVE_SIZE 64
 
 #define MND_CONSUMER_LOST_HB_CNT          6
-#define MND_CONSUMER_LOST_CLEAR_THRESHOLD 43200
+#define MND_CONSUMER_LOST_CLEAR_THRESHOLD 60
 
 static int32_t mqRebInExecCnt = 0;
 
@@ -264,10 +264,6 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
 
   mDebug("start to process mq timer");
 
-  if (!tsEnableTmqRebalance) {
-    mInfo("tmq rebalance disable");
-    return 0;
-  }
   // rebalance cannot be parallel
   if (!mndRebTryStart()) {
     mDebug("mq rebalance already in progress, do nothing");
@@ -377,7 +373,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
     mndReleaseConsumer(pMnode, pConsumer);
   }
 
-  if (taosHashGetSize(pRebMsg->rebSubHash) != 0) {
+  if (taosHashGetSize(pRebMsg->rebSubHash) != 0 && tsEnableTmqRebalance) {
     mInfo("mq rebalance will be triggered");
     SRpcMsg rpcMsg = {
         .msgType = TDMT_MND_TMQ_DO_REBALANCE,
