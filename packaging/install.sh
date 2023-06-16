@@ -8,7 +8,7 @@ CONFIG_DIR="/etc/${PREFIX}x"
 service_config_dir="/etc/systemd/system"
 xName="${PREFIX}x"
 agentname="${PREFIX}x-agent"
-exploreName="${PREFIX}-explore"
+exploreName="${PREFIX}-explorer"
 csudo=""
 
 if command -v sudo >/dev/null; then
@@ -144,10 +144,16 @@ install_taosx() {
         ${csudo}mkdir -p /etc/taosx
     fi
     
-    if [ -f /etc/taosx/${PREFIX}x-agent.example.toml ]; then
-        ${csudo}cp ./config/agent.example.toml /etc/taosx/agent.example.toml.new
+    if [ -f /etc/taosx/${PREFIX}x-agent.toml ]; then
+        ${csudo}cp ./config/agent.toml /etc/taosx/agent.toml.new
     else
-       ${csudo}cp ./config/agent.example.toml /etc/taosx/
+       ${csudo}cp ./config/agent.toml /etc/taosx/
+    fi
+
+    if [ -f /etc/taosx/explorer.toml ]; then
+        ${csudo}cp ./config/explorer.toml /etc/taosx/explorer.toml.new
+    else
+       ${csudo}cp ./config/explorer.toml /etc/taosx/
     fi
 
     [ -x ${INSTALL_DIR}/rm${PREFIX}X.sh ] && ${csudo}ln -sf ${INSTALL_DIR}/rm${PREFIX}X.sh  ${BIN_LINK_DIR}/rm${PREFIX}x || :

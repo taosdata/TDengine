@@ -8,7 +8,7 @@ CONFIG_DIR="/etc/${PREFIX}x"
 service_config_dir="/etc/systemd/system"
 xName="${PREFIX}x"
 agentname="${PREFIX}x-agent"
-exploreName="${PREFIX}-explore"
+exploreName="${PREFIX}-explorer"
 csudo=""
 
 if command -v sudo >/dev/null; then

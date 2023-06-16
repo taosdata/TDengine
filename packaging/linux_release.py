@@ -10,13 +10,14 @@ release_dir = os.path.abspath(os.path.join(top_dir, "release"))
 opc_dir = os.path.abspath(os.path.join(top_dir, "plugins","opc"))
 mqtt_dir = os.path.abspath(os.path.join(top_dir, "plugins","mqtt"))
 influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","influxdb"))
-explore_dir = os.path.abspath(os.path.join(top_dir, "..","explore"))
+explore_dir = os.path.abspath(os.path.join(top_dir, "..","explorer"))
 
 logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(levelname)s %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
 
 def release(release_info,build_info):
     
     logging.info("release_info: {0}".format(release_info.__dict__))
+    
     init_release_dir(release_info)
     for info in build_info:
         logging.info("build_info: {0}".format(info.__dict__))
@@ -30,9 +31,8 @@ def release(release_info,build_info):
             build_and_install_taosx_on_linux(info.VersionMode)
         if info.Name =='taosx-agent':
             build_and_install_taosx_agent_on_linux(info.VersionMode)
-        if info.Name =='taosx-explore':
-            install_taos_explore_on_linux(info.VersionMode)
-    
+        if info.Name =='taos-explorer':
+            install_taos_explorer_on_linux(info.VersionMode)
     make_tar_package(release_info)
     logging.info("release successfully")
             
@@ -170,7 +170,7 @@ def build_and_install_taosx_on_linux(mode='release'):
     shutil.copy(os.path.join(top_dir,"target","taosx.service"),os.path.join(release_dir,"scripts"))
     os.chdir(script_dir)
 
-def install_taos_explore_on_linux(mode='release'):
+def install_taos_explorer_on_linux(mode='release'):
     logging.info("install taosx-explore under linux...")
     platform = "linux"
     arch = "amd64"
@@ -244,7 +244,7 @@ def build_and_install_taosx_agent_on_linux(mode='release'):
         os.system("mkdir -p %s" % os.path.join(release_dir,"config"))
     else:
         logging.info(f"{os.path.join(release_dir,'config')} already exists")
-    shutil.copyfile(os.path.join(top_dir,"taosx-agent","examples","agent.example.toml"),os.path.join(release_dir,"config","agent.example.toml"))
+    shutil.copyfile(os.path.join(top_dir,"taosx-agent","examples","agent.toml"),os.path.join(release_dir,"config","agent.toml"))
 
     os.chdir(script_dir)
 
