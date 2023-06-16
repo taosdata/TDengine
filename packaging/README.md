@@ -8,6 +8,7 @@ release.py 脚本为 taosx 及 taosx-agent 打包服务，支持 Windows 及 Lin
 - golang 1.20及以上（taos-opc、taos-mqtt 依赖）
 - PI System 授权(AF SDK)（pi-connector 依赖）
 - jdk1.8+、maven3(taos-influxdb 依赖)
+- Rust 1.65+ node.js 16+, yarn( taos-explorer 依赖)
 - Inno setup 6.2 及以上
 - 在运行release.py之前需要通过命令 pip install toml 来安装toml模块
 
@@ -27,11 +28,11 @@ version = "0.5.1"
 - -h: 查看本帮助信息
 - -c: cpu type [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...]
 - -b: build mode,可选 Debug\Release,默认 Release
-- -l: 需要同时打包的连接器列表，可以多个空格隔开； 当前支持：opc pi mqtt influxdb.该参数不传表示包含支持的所有连接器（linux 下无 pi），注意 taosx 及 taosx-agent 不是连接器，一定在安装包里
+- -l: 需要同时打包的连接器列表，可以多个空格隔开； 当前支持：opc pi mqtt influxdb.该参数不传表示包含支持的所有连接器（linux 下无 pi），注意 taosx\taosx-agent\taos-explorer 不是连接器，一定在安装包里
 - -s: submodel build mode, 各个模块单独配置 Debug/Release，该配置比-b参数优先，没有配置的模块使用-b配置
-- -s: ```examples, -s pi debug``` 表示 pi 模块使用 debug 模式，无论-b参数如何配置（支持对 taosx, taosx-agent, pi, opc, mqtt, influxdb 分别配置）
+- -s: ```examples, -s pi debug``` 表示 pi 模块使用 debug 模式，无论-b参数如何配置（支持对 taosx, taosx-agent, pi, opc, mqtt, influxdb, taos-explorer 分别配置）
 - -s: ```examples, -s pi debug taosx release``` 表示 pi 模块使用 debug 模式，taosx 使用 release 模式，无论 -b 参数如何配置
-- -t: 脚本快速测试，单独测试某一过程（仅支持 windows, 支持 taosx,agent,opc,pi,mqtt,package）
+- -t: 脚本快速测试，单独测试某一过程（仅支持 windows, 支持 taosx,agent,opc,pi,mqtt,package, explorer）
 - -t pi: 示例，测试 pi 编译安装
 - -t package: 已经安装好的服务打包测试( taosx taosx-agent 必须已经编译安装过)
 - 连接器可带版本号编译，和连接器名空格隔开
@@ -44,15 +45,17 @@ version = "0.5.1"
 - 文件名：
     - windows:   taosx-{version}-windows-installer.exe
     - linux:     taosX-{version}-Linux-x64.tar.gz
-- windows 使用安装程序进行安装，使用 uninstall_taosx.exe 进行卸载。taosx-srv.exe 和 taosx-agent.exe 可以以服务模式启动 taosx 和 taos-agent
+- windows 使用安装程序进行安装，使用 uninstall_taosx.exe 进行卸载。taosx\taosx-agent\taos-explorer 均已安装为服务
 - 命令窗口执行 ```sc start/stop taosx``` 管理 taosx 服务
 - 命令窗口执行 ```sc start/stop taosx-agent``` 管理 taosx-agent 服务
+- 命令窗口执行 ```sc start/stop taos-explorer``` 管理 taos-explorer 服务
 - 使用 uninstall_taosx.exe 卸载 taosx
 - windows 安装目录为```C:\Program Files\taosX```，目录结构如下：
 ~~~
 ├── bin
 │   ├── taosx.exe
 │   ├── taosx-agent.exe
+│   ├── taos-explorer.exe
 ├── plugins
 │   ├── influxdb
 │   │   └── taosx-inflxdb.jar
@@ -67,7 +70,8 @@ version = "0.5.1"
 │       └── taosx-pi-backfill.exe
 │       └── ...
 └── config
-│   ├── agent.example.toml
+│   ├── agent.toml
+│   ├── explorer.toml
 ├── uninstall_taosx.exe
 ├── uninstall_taosx.dat
 ~~~
@@ -87,20 +91,22 @@ taosx-agent -V
 # start taosX and taosx-agent system service
 sudo systemctl start taosx
 sudo systemctl start taosx-agent
+sudo systemctl start taos-explorer
 
 # check status of tasx and taosx-agent serverice
 sudo systemctl status taosx
 sudo systemctl status taosx-agent
+sudo systemctl status taos-explorer
 
 # stop taosx and taosx-agent
 sudo systemctl stop taosx
 sudo systemctl stop taosx-agent
+sudo systemctl stop taos-explorer
 
 # 卸载
 sudo rmtaox
 ```
 - linux 下文件路径说明
-  1. taosX, Agent, Explorer: /usr/local/bin
+  1. taosx, taosx-gent, taos-explorer: /usr/local/taosX/bin
   2. connectors: /usr/local/taosX/plugins
-  3. logs for tasoX and Agent: /usr/local/taosX/logs
-  4. rmtaosX.sh:  /user/local/taosx
+  3. rmtaosX.sh:  /user/local/taosX/bin
