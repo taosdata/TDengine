@@ -61,11 +61,11 @@ WantedBy=multi-user.target
 
 打开浏览器，输入正确的用户名和密码（注：这里的用户名和密码是所连接的 TDengine 中的用户名和密码）
 
-![登录界面](./login.png)
+![登录界面](./pics/login.png)
 
 点击登录按钮进入主界面，主界面功能展示如下：
 
-![主界面示例](./ui.png)
+![主界面示例](./pics/ui.png)
 
 ### 面板
 
@@ -74,7 +74,7 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 - 默认的仪表盘会返回对应 Grafana 的安装配置向导
 - 配置过 Grafana 的仪表盘在点击' 面板' 时会跳转到对应的配置地址（该地址来源于 /profile 接口的返回值）
 
-![仪表盘](./dashboard.png)
+![仪表盘](./pics/dashboard.png)
 
 ### 数据浏览器
 
@@ -94,19 +94,19 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 例：图为超级管理员权限，展示所有可操作内容
 
-![数据浏览和管理](./data.png)
+![数据浏览和管理](./pics/data.png)
 
 每个数据库下只有一个 STables 和 Tables 文件夹，分别用来添加超级表和普通表
 
-![管理超级表和普通表](./stable.png)
+![管理超级表和普通表](./pics/stable.png)
 
 ### 系统管理
 
 点击功能列表中的“系统管理”入口，可以创建用户、对用户进行访问授权、以及删除用户。还能够对当前所管理的集群中的数据进行备份和恢复。也可以配置一个远程 TDengine 的地址进行数据同步。同时也提供了集群信息和许可证的信息以及代理信息以供查看。系统管理 菜单只有 root 用户才有权限看到
 
-![用户管理](./admin1.png)
+![用户管理](./pics/admin1.png)
 
-![添加用户](./admin2.png)
+![添加用户](./pics/admin2.png)
 
 ### 数据写入
 
@@ -114,27 +114,27 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 1.可以对已有的数据源进行删除和编辑操作，以及状态修改的操作
 
-![数据接入](./in.png)
+![数据接入](./pics/in.png)
 
 2.目前可以通过启用代理和常规方式添加数据源，代理方式添加只限于当前用户是  root 的情况下。目前提供六种可添加的数据源类型，如图：
 
-![添加数据源](./add-source.png)
+![添加数据源](./pics/add-source.png)
 
 3.添加PI数据类型如图：有红色星号的为必输项，其他的根据需求填写，点击 Submit 即可创建一条新的通过PI数据写入
 
-![添加Pi数据源](./pi.png)
+![添加Pi数据源](./pics/pi.png)
 
 4.新增 opcua 如下。红色星号为必输项，填写对应数据点击 Submit 即可创建一条线的 opcua
 
-![添加 OPCA UA 数据源](./opcua.png)
+![添加 OPCA UA 数据源](./pics/opcua.png)
 
 5.创建opcda如下：
 
-![添加 OPC DA 数据源](./opcda.png)
+![添加 OPC DA 数据源](./pics/opcda.png)
 
 6.创建InfluxDB如下：
 
-![添加 InfluxDB 数据源](./influxdb.png)
+![添加 InfluxDB 数据源](./pics/influxdb.png)
 
 
 #### 从 TDengine 备份数据文件到本地
@@ -180,7 +180,28 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 #### 从 MQTT 同步数据到 TDengine
 
-@xuwang
+进入 MQTT 数据源同步任务的编辑页面后：
+
+1. 在 MQTT 地址卡片，输入 MQTT 地址，必填字段，包括 IP 和 端口号，例如：192.168.1.10:1883;
+2. 在认证卡片，输入 MQTT 连接器访问 MQTT 服务器时的用户名和密码，这两个字段为选填字段，如果未输入，即采用匿名认证的方式；
+3. 在 SSL 证书卡片，可以选择是否打开 SSL/TLS 开关，如果打开此开关，MQTT 连接器和 MQTT 服务器之间的通信将采用 SSL/TLS 的方式进行加密；打开这个开关后，会出现 CA, 客户端证书和客户端私钥三个必填配置项，可以在这里输入证书和私钥文件的内容；
+4. 在连接卡片，可以配置以下信息：
+    - MQTT 协议：支持3.1/3.1.1/5.0三个版本；
+    - Client ID: MQTT 连接器连接 MQTT 服务器时所使用的客户端 ID, 用于标识客户端的身份；
+    - Keep Alive: 用于配置 MQTT 连接器与 MQTT 服务器之间的Keep Alive时间，默认值为60秒；
+    - Clean Session: 用于配置 MQTT 连接器是否以Clean Session的方式连接至 MQTT 服务器，默认值为True;
+    - 订阅主题及 QoS 配置：这里用来配置监听的 MQTT 主题，以及该主题支持的最大QoS, 主题和 QoS 的配置之间用::分隔，多个主题之间用,分隔，主题的配置可以支持 MQTT 协议的通配符#和+;
+5. 在其他卡片，可以配置 MQTT 连接器的日志级别，支持 error, warn, info, debug, trace 5个级别，默认值为 info;
+6. MQTT Payload 解析卡片，用于配置如何解析 MQTT 消息：
+    - 配置表的第一行为 ts 字段，该字段为 TIMESTAMP 类型，它的值为 MQTT 连接器收到 MQTT 消息的时间；
+    - 配置表的第二行为 topic 字段，为该消息的主题名称，可以选择将该字段作为列或者标签同步至 TDengine;
+    - 配置表的第三行为 qos 字段，为该消息的 QoS 属性，可以选择将该字段作为列或者标签同步至 TDengine;
+    - 剩余的配置项皆为自定义字段，每个字段都需要配置：字段（来源），列（目标），列类型（目标）。字段（来源）是指该 MQTT 消息中的字段名称，当前仅支持 JSON 类型的 MQTT 消息同步，可以使用 JSON Path 语法从 MQTT 消息中提取字段，例如：$.data.id; 列（目标）是指同步至 TDengine 后的字段名称；列类型（目标）是指同步至 TDengine 后的字段类型，可以从下拉列表中选择；当且仅当以上3个配置都填写后，才能新增下一个字段；
+    - 如果 MQTT 消息中包含时间戳，可以选择新增一个自定义字段，将其作为同步至 TDengine 时的主键；需要注意的是，MQTT 消息中时间戳的仅支持 Unix Timestamp格式，且该字段的列类型（目标）的选择，需要与创建 TDengine 数据库时的配置一致；
+    - 子表命名规则：用于配置子表名称，采用“前缀+{列类型(目标)}”的格式，例如：d{id};
+    - 超级表名：用于配置同步至 TDengine 时，采用的超级表名；
+7. 在目标数据库卡片，可以选择同步至 TDengine 的数据库名称，支持直接从下拉列表中选择。
+8. 填写完成以上信息后，点击提交按钮，即可直接启动从 MQTT 到 TDengine 的数据同步。
 
 ### 数据订阅
 
@@ -188,19 +209,19 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 1.主题：该区域可以进行主题的创建和管理
 
-![创建 Topic](./create-topic.png)
+![创建 Topic](./pics/create-topic.png)
 
 2.消费者：展示消费者信息
 
-![消费者](./consumer.png)
+![消费者](./pics/consumer.png)
 
 3.共享主题：可将用户添加到共享的主题
 
-![共享主题](./share-topic.png)
+![共享主题](./pics/share-topic.png)
 
 4.示例代码：以文档形式展现
 
-![示例代码](./sample.png)
+![示例代码](./pics/sample.png)
 
 ### 流计算
 
@@ -208,32 +229,32 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 可通过向导和sql语句两种方式进行流计算的创建。向导目前不支持分组
 
-![流计算](./stream.png)
+![流计算](./pics/stream.png)
 
-![创建流计算](./create-stream.png)
+![创建流计算](./pics/create-stream.png)
 
 ### 可视化
 
 展示grafana和google data studio文档
 
-![可视化](./visual.png)
+![可视化](./pics/visual.png)
 
 ### 编程
 
 展示不同连接器语言的文档
 
-![编程](./program.png)
+![编程](./pics/program.png)
 
 ### 工具
 
 展示工具文档
 
-![工具](./tool.png)
+![工具](./pics/tool.png)
 
 ### 数据输出
 
 展示taosdump文档
 
-![数据输出](./dataOut1.png)
+![数据输出](./pics/dataOut1.png)
 
-![数据输出展示](./dataOut2.png)
+![数据输出展示](./pics/dataOut2.png)
