@@ -46,10 +46,10 @@ settings:
             debugFlag: 135
             supportVnodes: 1024
         - endpoint: u1-42:6090
-          config_dir: /data/cyjia/data/taosd_1/cluster2
+          config_dir: /data/cyjia/data/taosd_1/cluster3
           config: # will write into taos.cfg
-            dataDir: /data/cyjia/data/taosd_1/cluster2
-            logDir: /data/cyjia/data/taosd_1/cluster2
+            dataDir: /data/cyjia/data/taosd_1/cluster3
+            logDir: /data/cyjia/data/taosd_1/cluster3
             debugFlag: 135
             supportVnodes: 1024
   - name: taospy
