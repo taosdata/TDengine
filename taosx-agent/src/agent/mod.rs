@@ -333,7 +333,7 @@ impl Client {
                     context.value(0),
                 );
 
-                log::info!("At [{ts}] action `{action}` triggered with: {context}");
+                log::info!("At [{ts}] action `{action}` triggered");
                 match action {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
