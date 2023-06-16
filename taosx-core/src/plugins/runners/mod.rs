@@ -11,7 +11,7 @@ const ENV_PLUGINS_HOME_DEFAULT: &'static str = {
         if #[cfg(windows)] {
             "C:\\Program Files\\taosX\\plugins"
         } else {
-            "/usr/local/taosx/plugins"
+            "/usr/local/taosX/plugins"
         }
     }
 };
@@ -36,7 +36,7 @@ const ENV_TAOSX_LOGS_HOME_DEFAULT: &'static str = {
         if #[cfg(windows)] {
             "C:\\Program Files\\taosX\\logs"
         } else {
-            "/usr/local/taosx/logs"
+            "/usr/local/taosX/logs"
         }
     }
 };
