@@ -946,9 +946,11 @@ static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, in
 }
 static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStream, SHashObj *vgIds,
                                                int64_t checkpointId) {
-  if (checkpointId == pStream->checkpointId) {
+  int64_t timestampMs = taosGetTimestampMs();
+  if (timestampMs - pStream->checkpointFreq < tsStreamCheckpointTickInterval * 1000) {
     return -1;
   }
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, NULL, "stream-checkpoint");
   if (pTrans == NULL) return -1;
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
@@ -1008,6 +1010,7 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   // 2. reset tick
   pStream->checkpointFreq = checkpointId;
   pStream->checkpointId = checkpointId;
+  pStream->checkpointFreq = taosGetTimestampMs();
   atomic_store_64(&pStream->currentTick, 0);
   // 3. commit log: stream checkpoint info
   pStream->version = pStream->version + 1;
