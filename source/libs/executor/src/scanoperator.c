@@ -55,7 +55,6 @@ typedef struct STableMergeScanSortSourceParam {
   int32_t        readerIdx;
   uint64_t       uid;
   SSDataBlock*   inputBlock;
-  bool           multiReader;
   STsdbReader*   dataReader;
 } STableMergeScanSortSourceParam;
 
@@ -2658,8 +2657,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   int64_t      st = taosGetTimestampUs();
   void*        p = tableListGetInfo(pInfo->base.pTableListInfo, readIdx + pInfo->tableStartIndex);
   SReadHandle* pHandle = &pInfo->base.readHandle;
-
-  if (NULL == source->dataReader || !source->multiReader) {
+  if (NULL == source->dataReader) {
     code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, pQueryCond, p, 1, pBlock, (void**)&source->dataReader, GET_TASKID(pTaskInfo), false, NULL);
     if (code != 0) {
       T_LONG_JMP(pTaskInfo->env, code);
@@ -2723,19 +2721,14 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     qTrace("tsdb/read-table-data: %p, close reader", reader);
-    if (!source->multiReader) {
-      pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
-      source->dataReader = NULL;
-    }
     pInfo->base.dataReader = NULL;
     return pBlock;
   }
 
-  if (!source->multiReader) {
-    pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
-    source->dataReader = NULL;
-  }
+  pAPI->tsdReader.tsdReaderClose(source->dataReader);
+  source->dataReader = NULL;
   pInfo->base.dataReader = NULL;
+
   return NULL;
 }
 
@@ -2791,7 +2784,8 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   // todo the total available buffer should be determined by total capacity of buffer of this task.
   // the additional one is reserved for merge result
-  pInfo->sortBufSize = pInfo->bufPageSize * (tableEndIdx - tableStartIdx + 1 + 1);
+  // pInfo->sortBufSize = pInfo->bufPageSize * (tableEndIdx - tableStartIdx + 1 + 1);
+  pInfo->sortBufSize = pInfo->bufPageSize * (256 + 1);
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
   pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize, numOfBufPage,
                                              pInfo->pSortInputBlock, pTaskInfo->id.str);
@@ -2806,7 +2800,6 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     STableMergeScanSortSourceParam param = {0};
     param.readerIdx = i;
     param.pOperator = pOperator;
-    param.multiReader = (numOfTable <= MULTI_READER_MAX_TABLE_NUM) ? true : false;
     param.inputBlock = createOneDataBlock(pInfo->pResBlock, false);
     blockDataEnsureCapacity(param.inputBlock, pOperator->resultInfo.capacity);
 
