@@ -10,8 +10,6 @@ description: "为了易于企业版用户更容易使用和管理数据库，TDe
 
 ### 部署服务
 
-@zhengqin，请 review 并修改本节内容
-
 #### 准备工作
 
 1.  taosExplorer 没有独立的安装包，请使用 TDegnine 企业版安装包进行安装。
@@ -39,7 +37,7 @@ x_api = "http://localhost:6050"
 
 然后启动 taosExplorer，可以直接在命令行执行 taos-explorer 或者使用下面的 systemctl 脚本用 systemctl 来启动 taosExplorer 服务
 
-```TOML
+```
 [Unit]
 Description=Explorer for TDengine
 After=network-online.target
@@ -56,7 +54,8 @@ WantedBy=multi-user.target
 
 #### 问题排查
 
-@zhengqin，此处添加如何查看 taosExplorer 的日志并举例常见错误
+1. 当通过浏览器打开taosExplorer站点遇到“无法访问此网站”的错误信息时，请通过命令行登录taosExplorer所在机器，并使用命令systemctl status taos-explorer.service检查服务的状态，如果返回的状态是inactive，请使用命令systemctl start taos-explorer.service启动服务。
+2. 如果需要获取taosExplorer的详细日志，可通过命令journalctl -u taos-explorer
 
 ### 登录
 
@@ -140,11 +139,11 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 #### 从 TDengine 备份数据文件到本地
 
-@zhengqin，在这里描述简单的操作步骤，以及对图形界面上关键参数的说明（下同）
+点击功能列表中的 “系统管理”，然后选择“备份”标签，单击“新增备份”按钮， 在“新增备份”窗口， 选择相应的备份周期和需要备份的数据库(待备份的数据库需要保证配置的wal_retention_period > 0)，并键入存放备份的目录，最后点击“确定”按钮，即可查看创建的备份任务。
 
 #### 从本地数据文件恢复到 TDengine
 
-@zhengqin
+当上一步创建的备份任务中的源数据库被删除以后，可以点击“数据恢复”按钮，即可成功恢复
 
 #### 从 OPC-UA 同步数据到 TDengine
 
@@ -177,7 +176,7 @@ taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击�
 
 #### 从 InfluxDB 同步数据到 TDengine
 
-@zhengqin
+在InfluxDB 数据源提交页面， 设置 InfluxDB 的服务地址和端口，以及组织 ID 和令牌 Token, 并配置同步设置的起始时间和需要同步的Bucket(其中结束时间为选填项，当不指定结束时间时，将持续进行最新数据的同步), 最后指定需要同步到的目标TDengine数据库，然后点击提交按钮即可提交同步任务
 
 #### 从 MQTT 同步数据到 TDengine
 
