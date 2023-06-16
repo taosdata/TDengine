@@ -212,15 +212,15 @@ class StaticFullSync(TDCase):
     def run(self):
         for replica in self.replica:
             self.dbname = [self.tdCom.get_long_name(5)]
-            # self.target_dbname = self.tdCom.get_long_name(5)
-            # self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica=replica)
-            # self.full_sync_db_stb('db')
-            # self.full_sync_db_stb('stable')
-            # self.full_sync_ctb()
-            self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
             self.target_dbname = self.tdCom.get_long_name(5)
-            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
-            self.full_sync_ntb()
+            self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica=replica)
+            self.full_sync_db_stb('db')
+            self.full_sync_db_stb('stable')
+            # self.full_sync_ctb()
+            # self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            # self.target_dbname = self.tdCom.get_long_name(5)
+            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
+            # self.full_sync_ntb()
 
     def cleanup(self):
         pass
