@@ -417,11 +417,188 @@ Caused by:
 
 #### 从 InfluxDB 同步数据到 TDengine
 
-@zhengqin
+将数据从 InfluxDB 同步至 TDengine 的命令，如下所示：
+
+```bash
+taosx run --from "<InfluxDB-DSN>" --to "<TDengine-DSN>"
+```
+
+其中，InfluxDB DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
+- orgId: 必填，InfluxDB 中的 Orgnization ID;
+- bucket: 必填，InfluxDB 中的 Bucket 名称，一次只能同步一个 Bucket;
+- token: 必填，InfluxDB 中生成的 API token, 这个 token 至少要拥有以上 Bucket 的 Read 权限；
+- beginTime: 必填，格式为：YYYY-MM-DD HH:MM:SS, 时区采用 UTC 时区，例如：2023-06-01 00:00:00, 即北京时间2023-06-01 08:00:00;
+- endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步。
+
+#### 举例说明
+
+将位于 192.168.1.10 的 InfluxDB 中, Bucket 名称为 test_bucket, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taoskeeper, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
+
+```bash
+taosx run \
+  --from "influxdb://192.168.1.10:8086/?token=OZ2sB6Ie6qcKcYAmcHnL-i3STfLVg_IRPQjPIzjsAQ4aUxCWzYhDesNape1tp8IsX9AH0ld41C-clTgo08CGYA==&orgId=3233855dc7e37d8d&bucket=test_bucket&beginTime=2023-06-01 00:00:00" \
+  --to "taos+http://192.168.1.20:6041/test_db" \
+  -vv
+```
+
+在这个命令中，未指定endTime, 所以任务会长期运行，持续同步最新的数据。
 
 #### 从 MQTT 同步数据到 TDengine
 
-@xuwang
+目前，MQTT 连接器仅支持从 MQTT 服务端消费 JSON 格式的消息，并将其同步至 TDengine. 命令如下所示：
+
+```bash
+taosx run --from "<MQTT-DSN>" --to "<TDengine-DSN>" --parser "@<parser-config-file-path>"
+```
+
+其中：
+- `--from` 用于指定 MQTT 数据源的 DSN
+- `--to` 用于指定 TDengine 的 DSN
+- `--parser` 用于指定一个 JSON 格式的配置文件，该文件决定了如何解析 JSON 格式的 MQTT 消息，以及写入 TDengine 时的超级表名、子表名、字段名称和类型，以及标签名称和类型等。
+
+#### MQTT DSN 配置
+
+MQTT DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
+- topics: 必填，用于配置监听的 MQTT 主题名称和连接器支持的最大 QoS, 采用 `<topic>::<max-Qos>` 的形式；支持配置多个主题，使用逗号分隔；配置主题时，还可以使用 MQTT 协议的支持的通配符#和+;
+- version: 非必填，用于配置 MQTT 协议的版本，支持的版本包括：3.1/3.1.1/5.0, 默认值为3.1;
+- clean_session: 非必填，用于配置连接器作为 MQTT 客户端连接至 MQTT 服务端时，服务端是否保存该会话信息，其默认值为 true, 即不保存会话信息；
+- client_id: 必填，用于配置连接器作为 MQTT 客户端连接至 MQTT 服务端时的客户端 id;
+- keep_alive: 非必填，用于配置连接器作为 MQTT 客户端，向 MQTT 服务端发出 PINGREG 消息后的等待时间，如果连接器在该时间内，未收到来自 MQTT 服务端的 PINGREQ, 连接器则主动断开连接；该配置的单位为秒，默认值为 60;
+- ca: 非必填，用于指定连接器与 MQTT 服务端建立 SSL/TLS 连接时，使用的 CA 证书，其值为在证书文件的绝对路径前添加@, 例如：@/home/admin/certs/ca.crt;
+- cert: 非必填，用于指定连接器与 MQTT 服务端建立 SSL/TLS 连接时，使用的客户端证书，其值为在证书文件的绝对路径前添加@, 例如：@/home/admin/certs/client.crt;
+- cert_key: 非必填，用于指定连接器与 MQTT 服务端建立 SSL/TLS 连接时，使用的客户端私钥，其值为在私钥文件的绝对路径前添加@, 例如：@/home/admin/certs/client.key;
+- log_level: 非必填，用于配置连接器的日志级别，连接器支持 error/warn/info/debug/trace 5种日志级别，默认值为 info.
+
+一个完整的 MQTT DSN 示例如下：
+```bash
+mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version=3.1&clean_session=true&log_level=info&client_id=taosdata_1234&keep_alive=60&ca=@/home/admin/certs/ca.crt&cert=@/home/admin/certs/client.crt&cert_key=@/home/admin/certs/client.key
+```
+
+#### MQTT 连接器的解释器配置
+
+连接器的解释器配置文件，即`--parser`配置项的参数，它的值为一个 JSON 文件，其配置可分为`parse`和`model`两部分，模板如下所示：
+
+```json
+{
+  "parse": {
+    "payload": {
+      "json": [
+        {
+          "name": "ts",
+          "alias": "ts",
+          "cast": "TIMESTAMP"
+        },
+        ...
+      ]
+    }
+  },
+  "model": {
+    "using": "<stable-name>",
+    "name": "<subtable-prefix>{alias}",
+    "columns": [ ... ],
+    "tags": [ ... ]
+  }
+}
+```
+
+各字段的说明如下：
+- parse 部分目前仅支持 json 一种 payload, json 字段的值是一个由 JSON Object 构成的 JSON Array:
+  - 每个 JSON Ojbect 包括 name, alias, cast 三个字段；
+  - name 字段用于指定如何从 MQTT 消息中提取字段，如果 MQTT 消息是一个简单的 JSON Object, 这里可以直接设置其字段名；如果 MQTT 消息是一个复杂的 JSON Object, 这里可以使用 JSON Path 提取字段，例如：`$.data.city`;
+  - alias 字段用于命名 MQTT 消息中的字段同步至 TDengine 后使用的名称；
+  - cast 字段用于指定 MQTT 消息中的字段同步至 TDengine 后使用的类型。
+- model 部分用于设置 TDengine 超级表、子表、列和标签等信息：
+  - using 字段用于指定超级表名称；
+  - name 字段用于指定子表名称，它的值可以分为前缀和变量两部分，变量为 parse 部分设置的 alias 的值，需要使用{}, 例如：d{id}；
+  - columns 字段用于设置 MQTT 消息中的哪些字段作为 TDengine 超级表中的列，取值为 parse 部分设置的 alias 的值；需要注意的是，这里的顺序会决定 TDengine 超级表中列的顺序，因此第一列必须为 TIMESTAMP 类型；
+  - tags 字段用于设置 MQTT 消息中的哪些字段作为 TDengine 超级表中的标签，取值为 parse 部分设置的 alias 的值。
+
+#### 举例说明
+
+在 192.168.1.10 的 1883 端口运行着一个 MQTT broker, 用户名、口令分别为admin, 123456; 现欲将其中的消息，通过运行在 192.168.1.20 的 taosadapter 同步至 TDengine 的 test 数据库中。MQTT 消息格式为：
+
+```json
+{
+  "id": 1,
+  "current": 10.77,
+  "voltage": 222,
+  "phase": 0.77,
+  "groupid": 7,
+  "location": "California.SanDiego"
+}
+```
+
+MQTT 消息同步至 TDengine 时, 如果采用 meters 作为超级表名，前缀“d”拼接id字段的值作为子表名，ts, id, current, voltage, phase作为超级表的列，groupid, location作为超级表的标签，其解释器的配置如下：
+```json
+{
+  "parse": {
+    "payload": {
+      "json": [
+        {
+          "name": "ts",
+          "alias": "ts",
+          "cast": "TIMESTAMP"
+        },
+        {
+          "name": "id",
+          "alias": "id",
+          "cast": "INT"
+        },
+        {
+          "name": "voltage",
+          "alias": "voltage",
+          "cast": "INT"
+        },
+        {
+          "name": "phase",
+          "alias": "phase",
+          "cast": "FLOAT"
+        },
+        {
+          "name": "current",
+          "alias": "current",
+          "cast": "FLOAT"
+        },
+        {
+          "name": "groupid",
+          "alias": "groupid",
+          "cast": "INT"
+        },
+        {
+          "name": "location",
+          "alias": "location",
+          "cast": "VARCHAR(20)"
+        }
+      ]
+    }
+  },
+  "model": {
+    "name": "d{id}",
+    "using": "meters",
+    "columns": [
+      "ts",
+      "id",
+      "current",
+      "voltage",
+      "phase"
+    ],
+    "tags": [
+      "groupid",
+      "location"
+    ]
+  }
+}
+```
+
+如果以上parser配置位于`/home/admin/parser.json`中，那么完整的命令如下所示：
+
+```bash
+taosx run \
+  -f "mqtt://admin:123456@192.168.1.10:1883?topics=testtopic/1::2&version=3.1&clean_session=true&log_level=info&client_id=1234&keep_alive=60" \
+  -t "taos+ws://192.168.1.20:6041/test"
+  --parser "@/home/admin/parser.json"
+  --verbose
+```
 
 ### 服务模式
 
@@ -429,28 +606,90 @@ Caused by:
 
 ### 部署 taosX
 
-@xuwang，此处添加如何配置和启动 taosX 服务，以及如何查看 taosX 日志排查常见错误，并举例常见错误
-
 #### 配置
+
+taosX 仅支持通过命令行参数进行配置。服务模式下，taosX 支持的命令行参数可以通过以下方式查看：
+
+```
+taosx serve --help
+```
+
+建议通过 Systemd 的方式，启动 taosX 的服务模式，其 Systemd 的配置文件位于：`/etc/systemd/system/taosx.service`. 如需修改 taosX 的启动参数，可以编辑该文件中的以下行：
+
+```
+ExecStart=/usr/bin/taosx serve -v
+```
+
+修改后，需执行以下命令重启 taosX 服务，使配置生效：
+
+```
+systemctl daemon-reload
+systemctl restart taosx
+```
 
 #### 启动
 
+以 Systemd 的方式启动 taosX 的命令如下：
+
+```
+systemctl start taosx
+```
+
 #### 问题排查
+
+1. 如何修改 taosX 的日志级别？
+
+taosX 的日志级别是通过命令行参数指定的，默认的日志级别为 Info, 具体参数如下：
+- INFO: `taosx serve -v`
+- DEBUG: `taosx serve -vv`
+- TRACE: `taosx serve -vvv`
+
+Systemd 方式启动时，如何修改命令行参数，请参考“配置”章节。
+
+2. 如何查看 taosX 的日志？
+
+以 Systemd 方式启动时，可通过 journalctl 命令查看日志。以滚动方式，实时查看最新日志的命令如下：
+
+```
+journalctl -u taosx -f
+```
 
 ### 部署 Agent 
 
-@xuwang，此处添加如何配置和启动 Agent 服务，以及如何查看 Agent 日志排查常见错误，并举例常见错误
-
 #### 配置
+
+Agent 默认的配置文件位于`/etc/taos/agent.toml`, 包含以下配置项：
+- endpoint: 必填，taosX 的 GRPC endpoint
+- token: 必填，在 taosExplorer 上创建 agent 时，产生的token
+- debug_level: 非必填，默认为 info, 还支持 debug, trace 等级别
+
+如下所示：
+
+```
+endpoint = "grpc://<taosx-ip>:6055"
+token = "<token>"
+```
 
 #### 启动
 
+Agent 可以通过 Systemd 命令启动：
+
+```
+systemctl start taosx-agent
+```
+
 #### 问题排查
+
+可以通过 journalctl 查看 Agent 的日志
+
+```
+journalctl -u taosx-agent -f
+```
+
 
 ### 部署 taosExplorer
 
-请参考  taosExplorer
-
+请参考 taosExplorer
 
 ### 数据同步功能
 
