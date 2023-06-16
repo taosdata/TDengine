@@ -210,7 +210,7 @@ pub async fn influxdb_to_taos(
     // get the path of the temporary file
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-    log::info!("Using config file {} \n{}", config_path.display(), toml);
+    log::info!("Using config file {}", config_path.display());
     // create socket channel
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
