@@ -22,7 +22,8 @@
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
 int32_t             streamBackendCfWrapperId = 0;
-static void         streamMetaEnvInit() {
+
+static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
   streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
 }
