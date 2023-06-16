@@ -44,12 +44,16 @@
         <li></li>
       </ul>
       <div class="col-content">
+        <span style="color:red;font-size:24px;">
+          {{
+            fields.filter((item) => item.name != 'payload').length
+          }}
+          {{connectorData.parse.payload.json}}
+        </span>
         <Mqttcolumn
           v-for="item in fields.filter((item) => item.name != 'payload')"
-          :key="item.name + Math.random() * 1000"
+          :key="item.name"
           :colData="item"
-          @deleteRow="deleteRow"
-          :currentPrimary="currentKey.primary"
           @changePrimary="changePrimary"
           @changeAddStatus="changeAddStatus"
           :isEditable="isEditable"
@@ -58,11 +62,10 @@
         </Mqttcolumn>
         <Mqttcolumn
           v-for="(item, index) in connectorData.parse.payload.json"
-          :key="index + Math.random() * 1000"
+          :key="index"
           :index="index"
           :colData="item"
           @deleteRow="deleteRow"
-          :currentPrimary="currentKey.primary"
           @changePrimary="changePrimary"
           :isEditable="isEditable"
           @changeAddStatus="changeAddStatus"
@@ -152,9 +155,8 @@ export default {
   },
   data() {
     return {
-      defaultSelect: "",
       currentKey: {
-        primary: "",
+        primary: "ts",
       },
       showSuperTip: false,
       visiblecols: ["using", "name"],
@@ -178,11 +180,6 @@ export default {
         ],
       },
     };
-  },
-  watch: {
-    defaultSelect(newValue, oldValue) {
-      console.error('fuzujian -- defaultSelect', newValue, this.currentKey.primary)
-    }
   },
   methods: {
     changePrimary(data) {
@@ -262,10 +259,13 @@ export default {
   },
   mounted() {
     this.changeAddStatus();
-    this.currentKey.primary =
-      this.connectorData.model.columns.length > 0
-        ? this.connectorData.model.columns[0]
-        : "ts";
+    if(this.connectorData.model.columns.length > 0){
+      this.currentKey.primary = this.connectorData.model.columns[0]
+    }
+    // this.currentKey.primary =
+    //   this.connectorData.model.columns.length > 0
+    //     ? this.connectorData.model.columns[0]
+    //     : "ts";
   },
 };
 </script>
