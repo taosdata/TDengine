@@ -654,7 +654,17 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
   if (!writer->config->skmRow) writer->config->skmRow = writer->skmRow;
   if (!writer->config->bufArr) writer->config->bufArr = writer->bufArr;
 
-  writer->file[0] = writer->config->file;
+  writer->file[0] = (STFile){
+      .type = TSDB_FTYPE_STT,
+      .did = writer->config->did,
+      .fid = writer->config->fid,
+      .cid = writer->config->cid,
+      .size = 0,
+      .stt[0] =
+          {
+              .level = writer->config->level,
+          },
+  };
 
   // open file
   int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
@@ -735,7 +745,7 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
   ASSERT(writer->file->size > 0);
   STFileOp op = (STFileOp){
       .optype = TSDB_FOP_CREATE,
-      .fid = writer->config->file.fid,
+      .fid = writer->config->fid,
       .nf = writer->file[0],
   };
 
@@ -751,16 +761,13 @@ _exit:
 
 static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
   char fname[TSDB_FILENAME_LEN];
-  tsdbTFileName(writer->config->tsdb, &writer->config->file, fname);
+  tsdbTFileName(writer->config->tsdb, writer->file, fname);
   tsdbCloseFile(&writer->fd);
   taosRemoveFile(fname);
   return 0;
 }
 
 int32_t tsdbSttFileWriterOpen(const SSttFileWriterConfig *config, SSttFileWriter **writer) {
-  ASSERT(config->file.type == TSDB_FTYPE_STT);
-  ASSERT(config->file.size == 0);
-
   writer[0] = taosMemoryCalloc(1, sizeof(*writer[0]));
   if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 

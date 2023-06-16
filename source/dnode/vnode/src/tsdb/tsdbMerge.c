@@ -422,17 +422,10 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
         .szPage = merger->szPage,
         .cmprAlg = merger->cmprAlg,
         .compactVersion = merger->compactVersion,
-        .file =
-            {
-                .type = TSDB_FTYPE_STT,
-                .did = did,
-                .fid = merger->ctx->fset->fid,
-                .cid = merger->cid,
-                .size = 0,
-                .stt = {{
-                    .level = merger->ctx->level,
-                }},
-            },
+        .did = did,
+        .fid = merger->ctx->fset->fid,
+        .cid = merger->cid,
+        .level = merger->ctx->level,
     }};
     code = tsdbSttFileWriterOpen(config, &merger->sttWriter);
     TSDB_CHECK_CODE(code, lino, _exit);

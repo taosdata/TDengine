@@ -73,13 +73,10 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
       .szPage = committer->szPage,
       .cmprAlg = committer->cmprAlg,
       .compactVersion = committer->compactVersion,
-      .file =
-          {
-              .type = TSDB_FTYPE_STT,
-              .did = committer->ctx->did,
-              .fid = committer->ctx->fid,
-              .cid = committer->ctx->cid,
-          },
+      .did = committer->ctx->did,
+      .fid = committer->ctx->fid,
+      .cid = committer->ctx->cid,
+      .level = 0,
   }};
 
   code = tsdbSttFileWriterOpen(config, &committer->sttWriter);
