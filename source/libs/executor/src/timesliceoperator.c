@@ -798,7 +798,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   blockDataCleanup(pResBlock);
-  pResBlock->info.scanFlag = MAIN_SCAN;
 
   while (1) {
     if (pSliceInfo->pNextGroupRes != NULL) {
@@ -815,6 +814,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         break;
       }
 
+      pResBlock->info.scanFlag = pBlock->info.scanFlag;
       if (pSliceInfo->groupId == 0 && pBlock->info.id.groupId != 0) {
         pSliceInfo->groupId = pBlock->info.id.groupId;
       } else {

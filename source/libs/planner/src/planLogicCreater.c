@@ -1058,7 +1058,6 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
         projIdx++;
       }
     }
-    pSort->node.outputTsOrder = firstSortKey->order;
   }
 
   if (TSDB_CODE_SUCCESS == code) {

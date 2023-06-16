@@ -189,7 +189,6 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   blockDataCleanup(pRes);
-  pRes->info.scanFlag = MAIN_SCAN;
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
@@ -198,6 +197,7 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
       break;
     }
 
+    pRes->info.scanFlag = pBlock->info.scanFlag;
     setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
     blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
 

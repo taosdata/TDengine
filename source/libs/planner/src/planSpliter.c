@@ -534,7 +534,7 @@ static int32_t stbSplGetNumOfVgroups(SLogicNode* pNode) {
 
 static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
-  pMerge->node.inputTsOrder = pNode->inputTsOrder;
+  pMerge->node.inputTsOrder = pNode->outputTsOrder;
   pMerge->node.outputTsOrder = pNode->outputTsOrder;
 
   switch (nodeType(pNode)) {

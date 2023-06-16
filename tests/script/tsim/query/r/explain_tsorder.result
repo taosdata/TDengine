@@ -672,7 +672,7 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=asc output_order=asc  (columns=3 width=24)
+QUERY_PLAN:          -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
@@ -748,7 +748,7 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+QUERY_PLAN:          -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
@@ -824,7 +824,7 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=asc output_order=asc  (columns=3 width=24)
+QUERY_PLAN:          -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
@@ -900,7 +900,7 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+QUERY_PLAN:          -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
@@ -976,7 +976,7 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=asc output_order=asc  (columns=3 width=24)
+QUERY_PLAN:          -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
@@ -1052,7 +1052,7 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+QUERY_PLAN:          -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
@@ -1128,7 +1128,7 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=asc output_order=asc  (columns=3 width=24)
+QUERY_PLAN:          -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
@@ -1204,7 +1204,7 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+QUERY_PLAN:          -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
@@ -1288,7 +1288,7 @@ QUERY_PLAN:                Output: Ignore Group Id: true
 *************************** 13.row ***************************
 QUERY_PLAN:                Merge ResBlocks: False
 *************************** 14.row ***************************
-QUERY_PLAN:             -> Sort input_order=asc output_order=asc  (columns=3 width=24)
+QUERY_PLAN:             -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 15.row ***************************
 QUERY_PLAN:                   Output: columns=3 width=24
 *************************** 16.row ***************************
@@ -1824,7 +1824,7 @@ taos> select _wstart, first(a) as d, avg(c) from (select _wstart as a, last(ts) 
 
 taos> explain verbose true select _wstart, first(a) as d, avg(c) from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a desc) where a > '2022-05-15 00:01:00.000' and a < '2022-05-21 00:01:08.000' interval(5h) fill(linear) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+QUERY_PLAN: -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=3 width=24
 *************************** 3.row ***************************
@@ -1906,7 +1906,7 @@ QUERY_PLAN:                               Time Range: [-9223372036854775808, 922
 
 taos> explain verbose true select _wstart, first(a) as d, avg(c) from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a asc) where a > '2022-05-15 00:01:00.000' and a < '2022-05-21 00:01:08.000' interval(5h) fill(linear) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=3 width=24)
+QUERY_PLAN: -> Sort input_order=asc output_order=unknown  (columns=3 width=24)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=3 width=24
 *************************** 3.row ***************************
@@ -1988,7 +1988,7 @@ QUERY_PLAN:                               Time Range: [-9223372036854775808, 922
 
 taos> explain verbose true select * from (select ts as a, c2 as b from meters order by c2 desc)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> SortMerge (columns=2 width=12 input_order=desc output_order=desc)
+QUERY_PLAN: -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=2 width=12
 *************************** 3.row ***************************
@@ -2000,7 +2000,7 @@ QUERY_PLAN:    -> Data Exchange 1:1 (width=12)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=2 width=12
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Sort input_order=unknown output_order=desc  (columns=2 width=12)
+QUERY_PLAN:       -> Sort input_order=unknown output_order=unknown  (columns=2 width=12)
 *************************** 8.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
 *************************** 9.row ***************************
@@ -2014,7 +2014,7 @@ QUERY_PLAN:    -> Data Exchange 1:1 (width=12)
 *************************** 13.row ***************************
 QUERY_PLAN:          Output: columns=2 width=12
 *************************** 14.row ***************************
-QUERY_PLAN:       -> Sort input_order=unknown output_order=desc  (columns=2 width=12)
+QUERY_PLAN:       -> Sort input_order=unknown output_order=unknown  (columns=2 width=12)
 *************************** 15.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
 *************************** 16.row ***************************
@@ -2062,7 +2062,7 @@ QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 6.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 7.row ***************************
-QUERY_PLAN:       -> SortMerge (columns=2 width=12 input_order=desc output_order=desc)
+QUERY_PLAN:       -> SortMerge (columns=2 width=12 input_order=unknown output_order=unknown)
 *************************** 8.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
 *************************** 9.row ***************************
@@ -2074,7 +2074,7 @@ QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
 *************************** 12.row ***************************
 QUERY_PLAN:                Output: columns=2 width=12
 *************************** 13.row ***************************
-QUERY_PLAN:             -> Sort input_order=unknown output_order=desc  (columns=2 width=12)
+QUERY_PLAN:             -> Sort input_order=unknown output_order=unknown  (columns=2 width=12)
 *************************** 14.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 15.row ***************************
@@ -2088,7 +2088,7 @@ QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
 *************************** 19.row ***************************
 QUERY_PLAN:                Output: columns=2 width=12
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Sort input_order=unknown output_order=desc  (columns=2 width=12)
+QUERY_PLAN:             -> Sort input_order=unknown output_order=unknown  (columns=2 width=12)
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 22.row ***************************

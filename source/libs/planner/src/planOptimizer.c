@@ -2895,13 +2895,24 @@ static SSortLogicNode* sortNonPriKeySatisfied(SLogicNode* pNode) {
     return NULL;
   }
   SSortLogicNode* pSort = (SSortLogicNode*)pNode;
-  if (sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) || 1 != LIST_LENGTH(pSort->node.pChildren)) {
+  if (sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys)) {
     return NULL;
   }
+  SNode* pSortKeyNode = NULL, *pSortKeyExpr = NULL;
+  FOREACH(pSortKeyNode, pSort->pSortKeys) {
+    pSortKeyExpr = ((SOrderByExprNode*)pSortKeyNode)->pExpr;
+    switch (nodeType(pSortKeyExpr)) {
+      case QUERY_NODE_COLUMN:
+        break;
+      case QUERY_NODE_VALUE:
+        continue;
+      default:
+        return NULL;
+    }
+  }
 
-  SNode* pSortKeyNode = ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->pExpr;
-  if (nodeType(pSortKeyNode) != QUERY_NODE_COLUMN || ((SColumnNode*)pSortKeyNode)->projIdx != 1 ||
-      ((SColumnNode*)pSortKeyNode)->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+  if (!pSortKeyExpr || ((SColumnNode*)pSortKeyExpr)->projIdx != 1 ||
+      ((SColumnNode*)pSortKeyExpr)->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
     return NULL;
   }
   return pSort;

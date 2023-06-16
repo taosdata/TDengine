@@ -1162,13 +1162,13 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
   int64_t    st = taosGetTimestampUs();
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
-  pInfo->binfo.pRes->info.scanFlag = MAIN_SCAN;
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
       break;
     }
 
+    pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
     setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
     blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
 
@@ -1804,7 +1804,6 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
 
   int64_t st = taosGetTimestampUs();
   int32_t order = pInfo->binfo.inputTsOrder;
-  pBInfo->pRes->info.scanFlag = MAIN_SCAN;
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
@@ -1814,6 +1813,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
       break;
     }
 
+    pBInfo->pRes->info.scanFlag = pBlock->info.scanFlag;
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
     blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
