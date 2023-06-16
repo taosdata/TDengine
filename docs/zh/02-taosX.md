@@ -117,7 +117,7 @@ taosx run --from "<InfluxDB-DSN>" --to "<TDengine-DSN>"
 - beginTime: 必填，格式为：YYYY-MM-DD HH:MM:SS, 时区采用 UTC 时区，例如：2023-06-01 00:00:00, 即北京时间2023-06-01 08:00:00;
 - endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步。
 
-#### 使用举例
+#### 举例说明
 
 将位于 192.168.1.10 的 InfluxDB 中, Bucket 名称为 test_bucket, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taoskeeper, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
 
@@ -134,8 +134,8 @@ taosx run \
 
 目前，MQTT 连接器仅支持从 MQTT 服务端消费 JSON 格式的消息，并将其同步至 TDengine. 命令如下所示：
 
-```
-taosx run --from "<MQTT-DSN>" --to "<TDengine-DSN>" --parser parser.json
+```bash
+taosx run --from "<MQTT-DSN>" --to "<TDengine-DSN>" --parser "@<parser-config-file-path>"
 ```
 
 其中：
@@ -146,7 +146,7 @@ taosx run --from "<MQTT-DSN>" --to "<TDengine-DSN>" --parser parser.json
 #### MQTT DSN 配置
 
 MQTT DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
-- topics: 必填，用于配置监听的 MQTT 主题名称；支持配置多个主题，使用逗号分隔；配置主题时，可以使用 MQTT 协议的支持的通配符#和+;
+- topics: 必填，用于配置监听的 MQTT 主题名称和连接器支持的最大 QoS, 采用 `<topic>::<max-Qos>` 的形式；支持配置多个主题，使用逗号分隔；配置主题时，还可以使用 MQTT 协议的支持的通配符#和+;
 - version: 非必填，用于配置 MQTT 协议的版本，支持的版本包括：3.1/3.1.1/5.0, 默认值为3.1;
 - clean_session: 非必填，用于配置连接器作为 MQTT 客户端连接至 MQTT 服务端时，服务端是否保存该会话信息，其默认值为 true, 即不保存会话信息；
 - client_id: 必填，用于配置连接器作为 MQTT 客户端连接至 MQTT 服务端时的客户端 id;
@@ -157,7 +157,7 @@ MQTT DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明
 - log_level: 非必填，用于配置连接器的日志级别，连接器支持 error/warn/info/debug/trace 5种日志级别，默认值为 info.
 
 一个完整的 MQTT DSN 示例如下：
-```
+```bash
 mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version=3.1&clean_session=true&log_level=info&client_id=taosdata_1234&keep_alive=60&ca=@/home/admin/certs/ca.crt&cert=@/home/admin/certs/client.crt&cert_key=@/home/admin/certs/client.key
 ```
 
@@ -165,7 +165,7 @@ mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version
 
 连接器的解释器配置文件，即`--parser`配置项的参数，它的值为一个 JSON 文件，其配置可分为`parse`和`model`两部分，模板如下所示：
 
-```
+```json
 {
   "parse": {
     "payload": {
@@ -200,10 +200,11 @@ mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version
   - columns 字段用于设置 MQTT 消息中的哪些字段作为 TDengine 超级表中的列，取值为 parse 部分设置的 alias 的值；需要注意的是，这里的顺序会决定 TDengine 超级表中列的顺序，因此第一列必须为 TIMESTAMP 类型；
   - tags 字段用于设置 MQTT 消息中的哪些字段作为 TDengine 超级表中的标签，取值为 parse 部分设置的 alias 的值。
 
-#### 解释器配置举例说明
+#### 举例说明
 
-对于以下 JSON 格式的 MQTT 消息，将其同步至 TDengine 时, 如果采用 meters 作为超级表名，前缀d拼接id字段的值作为子表名，ts, id, current, voltage, phase作为超级表的列，groupid, location作为超级表的标签：
-```
+在 192.168.1.10 的 1883 端口运行着一个 MQTT broker, 用户名、口令分别为admin, 123456; 现欲将其中的消息，通过运行在 192.168.1.20 的 taosadapter 同步至 TDengine 的 test 数据库中。MQTT 消息格式为：
+
+```json
 {
   "id": 1,
   "current": 10.77,
@@ -214,8 +215,8 @@ mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version
 }
 ```
 
-其解释器的配置如下：
-```
+MQTT 消息同步至 TDengine 时, 如果采用 meters 作为超级表名，前缀“d”拼接id字段的值作为子表名，ts, id, current, voltage, phase作为超级表的列，groupid, location作为超级表的标签，其解释器的配置如下：
+```json
 {
   "parse": {
     "payload": {
@@ -276,14 +277,21 @@ mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version
 }
 ```
 
+如果以上parser配置位于`/home/admin/parser.json`中，那么完整的命令如下所示：
+
+```bash
+taosx run \
+  -f "mqtt://admin:123456@192.168.1.10:1883?topics=testtopic/1::2&version=3.1&clean_session=true&log_level=info&client_id=1234&keep_alive=60" \
+  -t "taos+ws://192.168.1.20:6041/test"
+  --parser "@/home/admin/parser.json"
+  --verbose
+```
 
 ### 服务模式
 
 在服务模式下， taosX，Agent 以及 taosExplorer 均已服务态运行，各种操作通过 taosExplorer 的图形界面进行。
 
 ### 部署 taosX
-
-@xuwang，此处添加如何配置和启动 taosX 服务，以及如何查看 taosX 日志排查常见错误，并举例常见错误
 
 #### 配置
 
@@ -334,8 +342,6 @@ journalctl -u taosx -f
 ```
 
 ### 部署 Agent 
-
-@xuwang，此处添加如何配置和启动 Agent 服务，以及如何查看 Agent 日志排查常见错误，并举例常见错误
 
 #### 配置
 
