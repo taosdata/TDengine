@@ -366,6 +366,7 @@ def build_and_install_influxdb(mode):
         sys.exit()
 
 def init_explorer_code(explorer_path):
+    print(explorer_path)
     if os.path.exists(explorer_path):
         os.chdir(explorer_path)
         os.system('git checkout main')
@@ -373,12 +374,13 @@ def init_explorer_code(explorer_path):
         os.system('git prune')
         os.system('git pull')
     else:
+        os.chdir(os.path.join(taosx_dir, ".."))
         os.system('git clone git@github.com:taosdata/explorer.git')
-        os.system('yarn install')
 
 def build_taos_explorer(explorer_path, mode):
     init_explorer_code(explorer_path)
     os.chdir(explorer_path)
+    os.system('yarn install')
     os.system('yarn build:bin')
 
 def copy_taos_explorer_on_windows(explorer_path):
