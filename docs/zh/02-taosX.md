@@ -98,42 +98,328 @@ taosX 是进行数据同步与复制的核心组件，以下运行模式指 taos
 
 可以直接在命令行上添加必要的参数直接启动 taosX 即为命令行模式运行。当命令行参数所指定的任务完成后 taosX 会自动停止。taosX 在运行中如果出现错误也会自动停止。也可以在任意时刻使用 ctrl+c 停止 taosX 的运行。本节介绍如何使用 taosX 的各种使用场景下的命令行。
 
+#### DSN (Data Source Name)
+
+taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源），典型的 DSN 如下：
+
+```bash
+# url-like
+<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<object>][?<p1>=<v1>[&<p2>=<v2>]]
+|------|------------|---|-----------|-----------|------|------|----------|-----------------------|
+|driver|   protocol |   | username  | password  | host | port |  object  |  params               |
+
+// url 示例
+tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
+```
+[] 中的数据都为可选参数。
+
+1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项:
+
+- taos：使用查询接口从 TDengine 获取数据
+- tmq：启用数据订阅从 TDengine 获取数据
+- local：数据备份或恢复
+- pi: 启用 pi-connector从 pi 数据库中获取数据
+- opc：启用 opc-connector 从 opc-server 中获取数据
+- mqtt: 启动 mqtt-connector 获取 mqtt-broker 中的数据
+
+2. +protocol 包含如下选项：
+- +ws: 当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
+- +ua: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
+- +da: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
+
+3. host:port 表示数据源的地址和端口。
+4. object 表示具体的数据源，可以是TDengine的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
+5. username 和 password 表示该数据源的用户名和密码。
+6. params 代表了 dsn 的参数。
+
+
+
+
+
 #### 从 TDengine 到 TDengine 的数据同步
 
-1. 3.0 -> 3.0
-2. 2.4(2.6) -> 3.0
+1. TDengine 3.0 -> TDengine 3.0
 
-@chenyang，请在此补充详细的命令行参数，及示例（含 Linux 和 Windows），按如下结构 (下同)
+在两个相同版本 （都是 3.0.x.y）的 TDengine 集群之间将源集群中的存量及增量数据同步到目标集群中。
 
-1. 参数列表及其含义
-2. Linux/Windows 示例
-3. 常见错误排查
+命令行模式下支持的参数如下：
+
+| 参数名称  | 说明                                                             | 默认值                     |
+|-----------|------------------------------------------------------------------|----------------------------|
+| group.id  | 订阅使用的分组ID                                                 | 若为空则使用 hash 生成一个 |
+| client.id | 订阅使用的客户端ID                                               | taosx                      |
+| timeout   | 监听数据的超时时间，当设置为 never 表示 taosx 不会停止持续监听。 | 500ms                      |
+| offset    | 从指定的 offset 开始订阅，格式为 `<vgroup_id>:<offset>`，若有多个 vgroup 则用半角逗号隔开 | 若为空则从 0 开始订阅  |
+
+示例：
+```shell
+taosx run \
+  -f 'tmq://root:taosdata@localhost:6030/db1?group.id=taosx1&client.id=taosx&timeout=never&offset=2:10' \
+  -t 'taos://root:taosdata@another.com:6030/db2'
+```
+
+
+
+2. TDengine 2.6 -> TDengine 3.0
+
+将 2.6 版本 TDengine 集群中的数据迁移到 3.0 版本 TDengine 集群。
+
+命令行模式下支持的参数如下：
+
+| 参数名称           | 说明                                                                                                                                                                                                                                      | 默认值                                 |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|
+| libraryPath        | 在 option 模式下指定 taos 库路径                                                                                                                                                                                                          | 无                                     |
+| configDir          | 指定 taos.cfg 配置文件路径                                                                                                                                                                                                                | 无                                     |
+| mode               | 数据源参数。 history 表示历史数据。 realtime 表示实时同步。 all 表示以上两种。                                                                                                                                                            | history                                |
+| restro             | 数据源参数。 在同步实时数据前回溯指定时间长度的数据进行同步。 restro=10m 表示回溯最近 10 分钟的数据以后，启动实时同步。                                                                                                                   | 无                                     |
+| interval           | 数据源参数。 轮询间隔 ，mode=realtime&interval=5s 指定轮询间隔为 5s                                                                                                                                                                       | 无                                     |
+| excursion          | 数据源参数。 允许一段时间的乱序数据                                                                                                                                                                                                       | 500ms                                  |
+| stables            | 数据源参数。 仅同步指定超级表的数据，多个超级表名用英文逗号 ,分隔                                                                                                                                                                         | 无                                     |
+| tables             | 数据源参数。 仅同步指定子表的数据，表名格式为 {stable}.{table} 或 {table}，多个表名用英文逗号 , 分隔，支持 @filepath 的方式输入一个文件，每行视为一个表名，如 tables=@./tables.txt 表示从 ./tables.txt 中按行读取每个表名，空行将被忽略。 | 无                                     |
+| select-from-stable | 数据源参数。 从超级表获取 select {columns} from stable where tbname in ({tbnames}) ，这种情况 tables 使用 {stable}.{table} 数据格式，如 meters.d0 表示 meters 超级表下面的 d0 子表。                                                      | 默认使用 select \* from table 获取数据 |
+| assert             | 目标源参数。 taos:///db1?assert 将检测数据库是否存在，如不存在，将自动创建目标数据库。                                                                                                                                                    | 默认不自动创建库。                     |
+| force-stmt         | 目标源参数。 当 TDengine 版本大于 3.0 时，仍然使用 STMT 方式写入。                                                                                                                                                                        | 默认为 raw block 写入方式              |
+| batch-size         | 目标源参数。 设置 STMT 写入模式下的最大批次插入条数。                                                                                                                                                                                     |                                        |
+| interval           | 目标源参数。 每批次写入后的休眠时间。                                                                                                                                                                                                     | 无                                     |
+| max-sql-length     | 目标源参数。 用于建表的 SQL 最大长度，单位为 bytes。                                                                                                                                                                                      | 默认 800_000 字节。                    |
+| failes-to          | 目标源参数。 添加此参数，值为文件路径，将写入错误的表及其错误原因写入该文件，正常执行其他表的同步任务。                                                                                                                                   | 默认写入错误立即退出。                 |
+| timeout-per-table  | 目标源参数。 为子表或普通表同步任务添加超时。                                                                                                                                                                                             | 无                                     |
+| update-tags        | 目标源参数。 检查子表存在与否，不存在时正常建表，存在时检查标签值是否一致，不一致则更新。                                                                                                                                                 | 无                                     |
+
+示例：
+```shell
+taosx run \
+  -f 'taos://td1:6030/db1?libraryPath=./libtaos.so.2.6.0.30&mode=all&assert' \
+  -t 'taos://td2:6030/db2?libraryPath=./libtaos.so.3.0.1.8' \
+  -v
+```
+
+
 
 #### 从 TDengine 备份数据文件到本地
 
-@chenyang
+示例：
+```shell
+taosx run -f 'tmq://root:taosdata@td1:6030/db1' -t 'local:/path_directory/'
+
+```
+以上示例执行的结果及参数说明：
+
+将集群 td1 中的数据库 db1 的所有数据，备份到 taosx 所在设备的 /path_directory 路径下。
+
+数据源(-f 参数的 DSN)的 object 支持配置为 数据库级(dbname)、超级表级(dbname.stablename)、子表/普通表级(dbname.tablename)，对应备份数据的级别数据库级、超级表级、子表/普通表级
+
+常见错误排查：
+
+(1)
+(2)
+(3)
 
 #### 从本地数据文件恢复到 TDengine
 
-@chenyang
+示例：
+```shell
+taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?assert'
+```
+
+以上示例执行的结果：
+
+将 taosx 所在设备 /path_directory 路径下已备份的数据文件，恢复到集群 td2 的数据库 db1 中，如果 db1 不存在，则自动建库。
+
+目标源(-t 参数的 DSN)中的 object 支持配置为数据库(dbname)、超级表(dbname.stablename)、子表/普通表(dbname.tablename)，对应备份数据的级别数据库级、超级表级、子表/普通表级，前提是备份的数据文件也是对应的数据库级、超级表级、子表/普通表级数据。
+
+
+常见错误排查：
+
+(1) 如果使用原生连接，任务启动失败并报以下错误：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    [0x000B] Unable to establish connection
+```
+产生原因是与数据源的端口链接异常，需检查数据源 FQDN 是否联通及端口 6030 是否可正常访问。
+
+(2) 如果使用 WebSocket 连接，任务启动失败并报以下错误：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: WebSocket internal error: IO error: failed to lookup address information: Temporary failure in name resolution
+    1: IO error: failed to lookup address information: Temporary failure in name resolution
+    2: failed to lookup address information: Temporary failure in name resolution
+```
+
+使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在 ”Caused by“ 后查看，以下是几种可能的错误：
+
+- "Temporary failure in name resolution": DNS 解析错误，检查 IP 或 FQDN 是否能够正常访问。
+- "IO error: Connection refused (os error 111)": 端口访问失败，检查端口是否配置正确或是否已开启和可访问。
+- "IO error: received corrupt message": 消息解析失败，可能是使用了 wss 方式启用了 SSL，但源端口不支持。
+- "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
+- "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
+
+(3) 如果任务启动失败并报以下错误：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    [0x038C] WAL retention period is zero
+```
+
+是由于源端数据库 WAL 配置错误，无法订阅。
+
+解决方式：
+修改数据 WAL 配置：
+
+```sql
+alter database test wal_retention_period 3600;
+```
 
 #### 从 OPC-UA 同步数据到 TDengine
 
-@chenyang
+可配置参数如下：
+| 参数名称 | 类型    | 描述                                   |
+|-----------------|--------|-----------------------------------------------------------------------------|
+| interval | int    | 采集间隔（单位：秒），默认为1秒                                   |
+| concurrent | int    | 采集器并发数，默认为1                                   |
+| batch_size | int    | 采集器上报的批次点位数，默认为100                                   |
+| batch_timeout | int    | 采集器上报的超时时间（单位：秒），默认为20秒                                   |
+| connect_timeout | int    | 连接的超时时间（单位：秒），默认为10秒                                  |
+| request_timeout | int    | 请求的超时时间（单位：秒），默认为10秒                                              |
+| security_policy | string | OPC-UA连接安全策略（可配置为None/Basic128Rsa15/Basic256/Basic256Sha256）                                  |
+| security_mode   | string | OPC-UA连接模式（可配置为None/Sign/SignAndEncrypt）                                                    |
+| certificate     | string | cert.pem的路径。当安全模式或策略不是”无”时生效        |
+| private_key     | string | key.pem的路径。 当安全模式或策略不是”无”时生效 |
+
+示例：
+
+```shell
+taosx run \
+    -f "opc+ua://uauser:uapass@localhost:4840?ua.nodes=ns=2;i=2::meters::current::double" \
+    -t "taos://tdengine:6030/opc"
+```
+以上示例的执行结果：
+
+采集 localhost 的 opc-server 中 nodeid 为 ns=2;i=2 测点的数据，将其写入到集群 tdengine 的 opc 库中，并以 meters 为表名，current 为列名，double 为列类型的 schema 来创建表（如果对应表已存在，则直接采集数据并写入）。
+
 
 #### 从 OPC-DA 同步数据到 TDengine (Windows)
 
+可配置参数如下：
+| 参数名称 | 类型    | 描述                                   |
+|-----------------|--------|-----------------------------------------------------------------------------|
+| interval | int    | 采集间隔（单位：秒），默认为1秒                                   |
+| concurrent | int    | 采集器并发数，默认为1                                   |
+| batch_size | int    | 采集器上报的批次点位数，默认为100                                   |
+| batch_timeout | int    | 采集器上报的超时时间（单位：秒），默认为20秒                                   |
+| connect_timeout | int    | 连接的超时时间（单位：秒），默认为10秒                                  |
+| request_timeout | int    | 请求的超时时间（单位：秒），默认为10秒                                              |
+
+应用示例如下：
+
+```shell
+taosx run \
+    -f "opc+da://Matrikon.OPC.Simulation.1?nodes=localhost&da.tags=Random.Real8::tb3::c1::int"
+    -t "taos://tdengine:6030/opc"
+```
+
+以上示例的执行结果：
+
+采集 Matrikon.OPC.Simulation.1 服务器上 OPC DA 中 da.tags 为 Random.Real8的数据，数据类型为int，对应在 TDengine 中以表名为 tb3 ，列名为c1，列类型为 int 型 schema 来创建表（如果对应表已存在，则直接采集数据并写入）。
+
+常见错误排查：
+
+(1) 如果使用原生连接，任务启动失败并打印如下错误：
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: Error occurred while creating a new object: [0x000B] Unable to establish connection
+```
+解决方式：
+
+检查目标端 TDengine 的 FQDN 是否联通及端口 6030 是否可正常访问。
+
+(2) 如果使用 WebSocket 连接任务启动失败并打印如下错误：：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: WebSocket internal error: IO error: failed to lookup address information: Temporary failure in name resolution
+    1: IO error: failed to lookup address information: Temporary failure in name resolution
+    2: failed to lookup address information: Temporary failure in name resolution
+```
+
+使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在 ”Caused by“ 后查看，以下是几种可能的错误：
+
+- "Temporary failure in name resolution": DNS 解析错误，检查目标端 TDengine的 IP 或 FQDN 是否能够正常访问。
+- "IO error: Connection refused (os error 111)": 端口访问失败，检查目标端口是否配置正确或是否已开启和可访问（通常为6041端口）。
+- "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
+- "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
+
+#### 从 PI 同步数据到 TDengine (Windows)
+
+在 taosX CLI 运行时支持的参数如下：
+- PISystemName：连接配置 PI 系统服务名，默认值与 PIServerName 一致
+- MaxWaitLen：数据最大缓冲条数，默认值为 1000 ,有效取值范围为 [1,10000]
+- UpdateInterval：PI System 取数据频率，默认值为 10000(毫秒：ms),有效取值范围为 [10,600000]
+
+应用示例：
+
+```shell
+taosx run \
+    -f "pi://WIN-2OA23UM12TN/Met1?TemplateForPIPoint=template1,template2&TemplateForAFElement=template3,template4" \
+    -t "taos://tdengine:6030/pi"
+```
+
+以上示例的PI参数：
+- PIServerName：PI 连接配置主机名 ，此示例中为 WIN-2OA23UM12TN
+- AFDatabaseName：指定连接的 PI 数据库，此示例中为 Met1
+- TemplateForPIPoint：使用 PI Point 模式将模板 template1 ，template2 ，按照 element 的每个 Arrtribution 作为子表导入到 TDengine 服务器 tdengine 的 pi 库中（如果对应表已存在，则直接采集数据并写入）
+- TemplateForAFElement：使用 AF Point 模式将模板 template3 ，template4 ，按照 element 的 Attribution 集合作为一个子表导入到 TDengine 服务器 tdengine的 pi 库中（如果对应表已存在，则直接采集数据并写入）
+
+常见错误排查：
+
+(1) 如果使用原生连接，任务启动失败并打印如下错误：
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: Error occurred while creating a new object: [0x000B] Unable to establish connection
+```
+解决方式：
+
+检查目标端 TDengine 的 FQDN 是否联通及端口 6030 是否可正常访问。
+
+(2) 如果使用 WebSocket 连接任务启动失败并打印如下错误：：
+
+```text
+Error: tmq to td task exec error
+
+Caused by:
+    0: WebSocket internal error: IO error: failed to lookup address information: Temporary failure in name resolution
+    1: IO error: failed to lookup address information: Temporary failure in name resolution
+    2: failed to lookup address information: Temporary failure in name resolution
+```
+
+使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在 ”Caused by“ 后查看，以下是几种可能的错误：
+
+- "Temporary failure in name resolution": DNS 解析错误，检查目标端 TDengine的 IP 或 FQDN 是否能够正常访问。
+- "IO error: Connection refused (os error 111)": 端口访问失败，检查目标端口是否配置正确或是否已开启和可访问（通常为6041端口）。
+- "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
+- "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
+
+
+
+#### 从 InfluxDB 同步数据到 TDengine
+
 @zhengqin
 
-#### 从 Pi 同步数据到 TDengine (Windows)
-
-@chenyang
-
-### 从 InfluxDB 同步数据到 TDengine
-
-@zhengqin
-
-### 从 MQTT 同步数据到 TDengine
+#### 从 MQTT 同步数据到 TDengine
 
 @xuwang
 
