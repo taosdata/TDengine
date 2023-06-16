@@ -98,7 +98,6 @@ int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
 
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-
     req.reqId = tGenIdPI64();
     req.downstreamNodeId = pTask->fixedEpDispatcher.nodeId;
     req.downstreamTaskId = pTask->fixedEpDispatcher.taskId;
@@ -126,8 +125,9 @@ int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
     }
   } else {
     pTask->status.checkDownstream = 1;
-    qDebug("s-task:%s (vgId:%d) set downstream task checked for task without downstream tasks, try to launch scan-history-data, status:%s",
+    qDebug("s-task:%s (vgId:%d) no downstream tasks, set downstream checked, try to launch scan-history-data, status:%s",
            pTask->id.idStr, pTask->info.nodeId, streamGetTaskStatusStr(pTask->status.taskStatus));
+
     streamTaskLaunchScanHistory(pTask);
   }
 
@@ -460,11 +460,8 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 
 // todo fix the bug: 2. race condition
 // an fill history task needs to be started.
-int32_t streamTaskStartHistoryTask(SStreamTask* pTask) {
+int32_t streamCheckHistoryTaskDownstrem(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
-  if (pTask->historyTaskId.taskId == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
 
   // Set the execute conditions, including the query time window and the version range
   SStreamTask** pHTask = taosHashGet(pMeta->pTasks, &pTask->historyTaskId.taskId, sizeof(pTask->historyTaskId.taskId));
@@ -584,4 +581,41 @@ int32_t tDecodeStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishRe
   if (tDecodeI32(pDecoder, &pReq->childId) < 0) return -1;
   tEndDecode(pDecoder);
   return 0;
+}
+
+void streamPrepareNdoCheckDownstream(SStreamTask* pTask) {
+  if (pTask->info.fillHistory) {
+    qDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
+  } else {
+    // calculate the correct start time window, and start the handle the history data for the main task.
+    if (pTask->historyTaskId.taskId != 0) {
+      // check downstream tasks for associated scan-history-data tasks
+      streamCheckHistoryTaskDownstrem(pTask);
+
+      // launch current task
+      SHistDataRange* pRange = &pTask->dataRange;
+      int64_t ekey = pRange->window.ekey;
+      int64_t ver = pRange->range.minVer;
+
+      pRange->window.skey = ekey;
+      pRange->window.ekey = INT64_MAX;
+      pRange->range.minVer = 0;
+      pRange->range.maxVer = ver;
+
+      qDebug("s-task:%s level:%d fill-history task exists, update stream time window:%" PRId64 " - %" PRId64
+                 ", ver range:%" PRId64 " - %" PRId64,
+             pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
+             pRange->range.maxVer);
+    } else {
+      SHistDataRange* pRange = &pTask->dataRange;
+      qDebug("s-task:%s no associated scan-history task, stream time window:%" PRId64 " - %" PRId64 ", ver range:%" PRId64
+                 " - %" PRId64,
+             pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
+    }
+
+    ASSERT(pTask->status.checkDownstream == 0);
+
+    // check downstream tasks for itself
+    streamTaskCheckDownstreamTasks(pTask);
+  }
 }

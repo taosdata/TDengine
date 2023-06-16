@@ -568,12 +568,15 @@ bool    streamTaskIsIdle(const SStreamTask* pTask);
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
+char*   createStreamTaskIdStr(int64_t streamId, int32_t taskId);
+
 // recover and fill history
+void    streamPrepareNdoCheckDownstream(SStreamTask* pTask);
 int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask);
 int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask);
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp);
-int32_t streamTaskStartHistoryTask(SStreamTask* pTask);
+int32_t streamCheckHistoryTaskDownstrem(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 int32_t streamStartRecoverTask(SStreamTask* pTask, int8_t igUntreated);
 

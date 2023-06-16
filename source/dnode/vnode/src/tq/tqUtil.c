@@ -20,12 +20,6 @@
 static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq,
                                  const SMqMetaRsp* pRsp, int32_t vgId);
 
-char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
-  char buf[128] = {0};
-  sprintf(buf, "0x%" PRIx64 "-0x%x", streamId, taskId);
-  return taosStrdup(buf);
-}
-
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem) {
   int32_t code = tAppendDataToInputQueue(pTask, pQueueItem);
   if (code < 0) {

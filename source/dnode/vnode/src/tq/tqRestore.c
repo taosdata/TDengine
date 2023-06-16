@@ -87,7 +87,7 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
   return 0;
 }
 
-int32_t tqCheckforStreamStatus(STQ* pTq) {
+int32_t tqCheckStreamStatus(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 

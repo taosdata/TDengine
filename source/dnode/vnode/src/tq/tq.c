@@ -920,12 +920,15 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   return 0;
 }
 
-int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
+int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, SRpcMsg* pMsg) {
+  char* pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t len = pMsg->contLen - sizeof(SMsgHead);
+
   int32_t             code;
   SStreamTaskCheckRsp rsp;
 
   SDecoder decoder;
-  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
+  tDecoderInit(&decoder, (uint8_t*)pReq, len);
   code = tDecodeStreamTaskCheckRsp(&decoder, &rsp);
 
   if (code < 0) {
@@ -993,37 +996,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   taosWUnLockLatch(&pStreamMeta->lock);
 
   // 3. It's an fill history task, do nothing. wait for the main task to start it
-  if (pTask->info.fillHistory) {
-    tqDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
-  } else {
-    // calculate the correct start time window, and start the handle the history data for the main task.
-    if (pTask->historyTaskId.taskId != 0) {
-      // launch the history fill stream task
-      streamTaskStartHistoryTask(pTask);
-
-      // launch current task
-      SHistDataRange* pRange = &pTask->dataRange;
-      int64_t ekey = pRange->window.ekey;
-      int64_t ver = pRange->range.minVer;
-
-      pRange->window.skey = ekey;
-      pRange->window.ekey = INT64_MAX;
-      pRange->range.minVer = 0;
-      pRange->range.maxVer = ver;
-
-      tqDebug("s-task:%s fill-history task exists, update stream time window:%" PRId64 " - %" PRId64
-              ", ver range:%" PRId64 " - %" PRId64,
-              pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
-    } else {
-      SHistDataRange* pRange = &pTask->dataRange;
-      tqDebug("s-task:%s no associated task, stream time window:%" PRId64 " - %" PRId64 ", ver range:%" PRId64
-              " - %" PRId64,
-              pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
-    }
-
-    ASSERT(pTask->status.checkDownstream == 0);
-    streamTaskCheckDownstreamTasks(pTask);
-  }
+  streamPrepareNdoCheckDownstream(pTask);
 
   tqDebug("vgId:%d s-task:%s is deployed and add into meta, status:%s, numOfTasks:%d", vgId, pTask->id.idStr,
           streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
@@ -1160,9 +1133,16 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     // todo update the chkInfo version for current task.
     // this task has an associated history stream task, so we need to scan wal from the end version of
     // history scan. The current version of chkInfo.current is not updated during the history scan
-    tqDebug("s-task:%s history data scan completed, now start to scan data from wal, start ver:%" PRId64
-            ", window:%" PRId64 " - %" PRId64,
-            pTask->id.idStr, pTask->chkInfo.currentVer, pTask->dataRange.window.skey, pTask->dataRange.window.ekey);
+    if (pTask->historyTaskId.taskId == 0) {
+      pTask->dataRange.window.ekey = INT64_MAX;
+      pTask->dataRange.window.skey = INT64_MIN;
+      tqDebug("s-task:%s without associated stream task, reset the time window:%"PRId64" - %"PRId64, pTask->id.idStr,
+              pTask->dataRange.window.skey, pTask->dataRange.window.ekey);
+    } else {
+      tqDebug("s-task:%s history data scan completed, now start to scan data from wal, start ver:%" PRId64
+              ", window:%" PRId64 " - %" PRId64,
+              pTask->id.idStr, pTask->chkInfo.currentVer, pTask->dataRange.window.skey, pTask->dataRange.window.ekey);
+    }
 
     code = streamTaskScanHistoryDataComplete(pTask);
     streamMetaReleaseTask(pMeta, pTask);

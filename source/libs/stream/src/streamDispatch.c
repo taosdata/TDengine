@@ -308,7 +308,7 @@ int32_t streamDoDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamRe
 
   msg.contLen = tlen + sizeof(SMsgHead);
   msg.pCont = buf;
-  msg.msgType = TDMT_STREAM_RECOVER_FINISH;
+  msg.msgType = TDMT_STREAM_SCAN_HISTORY_FINISH;
   msg.info.noResp = 1;
 
   tmsgSendReq(pEpSet, &msg);
