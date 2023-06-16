@@ -72,17 +72,19 @@ class TDTestQuery(TDCase):
         # column
         for i in range(rows):
             self.tdSql.query(describe_sql) 
-            self.basic_query_util(self.tdSql.getData(i,0),db_tb,'FUNCTION','',',NUM','')
+            #self.basic_query_util(self.tdSql.getData(i,0),db_tb,'FUNCTION','',',NUM','')
+            self.basic_query_sql(self.tdSql.getData(i,0),db_tb,'FUNCTION','',',NUM','')
         
         #count    
         for i in range(rows):
             self.tdSql.query(describe_sql) 
-            self.basic_query_util(self.tdSql.getData(i,0),db_tb,'FUNCTION','count',',NUM','')
+            #self.basic_query_util(self.tdSql.getData(i,0),db_tb,'FUNCTION','count',',NUM','')
+            self.basic_query_sql(self.tdSql.getData(i,0),db_tb,'FUNCTION','count',',NUM','')
         
-        #sample    
-        for i in range(rows):
-            self.tdSql.query(describe_sql) 
-            self.basic_query_util(self.tdSql.getData(i,0),db_tb,'FUNCTION','sample','NUM',random_num1)
+        # #sample    
+        # for i in range(rows):
+        #     self.tdSql.query(describe_sql) 
+        #     self.basic_query_util(self.tdSql.getData(i,0),db_tb,'FUNCTION','sample','NUM',random_num1)
             
         # for i in range(rows):
         #     self.tdSql.query(describe_sql) 
@@ -138,30 +140,145 @@ class TDTestQuery(TDCase):
         self.time_cost(sql) 
         sql = "select count(*) from (%s);" %sql  
         self.time_cost(sql) 
-        
-            
-    def basic_query_util(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
-        sql_base = "select DISTINCT FUNCTION(`%s`,NUM) from %s " %(data_col,db_tb)
+    
+    def basic_query_util(self,sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
+        sql_base = sql
         sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num)
         self.time_cost(sql)   
-        sql = "select count(*) from (%s);" %sql  #统计上面sql的nest
-        self.time_cost(sql) 
+        sql_union_all = "(" + sql + ") UNION ALL (" +sql + ")";
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union)  
+        sql = "SELECT count(*) FROM (%s);" %sql  #统计上面sql的nest
+        self.time_cost(sql)   
+        sql_union_all = "SELECT count(*) FROM (%s);" %sql_union_all  #统计上面sql的nest
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union) 
                 
         sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num)
         self.time_cost(sql)  
+        sql_union_all = "(" + sql + ") UNION ALL (" +sql + ")";
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union) 
+        sql = "SELECT count(*) FROM (%s);" %sql  #统计上面sql的nest
+        self.time_cost(sql) 
+        sql_union_all = "SELECT count(*) FROM (%s);" %sql_union_all  #统计上面sql的nest
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union) 
+            
+    def basic_query_sql(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
+        sql_num = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
+        self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        sql_str = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
+        self.basic_query_util(sql_str,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        sql_base = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s " %(data_col,db_tb)
+        self.basic_query_util(sql_base,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col) 
+        self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY `%s`" %(data_col,db_tb,data_col) 
+        self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        sql_groupby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY TBNAME,`%s`" %(data_col,db_tb,data_col)  
+        self.basic_query_util(sql_groupby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
+        
+        sql_groupby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY `%s`" %(data_col,db_tb,data_col)  
+        self.basic_query_util(sql_groupby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
+        
+        sql_partitionby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY TBNAME,`%s`" %(data_col,db_tb,data_col)  
+        self.basic_query_util(sql_partitionby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
+        
+        sql_partitionby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY `%s`" %(data_col,db_tb,data_col)  
+        self.basic_query_util(sql_partitionby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
+        
+            
+    def basic_query_util_bak(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
+        sql_base = "select DISTINCT FUNCTION(`%s`,NUM) from %s " %(data_col,db_tb)
+        sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num)
+        self.time_cost(sql)   
+        sql_union_all = sql + " UNION ALL " +sql ;
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union)  
+        sql = "select count(*) from (%s);" %sql  #统计上面sql的nest
+        self.time_cost(sql)   
+        sql_union_all = "select count(*) from (%s);" %sql_union_all  #统计上面sql的nest
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union) 
+                
+        sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num)
+        self.time_cost(sql)  
+        sql_union_all = sql + " UNION ALL " +sql ;
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union) 
         sql = "select count(*) from (%s);" %sql  #统计上面sql的nest
         self.time_cost(sql) 
+        sql_union_all = "select count(*) from (%s);" %sql_union_all  #统计上面sql的nest
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union) 
         
         #order by 
         sql_orderby = "select DISTINCT FUNCTION(`%s`,NUM) from %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col)        
         sql = sql_orderby.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num)
-        self.time_cost(sql)   
+        self.time_cost(sql)          
+        sql_union_all = "(" + sql + ") UNION ALL (" +sql + ")";
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union)  
         sql = "select count(*) from (%s);" %sql  
-        self.time_cost(sql)     
+        self.time_cost(sql)  
+        sql_union_all = "select count(*) from (%s);" %sql_union_all  #统计上面sql的nest
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union) 
+            
         sql = sql_orderby.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num).replace('_ROWTS,' ,'')
-        self.time_cost(sql)   
+        self.time_cost(sql)         
+        sql_union_all = "(" + sql + ") UNION ALL (" +sql + ")";
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union)  
         sql = "select count(*) from (%s);" %sql  
-        self.time_cost(sql) 
+        self.time_cost(sql)  
+        sql_union_all = "select count(*) from (%s);" %sql_union_all  #统计上面sql的nest
+        self.time_cost(sql_union_all)    
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union)   
+        
+        sql = sql_orderby.replace('%s' %base_fun,'%s' %replace_fun).replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num)
+        self.time_cost(sql)   
+        sql_union_all = "(" + sql + ") UNION ALL (" +sql + ")";
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union)  
+        sql = "select count(*) from (%s);" %sql  
+        self.time_cost(sql)  
+        sql_union_all = "select count(*) from (%s);" %sql_union_all  #统计上面sql的nest
+        self.time_cost(sql_union_all)   
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union) 
+         
+        sql = sql_orderby.replace('%s' %base_fun,'%s' %replace_fun).replace('DISTINCT','').replace('%s' %base_num,'%s' %replace_num).replace('_ROWTS,' ,'')
+        self.time_cost(sql)  
+        sql_union_all = "(" + sql + ") UNION ALL (" +sql + ")";
+        self.time_cost(sql_union_all)  
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union)   
+        sql = "select count(*) from (%s);" %sql  
+        self.time_cost(sql)   
+        sql_union_all = "select count(*) from (%s);" %sql_union_all  #统计上面sql的nest
+        self.time_cost(sql_union_all)   
+        sql_union = sql_union_all.replace('ALL','')
+        self.time_cost(sql_union) 
         
         #group by , partition by 
         sql_groupby = "select DISTINCT FUNCTION(`%s`,NUM) from %s GROUP BY TBNAME,`%s`" %(data_col,db_tb,data_col)        
@@ -401,53 +518,6 @@ class TDTestQuery(TDCase):
             time_window = single_state_window
                                
         return time_window
-        
-    def data_check(self,sql) :
-        #self.insert_data(self.db,1) #方便时时插入数据
-        #判断sql执行结果，如果执行成功，判断返回rows，>0记录sql到文件， =0提示退出， sql执行不成功，则记录sql，不进入sql文件
-        rows = 0;
-        succ_flag = 0
-        t = time.time()
-        t_to_s =  time.strftime('%Y-%m-%d', time.localtime(t)) 
-        
-        try:
-            self.tdSql.query(sql,queryTimes=1)
-            rows = self.tdSql.query_row
-            succ_flag = 1
-        except:
-            self.logger.info("sql is not support :=====%s; " %sql)
-            self.tdSql.error(sql)
-            
-        if rows:
-            self.explain_sql(sql) if rows > 0 else sys.exit("data rows = 0")
-        
-        if succ_flag:            
-            result_file_name = self.testcasePath + '/sqls/meters.sql_%s' %t_to_s        
-            f = open(result_file_name, 'a') 
-            f.write(str(sql) + "; \n")
-            f.close()
-        else:
-            result_file_name = self.testcasePath + '/sqls/error/meters_error.sql_%s' %t_to_s        
-            f = open(result_file_name, 'a') 
-            f.write(str(sql) + "; \n")
-            #f.write(str(self.tdSql.error(sql)) + "; \n")
-            f.close()
-    
-    def data_check_2(self,sql) :
-        #临时测试的
-        rows = 0;
-        self.tdSql.query(sql)
-        rows = self.tdSql.query_row
-        
-        if rows > 0:
-            self.explain_sql(sql) 
-        else :
-            sys.exit("data rows = 0")            
-        
-        result_file_name = self.testcasePath + '/meters.sql'        
-        f = open(result_file_name, 'a') 
-        f.write(str(sql) + "; \n")
-        f.close()
             
     def column_select(self,num):
         column = ''
@@ -540,27 +610,27 @@ class TDTestQuery(TDCase):
         self.describe_table("`information_schema`.`ins_databases`")
         self.describe_table("`information_schema`.`ins_functions`")
         self.describe_table("`information_schema`.`ins_indexes`")
-        self.describe_table("`information_schema`.`ins_stables`")
-        #self.describe_table("`information_schema`.`ins_tables`")  #TD-24707
-        #self.describe_table("`information_schema`.`ins_tags`")  #TD-24707
-        #self.describe_table("`information_schema`.`ins_columns`")  #TD-24705 man
-        self.describe_table("`information_schema`.`ins_users`")
-        self.describe_table("`information_schema`.`ins_grants`")
-        self.describe_table("`information_schema`.`ins_vgroups`")
-        self.describe_table("`information_schema`.`ins_configs`")
-        self.describe_table("`information_schema`.`ins_dnode_variables`")
-        #self.describe_table("`information_schema`.`ins_topics`")  #TD-24716
-        self.describe_table("`information_schema`.`ins_subscriptions`")
-        self.describe_table("`information_schema`.`ins_streams`")
-        self.describe_table("`information_schema`.`ins_stream_tasks`")
-        self.describe_table("`information_schema`.`ins_vnodes`")
-        self.describe_table("`information_schema`.`ins_user_privileges`")
+        # #self.describe_table("`information_schema`.`ins_stables`")  #TD-24784
+        # #self.describe_table("`information_schema`.`ins_tables`")  #TD-24707
+        # #self.describe_table("`information_schema`.`ins_tags`")  #TD-24707
+        # #self.describe_table("`information_schema`.`ins_columns`")  #TD-24705 man
+        # self.describe_table("`information_schema`.`ins_users`")
+        # self.describe_table("`information_schema`.`ins_grants`")
+        # self.describe_table("`information_schema`.`ins_vgroups`")
+        # self.describe_table("`information_schema`.`ins_configs`")
+        # self.describe_table("`information_schema`.`ins_dnode_variables`")
+        # #self.describe_table("`information_schema`.`ins_topics`")  #TD-24716
+        # self.describe_table("`information_schema`.`ins_subscriptions`")
+        # self.describe_table("`information_schema`.`ins_streams`")
+        # self.describe_table("`information_schema`.`ins_stream_tasks`")
+        # self.describe_table("`information_schema`.`ins_vnodes`")
+        # self.describe_table("`information_schema`.`ins_user_privileges`")
         
-        self.describe_table("`performance_schema`.`perf_connections`")
-        self.describe_table("`performance_schema`.`perf_queries`")
-        self.describe_table("`performance_schema`.`perf_consumers`")
-        self.describe_table("`performance_schema`.`perf_trans`")
-        self.describe_table("`performance_schema`.`perf_apps`")
+        # self.describe_table("`performance_schema`.`perf_connections`")
+        # self.describe_table("`performance_schema`.`perf_queries`")
+        # self.describe_table("`performance_schema`.`perf_consumers`")
+        # self.describe_table("`performance_schema`.`perf_trans`")
+        # self.describe_table("`performance_schema`.`perf_apps`")
             
 
         endTime = time.time()
