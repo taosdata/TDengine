@@ -64,7 +64,6 @@ struct STFile {
   union {
     struct {
       int32_t level;
-      int32_t nseg;
     } stt[1];
   };
 };

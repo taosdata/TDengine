@@ -1522,6 +1522,8 @@ int32_t tsdbDataFileWriterOpen(const SDataFileWriterConfig *config, SDataFileWri
 }
 
 int32_t tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, TFileOpArray *opArr) {
+  if (writer[0] == NULL) return 0;
+
   int32_t code = 0;
   int32_t lino = 0;
 

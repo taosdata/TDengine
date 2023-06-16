@@ -46,9 +46,14 @@ typedef struct {
     TABLEID    tbid[1];
   } ctx[1];
 
+  // reader
   SSttFileReader *sttReader;
-  TTsdbIterArray  iterArray[1];
-  SIterMerger    *iterMerger;
+
+  // iter
+  TTsdbIterArray dataIterArray[1];
+  SIterMerger   *dataIterMerger;
+  TTsdbIterArray tombIterArray[1];
+  SIterMerger   *tombIterMerger;
 
   // writer
   SBlockData       blockData[2];
@@ -57,10 +62,11 @@ typedef struct {
   SSttFileWriter  *sttWriter;
 } SCommitter2;
 
-static int32_t tsdbCommitOpenNewSttWriter(SCommitter2 *committer) {
+static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  // stt writer
   SSttFileWriterConfig config[1] = {{
       .tsdb = committer->tsdb,
       .maxRow = committer->maxRow,
@@ -78,75 +84,6 @@ static int32_t tsdbCommitOpenNewSttWriter(SCommitter2 *committer) {
 
   code = tsdbSttFileWriterOpen(config, &committer->sttWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
-  } else {
-    tsdbDebug("vgId:%d %s success", TD_VID(committer->tsdb->pVnode), __func__);
-  }
-  return code;
-}
-
-static int32_t tsdbCommitOpenExistSttWriter(SCommitter2 *committer, const STFile *f) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  SSttFileWriterConfig config[1] = {{
-      .tsdb = committer->tsdb,
-      .maxRow = committer->maxRow,
-      .szPage = committer->szPage,
-      .cmprAlg = committer->cmprAlg,
-      .compactVersion = committer->compactVersion,
-      .file = f[0],
-  }};
-
-  code = tsdbSttFileWriterOpen(config, &committer->sttWriter);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
-  } else {
-    tsdbDebug("vgId:%d %s success", TD_VID(committer->tsdb->pVnode), __func__);
-  }
-  return code;
-}
-
-static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  // stt writer
-  if (committer->ctx->fset == NULL) {
-    code = tsdbCommitOpenNewSttWriter(committer);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    const SSttLvl *lvl0 = tsdbTFileSetGetSttLvl(committer->ctx->fset, 0);
-    if (lvl0 == NULL || TARRAY2_SIZE(lvl0->fobjArr) == 0) {
-      code = tsdbCommitOpenNewSttWriter(committer);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    } else {
-      STFileObj *fobj = TARRAY2_LAST(lvl0->fobjArr);
-      if (fobj->f->stt->nseg >= committer->sttTrigger) {
-        code = tsdbCommitOpenNewSttWriter(committer);
-        TSDB_CHECK_CODE(code, lino, _exit);
-
-        if (committer->sttTrigger == 1) {
-          SSttFileReaderConfig sttFileReaderConfig = {
-              .tsdb = committer->tsdb,
-              .szPage = committer->szPage,
-              .file = fobj->f[0],
-          };
-          code = tsdbSttFileReaderOpen(NULL, &sttFileReaderConfig, &committer->sttReader);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      } else {
-        code = tsdbCommitOpenExistSttWriter(committer, fobj->f);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    }
-  }
 
   // data writer
   if (committer->sttTrigger == 1) {
@@ -182,64 +119,15 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitTSDataOpenIterMerger(SCommitter2 *committer) {
+static int32_t tsdbCommitCloseWriter(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  ASSERT(TARRAY2_SIZE(committer->iterArray) == 0);
-  ASSERT(committer->iterMerger == NULL);
-
-  STsdbIter      *iter;
-  STsdbIterConfig config[1] = {0};
-
-  // memtable iter
-  config->type = TSDB_ITER_TYPE_MEMT;
-  config->memt = committer->tsdb->imem;
-  config->from->ts = committer->ctx->minKey;
-  config->from->version = VERSION_MIN;
-
-  code = tsdbIterOpen(config, &iter);
+  code = tsdbSttFileWriterClose(&committer->sttWriter, 0, committer->fopArray);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = TARRAY2_APPEND(committer->iterArray, iter);
+  code = tsdbDataFileWriterClose(&committer->dataWriter, 0, committer->fopArray);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  // stt file iter
-  if (committer->sttReader) {
-    const TSttSegReaderArray *readerArray;
-
-    tsdbSttFileReaderGetSegReader(committer->sttReader, &readerArray);
-
-    SSttSegReader *segReader;
-    TARRAY2_FOREACH(readerArray, segReader) {
-      config->type = TSDB_ITER_TYPE_STT;
-      config->sttReader = segReader;
-    }
-
-    code = tsdbIterOpen(config, &iter);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = TARRAY2_APPEND(committer->iterArray, iter);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  // open iter merger
-  code = tsdbIterMergerOpen(committer->iterArray, &committer->iterMerger, false);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
-  }
-  return code;
-}
-
-static int32_t tsdbCommitTSDataCloseIterMerger(SCommitter2 *committer) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  tsdbIterMergerClose(&committer->iterMerger);
-  TARRAY2_CLEAR(committer->iterArray, tsdbIterClose);
 
 _exit:
   if (code) {
@@ -342,7 +230,7 @@ static int32_t tsdbCommitTSDataToData(SCommitter2 *committer) {
   int32_t lino = 0;
 
   SMetaInfo info;
-  for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->iterMerger)) != NULL;) {
+  for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->dataIterMerger)) != NULL;) {
     if (row->uid != committer->ctx->tbid->uid) {
       // end last table write
       code = tsdbCommitTSDataToDataTableEnd(committer);
@@ -350,7 +238,7 @@ static int32_t tsdbCommitTSDataToData(SCommitter2 *committer) {
 
       // Ignore table of obsolescence
       if (metaGetInfo(committer->tsdb->pVnode->pMeta, row->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(committer->iterMerger, (TABLEID *)row);
+        code = tsdbIterMergerSkipTableData(committer->dataIterMerger, (TABLEID *)row);
         TSDB_CHECK_CODE(code, lino, _exit);
         continue;
       }
@@ -389,7 +277,7 @@ static int32_t tsdbCommitTSDataToData(SCommitter2 *committer) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    code = tsdbIterMergerNext(committer->iterMerger);
+    code = tsdbIterMergerNext(committer->dataIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -410,14 +298,14 @@ static int32_t tsdbCommitTSDataToStt(SCommitter2 *committer) {
   ASSERT(committer->sttReader == NULL);
 
   SMetaInfo info;
-  for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->iterMerger)) != NULL;) {
+  for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->dataIterMerger)) != NULL;) {
     if (row->uid != committer->ctx->tbid->uid) {
       committer->ctx->tbid->suid = row->suid;
       committer->ctx->tbid->uid = row->uid;
 
       // Ignore table of obsolescence
       if (metaGetInfo(committer->tsdb->pVnode->pMeta, row->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(committer->iterMerger, committer->ctx->tbid);
+        code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
         TSDB_CHECK_CODE(code, lino, _exit);
         continue;
       }
@@ -426,13 +314,13 @@ static int32_t tsdbCommitTSDataToStt(SCommitter2 *committer) {
     TSKEY ts = TSDBROW_TS(&row->row);
     if (ts > committer->ctx->maxKey) {
       committer->ctx->nextKey = TMIN(committer->ctx->nextKey, ts);
-      code = tsdbIterMergerSkipTableData(committer->iterMerger, committer->ctx->tbid);
+      code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
       code = tsdbSttFileWriteRow(committer->sttWriter, row);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tsdbIterMergerNext(committer->iterMerger);
+      code = tsdbIterMergerNext(committer->dataIterMerger);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
@@ -448,12 +336,6 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (committer->tsdb->imem->nRow == 0) goto _exit;
-
-  // open iter and iter merger
-  code = tsdbCommitTSDataOpenIterMerger(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   // loop iter
   if (committer->sttTrigger == 1) {
     code = tsdbCommitTSDataToData(committer);
@@ -463,94 +345,84 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  // close iter and iter merger
-  code = tsdbCommitTSDataCloseIterMerger(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
   }
   return code;
-}
-
-static int32_t tsdbCommitTombDataOpenIter(SCommitter2 *committer) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  STsdbIter      *iter;
-  STsdbIterConfig config[1] = {0};
-
-  if (committer->sttReader) {
-    const TSttSegReaderArray *readerArray;
-
-    tsdbSttFileReaderGetSegReader(committer->sttReader, &readerArray);
-
-    SSttSegReader *segReader;
-    TARRAY2_FOREACH(readerArray, segReader) {
-      config->type = TSDB_ITER_TYPE_STT_TOMB;
-      config->sttReader = segReader;
-
-      code = tsdbIterOpen(config, &iter);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      code = TARRAY2_APPEND(committer->iterArray, iter);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-  }
-
-  config->type = TSDB_ITER_TYPE_MEMT_TOMB;
-  config->memt = committer->tsdb->imem;
-
-  code = tsdbIterOpen(config, &iter);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = TARRAY2_APPEND(committer->iterArray, iter);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // open iter
-  code = tsdbIterMergerOpen(committer->iterArray, &committer->iterMerger, true);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
-  }
-  return code;
-}
-
-static int32_t tsdbCommitTombDataCloseIter(SCommitter2 *committer) {
-  tsdbIterMergerClose(&committer->iterMerger);
-  TARRAY2_CLEAR(committer->iterArray, tsdbIterClose);
-  return 0;
 }
 
 static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbCommitTombDataOpenIter(committer);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   if (committer->dataWriter == NULL || tsdbSttFileWriterIsOpened(committer->sttWriter)) {
-    for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->iterMerger));) {
+    for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
       code = tsdbSttFileWriteTombRecord(committer->sttWriter, record);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tsdbIterMergerNext(committer->iterMerger);
+      code = tsdbIterMergerNext(committer->tombIterMerger);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else {
-    for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->iterMerger));) {
+    for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
       code = tsdbDataFileWriteTombRecord(committer->dataWriter, record);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tsdbIterMergerNext(committer->iterMerger);
+      code = tsdbIterMergerNext(committer->tombIterMerger);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
-  code = tsdbCommitTombDataCloseIter(committer);
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  ASSERT(committer->sttReader == NULL);
+
+  if (committer->ctx->fset == NULL                        //
+      || committer->sttTrigger > 1                        //
+      || TARRAY2_SIZE(committer->ctx->fset->lvlArr) == 0  //
+  ) {
+    return 0;
+  }
+
+  ASSERT(TARRAY2_SIZE(committer->ctx->fset->lvlArr) == 1);
+
+  SSttLvl *lvl = TARRAY2_FIRST(committer->ctx->fset->lvlArr);
+
+  ASSERT(lvl->level == 0);
+
+  if (TARRAY2_SIZE(lvl->fobjArr) == 0) {
+    return 0;
+  }
+
+  ASSERT(TARRAY2_SIZE(lvl->fobjArr) == 1);
+
+  STFileObj *fobj = TARRAY2_FIRST(lvl->fobjArr);
+
+  SSttFileReaderConfig config = {
+      .tsdb = committer->tsdb,
+      .szPage = committer->szPage,
+      .file = fobj->f[0],
+  };
+  code = tsdbSttFileReaderOpen(fobj->fname, &config, &committer->sttReader);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  STFileOp op = {
+      .optype = TSDB_FOP_REMOVE,
+      .fid = fobj->f->fid,
+      .of = fobj->f[0],
+  };
+
+  code = TARRAY2_APPEND(committer->fopArray, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -558,6 +430,87 @@ _exit:
     TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
   }
   return code;
+}
+
+static int32_t tsdbCommitCloseReader(SCommitter2 *committer) { return tsdbSttFileReaderClose(&committer->sttReader); }
+
+static int32_t tsdbCommitOpenIter(SCommitter2 *committer) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  ASSERT(TARRAY2_SIZE(committer->dataIterArray) == 0);
+  ASSERT(committer->dataIterMerger == NULL);
+  ASSERT(TARRAY2_SIZE(committer->tombIterArray) == 0);
+  ASSERT(committer->tombIterMerger == NULL);
+
+  STsdbIter      *iter;
+  STsdbIterConfig config = {0};
+
+  // mem data iter
+  config.type = TSDB_ITER_TYPE_MEMT;
+  config.memt = committer->tsdb->imem;
+  config.from->ts = committer->ctx->minKey;
+  config.from->version = VERSION_MIN;
+
+  code = tsdbIterOpen(&config, &iter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = TARRAY2_APPEND(committer->dataIterArray, iter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // mem tomb iter
+  config.type = TSDB_ITER_TYPE_MEMT_TOMB;
+  config.memt = committer->tsdb->imem;
+
+  code = tsdbIterOpen(&config, &iter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = TARRAY2_APPEND(committer->tombIterArray, iter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // STT
+  if (committer->sttReader) {
+    // data iter
+    config.type = TSDB_ITER_TYPE_STT;
+    config.sttReader = committer->sttReader;
+
+    code = tsdbIterOpen(&config, &iter);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = TARRAY2_APPEND(committer->dataIterArray, iter);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    // tomb iter
+    config.type = TSDB_ITER_TYPE_STT_TOMB;
+    config.sttReader = committer->sttReader;
+
+    code = tsdbIterOpen(&config, &iter);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = TARRAY2_APPEND(committer->tombIterArray, iter);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // open merger
+  code = tsdbIterMergerOpen(committer->dataIterArray, &committer->dataIterMerger, false);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbIterMergerOpen(committer->tombIterArray, &committer->tombIterMerger, true);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
+  }
+  return code;
+}
+
+static int32_t tsdbCommitCloseIter(SCommitter2 *committer) {
+  tsdbIterMergerClose(&committer->tombIterMerger);
+  tsdbIterMergerClose(&committer->dataIterMerger);
+  TARRAY2_CLEAR(committer->tombIterArray, tsdbIterClose);
+  TARRAY2_CLEAR(committer->dataIterArray, tsdbIterClose);
+  return 0;
 }
 
 static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
@@ -577,10 +530,16 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
 
-  ASSERT(TARRAY2_SIZE(committer->iterArray) == 0);
-  ASSERT(committer->iterMerger == NULL);
+  ASSERT(TARRAY2_SIZE(committer->dataIterArray) == 0);
+  ASSERT(committer->dataIterMerger == NULL);
   ASSERT(committer->sttWriter == NULL);
   ASSERT(committer->dataWriter == NULL);
+
+  code = tsdbCommitOpenReader(committer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbCommitOpenIter(committer);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbCommitOpenWriter(committer);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -602,21 +561,14 @@ static int32_t tsdbCommitFileSetEnd(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (committer->sttReader) {
-    code = tsdbSttFileReaderClose(&committer->sttReader);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  if (committer->dataWriter) {
-    code = tsdbDataFileWriterClose(&committer->dataWriter, 0, committer->fopArray);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  code = tsdbSttFileWriterClose(&committer->sttWriter, 0, committer->fopArray);
+  code = tsdbCommitCloseWriter(committer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  tsdbIterMergerClose(&committer->iterMerger);
-  TARRAY2_CLEAR(committer->iterArray, tsdbIterClose);
+  code = tsdbCommitCloseIter(committer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbCommitCloseReader(committer);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -713,8 +665,10 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
 
   ASSERT(committer->dataWriter == NULL);
   ASSERT(committer->sttWriter == NULL);
-  ASSERT(committer->iterMerger == NULL);
-  TARRAY2_DESTROY(committer->iterArray, NULL);
+  ASSERT(committer->dataIterMerger == NULL);
+  ASSERT(committer->tombIterMerger == NULL);
+  TARRAY2_DESTROY(committer->dataIterArray, NULL);
+  TARRAY2_DESTROY(committer->tombIterArray, NULL);
   TARRAY2_DESTROY(committer->fopArray, NULL);
   tsdbFSDestroyCopySnapshot(&committer->fsetArr);
 

@@ -30,25 +30,22 @@ typedef TARRAY2(STombBlk) TTombBlkArray;
 // SSttFileReader ==========================================
 typedef struct SSttFileReader       SSttFileReader;
 typedef struct SSttFileReaderConfig SSttFileReaderConfig;
-typedef struct SSttSegReader        SSttSegReader;
 typedef TARRAY2(SSttFileReader *) TSttFileReaderArray;
-typedef TARRAY2(SSttSegReader *) TSttSegReaderArray;
 
 // SSttFileReader
 int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *config, SSttFileReader **reader);
 int32_t tsdbSttFileReaderClose(SSttFileReader **reader);
-int32_t tsdbSttFileReaderGetSegReader(SSttFileReader *reader, const TSttSegReaderArray **readerArray);
 
 // SSttSegReader
-int32_t tsdbSttFileReadSttBlk(SSttSegReader *reader, const TSttBlkArray **sttBlkArray);
-int32_t tsdbSttFileReadStatisBlk(SSttSegReader *reader, const TStatisBlkArray **statisBlkArray);
-int32_t tsdbSttFileReadTombBlk(SSttSegReader *reader, const TTombBlkArray **delBlkArray);
+int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBlkArray);
+int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray **statisBlkArray);
+int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **delBlkArray);
 
-int32_t tsdbSttFileReadBlockData(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData);
-int32_t tsdbSttFileReadBlockDataByColumn(SSttSegReader *reader, const SSttBlk *sttBlk, SBlockData *bData,
+int32_t tsdbSttFileReadBlockData(SSttFileReader *reader, const SSttBlk *sttBlk, SBlockData *bData);
+int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *sttBlk, SBlockData *bData,
                                          STSchema *pTSchema, int16_t cids[], int32_t ncid);
-int32_t tsdbSttFileReadStatisBlock(SSttSegReader *reader, const SStatisBlk *statisBlk, STbStatisBlock *sData);
-int32_t tsdbSttFileReadTombBlock(SSttSegReader *reader, const STombBlk *delBlk, STombBlock *dData);
+int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *statisBlk, STbStatisBlock *sData);
+int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *delBlk, STombBlock *dData);
 
 struct SSttFileReaderConfig {
   STsdb    *tsdb;

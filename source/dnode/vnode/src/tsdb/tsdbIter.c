@@ -28,7 +28,7 @@ struct STsdbIter {
   SRBTreeNode node[1];
   union {
     struct {
-      SSttSegReader      *reader;
+      SSttFileReader     *reader;
       const TSttBlkArray *sttBlkArray;
       int32_t             sttBlkArrayIdx;
       SBlockData          blockData[1];
@@ -51,7 +51,7 @@ struct STsdbIter {
       STbDataIter tbIter[1];
     } memtData[1];
     struct {
-      SSttSegReader       *reader;
+      SSttFileReader      *reader;
       const TTombBlkArray *tombBlkArray;
       int32_t              tombBlkArrayIdx;
       STombBlock           tombBlock[1];

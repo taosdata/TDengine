@@ -37,7 +37,7 @@ typedef struct {
     bool       toData;
     int32_t    level;
     SSttLvl   *lvl;
-    STFileObj *fobj;
+    // STFileObj *fobj;
     TABLEID    tbid[1];
     int32_t    blockDataIdx;
     SBlockData blockData[2];
@@ -305,8 +305,6 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
   merger->ctx->toData = true;
   merger->ctx->level = 0;
 
-  // TARRAY2_FOREACH(merger->ctx->fset->lvlArr, merger->ctx->lvl) {
-
   for (int32_t i = 0;; ++i) {
     if (i >= TARRAY2_SIZE(merger->ctx->fset->lvlArr)) {
       merger->ctx->lvl = NULL;
@@ -314,38 +312,38 @@ static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
     }
 
     merger->ctx->lvl = TARRAY2_GET(merger->ctx->fset->lvlArr, i);
-    if (merger->ctx->lvl->level != merger->ctx->level || TARRAY2_SIZE(merger->ctx->lvl->fobjArr) == 0) {
+    if (merger->ctx->lvl->level != merger->ctx->level ||
+        TARRAY2_SIZE(merger->ctx->lvl->fobjArr) + 1 < merger->sttTrigger) {
       merger->ctx->toData = false;
       merger->ctx->lvl = NULL;
       break;
     }
 
-    ASSERT(merger->ctx->lvl->level == 0 || TARRAY2_SIZE(merger->ctx->lvl->fobjArr) == 1);
+    merger->ctx->level++;
 
-    merger->ctx->fobj = TARRAY2_FIRST(merger->ctx->lvl->fobjArr);
-    if (merger->ctx->fobj->f->stt->nseg < merger->sttTrigger) {
-      merger->ctx->toData = false;
-      break;
-    } else {
-      merger->ctx->level++;
+    STFileObj *fobj;
+    int32_t    numFile = 0;
+    TARRAY2_FOREACH(merger->ctx->lvl->fobjArr, fobj) {
+      if (numFile == merger->sttTrigger) {
+        break;
+      }
 
-      // add remove operation
       STFileOp op = {
           .optype = TSDB_FOP_REMOVE,
           .fid = merger->ctx->fset->fid,
-          .of = merger->ctx->fobj->f[0],
+          .of = fobj->f[0],
       };
       code = TARRAY2_APPEND(merger->fopArr, op);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      // open the reader
       SSttFileReader      *reader;
-      SSttFileReaderConfig config[1] = {{
+      SSttFileReaderConfig config = {
           .tsdb = merger->tsdb,
           .szPage = merger->szPage,
-          .file[0] = merger->ctx->fobj->f[0],
-      }};
-      code = tsdbSttFileReaderOpen(merger->ctx->fobj->fname, config, &reader);
+          .file[0] = fobj->f[0],
+      };
+
+      code = tsdbSttFileReaderOpen(fobj->fname, &config, &reader);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = TARRAY2_APPEND(merger->sttReaderArr, reader);
@@ -367,33 +365,28 @@ static int32_t tsdbMergeFileSetBeginOpenIter(SMerger *merger) {
 
   SSttFileReader *sttReader;
   TARRAY2_FOREACH(merger->sttReaderArr, sttReader) {
-    const TSttSegReaderArray *segReaderArr;
+    STsdbIter      *iter;
+    STsdbIterConfig config = {0};
 
-    code = tsdbSttFileReaderGetSegReader(sttReader, &segReaderArr);
+    // data iter
+    config.type = TSDB_ITER_TYPE_STT;
+    config.sttReader = sttReader;
+
+    code = tsdbIterOpen(&config, &iter);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    SSttSegReader *segReader;
-    TARRAY2_FOREACH(segReaderArr, segReader) {
-      STsdbIter *iter;
+    code = TARRAY2_APPEND(merger->dataIterArr, iter);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-      STsdbIterConfig config[1] = {{
-          .type = TSDB_ITER_TYPE_STT,
-          .sttReader = segReader,
-      }};
+    // tomb iter
+    config.type = TSDB_ITER_TYPE_STT_TOMB;
+    config.sttReader = sttReader;
 
-      // data iter
-      code = tsdbIterOpen(config, &iter);
-      TSDB_CHECK_CODE(code, lino, _exit);
-      code = TARRAY2_APPEND(merger->dataIterArr, iter);
-      TSDB_CHECK_CODE(code, lino, _exit);
+    code = tsdbIterOpen(&config, &iter);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-      // tomb iter
-      config->type = TSDB_ITER_TYPE_STT_TOMB;
-      code = tsdbIterOpen(config, &iter);
-      TSDB_CHECK_CODE(code, lino, _exit);
-      code = TARRAY2_APPEND(merger->tombIterArr, iter);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    code = TARRAY2_APPEND(merger->tombIterArr, iter);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   code = tsdbIterMergerOpen(merger->dataIterArr, &merger->dataIterMerger, false);
@@ -414,26 +407,14 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
   int32_t lino = 0;
   int32_t vid = TD_VID(merger->tsdb->pVnode);
 
-  if (merger->ctx->lvl) {
-    // to existing level
-    SSttFileWriterConfig config[1] = {{
-        .tsdb = merger->tsdb,
-        .maxRow = merger->maxRow,
-        .szPage = merger->szPage,
-        .cmprAlg = merger->cmprAlg,
-        .compactVersion = merger->compactVersion,
-        .file = merger->ctx->fobj->f[0],
-    }};
-    code = tsdbSttFileWriterOpen(config, &merger->sttWriter);
+  SDiskID did;
+  int32_t level = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now);
+  if (tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, &did) < 0) {
+    code = TSDB_CODE_FS_NO_VALID_DISK;
     TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    SDiskID did[1];
-    int32_t level = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now);
-    if (tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, did) < 0) {
-      code = TSDB_CODE_FS_NO_VALID_DISK;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+  }
 
+  {
     // to new level
     SSttFileWriterConfig config[1] = {{
         .tsdb = merger->tsdb,
@@ -444,13 +425,12 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
         .file =
             {
                 .type = TSDB_FTYPE_STT,
-                .did = did[0],
+                .did = did,
                 .fid = merger->ctx->fset->fid,
                 .cid = merger->cid,
                 .size = 0,
                 .stt = {{
                     .level = merger->ctx->level,
-                    .nseg = 0,
                 }},
             },
     }};
@@ -459,14 +439,6 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
   }
 
   if (merger->ctx->toData) {
-    SDiskID did;
-    int32_t level = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now);
-
-    if (tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, &did) < 0) {
-      code = TSDB_CODE_FS_NO_VALID_DISK;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-
     SDataFileWriterConfig config[1] = {{
         .tsdb = merger->tsdb,
         .cmprAlg = merger->cmprAlg,
@@ -622,11 +594,11 @@ static int32_t tsdbDoMerge(SMerger *merger) {
 
   STFileSet *fset;
   TARRAY2_FOREACH(merger->fsetArr, fset) {
-    SSttLvl *lvl = TARRAY2_SIZE(fset->lvlArr) > 0 ? TARRAY2_FIRST(fset->lvlArr) : NULL;
-    if (!lvl || lvl->level != 0 || TARRAY2_SIZE(lvl->fobjArr) == 0) continue;
+    if (TARRAY2_SIZE(fset->lvlArr) == 0) continue;
 
-    STFileObj *fobj = TARRAY2_FIRST(lvl->fobjArr);
-    if (fobj->f->stt->nseg < merger->sttTrigger) continue;
+    SSttLvl *lvl = TARRAY2_FIRST(fset->lvlArr);
+
+    if (lvl->level != 0 || TARRAY2_SIZE(lvl->fobjArr) < merger->sttTrigger) continue;
 
     if (!merger->ctx->opened) {
       code = tsdbMergerOpen(merger);

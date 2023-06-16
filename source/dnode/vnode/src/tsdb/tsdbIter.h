@@ -41,7 +41,7 @@ typedef enum {
 typedef struct {
   EIterType type;
   union {
-    SSttSegReader   *sttReader;   //  TSDB_ITER_TYPE_STT || TSDB_ITER_TYPE_STT_TOMB
+    SSttFileReader  *sttReader;   //  TSDB_ITER_TYPE_STT || TSDB_ITER_TYPE_STT_TOMB
     SDataFileReader *dataReader;  // TSDB_ITER_TYPE_DATA || TSDB_ITER_TYPE_DATA_TOMB
     struct {
       SMemTable *memt;  // TSDB_ITER_TYPE_MEMT_TOMB

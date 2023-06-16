@@ -607,11 +607,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
       if (TARRAY2_SIZE(fset->lvlArr) == 0) continue;
 
       SSttLvl *lvl0 = TARRAY2_FIRST(fset->lvlArr);
-      if (lvl0->level != 0 || TARRAY2_SIZE(lvl0->fobjArr) == 0) continue;
-
-      STFileObj *fobj = TARRAY2_FIRST(lvl0->fobjArr);
-
-      if (fobj->f->stt->nseg < fs->tsdb->pVnode->config.sttTrigger) continue;
+      if (lvl0->level != 0 || TARRAY2_SIZE(lvl0->fobjArr) < fs->tsdb->pVnode->config.sttTrigger) continue;
 
       code = vnodeScheduleTaskEx(1, tsdbMerge, fs->tsdb);
       TSDB_CHECK_CODE(code, lino, _exit);
