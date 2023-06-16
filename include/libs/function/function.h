@@ -130,7 +130,7 @@ typedef struct SSerializeDataHandle {
 
 // incremental state storage
 
-typedef struct SBackendWrapper {
+typedef struct SBackendCfWrapper {
   void          *rocksdb;
   void         **pHandle;
   void          *writeOpts;
@@ -146,11 +146,11 @@ typedef struct SBackendWrapper {
   bool           remove;
   int64_t        backendId;
   char           idstr[64];
-} SBackendWrapper;
+} SBackendCfWrapper;
 typedef struct STdbState {
-  SBackendWrapper *pBackendWrapper;
-  int64_t          backendWrapperId;
-  char             idstr[64];
+  SBackendCfWrapper *pBackendCfWrapper;
+  int64_t            backendCfWrapperId;
+  char               idstr[64];
 
   struct SStreamTask *pOwner;
   void               *db;

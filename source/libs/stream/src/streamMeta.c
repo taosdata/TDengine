@@ -21,16 +21,16 @@
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t             streamBackendId = 0;
-int32_t             streamBackendWrapperId = 0;
+int32_t             streamBackendCfWrapperId = 0;
 static void         streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
-  streamBackendWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
+  streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
 }
 
 void streamMetaInit() { taosThreadOnce(&streamMetaModuleInit, streamMetaEnvInit); }
 void streamMetaCleanup() {
   taosCloseRef(streamBackendId);
-  taosCloseRef(streamBackendWrapperId);
+  taosCloseRef(streamBackendCfWrapperId);
 }
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {

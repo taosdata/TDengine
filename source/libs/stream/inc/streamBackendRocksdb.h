@@ -42,7 +42,7 @@ typedef struct {
   TdThreadMutex                      cfMutex;
   SHashObj*                          cfInst;
   int64_t                            defaultCfInit;
-} SBackendHandle;
+} SBackendWrapper;
 
 void*      streamBackendInit(const char* path);
 void       streamBackendCleanup(void* arg);

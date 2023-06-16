@@ -134,11 +134,11 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
       return NULL;
     }
     taosHashPut(pMeta->pTaskBackendUnique, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1,
-                &pState->pTdbState->backendWrapperId, sizeof(pState->pTdbState->backendWrapperId));
+                &pState->pTdbState->backendCfWrapperId, sizeof(pState->pTdbState->backendCfWrapperId));
   } else {
     int64_t id = *(int64_t*)uniqueId;
-    pState->pTdbState->backendWrapperId = id;
-    pState->pTdbState->pBackendWrapper = taosAcquireRef(streamBackendWrapperId, id);
+    pState->pTdbState->backendCfWrapperId = id;
+    pState->pTdbState->pBackendCfWrapper = taosAcquireRef(streamBackendCfWrapperId, id);
 
     taosAcquireRef(streamBackendId, pState->streamBackendRid);
   }
