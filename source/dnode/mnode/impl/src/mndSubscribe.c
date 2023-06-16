@@ -160,10 +160,10 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, SMqSubscribeObj 
 
 static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub,
                                         const SMqRebOutputVg *pRebVg, SSubplan* pPlan) {
-//  if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
-//    terrno = TSDB_CODE_MND_INVALID_SUB_OPTION;
-//    return -1;
-//  }
+  if (pRebVg->oldConsumerId == pRebVg->newConsumerId) {
+    terrno = TSDB_CODE_MND_INVALID_SUB_OPTION;
+    return -1;
+  }
 
   void   *buf;
   int32_t tlen;
@@ -296,17 +296,17 @@ static void addUnassignedVgroups(SMqRebOutputObj *pOutput, SHashObj *pHash) {
   }
 }
 
-static void putNoTransferToOutput(SMqRebOutputObj *pOutput, SMqConsumerEp *pConsumerEp){
-  for(int i = 0; i < taosArrayGetSize(pConsumerEp->vgs); i++){
-    SMqVgEp       *pVgEp = (SMqVgEp *)taosArrayGetP(pConsumerEp->vgs, i);
-    SMqRebOutputVg outputVg = {
-        .oldConsumerId = pConsumerEp->consumerId,
-        .newConsumerId = pConsumerEp->consumerId,
-        .pVgEp = pVgEp,
-    };
-    taosArrayPush(pOutput->rebVgs, &outputVg);
-  }
-}
+//static void putNoTransferToOutput(SMqRebOutputObj *pOutput, SMqConsumerEp *pConsumerEp){
+//  for(int i = 0; i < taosArrayGetSize(pConsumerEp->vgs); i++){
+//    SMqVgEp       *pVgEp = (SMqVgEp *)taosArrayGetP(pConsumerEp->vgs, i);
+//    SMqRebOutputVg outputVg = {
+//        .oldConsumerId = pConsumerEp->consumerId,
+//        .newConsumerId = pConsumerEp->consumerId,
+//        .pVgEp = pVgEp,
+//    };
+//    taosArrayPush(pOutput->rebVgs, &outputVg);
+//  }
+//}
 
 static void transferVgroupsForConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t minVgCnt,
                                         int32_t imbConsumerNum) {
@@ -357,7 +357,7 @@ static void transferVgroupsForConsumers(SMqRebOutputObj *pOutput, SHashObj *pHas
         }
       }
     }
-    putNoTransferToOutput(pOutput, pConsumerEp);
+//    putNoTransferToOutput(pOutput, pConsumerEp);
   }
 }
 
