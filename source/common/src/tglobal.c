@@ -213,6 +213,8 @@ int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
 bool    tsFilterScalarMode = false;
 
+bool    tsEnableTmqRebalance = false;
+
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
@@ -494,6 +496,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, 0) != 0) return -1;
   if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, 0) != 0) return -1;
 
+  if (cfgAddBool(pCfg, "rebalance", tsEnableTmqRebalance, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, 0) != 0) return -1;
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, 0) != 0) return -1;
@@ -861,6 +864,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsSIMDBuiltins = (bool)cfgGetItem(pCfg, "SIMD-builtins")->bval;
   tsTagFilterCache = (bool)cfgGetItem(pCfg, "tagFilterCache")->bval;
 
+  tsEnableTmqRebalance = cfgGetItem(pCfg, "rebalance")->bval;
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
   tstrncpy(tsMonitorFqdn, cfgGetItem(pCfg, "monitorFqdn")->str, TSDB_FQDN_LEN);

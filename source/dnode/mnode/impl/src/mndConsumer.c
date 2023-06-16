@@ -264,6 +264,10 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
 
   mDebug("start to process mq timer");
 
+  if (!tsEnableTmqRebalance) {
+    mInfo("tmq rebalance disable");
+    return 0;
+  }
   // rebalance cannot be parallel
   if (!mndRebTryStart()) {
     mDebug("mq rebalance already in progress, do nothing");
