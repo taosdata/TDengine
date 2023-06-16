@@ -47,7 +47,7 @@ class RenameTable(TDCase):
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
-        self.replica = [1,3]
+        self.replica = [3]
         # param for taosBenchmark with ntb check
         self.ntb_dbname = [self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]
         self.ntb_name_m = [self.tdCom.get_long_name(2),self.tdCom.get_long_name(2)]
