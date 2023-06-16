@@ -760,10 +760,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg) {
     }
 
     if (strcmp(dropReq.cgroup, pConsumer->cgroup) == 0) {
-      sdbRelease(pMnode->pSdb, pConsumer);
-      terrno = TSDB_CODE_MND_CGROUP_USED;
-      mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
-      return -1;
+      mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
     }
     sdbRelease(pMnode->pSdb, pConsumer);
   }

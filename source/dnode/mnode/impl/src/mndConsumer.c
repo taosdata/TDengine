@@ -75,6 +75,22 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 
 void mndCleanupConsumer(SMnode *pMnode) {}
 
+void mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId){
+  SMqConsumerClearMsg *pClearMsg = rpcMallocCont(sizeof(SMqConsumerClearMsg));
+  if (pClearMsg == NULL) {
+    mError("consumer:0x%"PRIx64" failed to clear consumer due to out of memory. alloc size:%d", consumerId, (int32_t)sizeof(SMqConsumerClearMsg));
+    return;
+  }
+
+  pClearMsg->consumerId = consumerId;
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, .pCont = pClearMsg, .contLen = sizeof(SMqConsumerClearMsg)};
+
+  mInfo("consumer:0x%" PRIx64 " drop from sdb", consumerId);
+  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  return;
+}
+
 bool mndRebTryStart() {
   int32_t old = atomic_val_compare_exchange_32(&mqRebInExecCnt, 0, 1);
   mDebug("tq timer, rebalance counter old val:%d", old);
@@ -330,20 +346,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
     } else if (status == MQ_CONSUMER_STATUS_LOST) {
       // if the client is lost longer than one day, clear it. Otherwise, do nothing about the lost consumers.
       if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD || taosArrayGetSize(pConsumer->assignedTopics) == 0) {   // clear consumer if lost a day or unsubscribe/close
-        SMqConsumerClearMsg *pClearMsg = rpcMallocCont(sizeof(SMqConsumerClearMsg));
-        if (pClearMsg == NULL) {
-          mError("consumer:0x%"PRIx64" failed to clear consumer due to out of memory. alloc size:%d",
-                 pConsumer->consumerId, (int32_t)sizeof(SMqConsumerClearMsg));
-          continue;
-        }
-
-        pClearMsg->consumerId = pConsumer->consumerId;
-        SRpcMsg rpcMsg = {
-            .msgType = TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, .pCont = pClearMsg, .contLen = sizeof(SMqConsumerClearMsg)};
-
-        mDebug("consumer:0x%" PRIx64 " lost beyond threshold %d, clear it", pConsumer->consumerId,
-               MND_CONSUMER_LOST_CLEAR_THRESHOLD);
-        tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
       }
     } else {  // MQ_CONSUMER_STATUS_REBALANCE
       taosRLockLatch(&pConsumer->lock);
