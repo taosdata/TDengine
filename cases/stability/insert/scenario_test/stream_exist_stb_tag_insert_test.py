@@ -21,21 +21,25 @@ from taostest.performance.result_reduction import Perf_Base_func
 import sys
 from taostest.util.msg import Msg, TaosBenchmark
 import getpass
+import socket
+
 class NoPartitionStreamStabilityTest(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
         self.host = self.get_fqdn("taosd")[0]
+        self.host_list = list()
+        self.host_list.append(self.host)
         
         self.current_dir = os.path.dirname(os.path.realpath(__file__))
         self.result_file_name = self.run_log_dir + '/perf_report.txt'
         self.json_file = os.path.join(self.current_dir, "stream_exist_stb_tag_prepare.json")
-        # self.json_file = os.path.join(self.current_dir, "test1.json")
+        self.json_file = os.path.join(self.current_dir, "test1.json")
         self.json_info = self.tdCom.load_json(self.json_file)
-        self.json_info["test_log"] = self.run_log_dir
         self.json_info["host"] = self.host
         self.taosBenchmark_iplist = self.get_fqdn("taosBenchmark")
         self.taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+        self.host_list = self.taosBenchmark_iplist if self.host in self.taosBenchmark_iplist else self.host_list + self.taosBenchmark_iplist
         self.dbname = self.json_info["databases"][0]["dbinfo"]["name"]
         self.vgroups = self.json_info["databases"][0]["dbinfo"]["vgroups"]
         self.childtable_count = self.json_info["databases"][0]["super_tables"][0]["childtable_count"]
@@ -43,8 +47,9 @@ class NoPartitionStreamStabilityTest(TDCase):
         self.stbname = self.json_info["databases"][0]["super_tables"][0]["name"]
         self.childtable_prefix = self.json_info["databases"][0]["super_tables"][0]["childtable_prefix"]
         self.stream_json_file = os.path.join(self.current_dir, "stream_exist_stb_tag_insert.json")
-        # self.stream_json_file = os.path.join(self.current_dir, "test2.json")
+        self.stream_json_file = os.path.join(self.current_dir, "test2.json")
         self.stream_json_info = self.tdCom.load_json(self.stream_json_file)
+        self.stream_json_info["host"] = self.host
         self.insert_rows = self.stream_json_info["databases"][0]["super_tables"][0]["insert_rows"]
         self.stream_name = self.stream_json_info["streams"][0]["stream_name"]
         self.stream_sql = self.stream_json_info["streams"][0]["source_sql"]
@@ -57,6 +62,8 @@ class NoPartitionStreamStabilityTest(TDCase):
         self.msg = Msg()
         self.taosbenchmark = TaosBenchmark()
         self.exec_cmd = ' '.join(sys.argv[::])
+        
+        self.taosBenchmark_json_path = "/tmp/"
 
     def desc(self):
         pass
@@ -75,15 +82,18 @@ class NoPartitionStreamStabilityTest(TDCase):
         timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         for json_file_info in self.json_file_info_list:
             for json_file, json_info in json_file_info.items():
+                json_info["result_file"] = self.taosBenchmark_json_path + "taosBenchmark_" + os.path.split(json_file)[1] + ".log"
                 with open(json_info["result_file"], "w") as f:
                     f.truncate()
                 json_data_list = list()
                 json_filename_list = list()
                 json_filename = os.path.split(json_file)[1]
                 json_filename_list.append(json_filename)
-                json_info["test_log"] = os.path.split(json_file)[0] + "/"
+                json_info["test_log"] = self.taosBenchmark_json_path
                 self.tdCom.dump_json(f'{self.run_log_dir}/{json_filename}', json_info)
+                self.tdCom.dump_json(f'{self.taosBenchmark_json_path}{json_filename}', json_info)
                 json_data_list.append(json_info)
+                self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, json_data_list, json_filename_list, self.run_log_dir)
                 result_file_list = self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, json_data_list, json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
                 
         timestamp_end = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -98,15 +108,20 @@ class NoPartitionStreamStabilityTest(TDCase):
             self.tdSql.query(f'select count(*) from {self.dbname}.{self.stream_stbname}')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], expected_res)
         end_time = datetime.now()
-        
-        res_msg = self.taosbenchmark.confirm_res(json_info["result_file"])
+        for host in self.taosBenchmark_iplist:
+            self._remote.get(host, json_info["result_file"], self.run_log_dir)
+        res_msg = self.taosbenchmark.confirm_res(f'{self.run_log_dir}/taosBenchmark_{os.path.split(json_file)[1]}.log')
+        report_file = f'{getpass.getuser()}@{socket.gethostname()}:{self.result_file_name}'
         text = f'''result: {res_msg}
 test scope: stream stability test
 owner: Jayden Jia
-hostname: {self.host}
+hostname: {self.host_list}
 start time: {start_time}
 end time: {end_time}
-report dir: {getpass.getuser()}@{self.host}:{self.result_file_name}
+report file: {report_file}
 cmd: {self.exec_cmd}
 others: none'''
         self.msg.send_msg(self.msg.get_msg(text))
+        with open(self.result_file_name, "r") as file:
+            file_content = file.read()
+            self.logger.info(file_content)
