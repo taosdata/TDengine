@@ -1,6 +1,7 @@
 
 # rocksdb
 IF (NOT ${TD_LINUX})
+
 ExternalProject_Add(rocksdb
 	URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
   	URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
@@ -10,6 +11,6 @@ ExternalProject_Add(rocksdb
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     INSTALL_COMMAND ""
-    EST_COMMAND ""
+    TEST_COMMAND ""
     )
 ENDIF(NOT ${TD_LINUX})
