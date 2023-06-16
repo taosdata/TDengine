@@ -414,6 +414,21 @@ if $data05 != 30.000000000 then
   return -1
 endi
 
+sql delete from stb;
+
+print =============== query after delete in common vgroups
+sql select _wstart, _wend, min(c1),max(c2),max(c1),max(c3) from stb interval(5m,10s) sliding(5m) order by _wstart;
+if $rows != 0 then
+  print rows $rows != 0
+  return -1
+endi
+
+sleep 2000
+print =============== query after delete in designated vgroups
+sql select _wend, min(c1),max(c2),max(c1) from stb interval(5m,10s) sliding(5m) order by _wstart;
+if $rows != 0 then
+  print rows $rows != 0
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-
-
