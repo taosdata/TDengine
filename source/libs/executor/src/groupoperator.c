@@ -647,6 +647,8 @@ uint64_t calcGroupId(char* pData, int32_t len) {
   // NOTE: only extract the initial 8 bytes of the final MD5 digest
   uint64_t id = 0;
   memcpy(&id, context.digest, sizeof(uint64_t));
+  if (0 == id)
+    memcpy(&id, context.digest + 8, sizeof(uint64_t));
   return id;
 }
 
@@ -869,7 +871,12 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   uint32_t defaultBufsz = 0;
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pPartNode->node.pOutputDataBlockDesc);
-  getBufferPgSize(pInfo->binfo.pRes->info.rowSize, &defaultPgsz, &defaultBufsz);
+  int32_t code = getBufferPgSize(pInfo->binfo.pRes->info.rowSize, &defaultPgsz, &defaultBufsz);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    pTaskInfo->code = code;
+    goto _error;
+  }
 
   if (!osTempSpaceAvailable()) {
     terrno = TSDB_CODE_NO_DISKSPACE;
@@ -878,7 +885,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
     goto _error;
   }
 
-  int32_t code = createDiskbasedBuf(&pInfo->pBuf, defaultPgsz, defaultBufsz, pTaskInfo->id.str, tsTempDir);
+  code = createDiskbasedBuf(&pInfo->pBuf, defaultPgsz, defaultBufsz, pTaskInfo->id.str, tsTempDir);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     pTaskInfo->code = code;

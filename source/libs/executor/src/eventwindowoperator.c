@@ -174,6 +174,7 @@ void destroyEWindowOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
   cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarSup);
   taosMemoryFreeClear(param);
 }
 

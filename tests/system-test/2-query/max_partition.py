@@ -172,7 +172,7 @@ class TDTestCase:
         tdSql.checkRows(90)
 
         tdSql.query(f"select c1 , diff(c1 , 0) from {dbname}.stb partition by c1")
-        tdSql.checkRows(90)
+        tdSql.checkRows(140)
 
         tdSql.query(f"select c1 , csum(c1) from {dbname}.stb partition by c1")
         tdSql.checkRows(100)

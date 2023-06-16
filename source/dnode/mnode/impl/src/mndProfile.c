@@ -227,6 +227,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 3)) != 0) {
+    mGError("version not compatible. client version: %s, server version: %s", connReq.sVer, version);
     terrno = code;
     goto _OVER;
   }
@@ -833,6 +834,9 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)&pQuery->stableQuery, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pQuery->isSubQuery, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)&pQuery->subPlanNum, false);

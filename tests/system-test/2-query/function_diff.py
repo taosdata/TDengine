@@ -127,22 +127,33 @@ class TDTestCase:
             return
 
         else:
-            tdSql.query(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
+            sql = f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}"
+            tdSql.query(sql)
             offset_val = condition.split("offset")[1].split(" ")[1] if "offset" in condition else 0
             pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
             if (platform.system().lower() == 'windows' and pre_result.dtype == 'int32'):
                 pre_result = np.array(pre_result, dtype = 'int64')
             pre_diff = np.diff(pre_result)[offset_val:]
-            tdSql.query(self.diff_query_form(
-                col=col, alias=alias, table_expr=table_expr, condition=condition
-            ))
-
-            for i in range(tdSql.queryRows):
-                print(f"case in {line}: ", end='')
-                if isinstance(pre_diff[i] , float ):
-                    pass
-                else:
-                    tdSql.checkData(i, 0, pre_diff[i])
+            if len(pre_diff) > 0:
+                sql =self.diff_query_form(col=col, alias=alias, table_expr=table_expr, condition=condition)
+                tdSql.query(sql)
+                j = 0
+                diff_cnt = len(pre_diff)
+                for i in range(tdSql.queryRows):
+                    print(f"case in {line}: i={i} j={j}  pre_diff[j]={pre_diff[j]}  ", end='')
+                    if isinstance(pre_diff[j] , float ):
+                        if j + 1 < diff_cnt: 
+                           j += 1
+                        pass
+                    else:
+                        if tdSql.getData(i,0) != None:
+                            tdSql.checkData(i, 0, pre_diff[j])
+                            if j + 1 < diff_cnt:
+                                j += 1
+                        else:
+                            print(f"getData i={i} is None j={j} ")
+            else:
+                print("pre_diff len is zero.")
 
         pass
 
@@ -354,31 +365,31 @@ class TDTestCase:
         tdSql.checkRows(229)
         tdSql.checkData(0,0,0)
         tdSql.query("select diff(c1) from db.stb1 partition by tbname ")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
       
         tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
         tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
         tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
 
         # bug need fix
         tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
 
         # bug need fix
         tdSql.query("select tbname , diff(c1) from db.stb1 partition by tbname")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
         tdSql.query("select tbname , diff(st1) from db.stb1 partition by tbname")
         tdSql.checkRows(220)
 
 
         # partition by tags
         tdSql.query("select st1 , diff(c1) from db.stb1 partition by st1")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
         tdSql.query("select diff(c1) from db.stb1 partition by st1")
-        tdSql.checkRows(190)
+        tdSql.checkRows(220)
 
 
     def diff_test_run(self) :

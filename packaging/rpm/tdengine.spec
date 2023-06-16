@@ -45,7 +45,6 @@ echo buildroot: %{buildroot}
 
 libfile="libtaos.so.%{_version}"
 wslibfile="libtaosws.so"
-rocksdblib="librocksdb.so.8"
 
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
@@ -93,7 +92,6 @@ if [ -f %{_compiledir}/build/bin/taosadapter ]; then
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 [ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
-[ -f %{_compiledir}/build/lib/${rocksdblib} ] && cp %{_compiledir}/build/lib/${rocksdblib}            %{buildroot}%{homepath}/driver ||:
 cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
@@ -125,12 +123,12 @@ if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
         cp %{_compiledir}/build/lib/libjemalloc.so.2 %{buildroot}%{homepath}/jemalloc/lib
         ln -sf libjemalloc.so.2 %{buildroot}%{homepath}/jemalloc/lib/libjemalloc.so
     fi
-    if [ -f %{_compiledir}/build/lib/libjemalloc.a ]; then
-        cp %{_compiledir}/build/lib/libjemalloc.a %{buildroot}%{homepath}/jemalloc/lib
-    fi
-    if [ -f %{_compiledir}/build/lib/libjemalloc_pic.a ]; then
-        cp %{_compiledir}/build/lib/libjemalloc_pic.a %{buildroot}%{homepath}/jemalloc/lib
-    fi
+#    if [ -f %{_compiledir}/build/lib/libjemalloc.a ]; then
+#        cp %{_compiledir}/build/lib/libjemalloc.a %{buildroot}%{homepath}/jemalloc/lib
+#    fi
+#    if [ -f %{_compiledir}/build/lib/libjemalloc_pic.a ]; then
+#        cp %{_compiledir}/build/lib/libjemalloc_pic.a %{buildroot}%{homepath}/jemalloc/lib
+#    fi
     if [ -f %{_compiledir}/build/lib/pkgconfig/jemalloc.pc ]; then
         cp %{_compiledir}/build/lib/pkgconfig/jemalloc.pc %{buildroot}%{homepath}/jemalloc/lib/pkgconfig
     fi
@@ -176,7 +174,6 @@ fi
 
 # there can not libtaos.so*, otherwise ln -s  error
 ${csudo}rm -f %{homepath}/driver/libtaos*   || :
-${csudo}rm -f %{homepath}/driver/librocksdb*   || :
 
 #Scripts executed after installation
 %post
@@ -222,7 +219,6 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosudf.h     || :    
     ${csudo}rm -f ${lib_link_dir}/libtaos.*  || :
-    ${csudo}rm -f ${lib_link_dir}/librocksdb.*  || :
 
     ${csudo}rm -f ${log_link_dir}            || :
     ${csudo}rm -f ${data_link_dir}           || :
