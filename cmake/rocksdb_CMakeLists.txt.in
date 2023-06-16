@@ -7,9 +7,9 @@ ExternalProject_Add(rocksdb
   	DOWNLOAD_NO_PROGRESS 1
 	DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download" 
 	SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb" 
-    	CONFIGURE_COMMAND ""
-    	BUILD_COMMAND ""
-    	INSTALL_COMMAND ""
-    	TEST_COMMAND ""
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    INSTALL_COMMAND ""
+    EST_COMMAND ""
     )
 ENDIF(NOT ${TD_LINUX})
