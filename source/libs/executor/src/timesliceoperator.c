@@ -875,7 +875,13 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         if (pSliceInfo->pRemainRes == NULL) {
           pSliceInfo->pNextGroupRes = NULL;
         }
-        goto _finished;
+        if (pResBlock->info.rows != 0) {
+          goto _finished;
+        } else {
+          // after fillter if result block has 0 rows, go back to
+          // process pNextGroupRes again for unfinished data
+          continue;
+        }
       }
       pSliceInfo->pNextGroupRes = NULL;
     }
@@ -900,7 +906,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
       doHandleTimeslice(pOperator, pBlock);
       if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
-        goto _finished;
+        if (pResBlock->info.rows != 0) {
+          goto _finished;
+        }
       }
     }
     // post work for a specific group
@@ -916,8 +924,8 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
 
     // restore initial value for next group
     resetTimesliceInfo(pSliceInfo);
-    if (checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
-      goto _finished;
+    if (pResBlock->info.rows != 0) {
+      break;
     }
   }
 
