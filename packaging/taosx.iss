@@ -21,18 +21,24 @@ Source: "{#MyAppSourceDir}\bin\{#TaosXAgentName}.exe"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\{#TaosXName}.exe"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\taosx-agent-srv.*"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\{#TaosXName}-srv.*"; DestDir: "{app}\bin"
-Source: "{#MyAppSourceDir}\cfg\agent.example.toml"; DestDir: "{app}\cfg"
+Source: "{#MyAppSourceDir}\cfg\agent.toml"; DestDir: "{app}\cfg"
+Source: "{#MyAppSourceDir}\bin\taos-explorer.exe"; DestDir: "{app}\bin"
+Source: "{#MyAppSourceDir}\bin\explorer-srv.*"; DestDir: "{app}\bin"
+Source: "{#MyAppSourceDir}\cfg\explorer.toml"; DestDir: "{app}\cfg"
 
 
 [run]
 Filename: "C:\\Program Files\\taosX\\bin\\taosx-srv.exe"; Parameters: "install" ; Flags: runhidden
 Filename: "C:\\Program Files\\taosX\\bin\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden
+Filename: "C:\\Program Files\\taosX\\bin\\explorer-srv.exe"; Parameters: "install" ; Flags: runhidden
 
 [UninstallRun]
 RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
 RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent" ; Flags: runhidden
+RunOnceId: "stoptaos-explorer"; Filename: {sys}\sc.exe; Parameters: "stop taos-explorer" ; Flags: runhidden
 RunOnceId: "deltaosx"; Filename: "C:\\Program Files\\taosX\\bin\\taosx-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
 RunOnceId: "deltaosx-agent"; Filename: "C:\\Program Files\\taosX\\bin\\taosx-agent-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "deltaos-explorer"; Filename: "C:\\Program Files\\taosX\\bin\\explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
 
 [CODE]
 procedure CurStepChanged(CurStep: TSetupStep);

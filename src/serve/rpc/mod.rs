@@ -250,7 +250,7 @@ impl FlightService for FlightServiceImpl {
                                     context.value(0),
                                 );
 
-                                log::info!("At [{ts}] action `{action}` triggered with: {context}");
+                                log::info!("At [{ts}] action `{action}` triggered");
                                 match action {
                                     "list" => {
                                         let req: ListResponse =
