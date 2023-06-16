@@ -55,6 +55,10 @@ async fn ipc_tcp_forward(
     token: String,
     task_id: i64,
 ) -> anyhow::Result<()> {
+
+    use md5;
+    log::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
+
     let _ = cancel;
     use arrow_flight::{
         encode::{FlightDataEncoder, FlightDataEncoderBuilder},

@@ -83,6 +83,8 @@ taosx-ipc = { path = "../taosx-ipc" }
 
 taos = { workspace = true }
 
+md5 = "0.7.0"
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 
