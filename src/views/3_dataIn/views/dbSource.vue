@@ -56,7 +56,7 @@ export default {
       mqttParser: null,
       staticParser: null,
       staticOpc: null,
-      echoData: opcDefaultChecked,
+      echoData: deepClone(opcDefaultChecked),
     };
   },
   created() {
@@ -73,7 +73,7 @@ export default {
           (item) => item.column_name
         )
       );
-      let others = this.staticOpc.column_configs.filter(
+      let others = deepClone(this.staticOpc).column_configs.filter(
         (item) => !this.echoData.includes(item.column_name)
       );
       let newEcho = {
@@ -128,6 +128,7 @@ export default {
         } else {
           this.uidata = type == "opc" ? data : this.deepClone(data);
           this.opcConfig = deepClone(this.staticOpc);
+           this.echoData=deepClone(opcDefaultChecked)
           this.$store.commit("app/SET_OPC_CONFIG", this.opcConfig);
         }
         this.isEditable = false;
@@ -145,7 +146,6 @@ export default {
             this.currentName = "opcui";
             this.tagName = "opcda";
             this.protocol = "da";
-            this.echoData=deepClone(opcDefaultChecked)
             break;
           case "pi":
             this.currentName = "ui";

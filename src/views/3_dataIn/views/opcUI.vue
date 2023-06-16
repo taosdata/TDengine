@@ -217,6 +217,9 @@
                   v-html="transforHtml(p.description)"
                 ></div>
                 <div class="target">
+                  <span
+                    :class="['no-label', p.target.required ? 'required' : '']"
+                  ></span>
                   <template v-if="p.target.multiple">
                     <el-select
                       v-model="p.target.value"
@@ -1115,6 +1118,7 @@ export default {
       }
     },
     searchDatas: debounce(function (e) {
+      console.log('搜索');
       try {
         let data = this.dbsource[0];
         let endpoint = data.options.endpoint.value;
@@ -1248,7 +1252,11 @@ export default {
       width: 200px;
       display: block;
     }
-    .label.required {
+    .no-label {
+      align-items: center;
+      width: 8px;
+    }
+    .label.required, .no-label.required {
       position: relative;
       &::before {
         content: "*";
@@ -1259,6 +1267,7 @@ export default {
         left: -10px;
       }
     }
+  
     .header {
       margin-bottom: 20px;
       h1 {
@@ -1396,6 +1405,7 @@ export default {
       margin-top: 16px;
     }
     margin-top: 24px;
+    margin-left: 8px;
     .el-input {
       width: 50%;
     }
