@@ -8,6 +8,7 @@ CONFIG_DIR="/etc/${PREFIX}x"
 service_config_dir="/etc/systemd/system"
 xName="${PREFIX}x"
 agentname="${PREFIX}x-agent"
+exploreName="${PREFIX}-explore"
 csudo=""
 
 if command -v sudo >/dev/null; then
@@ -97,11 +98,24 @@ stop_taosx_agent_service(){
     fi
 }
 
+stop_explore_service(){
+    explore_service_config="${service_config_dir}/${exploreName}.service"
+    if [ -e "$explore_service_config" ]; then
+      if systemctl is-active --quiet ${exploreName}; then
+        echo "${exploreName} is running, stopping it..."
+        ${csudo}systemctl stop ${exploreName} &>/dev/null || echo &>/dev/null
+      fi
+      ${csudo}systemctl disable ${exploreName} &>/dev/null || echo &>/dev/null
+      ${csudo}rm -f ${explore_service_config}
+    fi
+}
+
 # remove old taosx and taosx-agent
 remove_taosx() {
     stop_taosx_service
     stop_taosx_agent_service
-
+    stop_explore_service
+    
     ${csudo}rm -rf ${INSTALL_DIR}/bin
     ${csudo}rm -rf ${INSTALL_DIR}/plugins
     ${csudo}rm -rf ${INSTALL_DIR}/scripts
@@ -109,6 +123,7 @@ remove_taosx() {
     ${csudo}rm -f ${BIN_LINK_DIR}/rm${PREFIX}x || :
     ${csudo}rm -f ${BIN_LINK_DIR}/${PREFIX}x || :
     ${csudo}rm -rf ${BIN_LINK_DIR}/${PREFIX}x-agent || :
+    ${csudo}rm -rf ${BIN_LINK_DIR}/${exploreName} || :
 }
 
 
