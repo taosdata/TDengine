@@ -2728,7 +2728,8 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   pAPI->tsdReader.tsdReaderClose(source->dataReader);
   source->dataReader = NULL;
   pInfo->base.dataReader = NULL;
-
+  blockDataDestroy(source->inputBlock);
+  source->inputBlock = NULL;
   return NULL;
 }
 
