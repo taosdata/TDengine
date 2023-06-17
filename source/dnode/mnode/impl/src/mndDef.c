@@ -332,7 +332,6 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   }
 
   tlen += taosEncodeFixedI8(buf, pConsumer->withTbName);
-  tlen += taosEncodeFixedI8(buf, pConsumer->useSnapshot);
   tlen += taosEncodeFixedI8(buf, pConsumer->autoCommit);
   tlen += taosEncodeFixedI32(buf, pConsumer->autoCommitInterval);
   tlen += taosEncodeFixedI32(buf, pConsumer->resetOffsetCfg);
@@ -392,7 +391,6 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
 
   if (sver > 1) {
     buf = taosDecodeFixedI8(buf, &pConsumer->withTbName);
-    buf = taosDecodeFixedI8(buf, &pConsumer->useSnapshot);
     buf = taosDecodeFixedI8(buf, &pConsumer->autoCommit);
     buf = taosDecodeFixedI32(buf, &pConsumer->autoCommitInterval);
     buf = taosDecodeFixedI32(buf, &pConsumer->resetOffsetCfg);

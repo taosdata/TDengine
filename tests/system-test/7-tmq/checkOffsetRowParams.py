@@ -243,6 +243,10 @@ class TDTestCase:
                 tdSql.checkData(0, 5, 0)
                 break
 
+        tdSql.query("show consumers")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 8, "tbname:1,commit:1,interval:2000,reset:earliest")
+
         time.sleep(2)
         tdLog.info("start insert data")
         self.create_ctables(tdSql, parameterDict["dbName"], parameterDict["stbName"], parameterDict["ctbNum"])

@@ -2036,7 +2036,6 @@ typedef struct {
   SArray* topicNames;  // SArray<char**>
 
   int8_t         withTbName;
-  int8_t         useSnapshot;
   int8_t         autoCommit;
   int32_t        autoCommitInterval;
   int8_t         resetOffsetCfg;
@@ -2056,7 +2055,6 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   }
 
   tlen += taosEncodeFixedI8(buf, pReq->withTbName);
-  tlen += taosEncodeFixedI8(buf, pReq->useSnapshot);
   tlen += taosEncodeFixedI8(buf, pReq->autoCommit);
   tlen += taosEncodeFixedI32(buf, pReq->autoCommitInterval);
   tlen += taosEncodeFixedI8(buf, pReq->resetOffsetCfg);
@@ -2080,7 +2078,6 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   }
 
   buf = taosDecodeFixedI8(buf, &pReq->withTbName);
-  buf = taosDecodeFixedI8(buf, &pReq->useSnapshot);
   buf = taosDecodeFixedI8(buf, &pReq->autoCommit);
   buf = taosDecodeFixedI32(buf, &pReq->autoCommitInterval);
   buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);

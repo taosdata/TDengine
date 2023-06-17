@@ -3161,8 +3161,14 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SSdb    *pSdb = pMnode->pSdb;
   SStbObj *pStb = NULL;
 
-  int32_t numOfRows = buildSysDbColsInfo(pBlock, pShow->db, pShow->filterTb);
-  mDebug("mndRetrieveStbCol get system table cols, rows:%d, db:%s", numOfRows, pShow->db);
+
+  int32_t numOfRows = 0;
+  if (!pShow->sysDbRsp) {
+    numOfRows = buildSysDbColsInfo(pBlock, pShow->db, pShow->filterTb);
+    mDebug("mndRetrieveStbCol get system table cols, rows:%d, db:%s", numOfRows, pShow->db);
+    pShow->sysDbRsp = true;
+  }
+
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);

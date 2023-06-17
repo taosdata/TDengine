@@ -89,7 +89,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   pMeta->streamBackend = streamBackendInit(streamPath);
-
   if (pMeta->streamBackend == NULL) {
     goto _err;
   }
