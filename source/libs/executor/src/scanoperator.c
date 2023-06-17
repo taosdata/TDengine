@@ -2790,6 +2790,10 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     kWay = 256;
   } else if (kWay <= 2) {
     kWay = 2;
+  } else {
+    int i = 2; 
+    while (i * 2 <= kWay) i = i * 2;
+    kWay = i;
   }
 
   pInfo->sortBufSize = pInfo->bufPageSize * (kWay + 1);
