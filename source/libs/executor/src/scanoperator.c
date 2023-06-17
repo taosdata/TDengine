@@ -2787,8 +2787,8 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   // the additional one is reserved for merge result
   // pInfo->sortBufSize = pInfo->bufPageSize * (tableEndIdx - tableStartIdx + 1 + 1);
   int32_t kWay = (TSDB_MAX_BYTES_PER_ROW * 2) / (pInfo->pResBlock->info.rowSize);
-  if (kWay >= 256) {
-    kWay = 256;
+  if (kWay >= 128) {
+    kWay = 128;
   } else if (kWay <= 2) {
     kWay = 2;
   } else {
