@@ -2785,7 +2785,14 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   // todo the total available buffer should be determined by total capacity of buffer of this task.
   // the additional one is reserved for merge result
   // pInfo->sortBufSize = pInfo->bufPageSize * (tableEndIdx - tableStartIdx + 1 + 1);
-  pInfo->sortBufSize = pInfo->bufPageSize * (256 + 1);
+  int32_t kWay = (TSDB_MAX_BYTES_PER_ROW * 2) / (pInfo->pResBlock->info.rowSize);
+  if (kWay >= 256) {
+    kWay = 256;
+  } else if (kWay <= 2) {
+    kWay = 2;
+  }
+
+  pInfo->sortBufSize = pInfo->bufPageSize * (kWay + 1);
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
   pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize, numOfBufPage,
                                              pInfo->pSortInputBlock, pTaskInfo->id.str);
@@ -2801,7 +2808,6 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     param.readerIdx = i;
     param.pOperator = pOperator;
     param.inputBlock = createOneDataBlock(pInfo->pResBlock, false);
-    blockDataEnsureCapacity(param.inputBlock, pOperator->resultInfo.capacity);
 
     taosArrayPush(pInfo->sortSourceParams, &param);
 
