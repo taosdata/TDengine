@@ -378,9 +378,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     return buildGroupResultDataBlock(pOperator);
   }
 
-  int32_t order = TSDB_ORDER_ASC;
-  int32_t scanFlag = MAIN_SCAN;
-
+  int32_t order = pInfo->binfo.inputTsOrder;
   int64_t        st = taosGetTimestampUs();
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
@@ -390,13 +388,10 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
       break;
     }
 
-    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag, false);
-    if (code != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
 
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(&pOperator->exprSupp, pBlock, order, scanFlag, true);
+    setInputDataBlock(&pOperator->exprSupp, pBlock, order, pBlock->info.scanFlag, true);
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
@@ -481,6 +476,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
   setOperatorInfo(pOperator, "GroupbyAggOperator", 0, true, OP_NOT_OPENED, pInfo, pTaskInfo);
 
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
+  pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
+  pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregate, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL);
@@ -762,6 +759,7 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
       break;
     }
 
+    pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,

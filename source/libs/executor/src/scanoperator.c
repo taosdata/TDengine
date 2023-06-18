@@ -712,6 +712,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pTableScanInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     pOperator->cost.totalCost = pTableScanInfo->base.readRecorder.elapsedTime;
+    pBlock->info.scanFlag = pTableScanInfo->base.scanFlag;
     return pBlock;
   }
   return NULL;
