@@ -10,6 +10,10 @@ For TDengine 2.x installation packages by version, please visit [here](https://w
 
 import Release from "/components/ReleaseV3";
 
+## 3.0.5.1
+
+<Release type="tdengine" version="3.0.5.1" />
+
 ## 3.0.5.0
 
 <Release type="tdengine" version="3.0.5.0" />
