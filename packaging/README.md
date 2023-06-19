@@ -110,3 +110,4 @@ sudo rmtaox
   1. taosx, taosx-gent, taos-explorer: /usr/local/taosX/bin
   2. connectors: /usr/local/taosX/plugins
   3. rmtaosX.sh:  /user/local/taosX/bin
+  4. config files: /etc/taosX/
