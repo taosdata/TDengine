@@ -15,8 +15,8 @@
 
 #include "tsdbFile2.h"
 
-#ifndef _TSDB_FILE_SET_H
-#define _TSDB_FILE_SET_H
+#ifndef _TSDB_FILE_SET2_H
+#define _TSDB_FILE_SET2_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,4 +82,4 @@ struct STFileSet {
 }
 #endif
 
-#endif /*_TSDB_FILE_SET_H*/
+#endif /*_TSDB_FILE_SET2_H*/

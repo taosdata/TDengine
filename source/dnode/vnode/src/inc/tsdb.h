@@ -16,6 +16,9 @@
 #ifndef _TD_VNODE_TSDB_H_
 #define _TD_VNODE_TSDB_H_
 
+//#include "../tsdb/tsdbFile2.h"
+//#include "../tsdb/tsdbMerge.h"
+//#include "../tsdb/tsdbSttFileRW.h"
 #include "tsimplehash.h"
 #include "vnodeInt.h"
 
@@ -303,6 +306,9 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
 int32_t tsdbTakeReadSnap(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
 void    tsdbUntakeReadSnap(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
+
+int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
+void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 // tsdbMerge.c ==============================================================================================
 int32_t tsdbMerge(void *arg);
 
@@ -697,6 +703,8 @@ typedef struct {
 
 typedef struct SSttBlockLoadInfo {
   SBlockData blockData[2];
+  void* pBlockArray;
+
   SArray    *aSttBlk;
   int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
   int32_t    currentLoadBlockIndex;
@@ -769,7 +777,6 @@ struct SDiskDataBuilder {
 typedef struct SLDataIter {
   SRBTreeNode        node;
   SSttBlk           *pSttBlk;
-  SDataFReader      *pReader;
   int32_t            iStt;
   int8_t             backward;
   int32_t            iSttBlk;
@@ -780,13 +787,20 @@ typedef struct SLDataIter {
   SVersionRange      verRange;
   SSttBlockLoadInfo *pBlockLoadInfo;
   bool               ignoreEarlierTs;
+  struct SSttFileReader* pReader;
 } SLDataIter;
 
 #define tMergeTreeGetRow(_t) (&((_t)->pIter->rInfo.row))
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
                        bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter);
-void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
+
+int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb* pTsdb, uint64_t suid, uint64_t uid,
+                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
+                        bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter* pLDataIter, void* pCurrentFileSet);
+
+
+  void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);

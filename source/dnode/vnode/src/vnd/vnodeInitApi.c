@@ -42,15 +42,15 @@ void initStorageAPI(SStorageAPI* pAPI) {
 
 void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderOpen = (int32_t(*)(void*, SQueryTableDataCond*, void*, int32_t, SSDataBlock*, void**, const char*,
-                                       bool, SHashObj**))tsdbReaderOpen;
-  pReader->tsdReaderClose = tsdbReaderClose;
+                                       bool, SHashObj**))tsdbReaderOpen2;
+  pReader->tsdReaderClose = tsdbReaderClose2;
 
-  pReader->tsdNextDataBlock = tsdbNextDataBlock;
+  pReader->tsdNextDataBlock = tsdbNextDataBlock2;
 
-  pReader->tsdReaderRetrieveDataBlock = tsdbRetrieveDataBlock;
-  pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock;
+  pReader->tsdReaderRetrieveDataBlock = tsdbRetrieveDataBlock2;
+  pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock2;
 
-  pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA;
+  pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
 
   pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
   pReader->tsdReaderResetStatus = tsdbReaderReset;
