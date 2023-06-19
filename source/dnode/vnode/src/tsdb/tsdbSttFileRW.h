@@ -71,7 +71,10 @@ struct SSttFileWriterConfig {
   int32_t   szPage;
   int8_t    cmprAlg;
   int64_t   compactVersion;
-  STFile    file;
+  SDiskID   did;
+  int32_t   fid;
+  int64_t   cid;
+  int32_t   level;
   SSkmInfo *skmTb;
   SSkmInfo *skmRow;
   uint8_t **bufArr;

@@ -14,20 +14,42 @@
  */
 
 #include "tsdbDataFileRW.h"
-#include "tsdbFS2.h"
-#include "tsdbFSetRW.h"
-#include "tsdbIter.h"
 #include "tsdbSttFileRW.h"
 
-#ifndef _TSDB_COMMIT_H_
-#define _TSDB_COMMIT_H_
+#ifndef _TSDB_FSET_RW_H
+#define _TSDB_FSET_RW_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+//
+typedef struct SFSetWriter SFSetWriter;
+typedef struct {
+  STsdb  *tsdb;
+  bool    toSttOnly;
+  int64_t compactVersion;
+  int32_t minRow;
+  int32_t maxRow;
+  int32_t szPage;
+  int8_t  cmprAlg;
+  int32_t fid;
+  int64_t cid;
+  SDiskID did;
+  int32_t level;
+  struct {
+    bool   exist;
+    STFile file;
+  } files[TSDB_FTYPE_MAX];
+} SFSetWriterConfig;
+
+int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer);
+int32_t tsdbFSetWriterClose(SFSetWriter **writer, bool abort, TFileOpArray *fopArr);
+int32_t tsdbFSetWriteRow(SFSetWriter *writer, SRowInfo *row);
+int32_t tsdbFSetWriteTombRecord(SFSetWriter *writer, const STombRecord *tombRecord);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TSDB_COMMIT_H_*/
+#endif /*_TSDB_FSET_RW_H*/
