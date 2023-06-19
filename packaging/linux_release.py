@@ -266,3 +266,26 @@ def make_tar_package(release_info):
     else:    
         logging.info("packaging {0} successfully".format(release_info.TaosXVersion))
         os.chdir(script_dir) 
+
+def test_handle(release_info, process):
+    init_release_dir(release_info)
+    if process == "opc":
+        print("Calling OPC function...")
+        build_and_install_opc_on_linux(release_info, "Debug")
+    elif process == "mqtt":
+        print("Calling MQTT function...")
+        build_and_install_mqtt_on_linux(release_info, "Debug")
+    elif process == "package":
+        print("Calling Package function...")
+        make_tar_package(release_info)
+    elif process == "taosx":
+        print("Calling taosx function...")
+        build_and_install_taosx_on_linux("Debug")
+    elif process == "agent":
+        print("Calling taosx agent function...")
+        build_and_install_taosx_agent_on_linux("Debug")
+    elif process == "explorer":
+        print("Calling taos-explorer function...")
+        install_taos_explorer_on_linux("Debug")
+    else:
+        print(f"Invalid -t param: {process}. Please enter valid input.")

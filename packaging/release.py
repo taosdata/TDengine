@@ -478,7 +478,7 @@ def init_release_directory():
     check_directory(release_info.ReleasePath)
 
 
-def test_handle(process):
+def test_handle_windows(process):
     if process == pi_connector:
         print("Calling PI function...")
         build_and_install_pi("Debug")
@@ -502,6 +502,12 @@ def test_handle(process):
         build_and_install_taos_explorer("Debug")
     else:
         print(f"Invalid -t param: {process}. Please enter valid input.")
+
+def test_handle(process):
+    if release_info.OS.lower == "windows":
+        test_handle_windows(process)
+    else:
+        linux_release.test_handle(release_info,process)
 
 
 if __name__ == '__main__':
