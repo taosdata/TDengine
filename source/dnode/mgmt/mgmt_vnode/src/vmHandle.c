@@ -509,6 +509,13 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
 
+  // prepare alter
+  pVnode->toVgId = dstVgId;
+  if (vmWriteVnodeListToFile(pMgmt) != 0) {
+    dError("vgId:%d, failed to write vnode list since %s", dstVgId, terrstr());
+    return -1;
+  }
+
   dInfo("vgId:%d, close vnode", srcVgId);
   vmCloseVnode(pMgmt, pVnode, true);
 
@@ -540,6 +547,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
+  // complete alter
   if (vmWriteVnodeListToFile(pMgmt) != 0) {
     dError("vgId:%d, failed to write vnode list since %s", dstVgId, terrstr());
     return -1;
