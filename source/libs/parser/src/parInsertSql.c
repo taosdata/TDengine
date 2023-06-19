@@ -469,12 +469,31 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
 
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
-      // Too long values will raise the invalid sql error message
-      if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
-        return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      int32_t        code = TSDB_CODE_FAILED;
+      unsigned char* output = NULL;
+      size_t         size = 0;
+
+      code = parseGeometry(pToken, &output, &size);
+      if (code != TSDB_CODE_SUCCESS) {
+        code = buildSyntaxErrMsg(pMsgBuf, getThreadLocalGeosCtx()->errMsg, pToken->z);
       }
-      val->pData = taosStrdup(pToken->z);
-      val->nData = pToken->n;
+      // Too long values will raise the invalid sql error message
+      else if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      } else {
+        val->pData = taosMemoryMalloc(size);
+        if (NULL == val->pData) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+        } else {
+          memcpy(val->pData, output, size);
+          val->nData = size;
+        }
+      }
+
+      geosFreeBuffer(output);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
       break;
     }
 
@@ -1382,7 +1401,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
         code = buildSyntaxErrMsg(&pCxt->msg, getThreadLocalGeosCtx()->errMsg, pToken->z);
       }
       // Too long values will raise the invalid sql error message
-      else if (size > pSchema->bytes) {
+      else if (size + VARSTR_HEADER_SIZE > pSchema->bytes) {
         code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
       else {
