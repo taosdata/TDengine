@@ -26,6 +26,7 @@
 #include "tdataformat.h"
 #include "ttime.h"
 #include "ttypes.h"
+#include "geosWrapper.h"
 
 #define LEFT_COL  ((pLeftCol->info.type == TSDB_DATA_TYPE_JSON ? (void *)pLeftCol : pLeftCol->pData))
 #define RIGHT_COL ((pRightCol->info.type == TSDB_DATA_TYPE_JSON ? (void *)pRightCol : pRightCol->pData))
@@ -378,6 +379,29 @@ static FORCE_INLINE void ncharToVar(char *buf, SScalarParam *pOut, int32_t rowIn
   taosMemoryFree(t);
 }
 
+// todo remove this malloc
+static FORCE_INLINE void varToGeometry(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  //[ToDo] support to parse WKB as well as WKT
+  unsigned char *t = NULL;
+  size_t         len = 0;
+
+  if (initCtxGeomFromText()) {
+    sclError("failed to init geometry ctx");
+  }
+  if (doGeomFromText(buf, &t, &len)) {
+    sclDebug("failed to convert to geometry");
+  }
+
+  char *output = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
+  memcpy(output + VARSTR_HEADER_SIZE, t, len);
+  varDataSetLen(output, len);
+
+  colDataSetVal(pOut->columnData, rowIndex, output, false);
+
+  taosMemoryFree(output);
+  geosFreeBuffer(t);
+}
+
 // TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
   bool vton = false;
@@ -401,6 +425,8 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     vton = true;
   } else if (TSDB_DATA_TYPE_TIMESTAMP == pCtx->outType) {
     func = varToTimestamp;
+  } else if (TSDB_DATA_TYPE_GEOMETRY == pCtx->outType) {
+    func = varToGeometry;
   } else {
     sclError("invalid convert outType:%d, inType:%d", pCtx->outType, pCtx->inType);
     return TSDB_CODE_APP_ERROR;
@@ -881,7 +907,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
 }
 
 int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
-    /*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON GEOM VARB DECI BLOB MEDB*/
+    /*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
     /*NULL*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0,
     /*BOOL*/ 0, 0, 2, 3, 4, 5, 6, 7, 5, 9, 7, 11, 12, 13, 14, 0, 7, 0, 0, 0, 0,
     /*TINY*/ 0, 0, 0, 3, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, 7, 0, 0, 0, 0,
@@ -890,7 +916,7 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
     /*BIGI*/ 0, 0, 0, 0, 0, 0, 6, 7, 5, 9, 7, 5,  5,  5,  7,  0, 7, 0, 0, 0, 0,
     /*FLOA*/ 0, 0, 0, 0, 0, 0, 0, 7, 7, 6, 7, 6,  6,  6,  6,  0, 7, 0, 0, 0, 0,
     /*DOUB*/ 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 7, 7,  7,  7,  7,  0, 7, 0, 0, 0, 0,
-    /*VARC*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7,  7,  7,  7,  0, 0, 0, 0, 0, 0,
+    /*VARC*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7,  7,  7,  7,  0, 0, 0, 0, 0, 20,
     /*TIME*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 9,  9,  9,  7,  0, 7, 0, 0, 0, 0,
     /*NCHA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7,  7,  7,  7,  0, 0, 0, 0, 0, 0,
     /*UTIN*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  12, 13, 14, 0, 7, 0, 0, 0, 0,

@@ -639,6 +639,9 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
     indexMultiTermQueryDestroy(mtm);
   } else {
+    // todo handle datatype convert
+    if (left->colValType == TSDB_DATA_TYPE_GEOMETRY || right->colValType == TSDB_DATA_TYPE_GEOMETRY) return -1;
+
     bool       reverse = false, equal = false;
     FilterFunc filterFunc = sifGetFilterFunc(qtype, &reverse, &equal);
 
@@ -652,8 +655,6 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
 
     char buf[128] = {0};
 
-    SDataTypeBuf typedata;
-    memset(&typedata, 0, sizeof(typedata));
     if (IS_VAR_DATA_TYPE(left->colValType)) {
       if (!IS_VAR_DATA_TYPE(right->colValType)) {
         NUM_TO_STRING(right->colValType, right->condValue, sizeof(buf) - 2, buf + VARSTR_HEADER_SIZE);
@@ -661,6 +662,8 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
         param.val = buf;
       }
     } else {
+      SDataTypeBuf typedata;
+      memset(&typedata, 0, sizeof(typedata));
       if (sifSetFltParam(left, right, &typedata, &param) != 0) return -1;
     }
     ret = left->api.metaFilterTableIds(arg->metaEx, &param, output->result);

@@ -79,6 +79,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight);
 
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
+int32_t compareLenBinaryVal(const void *pLeft, const void *pRight);
 
 int32_t comparestrRegexMatch(const void *pLeft, const void *pRight);
 int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight);

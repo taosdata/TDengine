@@ -195,7 +195,7 @@ static int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t cur
       return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
     }
   }
-  
+
   size_t start = 1;
 
   // the first item

@@ -225,6 +225,23 @@ int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight) {
   return compareLenPrefixedWStr(pRight, pLeft);
 }
 
+int32_t compareLenBinaryVal(const void *pLeft, const void *pRight) {
+  int32_t len1 = varDataLen(pLeft);
+  int32_t len2 = varDataLen(pRight);
+
+  int32_t minLen = TMIN(len1, len2);
+  int32_t ret = memcmp(varDataVal(pLeft), varDataVal(pRight), minLen);
+  if (ret == 0) {
+    if (len1 == len2) {
+      return 0;
+    } else {
+      return len1 > len2 ? 1 : -1;
+    }
+  } else {
+    return ret > 0 ? 1 : -1;
+  }
+}
+
 // string > number > bool > null
 // ref: https://dev.mysql.com/doc/refman/8.0/en/json.html#json-comparison
 int32_t compareJsonVal(const void *pLeft, const void *pRight) {

@@ -133,7 +133,7 @@ __compar_fn_t gDataCompare[] = {
     setChkInBytes2,        setChkInBytes4,         setChkInBytes8,          comparestrRegexMatch,
     comparestrRegexNMatch, setChkNotInBytes1,      setChkNotInBytes2,       setChkNotInBytes4,
     setChkNotInBytes8,     compareChkNotInString,  comparestrPatternNMatch, comparewcsPatternNMatch,
-    comparewcsRegexMatch,  comparewcsRegexNMatch,
+    comparewcsRegexMatch,  comparewcsRegexNMatch,  compareLenBinaryVal
 };
 
 __compar_fn_t gInt8SignCompare[] = {compareInt8Val,   compareInt8Int16, compareInt8Int32,
@@ -257,8 +257,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = 5;
       break;
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_GEOMETRY: {
+    case TSDB_DATA_TYPE_BINARY: {
       if (optr == OP_TYPE_MATCH) {
         comparFn = 19;
       } else if (optr == OP_TYPE_NMATCH) {
@@ -293,6 +292,21 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 25;
       } else {
         comparFn = 10;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_GEOMETRY: {
+      if (optr == OP_TYPE_EQUAL || optr == OP_TYPE_NOT_EQUAL || optr == OP_TYPE_IS_NULL ||
+          optr == OP_TYPE_IS_NOT_NULL) {
+        comparFn = 30;
+      } else if (optr == OP_TYPE_IN) {
+        comparFn = 8;
+      } else if (optr == OP_TYPE_NOT_IN) {
+        comparFn = 25;
+      } else {
+        terrno = TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR;
+        return 0;
       }
       break;
     }
@@ -1042,12 +1056,12 @@ static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilte
 int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *fid) {
   if (node == NULL) {
     fltDebug("empty node");
-    FLT_ERR_RET(TSDB_CODE_APP_ERROR);
+    goto _return;
   }
 
   if (nodeType(node) != QUERY_NODE_COLUMN && nodeType(node) != QUERY_NODE_VALUE &&
       nodeType(node) != QUERY_NODE_NODE_LIST) {
-    FLT_ERR_RET(TSDB_CODE_APP_ERROR);
+    goto _return;
   }
 
   int32_t type;
@@ -1063,6 +1077,7 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *f
 
   filterAddField(info, v, NULL, type, fid, 0, true, NULL);
 
+_return:
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1948,33 +1963,14 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     SDataType *dType = &var->node.resType;
-    size_t     bytes = 0;
-
-    if (type == TSDB_DATA_TYPE_BINARY) {
-      size_t len = (dType->type == TSDB_DATA_TYPE_BINARY || dType->type == TSDB_DATA_TYPE_NCHAR) ? dType->bytes
-                                                                                                 : MAX_NUM_STR_SIZE;
-      bytes = len + 1 + VARSTR_HEADER_SIZE;
-
-      fi->data = taosMemoryCalloc(1, bytes);
-    } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      size_t len = (dType->type == TSDB_DATA_TYPE_BINARY || dType->type == TSDB_DATA_TYPE_NCHAR) ? dType->bytes
-                                                                                                 : MAX_NUM_STR_SIZE;
-      bytes = (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-
-      fi->data = taosMemoryCalloc(1, bytes);
-    } else {
-      fi->data = taosMemoryCalloc(1, sizeof(int64_t));
-    }
-
     if (dType->type == type) {
+      fi->data = taosMemoryCalloc(1, dType->bytes);
       assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
     } else {
       SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
       out.columnData->info.type = type;
       out.columnData->info.precision = precision;
-      if (IS_VAR_DATA_TYPE(type)) {
-        out.columnData->info.bytes = bytes;
-      } else {
+      if (!IS_VAR_DATA_TYPE(type)) {
         out.columnData->info.bytes = tDataTypes[type].bytes;
       }
 
@@ -1985,7 +1981,10 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
-      memcpy(fi->data, out.columnData->pData, out.columnData->info.bytes);
+      size_t bytes = IS_VAR_DATA_TYPE(type) ? varDataTLen(out.columnData->pData) : out.columnData->info.bytes;
+      fi->data = taosMemoryCalloc(1, bytes);
+      memcpy(fi->data, out.columnData->pData, bytes);
+
       colDataDestroy(out.columnData);
       taosMemoryFree(out.columnData);
     }
@@ -2779,7 +2778,7 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
     info->cunits[i].dataType = FILTER_UNIT_DATA_TYPE(unit);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return terrno;
 }
 
 int32_t filterUpdateComUnits(SFilterInfo *info) {
@@ -3336,6 +3335,7 @@ int32_t filterSetExecFunc(SFilterInfo *info) {
 }
 
 int32_t filterPreprocess(SFilterInfo *info) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SFilterGroupCtx **gRes = taosMemoryCalloc(info->groupNum, sizeof(SFilterGroupCtx *));
   int32_t           gResNum = 0;
 
@@ -3361,7 +3361,7 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   filterRewrite(info, gRes, gResNum);
 
-  filterGenerateComInfo(info);
+  FLT_ERR_JRET(filterGenerateComInfo(info));
 
 _return:
 
@@ -3373,7 +3373,7 @@ _return:
 
   taosMemoryFreeClear(gRes);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t fltSetColFieldDataImpl(SFilterInfo *info, void *param, filer_get_col_from_id fp, bool fromColId) {
@@ -4290,30 +4290,27 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         return DEAL_RES_ERROR;
       }
 
+      SColumnNode *refNode = (SColumnNode *)node->pLeft;
+      SExprNode   *exprNode = NULL;
       if (OP_TYPE_IN != node->opType) {
-        SColumnNode *refNode = (SColumnNode *)node->pLeft;
         SValueNode  *valueNode = (SValueNode *)node->pRight;
         if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) &&
             TSDB_DATA_TYPE_UBIGINT == valueNode->node.resType.type && valueNode->datum.u <= INT64_MAX) {
           valueNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
         }
-        int32_t type = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
-        if (0 != type && type != refNode->node.resType.type) {
-          stat->scalarMode = true;
-          return DEAL_RES_CONTINUE;
-        }
+        exprNode = &valueNode->node;
       } else {
-        SColumnNode   *refNode = (SColumnNode *)node->pLeft;
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
         if (LIST_LENGTH(listNode->pNodeList) > 10) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
         }
-        int32_t type = vectorGetConvertType(refNode->node.resType.type, listNode->node.resType.type);
-        if (0 != type && type != refNode->node.resType.type) {
-          stat->scalarMode = true;
-          return DEAL_RES_CONTINUE;
-        }
+        exprNode = &listNode->node;
+      }
+      int32_t type = vectorGetConvertType(refNode->node.resType.type, exprNode->resType.type);
+      if (0 != type && type != refNode->node.resType.type) {
+        stat->scalarMode = true;
+        return DEAL_RES_CONTINUE;
       }
     }
 
@@ -4664,7 +4661,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
     code = scalarCalculate(info->sclCtx.node, pList, &output);
     taosArrayDestroy(pList);
 
-    FLT_ERR_RET(code);
+    FLT_ERR_RET(code); // TODO: current errcode returns as true
 
     *p = output.columnData;
 
