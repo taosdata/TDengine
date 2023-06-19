@@ -1337,10 +1337,10 @@ static int32_t mndPauseStreamTask(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
-int32_t mndPauseAllStreamTasks(STrans *pTrans, SStreamObj *pStream) {
-  int32_t size = taosArrayGetSize(pStream->tasks);
+int32_t mndPauseAllStreamTaskImpl(STrans *pTrans, SArray* tasks) {
+  int32_t size = taosArrayGetSize(tasks);
   for (int32_t i = 0; i < size; i++) {
-    SArray *pTasks = taosArrayGetP(pStream->tasks, i);
+    SArray *pTasks = taosArrayGetP(tasks, i);
     int32_t sz = taosArrayGetSize(pTasks);
     for (int32_t j = 0; j < sz; j++) {
       SStreamTask *pTask = taosArrayGetP(pTasks, j);
@@ -1350,6 +1350,16 @@ int32_t mndPauseAllStreamTasks(STrans *pTrans, SStreamObj *pStream) {
     }
   }
   return 0;
+}
+
+int32_t mndPauseAllStreamTasks(STrans *pTrans, SStreamObj *pStream) {
+  int32_t code = mndPauseAllStreamTaskImpl(pTrans, pStream->tasks);
+  if (code != 0) {
+    return code;
+  }
+  // pStream->pHTasksList is null
+  // code = mndPauseAllStreamTaskImpl(pTrans, pStream->pHTasksList);
+  return code;
 }
 
 static int32_t mndPersistStreamLog(STrans *pTrans, const SStreamObj *pStream, int8_t status) {
@@ -1473,6 +1483,7 @@ int32_t mndResumeAllStreamTasks(STrans *pTrans, SStreamObj *pStream, int8_t igUn
       }
     }
   }
+  // pStream->pHTasksList is null
   return 0;
 }
 

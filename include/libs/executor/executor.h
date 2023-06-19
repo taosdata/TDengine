@@ -221,11 +221,15 @@ void* qExtractReaderFromStreamScanner(void* scanner);
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
-int32_t qStreamSourceScanParamForHistoryScan(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
+int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
+int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver);
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo);
 bool    qStreamRecoverScanFinished(qTaskInfo_t tinfo);
+bool    qStreamRecoverScanStep1Finished(qTaskInfo_t tinfo);
+bool    qStreamRecoverScanStep2Finished(qTaskInfo_t tinfo);
+int32_t qStreamRecoverSetAllStepFinished(qTaskInfo_t tinfo);
 void    qStreamCloseTsdbReader(void* task);
 void    resetTaskInfo(qTaskInfo_t tinfo);
 

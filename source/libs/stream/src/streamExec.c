@@ -179,7 +179,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     int32_t batchCnt = 0;
     while (1) {
-      if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
+      if (streamTaskShouldStop(&pTask->status)) {
         taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
         return 0;
       }
@@ -195,6 +195,10 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
           finished = true;
         } else {
           qSetStreamOpOpen(exec);
+          if (streamTaskShouldPause(&pTask->status)) {
+            taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+            return 0;
+          }
         }
         break;
       }

@@ -1036,9 +1036,12 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   }
 
-  streamSourceScanHistoryData(pTask);
-  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
-    tqDebug("s-task:%s is dropped, abort recover in step1", pTask->id.idStr);
+  if (!pReq->igUntreated && !streamTaskRecoverScanStep1Finished(pTask)) {
+    streamSourceScanHistoryData(pTask);
+  }
+  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING || streamTaskShouldPause(&pTask->status)) {
+    tqDebug("s-task:%s is dropped or paused, abort recover in step1", pTask->id.idStr);
+    atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
@@ -1047,44 +1050,50 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("s-task:%s history data scan stage(step 1) ended, elapsed time:%.2fs", pTask->id.idStr, el);
 
   if (pTask->info.fillHistory) {
-    // 1. stop the related stream task, get the current scan wal version of stream task, ver.
-    SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
-    if (pStreamTask == NULL) {
-      // todo handle error
+    SVersionRange* pRange = NULL;
+    SStreamTask* pStreamTask = NULL;
+    if (!pReq->igUntreated && !streamTaskRecoverScanStep1Finished(pTask)) {
+      // 1. stop the related stream task, get the current scan wal version of stream task, ver.
+      pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
+      if (pStreamTask == NULL) {
+        // todo handle error
+      }
+
+      ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
+
+      // wait for the stream task get ready for scan history data
+      while (((pStreamTask->status.checkDownstream == 0) && (pStreamTask->status.taskStatus != TASK_STATUS__STOP)) ||
+            pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
+        tqDebug("s-task:%s level:%d not ready for halt, wait for 100ms and recheck", pStreamTask->id.idStr,
+                pStreamTask->info.taskLevel);
+        taosMsleep(100);
+      }
+
+      // now we can stop the stream task execution
+      pStreamTask->status.taskStatus = TASK_STATUS__HALT;
+      tqDebug("s-task:%s level:%d status is set to halt by history scan task:%s", pStreamTask->id.idStr,
+              pStreamTask->info.taskLevel, pTask->id.idStr);
+
+      // if it's an source task, extract the last version in wal.
+      int64_t ver = pTask->dataRange.range.maxVer + 1;
+      int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+      if (latestVer >= ver) {
+        ver = latestVer;
+      }
+
+      // 2. do secondary scan of the history data, the time window remain, and the version range is updated to [pTask->dataRange.range.maxVer, ver1]
+      pRange = &pTask->dataRange.range;
+
+      pRange->minVer = pRange->maxVer + 1;
+      pRange->maxVer = ver;
+      if (pRange->minVer == pRange->maxVer) {
+        streamTaskRecoverSetAllStepFinished(pTask);
+        tqDebug("s-task:%s no need to perform secondary scan-history-data(step 2), since no new data ingest",
+                pTask->id.idStr);
+      }
     }
-    // streamTaskReleaseState(pTask);
-    // streamTaskReloadState(pStreamTask);
-
-    ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
-
-    // wait for the stream task get ready for scan history data
-    while (((pStreamTask->status.checkDownstream == 0) && (pStreamTask->status.taskStatus != TASK_STATUS__STOP)) ||
-           pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
-      tqDebug("s-task:%s level:%d not ready for halt, wait for 100ms and recheck", pStreamTask->id.idStr,
-              pStreamTask->info.taskLevel);
-      taosMsleep(100);
-    }
-
-    // now we can stop the stream task execution
-    pStreamTask->status.taskStatus = TASK_STATUS__HALT;
-    tqDebug("s-task:%s level:%d status is set to halt by history scan task:%s", pStreamTask->id.idStr,
-            pStreamTask->info.taskLevel, pTask->id.idStr);
-
-    // if it's an source task, extract the last version in wal.
-    int64_t ver = pTask->dataRange.range.maxVer + 1;
-    int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
-    if (latestVer >= ver) {
-      ver = latestVer;
-    }
-
-    // 2. do secondary scan of the history data, the time window remain, and the version range is updated to [pTask->dataRange.range.maxVer, ver1]
-    SVersionRange* pRange = &pTask->dataRange.range;
-
-    pRange->minVer = pRange->maxVer + 1;
-    pRange->maxVer = ver;
-    if (pRange->minVer == pRange->maxVer) {
-      tqDebug("s-task:%s no need to perform secondary scan-history-data(step 2), since no new data ingest", pTask->id.idStr);
-    } else {
+    
+    if (!streamTaskRecoverScanStep1Finished(pTask)) {
       tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64
               " do secondary scan-history-data after halt the related stream task:%s",
               pTask->id.idStr, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pStreamTask->id.idStr);
@@ -1092,25 +1101,30 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
       st = taosGetTimestampMs();
 
-      streamSetParamForStreamScanner(pTask, pRange, &pTask->dataRange.window);
+      streamSetParamForStreamScannerStep2(pTask, pRange, &pTask->dataRange.window);
+    }
 
+    if(!streamTaskRecoverScanStep2Finished(pTask)) {
       streamSourceScanHistoryData(pTask);
-      if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
-        tqDebug("s-task:%s is dropped, abort recover in step1", pTask->id.idStr);
+      if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING || streamTaskShouldPause(&pTask->status)) {
+        tqDebug("s-task:%s is dropped or paused, abort recover in step1", pTask->id.idStr);
         streamMetaReleaseTask(pMeta, pTask);
         return 0;
       }
-
-      el = (taosGetTimestampMs() - st) / 1000.0;
-      tqDebug("s-task:%s history data scan stage(step 2) ended, elapsed time:%.2fs", pTask->id.idStr, el);
+      streamTaskRecoverSetAllStepFinished(pTask);
     }
 
-    // 3. notify the downstream tasks to transfer executor state after handle all history blocks.
-    pTask->status.transferState = true;
+    el = (taosGetTimestampMs() - st) / 1000.0;
+    tqDebug("s-task:%s history data scan stage(step 2) ended, elapsed time:%.2fs", pTask->id.idStr, el);
 
-    code = streamDispatchTransferStateMsg(pTask);
-    if (code != TSDB_CODE_SUCCESS) {
-      // todo handle error
+    if (!pTask->status.transferState) {
+      // 3. notify the downstream tasks to transfer executor state after handle all history blocks.
+      pTask->status.transferState = true;
+
+      code = streamDispatchTransferStateMsg(pTask);
+      if (code != TSDB_CODE_SUCCESS) {
+        // todo handle error
+      }
     }
 
     // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
@@ -1119,7 +1133,10 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     pTask->status.taskStatus = TASK_STATUS__DROPPING;
     tqDebug("s-task:%s set status to be dropping", pTask->id.idStr);
-
+    // transfer the ownership of executor state
+    // todo(liuyao)
+    // streamTaskReleaseState(pTask);
+    // streamTaskReloadState(pStreamTask);
     streamMetaSaveTask(pMeta, pTask);
     streamMetaSaveTask(pMeta, pStreamTask);
 
@@ -1165,6 +1182,11 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, int64_t sversion, char* msg, int
     tqError("failed to find task:0x%x", req.taskId);
     return -1;
   }
+  // transfer the ownership of executor state
+  // todo(liuyao)
+  // streamTaskReleaseState(pTask);
+  // SStreamTask* pStreamTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->streamTaskId.taskId);
+  // streamTaskReloadState(pStreamTask);
 
   ASSERT(pTask->streamTaskId.taskId != 0);
   pTask->status.transferState = true;  // persistent data?
@@ -1398,51 +1420,76 @@ int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgL
   return 0;
 }
 
+int32_t tqProcessTaskPauseImpl(SStreamMeta* pStreamMeta, SStreamTask* pTask) {
+  if (pTask) {
+    if (!streamTaskShouldPause(&pTask->status)) {
+      tqDebug("vgId:%d s-task:%s set pause flag", pStreamMeta->vgId, pTask->id.idStr);
+      atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
+      atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
+    }
+    streamMetaReleaseTask(pStreamMeta, pTask);
+  } else {
+    return -1;
+  }
+  return 0;
+}
+
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)msg;
   SStreamTask*          pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
+  int32_t code = tqProcessTaskPauseImpl(pTq->pStreamMeta, pTask);
+  if (code != 0) {
+    return code;
+  }
+  SStreamTask* pHistoryTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->historyTaskId.taskId);
+  code = tqProcessTaskPauseImpl(pTq->pStreamMeta, pHistoryTask);
+  return code;
+}
+
+int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, int8_t igUntreated) {
+  int32_t vgId = pTq->pStreamMeta->vgId;
   if (pTask) {
-    tqDebug("vgId:%d s-task:%s set pause flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
-    atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
-    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
+    if (streamTaskShouldPause(&pTask->status)) {
+      atomic_store_8(&pTask->status.taskStatus, pTask->status.keepTaskStatus);
+
+      // no lock needs to secure the access of the version
+      if (igUntreated && pTask->info.taskLevel == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
+        // discard all the data  when the stream task is suspended.
+        walReaderSetSkipToVersion(pTask->exec.pWalReader, sversion);
+        tqDebug("vgId:%d s-task:%s resume to exec, prev paused version:%" PRId64 ", start from vnode ver:%" PRId64
+                ", schedStatus:%d",
+                vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
+      } else {  // from the previous paused version and go on
+        tqDebug("vgId:%d s-task:%s resume to exec, from paused ver:%" PRId64 ", vnode ver:%" PRId64 ", schedStatus:%d",
+                vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
+      }
+
+      if (pTask->info.fillHistory && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+        streamStartRecoverTask(pTask, igUntreated);
+      } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && taosQueueItemSize(pTask->inputQueue->queue) == 0) {
+        tqStartStreamTasks(pTq);
+      } else {
+        streamSchedExec(pTask);
+      }
+    }
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+  } else {
+    return -1;
   }
   return 0;
 }
 
 int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
-
-  int32_t      vgId = pTq->pStreamMeta->vgId;
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->taskId);
-  if (pTask) {
-    atomic_store_8(&pTask->status.taskStatus, pTask->status.keepTaskStatus);
-
-    // no lock needs to secure the access of the version
-    if (pReq->igUntreated && pTask->info.taskLevel == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
-      // discard all the data  when the stream task is suspended.
-      walReaderSetSkipToVersion(pTask->exec.pWalReader, sversion);
-      tqDebug("vgId:%d s-task:%s resume to exec, prev paused version:%" PRId64 ", start from vnode ver:%" PRId64
-              ", schedStatus:%d",
-              vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
-    } else {  // from the previous paused version and go on
-      tqDebug("vgId:%d s-task:%s resume to exec, from paused ver:%" PRId64 ", vnode ver:%" PRId64 ", schedStatus:%d",
-              vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
-    }
-
-    if (pTask->info.fillHistory && pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-      streamStartRecoverTask(pTask, pReq->igUntreated);
-    } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && taosQueueItemSize(pTask->inputQueue->queue) == 0) {
-      tqStartStreamTasks(pTq);
-    } else {
-      streamSchedExec(pTask);
-    }
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-  } else {
-    tqError("vgId:%d failed to find the s-task:0x%x for resume stream task", vgId, pReq->taskId);
+  int32_t code = tqProcessTaskResumeImpl(pTq, pTask, sversion, pReq->igUntreated);
+  if (code != 0) {
+    return code;
   }
 
-  return 0;
+  SStreamTask* pHistoryTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->historyTaskId.taskId);
+  code = tqProcessTaskResumeImpl(pTq, pHistoryTask, sversion, pReq->igUntreated);
+  return code;
 }
 
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {

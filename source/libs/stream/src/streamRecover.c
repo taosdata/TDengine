@@ -55,7 +55,7 @@ static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
          pRange->minVer, pRange->maxVer);
 
   streamSetParamForScanHistoryData(pTask);
-  streamSetParamForStreamScanner(pTask, pRange, &pTask->dataRange.window);
+  streamSetParamForStreamScannerStep1(pTask, pRange, &pTask->dataRange.window);
 
   int32_t code = streamStartRecoverTask(pTask, 0);
   return code;
@@ -261,8 +261,12 @@ int32_t streamSetStatusNormal(SStreamTask* pTask) {
 }
 
 // source
-int32_t streamSetParamForStreamScanner(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow) {
-  return qStreamSourceScanParamForHistoryScan(pTask->exec.pExecutor, pVerRange, pWindow);
+int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow) {
+  return qStreamSourceScanParamForHistoryScanStep1(pTask->exec.pExecutor, pVerRange, pWindow);
+}
+
+int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow) {
+  return qStreamSourceScanParamForHistoryScanStep2(pTask->exec.pExecutor, pVerRange, pWindow);
 }
 
 int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated) {
@@ -510,6 +514,21 @@ int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
   // todo check rsp
   streamMetaSaveTask(pMeta, pTask);
   return 0;
+}
+
+bool streamTaskRecoverScanStep1Finished(SStreamTask* pTask) {
+  void* exec = pTask->exec.pExecutor;
+  return qStreamRecoverScanStep1Finished(exec);
+}
+
+bool streamTaskRecoverScanStep2Finished(SStreamTask* pTask) {
+  void* exec = pTask->exec.pExecutor;
+  return qStreamRecoverScanStep2Finished(exec);
+}
+
+int32_t streamTaskRecoverSetAllStepFinished(SStreamTask* pTask) {
+  void* exec = pTask->exec.pExecutor;
+  return qStreamRecoverSetAllStepFinished(exec);
 }
 
 int32_t tEncodeStreamTaskCheckReq(SEncoder* pEncoder, const SStreamTaskCheckReq* pReq) {

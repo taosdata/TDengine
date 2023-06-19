@@ -870,7 +870,7 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
-int32_t qStreamSourceScanParamForHistoryScan(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow) {
+int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
 
@@ -879,8 +879,29 @@ int32_t qStreamSourceScanParamForHistoryScan(qTaskInfo_t tinfo, SVersionRange *p
   pStreamInfo->fillHistoryVer = *pVerRange;
   pStreamInfo->fillHistoryWindow = *pWindow;
   pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE1;
+  pStreamInfo->recoverStep1Finished = false;
+  pStreamInfo->recoverStep2Finished = false;
 
-  qDebug("%s set param for stream scanner for scan history data, Ver:%" PRId64 " - %" PRId64 ", window:%" PRId64
+  qDebug("%s step 1. set param for stream scanner for scan history data, Ver:%" PRId64 " - %" PRId64 ", window:%" PRId64
+         " - %" PRId64,
+         GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
+         pWindow->ekey);
+  return 0;
+}
+
+int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+
+  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
+
+  pStreamInfo->fillHistoryVer = *pVerRange;
+  pStreamInfo->fillHistoryWindow = *pWindow;
+  pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE2;
+  pStreamInfo->recoverStep1Finished = true;
+  pStreamInfo->recoverStep2Finished = false;
+
+  qDebug("%s step 2. set param for stream scanner for scan history data, Ver:%" PRId64 " - %" PRId64 ", window:%" PRId64
          " - %" PRId64,
          GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
          pWindow->ekey);
@@ -1020,6 +1041,23 @@ int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo) {
 bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return pTaskInfo->streamInfo.recoverScanFinished;
+}
+
+bool qStreamRecoverScanStep1Finished(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return pTaskInfo->streamInfo.recoverStep1Finished;
+}
+
+bool qStreamRecoverScanStep2Finished(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return pTaskInfo->streamInfo.recoverStep2Finished;
+}
+
+int32_t qStreamRecoverSetAllStepFinished(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  pTaskInfo->streamInfo.recoverStep1Finished = true;
+  pTaskInfo->streamInfo.recoverStep2Finished = true;
+  return 0;
 }
 
 void* qExtractReaderFromStreamScanner(void* scanner) {
