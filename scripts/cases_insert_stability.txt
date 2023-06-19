@@ -1,1 +1,2 @@
 taostest --setup=54_58_stability_jenkins.yaml --case=stability/insert/scenario_test/stream_exist_stb_tag_insert_test.py --keep --disable_data_collection
+
