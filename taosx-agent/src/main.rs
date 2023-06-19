@@ -108,7 +108,7 @@ impl Args {
                 std::path::Path::new("C:\\")
                     .join("Program Files")
                     .join(build::CUS_NAME)
-                    .join("cfg")
+                    .join("config")
                     .join("agent.toml")
             } else {
                 std::path::Path::new("/etc")
