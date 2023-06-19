@@ -76,7 +76,7 @@
 
       <div class="login-content">
         <div class="login-title">
-          <span class="dynamic-title">{{ $t('systemTitle') }}</span>
+          <span class="dynamic-title">{{ $t("systemTitle") }}</span>
         </div>
         <el-form
           :model="dynamicValidateForm"
@@ -177,7 +177,7 @@
         >
         | 新版时序数据库 TDengine v3.0</span
       > -->
-      <span>{{$t('copyright')}}</span>
+      <span>{{ $t("copyright") }}</span>
     </div>
     <SearchPop :hidden.sync="hidden"></SearchPop>
   </div>
@@ -199,7 +199,7 @@ export default {
   data() {
     var validatePass = (rule, value, callback) => {
       if (value === "") {
-        callback(new Error(this.$t('login.passwordTips')));
+        callback(new Error(this.$t("login.passwordTips")));
       } else {
         // setTimeout(() => {
         //   if (this.dynamicValidateForm.password !== "") {
@@ -241,7 +241,7 @@ export default {
         username: [
           {
             required: true,
-            message: this.$t('login.usernameTips'),
+            message: this.$t("login.usernameTips"),
             trigger: "blur",
           },
         ],
@@ -287,16 +287,17 @@ export default {
     },
     async getClusterID() {
       try {
-        return sendSQLReq(` select id from information_schema.ins_cluster;`)
-          .then((res) => {
-            let id = res.data.flat(Infinity).toString();
-            localStorage.setItem("local_clusterID", id);
-          })
-          .catch((err) => {
-            localStorage.removeItem("TDengine-Token");
-            return Promise.reject(err);
-          });
+        let res = await sendSQLReq(
+          ` select id from information_schema.ins_cluster;`
+        );
+        if (res.message) {
+          Message.error(res.message);
+          return
+        }
+        let id = res.data.flat(Infinity).toString();
+        localStorage.setItem("local_clusterID", id);
       } catch (error) {
+        localStorage.removeItem("TDengine-Token");
         console.log(error);
       }
     },
@@ -318,22 +319,25 @@ export default {
       });
       try {
         let sql = "select server_version()";
-        await fetchApiByCluster(
+        let res = await fetchApiByCluster(
           this.dynamicValidateForm.cluster,
           token,
           sql
-        ).then((res) => {
-          if (res && res.code == 0 && !res.desc) {
-            localStorage.setItem("TDengine-Token", token);
-            this.getClusterID();
-            // this.$router.push({
-            //   path: "/explorer"
-            // });
-            this.getUserAuthority();
-          } else {
-            Message.error(this.$t("login.errorTip"));
-          }
-        });
+        );
+        if (res.message) {
+          Message.error(res.message);
+          return;
+        }
+        if (res && res.code == 0 && !res.desc) {
+          localStorage.setItem("TDengine-Token", token);
+          this.getClusterID();
+          // this.$router.push({
+          //   path: "/explorer"
+          // });
+          this.getUserAuthority();
+        } else {
+          Message.error(this.$t("login.errorTip"));
+        }
         this.loading = false;
       } catch (error) {
         this.loading = false;
@@ -342,56 +346,65 @@ export default {
     },
     async getClusterAndDashboardUrl() {
       try {
-        await getUrls().then((res) => {
-          if (res && res.cluster) {
-            this.dynamicValidateForm.cluster = res.cluster;
-            localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
-            this.$store.commit(
-              "app/SET_CLUSTER_URL",
-              this.dynamicValidateForm.cluster
-            );
-          }
-          if (res && res.dashboard) {
-            localStorage.setItem("local_grafana", res.dashboard);
-          }
-          if (res && res.x_api) {
-            this.taosxStatus = true;
-          } else {
-            this.taosxStatus = false;
-          }
-        });
-      } catch (error) {
-        // Message.error(error);
+        let res = await getUrls();
+        if (res.message) {
+          Message.error(res.message);
+          return;
+        }
+        if (res && res.cluster) {
+          this.dynamicValidateForm.cluster = res.cluster;
+          localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
+          this.$store.commit(
+            "app/SET_CLUSTER_URL",
+            this.dynamicValidateForm.cluster
+          );
+        }
+        if (res && res.dashboard) {
+          localStorage.setItem("local_grafana", res.dashboard);
+        }
+        if (res && res.x_api) {
+          this.taosxStatus = true;
+        } else {
+          this.taosxStatus = false;
+        }
+      } catch (err) {
+        err.response &&
+          err.response.data &&
+          err.response.data.message &&
+          Message.error(err.response.data.message);
       }
     },
     //获取登录用户权限
     async getUserAuthority() {
       try {
-        return await sendSQLReq(
+        let res = await sendSQLReq(
           `select version, (expire_time < now) as valid from information_schema.ins_cluster`
-        ).then((res) => {
-          if (res) {
-            let result = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
+        );
+        if (res.message) {
+          Message.error(res.message);
+          return;
+        }
+        if (res) {
+          let result = res.data.map((data) => {
+            return Object.fromEntries(
+              res.column_meta.map((item, index) => {
+                return [item[0], data[index]];
+              })
+            );
+          });
+          if (
+            result.length > 0 &&
+            ["official", "trial"].includes(result[0].version)
+          ) {
+            this.$router.push({
+              path: "/explorer",
             });
-            if (
-              result.length > 0 &&
-              ["official", "trial"].includes(result[0].version)
-            ) {
-              this.$router.push({
-                path: "/explorer",
-              });
-            } else {
-              Message.error(this.$t('login.versiontip'));
-            }
+          } else {
+            Message.error(this.$t("login.versiontip"));
           }
-        });
+        }
       } catch (err) {
-        Message.error(this.$t('login.versiontip'));
+        Message.error(this.$t("login.versiontip"));
       }
     },
   },
@@ -408,7 +421,6 @@ export default {
       ) {
         let dynamic = document.querySelector(".dynamic-title");
         dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
-        
       }
     });
   },
@@ -648,12 +660,12 @@ export default {
     font-size: 16px;
     margin-top: 25px;
   }
-  .copyright{
+  .copyright {
     display: flex;
     justify-content: center;
     margin-bottom: 40px;
-    span{
-      color:#909399;
+    span {
+      color: #909399;
     }
   }
 }
