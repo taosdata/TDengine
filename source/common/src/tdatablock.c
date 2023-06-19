@@ -791,8 +791,8 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  * @return
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
-  // length |
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema
+  // | each column length |
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
          numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }

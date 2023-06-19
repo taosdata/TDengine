@@ -1120,6 +1120,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
+      refreshMeta(pRequest->pTscObj, pRequest);
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
       return;

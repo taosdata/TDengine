@@ -218,6 +218,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       if (pMsg->msgType != TDMT_VND_ALTER_CONFIRM && pVnode->disable) {
         dDebug("vgId:%d, msg:%p put into vnode-write queue failed since its disable", pVnode->vgId, pMsg);
         terrno = TSDB_CODE_VND_STOPPED;
+        code = terrno;
         break;
       }
       dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);

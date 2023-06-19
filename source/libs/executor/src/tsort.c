@@ -887,6 +887,7 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
 }
 
 uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.groupId; }
+void*    tsortGetBlockInfo(STupleHandle* pVHandle) { return &pVHandle->pBlock->info; }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};
