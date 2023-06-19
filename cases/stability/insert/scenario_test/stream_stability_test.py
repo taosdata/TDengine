@@ -18,36 +18,105 @@ from taostest import TDCase
 from taostest.util.remote import Remote
 from datetime import datetime
 from taostest.performance.result_reduction import Perf_Base_func
-import sys
+import sys, getopt
 from taostest.util.msg import Msg, TaosBenchmark
 import getpass
 import socket
 
-class NoPartitionStreamStabilityTest(TDCase):
+class StreamStabilityTest(TDCase):
+    prepare_param_file = "prepare-param-file"
+    insert_param_file = "insert-param-file"
     def init(self):
+        self.prepare_param_filename = str()
+        self.insert_param_filename = str()
+
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
         self.host = self.get_fqdn("taosd")[0]
         self.host_list = list()
         self.host_list.append(self.host)
-        
+        self.json_file_info_list = list()
+
         self.current_dir = os.path.dirname(os.path.realpath(__file__))
         self.result_file_name = self.run_log_dir + '/perf_report.txt'
-        self.json_file = os.path.join(self.current_dir, "stream_exist_stb_tag_prepare.json")
-        self.json_file = os.path.join(self.current_dir, "test1.json")
-        self.json_info = self.tdCom.load_json(self.json_file)
-        self.json_info["host"] = self.host
         self.taosBenchmark_iplist = self.get_fqdn("taosBenchmark")
         self.taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
         self.host_list = self.taosBenchmark_iplist if self.host in self.taosBenchmark_iplist else self.host_list + self.taosBenchmark_iplist
+
+        self.msg = Msg()
+        self.taosbenchmark = TaosBenchmark()
+        self.exec_cmd = ' '.join(sys.argv[::])
+
+        self.taosBenchmark_json_path = "/tmp/"
+
+    def help(self):
+        print("case parameters:")
+        print(f"\t--{StreamStabilityTest.prepare_param_file}")
+        print(f"\t--{StreamStabilityTest.insert_param_file}")
+
+    # parse case parameters
+    def parse_case_param(self):
+        try:
+            if self.case_param is None:
+                self.set_error_msg("no case parameter specified")
+                return False
+            self._remote._logger.debug(f"case parameters: [{self.case_param}]")
+            param_array = self.case_param.split(" ")
+            # parse parameters
+            opts, _ = getopt.getopt(param_array, "h", ["help", f"{StreamStabilityTest.prepare_param_file}=", f"{StreamStabilityTest.insert_param_file}="])
+            self._remote._logger.debug(str(opts))
+            for key, val in opts:
+                self._remote._logger.debug("key: {} value: {}".format(key, val))
+                if key in (f"--{StreamStabilityTest.prepare_param_file}"):
+                    self.prepare_param_file = val
+                    self.prepare_param_filename = os.path.split(val)[1]
+                elif key in (f"--{StreamStabilityTest.insert_param_file}"):
+                    self.insert_param_file = val
+                    self.insert_param_filename = os.path.split(val)[1]
+                else:
+                    self._remote._logger.error(f"invalid case parameter: {key}")
+                    self.set_error_msg(f"invalid case parameter: {key}")
+                    return False
+            for case_file in [self.prepare_param_file, self.insert_param_file]:
+                # check parameters
+                if case_file is None:
+                    self._remote._logger.error(f"case parameter {case_file} not specified")
+                    self.set_error_msg(f"case parameter {case_file} not specified")
+                    return False
+                # get full path
+                full_case_file = os.path.join(os.environ["TEST_ROOT"], case_file)
+                # check file existance
+                if not os.path.isfile(full_case_file):
+                    self._remote._logger.error(f"{full_case_file} not exist")
+                    self.set_error_msg(f"{full_case_file} not exist")
+                    return False
+                # if not case_file is None:
+                #     # get full path
+                #     case_file = os.path.join(os.environ["TEST_ROOT"], case_file)
+                #     # check file existance
+                #     if not os.path.isfile(case_file):
+                #         self._remote._logger.error(f"{case_file} not exist")
+                #         self.set_error_msg(f"{case_file} not exist")
+                #         return False
+        except getopt.GetoptError:
+            self._remote._logger.error(f"parameter parse error [{self.case_param}]")
+            self.set_error_msg(f"parameter parse error [{self.case_param}]")
+            return False
+        return True
+
+    def init_params(self):
+        self.json_file = os.path.join(self.current_dir, self.prepare_param_filename)
+        # self.json_file = os.path.join(self.current_dir, "test1.json")
+        self.json_info = self.tdCom.load_json(self.json_file)
+        self.json_info["host"] = self.host
         self.dbname = self.json_info["databases"][0]["dbinfo"]["name"]
         self.vgroups = self.json_info["databases"][0]["dbinfo"]["vgroups"]
         self.childtable_count = self.json_info["databases"][0]["super_tables"][0]["childtable_count"]
         self.pre_rows = self.json_info["databases"][0]["super_tables"][0]["insert_rows"]
         self.stbname = self.json_info["databases"][0]["super_tables"][0]["name"]
         self.childtable_prefix = self.json_info["databases"][0]["super_tables"][0]["childtable_prefix"]
-        self.stream_json_file = os.path.join(self.current_dir, "stream_exist_stb_tag_insert.json")
-        self.stream_json_file = os.path.join(self.current_dir, "test2.json")
+        self.stream_json_file = os.path.join(self.current_dir, self.insert_param_filename)
+        # self.stream_json_file = os.path.join(self.current_dir, "test3.json")
         self.stream_json_info = self.tdCom.load_json(self.stream_json_file)
         self.stream_json_info["host"] = self.host
         self.insert_rows = self.stream_json_info["databases"][0]["super_tables"][0]["insert_rows"]
@@ -55,15 +124,8 @@ class NoPartitionStreamStabilityTest(TDCase):
         self.stream_sql = self.stream_json_info["streams"][0]["source_sql"]
         self.trigger_mode = self.stream_json_info["streams"][0]["trigger_mode"]
         self.stream_dbname, self.stream_stbname= self.stream_json_info["streams"][0]["stream_stb"].split(".")
-        self.json_file_info_list = list()
         self.json_file_info_list.append({self.json_file: self.json_info})
         self.json_file_info_list.append({self.stream_json_file: self.stream_json_info})
-        
-        self.msg = Msg()
-        self.taosbenchmark = TaosBenchmark()
-        self.exec_cmd = ' '.join(sys.argv[::])
-        
-        self.taosBenchmark_json_path = "/tmp/"
 
     def desc(self):
         pass
@@ -78,6 +140,14 @@ class NoPartitionStreamStabilityTest(TDCase):
         pass
 
     def run(self):
+        ret = self.parse_case_param()
+        self.init_params()
+        if ret == False:
+            self._remote._logger.info("error in case paramters")
+            self.help()
+            return False
+        self._remote._logger.info("CONFIG FILE: %s", self.config_file)
+
         start_time = datetime.now()
         timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         for json_file_info in self.json_file_info_list:
@@ -95,10 +165,10 @@ class NoPartitionStreamStabilityTest(TDCase):
                 json_data_list.append(json_info)
                 self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, json_data_list, json_filename_list, self.run_log_dir)
                 result_file_list = self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, json_data_list, json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
-                
+
         timestamp_end = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         env_setting = self.get_component_by_name("prometheus")
-        Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
+        Insert_file = Perf_Base_func(self._remote._logger, self.run_log_dir)
         Insert_file.taosBenchmark_insert_summary_result(result_file_list, version="3.0")
         Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
         Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
@@ -124,4 +194,4 @@ others: none'''
         self.msg.send_msg(self.msg.get_msg(text))
         with open(self.result_file_name, "r") as file:
             file_content = file.read()
-            self.logger.info(file_content)
+            self._remote._logger.info(f"final result:\n\n{file_content}")
