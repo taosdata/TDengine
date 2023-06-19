@@ -875,7 +875,7 @@ static int32_t tsdbSnapWriteTimeSeriesData(STsdbSnapWriter* writer, SSnapDataHdr
 
   SBlockData blockData[1] = {0};
 
-  code = tDecmprBlockData(hdr->data, hdr->size, blockData, writer->aBuf);
+  code = tDecmprBlockData(hdr->data, hdr->size - sizeof(*hdr), blockData, writer->aBuf);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   int32_t fid = tsdbKeyFid(blockData->aTSKEY[0], writer->minutes, writer->precision);
@@ -913,9 +913,16 @@ static int32_t tsdbSnapWriteDecmprTombBlock(SSnapDataHdr* hdr, STombBlock* tombB
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
+  int64_t size = hdr->size - sizeof(*hdr);
+  ASSERT(size % TOMB_RECORD_ELEM_NUM == 0);
+  size = size / TOMB_RECORD_ELEM_NUM;
+  ASSERT(size % sizeof(int64_t) == 0);
 
-  ASSERT(0);
+  int64_t* data = (int64_t*)hdr->data;
+  for (int32_t i = 0; i < TOMB_RECORD_ELEM_NUM; ++i) {
+    code = TARRAY2_APPEND_BATCH(&tombBlock->dataArr[i], hdr->data + i * size, size / sizeof(int64_t));
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
 _exit:
   return code;
