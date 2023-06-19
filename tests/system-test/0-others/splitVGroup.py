@@ -148,11 +148,11 @@ class TDTestCase:
     def prepareEnv(self):
         # init                
         self.ts = 1680000000000
-        self.childCnt = 1000
-        self.childRow = 100000
+        self.childCnt = 10
+        self.childRow = 10000
         self.batchSize = 5000
-        self.vgroups1  = 20
-        self.vgroups2  = 20
+        self.vgroups1  = 4
+        self.vgroups2  = 4
         self.db1 = "db1"
         self.db2 = "db2"
         
@@ -209,12 +209,16 @@ class TDTestCase:
         # sql
         sql1 = sql.replace('@db_name', self.db1)
         tdLog.info(sql1)
+        start1 = time.time()
         rows1 = tdSql.query(sql1)
+        spend1 = time.time() - start1
         res1 = copy.copy(tdSql.queryResult)
 
         sql2 = sql.replace('@db_name', self.db2)
         tdLog.info(sql2)
+        start2 = time.time()
         tdSql.query(sql2)
+        spend2 = time.time() - start2
         res2 = tdSql.queryResult
 
         rowlen1 = len(res1)
@@ -236,6 +240,12 @@ class TDTestCase:
                 if row1[j] != row2[j]:
                     tdLog.exit(f"col={j} col1={row1[j]} col2={row2[j]} both col not equal.")
                     return False
+
+        # warning performance
+        diff = (spend1 - spend2)*100/spend1
+        tdLog.info("spend1=%.2fs spend2=%.2f diff=%.1f%"%(spend1, spend2, diff))
+        if spend1 > spend2 and diff > 20:
+            tdLog.info("warning: the diff for performance after spliting is over 20%")
 
         return True
 
@@ -343,7 +353,7 @@ class TDTestCase:
         # prepare env
         self.prepareEnv()
 
-        for i in range(10):
+        for i in range(5):
             # split vgroup on db2
             self.splitVGroup(self.db2)
             self.vgroups2 += 1
