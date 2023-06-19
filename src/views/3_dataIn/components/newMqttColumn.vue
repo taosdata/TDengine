@@ -9,7 +9,7 @@
         : '',
     ]"
   >
-  <span style='color:orange;font-size:20px;'>{{index}}</span>
+  <!-- <slot name="localindex"></slot> -->
     <li class="primary">
       <el-checkbox
         :value="colData['name'] == currentKey.primary"
@@ -317,8 +317,13 @@ export default {
           if (this.colData.name == oldVal) {
             this.columnChecked = false;
           }
-          columns.splice(columns.indexOf(oldVal), 1);
-          this.$store.commit("app/SET_MQTT_PARSER", oldparser);
+          if(columns.includes(oldVal)){
+            columns.splice(columns.indexOf(oldVal), 1);
+          }
+
+          console.log(columns.indexOf(oldVal),'打印');
+          // columns.splice(columns.indexOf(oldVal), 1);
+          // this.$store.commit("app/SET_MQTT_PARSER", oldparser);
         }
 
         console.log(

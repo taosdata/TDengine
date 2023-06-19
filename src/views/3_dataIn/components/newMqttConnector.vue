@@ -59,6 +59,9 @@
           :isEditable="isEditable"
           ref="staticmqtt"
         >
+        <!-- <template #localindex> 
+          <span style="color:orange;font-size:20px;">{{item.name}}</span>
+        </template> -->
         </Mqttcolumn>
         <Mqttcolumn
           v-for="(item, index) in connectorData.parse.payload.json"
@@ -71,6 +74,9 @@
           @changeAddStatus="changeAddStatus"
           ref="mqtt"
         >
+        <!-- <template #localindex> 
+          <span style="color:orange;font-size:20px;">{{index}}</span>
+        </template> -->
         </Mqttcolumn>
       </div>
       <div class="footer">
