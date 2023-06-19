@@ -21,8 +21,8 @@ typedef struct {
   TFileSetArray *fsetArr;
   TFileOpArray   fopArray[1];
 
-  SSkmInfo skmTb[1];
-  SSkmInfo skmRow[1];
+  // SSkmInfo skmTb[1];
+  // SSkmInfo skmRow[1];
 
   int32_t minutes;
   int8_t  precision;
@@ -56,45 +56,29 @@ typedef struct {
   SIterMerger   *tombIterMerger;
 
   // writer
-  SBlockData       blockData[2];
-  int32_t          blockDataIdx;
-  SDataFileWriter *dataWriter;
-  SSttFileWriter  *sttWriter;
+  SFSetWriter *writer;
 } SCommitter2;
 
 static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // stt writer
-  SSttFileWriterConfig config[1] = {{
+  SFSetWriterConfig config = {
       .tsdb = committer->tsdb,
+      .toSttOnly = true,
+      .compactVersion = committer->compactVersion,
+      .minRow = committer->minRow,
       .maxRow = committer->maxRow,
       .szPage = committer->szPage,
       .cmprAlg = committer->cmprAlg,
-      .compactVersion = committer->compactVersion,
-      .did = committer->ctx->did,
       .fid = committer->ctx->fid,
       .cid = committer->ctx->cid,
+      .did = committer->ctx->did,
       .level = 0,
-  }};
+  };
 
-  code = tsdbSttFileWriterOpen(config, &committer->sttWriter);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // data writer
   if (committer->sttTrigger == 1) {
-    // data writer
-    SDataFileWriterConfig config = {
-        .tsdb = committer->tsdb,
-        .cmprAlg = committer->cmprAlg,
-        .maxRow = committer->maxRow,
-        .szPage = committer->szPage,
-        .fid = committer->ctx->fid,
-        .cid = committer->ctx->cid,
-        .did = committer->ctx->did,
-        .compactVersion = committer->compactVersion,
-    };
+    config.toSttOnly = false;
 
     if (committer->ctx->fset) {
       for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ftype++) {
@@ -104,10 +88,10 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
         }
       }
     }
-
-    code = tsdbDataFileWriterOpen(&config, &committer->dataWriter);
-    TSDB_CHECK_CODE(code, lino, _exit);
   }
+
+  code = tsdbFSetWriterOpen(&config, &committer->writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -117,22 +101,10 @@ _exit:
 }
 
 static int32_t tsdbCommitCloseWriter(SCommitter2 *committer) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  code = tsdbSttFileWriterClose(&committer->sttWriter, 0, committer->fopArray);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbDataFileWriterClose(&committer->dataWriter, 0, committer->fopArray);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(TD_VID(committer->tsdb->pVnode), lino, code);
-  }
-  return code;
+  return tsdbFSetWriterClose(&committer->writer, 0, committer->fopArray);
 }
 
+#if 0
 static int32_t tsdbCommitTSDataToDataTableBegin(SCommitter2 *committer, const TABLEID *tbid) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -328,17 +300,30 @@ _exit:
   }
   return code;
 }
+#endif
 
 static int32_t tsdbCommitTSData(SCommitter2 *committer) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SMetaInfo info;
 
-  // loop iter
-  if (committer->sttTrigger == 1) {
-    code = tsdbCommitTSDataToData(committer);
+  for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->dataIterMerger)) != NULL;) {
+    if (row->uid != committer->ctx->tbid->uid) {
+      // Ignore table of obsolescence
+      if (metaGetInfo(committer->tsdb->pVnode->pMeta, row->uid, &info, NULL) != 0) {
+        code = tsdbIterMergerSkipTableData(committer->dataIterMerger, (TABLEID *)row);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        continue;
+      }
+
+      committer->ctx->tbid->suid = row->suid;
+      committer->ctx->tbid->uid = row->uid;
+    }
+
+    code = tsdbFSetWriteRow(committer->writer, row);
     TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    code = tsdbCommitTSDataToStt(committer);
+
+    code = tsdbIterMergerNext(committer->dataIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -353,22 +338,12 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (committer->dataWriter == NULL || tsdbSttFileWriterIsOpened(committer->sttWriter)) {
-    for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
-      code = tsdbSttFileWriteTombRecord(committer->sttWriter, record);
-      TSDB_CHECK_CODE(code, lino, _exit);
+  for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
+    code = tsdbFSetWriteTombRecord(committer->writer, record);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = tsdbIterMergerNext(committer->tombIterMerger);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-  } else {
-    for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
-      code = tsdbDataFileWriteTombRecord(committer->dataWriter, record);
-      TSDB_CHECK_CODE(code, lino, _exit);
-
-      code = tsdbIterMergerNext(committer->tombIterMerger);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
+    code = tsdbIterMergerNext(committer->tombIterMerger);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -529,8 +504,7 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
 
   ASSERT(TARRAY2_SIZE(committer->dataIterArray) == 0);
   ASSERT(committer->dataIterMerger == NULL);
-  ASSERT(committer->sttWriter == NULL);
-  ASSERT(committer->dataWriter == NULL);
+  ASSERT(committer->writer == NULL);
 
   code = tsdbCommitOpenReader(committer);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -660,8 +634,7 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
     ASSERT(0);
   }
 
-  ASSERT(committer->dataWriter == NULL);
-  ASSERT(committer->sttWriter == NULL);
+  ASSERT(committer->writer == NULL);
   ASSERT(committer->dataIterMerger == NULL);
   ASSERT(committer->tombIterMerger == NULL);
   TARRAY2_DESTROY(committer->dataIterArray, NULL);

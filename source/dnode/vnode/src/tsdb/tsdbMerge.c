@@ -19,15 +19,13 @@ typedef struct {
   STsdb         *tsdb;
   TFileSetArray *fsetArr;
 
-  int32_t  sttTrigger;
-  int32_t  maxRow;
-  int32_t  minRow;
-  int32_t  szPage;
-  int8_t   cmprAlg;
-  int64_t  compactVersion;
-  int64_t  cid;
-  SSkmInfo skmTb[1];
-  SSkmInfo skmRow[1];
+  int32_t sttTrigger;
+  int32_t maxRow;
+  int32_t minRow;
+  int32_t szPage;
+  int8_t  cmprAlg;
+  int64_t compactVersion;
+  int64_t cid;
 
   // context
   struct {
@@ -37,10 +35,7 @@ typedef struct {
     bool       toData;
     int32_t    level;
     SSttLvl   *lvl;
-    // STFileObj *fobj;
     TABLEID    tbid[1];
-    int32_t    blockDataIdx;
-    SBlockData blockData[2];
   } ctx[1];
 
   TFileOpArray fopArr[1];
@@ -53,8 +48,7 @@ typedef struct {
   TTsdbIterArray tombIterArr[1];
   SIterMerger   *tombIterMerger;
   // writer
-  SSttFileWriter  *sttWriter;
-  SDataFileWriter *dataWriter;
+  SFSetWriter *writer;
 } SMerger;
 
 static int32_t tsdbMergerOpen(SMerger *merger) {
@@ -86,8 +80,7 @@ static int32_t tsdbMergerClose(SMerger *merger) {
   }
   taosThreadRwlockUnlock(&merger->tsdb->rwLock);
 
-  ASSERT(merger->dataWriter == NULL);
-  ASSERT(merger->sttWriter == NULL);
+  ASSERT(merger->writer == NULL);
   ASSERT(merger->dataIterMerger == NULL);
   ASSERT(TARRAY2_SIZE(merger->dataIterArr) == 0);
   ASSERT(TARRAY2_SIZE(merger->sttReaderArr) == 0);
@@ -96,11 +89,6 @@ static int32_t tsdbMergerClose(SMerger *merger) {
   TARRAY2_DESTROY(merger->dataIterArr, NULL);
   TARRAY2_DESTROY(merger->sttReaderArr, NULL);
   TARRAY2_DESTROY(merger->fopArr, NULL);
-  for (int32_t i = 0; i < ARRAY_SIZE(merger->ctx->blockData); i++) {
-    tBlockDataDestroy(merger->ctx->blockData + i);
-  }
-  tDestroyTSchema(merger->skmTb->pTSchema);
-  tDestroyTSchema(merger->skmRow->pTSchema);
 
 _exit:
   if (code) {
@@ -109,6 +97,7 @@ _exit:
   return code;
 }
 
+#if 0
 static int32_t tsdbMergeToDataTableEnd(SMerger *merger) {
   if (merger->ctx->blockData[0].nRow + merger->ctx->blockData[1].nRow == 0) return 0;
 
@@ -297,6 +286,7 @@ _exit:
   }
   return code;
 }
+#endif
 
 static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
   int32_t code = 0;
@@ -413,48 +403,35 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
     code = TSDB_CODE_FS_NO_VALID_DISK;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  {
-    // to new level
-    SSttFileWriterConfig config[1] = {{
-        .tsdb = merger->tsdb,
-        .maxRow = merger->maxRow,
-        .szPage = merger->szPage,
-        .cmprAlg = merger->cmprAlg,
-        .compactVersion = merger->compactVersion,
-        .did = did,
-        .fid = merger->ctx->fset->fid,
-        .cid = merger->cid,
-        .level = merger->ctx->level,
-    }};
-    code = tsdbSttFileWriterOpen(config, &merger->sttWriter);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  SFSetWriterConfig config = {
+      .tsdb = merger->tsdb,
+      .toSttOnly = true,
+      .compactVersion = merger->compactVersion,
+      .minRow = merger->minRow,
+      .maxRow = merger->maxRow,
+      .szPage = merger->szPage,
+      .cmprAlg = merger->cmprAlg,
+      .fid = merger->ctx->fset->fid,
+      .cid = merger->cid,
+      .did = did,
+      .level = merger->ctx->level,
+  };
 
   if (merger->ctx->toData) {
-    SDataFileWriterConfig config[1] = {{
-        .tsdb = merger->tsdb,
-        .cmprAlg = merger->cmprAlg,
-        .maxRow = merger->maxRow,
-        .szPage = merger->szPage,
-        .fid = merger->ctx->fset->fid,
-        .cid = merger->cid,
-        .did = did,
-        .compactVersion = merger->compactVersion,
-    }};
+    config.toSttOnly = false;
 
-    for (int32_t i = 0; i < TSDB_FTYPE_MAX; i++) {
-      if (merger->ctx->fset->farr[i]) {
-        config->files[i].exist = true;
-        config->files[i].file = merger->ctx->fset->farr[i]->f[0];
+    for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
+      if (merger->ctx->fset->farr[ftype]) {
+        config.files[ftype].exist = true;
+        config.files[ftype].file = merger->ctx->fset->farr[ftype]->f[0];
       } else {
-        config->files[i].exist = false;
+        config.files[ftype].exist = false;
       }
     }
-
-    code = tsdbDataFileWriterOpen(config, &merger->dataWriter);
-    TSDB_CHECK_CODE(code, lino, _exit);
   }
+
+  code = tsdbFSetWriterOpen(&config, &merger->writer);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -470,15 +447,10 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
   ASSERT(TARRAY2_SIZE(merger->sttReaderArr) == 0);
   ASSERT(TARRAY2_SIZE(merger->dataIterArr) == 0);
   ASSERT(merger->dataIterMerger == NULL);
-  ASSERT(merger->sttWriter == NULL);
-  ASSERT(merger->dataWriter == NULL);
+  ASSERT(merger->writer == NULL);
 
   merger->ctx->tbid->suid = 0;
   merger->ctx->tbid->uid = 0;
-  merger->ctx->blockDataIdx = 0;
-  for (int32_t i = 0; i < ARRAY_SIZE(merger->ctx->blockData); ++i) {
-    tBlockDataReset(merger->ctx->blockData + i);
-  }
 
   // open reader
   code = tsdbMergeFileSetBeginOpenReader(merger);
@@ -500,23 +472,7 @@ _exit:
 }
 
 static int32_t tsdbMergeFileSetEndCloseWriter(SMerger *merger) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  int32_t vid = TD_VID(merger->tsdb->pVnode);
-
-  code = tsdbSttFileWriterClose(&merger->sttWriter, 0, merger->fopArr);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  if (merger->ctx->toData) {
-    code = tsdbDataFileWriterClose(&merger->dataWriter, 0, merger->fopArr);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-_exit:
-  if (code) {
-    TSDB_ERROR_LOG(vid, lino, code);
-  }
-  return code;
+  return tsdbFSetWriterClose(&merger->writer, 0, merger->fopArr);
 }
 
 static int32_t tsdbMergeFileSetEndCloseIter(SMerger *merger) {
@@ -560,12 +516,49 @@ static int32_t tsdbMergeFileSet(SMerger *merger, STFileSet *fset) {
   code = tsdbMergeFileSetBegin(merger);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // do merge
-  if (merger->ctx->toData) {
-    code = tsdbMergeToDataLevel(merger);
+  // data
+  SMetaInfo info;
+  SRowInfo *row;
+  merger->ctx->tbid->suid = 0;
+  merger->ctx->tbid->uid = 0;
+  while ((row = tsdbIterMergerGetData(merger->dataIterMerger)) != NULL) {
+    if (row->uid != merger->ctx->tbid->uid) {
+      if (metaGetInfo(merger->tsdb->pVnode->pMeta, row->uid, &info, NULL) != 0) {
+        code = tsdbIterMergerSkipTableData(merger->dataIterMerger, (TABLEID *)row);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        continue;
+      }
+
+      merger->ctx->tbid->uid = row->uid;
+      merger->ctx->tbid->suid = row->suid;
+    }
+
+    code = tsdbFSetWriteRow(merger->writer, row);
     TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    code = tsdbMergeToUpperLevel(merger);
+
+    code = tsdbIterMergerNext(merger->dataIterMerger);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // tomb
+  STombRecord *record;
+  merger->ctx->tbid->suid = 0;
+  merger->ctx->tbid->uid = 0;
+  while ((record = tsdbIterMergerGetTombRecord(merger->tombIterMerger)) != NULL) {
+    if (record->uid != merger->ctx->tbid->uid) {
+      merger->ctx->tbid->uid = record->uid;
+      merger->ctx->tbid->suid = record->suid;
+
+      if (metaGetInfo(merger->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
+        code = tsdbIterMergerSkipTableData(merger->tombIterMerger, merger->ctx->tbid);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        continue;
+      }
+    }
+    code = tsdbFSetWriteTombRecord(merger->writer, record);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = tsdbIterMergerNext(merger->tombIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

@@ -15,6 +15,7 @@
 
 #include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
+#include "tsdbFSetRW.h"
 #include "tsdbIter.h"
 #include "tsdbSttFileRW.h"
 #include "tsdbUtil2.h"

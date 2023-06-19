@@ -41,7 +41,6 @@ typedef struct {
     bool   exist;
     STFile file;
   } files[TSDB_FTYPE_MAX];
-  STFile sttFile;
 } SFSetWriterConfig;
 
 int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer);
