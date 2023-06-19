@@ -14,6 +14,7 @@
  */
 
 #include "meta.h"
+#include "streamSnapshot.h"
 #include "tdbInt.h"
 #include "tq.h"
 

@@ -14,9 +14,9 @@
  */
 
 #include "executor.h"
-#include <libs/transport/trpc.h>
-#include <libs/wal/wal.h>
 #include "executorInt.h"
+#include "libs/transport/trpc.h"
+#include "libs/wal/wal.h"
 #include "operator.h"
 #include "planner.h"
 #include "querytask.h"
@@ -115,7 +115,8 @@ void resetTaskInfo(qTaskInfo_t tinfo) {
   clearStreamBlock(pTaskInfo->pRoot);
 }
 
-static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, const char* id) {
+static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type,
+                                const char* id) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
@@ -149,7 +150,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        SPackedData  tmp = { .pDataBlock = pDataBlock };
+        SPackedData  tmp = {.pDataBlock = pDataBlock};
         taosArrayPush(pInfo->pBlockLists, &tmp);
       }
 
@@ -162,7 +163,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
-void doSetTaskId(SOperatorInfo* pOperator, SStorageAPI *pAPI) {
+void doSetTaskId(SOperatorInfo* pOperator, SStorageAPI* pAPI) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pStreamScanInfo = pOperator->info;
@@ -186,10 +187,10 @@ void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   doSetTaskId(pTaskInfo->pRoot, &pTaskInfo->storageAPI);
 }
 
-//void qSetTaskCode(qTaskInfo_t tinfo, int32_t code) {
-//  SExecTaskInfo* pTaskInfo = tinfo;
-//  pTaskInfo->code = code;
-//}
+// void qSetTaskCode(qTaskInfo_t tinfo, int32_t code) {
+//   SExecTaskInfo* pTaskInfo = tinfo;
+//   pTaskInfo->code = code;
+// }
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   if (tinfo == NULL) {
@@ -213,7 +214,6 @@ void qGetCheckpointVersion(qTaskInfo_t tinfo, int64_t* dataVer, int64_t* ckId) {
   *dataVer = pTaskInfo->streamInfo.dataVersion;
   *ckId = pTaskInfo->streamInfo.checkPointId;
 }
-
 
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
@@ -333,7 +333,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
 }
 
 static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr,
-    SStorageAPI* pAPI) {
+                                       SStorageAPI* pAPI) {
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
   int32_t numOfUids = taosArrayGetSize(tableIdList);
   if (numOfUids == 0) {
@@ -344,7 +344,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
   uint64_t suid = 0;
   uint64_t uid = 0;
-  int32_t type = 0;
+  int32_t  type = 0;
   tableListGetSourceTableInfo(pTableScanInfo->base.pTableListInfo, &suid, &uid, &type);
 
   // let's discard the tables those are not created according to the queried super table.
@@ -1073,7 +1073,7 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+  SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   const char*    id = GET_TASKID(pTaskInfo);
@@ -1100,7 +1100,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pScanBaseInfo->dataReader = NULL;
 
       SStoreTqReader* pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
-      SWalReader* pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
+      SWalReader*     pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
       walReaderVerifyOffset(pWalReader, pOffset);
       if (pReaderAPI->tqReaderSeek(pInfo->tqReader, pOffset->version + 1, id) < 0) {
         qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
@@ -1158,8 +1158,9 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pScanInfo->scanTimes = 0;
 
       if (pScanBaseInfo->dataReader == NULL) {
-        int32_t code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1,
-                                      pScanInfo->pResBlock, (void**) &pScanBaseInfo->dataReader, id, false, NULL);
+        int32_t code = pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(
+            pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1, pScanInfo->pResBlock,
+            (void**)&pScanBaseInfo->dataReader, id, false, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           qError("prepare read tsdb snapshot failed, uid:%" PRId64 ", code:%s %s", pOffset->uid, tstrerror(code), id);
           terrno = code;
@@ -1217,8 +1218,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
       int32_t        size = tableListGetSize(pTableListInfo);
 
-      pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, (void**) &pInfo->dataReader, NULL,
-                     false, NULL);
+      pTaskInfo->storageAPI.tsdReader.tsdReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL,
+                                                    (void**)&pInfo->dataReader, NULL, false, NULL);
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
       strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
@@ -1276,7 +1277,7 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = tinfo;
-  SArray* plist = getTableListInfo(pTaskInfo);
+  SArray*        plist = getTableListInfo(pTaskInfo);
 
   // only extract table in the first elements
   STableListInfo* pTableListInfo = taosArrayGetP(plist, 0);
@@ -1284,7 +1285,7 @@ SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
   SArray* pUidList = taosArrayInit(10, sizeof(uint64_t));
 
   int32_t numOfTables = tableListGetSize(pTableListInfo);
-  for(int32_t i = 0; i < numOfTables; ++i) {
+  for (int32_t i = 0; i < numOfTables; ++i) {
     STableKeyInfo* pKeyInfo = tableListGetInfo(pTableListInfo, i);
     taosArrayPush(pUidList, &pKeyInfo->uid);
   }
