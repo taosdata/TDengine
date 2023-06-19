@@ -42,10 +42,11 @@ typedef struct {
   TdThreadMutex                      cfMutex;
   SHashObj*                          cfInst;
   int64_t                            defaultCfInit;
-} SBackendHandle;
+} SBackendWrapper;
 
 void*      streamBackendInit(const char* path);
 void       streamBackendCleanup(void* arg);
+void       streamBackendHandleCleanup(void* arg);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
 
