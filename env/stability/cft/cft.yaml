@@ -1,0 +1,90 @@
+settings:
+  - name: taosd
+    fqdn: [u1-35]
+    spec:
+      version: 3.0.5.0
+      config:
+        firstEP: u1-35:6130
+      dnodes:
+        - endpoint: u1-35:6130
+          config_dir: /root/charles/node1
+          config:
+            supportVnodes: 128
+            dataDir: /root/charles/node1/lib/taos
+            logDir: /root/charles/node1/log/taos
+            debugFlag: 135
+        - endpoint: u1-35:6230
+          config_dir: /root/charles/node2
+          config:
+            supportVnodes: 128
+            dataDir: /root/charles/node2/lib/taos
+            logDir: /root/charles/node2/log/taos
+            debugFlag: 135
+        - endpoint: u1-35:6330
+          config_dir: /root/charles/node3
+          config:
+            supportVnodes: 128
+            dataDir: /root/charles/node3/lib/taos
+            logDir: /root/charles/node3/log/taos
+            debugFlag: 135
+        - endpoint: u1-35:6430
+          config_dir: /root/charles/node4
+          config:
+            supportVnodes: 128
+            dataDir: /root/charles/node4/lib/taos
+            logDir: /root/charles/node4/log/taos
+            debugFlag: 135
+        - endpoint: u1-35:6530
+          config_dir: /root/charles/node5
+          config:
+            supportVnodes: 128
+            dataDir: /root/charles/node5/lib/taos
+            logDir: /root/charles/node5/log/taos
+            debugFlag: 135
+  - name: taospy
+    fqdn: [u1-35]
+    spec:
+      version: 3.0.5.0
+      client_version: 3.0.5.0
+      config:
+        firstEP: u1-35:6130
+        dataDir: /root/charles/node1/lib/taos
+        logDir: /root/charles/node1/log/taos
+        debugFlag: 135
+        asynclog: 0
+  - name: taosAdapter
+    fqdn: [u1-35]
+    spec:
+      version: 3.0.0.0
+      config_file: /etc/taos/taosadaper.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: /etc/taos
+        log:
+          path: /var/log/taos
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["telnet_tcp"]
+          ports: [6046]
+          user: root
+          password: taosdata
+          worker: 1000
+      taos_config:
+        firstEP: u1-35:6130
+        dataDir: /root/charles/node1/lib/taos
+        logDir: /root/charles/node1/log/taos
+        debugFlag: 135
+
+  - name: taosBenchmark
+    fqdn: [u1-35]
+    spec:
+      version: 3.0.5.0
+      taos_version: 3.0.5.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: u1-35:6130
+        logDir: /var/log/taos
+        debugFlag: 135
