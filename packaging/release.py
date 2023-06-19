@@ -500,6 +500,9 @@ def test_handle_windows(process):
     elif process == "explorer":
         print("Calling taos-explorer function...")
         build_and_install_taos_explorer("Debug")
+    elif process == influxdb_connector:
+        print("Calling influxDB function...")
+        build_and_install_influxdb("Debug")
     else:
         print(f"Invalid -t param: {process}. Please enter valid input.")
 
@@ -507,7 +510,10 @@ def test_handle(process):
     if release_info.OS.lower == "windows":
         test_handle_windows(process)
     else:
-        linux_release.test_handle(release_info,process)
+        if "explorer" == process:
+            print("test taos_explorer on linux")
+            build_and_install_taos_explorer("Release")
+        linux_release.test_handle(release_info, process)
 
 
 if __name__ == '__main__':

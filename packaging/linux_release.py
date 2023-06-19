@@ -1,7 +1,7 @@
 import os;
 import logging
 import shutil
-
+import sys
 
 
 script_dir = os.path.abspath(os.getcwd())
@@ -40,7 +40,7 @@ def release(release_info,build_info):
 def init_release_dir(release_info):
     logging.info("init_release_dir")
     global release_dir
-    release_dir = os.path.join(top_dir,"release","taosX-{0}-Linux-x64".format(release_info.TaosXVersion))
+    release_dir = os.path.join(top_dir,"release","taosx-{0}-linux-x64".format(release_info.TaosXVersion))
     if os.path.exists(release_dir):
         logging.info("release_dir %s already exists" % release_dir)
     else:
@@ -55,11 +55,7 @@ def build_and_install_opc_on_linux(release_info,mode='release'):
     
     dst_dir = os.path.join(release_dir,"plugins","opc")
     binary_file = os.path.join(opc_dir,"taosx-opc")
-    if os.path.exists(dst_dir):
-        logging.info(f"{dst_dir} already exists")
-    else:
-        logging.info(f"{dst_dir} does not exist, create it")
-        os.system("mkdir -p %s" % dst_dir)
+    check_directory(dst_dir)
         
     os.chdir(opc_dir)
     if mode.lower() == 'release':
@@ -75,7 +71,7 @@ def build_and_install_opc_on_linux(release_info,mode='release'):
                   f"-o {binary_file}")
         logging.info("taox-opc built successfully")
     
-    shutil.copyfile(binary_file,os.path.join(dst_dir,'taosx-opc'))
+    shutil.copy2(binary_file, dst_dir)
     logging.info("taox-opc copied to {release_dir}".format(release_dir=release_dir))
     
     os.chdir(script_dir)  
@@ -87,12 +83,8 @@ def build_and_install_mqtt_on_linux(release_info,mode='release'):
     verMode = "release"
     dst_dir = os.path.join(release_dir,"plugins","mqtt")
     binary_file = os.path.join(mqtt_dir,"dist","taosx-mqtt")
-    if os.path.exists(dst_dir):
-        logging.info(f"{dst_dir} already exists")
-    else:
-        logging.info(f"{dst_dir} does not exist, create it")
-        os.system("mkdir -p %s" % dst_dir)
-        
+    check_directory(dst_dir)
+
     os.chdir(mqtt_dir)
     if mode.lower() == 'release':
         build_command = f"go build -o {binary_file} -ldflags \"" \
@@ -107,10 +99,9 @@ def build_and_install_mqtt_on_linux(release_info,mode='release'):
     os.system(build_command)
     logging.info("taox-mqtt built successfully")
     
-    shutil.copyfile(binary_file,os.path.join(dst_dir,'taosx-mqtt'))
+    shutil.copy2(binary_file, dst_dir)
     logging.info("taox-mqtt copied to {release_dir}".format(release_dir=dst_dir))
-    
-    os.chdir(script_dir)
+
     
 def build_and_install_influxdb_on_linux(mode='release'):
     logging.info("build_and_install taosx-influxdb under linux")
@@ -118,11 +109,7 @@ def build_and_install_influxdb_on_linux(mode='release'):
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"plugins","influxdb")
     binary_file = os.path.join(influxdb_dir,"target","taosx-influxdb.jar")
-    if os.path.exists(dst_dir):
-        logging.info(f"{dst_dir} already exists")
-    else:
-        logging.info(f"{dst_dir} does not exist, create it")
-        os.system("mkdir -p %s" % dst_dir)
+    check_directory(dst_dir)
         
     os.chdir(influxdb_dir)
     if mode.lower() == 'release':
@@ -136,8 +123,7 @@ def build_and_install_influxdb_on_linux(mode='release'):
     
     shutil.copyfile(binary_file,os.path.join(release_dir,"plugins","influxdb","taosx-influxdb.jar"))
     logging.info("taox-influxdb copied to {release_dir}".format(release_dir=dst_dir))
-    
-    os.chdir(script_dir)
+
     
 def build_and_install_taosx_on_linux(mode='release'):
     logging.info("build_and_install taosx under linux...")
@@ -146,11 +132,7 @@ def build_and_install_taosx_on_linux(mode='release'):
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
     binary_file = os.path.join(top_dir,"target",mode.lower(),"taosx")
-    if os.path.exists(dst_dir):
-        logging.info(f"{dst_dir} already exists")
-    else:
-        logging.info(f"{dst_dir} does not exist, create it")
-        os.system("mkdir -p %s" % dst_dir)     
+    check_directory(dst_dir) 
     os.chdir(top_dir)
     
     if mode.lower() == 'release':
@@ -162,13 +144,10 @@ def build_and_install_taosx_on_linux(mode='release'):
     shutil.copy(binary_file,dst_dir)
     logging.info("taox copied to {release_dir}".format(release_dir=dst_dir))
     
-    if not os.path.exists(os.path.join(release_dir,"scripts")):
-        os.system("mkdir -p %s" % os.path.join(release_dir,"scripts"))
-    else:
-        logging.info(f"{os.path.join(release_dir,'scripts')} already exists")
-    
-    shutil.copy(os.path.join(top_dir,"target","taosx.service"),os.path.join(release_dir,"scripts"))
-    os.chdir(script_dir)
+    systemd_path = os.path.join(release_dir,"etc", "systemd")
+    check_directory(systemd_path)
+    shutil.copy(os.path.join(top_dir,"target","taosx.service"), systemd_path)
+
 
 def install_taos_explorer_on_linux(mode='release'):
     logging.info("install taosx-explore under linux...")
@@ -176,38 +155,20 @@ def install_taos_explorer_on_linux(mode='release'):
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
     binary_file = os.path.join(explore_dir,"target",mode.lower(),"taos-explorer")
-    if os.path.exists(dst_dir):
-        logging.info(f"{dst_dir} already exists")
-    else:
-        logging.info(f"{dst_dir} does not exist, create it")
-        os.system("mkdir -p %s" % dst_dir)
+    check_directory(dst_dir)
         
     os.chdir(explore_dir)
-    
-    # if mode.lower() == 'release':
-    #     os.system('yarn build:bin')
-    # else:
-    #     os.system('yarn build:debug')
-        
-    # logging.info("taos-explorer built successfully")
-    
-    shutil.copy(binary_file,dst_dir)
+
+    shutil.copy(binary_file, dst_dir)
     logging.info("taox-agent copied to {release_dir}".format(release_dir=dst_dir))
     
-    if not os.path.exists(os.path.join(release_dir,"scripts")):
-        os.system("mkdir -p %s" % os.path.join(release_dir,"scripts"))
-    else:
-        logging.info(f"{os.path.join(release_dir,'scripts')} already exists")
-    
-    shutil.copyfile(os.path.join("target","taos-explorer.service"),os.path.join(release_dir,"scripts","taos-explorer.service"))
-    
-    if not os.path.exists(os.path.join(release_dir,"config")):
-        os.system("mkdir -p %s" % os.path.join(release_dir,"config"))
-    else:
-        logging.info(f"{os.path.join(release_dir,'config')} already exists")
-    shutil.copyfile(os.path.join("server","examples","explorer.toml"),os.path.join(release_dir,"config","explorer.toml"))
+    systemd_path = os.path.join(release_dir,"etc", "systemd")
+    check_directory(systemd_path)
+    shutil.copy2(os.path.join(explore_dir, "target","taos-explorer.service"), systemd_path)
 
-    os.chdir(script_dir)
+    cfg_path = os.path.join(release_dir,"etc", "taos")
+    check_directory(cfg_path)
+    shutil.copy2(os.path.join("server","examples","explorer.toml"), cfg_path)
 
 def build_and_install_taosx_agent_on_linux(mode='release'):
     logging.info("build_and_install taosx-agent under linux...")
@@ -215,11 +176,7 @@ def build_and_install_taosx_agent_on_linux(mode='release'):
     arch = "amd64"
     dst_dir = os.path.join(release_dir,"bin")
     binary_file = os.path.join(top_dir,"target",mode.lower(),"taosx-agent")
-    if os.path.exists(dst_dir):
-        logging.info(f"{dst_dir} already exists")
-    else:
-        logging.info(f"{dst_dir} does not exist, create it")
-        os.system("mkdir -p %s" % dst_dir)
+    check_directory(dst_dir)
         
     os.chdir(top_dir)
     
@@ -233,20 +190,13 @@ def build_and_install_taosx_agent_on_linux(mode='release'):
     shutil.copy(binary_file,dst_dir)
     logging.info("taox-agent copied to {release_dir}".format(release_dir=dst_dir))
     
-    if not os.path.exists(os.path.join(release_dir,"scripts")):
-        os.system("mkdir -p %s" % os.path.join(release_dir,"scripts"))
-    else:
-        logging.info(f"{os.path.join(release_dir,'scripts')} already exists")
+    systemd_path = os.path.join(release_dir,"etc", "systemd")
+    check_directory(systemd_path)
+    shutil.copy2(os.path.join(top_dir,"target","taosx-agent.service"), systemd_path)
     
-    shutil.copyfile(os.path.join(top_dir,"target","taosx-agent.service"),os.path.join(release_dir,"scripts","taosx-agent.service"))
-    
-    if not os.path.exists(os.path.join(release_dir,"config")):
-        os.system("mkdir -p %s" % os.path.join(release_dir,"config"))
-    else:
-        logging.info(f"{os.path.join(release_dir,'config')} already exists")
-    shutil.copyfile(os.path.join(top_dir,"taosx-agent","examples","agent.toml"),os.path.join(release_dir,"config","agent.toml"))
-
-    os.chdir(script_dir)
+    cfg_path = os.path.join(release_dir,"etc", "taos")
+    check_directory(cfg_path)
+    shutil.copy2(os.path.join(top_dir,"taosx-agent","examples","agent.toml"), cfg_path)
 
 
 def make_tar_package(release_info):
@@ -260,7 +210,7 @@ def make_tar_package(release_info):
     os.chmod(os.path.join(release_dir,"plugins"),0o755)
     
     os.chdir(os.path.join(release_dir,".."))
-    code = os.system("tar -czvf taosX-{0}-Linux-x64.tar.gz $(basename {1}) --remove-files".format(release_info.TaosXVersion,release_dir))
+    code = os.system("tar -czvf {0}.tar.gz $(basename {1}) --remove-files".format(release_dir,release_dir))
     if code != 0:
         raise Exception("packaging {0} failed".format(release_info.TaosXVersion))
     else:    
@@ -286,6 +236,17 @@ def test_handle(release_info, process):
         build_and_install_taosx_agent_on_linux("Debug")
     elif process == "explorer":
         print("Calling taos-explorer function...")
-        install_taos_explorer_on_linux("Debug")
+        install_taos_explorer_on_linux("Release")
+    elif process == "influxdb":
+        print("Calling influxDB function...")
+        build_and_install_influxdb_on_linux("Debug")
     else:
         print(f"Invalid -t param: {process}. Please enter valid input.")
+
+def check_directory(path):
+    try:
+        if not os.path.exists(path):
+            os.makedirs(path)
+    except Exception as e:
+        print('Error:', e)
+        sys.exit()
