@@ -45,13 +45,37 @@ typedef struct SColBufInfo {
   char*    data;
 } SColBufInfo;
 
+typedef struct SBufPageInfo {
+  int32_t pageSize;
+  int32_t offset;
+  char*   data;
+} SBufPageInfo;
+
+#pragma pack(push, 1) 
+typedef struct SBufRowInfo {
+  void*    next;
+  uint16_t pageId;
+  int32_t  offset;
+} SBufRowInfo;
+#pragma pack(pop)
+
+typedef struct SResRowData {
+  SBufRowInfo* rows;
+} SResRowData;
+
 typedef struct SJoinTableInfo {
-  int32_t      keyNum;
-  SColBufInfo* keyCols;
-  char*        keyBuf;
-  int32_t      valNum;
-  SColBufInfo* valCols;
-  char*        valBuf;
+  SOperatorInfo* downStream;
+  int32_t        blkId;
+  SQueryStat     inputStat;
+  
+  int32_t        keyNum;
+  SColBufInfo*   keyCols;
+  char*          keyBuf;
+  
+  int32_t        valNum;
+  SColBufInfo*   valCols;
+  int32_t        valBufSize;
+  bool           valVarData;
 } SJoinTableInfo;
 
 typedef struct SHJoinOperatorInfo {
@@ -62,26 +86,12 @@ typedef struct SHJoinOperatorInfo {
 
   SJoinTableInfo* pBuild;
   SJoinTableInfo* pProbe;
-  
-  int32_t      pLeftKeyNum;
-  SColBufInfo* pLeftKeyInfo;
-  char*        pLeftKeyBuf;
-  int32_t      pLeftValNum;
-  SColBufInfo* pLeftValInfo;
-  char*        pLeftValBuf;
-
-  int32_t      pRightKeyNum;  
-  SColBufInfo* pRightKeyInfo;
-  char*        pRightKeyBuf;
-  int32_t      pRightValNum;  
-  SColBufInfo* pRightValInfo;
-  char*        pRightValBuf;
+  SArray*         pRowBufs;
   
   SNode*       pCondAfterJoin;
 
   SSHashObj*   pKeyHash;
 
-  SQueryStat   inputStat[2];
   
   SHJoinRowCtx  rowCtx;
 } SHJoinOperatorInfo;
