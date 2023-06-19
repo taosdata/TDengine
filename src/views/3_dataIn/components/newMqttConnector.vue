@@ -44,12 +44,6 @@
         <li></li>
       </ul>
       <div class="col-content">
-        <span style="color:red;font-size:24px;">
-          {{
-            fields.filter((item) => item.name != 'payload').length
-          }}
-          {{connectorData.parse.payload.json}}
-        </span>
         <Mqttcolumn
           v-for="item in fields.filter((item) => item.name != 'payload')"
           :key="item.name"
@@ -59,9 +53,6 @@
           :isEditable="isEditable"
           ref="staticmqtt"
         >
-        <!-- <template #localindex> 
-          <span style="color:orange;font-size:20px;">{{item.name}}</span>
-        </template> -->
         </Mqttcolumn>
         <Mqttcolumn
           v-for="(item, index) in connectorData.parse.payload.json"
@@ -196,7 +187,8 @@ export default {
     },
     changeAddStatus() {
       this.$nextTick(() => {
-        this.disable = Array.from(this.$refs.mqtt).some(
+        let arr=this.$refs.mqtt?Array.from(this.$refs.mqtt):[]
+        this.disable = arr.some(
           (item) => item.addStatus
         );
       });

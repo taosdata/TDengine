@@ -9,7 +9,6 @@
         : '',
     ]"
   >
-  <!-- <slot name="localindex"></slot> -->
     <li class="primary">
       <el-checkbox
         :value="colData['name'] == currentKey.primary"
@@ -26,7 +25,6 @@
       >
     </li>
     <li class="ascolumn">
-      <span style="color: red; font-size: 24px">{{ columnChecked }}</span>
       <el-checkbox
         v-model="columnChecked"
         @change="setColumnChecked"
@@ -160,7 +158,6 @@ export default {
 
   data() {
     return {
-      type1111: "",
       columnChecked: false,
       tagChecked: false,
       tagDisable: false,
@@ -229,7 +226,6 @@ export default {
           columns.splice(columns.indexOf(val), 1);
         }
       }
-      console.log(oldparser, "处理过需要保存到store的parser");
       this.$store.commit("app/SET_MQTT_PARSER", oldparser);
     },
     setColumnChecked() {
@@ -241,13 +237,12 @@ export default {
       this.getPreveiousParser(this.colData["name"], "tag");
     },
     changeType(val) {
-      console.log(val, "select---000");
       this.colData["cast"] = val;
       if (
         !this.colData["cast"].toLowerCase().includes("timestamp") &&
         this.colData["name"] == this.currentKey.primary
       ) {
-        // this.changePrimary("ts");
+        this.changePrimary("ts");
       }
     },
     handleChange(val) {
@@ -282,10 +277,12 @@ export default {
       let oldparser = this.$store.state.app.mqttParser;
       let columns = oldparser.model.columns;
       let tags = oldparser.model.tags;
-      // if (columns.includes(this.colData.name)) {
-      // }
-      // if (tags.includes(this.colData.name)) {
-      // }
+      if (columns.includes(this.colData.name)) {
+        this.columnChecked = true;
+      }
+      if (tags.includes(this.colData.name)) {
+        this.tagChecked = true;
+      }
     },
   },
   mounted() {
@@ -299,7 +296,7 @@ export default {
       this.nonEditableCols.concat(this.currentKey.primary);
     }
 
-    // this.echoColOrTag();
+    this.echoColOrTag();
   },
   watch: {
     addStatus: {
@@ -320,22 +317,10 @@ export default {
           if(columns.includes(oldVal)){
             columns.splice(columns.indexOf(oldVal), 1);
           }
-
-          console.log(columns.indexOf(oldVal),'打印');
-          // columns.splice(columns.indexOf(oldVal), 1);
-          // this.$store.commit("app/SET_MQTT_PARSER", oldparser);
         }
-
-        console.log(
-          this.colData.name,
-          val,
-          oldVal,
-          columns,
-          this.currentKey.primary,
-          oldparser,
-          this.$store.state.app.mqttParser,
-          "监听父组件主键"
-        );
+        if(val==this.colData.name){
+          this.columnChecked = true;
+        }
       },
     },
   },

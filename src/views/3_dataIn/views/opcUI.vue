@@ -684,7 +684,6 @@ export default {
   mounted() {
     if (this.tagName == "mqtt") {
       this.constmqttCols = this.dbsource[0].parser.fields;
-      console.log(this.constMqttparser,'mqtt编辑回显');
     }
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
@@ -909,7 +908,6 @@ export default {
             }
           }
         }
-        console.log(querystr, "querystr");
         if (data.authentication.value == "certificates") {
           data.authentication.alternatives[2].params.forEach((val) => {
             querystr += val.value ? `${val.name}=${val.value}&` : "";
@@ -963,7 +961,6 @@ export default {
         }
         if (this.tagName == "mqtt") {
           this.$refs.mqtt.submit();
-          console.log(this.$refs.mqtt, "mqtt");
           if (this.$refs.mqtt) {
             if (this.$refs.mqtt.showSuperTip) {
               Message({
@@ -1118,7 +1115,6 @@ export default {
       }
     },
     searchDatas: debounce(function (e) {
-      console.log('搜索');
       try {
         let data = this.dbsource[0];
         let endpoint = data.options.endpoint.value;
