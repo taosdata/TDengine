@@ -736,7 +736,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
 
   code = tdbTbcGet(pCur, (const void **)&pKey, &nKey, NULL, NULL);
   if (code < 0) {
-    tdbError("tdb/remove-free-page: tbc get failed with ret: %d.", code);
+    // tdbError("tdb/remove-free-page: tbc get failed with ret: %d.", code);
     tdbTbcClose(pCur);
     return 0;
   }
@@ -754,7 +754,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
 }
 
 static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
-  // TODO: Allocate a page from the free list
+  // Allocate a page from the free list
   return tdbPagerRemoveFreePage(pPager, ppgno, pTxn);
 }
 
