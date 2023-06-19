@@ -31,10 +31,10 @@ class TDTestCase:
         tdSql.query(f"select histogram(`columns`, 'user_input', '[1, 3, 5]', 0) from `information_schema`.`ins_tables`;")
         tdSql.query(f"select hyperloglog(`columns`) from `information_schema`.`ins_tables`;")
         tdSql.query(f"select sample(`columns`, 3) from `information_schema`.`ins_tables`;")
-        tdSql.query(f"select tail(`columns`, 3) from `information_schema`.`ins_tables`;")
-        tdSql.query(f"select unique(`columns`) from `information_schema`.`ins_tables`;")
         tdSql.query(f"select mode(`columns`) from `information_schema`.`ins_tables`;")
 
+        tdSql.error(f"select unique(`columns`) from `information_schema`.`ins_tables`;")
+        tdSql.error(f"select tail(`columns`, 3) from `information_schema`.`ins_tables`;")
         tdSql.error(f"select leastsquares(`columns`, 1, 1) from `information_schema`.`ins_tables`;")
         tdSql.error(f"select elapsed(`columns`) from `information_schema`.`ins_tables`;")
         tdSql.error(f"select interp(`columns`) from `information_schema`.`ins_tables` range(0, 1) every(1s) fill(null);")
