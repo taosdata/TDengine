@@ -2,5 +2,5 @@
 
 endpoint = "http://localhost:6055"
 
-token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjUsImlhdCI6MTY4MzcwMjkyOCwiZXhwIjoxNjg1NjY0MDAwLCJuYW1lIjoiQWdlbnQxIiwiY2x1c3Rlcl9pZCI6IjQwNzkyMzMyMTM5MTY4MTIzMDAiLCJ1c2VyX2lkIjoicm9vdCIsImNvbm5lY3RvcnMiOlsib3BjdWEiXX0.HiL8BGsmaZL7DtgmIdKKCaBZrZ5XDxjk5X3dNynnCf4"
+token = ""
 
