@@ -137,26 +137,26 @@ remove_taosx() {
 # install new taosx and taosx-agent
 install_taosx() {
     echo "install taosx..."
-    ${csudo}cp -r bin/* ${INSTALL_DIR}
+    ${csudo}cp -fr bin/* ${INSTALL_DIR}
     check_and_create_directory "${TAOSX_ROOT_DIR}/plugins"
     echo "install plugins to ${TAOSX_ROOT_DIR}/plugins..."
-    ${csudo}cp -r plugins/* ${TAOSX_ROOT_DIR}/plugins
+    ${csudo}cp -fr plugins/* ${TAOSX_ROOT_DIR}/plugins
     ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
     echo "install service file to ${SERVICE_CONFIG_DIR}..."
-    ${csudo}cp -r etc/systemd/system/* ${SERVICE_CONFIG_DIR}
+    ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
 
     check_and_create_directory "${CONFIG_DIR}"
     # copy config to /etc/taos
     if [ -f ${CONFIG_DIR}/agent.toml ]; then
-        ${csudo}cp ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
+        ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
     else
-       ${csudo}cp ./etc/taos/agent.toml ${CONFIG_DIR}/
+       ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/
     fi
-    echo "install tom file to ${CONFIG_DIR}..."
+    echo "install toml file to ${CONFIG_DIR}..."
     if [ -f ${CONFIG_DIR}/explorer.toml ]; then
-        ${csudo}cp ./etc/taos/explorer.toml ${CONFIG_DIR}/explorer.toml.new
+        ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/explorer.toml.new
     else
-       ${csudo}cp ./etc/taos/explorer.toml ${CONFIG_DIR}/
+       ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/
     fi
 }
 
