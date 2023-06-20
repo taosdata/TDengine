@@ -24,12 +24,19 @@ extern "C" {
 
 /* Exposed Handle */
 typedef struct STFileSystem STFileSystem;
+typedef struct STFSBgTask   STFSBgTask;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 
 typedef enum {
   TSDB_FEDIT_COMMIT = 1,  //
   TSDB_FEDIT_MERGE
 } EFEditT;
+
+typedef enum {
+  TSDB_BG_TASK_MERGER = 1,
+  TSDB_BG_TASK_RETENTION,
+  TSDB_BG_TASK_COMPACT,
+} EFSBgTaskT;
 
 /* Exposed APIs */
 // open/close
@@ -45,8 +52,29 @@ int64_t tsdbFSAllocEid(STFileSystem *fs);
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *fs);
 int32_t tsdbFSEditAbort(STFileSystem *fs);
+// background task
+int32_t tsdbFSScheduleBgTask(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void *arg, int64_t *taskid);
+int32_t tsdbFSWaitBgTask(STFileSystem *fs, int64_t taskid);
+int32_t tsdbFSWaitAllBgTask(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
+
+struct STFSBgTask {
+  EFSBgTaskT type;
+  int32_t (*run)(void *arg);
+  void *arg;
+
+  TdThreadCond done[1];
+  int32_t      numWait;
+
+  int64_t taskid;
+  int64_t scheduleTime;
+  int64_t launchTime;
+  int64_t finishTime;
+
+  struct STFSBgTask *prev;
+  struct STFSBgTask *next;
+};
 
 /* Exposed Structs */
 struct STFileSystem {
@@ -55,9 +83,15 @@ struct STFileSystem {
   int32_t       state;
   int64_t       neid;
   EFEditT       etype;
-  bool          mergeTaskOn;
   TFileSetArray fSetArr[1];
   TFileSetArray fSetArrTmp[1];
+
+  // background task queue
+  TdThreadMutex mutex[1];
+  int64_t       taskid;
+  int32_t       bgTaskNum;
+  STFSBgTask    bgTaskQueue[1];
+  STFSBgTask   *bgTaskRunning;
 };
 
 #ifdef __cplusplus

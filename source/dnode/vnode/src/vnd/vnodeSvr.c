@@ -509,7 +509,9 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME || pMsg->msgType == TDMT_VND_TMQ_CONSUME_PUSH) && !syncIsReadyForRead(pVnode->sync)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_VND_TMQ_CONSUME ||
+       pMsg->msgType == TDMT_VND_TMQ_CONSUME_PUSH) &&
+      !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -565,8 +567,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
-//    case TDMT_VND_TMQ_CONSUME:
-//      return tqProcessPollReq(pVnode->pTq, pMsg);
+      //    case TDMT_VND_TMQ_CONSUME:
+      //      return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_WALINFO:
       return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
@@ -609,7 +611,9 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
 }
 
-extern int32_t vnodeAsyncRentention(SVnode *pVnode, int64_t now);
+extern int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now);
+extern int32_t vnodeSyncRetention(SVnode *pVnode, int64_t now);
+
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t     code = 0;
   SVTrimDbReq trimReq = {0};
@@ -622,10 +626,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 
   vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
 
-  // process
-  vnodeAsyncRentention(pVnode, trimReq.timestamp);
-  tsem_wait(&pVnode->canCommit);
-  tsem_post(&pVnode->canCommit);
+  code = vnodeSyncRetention(pVnode, trimReq.timestamp);
 
 _exit:
   return code;
@@ -650,7 +651,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
-  vnodeAsyncRentention(pVnode, ttlReq.timestamp);
+  vnodeSyncRetention(pVnode, ttlReq.timestamp);
 
 end:
   taosArrayDestroy(tbUids);

@@ -48,15 +48,23 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   tsem_init(&fs[0]->canEdit, 0, 1);
   fs[0]->state = TSDB_FS_STATE_NONE;
   fs[0]->neid = 0;
-  fs[0]->mergeTaskOn = false;
   TARRAY2_INIT(fs[0]->fSetArr);
   TARRAY2_INIT(fs[0]->fSetArrTmp);
+
+  // background task queue
+  taosThreadMutexInit(fs[0]->mutex, NULL);
+  fs[0]->bgTaskQueue->next = fs[0]->bgTaskQueue;
+  fs[0]->bgTaskQueue->prev = fs[0]->bgTaskQueue;
 
   return 0;
 }
 
 static int32_t destroy_fs(STFileSystem **fs) {
   if (fs[0] == NULL) return 0;
+  taosThreadMutexDestroy(fs[0]->mutex);
+
+  ASSERT(fs[0]->bgTaskNum == 0);
+
   TARRAY2_DESTROY(fs[0]->fSetArr, NULL);
   TARRAY2_DESTROY(fs[0]->fSetArrTmp, NULL);
   tsem_destroy(&fs[0]->canEdit);
@@ -595,24 +603,17 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
   code = commit_edit(fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (fs->etype == TSDB_FEDIT_MERGE) {
-    ASSERT(fs->mergeTaskOn);
-    fs->mergeTaskOn = false;
-  }
-
-  // check if need to merge
-  if (fs->tsdb->pVnode->config.sttTrigger > 1 && fs->mergeTaskOn == false) {
+  // schedule merge
+  if (fs->tsdb->pVnode->config.sttTrigger != 1) {
     STFileSet *fset;
     TARRAY2_FOREACH_REVERSE(fs->fSetArr, fset) {
       if (TARRAY2_SIZE(fset->lvlArr) == 0) continue;
 
-      SSttLvl *lvl0 = TARRAY2_FIRST(fset->lvlArr);
-      if (lvl0->level != 0 || TARRAY2_SIZE(lvl0->fobjArr) < fs->tsdb->pVnode->config.sttTrigger) continue;
+      SSttLvl *lvl = TARRAY2_FIRST(fset->lvlArr);
+      if (lvl->level != 0 || TARRAY2_SIZE(lvl->fobjArr) < fs->tsdb->pVnode->config.sttTrigger) continue;
 
-      code = vnodeScheduleTaskEx(1, tsdbMerge, fs->tsdb);
+      code = tsdbFSScheduleBgTask(fs, TSDB_BG_TASK_MERGER, tsdbMerge, fs->tsdb, NULL);
       TSDB_CHECK_CODE(code, lino, _exit);
-
-      fs->mergeTaskOn = true;
 
       break;
     }
@@ -706,5 +707,137 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
     taosMemoryFreeClear(fsetArr[0]);
     fsetArr[0] = NULL;
   }
+  return 0;
+}
+
+const char *gFSBgTaskName[] = {NULL, "MERGE", "RETENTION", "COMPACT"};
+
+static int32_t tsdbFSRunBgTask(void *arg) {
+  STFileSystem *fs = (STFileSystem *)arg;
+
+  ASSERT(fs->bgTaskRunning != NULL);
+
+  fs->bgTaskRunning->launchTime = taosGetTimestampMs();
+  fs->bgTaskRunning->run(fs->bgTaskRunning->arg);
+  fs->bgTaskRunning->finishTime = taosGetTimestampMs();
+
+  tsdbDebug("vgId:%d bg task:%s task id:%" PRId64 " finished, schedule time:%" PRId64 " launch time:%" PRId64
+            " finish time:%" PRId64,
+            TD_VID(fs->tsdb->pVnode), gFSBgTaskName[fs->bgTaskRunning->type], fs->bgTaskRunning->taskid,
+            fs->bgTaskRunning->scheduleTime, fs->bgTaskRunning->launchTime, fs->bgTaskRunning->finishTime);
+
+  taosThreadMutexLock(fs->mutex);
+
+  // free last
+  if (fs->bgTaskRunning->numWait > 0) {
+    taosThreadCondBroadcast(fs->bgTaskRunning->done);
+  } else {
+    taosThreadCondDestroy(fs->bgTaskRunning->done);
+    taosMemoryFree(fs->bgTaskRunning);
+  }
+  fs->bgTaskRunning = NULL;
+
+  // schedule next
+  if (fs->bgTaskNum > 0) {
+    // pop task from head
+    fs->bgTaskRunning = fs->bgTaskQueue->next;
+    fs->bgTaskRunning->prev->next = fs->bgTaskRunning->next;
+    fs->bgTaskRunning->next->prev = fs->bgTaskRunning->prev;
+    fs->bgTaskNum--;
+
+    vnodeScheduleTaskEx(1, tsdbFSRunBgTask, arg);
+  }
+
+  taosThreadMutexUnlock(fs->mutex);
+  return 0;
+}
+
+static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void *arg,
+                                        int64_t *taskid) {
+  // check if same task is on
+  if (fs->bgTaskRunning && fs->bgTaskRunning->type == type) {
+    return 0;
+  }
+
+  for (STFSBgTask *task = fs->bgTaskQueue->next; task != fs->bgTaskQueue; task = task->next) {
+    if (task->type == type) {
+      return 0;
+    }
+  }
+
+  // do schedule task
+  STFSBgTask *task = taosMemoryCalloc(1, sizeof(STFSBgTask));
+  if (task == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  taosThreadCondInit(task->done, NULL);
+
+  task->type = type;
+  task->run = run;
+  task->arg = arg;
+  task->scheduleTime = taosGetTimestampMs();
+  task->taskid = ++fs->taskid;
+
+  if (fs->bgTaskRunning == NULL && fs->bgTaskNum == 0) {
+    // launch task directly
+    fs->bgTaskRunning = task;
+    vnodeScheduleTaskEx(1, tsdbFSRunBgTask, fs);
+  } else {
+    // add to the queue tail
+    fs->bgTaskNum++;
+    task->next = fs->bgTaskQueue;
+    task->prev = fs->bgTaskQueue->prev;
+    task->prev->next = task;
+    task->next->prev = task;
+  }
+
+  if (taskid) *taskid = task->taskid;
+  return 0;
+}
+
+int32_t tsdbFSScheduleBgTask(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void *arg, int64_t *taskid) {
+  taosThreadMutexLock(fs->mutex);
+  int32_t code = tsdbFSScheduleBgTaskImpl(fs, type, run, arg, taskid);
+  taosThreadMutexUnlock(fs->mutex);
+  return code;
+}
+
+int32_t tsdbFSWaitBgTask(STFileSystem *fs, int64_t taskid) {
+  STFSBgTask *task = NULL;
+
+  taosThreadMutexLock(fs->mutex);
+
+  if (fs->bgTaskRunning && fs->bgTaskRunning->taskid == taskid) {
+    task = fs->bgTaskRunning;
+  } else {
+    for (STFSBgTask *taskt = fs->bgTaskQueue->next; taskt != fs->bgTaskQueue; taskt = taskt->next) {
+      if (taskt->taskid == taskid) {
+        task = taskt;
+        break;
+      }
+    }
+  }
+
+  if (task) {
+    task->numWait++;
+    taosThreadCondWait(task->done, fs->mutex);
+    task->numWait--;
+
+    if (task->numWait == 0) {
+      taosThreadCondDestroy(task->done);
+      taosMemoryFree(task);
+    }
+  }
+
+  taosThreadMutexUnlock(fs->mutex);
+  return 0;
+}
+
+int32_t tsdbFSWaitAllBgTask(STFileSystem *fs) {
+  taosThreadMutexLock(fs->mutex);
+
+  while (fs->bgTaskRunning) {
+    taosThreadCondWait(fs->bgTaskRunning->done, fs->mutex);
+  }
+
+  taosThreadMutexUnlock(fs->mutex);
   return 0;
 }
