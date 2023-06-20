@@ -4,7 +4,7 @@ set -e
 PREFIX="taos"
 xName="${PREFIX}x"
 INSTALL_DIR="/usr/bin"
-PLUGINS_ROOT_DIR="/usr/local/${xName}"
+TAOSX_ROOT_DIR="/usr/local/${xName}"
 CONFIG_DIR="/etc/${PREFIX}"
 SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
@@ -113,16 +113,16 @@ stop_explore_service(){
 # remove old taosx and taosx-agent
 remove_taosx() {
     stop_taosx_agent_service
-    if ！$(which taod &>/dev/null); then
+    if [ ! $(which taosd &>/dev/null) ]; then
       stop_taosx_service
       stop_explore_service
 
-      ${csudo}rm -rf ${INSTALL_DIR}/bin/${xName}
-      ${csudo}rm -rf ${INSTALL_DIR}/bin/${explorerName}
+      ${csudo}rm -rf ${INSTALL_DIR}/${xName}
+      ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
     fi
-    ${csudo}rm -rf ${INSTALL_DIR}/bin/${agentname}
-    ${csudo}rm -rf ${INSTALL_DIR}/plugins
-    ${csudo}rm -rf ${INSTALL_DIR}/uninstall.sh
+    ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 }
 
 

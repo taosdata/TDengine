@@ -4,7 +4,7 @@ set -e
 PREFIX="taos"
 xName="${PREFIX}x"
 INSTALL_DIR="/usr/bin"
-PLUGINS_ROOT_DIR="/usr/local/${xName}"
+TAOSX_ROOT_DIR="/usr/local/${xName}"
 CONFIG_DIR="/etc/${PREFIX}"
 SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
@@ -138,10 +138,10 @@ remove_taosx() {
 install_taosx() {
     echo "install taosx..."
     ${csudo}cp -r bin/* ${INSTALL_DIR}
-    check_and_create_directory "${PLUGINS_ROOT_DIR}/plugins"
-    echo "install plugins to ${PLUGINS_ROOT_DIR}/plugins..."
-    ${csudo}cp -r plugins/* ${PLUGINS_ROOT_DIR}/plugins
-    ${csudo}cp uninstall.sh ${PLUGINS_ROOT_DIR}
+    check_and_create_directory "${TAOSX_ROOT_DIR}/plugins"
+    echo "install plugins to ${TAOSX_ROOT_DIR}/plugins..."
+    ${csudo}cp -r plugins/* ${TAOSX_ROOT_DIR}/plugins
+    ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
     echo "install service file to ${SERVICE_CONFIG_DIR}..."
     ${csudo}cp -r etc/systemd/system/* ${SERVICE_CONFIG_DIR}
 
