@@ -201,10 +201,10 @@ def build_and_install_taosx_agent_on_linux(mode='release'):
 
 def make_tar_package(release_info):
     logging.info("making tar package")
-    shutil.copy(os.path.join(script_dir,"rmtaosX.sh"),release_dir)
+    shutil.copy(os.path.join(script_dir,"uninstall.sh"),release_dir)
     shutil.copy(os.path.join(script_dir,"install.sh"),release_dir)
     
-    os.chmod(os.path.join(release_dir,"rmtaosX.sh"),0o755)
+    os.chmod(os.path.join(release_dir,"uninstall.sh"),0o755)
     os.chmod(os.path.join(release_dir,"install.sh"),0o755)
     os.chmod(os.path.join(release_dir,"bin"),0o755)
     os.chmod(os.path.join(release_dir,"plugins"),0o755)

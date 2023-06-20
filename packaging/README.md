@@ -107,7 +107,7 @@ sudo systemctl stop taos-explorer
 sudo rmtaox
 ```
 - linux 下文件路径说明
-  1. taosx, taosx-gent, taos-explorer: /usr/local/taosX/bin
-  2. connectors: /usr/local/taosX/plugins
-  3. rmtaosX.sh:  /user/local/taosX/bin
-  4. config files: /etc/taosX/
+  1. taosx, taosx-gent, taos-explorer: /usr/bin
+  2. connectors: /usr/local/taosx/plugins
+  3. uninstall.sh:  /usr/local/taosx
+  4. config files: /etc/taos/
