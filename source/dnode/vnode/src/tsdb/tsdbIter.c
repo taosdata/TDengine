@@ -613,6 +613,8 @@ int32_t tsdbIterNext(STsdbIter *iter) {
       return tsdbSttTombIterNext(iter, NULL);
     case TSDB_ITER_TYPE_DATA_TOMB:
       return tsdbDataTombIterNext(iter, NULL);
+    case TSDB_ITER_TYPE_MEMT_TOMB:
+      return tsdbMemTombIterNext(iter, NULL);
     default:
       ASSERT(false);
   }

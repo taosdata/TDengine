@@ -1209,7 +1209,7 @@ _exit:
 }
 
 static int32_t tsdbDataFileDoWriteTombBlk(SDataFileWriter *writer) {
-  ASSERT(TARRAY2_SIZE(writer->tombBlkArray) == 0);
+  ASSERT(TARRAY2_SIZE(writer->tombBlkArray) > 0);
 
   int32_t code = 0;
   int32_t lino = 0;
