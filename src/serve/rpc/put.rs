@@ -36,7 +36,9 @@ impl PutStream {
         self,
     ) -> anyhow::Result<impl Stream<Item = Result<PutResult, Status>> + std::marker::Send> {
         // todo: directly use task detail instead of id.
-        dbg!(&self.task_id);
+        // dbg!(&self.task_id);
+        tracing::debug!("Put stream by id {}", self.task_id);
+
         let task = self
             .controller
             .get(self.task_id)
@@ -44,7 +46,7 @@ impl PutStream {
             .map_err(|err| Status::internal(err.to_string()))
             .unwrap()
             .unwrap();
-        dbg!(&task);
+        // dbg!(&task);
 
         let builder = TaosBuilder::from_dsn(&task.to)?;
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
@@ -55,6 +57,17 @@ impl PutStream {
         }
         let pool = builder.pool()?;
 
+        let cluster_id: i64 = if let Some(cluster_id) = task.task.labels.find("to_cluster") {
+            cluster_id.parse().map_err(|err| {
+                anyhow::format_err!("Cannot parse cluster id from \"{cluster_id}\": {err}")
+            })?
+        } else {
+            let taos = TaosBuilder::from_dsn(&task.to)?.build().await?;
+            taos.query_one("select id from information_schema.ins_cluster")
+                .await
+                .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
+                .unwrap()
+        };
         // return self.req.map_ok(|data| PutResult {
         //     app_metadata: data.app_metadata,
         // });
@@ -89,27 +102,25 @@ impl PutStream {
                 #[cfg(feature = "disable-enterprise-connector-validation")]
                 let license: Option<ConnectorLicense> = None;
                 #[cfg(not(feature = "disable-enterprise-connector-validation"))]
-                let license: Option<ConnectorLicense> = taos
-                    .query_one::<_, String>(&format!(
-                        "select {connector} from information_schema.ins_grants"
-                    ))
-                    .await
-                    .unwrap_or(None)
-                    .and_then(|s| serde_json::from_str(&s).ok());
+                let license: Option<ConnectorLicense> =
+                    if to_dsn.get("token").is_some() && to_dsn.protocol.is_some() {
+                        None
+                    } else {
+                        taos.query_one::<_, String>(&format!(
+                            "select {connector} from information_schema.ins_grants"
+                        ))
+                        .await
+                        .unwrap_or(None)
+                        .and_then(|s| serde_json::from_str(&s).ok())
+                    };
 
                 if let Some(license) = license {
                     if license.is_expired() {
                         anyhow::bail!(
-                    "Connector expired, please contact the database administrator for license"
-                )
-                    } else {
-                        if license.number == -1 {
-                            None
-                        } else {
-                            // Some(license)
-                            None
-                        }
+                            "Connector expired, please contact the database administrator for license"
+                        )
                     }
+                    None
                 } else {
                     None
                 }
@@ -118,13 +129,7 @@ impl PutStream {
             };
 
             let transferred = match connector {
-                Some(connector) => {
-                    let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
-                    let cluster_id: i64 = taos
-                        .query_one("select id from information_schema.ins_cluster")
-                        .await
-                        .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
-                        .unwrap();
+                Some(_) => {
                     self.controller
                         .transferred
                         .get(&(cluster_id, from_dsn.driver.clone()))
@@ -143,7 +148,7 @@ impl PutStream {
                 license: Option<ConnectorLicense>,
                 transferred: Option<Arc<ConnectorTransferred>>,
             ) -> anyhow::Result<()> {
-                dbg!(&task);
+                // dbg!(&task);
                 let from = task.from.parse().unwrap();
                 let mut stmt = Stmt::init(taos).context("Initialize STMT")?;
                 let worker = IpcStreamWorker::new(
@@ -155,7 +160,7 @@ impl PutStream {
                     transferred.as_deref(),
                 )
                 .unwrap();
-                dbg!(&task);
+                // dbg!(&task);
                 let parser: Option<Parser> = task
                     .parser
                     .as_ref()
