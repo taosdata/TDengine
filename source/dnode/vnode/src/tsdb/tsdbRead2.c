@@ -4674,7 +4674,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
 
   _err:
   tsdbError("failed to create data reader, code:%s %s", tstrerror(code), idstr);
-  tsdbReaderClose(*ppReader);
+  tsdbReaderClose2(*ppReader);
   *ppReader = NULL;  // reset the pointer value.
   return code;
 }
@@ -4716,8 +4716,8 @@ void tsdbReaderClose2(STsdbReader* pReader) {
       p = pReader->innerReader[1];
       clearSharedPtr(p);
 
-      tsdbReaderClose(pReader->innerReader[0]);
-      tsdbReaderClose(pReader->innerReader[1]);
+      tsdbReaderClose2(pReader->innerReader[0]);
+      tsdbReaderClose2(pReader->innerReader[1]);
     }
   }
 
@@ -4758,7 +4758,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   }
 
   qTrace("tsdb/reader-close: %p, untake snapshot", pReader);
-  tsdbUntakeReadSnap(pReader, pReader->pReadSnap, true);
+  tsdbUntakeReadSnap2(pReader, pReader->pReadSnap, true);
   pReader->pReadSnap = NULL;
 
   tsdbReleaseReader(pReader);
@@ -5676,6 +5676,8 @@ void tsdbUntakeReadSnap2(STsdbReader* pReader, STsdbReadSnap* pSnap, bool proact
     if (pSnap->pNode) taosMemoryFree(pSnap->pNode);
     if (pSnap->pINode) taosMemoryFree(pSnap->pINode);
     taosMemoryFree(pSnap);
+
+    tsdbFSDestroyRefSnapshot(&pReader->pfSetArray);
   }
   tsdbTrace("vgId:%d, untake read snapshot", TD_VID(pTsdb->pVnode));
 }

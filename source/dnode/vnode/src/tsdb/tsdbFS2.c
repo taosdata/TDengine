@@ -703,6 +703,7 @@ int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
 int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   if (fsetArr[0]) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
+    taosMemoryFreeClear(fsetArr[0]);
     fsetArr[0] = NULL;
   }
   return 0;
