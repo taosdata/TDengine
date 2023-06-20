@@ -196,7 +196,21 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
         } else {
           qSetStreamOpOpen(exec);
           if (streamTaskShouldPause(&pTask->status)) {
-            taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+            SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
+            if (qRes == NULL) {
+              taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+              terrno = TSDB_CODE_OUT_OF_MEMORY;
+              return -1;
+            }
+
+            qRes->type = STREAM_INPUT__DATA_BLOCK;
+            qRes->blocks = pRes;
+            code = streamTaskOutputResultBlock(pTask, qRes);
+            if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
+              taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+              taosFreeQitem(qRes);
+              return code;
+            }
             return 0;
           }
         }

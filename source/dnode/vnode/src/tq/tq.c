@@ -779,9 +779,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SStreamTask* pSateTask = pTask;
-    // if (pTask->info.fillHistory) {
-    //   pSateTask = *(SStreamTask**)taosHashGet(pTq->pStreamMeta->pTasks, &pTask->streamTaskId.taskId, sizeof(int32_t));
-    // }
+    if (pTask->info.fillHistory) {
+      pSateTask = *(SStreamTask**)taosHashGet(pTq->pStreamMeta->pTasks, &pTask->streamTaskId.taskId, sizeof(int32_t));
+    }
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pSateTask, false, -1, -1);
     if (pTask->pState == NULL) {
       return -1;
@@ -798,9 +798,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     SStreamTask* pSateTask = pTask;
-    // if (pTask->info.fillHistory) {
-    //   pSateTask = *(SStreamTask**)taosHashGet(pTq->pStreamMeta->pTasks, &pTask->streamTaskId.taskId, sizeof(int32_t));
-    // }
+    if (pTask->info.fillHistory) {
+      pSateTask = *(SStreamTask**)taosHashGet(pTq->pStreamMeta->pTasks, &pTask->streamTaskId.taskId, sizeof(int32_t));
+    }
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pSateTask, false, -1, -1);
     if (pTask->pState == NULL) {
       return -1;
@@ -1134,9 +1134,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     pTask->status.taskStatus = TASK_STATUS__DROPPING;
     tqDebug("s-task:%s set status to be dropping", pTask->id.idStr);
     // transfer the ownership of executor state
-    // todo(liuyao)
-    // streamTaskReleaseState(pTask);
-    // streamTaskReloadState(pStreamTask);
+    streamTaskReleaseState(pTask);
+    streamTaskReloadState(pStreamTask);
     streamMetaSaveTask(pMeta, pTask);
     streamMetaSaveTask(pMeta, pStreamTask);
 
@@ -1183,10 +1182,9 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, int64_t sversion, char* msg, int
     return -1;
   }
   // transfer the ownership of executor state
-  // todo(liuyao)
-  // streamTaskReleaseState(pTask);
-  // SStreamTask* pStreamTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->streamTaskId.taskId);
-  // streamTaskReloadState(pStreamTask);
+  streamTaskReleaseState(pTask);
+  SStreamTask* pStreamTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->streamTaskId.taskId);
+  streamTaskReloadState(pStreamTask);
 
   ASSERT(pTask->streamTaskId.taskId != 0);
   pTask->status.transferState = true;  // persistent data?
