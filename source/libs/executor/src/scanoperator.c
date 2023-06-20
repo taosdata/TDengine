@@ -2330,6 +2330,7 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
   void* pBuff = taosMemoryCalloc(1, len);
   pInfo->stateStore.updateInfoSerialize(pBuff, len, pInfo->pUpdateInfo);
   pInfo->stateStore.streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME), pBuff, len);
+  taosMemoryFree(pBuff);
 }
 
 void streamScanReloadState(SOperatorInfo* pOperator) {
@@ -2342,6 +2343,7 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
   pInfo->stateStore.streamStateGetInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME), &pBuff, &len);
   SUpdateInfo* pUpInfo = pInfo->stateStore.updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0);
   int32_t      code = pInfo->stateStore.updateInfoDeserialize(pBuff, len, pUpInfo);
+  taosMemoryFree(pBuff);
   if (code == TSDB_CODE_SUCCESS && pInfo->pUpdateInfo) {
     if (pInfo->pUpdateInfo->minTS < 0) {
       pInfo->stateStore.updateInfoDestroy(pInfo->pUpdateInfo);

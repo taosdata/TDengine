@@ -2747,6 +2747,7 @@ void streamIntervalReloadState(SOperatorInfo* pOperator) {
     int32_t code = pInfo->statestore.streamStateGetInfo(pInfo->pState, STREAM_INTERVAL_OP_STATE_NAME,
                                                         strlen(STREAM_INTERVAL_OP_STATE_NAME), &pBuf, &size);
     TSKEY ts = *(TSKEY*)pBuf;
+    taosMemoryFree(pBuf);
     pInfo->statestore.streamStateReloadInfo(pInfo->pState, ts);
   }
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -3677,6 +3678,7 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
     setSessionOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].win.ekey, pSeKeyBuf[i].groupId, &winInfo);
     compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted);
   }
+  taosMemoryFree(pBuf);
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.reloadStreamStateFn) {
@@ -4288,6 +4290,7 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
       compactStateWindow(pOperator, &curInfo.winInfo, &nextInfo.winInfo, pInfo->pStUpdated, pInfo->pStDeleted);
     }
   }
+  taosMemoryFree(pBuf);
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.reloadStreamStateFn) {
