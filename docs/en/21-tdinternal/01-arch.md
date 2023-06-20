@@ -160,9 +160,7 @@ When a vnode starts, its role (leader, follower) is uncertain, and the data is i
 
 ### Synchronous Replication
 
-For scenarios with strong data consistency requirements, asynchronous data replication is not enough, because there is a small probability of data loss. So, TDengine provides a synchronous replication mechanism for users to choose. When creating a database, in addition to specifying the number of replicas by parameter `replica`, user also needs to specify a new parameter `strict`. If `strict` is set to 1, it means the leader vnode can return success to the client only after over half of the followers vnodes have confirmed the data has been replicated to them. If any follower vnode is offline and the leader vnode can't get confirmation from over half of follower vnodes, the leader vnode will return failure to the client.
-
-With synchronous replication, the system performance will decrease and latency will increase. Because metadata needs strong consistency, the default policy for data replication between mnodes is synchronous mode.
+In scenarios where higher data consistency is required, the eventual consistency provided by asynchronous data replication may not meet the requirements. Therefore, TDengine 3.0 utilizes the mechanism of synchronous replication, which is based on the standard implementation of the RAFT protocol. Each time the leader vnode forwards data to other replicas, it waits for a consensus among more than half of the replicas (including itself) before notifying the application of a successful write operation. If a consensus from more than half of the replicas is not obtained within a certain period of time, the leader vnode returns an error to the application.
 
 ## Caching and Persistence
 
