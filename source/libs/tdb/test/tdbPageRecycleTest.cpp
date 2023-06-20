@@ -464,13 +464,15 @@ TEST(TdbPageRecycleTest, DISABLED_simple_insert1) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
+static const int nDataConst = 256 * 19;
+
 // TEST(TdbPageRecycleTest, DISABLED_seq_insert) {
 TEST(TdbPageRecycleTest, seq_insert) {
   int           ret = 0;
   TDB          *pEnv = NULL;
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc;
-  int           nData = 256;
+  int           nData = nDataConst;
   TXN          *txn = NULL;
   int const     pageSize = 4 * 1024;
 
@@ -480,11 +482,13 @@ TEST(TdbPageRecycleTest, seq_insert) {
   ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
+  printf("tdb opened\n");
   // Create a database
   compFunc = tKeyCmpr;
   ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
+  printf("tb opened\n");
   // 1, insert nData kv
   {
     char      key[64];
@@ -542,7 +546,7 @@ TEST(TdbPageRecycleTest, seq_delete) {
   TDB          *pEnv = NULL;
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc;
-  int           nData = 256;
+  int           nData = nDataConst;
   TXN          *txn = NULL;
   int const     pageSize = 4 * 1024;
 
@@ -614,7 +618,7 @@ TEST(TdbPageRecycleTest, recycly_insert) {
   TDB          *pEnv = NULL;
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  int           nData = 256;
+  int           nData = nDataConst;
   TXN          *txn = NULL;
   int const     pageSize = 4 * 1024;
 
@@ -639,7 +643,8 @@ TEST(TdbPageRecycleTest, recycly_insert) {
     // start a transaction
     tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
-    for (int iData = nData; iData < nData + nData; iData++) {
+    // for (int iData = nData; iData < nData + nData; iData++) {
+    for (int iData = 0; iData < nData; iData++) {
       sprintf(key, "key%03d", iData);
       sprintf(val, "value%03d", iData);
 
