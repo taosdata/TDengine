@@ -899,16 +899,16 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   int32_t i = 0, j = 0;
   while (i < pBlkArray->size && j < numOfTables) {
     pBrinBlk = &pBlkArray->data[i];
-    if (pBrinBlk->minTbid.suid > pReader->suid) {  // not include the queried table/super table, quit the loop
-      break;
-    }
-
     if (pBrinBlk->maxTbid.suid < pReader->suid) {
       i += 1;
       continue;
     }
 
-    ASSERT(pBrinBlk->minTbid.suid >= pReader->suid && pBrinBlk->maxTbid.suid <= pReader->suid);
+    if (pBrinBlk->minTbid.suid > pReader->suid) {  // not include the queried table/super table, quit the loop
+      break;
+    }
+
+    ASSERT(pBrinBlk->minTbid.suid <= pReader->suid && pBrinBlk->maxTbid.suid >= pReader->suid);
 
     if (pBrinBlk->minTbid.uid < pList->tableUidList[j]) {
       i += 1;
