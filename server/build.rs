@@ -9,14 +9,14 @@ fn main() -> shadow_rs::SdResult<()> {
     let target_dir = manifest_dir.join("..").join("target");
 
     let cus_name = std::env::var("CUS_NAME").unwrap_or("TDengine".to_string());
-    let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("taos".to_string());
+    let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("taosX".to_string());
     let cus_name = if cus_name.trim().is_empty() {
         "TDengine"
     } else {
         cus_name.trim()
     };
     let cus_prompt = if cus_prompt.trim().is_empty() {
-        "taos"
+        "taosX"
     } else {
         cus_prompt.trim()
     };

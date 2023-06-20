@@ -115,10 +115,10 @@ export default {
         endpoint: [
           {
             required: true,
-            message: this.$t('taoscluster.endpointRequired')
-          }
-        ]
-      }
+            message: this.$t("taoscluster.endpointRequired"),
+          },
+        ],
+      },
     };
   },
   created() {
@@ -135,18 +135,19 @@ export default {
           cancelButtonText: this.$t("cancel"),
           type: "warning",
         }
-      ).then(() => {
+      ).then(async () => {
         try {
-          sendSQLReq(`drop dnode ${data.id}`).then((res) => {
-            if (res.code == 0) {
-              Message.success(this.$t("delSucc"));
-              this.getAllDnodes();
-            }
-          }).catch(err=>{
-            err.desc && Message.error(err.desc);
-          });
-        } catch (error) {
-          console.log(error, "删除");
+          let res = await sendSQLReq(`drop dnode ${data.id}`);
+          if (res.message || res.desc) {
+            Message.error(res.message || res.desc);
+            return;
+          }
+          if (res.code == 0) {
+            Message.success(this.$t("delSucc"));
+            this.getAllDnodes();
+          }
+        } catch (err) {
+          Message.error(err.message || err.desc);
         }
       });
     },
@@ -157,30 +158,22 @@ export default {
         this.$refs.endinput.blur();
       });
     },
-    async addDnodes() {
-      try {
-
-        return await sendSQLReq(
-          `create dnode \`${this.ruleForm.endpoint}\`;`
-        ).then((res) => {
+    addDnodes() {
+      return sendSQLReq(`create dnode \`${this.ruleForm.endpoint}\`;`)
+        .then((res) => {
           if (res.code == 0) {
             this.getAllDnodes();
             this.dialog = false;
-
           }
+        })
+        .catch((err) => {
+          Message.error(err.message || err.desc);
         });
-      } catch (err) { 
-        err && err.desc & Message.error(err.desc);
-
-        return Promise.reject(err);
-      }
     },
-    async getAllDnodes() {
-      try {
-        return await sendSQLReq(
-          `select * from information_schema.ins_dnodes;`
-        ).then((res) => {
-          this.dnodesList= res.data.map((data) => {
+    getAllDnodes() {
+      return sendSQLReq(`select * from information_schema.ins_dnodes;`)
+        .then((res) => {
+          this.dnodesList = res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
                 return [item[0], data[index]];
@@ -188,10 +181,10 @@ export default {
             );
           });
           this.$emit("sendData", this.dnodesList);
+        })
+        .catch((err) => {
+          Message.error(err.message || err.desc);
         });
-      } catch (error) {
-        console.log(error);
-      }
     },
   },
 };

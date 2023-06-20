@@ -167,7 +167,7 @@ export default {
         (item) => item.value !== "NCHAR" && item.value != "VARCHAR"
       ),
       constcols: ["ts", "topic", "qos"],
-      
+
       params: {
         name: "",
         alias: "",
@@ -314,12 +314,34 @@ export default {
           if (this.colData.name == oldVal) {
             this.columnChecked = false;
           }
-          if(columns.includes(oldVal)){
+          if (columns.includes(oldVal)) {
             columns.splice(columns.indexOf(oldVal), 1);
           }
         }
-        if(val==this.colData.name){
+        if (val == this.colData.name) {
           this.columnChecked = true;
+        }
+        console.log(val, oldVal, "主键---00");
+      },
+    },
+    colData: {
+      deep: true,
+      handler(val, oldVal) {
+        console.log(val, oldVal, "coldata");
+      },
+    },
+    "$store.state.app.mqttParser": {
+      deep: true,
+      handler(val) {
+        if (val.model.columns.includes(this.colData.name)) {
+          this.columnChecked = true;
+        }else{
+          this.columnChecked = false;
+        }
+        if (val.model.tags.includes(this.colData.name)) {
+          this.tagChecked = true;
+        }else{
+          this.tagChecked = false;
         }
       },
     },

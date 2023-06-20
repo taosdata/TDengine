@@ -9,14 +9,20 @@
         :disabled="requestIng"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="add" size="small" icon="el-icon-plus"
-        >{{$t('taosuser.createbackup')}}</el-button
-      >
+      <el-button plain @click="add" size="small" icon="el-icon-plus">{{
+        $t("taosuser.createbackup")
+      }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="150" prop="id"></el-table-column>
-      <el-table-column :label="$t('taosuser.database')" prop="database"></el-table-column>
-      <el-table-column :label="$t('taosuser.createtime')" prop="created_at"></el-table-column>
+      <el-table-column
+        :label="$t('taosuser.database')"
+        prop="database"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taosuser.createtime')"
+        prop="created_at"
+      ></el-table-column>
       <el-table-column :label="$t('taosuser.lastbackup')" prop="status">
         <template slot-scope="scope">
           <div class="status-operation">
@@ -98,14 +104,18 @@
             @click="stop(scope.row, scope.$index)"
             icon="el-icon-tingzhi"
           ></el-button> -->
-          <el-tooltip placement="top" :content="$t('taosuser.dataRestoration')" effect="light">  
+          <el-tooltip
+            placement="top"
+            :content="$t('taosuser.dataRestoration')"
+            effect="light"
+          >
             <el-button
-             :disabled="scope.row.status.toLowerCase() == 'running'"
-             plain
-             size="small"
-             @click="restorBackup(scope.row, scope.$index)"
-             icon="el-icon-refresh-right"
-           ></el-button>
+              :disabled="scope.row.status.toLowerCase() == 'running'"
+              plain
+              size="small"
+              @click="restorBackup(scope.row, scope.$index)"
+              icon="el-icon-refresh-right"
+            ></el-button>
           </el-tooltip>
           <el-button
             plain
@@ -130,8 +140,8 @@
       :title="dialogTitle"
       width="600px"
       :visible.sync="dialog"
-      @close='closeDialog'
-      :destroy-on-close='true'
+      @close="closeDialog"
+      :destroy-on-close="true"
     >
       <el-form
         :model="ruleForm"
@@ -152,7 +162,12 @@
             </el-option>
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('taosuser.database')" prop="db" required v-if="!isEditDialog">
+        <el-form-item
+          :label="$t('taosuser.database')"
+          prop="db"
+          required
+          v-if="!isEditDialog"
+        >
           <el-select v-model="ruleForm.db" placeholder="">
             <el-option
               v-for="db in dblist"
@@ -197,12 +212,12 @@ import {
   getBackupList,
   addBackupData,
   editBackup,
-  restorBackupData
+  restorBackupData,
 } from "@/api/explorer/backup";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import { Message } from "element-ui";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { validDir } from '@/utils/validate';
+import { validDir } from "@/utils/validate";
 export default {
   data() {
     return {
@@ -252,12 +267,12 @@ export default {
         directory: [
           {
             required: true,
-            message: this.$t('taosuser.directoryRequired'),
+            message: this.$t("taosuser.directoryRequired"),
           },
           {
             validator: this.checkDirectory,
-            trigger: "blur",  
-          }
+            trigger: "blur",
+          },
         ],
       },
       topicList: [],
@@ -281,10 +296,10 @@ export default {
   },
   methods: {
     handlePageChange() {},
-    closeDialog(){
-       this.$refs.ruleForm.resetFields();
-       this.$refs.ruleForm.clearValidate()
-        this.dialog=false
+    closeDialog() {
+      this.$refs.ruleForm.resetFields();
+      this.$refs.ruleForm.clearValidate();
+      this.dialog = false;
     },
     del(data) {
       this.$confirm(
@@ -296,17 +311,27 @@ export default {
           type: "warning",
         }
       ).then(async () => {
-        await excuteDel(data.id).then((res) => {
+        try {
+          let res = await excuteDel(data.id);
+          if (res.message) {
+            Message({
+              type: "error",
+              message: res.message,
+            });
+            return;
+          }
           Message({
             type: "success",
-            message: this.$t('delSucc'),
+            message: this.$t("delSucc"),
           });
           this.getBackData();
-        });
+        } catch (err) {
+          Message.error(err.message || err.desc);
+        }
       });
     },
     add() {
-      this.dialogTitle = this.$t('taosuser.createbackup');
+      this.dialogTitle = this.$t("taosuser.createbackup");
       this.isEditDialog = false;
       this.dialog = true;
       this.ruleForm.db = "";
@@ -316,7 +341,7 @@ export default {
       this.getBackData();
     },
     edit(data) {
-      this.dialogTitle = this.$t('taosuser.changebackup');
+      this.dialogTitle = this.$t("taosuser.changebackup");
       this.isEditDialog = true;
       this.dialog = true;
       this.ruleForm.db = data.database;
@@ -325,22 +350,28 @@ export default {
     },
     async start(val, data) {
       try {
-        await excuteStart(data.id).then((res) => {
-          Message.success(this.$t('operateSucc'));
-          this.getBackData();
-        });
+        let res = await excuteStart(data.id);
+        if (res.message || res.desc) {
+          Message.error(res.message || res.desc);
+          return;
+        }
+        Message.success(this.$t("operateSucc"));
+        this.getBackData();
       } catch (err) {
-        return Promise.reject(err);
+        Message.error(err.message || err.desc);
       }
     },
     async stop(val, data) {
       try {
-        await excuteStop(data.id).then((res) => {
-          Message.success(this.$t('operateSucc'));
-          this.getBackData();
-        });
+        let res = await excuteStop(data.id);
+        if (res.message || res.desc) {
+          Message.error(res.message || res.desc);
+          return;
+        }
+        Message.success(this.$t("operateSucc"));
+        this.getBackData();
       } catch (err) {
-        return Promise.reject(err);
+         Message.error(err.message || err.desc);
       }
     },
     //切换状态
@@ -370,10 +401,9 @@ export default {
             cancelButtonText: this.$t("cancel"),
             type: "warning",
           }
-        ).then(()=>{
+        ).then(() => {
           this.stop(val, data);
-        })
-        
+        });
       }
     },
     submit() {
@@ -390,12 +420,15 @@ export default {
         let params = {
           trigger: this.ruleForm.cycle,
         };
-        await editBackup(id, params).then((res) => {
-          this.getBackData();
-        });
+        let res = await editBackup(id, params);
+        if (res.message || res.desc) {
+          Message.error(res.message || res.desc);
+          return;
+        }
+        this.getBackData();
         this.dialog = false;
       } catch (err) {
-        return Promise.reject(err);
+        Message.error(err.message || err.desc);
       }
     },
     async addBackup() {
@@ -410,29 +443,34 @@ export default {
           to: `local:${this.ruleForm.directory}`,
           from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.db}`,
         };
-        await addBackupData(this.clusterid, params).then((res) => {
-          if (res && Object.hasOwnProperty.call(res, "id")) {
-            Message.success(this.$t('createSucc'));
-            this.getBackData();
-            this.dialog = false;
-          }
-        });
+        let res = await addBackupData(this.clusterid, params);
+        if (res.message || res.desc) {
+          Message.error(res.message);
+          return;
+        }
+        if (res && Object.hasOwnProperty.call(res, "id")) {
+          Message.success(this.$t("createSucc"));
+          this.getBackData();
+          this.dialog = false;
+        }
       } catch (err) {
-        Message.error(err);
-        return Promise.reject(err);
+        Message.error(err.message || err.desc);
       }
     },
     async getBackData() {
       try {
         this.requestIng = true;
         let id = localStorage.getItem("local_clusterID");
-        await getBackupList(id).then((result) => {
-          this.topicList = result.map((item) => {
-            item["database"] = item.from.split("/").at(-1);
-
-            return item;
-          });
+        let result = await getBackupList(id);
+        if (result.message || result.desc) {
+          Message.error(result.message || result.desc);
+          return;
+        }
+        this.topicList = result.map((item) => {
+          item["database"] = item.from.split("/").at(-1);
+          return item;
         });
+
         this.$parent.$parent.$parent.taosxDisabled = false;
         this.requestIng = false;
       } catch (error) {
@@ -452,11 +490,11 @@ export default {
       }
     },
     checkDirectory(_, value, callback) {
-      console.log('hshsh',value);
+      console.log("hshsh", value);
       if (!validDir(value)) {
-        return callback(new Error(this.$t('formatWrong')));
+        return callback(new Error(this.$t("formatWrong")));
       } else {
-        callback()
+        callback();
       }
     },
     async restorBackup(row) {
@@ -471,17 +509,20 @@ export default {
           to: row.from,
           from: row.to,
         };
-        await restorBackupData(this.clusterid, params).then((res) => {
-          if (res && Object.hasOwnProperty.call(res, "id")) {
-            Message.success(this.$t('operateSucc'));
-            this.getBackData();
-          }
-        });
+        let res = await restorBackupData(this.clusterid, params);
+        if (res.message) {
+          Message.error(res.message);
+          return;
+        }
+        if (res && Object.hasOwnProperty.call(res, "id")) {
+          Message.success(this.$t("operateSucc"));
+          this.getBackData();
+        }
       } catch (err) {
         Message.error(err);
         return Promise.reject(err);
       }
-    }
+    },
   },
   created() {
     this.getDatabases();
