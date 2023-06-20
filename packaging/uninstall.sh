@@ -113,7 +113,8 @@ stop_explore_service(){
 # remove old taosx and taosx-agent
 remove_taosx() {
     stop_taosx_agent_service
-    if [ ! $(which taosd &>/dev/null) ]; then
+    if [ "$(command -v taosd)" = "" ]; then
+      echo "remove taosx/taos-explorer"
       stop_taosx_service
       stop_explore_service
 
