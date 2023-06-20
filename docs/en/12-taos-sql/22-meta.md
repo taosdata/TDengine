@@ -81,7 +81,7 @@ Provides information about user-created databases. Similar to SHOW DATABASES.
 | 3   |       ntables        | INT              | Number of standard tables and subtables (not including supertables) |
 | 4   |       vgroups        | INT              | Number of vgroups. It should be noted that `vnodes` is a TDengine keyword and needs to be escaped with ` when used as a column name.                            |
 | 6   |       replica        | INT              | Number of replicas. It should be noted that `replica` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                            |
-| 7   |        strict        | BINARY(3)        | Strong consistency. It should be noted that `strict` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                          |
+| 7   |        strict        | BINARY(4)        | Strong consistency. It should be noted that `strict` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                          |
 | 8   |       duration       | INT              | Duration for storage of single files. It should be noted that `duration` is a TDengine keyword and needs to be escaped with ` when used as a column name.                          |
 | 9   |         keep         | INT              | Data retention period. It should be noted that `keep` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                      |
 | 10  |        buffer        | INT              | Write cache size per vnode, in MB. It should be noted that `buffer` is a TDengine keyword and needs to be escaped with ` when used as a column name.            |
