@@ -1026,8 +1026,8 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
       break;
     }
   }
-  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
   if (pState != NULL && idx != -1) {
+    SBackendCfWrapper*              wrapper = pState->pTdbState->pBackendCfWrapper;
     rocksdb_column_family_handle_t* cf = NULL;
     taosThreadRwlockRdlock(&wrapper->rwLock);
     cf = wrapper->pHandle[idx];
