@@ -2648,17 +2648,18 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
 }
 
 int32_t doInitMemDataIter(STsdbReader* pReader, STbData** pData, STableBlockScanInfo* pBlockScanInfo, TSDBKEY* pKey,
-                          SMemTable* pMem, STbDataIter** pIter, const char* type) {
+                          SMemTable* pMem, SIterInfo* pIter, const char* type) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t backward = (!ASCENDING_TRAVERSE(pReader->order));
+  pIter->hasVal = false;
 
   if (pMem != NULL) {
     *pData = tsdbGetTbDataFromMemTable(pMem, pReader->suid, pBlockScanInfo->uid);
 
     if ((*pData) != NULL) {
-      code = tsdbTbDataIterCreate((*pData), pKey, backward, pIter);
+      code = tsdbTbDataIterCreate((*pData), pKey, backward, &pIter->iter);
       if (code == TSDB_CODE_SUCCESS) {
-        pBlockScanInfo->iter.hasVal = (tsdbTbDataIterGet(*pIter) != NULL);
+        pIter->hasVal = (tsdbTbDataIterGet(pIter->iter) != NULL);
 
         tsdbDebug("%p uid:%" PRIu64 ", check data in %s from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
                   "-%" PRId64 " %s",
@@ -2692,14 +2693,14 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
   STbData* d = NULL;
 
   int32_t code = doInitMemDataIter(pReader, &d, pBlockScanInfo, &startKey, pReader->pReadSnap->pMem,
-                                   &pBlockScanInfo->iter.iter, "mem");
+                                   &pBlockScanInfo->iter, "mem");
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   STbData* di = NULL;
   code = doInitMemDataIter(pReader, &di, pBlockScanInfo, &startKey, pReader->pReadSnap->pIMem,
-                           &pBlockScanInfo->iiter.iter, "imem");
+                           &pBlockScanInfo->iiter, "imem");
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
