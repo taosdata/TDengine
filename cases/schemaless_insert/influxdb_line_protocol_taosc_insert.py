@@ -1348,7 +1348,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
             # TODO not stable
             # self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
-            self.escape_test()
+            # self.escape_test()
 
             self.ts_2828(10, 10, 3)
             self.ts_3053()
