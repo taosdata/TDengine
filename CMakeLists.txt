@@ -24,6 +24,8 @@ include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
 
 
+set(TD_DEPS_DIR "x86")
+
 if (TD_LINUX)
   IF (TD_ARM_64 OR TD_ARM_32)
     set(TD_DEPS_DIR "arm")
