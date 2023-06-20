@@ -629,9 +629,9 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb* pTsdb, uint6
     pMTree->idStr = idStr;
 
     if (!pMTree->backward) {  // asc
-        tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
+      tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
     } else {  // desc
-        tRBTreeCreate(&pMTree->rbt, tLDataIterDescCmprFn);
+      tRBTreeCreate(&pMTree->rbt, tLDataIterDescCmprFn);
     }
 
     pMTree->pLoadInfo = pBlockLoadInfo;
@@ -639,6 +639,11 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb* pTsdb, uint6
     pMTree->ignoreEarlierTs = false;
 
     // todo handle other level of stt files, here only deal with the first level stt
+    int32_t size = ((STFileSet*)pCurrentFileSet)->lvlArr[0].size;
+    if (size == 0) {
+      goto _end;
+    }
+
     SSttLvl* pSttLevel = ((STFileSet*)pCurrentFileSet)->lvlArr[0].data[0];
     ASSERT(pSttLevel->level == 0);
 
