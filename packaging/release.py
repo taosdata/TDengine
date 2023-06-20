@@ -527,7 +527,7 @@ def test_handle_windows(process):
         print(f"Invalid -t param: {process}. Please enter valid input.")
 
 def test_handle(process):
-    if release_info.OS.lower == "windows":
+    if release_info.OS.lower() == "windows":
         test_handle_windows(process)
     else:
         if "explorer" == process:
