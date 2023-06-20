@@ -16,12 +16,10 @@
 #include "vnd.h"
 #include "vnodeInt.h"
 
-#ifdef USE_DEV_CODE
 extern int32_t tsdbPreCommit(STsdb *pTsdb);
 extern int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo);
 extern int32_t tsdbCommitCommit(STsdb *pTsdb);
 extern int32_t tsdbCommitAbort(STsdb *pTsdb);
-#endif
 
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
@@ -309,11 +307,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-#ifdef USE_DEV_CODE
   tsdbPreCommit(pVnode->pTsdb);
-#else
-  tsdbPrepareCommit(pVnode->pTsdb);
-#endif
 
   metaPrepareAsyncCommit(pVnode->pMeta);
 
@@ -446,11 +440,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
 
-#ifdef USE_DEV_CODE
   code = tsdbCommitBegin(pVnode->pTsdb, pInfo);
-#else
-  code = tsdbCommit(pVnode->pTsdb, pInfo);
-#endif
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (!TSDB_CACHE_NO(pVnode->config)) {
@@ -474,11 +464,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-#ifdef USE_DEV_CODE
   code = tsdbCommitCommit(pVnode->pTsdb);
-#else
-  code = tsdbFinishCommit(pVnode->pTsdb);
-#endif
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (VND_IS_RSMA(pVnode)) {
