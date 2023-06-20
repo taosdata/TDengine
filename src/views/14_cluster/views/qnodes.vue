@@ -1,9 +1,14 @@
 <template>
   <div class="qnode-block">
     <div class="flexEnd">
-      <el-button plain @click="add" size="small" icon="el-icon-plus" :disabled='!isDisable'>{{
-        $t("add")
-      }}</el-button>
+      <el-button
+        plain
+        @click="add"
+        size="small"
+        icon="el-icon-plus"
+        :disabled="!isDisable"
+        >{{ $t("add") }}</el-button
+      >
     </div>
     <el-table style="margin-top: 20px" :data="qnodesList" size="mini">
       <el-table-column
@@ -22,7 +27,7 @@
             size="small"
             @click="del(scope.row)"
             icon="el-icon-delete"
-            :disabled='!isDisable'
+            :disabled="!isDisable"
           ></el-button>
         </template>
       </el-table-column>
@@ -41,8 +46,8 @@
       :title="$t('taoscluster.addqnodes')"
       width="600px"
       :visible.sync="dialog"
-      @close='closeDialog'
-      :destroy-on-close='true'
+      @close="closeDialog"
+      :destroy-on-close="true"
     >
       <el-form
         :model="ruleForm"
@@ -59,7 +64,7 @@
           <el-select
             v-model="ruleForm.DNodes"
             placeholder=""
-            style="width:100%;"
+            style="width: 100%"
           >
             <el-option
               v-for="item in dnodes"
@@ -108,7 +113,7 @@ export default {
   data() {
     return {
       qnodesList: [],
-      isDisable:localStorage.getItem('username')==='root',
+      isDisable: localStorage.getItem("username") === "root",
     };
   },
   computed: {
@@ -129,42 +134,42 @@ export default {
     },
     del(data) {
       this.$confirm(
-        this.$t('isDel').replace('{isDelName}',data.endpoint),
-        this.$t('wraning'),
+        this.$t("isDel").replace("{isDelName}", data.endpoint),
+        this.$t("wraning"),
         {
-          confirmButtonText: this.$t('confirm'),
-          cancelButtonText: this.$t('cancel'),
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
           type: "warning",
         }
       ).then(() => {
-        sendSQLReq(`drop qnode on dnode ${data.id};`).then((res) => {
-          if (res.code == 0) {
-            Message.success(this.$t('delSucc'));
-            this.getAllQnodes();
-          }
-        });
+        sendSQLReq(`drop qnode on dnode ${data.id};`)
+          .then((res) => {
+            if (res.code == 0) {
+              Message.success(this.$t("delSucc"));
+              this.getAllQnodes();
+            }
+          })
+          .catch((err) => {
+            Message.error(err.message || err.desc);
+          });
       });
     },
-    async addQnodes() {
-      try {
-        return await sendSQLReq(
-          `create qnode  on dnode ${this.ruleForm.DNodes};`
-        ).then((res) => {
+    addQnodes() {
+      return sendSQLReq(`create qnode  on dnode ${this.ruleForm.DNodes};`)
+        .then((res) => {
           if (res.code == 0) {
+            Message.success(this.$t("addSucc"));
             this.getAllQnodes();
             this.dialog = false;
           }
+        })
+        .catch((err) => {
+          Message.error(err.message || err.desc);
         });
-      } catch (err) {
-        err&&err.desc&Message.error(err.desc)
-        return Promise.reject(err);
-      }
     },
-    async getAllQnodes() {
-      try {
-        return await sendSQLReq(
-          `select * from information_schema.ins_qnodes;`
-        ).then((res) => {
+    getAllQnodes() {
+      return sendSQLReq(`select * from information_schema.ins_qnodes;`)
+        .then((res) => {
           this.qnodesList = res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
@@ -172,10 +177,10 @@ export default {
               })
             );
           });
+        })
+        .catch((err) => {
+          Message.error(err.message || err.desc);
         });
-      } catch (error) {
-        console.log(error);
-      }
     },
   },
   watch: {
@@ -198,18 +203,18 @@ export default {
     width: 100%;
   }
 }
-.flexEnd{
+.flexEnd {
   position: absolute;
-  top:15px;
+  top: 15px;
   z-index: 9999;
   right: 10px;
-  .el-button{
+  .el-button {
     border: none;
     background: transparent;
   }
 }
-.qnode-block{
-  max-height:150px;
+.qnode-block {
+  max-height: 150px;
   overflow: auto;
 }
 </style>

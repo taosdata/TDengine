@@ -570,7 +570,7 @@ import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt, debounce, deepClone } from "@/utils/index";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
-import MqttConnector from "../components/mqttConnector.vue";
+import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 export default {
   name: "DbSourceUI",
@@ -908,7 +908,6 @@ export default {
             }
           }
         }
-        console.log(querystr, "querystr");
         if (data.authentication.value == "certificates") {
           data.authentication.alternatives[2].params.forEach((val) => {
             querystr += val.value ? `${val.name}=${val.value}&` : "";
@@ -962,7 +961,6 @@ export default {
         }
         if (this.tagName == "mqtt") {
           this.$refs.mqtt.submit();
-          console.log(this.$refs.mqtt, "mqtt");
           if (this.$refs.mqtt) {
             if (this.$refs.mqtt.showSuperTip) {
               Message({
@@ -1117,7 +1115,6 @@ export default {
       }
     },
     searchDatas: debounce(function (e) {
-      console.log('搜索');
       try {
         let data = this.dbsource[0];
         let endpoint = data.options.endpoint.value;

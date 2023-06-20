@@ -1,9 +1,14 @@
 <template>
   <div class="mnode-block">
     <div class="flexEnd">
-      <el-button plain @click="add" size="small" icon="el-icon-plus" :disabled='!isDisable'>{{
-        $t("add")
-      }}</el-button>
+      <el-button
+        plain
+        @click="add"
+        size="small"
+        icon="el-icon-plus"
+        :disabled="!isDisable"
+        >{{ $t("add") }}</el-button
+      >
     </div>
     <el-table style="margin-top: 20px" :data="mnodesList" size="mini">
       <el-table-column
@@ -11,7 +16,10 @@
         prop="endpoint"
         width="400"
       ></el-table-column>
-      <el-table-column :label="$t('taoscluster.role')" prop="role"></el-table-column>
+      <el-table-column
+        :label="$t('taoscluster.role')"
+        prop="role"
+      ></el-table-column>
       <el-table-column
         :label="$t('taoscluster.status')"
         prop="status"
@@ -29,8 +37,8 @@
             size="small"
             @click="del(scope.row)"
             icon="el-icon-delete"
-            :disabled='!isDisable'
-            v-if="scope.row.role!=='leader'"
+            :disabled="!isDisable"
+            v-if="scope.row.role !== 'leader'"
           ></el-button>
         </template>
       </el-table-column>
@@ -49,8 +57,8 @@
       :title="$t('taoscluster.addmnodes')"
       width="600px"
       :visible.sync="dialog"
-      @close='closeDialog'
-      :destroy-on-close='true'
+      @close="closeDialog"
+      :destroy-on-close="true"
     >
       <el-form
         :model="ruleForm"
@@ -67,7 +75,7 @@
           <el-select
             v-model="ruleForm.DNodes"
             placeholder=""
-            style="width:100%;"
+            style="width: 100%"
           >
             <el-option
               v-for="item in dnodes"
@@ -115,7 +123,7 @@ export default {
   },
   data() {
     return {
-      isDisable:localStorage.getItem('username')==='root',
+      isDisable: localStorage.getItem("username") === "root",
       mnodesList: [],
     };
   },
@@ -134,56 +142,60 @@ export default {
     handlePageChange() {},
     del(data) {
       this.$confirm(
-        this.$t('isDel').replace('{isDelName}',data.endpoint),
-        this.$t('wraning'),
+        this.$t("isDel").replace("{isDelName}", data.endpoint),
+        this.$t("wraning"),
         {
-          confirmButtonText: this.$t('confirm'),
-          cancelButtonText: this.$t('cancel'),
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
           type: "warning",
         }
       ).then(() => {
         sendSQLReq(`drop mnode on dnode ${data.id};`)
           .then((res) => {
             if (res.code == 0) {
-              Message.success(this.$t('delSucc'));
+              Message.success(this.$t("delSucc"));
               this.getAllMnodes();
             }
           })
           .catch((err) => {
-            return Promise.reject(err);
+            Message.error(err.message || err.desc);
           });
       });
     },
     async addMnodes() {
       try {
-        return await sendSQLReq(
+        let res = await sendSQLReq(
           `create mnode on dnode ${this.ruleForm.DNodes};`
-        ).then((res) => {
-          if (res.code == 0) {
-            this.getAllMnodes();
-            this.dialog = false;
-          }
-        });
+        );
+        if (res.message || res.desc) {
+          Message.error(res.message || res.desc);
+          return;
+        }
+        Message.success(this.$t("addSucc"));
+        this.getAllMnodes();
+        this.dialog = false;
       } catch (err) {
-        err&&err.desc&Message.error(err.desc)
-        return Promise.reject(err);
+        Message.error(err.message || err.desc);
       }
     },
     async getAllMnodes() {
       try {
-        return await sendSQLReq(
+        let res = await sendSQLReq(
           `select * from information_schema.ins_mnodes;`
-        ).then((res) => {
-          this.mnodesList = res.data.map((data) => {
-            return Object.fromEntries(
-              res.column_meta.map((item, index) => {
-                return [item[0], data[index]];
-              })
-            );
-          });
+        );
+        if (res.message || res.desc) {
+          Message.error(res.message || res.desc);
+          return;
+        }
+        this.mnodesList = res.data.map((data) => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
         });
-      } catch (error) {
-        console.log(error);
+      } catch (err) {
+        Message.error(err.message || err.desc);
       }
     },
   },
@@ -198,18 +210,18 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.flexEnd{
+.flexEnd {
   position: absolute;
-  top:15px;
+  top: 15px;
   z-index: 9999;
   right: 10px;
-  .el-button{
+  .el-button {
     border: none;
     background: transparent;
   }
 }
-.mnode-block{
-  max-height:150px;
+.mnode-block {
+  max-height: 150px;
   overflow: auto;
 }
 </style>

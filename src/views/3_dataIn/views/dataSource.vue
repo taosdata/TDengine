@@ -169,7 +169,7 @@ import { Message } from "element-ui";
 import { getDatain } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
-import MqttParserDialog from "../components/mqttConnector.vue";
+import MqttParserDialog from "../components/newMqttConnector.vue";
 import Agents from "../components/agents.vue";
 import { deepClone } from "@/utils";
 export default {
