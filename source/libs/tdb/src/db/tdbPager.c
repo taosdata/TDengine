@@ -703,8 +703,10 @@ void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) {
 int tdbPagerInsertFreePage(SPager *pPager, SPgno pgno, TXN *pTxn) {
   int code = 0;
 
+  // tdbError("tdb/insert-free-page: tbc get page: %d.", pgno);
   code = tdbTbInsert(pPager->pEnv->pFreeDb, &pgno, sizeof(pgno), NULL, 0, pTxn);
   if (code < 0) {
+    tdbError("tdb/insert-free-page: tb insert failed with ret: %d.", code);
     return -1;
   }
 
@@ -742,6 +744,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
   }
 
   *pPgno = *(SPgno *)pKey;
+  // tdbError("tdb/remove-free-page: tbc get page: %d.", *pPgno);
 
   code = tdbTbcDelete(pCur);
   if (code < 0) {
@@ -760,6 +763,7 @@ static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
 
 static int tdbPagerAllocNewPage(SPager *pPager, SPgno *ppgno) {
   *ppgno = ++pPager->dbFileSize;
+  // tdbError("tdb/alloc-new-page: %d.", *ppgno);
   return 0;
 }
 

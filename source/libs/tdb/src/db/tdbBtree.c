@@ -860,10 +860,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
     if (!TDB_BTREE_PAGE_IS_LEAF(pNews[0])) {
       ((SIntHdr *)(pParent->pData))->pgno = ((SIntHdr *)(pNews[0]->pData))->pgno;
-    } else {
-      // printf("tdb/balance: btree balance delete pgno: %d.\n", TDB_PAGE_PGNO(pNews[0]));
-      tdbPagerInsertFreePage(pBt->pPager, TDB_PAGE_PGNO(pNews[0]), pTxn);
-    }
+    }  // else {
+    // printf("tdb/balance: btree balance delete pgno: %d.\n", TDB_PAGE_PGNO(pNews[0]));
+    tdbPagerInsertFreePage(pBt->pPager, TDB_PAGE_PGNO(pNews[0]), pTxn);
+    //}
   }
 
   for (int i = 0; i < 3; i++) {
