@@ -59,7 +59,11 @@ WantedBy=multi-user.target
 
 ### 登录
 
-打开浏览器，输入正确的用户名和密码（注：这里的用户名和密码是所连接的 TDengine 中的用户名和密码）
+在 TDengine 管理系统的登录页面，输入正确的用户名和密码后，点击登录按钮，即可登录。
+
+说明：
+- 这里的用户，需要在所连接的 TDengine 中创建，TDengine 默认的用户名和密码为`root/taosdata`;
+- 在 TDengine 中创建用户时，默认会设置用户的 SYSINFO 属性值为1, 表示该用户可以查看系统信息，只有 SYSINFO 属性为 1 的用户才能正常登录 TDengine 管理系统。
 
 ![登录界面](./pics/login.png)
 
