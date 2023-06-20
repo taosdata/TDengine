@@ -588,7 +588,7 @@ pub(super) fn get_string_vec_from_param_or_file(
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .partition(|v| v.starts_with("@"));
-        dbg!(&files, &node_config);
+        // dbg!(&files, &node_config);
         for file in files {
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
