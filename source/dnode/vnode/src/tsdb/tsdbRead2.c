@@ -4746,6 +4746,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   if (pReader->status.pTableMap != NULL) {
     destroyAllBlockScanInfo(pReader->status.pTableMap);
     clearBlockScanInfoBuf(&pReader->blockInfoBuf);
+    pReader->status.pTableMap = NULL;
   }
 
   if (pReader->pFileReader != NULL) {

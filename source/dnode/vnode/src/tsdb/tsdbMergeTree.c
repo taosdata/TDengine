@@ -355,7 +355,9 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pReader, int32
   return code;
 }
 
-void tLDataIterClose(SLDataIter *pIter) { /*taosMemoryFree(pIter); */}
+void tLDataIterClose2(SLDataIter *pIter) {
+  tsdbSttFileReaderClose(&pIter->pReader);
+}
 
 void tLDataIterNextBlock(SLDataIter *pIter, const char *idStr) {
   int32_t step = pIter->backward ? -1 : 1;
