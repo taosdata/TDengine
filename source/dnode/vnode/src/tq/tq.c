@@ -1440,7 +1440,9 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     return code;
   }
   SStreamTask* pHistoryTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->historyTaskId.taskId);
-  code = tqProcessTaskPauseImpl(pTq->pStreamMeta, pHistoryTask);
+  if (pHistoryTask) {
+    code = tqProcessTaskPauseImpl(pTq->pStreamMeta, pHistoryTask);
+  }
   return code;
 }
 
@@ -1486,7 +1488,9 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   }
 
   SStreamTask* pHistoryTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->historyTaskId.taskId);
-  code = tqProcessTaskResumeImpl(pTq, pHistoryTask, sversion, pReq->igUntreated);
+  if (pHistoryTask) {
+    code = tqProcessTaskResumeImpl(pTq, pHistoryTask, sversion, pReq->igUntreated);
+  }
   return code;
 }
 
