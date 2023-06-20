@@ -15,11 +15,23 @@ SET(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR})
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
+
+
+
 include(${TD_SUPPORT_DIR}/cmake.platform)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
 
+
+if (TD_LINUX)
+  IF (TD_ARM_64 OR TD_ARM_32)
+    set(TD_DEPS_DIR "arm")
+  ELSE() 
+    set(TD_DEPS_DIR "x86")
+  ENDIF()
+endif()
+  
 # contrib
 add_subdirectory(contrib)
 

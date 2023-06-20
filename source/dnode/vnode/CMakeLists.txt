@@ -101,12 +101,12 @@ ENDIF(NOT ${TD_LINUX})
 IF (TD_LINUX)
     target_include_directories(
       vnode 
-      PUBLIC "${TD_SOURCE_DIR}/deps/rocksdb_static"
+      PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
     )
 
     target_link_directories(
         vnode 
-        PUBLIC "${TD_SOURCE_DIR}/deps/rocksdb_static"
+        PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
     )
 target_link_libraries(
     vnode
