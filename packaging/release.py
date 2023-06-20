@@ -63,14 +63,18 @@ def GetCpuType():
     elif arch == '64bit':
         if machine.startswith('arm'):
             type = 'arm64'
-        elif machine in ('x86_64', 'amd64'):
+        elif machine in ('x86_64', 'amd64',  'AMD64'):
             type =  'x64'
         elif machine == 'aarch64':
             type =  'AArch64'
         else:
             type =  f'Unknown architecture: {machine}'
+            print(f'Get cpu type failed! {machine}')
+            sys.exit()
     else:
         type =  f'Unknown architecture: {arch}'
+        print(f'Get cpu type failed! {arch}')
+        sys.exit()
     return type
 
 def get_taosx_version():
