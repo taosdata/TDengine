@@ -53,6 +53,26 @@ class ReleaseInfo:
                     print(f"{attr:<20}: {value}")
 release_info = ReleaseInfo(platform.system())
 
+def GetCpuType():
+    type = ""
+    arch, _ = platform.architecture()
+    machine = platform.machine()
+
+    if arch == '32bit':
+        type =  '32'
+    elif arch == '64bit':
+        if machine.startswith('arm'):
+            type = 'arm64'
+        elif machine in ('x86_64', 'amd64'):
+            type =  'x64'
+        elif machine == 'aarch64':
+            type =  'AArch64'
+        else:
+            type =  f'Unknown architecture: {machine}'
+    else:
+        type =  f'Unknown architecture: {arch}'
+    return type
+
 def get_taosx_version():
     version = ""
     cargo_toml_path = os.path.join(taosx_dir, "Cargo.toml")
@@ -69,9 +89,9 @@ def get_install_path():
 
 def get_package_name():
     if release_info.OS == 'Windows':  # Windows操作系统
-        return  f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-installer'
+        return  f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
     else:
-        return f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-installer'
+        return f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
 
 def get_taosx_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统
@@ -131,6 +151,7 @@ def init_build_info():
     release_info.InstallPath = get_install_path()
     release_info.ReleasePath = os.path.abspath(os.path.join(script_dir, "..", "release"))
     release_info.TaosXVersion = get_taosx_version()
+    release_info.CpuType = GetCpuType()
     if args.build_mode:
         release_info.DefaultBuildMode = args.build_mode
     if args.cpu_type:
@@ -152,9 +173,8 @@ def init_build_info():
     now = datetime.now()
     release_info.BuildTime = now.strftime("%Y-%m-%d %H:%M:%S")
     branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('ascii')
-    release_info.Branch = branch;
+    release_info.Branch = branch
     release_info.Commit = subprocess.check_output(['git', 'rev-list', '-1', branch]).strip().decode('ascii')
-
 
 def print_param():
     print('RELEASE INFO')

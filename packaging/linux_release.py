@@ -40,12 +40,8 @@ def release(release_info,build_info):
 def init_release_dir(release_info):
     logging.info("init_release_dir")
     global release_dir
-    release_dir = os.path.join(top_dir,"release","taosx-{0}-linux-x64".format(release_info.TaosXVersion))
-    if os.path.exists(release_dir):
-        logging.info("release_dir %s already exists" % release_dir)
-    else:
-        logging.info("release_dir %s does not exist, create it" % release_dir)
-        os.system("mkdir -p %s" % release_dir)          
+    release_dir = os.path.join(top_dir,"release","taosx-{0}-linux-{1}".format(release_info.TaosXVersion, release_info.CpuType))
+    check_directory(release_dir)
         
 def build_and_install_opc_on_linux(release_info,mode='release'):
     logging.info("building taosx-opc")
