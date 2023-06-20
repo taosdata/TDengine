@@ -27,9 +27,9 @@ pub struct TaskStatus {
 
 impl TaskStatus {
     pub fn new(
-        id: i64, 
-        at: DateTime<Utc>, 
-        action: String, 
+        id: i64,
+        at: DateTime<Utc>,
+        action: String,
         message: Option<String>,
         context: Option<String>,
     ) -> Self {
@@ -72,12 +72,12 @@ pub fn spawn_runner(
     let (status_tx, status_rx) = flume::unbounded();
     let endpoint = endpoint.to_string();
     let token = token.to_string();
-    let tasks_orgin: Arc<DashMap<i64, Worker>> = Arc::new(DashMap::new());
-    let tasks = tasks_orgin.clone();
+    let tasks_origin: Arc<DashMap<i64, Worker>> = Arc::new(DashMap::new());
+    let tasks = tasks_origin.clone();
     (
         tokio::task::spawn_blocking(move || {
             let port_pool = taosx_core::utils::port_pool::PortPool::default();
-            
+
             // let stop_notify = tokio::sync::Notify::new();
             // let scheduler = Arc::new()
             loop {
@@ -168,7 +168,7 @@ pub fn spawn_runner(
                 }
             }
         }),
-        tasks_orgin,
+        tasks_origin,
         tx,
         status_rx,
     )

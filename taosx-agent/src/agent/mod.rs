@@ -337,7 +337,7 @@ impl Client {
                 match action {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
-                        info!("Start task {:?}", &task);
+                        info!("Start task {}", task.id);
                         sender.send(Action::Run(task)).unwrap();
                     }
                     "cancel" => {

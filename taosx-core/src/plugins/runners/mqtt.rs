@@ -429,7 +429,7 @@ mod tests {
             let mut interval = tokio::time::interval(Duration::from_millis(200));
             loop {
                 interval.tick().await;
-                dbg!(&metrics);
+                // dbg!(&metrics);
             }
         });
         let opts = TaskOpts {
