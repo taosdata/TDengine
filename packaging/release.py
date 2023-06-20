@@ -442,7 +442,7 @@ def package_on_windows():
                             f'/DTaosXName="{taosx_name}" '
                             f'{script_dir}/taosx.iss /O{taosx_dir}/release', shell=True)
     if result.returncode != 0:
-        print(f'package {release_info.PackageNam} failed')
+        print(f'package {release_info.PackageName} failed')
         sys.exit(1)
 
 
