@@ -1,4 +1,5 @@
 use std::{
+    fmt::Debug,
     io::Write,
     pin::Pin,
     sync::{atomic::Ordering, Arc},
@@ -14,12 +15,9 @@ use tokio::{
     task::{JoinError, JoinHandle},
 };
 
-use crate::{LegacyMetrics, LegacyTodo, QueryOpts, TargetOpts, TimeRange};
+use crate::{LegacyMetrics, QueryOpts, TargetOpts, TimeRange};
 
-use super::{
-    sync_normal_table_schema, sync_single_table, sync_super_table_schema_with_subs,
-    sync_super_table_schema_with_subs_without_pool,
-};
+use super::{sync_normal_table_schema, sync_single_table, sync_super_table_schema_with_subs};
 
 pub enum Todo {
     Meta(
@@ -38,12 +36,28 @@ pub enum Todo {
 /// Legacy table synchronization scheduler.
 pub struct Scheduler {
     workers: u32,
+    #[allow(dead_code)]
     source: TaosPool,
+    #[allow(dead_code)]
     target: TaosPool,
     opts: Arc<TargetOpts>,
     sender: Sender<Todo>,
     receiver: Receiver<Todo>,
     handles: Vec<JoinHandle<anyhow::Result<()>>>,
+}
+
+impl Debug for Scheduler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Scheduler")
+            .field("workers", &self.workers)
+            .field("source", &"..")
+            .field("target", &"..")
+            .field("opts", &self.opts)
+            .field("sender", &self.sender)
+            .field("receiver", &self.receiver)
+            .field("handles", &self.handles)
+            .finish()
+    }
 }
 
 async fn worker(
@@ -139,6 +153,7 @@ async fn worker(
             Todo::Data(stable, table, time_range, sender) => {
                 let query = QueryOpts {
                     time_range,
+                    unit: query.unit,
                     limit: query.limit,
                     select_from_stable: query.select_from_stable,
                 };
@@ -223,15 +238,15 @@ impl Scheduler {
         self.sender.send(todo)
     }
 
-    pub fn abort(&self) {
-        for h in self.handles.iter() {
-            h.abort();
-        }
-    }
+    // pub fn abort(&self) {
+    //     for h in self.handles.iter() {
+    //         h.abort();
+    //     }
+    // }
 
-    pub fn is_empty(&self) -> bool {
-        self.receiver.is_empty()
-    }
+    // pub fn is_empty(&self) -> bool {
+    //     self.receiver.is_empty()
+    // }
 }
 impl std::future::Future for Scheduler {
     type Output = Result<(), JoinError>;
