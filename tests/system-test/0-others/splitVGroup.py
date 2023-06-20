@@ -243,7 +243,7 @@ class TDTestCase:
 
         # warning performance
         diff = (spend1 - spend2)*100/spend1
-        tdLog.info("spend1=%.2fs spend2=%.2f diff=%.1f%"%(spend1, spend2, diff))
+        tdLog.info("spend1=%.2fs spend2=%.2fs diff=%.1f%%"%(spend1, spend2, diff))
         if spend1 > spend2 and diff > 20:
             tdLog.info("warning: the diff for performance after spliting is over 20%")
 
