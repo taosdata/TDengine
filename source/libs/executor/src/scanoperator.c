@@ -2320,6 +2320,9 @@ static void destroyStreamScanOperatorInfo(void* param) {
 
 void streamScanReleaseState(SOperatorInfo* pOperator) {
   SStreamScanInfo* pInfo = pOperator->info;
+  if (!pInfo->pState) {
+    return;
+  }
   if (!pInfo->pUpdateInfo) {
     return;
   }
@@ -2331,6 +2334,9 @@ void streamScanReleaseState(SOperatorInfo* pOperator) {
 
 void streamScanReloadState(SOperatorInfo* pOperator) {
   SStreamScanInfo* pInfo = pOperator->info;
+  if (!pInfo->pState) {
+    return;
+  }
   void*   pBuff = NULL;
   int32_t len = 0;
   pInfo->stateStore.streamStateGetInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME), &pBuff, &len);
