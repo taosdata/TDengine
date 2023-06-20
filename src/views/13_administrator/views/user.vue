@@ -1,21 +1,9 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button
-        plain
-        @click="showDialog"
-        size="small"
-        icon="el-icon-plus"
-        :disabled="!isDisable"
-        >{{ $t("add") }}</el-button
-      >
+      <el-button plain @click="showDialog" size="small" icon="el-icon-plus" :disabled='!isDisable'>{{ $t("add") }}</el-button>
     </div>
-    <el-table
-      style="margin-top: 20px"
-      :data="usersList"
-      size="mini"
-      v-loading="loading"
-    >
+    <el-table style="margin-top: 20px" :data="usersList" size="mini" v-loading="loading">
       <el-table-column :label="$t('userName')" prop="name"></el-table-column>
       <!-- <el-table-column
         :label="$t('topic.super')"
@@ -65,75 +53,35 @@
           <span>{{ scope | filterVal }}</span>
         </template>
       </el-table-column> -->
-      <el-table-column
-        :label="$t('taosuser.createtime')"
-        prop="create_time"
-      ></el-table-column>
+      <el-table-column :label="$t('taosuser.createtime')" prop="create_time"></el-table-column>
 
       <el-table-column :label="$t('taosuser.action')" width="150">
         <template slot-scope="scope">
-          <el-switch
-            :value="scope.row.enable == 1"
-            :disabled="
-              scope.row.super === 1 || !currentUser.super || !isDisable
-            "
-            @change="changeState(scope.row)"
-            active-color="#13ce66"
-            inactive-color="#6D7074"
-          >
-          </el-switch
-          >&nbsp;&nbsp;
-          <el-button
-            plain
-            size="small"
-            @click="edit(scope.row)"
-            :disabled="
-              scope.row.super === 1 || !currentUser.super || !isDisable
-            "
-            icon="el-icon-edit"
-          ></el-button>
-          <el-button
-            plain
-            size="small"
-            @click="del(scope.row)"
-            :disabled="
-              scope.row.super === 1 || !currentUser.super || !isDisable
-            "
-            icon="el-icon-delete"
-          ></el-button>
+          <el-switch :value="scope.row.enable == 1" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
+            @change="changeState(scope.row)" active-color="#13ce66" inactive-color="#6D7074">
+          </el-switch>&nbsp;&nbsp;
+          <el-button plain size="small" @click="edit(scope.row)" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
+            icon="el-icon-edit"></el-button>
+          <el-button plain size="small" @click="del(scope.row)" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
+            icon="el-icon-delete"></el-button>
         </template>
       </el-table-column>
     </el-table>
-    <el-pagination
-      class="pagination"
-      layout="total, prev, pager, next"
-      :current-page.sync="currentPage"
-      :page-size="pageSize"
-      :hide-on-single-page="true"
-      :total="total"
-      @current-change="handlePageChange"
-    ></el-pagination>
+    <el-pagination class="pagination" layout="total, prev, pager, next" :current-page.sync="currentPage"
+      :page-size="pageSize" :hide-on-single-page="true" :total="total" @current-change="handlePageChange"></el-pagination>
 
-    <el-dialog
-      align="center"
-      :title="$t('taosuser.adduser')"
-      width="550px"
-      :visible.sync="dialog"
-    >
-      <AddUser @close="closeDialog" :status="dialog" v-if="dialog"></AddUser>
+    <el-dialog align="center" :title="$t('taosuser.adduser')" width="550px" :visible.sync="dialog">
+      <AddUser @close="closeDialog" :status='dialog' v-if='dialog'></AddUser>
     </el-dialog>
 
-    <el-dialog
-      align="center"
-      :title="$t('taosuser.edituser')"
-      width="550px"
-      :visible.sync="editDialog"
-    >
+    <el-dialog align="center" :title="$t('taosuser.edituser')" width="550px" :visible.sync="editDialog">
       <EditUser :user="this.editUser" @close="closeEditDialog"></EditUser>
     </el-dialog>
+
   </div>
 </template>
 <script>
+
 import AddUser from "./components/AddUser";
 import EditUser from "./components/EditUser";
 import { sendSQLReq } from "@/api/gateway/console";
@@ -141,7 +89,7 @@ import { Message } from "element-ui";
 export default {
   components: {
     AddUser,
-    EditUser,
+    EditUser
   },
   filters: {
     filterVal(val) {
@@ -171,7 +119,7 @@ export default {
   },
   data() {
     return {
-      isDisable: localStorage.getItem("username") === "root",
+      isDisable:localStorage.getItem('username')==='root',
       pageSize: 10,
       currentPage: 1,
       total: 10,
@@ -184,13 +132,13 @@ export default {
       rules: {
         user: [
           {
-            message: this.$t("login.usernameTips"),
+            message: this.$t('login.usernameTips'),
             trigger: "blur",
           },
         ],
         pwd: [
           {
-            message: this.$t("login.passwordTips"),
+            message: this.$t('login.passwordTips'),
             trigger: "blur",
           },
         ],
@@ -198,7 +146,7 @@ export default {
       usersList: [],
       editUser: "",
       currentUser: {},
-      loading: true,
+      loading: true
     };
   },
   created() {
@@ -206,17 +154,17 @@ export default {
     this.getCurrentUser();
   },
   methods: {
-    getCurrentUser() {
-      this.$store.dispatch("app/getUserInfo").then((res) => {
-        this.currentUser = res;
-      });
+     getCurrentUser() {
+       this.$store.dispatch("app/getUserInfo").then((res) => {
+         this.currentUser = res;
+       });
     },
     closeDialog() {
-      this.dialog = false;
+      this.dialog = false
       this.getUserData();
     },
     closeEditDialog() {
-      this.editDialog = false;
+      this.editDialog = false
       this.getUserData();
     },
     filterPrivileges(val) {
@@ -239,122 +187,106 @@ export default {
       return res;
     },
     showDialog() {
-      this.dialog = true;
-      this.ruleForm.user = "";
-      this.ruleForm.pwd = "";
+      this.dialog = true
+      this.ruleForm.user = ''
+      this.ruleForm.pwd = ''
     },
 
-    handlePageChange() {},
+    handlePageChange() { },
     del(data) {
-      this.$confirm(
-        this.$t("isDel").replace("{isDelName}", data.name),
-        this.$t("wraning"),
-        {
-          confirmButtonText: this.$t("confirm"),
-          cancelButtonText: this.$t("cancel"),
-          type: "warning",
-        }
-      ).then(() => {
-        sendSQLReq(`drop user \`${data.name}\``)
-          .then((res) => {
-            if (res.code == 0) {
-              Message.success(this.$t("delSucc"));
-              this.getUserData();
-            }
-          })
-          .catch((err) => {
-            Message.error(err?.message || err?.desc);
-          });
+      this.$confirm(this.$t('isDel').replace('{isDelName}', data.name), this.$t('wraning'), {
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText: this.$t('cancel'),
+        type: "warning",
+      }).then(() => {
+        sendSQLReq(`drop user \`${data.name}\``).then(res => {
+          if (res.code == 0) {
+            Message.success(this.$t('delSucc'))
+            this.getUserData()
+          }
+        })
       });
     },
     edit(data) {
-      this.$set(this, "editUser", data.name);
+      this.$set(this, 'editUser', data.name);
       // this.editUser = data.name,
-      this.editDialog = true;
+      this.editDialog = true
     },
     changeState(data) {
-      let title = this.$t("isDisable").replace("{isDisableName}", data.name);
+      let title = this.$t('isDisable').replace('{isDisableName}', data.name);
       let state = 0;
       if (data.enable == 0) {
-        title = this.$t("isEnable").replace("{isDisableName}", data.name);
+        title = this.$t('isEnable').replace('{isDisableName}', data.name);
         state = 1;
       }
       this.$confirm(title, {
-        confirmButtonText: this.$t("confirm"),
-        cancelButtonText: this.$t("cancel"),
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
-        sendSQLReq(`alter user \`${data.name}\` enable ${state}`)
-          .then((res) => {
-            if (res.code == 0) {
-              Message.success(this.$t("operateSucc"));
-              this.getUserData();
-            }
-          })
-          .catch((err) => {
-            Message.error(err?.message || err?.desc);
-          });
+        sendSQLReq(`alter user \`${data.name}\` enable ${state}`).then(res => {
+          if (res.code == 0) {
+            Message.success(this.$t('operateSucc'))
+            this.getUserData()
+          }
+        })
       });
     },
     async getUserData() {
       try {
-        this.loading = true;
-        let res = await sendSQLReq(
-          `select * from information_schema.ins_users;`
-        );
-        if (res.message || res.desc) {
-          Message.error(res.message || res.desc);
-          return;
-        }
-        let permissionMap = res.data.map((data) => {
-          return Object.fromEntries(
-            res.column_meta.map((item, index) => {
-              return [item[0], data[index]];
-            })
-          );
-        });
+        this.loading = true
+        let permissionMap = await sendSQLReq(`select * from information_schema.ins_users;`)
+          .then((res) => {
+            return res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+        await sendSQLReq(`select * from information_schema.ins_user_privileges;`)
+          .then((res) => {
+            let privilegeMap = res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
 
-        let result = await sendSQLReq(
-          `select * from information_schema.ins_user_privileges;`
-        );
-        if (result.message || result.desc) {
-          Message.error(result.message || result.desc);
-          return;
-        }
-        let privilegeMap = result.data.map((data) => {
-          return Object.fromEntries(
-            result.column_meta.map((item, index) => {
-              return [item[0], data[index]];
-            })
-          );
-        });
+            privilegeMap.forEach((data) => {
+              let user = permissionMap.find((item) => item.name === data.user_name);
 
-        privilegeMap.forEach((data) => {
-          let user = permissionMap.find((item) => item.name === data.user_name);
-
-          if (user) {
-            if (user.privilege === undefined) {
-              user.privilege = {};
-            }
-            if (user.privilege[data.db_name] === undefined) {
-              user.privilege[data.db_name] = [data.privilege];
-            } else {
-              user.privilege[data.db_name].push(data.privilege);
-            }
-          }
-        });
-        let rootUserIndex = permissionMap.findIndex(
-          (item, k) => item.name === "root"
-        );
-        let rooUser = permissionMap[rootUserIndex];
-        rooUser.name = "*" + rooUser.name;
-        permissionMap.unshift(rooUser);
-        permissionMap.splice(++rootUserIndex, 1);
-        this.usersList = permissionMap;
-        this.loading = false;
-      } catch (err) {
-        this.loading = false;
-        Message.error(err?.message || err?.desc);
+              if (user) {
+                if (user.privilege === undefined) {
+                  user.privilege = {};
+                }
+                if (user.privilege[data.db_name] === undefined) {
+                  user.privilege[data.db_name] = [data.privilege];
+                } else {
+                  user.privilege[data.db_name].push(data.privilege);
+                }
+              }
+            });
+            let rootUserIndex = permissionMap.findIndex((item, k) => item.name === 'root');
+            let rooUser = permissionMap[rootUserIndex];
+            rooUser.name = "*" + rooUser.name;
+            permissionMap.unshift(rooUser);
+            permissionMap.splice(++rootUserIndex, 1);
+            this.usersList = permissionMap;
+            this.loading = false
+          })
+          .catch((err) => {
+            this.loading = false
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        this.loading = false
+        console.log(error);
       }
     },
   },

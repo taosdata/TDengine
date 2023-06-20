@@ -34,12 +34,6 @@ export default {
     ui: DbSourceUI,
     opcui: OpcUI,
   },
-  provide(){
-    return {
-      mqttParserObj:()=>this.parserobj,
-      // mqttParser:this.mqttParser
-    }
-  },
   data() {
     return {
       opcConfig: constOpc,

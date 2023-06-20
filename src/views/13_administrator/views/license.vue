@@ -1,11 +1,14 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="add" size="small">{{
-        $t("taosuser.activationLicense")
-      }}</el-button>
+      <el-button
+        plain
+        @click="add"
+        size="small"
+        >{{ $t("taosuser.activationLicense") }}</el-button
+      >
     </div>
-
+    
     <!-- <el-table :data="tableData" :show-header="false" border>
       <el-table-column prop="header" label="表头"> </el-table-column>
       <el-table-column
@@ -15,40 +18,47 @@
       >
       </el-table-column>
     </el-table> -->
-    <el-descriptions class="margin-top" title="" :column="3">
-      <el-descriptions-item
-        v-for="item in licenseList"
-        :key="item.key"
-        :label="$t(`topic.${item.key}`)"
-        :labelStyle="style"
-      >
-        <span style="color: #333"> {{ item.value }}</span>
+    <el-descriptions
+      class="margin-top"
+      title=""
+      :column="3"
+    >
+      <el-descriptions-item v-for="item in licenseList" :key="item.key" :label='$t(`topic.${item.key}`)' :labelStyle='style'>
+        <span style="color:#333;"> {{item.value}}</span>
       </el-descriptions-item>
     </el-descriptions>
     <p class="title">
       <span>{{ $t("topic.connectors") }}</span>
     </p>
     <el-table style="margin-top: 20px" :data="tableData" size="mini">
-      <el-table-column :label="$t('topic.type')" prop="type"></el-table-column>
-      <el-table-column :label="$t('topic.number')" prop="number">
-        <template slot-scope="scope">
-          <span>{{
-            scope.row.number == -1 ? "unlimited" : scope.row.number
-          }}</span>
-        </template>
+      <el-table-column
+        :label="$t('topic.type')"
+        prop="type"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.number')"
+        prop="number"
+      >
+      <template slot-scope="scope">
+        <span>{{ scope.row.number == -1 ? 'unlimited': scope.row.number }}</span>
+      </template>
       </el-table-column>
-      <el-table-column :label="$t('topic.speed')" prop="speed">
-        <template slot-scope="scope">
-          <span>{{
-            scope.row.speed == -1 ? "unlimited" : scope.row.speed
-          }}</span>
-        </template>
+      <el-table-column
+        :label="$t('topic.speed')"
+        prop="speed"
+      >
+      <template slot-scope="scope">
+        <span>{{ scope.row.speed == -1 ? 'unlimited': scope.row.speed }}</span>
+      </template>
       </el-table-column>
-      <el-table-column :label="$t('topic.expire_time')" prop="expire">
-        <template slot-scope="scope">
-          <span>{{ expireTime(scope.row.expire) }}</span>
-        </template>
-      </el-table-column>
+      <el-table-column
+        :label="$t('topic.expire_time')"
+        prop="expire"
+      >
+      <template slot-scope="scope">
+        <span>{{ expireTime(scope.row.expire) }}</span>
+      </template>
+    </el-table-column>
     </el-table>
     <el-pagination
       class="pagination"
@@ -64,7 +74,7 @@
       :title="$t('taosuser.activationLicense')"
       width="600px"
       :visible.sync="dialog"
-      :destroy-on-close="true"
+      :destroy-on-close='true'
     >
       <el-form
         :model="ruleForm"
@@ -74,11 +84,17 @@
         label-width="120px"
         class="demo-ruleForm"
       >
-        <el-form-item :label="$t('taosuser.activeCode')" prop="active_code">
+        <el-form-item
+          :label="$t('taosuser.activeCode')"
+          prop="active_code"
+        >
           <el-input v-model.trim="ruleForm.active_code"></el-input>
         </el-form-item>
-        <el-form-item :label="$t('taosuser.cActiveCode')" prop="c_active_code">
-          <el-input v-model.trim="ruleForm.c_active_code"></el-input>
+        <el-form-item
+          :label="$t('taosuser.cActiveCode')"
+          prop="c_active_code"
+        >
+          <el-input v-model.trim="ruleForm.c_active_code "></el-input>
         </el-form-item>
       </el-form>
 
@@ -105,8 +121,7 @@
 <script>
 import moment from "moment";
 import { sendSQLReq } from "@/api/gateway/console";
-import { activeLicence } from "@/api/explorer/licence";
-import { Message } from "element-ui";
+import { activeLicence } from '@/api/explorer/licence'
 export default {
   data() {
     return {
@@ -122,12 +137,12 @@ export default {
       rules: {
         active_code: [
           {
-            message: this.$t("dataIn.enterTip"),
+            message: this.$t('dataIn.enterTip'),
           },
         ],
         c_active_code: [
           {
-            message: this.$t("dataIn.enterTip"),
+            message: this.$t('dataIn.enterTip'),
           },
         ],
       },
@@ -137,11 +152,11 @@ export default {
     };
   },
   computed: {
-    style() {
+    style(){
       return {
-        "font-size": "14px",
-        color: "#4d6992",
-      };
+        'font-size':'14px',
+        'color':'#4d6992'
+      }
     },
     confirmStatus() {
       if (!this.ruleForm.active_code && !this.ruleForm.c_active_code) {
@@ -169,65 +184,66 @@ export default {
     addUdf() {},
     async getData() {
       try {
-        let res = await sendSQLReq(`show grants;`);
-        if (res.message || res.desc) {
-          Message.error(res.message || res.desc);
-          return;
-        }
-        let array = res.data.map((data) => {
-          return Object.fromEntries(
-            res.column_meta.map((item, index) => {
-              return [item[0], data[index]];
-            })
-          );
-        });
-        let allLicence =
-          array.length > 0
-            ? Object.keys(array[0]).map((key) => {
-                return {
-                  key: key,
-                  value: array[0][key],
-                };
+        // let cols = [];
+        await sendSQLReq(`show grants;`).then((res) => {
+         let  array = res.data.map((data) => {
+            return Object.fromEntries(
+              res.column_meta.map((item, index) => {
+                // cols.push({ header: item[0], value: item[0] });
+                return [item[0], data[index]];
               })
-            : [];
-        this.licenseList = allLicence.filter(
-          (item) => item.value.indexOf("{") == -1
-        );
-        this.tableData = allLicence
-          .filter((item) => item.value.indexOf("{") == 0)
-          .map((data) => {
-            return JSON.parse(data.value);
+            );
           });
+          let allLicence =array.length>0?Object.keys(array[0]).map(key=>{
+            return {
+              key:key,
+              value:array[0][key]
+            }
+          }):[]
+          this.licenseList = allLicence.filter(item => item.value.indexOf('{') == -1)
+          this.tableData = allLicence.filter(item => item.value.indexOf('{') == 0).map(data => {
+            return JSON.parse(data.value)
+          })
+          // this.columns = new Array(this.licenseList.length).fill(0);
+          // this.tableData=JSON.parse(JSON.stringify(cols))
+          // const tableData = cols.map((item) => {
+          //   const data = {
+          //     header: item.header,
+          //   };
+          //   this.licenseList.forEach((col, index) => {
+          //     data[index] = col[item.value];
+          //   });
+          //   return data;
+          // });
+          // this.tableData = tableData;
+        });
         this.loading = false;
-      } catch (err) {
-        Message.error(err.message || err.desc);
+      } catch (error) {
         this.loading = false;
       }
     },
     add() {
-      this.dialog = true;
+      this.dialog = true
     },
     async submit() {
       try {
-        let res = await activeLicence(this.ruleForm);
-        if (res.message) {
-          Message.error(res.message);
-          return;
-        }
-        this.$message.success(this.$t("operateSucc"));
+        await activeLicence(this.ruleForm).then(res => {
+          console.log('res',res);
+          this.$message.success(this.$t('operateSucc'))
+        })     
       } catch (error) {
-        this.$message.error(error);
+        this.$message.error(error)
       }
-    },
-    expireTime(data) {
-      return moment(Number(data) * 24 * 60 * 60 * 1000).format("YYYY-MM-DD");
-    },
+    }, 
+    expireTime(data){
+      return moment(Number(data) * 24 * 60 * 60 * 1000).format('YYYY-MM-DD')
+    }
   },
 };
 </script>
 <style lang="scss" scoped>
-.dnode-block {
-  margin-top: 10px;
+.dnode-block{
+  margin-top:10px;
 }
 ::v-deep {
   .el-form-item__content {
@@ -237,20 +253,20 @@ export default {
     flex: 1;
   }
 
-  th.el-descriptions-item__cell.el-descriptions-item__label.is-bordered-label {
-    width: 80px;
-  }
-  td.el-descriptions-item__cell.el-descriptions-item__content {
-    width: 200px;
-  }
-  .el-descriptions .el-descriptions-item__cell {
-    padding: 12px 5px;
-    border-bottom: 1px solid #dfe6ec;
-  }
-  .el-form-item--mini .el-form-item__label {
-    word-break: break-word;
-  }
-  .title {
+th.el-descriptions-item__cell.el-descriptions-item__label.is-bordered-label{
+  width:80px;
+}
+td.el-descriptions-item__cell.el-descriptions-item__content{
+  width:200px;
+}
+.el-descriptions .el-descriptions-item__cell{
+  padding:12px 5px;
+  border-bottom: 1px solid #dfe6ec;
+}
+.el-form-item--mini .el-form-item__label {
+  word-break: break-word;
+}
+.title{
     background-color: #ecf8ff;
     border-left-color: #50bfff;
     color: #333;
@@ -260,6 +276,6 @@ export default {
     font-size: 16px;
     margin: 30px 0 10px 0;
     padding: 8px 16px;
-  }
+}
 }
 </style>
