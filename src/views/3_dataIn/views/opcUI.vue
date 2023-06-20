@@ -549,7 +549,7 @@
       </section>
       <section class="bottom">
         <el-button type="primary" @click="submit" :disabled="disable"
-          >Submit</el-button
+          >{{ $t('submit') }}</el-button
         >
       </section>
     </div>

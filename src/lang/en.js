@@ -57,6 +57,7 @@ export default {
   error: "Error",
   copy: "Copy",
   copyagent: "Copy the token to Agent's configuration file",
+  copyagentWaring:"Make sure to copy your agent token now.  you won't be able see it again",
   share: "Share",
   shareSucc: "Share success",
   shareFail: "Failed to share",

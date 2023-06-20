@@ -29,6 +29,7 @@ export default {
   copySucc: "复制成功",
   nickname: "昵称",
   copyagent:'拷贝token到Agent配置文件',
+  copyagentWaring:'确保现在复制您的代理 token。不能进行再次查看',
   back: "返回",
   date: "日期",
   time: "时间",
