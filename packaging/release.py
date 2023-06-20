@@ -405,8 +405,8 @@ def build_taos_explorer(explorer_path, mode):
 
 def copy_taos_explorer_on_windows(explorer_path):
     explorer_exe_path = os.path.join(explorer_path, "target", "release", "taos-explorer.exe")
-    explorer_srv_path = os.path.join(explorer_path, "bin", "explorer-srv.exe")
-    explorer_srv_xml_path = os.path.join(explorer_path, "bin", "explorer-srv.xml")
+    explorer_srv_path = os.path.join(explorer_path, "bin", "taos-explorer-srv.exe")
+    explorer_srv_xml_path = os.path.join(explorer_path, "bin", "taos-explorer-srv.xml")
     explorer_toml_path = os.path.join(explorer_path, "server","examples", "explorer.toml")
 
     taos_explorer_install_path = os.path.join(release_info.InstallPath, "bin")
