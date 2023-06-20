@@ -304,11 +304,14 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pReader, int32
           double el = (taosGetTimestampUs() - st) / 1000.0;
           tsdbDebug("load the last file info completed, elapsed time:%.2fms, %s", el, idStr);
           return code;
+        } else {  // all blocks are qualified
+          taosArrayClear(pBlockLoadInfo->aSttBlk);
+          taosArrayAddBatch(pBlockLoadInfo->aSttBlk, pArray->data, pArray->size);
         }
       } else {
         SArray *pTmp = taosArrayInit(size, sizeof(SSttBlk));
         for (int32_t i = 0; i < size; ++i) {
-          SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
+          SSttBlk* p = &pArray->data[i];
           uint64_t s = p->suid;
           if (s < suid) {
             continue;
@@ -330,12 +333,11 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pReader, int32
     tsdbDebug("load the last file info completed, elapsed time:%.2fms, %s", el, idStr);
   }
 
-  TSttBlkArray* pArray = pBlockLoadInfo->pBlockArray;
-
   // find the start block
-  pIter->iSttBlk = binarySearchForStartBlock(pArray->data, pArray->size, uid, backward);
+  size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
+  pIter->iSttBlk = binarySearchForStartBlock(pBlockLoadInfo->aSttBlk->pData, size, uid, backward);
   if (pIter->iSttBlk != -1) {
-    pIter->pSttBlk = &pArray->data[pIter->iSttBlk];
+    pIter->pSttBlk = taosArrayGet(pBlockLoadInfo->aSttBlk, pIter->iSttBlk);
     pIter->iRow = (pIter->backward) ? pIter->pSttBlk->nRow : -1;
 
     if ((!backward) && ((strictTimeRange && pIter->pSttBlk->minKey >= pIter->timeWindow.ekey) ||
@@ -648,29 +650,28 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb* pTsdb, uint6
     ASSERT(pSttLevel->level == 0);
 
     for (int32_t i = 0; i < pSttLevel->fobjArr[0].size; ++i) {  // open all last file
-        memset(&pLDataIter[i], 0, sizeof(SLDataIter));
-        SSttFileReader* pReader = NULL;
-        SSttFileReaderConfig conf = {0};
-        conf.tsdb = pTsdb;
-        conf.szPage = pTsdb->pVnode->config.szPage;
-        conf.file[0] = *pSttLevel->fobjArr[0].data[i]->f;
+      memset(&pLDataIter[i], 0, sizeof(SLDataIter));
 
-        code = tsdbSttFileReaderOpen(pSttLevel->fobjArr[0].data[i]->fname, &conf, &pReader);
+      SSttFileReaderConfig conf = {.tsdb = pTsdb, .szPage = pTsdb->pVnode->config.szPage};
+      conf.file[0] = *pSttLevel->fobjArr[0].data[i]->f;
 
-        code = tLDataIterOpen2(&pLDataIter[i], pReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange,
-                              &pMTree->pLoadInfo[i], pMTree->idStr, strictTimeRange);
-        if (code != TSDB_CODE_SUCCESS) {
-            goto _end;
+      SSttFileReader *pReader = NULL;
+      code = tsdbSttFileReaderOpen(pSttLevel->fobjArr[0].data[i]->fname, &conf, &pReader);
+
+      code = tLDataIterOpen2(&pLDataIter[i], pReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange,
+                             &pMTree->pLoadInfo[i], pMTree->idStr, strictTimeRange);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _end;
+      }
+
+      bool hasVal = tLDataIterNextRow(&pLDataIter[i], pMTree->idStr);
+      if (hasVal) {
+        tMergeTreeAddIter(pMTree, &pLDataIter[i]);
+      } else {
+        if (!pMTree->ignoreEarlierTs) {
+          pMTree->ignoreEarlierTs = pLDataIter[i].ignoreEarlierTs;
         }
-
-        bool hasVal = tLDataIterNextRow(&pLDataIter[i], pMTree->idStr);
-        if (hasVal) {
-            tMergeTreeAddIter(pMTree, &pLDataIter[i]);
-        } else {
-            if (!pMTree->ignoreEarlierTs) {
-                pMTree->ignoreEarlierTs = pLDataIter[i].ignoreEarlierTs;
-            }
-        }
+      }
     }
 
     return code;

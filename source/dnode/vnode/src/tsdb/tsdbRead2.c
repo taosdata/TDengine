@@ -867,6 +867,9 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
 static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileReader, SArray* pIndexList) {
   int64_t st = taosGetTimestampUs();
   int32_t numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
+  if (pFileReader == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   const TBrinBlkArray* pBlkArray = NULL;
   int32_t code = tsdbDataFileReadBrinBlk(pFileReader, &pBlkArray);
