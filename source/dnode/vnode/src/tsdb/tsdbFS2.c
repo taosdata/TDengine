@@ -721,9 +721,10 @@ static int32_t tsdbFSRunBgTask(void *arg) {
   fs->bgTaskRunning->run(fs->bgTaskRunning->arg);
   fs->bgTaskRunning->finishTime = taosGetTimestampMs();
 
-  tsdbDebug("vgId:%d bg task:%s finished, schedule time:%" PRId64 " launch time:%" PRId64 " finish time:%" PRId64,
-            TD_VID(fs->tsdb->pVnode), gFSBgTaskName[fs->bgTaskRunning->type], fs->bgTaskRunning->scheduleTime,
-            fs->bgTaskRunning->launchTime, fs->bgTaskRunning->finishTime);
+  tsdbDebug("vgId:%d bg task:%s task id:%" PRId64 " finished, schedule time:%" PRId64 " launch time:%" PRId64
+            " finish time:%" PRId64,
+            TD_VID(fs->tsdb->pVnode), gFSBgTaskName[fs->bgTaskRunning->type], fs->bgTaskRunning->taskid,
+            fs->bgTaskRunning->scheduleTime, fs->bgTaskRunning->launchTime, fs->bgTaskRunning->finishTime);
 
   taosThreadMutexLock(fs->mutex);
 
