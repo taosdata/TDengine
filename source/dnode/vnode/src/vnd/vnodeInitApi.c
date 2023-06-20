@@ -53,13 +53,13 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
 
   pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
-  pReader->tsdReaderResetStatus = tsdbReaderReset;
+  pReader->tsdReaderResetStatus = tsdbReaderReset2;
 
   pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo;
   pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable;  // todo this function should be moved away
 
-  pReader->tsdSetQueryTableList = tsdbSetTableList;
-  pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId;
+  pReader->tsdSetQueryTableList = tsdbSetTableList2;
+  pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId2;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
