@@ -19,15 +19,16 @@
 typedef struct SStreamSnapReader SStreamSnapReader;
 typedef struct StreamSnapWriter  StreamSnapWriter;
 
-typedef struct SStreamSnapHandle SStreamSnapHandle;
+typedef struct SStreamSnapHandle   SStreamSnapHandle;
+typedef struct SStreamSnapBlockHdr SStreamSnapBlockHdr;
 
-int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t ever, void** ppReader);
-int32_t streamSnapReaderClose(void** ppReader);
-int32_t streamSnapRead(void* pReader, uint8_t** ppData);
+int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t ever, SStreamSnapReader** ppReader);
+int32_t streamSnapReaderClose(SStreamSnapReader* pReader);
+int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* size);
 
 // SMetaSnapWriter ========================================
-int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, void** ppWriter);
-int32_t streamSnapWrite(void* pWriter, uint8_t* pData, uint32_t nData);
-int32_t streamSnapWriterClose(void** ppWriter, int8_t rollback);
+int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, StreamSnapWriter** ppWriter);
+int32_t streamSnapWrite(StreamSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t streamSnapWriterClose(StreamSnapWriter** ppWriter, int8_t rollback);
 
 #endif
