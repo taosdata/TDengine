@@ -72,6 +72,7 @@ typedef struct {
   int32_t      vnodeNum;
   int32_t      opened;
   int32_t      failed;
+  bool         updateVnodesList;
   int32_t      threadIndex;
   TdThread     thread;
   SVnodeMgmt  *pMgmt;
