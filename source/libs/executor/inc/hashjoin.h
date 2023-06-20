@@ -19,18 +19,12 @@
 extern "C" {
 #endif
 
-typedef struct SHJoinRowCtx {
-  bool    rowRemains;
-  int64_t ts;
-  SArray* leftRowLocations;
-  SArray* leftCreatedBlocks;
-  SArray* rightCreatedBlocks;
-  int32_t leftRowIdx;
-  int32_t rightRowIdx;
-
-  bool    rightUseBuildTable;
-  SArray* rightRowLocations;
-} SHJoinRowCtx;
+typedef struct SHJoinCtx {
+  bool         rowRemains;
+  SBufRowInfo* pBuildRow;
+  SSDataBlock* pProbeData;
+  int32_t      probeIdx;
+} SHJoinCtx;
 
 typedef struct SRowLocation {
   SSDataBlock* pDataBlock;
@@ -38,7 +32,8 @@ typedef struct SRowLocation {
 } SRowLocation;
 
 typedef struct SColBufInfo {
-  int32_t  slotId;
+  int32_t  srcSlot;
+  int32_t  dstSlot;
   bool     vardata;
   int32_t* offset;
   int32_t  bytes;
@@ -55,13 +50,14 @@ typedef struct SBufPageInfo {
 typedef struct SBufRowInfo {
   void*    next;
   uint16_t pageId;
-  int32_t  offset;
+  int32_t  offset:31;
+  int32_t  isNull:1;
 } SBufRowInfo;
 #pragma pack(pop)
 
-typedef struct SResRowData {
+typedef struct SGroupData {
   SBufRowInfo* rows;
-} SResRowData;
+} SGroupData;
 
 typedef struct SJoinTableInfo {
   SOperatorInfo* downStream;
@@ -79,22 +75,19 @@ typedef struct SJoinTableInfo {
 } SJoinTableInfo;
 
 typedef struct SHJoinOperatorInfo {
-  SSDataBlock* pRes;
-  int32_t      joinType;
-
-  SJoinTableInfo tbs[2];
-
+  SSDataBlock*    pRes;
+  int32_t         joinType;
+  SJoinTableInfo  tbs[2];
   SJoinTableInfo* pBuild;
   SJoinTableInfo* pProbe;
+  int32_t         pResColNum;
+  int8_t*         pResColMap;
   SArray*         pRowBufs;
-  
-  SNode*       pCondAfterJoin;
-
-  SSHashObj*   pKeyHash;
-
-  
-  SHJoinRowCtx  rowCtx;
+  SNode*          pCondAfterJoin;
+  SSHashObj*      pKeyHash;
+  SHJoinCtx       ctx;
 } SHJoinOperatorInfo;
+
 static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator);
 static void         destroyHashJoinOperator(void* param);
 
