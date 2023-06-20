@@ -362,6 +362,10 @@ async fn sync_single_table(
                             sync_normal_table_schema(from, table, to).await?;
                         }
                         continue;
+                    } else if err_str.contains("0x0911") {
+                        // TSDB_CODE_SYN_PROPOSE_NOT_READY： Sync not ready to propose
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        continue;
                     } else if err_str.contains("0x0118") {
                         let desc = to.describe(table).await.map_err(|err| {
                             anyhow::format_err!("Describe table {table} error: {err}")
@@ -402,7 +406,9 @@ async fn sync_single_table(
                     } else {
                         Err(err).with_context(|| {
                             format!(
-                                "write raw block of table {table} ({} rows): {}",
+                                "[{}:{}]write raw block of table {table} ({} rows): {}",
+                                std::file!(),
+                                std::line!(),
                                 block.nrows(),
                                 err_str
                             )
