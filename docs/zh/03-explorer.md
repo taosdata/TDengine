@@ -1,4 +1,5 @@
 ---
+toc_max_heading_level: 4
 sidebar_label: "taosExplorer"
 title: "可视化管理"
 description: "为了易于企业版用户更容易使用和管理数据库，TDengine 3.0 企业版提供了一个全新的可视化组件 taosExplorer"

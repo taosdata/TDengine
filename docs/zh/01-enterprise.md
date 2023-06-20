@@ -1,4 +1,5 @@
 ---
+toc_max_heading_level: 4
 sidebar_label: TDengine
 title: TDengine 企业版
 description: "本文档介绍只在 TDengine 企业版中才具备的功能，以及它们的详细使用手册。"
