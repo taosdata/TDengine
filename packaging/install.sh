@@ -6,7 +6,7 @@ xName="${PREFIX}x"
 INSTALL_DIR="/usr/bin"
 PLUGINS_ROOT_DIR="/usr/local/${xName}"
 CONFIG_DIR="/etc/${PREFIX}"
-SERVICE_CONFIG_DIR="/etc/systemd"
+SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 csudo=""
@@ -143,7 +143,7 @@ install_taosx() {
     ${csudo}cp -r plugins/* ${PLUGINS_ROOT_DIR}/plugins
     ${csudo}cp uninstall.sh ${PLUGINS_ROOT_DIR}
     echo "install service file to ${SERVICE_CONFIG_DIR}..."
-    ${csudo}cp -r etc/systemd/* ${SERVICE_CONFIG_DIR}
+    ${csudo}cp -r etc/systemd/system/* ${SERVICE_CONFIG_DIR}
 
     check_and_create_directory "${CONFIG_DIR}"
     # copy config to /etc/taos
@@ -152,7 +152,7 @@ install_taosx() {
     else
        ${csudo}cp ./etc/taos/agent.toml ${CONFIG_DIR}/
     fi
-
+    echo "install tom file to ${CONFIG_DIR}..."
     if [ -f ${CONFIG_DIR}/explorer.toml ]; then
         ${csudo}cp ./etc/taos/explorer.toml ${CONFIG_DIR}/explorer.toml.new
     else
@@ -163,12 +163,13 @@ install_taosx() {
 # install taosx service
 install_taosx_service(){
   if ((${service_mod} == 0)); then
-    [ -f ./etc/systemd/${xName}.service ] &&
-      ${csudo}cp ./etc/systemd/${xName}.service  ${SERVICE_CONFIG_DIR}/ || :
-    [ -f ./etc/systemd/${agentname}.service ] &&
-      ${csudo}cp ./etc/systemd/${agentname}.service ${SERVICE_CONFIG_DIR}/ || :
-    [ -f ./etc/systemd/${explorerName}.service ] &&
-      ${csudo}cp ./etc/systemd/${explorerName}.service ${SERVICE_CONFIG_DIR}/ || :
+    echo "install service to ${SERVICE_CONFIG_DIR}..."
+    [ -f ./etc/systemd/system/${xName}.service ] &&
+      ${csudo}cp ./etc/systemd/system/${xName}.service  ${SERVICE_CONFIG_DIR}/ || :
+    [ -f ./etc/systemd/system/${agentname}.service ] &&
+      ${csudo}cp ./etc/systemd/system/${agentname}.service ${SERVICE_CONFIG_DIR}/ || :
+    [ -f ./etc/systemd/system/${explorerName}.service ] &&
+      ${csudo}cp ./etc/systemd/system/${explorerName}.service ${SERVICE_CONFIG_DIR}/ || :
     ${csudo}systemctl daemon-reload
   fi
 }

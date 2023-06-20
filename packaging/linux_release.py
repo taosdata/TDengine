@@ -11,6 +11,7 @@ opc_dir = os.path.abspath(os.path.join(top_dir, "plugins","opc"))
 mqtt_dir = os.path.abspath(os.path.join(top_dir, "plugins","mqtt"))
 influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","influxdb"))
 explore_dir = os.path.abspath(os.path.join(top_dir, "..","explorer"))
+systemd_path = ""
 
 logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(levelname)s %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -39,9 +40,11 @@ def release(release_info,build_info):
 
 def init_release_dir(release_info):
     logging.info("init_release_dir")
-    global release_dir
+    global release_dir, systemd_path
     release_dir = os.path.join(top_dir,"release","taosx-{0}-linux-{1}".format(release_info.TaosXVersion, release_info.CpuType))
     check_directory(release_dir)
+    systemd_path = os.path.join(release_dir,"etc", "systemd", "system")
+    check_directory(systemd_path)    
         
 def build_and_install_opc_on_linux(release_info,mode='release'):
     logging.info("building taosx-opc")
@@ -140,8 +143,6 @@ def build_and_install_taosx_on_linux(mode='release'):
     shutil.copy(binary_file,dst_dir)
     logging.info("taox copied to {release_dir}".format(release_dir=dst_dir))
     
-    systemd_path = os.path.join(release_dir,"etc", "systemd")
-    check_directory(systemd_path)
     shutil.copy(os.path.join(top_dir,"target","taosx.service"), systemd_path)
 
 
@@ -158,8 +159,6 @@ def install_taos_explorer_on_linux(mode='release'):
     shutil.copy(binary_file, dst_dir)
     logging.info("taox-agent copied to {release_dir}".format(release_dir=dst_dir))
     
-    systemd_path = os.path.join(release_dir,"etc", "systemd")
-    check_directory(systemd_path)
     shutil.copy2(os.path.join(explore_dir, "target","taos-explorer.service"), systemd_path)
 
     cfg_path = os.path.join(release_dir,"etc", "taos")
@@ -186,8 +185,6 @@ def build_and_install_taosx_agent_on_linux(mode='release'):
     shutil.copy(binary_file,dst_dir)
     logging.info("taox-agent copied to {release_dir}".format(release_dir=dst_dir))
     
-    systemd_path = os.path.join(release_dir,"etc", "systemd")
-    check_directory(systemd_path)
     shutil.copy2(os.path.join(top_dir,"target","taosx-agent.service"), systemd_path)
     
     cfg_path = os.path.join(release_dir,"etc", "taos")
