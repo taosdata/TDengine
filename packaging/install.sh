@@ -75,7 +75,7 @@ fi
 
 check_and_create_directory() {
   if [ ! -d "$1" ]; then
-    mkdir -p "$1"
+    ${csudo} mkdir -p "$1"
   fi
 }
 
