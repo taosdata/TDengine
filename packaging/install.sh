@@ -65,7 +65,7 @@ elif echo $osinfo | grep -qwi "Linx"; then
   os_type=1
   service_mod=0
   initd_mod=0
-  SERVICE_CONFIG_DIR="/etc/systemd"
+  SERVICE_CONFIG_DIR="/etc/systemd/system"
 else
   echo " osinfo: ${osinfo}"
   echo " This is an officially unverified linux system,"
