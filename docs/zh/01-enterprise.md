@@ -131,6 +131,66 @@ GRANT privileges ON priv_level TO user_name   privileges : {  ALL  \| priv_type 
 GRANT privileges ON priv_level TO user_name  privileges : {  ALL  | priv_type [, priv_type] ... }   priv_type : {  SUBSCRIBE }   priv_level : {  topic_name } 
 ```
 
+#### 基于标签的授权
+
+从 TDengine 3.0.5.0 开始，我们支持按标签授权某个超级表中部分特定的子表。具体的 SQL 语法如下。
+
+```sql
+GRANT privileges ON priv_level [WITH tag_condition] TO user_name
+ 
+privileges : {
+    ALL
+  | SUBSCRIBE
+  | priv_type [, priv_type] ...
+}
+ 
+priv_type : {
+    READ
+  | WRITE
+}
+ 
+priv_level : {
+    dbname.tbname
+  | dbname.*
+  | *.*
+  | topic_name
+}
+
+REVOKE privileges ON priv_level [WITH tag_condition] FROM user_name
+
+privileges : {
+    ALL
+  | priv_type [, priv_type] ...
+}
+ 
+priv_type : {
+    READ
+  | WRITE
+}
+ 
+priv_level : {
+    dbname.tbname
+  | dbname.*
+  | *.*
+}
+```
+
+上面 SQL 的语义为：
+
+- 用户可以通过 dbname.tbname 来为指定的表（包括超级表和普通表）授予或回收其读写权限，不支持直接对子表授予或回收权限。
+- 用户可以通过 dbname.tbname 和 WITH 子句来为符合条件的所有子表授予或回收其读写权限。使用 WITH 子句时，权限级别必须为超级表。
+
+#### 表级权限和数据库权限的关系
+
+下表列出了在不同的数据库授权和表级授权的组合下产生的实际权限。
+
+|                |**表无授权**       | **表读授权** | **表读授权有标签条件** | **表写授权** | **表写授权有标签条件** |
+| -------------- | ---------------- | -------- | ---------- | ------ | ----------- | 
+| **数据库无授权**  | 无授权          | 对此表有读权限，对数据库下的其他表无权限   |  对此表符合标签权限的子表有读权限，对数据库下的其他表无权限       | 对此表有写权限，对数据库下的其他表无权限      | 对此表符合标签权限的子表有写权限，对数据库下的其他表无权限      | 
+| **数据库读授权**  | 对所有表有读权限 | 对所有表有读权限     | 对此表符合标签权限的子表有读权限，对数据库下的其他表有读权限       | 对此表有写权限，对所有表有读权限    | 对此表符合标签权限的子表有写权限，所有表有读权限 | 
+| **数据库写授权**  | 对所有表有写权限 | 对此表有读权限，对所有表有写权限    | 对此表符合标签权限的子表有读权限，对所有表有写权限      | 对所有表有写权限     | 对此表符合标签权限的子表有写权限，数据库下的其他表有写权限        | 
+
+
 #### 查看用户授权
 
 使用下面的命令可以显示一个用户所拥有的授权：
