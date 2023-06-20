@@ -425,7 +425,7 @@ while(resultSet.next()){
 
 This reqId can be used to request link tracing.
 
-```
+```java
 AbstractStatement aStmt = (AbstractStatement) connection.createStatement();
 aStmt.execute("create database if not exists db", 1L);
 aStmt.executeUpdate("use db", 2L);
@@ -955,7 +955,7 @@ public class SchemalessWsTest {
 
 This reqId can be used to request link tracing.
 
-```
+```java
 writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
 ```
 
@@ -1016,7 +1016,7 @@ while(true) {
 
 #### Assignment subscription Offset
 
-```
+```java
 long position(TopicPartition partition) throws SQLException;
 Map<TopicPartition, Long> position(String topic) throws SQLException;
 Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
@@ -1027,7 +1027,7 @@ void seek(TopicPartition partition, long offset) throws SQLException;
 
 Example usage is as follows.
 
-```
+```java
 String topic = "offset_seek_test";
 Map<TopicPartition, Long> offset = null;
 try (TaosConsumer<ResultBean> consumer = new TaosConsumer<>(properties)) {
