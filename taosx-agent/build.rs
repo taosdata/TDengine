@@ -50,8 +50,12 @@ pub const VERBOSE_VERSION: &str = if GIT_CLEAN {{
     writeln!(
         file,
         r#"pub const CUS_CLI_NAME: &str = "{}x-agent";"#,
+        cus_prompt,
+    )?;
+    writeln!(
+        file,
         r#"pub const CUS_APP_NAME: &str = "{}X Agent";"#,
-        cus_prompt
+        cus_prompt,
     )?;
     writeln!(file, r#"pub const CUS_CLI_ABOUT: &str = "{}";"#, content)?;
 
