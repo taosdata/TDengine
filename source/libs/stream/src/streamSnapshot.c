@@ -17,9 +17,17 @@
 #include "rocksdb/c.h"
 #include "tcommon.h"
 
+typedef struct SBackendFile {
+  SArray* pSst;
+  char*   pCurrent;
+  char*   pMainfest;
+  char*   pOptions;
+  char*   pCheckpointMeta;
+} SBanckendFile;
 struct SStreamSnapHandle {
-  void*   handle;
-  SArray* fileList;
+  void*          handle;
+  SArray*        fileList;
+  SBanckendFile* pBackendFile;
 };
 
 struct SStreamSnapReader {
@@ -35,15 +43,70 @@ struct StreamSnapWriter {
   int64_t ever;
 };
 
-void streamSnapHandleInit(SStreamSnapHandle* handle) {
+const char* ROCKSDB_OPTIONS = "OPTIONS";
+const char* ROCKSDB_MAINFEST = "MANIFEST";
+const char* ROCKSDB_SST = "sst";
+const char* ROCKSDB_CURRENT = "CURRENT";
+const char* ROCKSDB_CHECKPOINT_META = "CHECKPOINT";
+
+int32_t streamSnapHandleInit(SStreamSnapHandle* handle, char* path) {
   // impl later
+  int32_t code = 0;
   handle->fileList = taosArrayInit(32, sizeof(void*));
-  return;
+
+  TdDirPtr pDir = taosOpenDir(path);
+  if (NULL == pDir) {
+    goto _err;
+  }
+
+  SBanckendFile* pFile = taosMemoryCalloc(1, sizeof(SBanckendFile));
+  pFile->pSst = taosArrayInit(16, sizeof(void*));
+
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosGetDirEntryName(pDirEntry);
+    if (strlen(name) >= strlen(ROCKSDB_CURRENT) && 0 == strncmp(name, ROCKSDB_CURRENT, strlen(ROCKSDB_CURRENT))) {
+      pFile->pCurrent = taosStrdup(name);
+      continue;
+    }
+    if (strlen(name) >= strlen(ROCKSDB_MAINFEST) && 0 == strncmp(name, ROCKSDB_MAINFEST, strlen(ROCKSDB_MAINFEST))) {
+      pFile->pMainfest = taosStrdup(name);
+      continue;
+    }
+    if (strlen(name) >= strlen(ROCKSDB_OPTIONS) && 0 == strncmp(name, ROCKSDB_OPTIONS, strlen(ROCKSDB_OPTIONS))) {
+      pFile->pMainfest = taosStrdup(name);
+      continue;
+    }
+    if (strlen(name) >= strlen(ROCKSDB_CHECKPOINT_META) &&
+        0 == strncmp(name, ROCKSDB_CHECKPOINT_META, strlen(ROCKSDB_CHECKPOINT_META))) {
+      pFile->pCheckpointMeta = taosStrdup(name);
+      continue;
+    }
+    if (strlen(name) >= strlen(ROCKSDB_SST) &&
+        0 == strncmp(name - strlen(ROCKSDB_SST), ROCKSDB_SST, strlen(ROCKSDB_SST))) {
+      char* sst = taosStrdup(name);
+      taosArrayPush(pFile->pSst, &sst);
+    }
+  }
+  taosCloseDir(&pDir);
+
+  handle->pBackendFile = pFile;
+_err:
+  code = -1;
+  return code;
 }
 void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
-  for (int i = 0; handle && i < taosArrayGetSize(handle->fileList); i++) {
-    taosMemoryFree(taosArrayGetP(handle->fileList, i));
+  SBanckendFile* pFile = handle->pBackendFile;
+  taosMemoryFree(pFile->pCheckpointMeta);
+  taosMemoryFree(pFile->pCurrent);
+  taosMemoryFree(pFile->pMainfest);
+  taosMemoryFree(pFile->pOptions);
+  for (int i = 0; i < taosArrayGetSize(pFile->pSst); i++) {
+    char* sst = taosArrayGetP(pFile->pSst, i);
+    taosMemoryFree(sst);
   }
+  taosArrayDestroy(pFile->pSst);
+  taosMemoryFree(pFile);
   return;
 }
 
