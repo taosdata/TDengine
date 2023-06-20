@@ -1560,6 +1560,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
                   pTaskInfo);
   pOperator->fpSet =
       createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, optrDefaultBufFn, NULL);
+  setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

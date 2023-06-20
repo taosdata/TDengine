@@ -779,8 +779,12 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SStreamTask* pSateTask = pTask;
+    SStreamTask task = {0};
     if (pTask->info.fillHistory) {
-      pSateTask = *(SStreamTask**)taosHashGet(pTq->pStreamMeta->pTasks, &pTask->streamTaskId.taskId, sizeof(int32_t));
+      task.id = pTask->streamTaskId;
+      SStreamMeta meta = {0};
+      task.pMeta = pTask->pMeta;
+      pSateTask = &task;
     }
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pSateTask, false, -1, -1);
     if (pTask->pState == NULL) {
@@ -798,8 +802,12 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     SStreamTask* pSateTask = pTask;
+    SStreamTask task = {0};
     if (pTask->info.fillHistory) {
-      pSateTask = *(SStreamTask**)taosHashGet(pTq->pStreamMeta->pTasks, &pTask->streamTaskId.taskId, sizeof(int32_t));
+      task.id = pTask->streamTaskId;
+      SStreamMeta meta = {0};
+      task.pMeta = pTask->pMeta;
+      pSateTask = &task;
     }
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pSateTask, false, -1, -1);
     if (pTask->pState == NULL) {

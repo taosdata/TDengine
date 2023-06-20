@@ -1086,3 +1086,17 @@ void qStreamCloseTsdbReader(void* task) {
     }
   }
 }
+
+void streamOpReleaseState(SOperatorInfo* pOperator) {
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  if (downstream->fpSet.releaseStreamStateFn) {
+    downstream->fpSet.releaseStreamStateFn(downstream);
+  }
+}
+
+void streamOpReloadState(SOperatorInfo* pOperator) {
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  if (downstream->fpSet.reloadStreamStateFn) {
+    downstream->fpSet.reloadStreamStateFn(downstream);
+  } 
+}

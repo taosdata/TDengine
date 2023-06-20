@@ -682,6 +682,8 @@ void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExpr
 void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 
 uint64_t calcGroupId(char* pData, int32_t len);
+void streamOpReleaseState(struct SOperatorInfo* pOperator);
+void streamOpReloadState(struct SOperatorInfo* pOperator);
 
 #ifdef __cplusplus
 }

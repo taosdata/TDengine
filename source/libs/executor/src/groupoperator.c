@@ -1326,6 +1326,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamHashPartition, NULL,
                                          destroyStreamPartitionOperatorInfo, optrDefaultBufFn, NULL);
+  setOperatorStreamStateFn(pOperator, streamOpReleaseState, streamOpReloadState);
 
   initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup);
   code = appendDownstream(pOperator, &downstream, 1);
