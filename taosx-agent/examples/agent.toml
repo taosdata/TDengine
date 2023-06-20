@@ -1,6 +1,13 @@
-#log_level = "debug"
-
+# taosX service endpoint
+#
 endpoint = "http://localhost:6055"
 
-token = ""
+# !important!
+# Uncomment it and copy-paste the token generated in Explorer.
+#
+#token = ""
+
+# Log level
+#
+#log_level = "debug"
 

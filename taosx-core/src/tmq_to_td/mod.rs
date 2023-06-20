@@ -273,8 +273,9 @@ async fn sync(
                 break;
             }
             next = stream.try_next() => {
-                let (a, b, c, _) = version
-                .split('.')
+                let mut version_vec = version.splitn(4, ".").collect_vec();
+                version_vec.truncate(3);
+                let (a, b, c) = version_vec.into_iter()
                 .map(|x| x.parse::<i32>().unwrap())
                 .collect_tuple()
                 .unwrap();

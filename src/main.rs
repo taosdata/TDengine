@@ -129,7 +129,7 @@ fn main() -> Result<()> {
         Err(_) => {
             #[cfg(unix)]
             {
-                let default = "/usr/local/taosX/plugins";
+                let default = "/usr/local/taosx/plugins";
                 let path = std::path::Path::new(default);
                 if path.exists() {
                     std::env::set_var(ENV_PLUGINS_HOME, default);
