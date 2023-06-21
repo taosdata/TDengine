@@ -663,9 +663,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         memcpy(pRes->pRsp, rpcMsg->pCont, pRes->rspLen);
       }
     } else {
-      if (!rpcMsg->pCont && TSDB_CODE_SUCCESS == pRes->code) {
-        pRes->code = TSDB_CODE_RPC_UNEXPECTED_RESPONSE;
-      }
       tfree(pRes->pRsp);
     }
 
