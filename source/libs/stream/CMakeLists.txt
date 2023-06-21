@@ -33,13 +33,13 @@ if(${BUILD_WITH_ROCKSDB})
     PUBLIC rocksdb tdb
     PRIVATE  os util transport qcom executor wal index
   )
-
-  ENDIF()
-
   target_include_directories(
     stream
     PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
   )
+
+  ENDIF()
+
 
   add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
