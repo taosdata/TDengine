@@ -59,7 +59,7 @@ sudo ./uninstall.sh
 
 ### Windows 安装
 
-- 下载需要的 taosX 安装包，例如 taosx-{version}-windows-{cpu_type}-installer.exe，执行安装
+- 下载需要的 taosX 安装包，例如 taosx-1.0.0-Windows-x64-installer.exe，执行安装
 - 可使用 uninstall_taosx.exe 进行卸载
 - 命令行执行 ```sc start/stop taosx``` 启动/停止 taosx 服务
 - 命令行执行 ```sc start/stop taosx-agent``` 启动/停止 taosx-agent 服务
