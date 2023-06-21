@@ -257,7 +257,7 @@ def build_and_install_opc_on_windows(mode):
     # 32位编译
     os.environ["GOOS"] = "windows"
     os.environ["GOARCH"] = "386"
-    opc_app_name = "taos-opc.exe"
+    opc_app_name = "taosx-opc.exe"
     os.system(f"go build -ldflags "
               f"\"-s -w -X 'collector/version.BuildAt={release_info.BuildTime}' "
               f"-X 'collector/version.CommitID={release_info.Commit}'\" "
