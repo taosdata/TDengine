@@ -1183,12 +1183,14 @@ int32_t tqProcessTaskTransferStateReq(STQ* pTq, int64_t sversion, char* msg, int
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   int32_t code = tDecodeStreamRecoverFinishReq(&decoder, &req);
+  tDecoderClear(&decoder);
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.taskId);
   if (pTask == NULL) {
     tqError("failed to find task:0x%x", req.taskId);
     return -1;
   }
+
   // transfer the ownership of executor state
   streamTaskReleaseState(pTask);
   SStreamTask* pStreamTask = streamMetaAcquireTask(pTq->pStreamMeta, pTask->streamTaskId.taskId);
