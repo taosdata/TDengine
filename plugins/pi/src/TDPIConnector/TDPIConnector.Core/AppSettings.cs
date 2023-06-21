@@ -83,14 +83,17 @@ namespace TDPIConnector.Core
 
         public static void Init(string tomlConfigFile)
         {
-            tomlConfig = Toml.ReadFile<TomlConfig>(tomlConfigFile);
-            log.Info($"toml file: {tomlConfig.ConfigString()}");
-            
+            tomlConfig = new TomlConfig();
+            if (tomlConfigFile != null && tomlConfigFile != "") {
+                tomlConfig = Toml.ReadFile<TomlConfig>(tomlConfigFile);
+                log.Info($"toml file: {tomlConfig.ConfigString()}");
+            }
+
             if (string.IsNullOrEmpty(tomlConfig.PIServerDomain))
             {
                 tomlConfig.PIServerDomain = null;
             }
-            if (tomlConfigFile == "")
+            if (tomlConfigFile == null || tomlConfigFile == "")
             {
                 TaosXEnabled = false;
                 tomlConfig.UpdateInterval = GetIntegerFromAppSettings("UpdateInterval");
@@ -106,34 +109,36 @@ namespace TDPIConnector.Core
                 tomlConfig.AFDatabaseName = GetStringFromAppSettings("AFDatabaseName");
                 tomlConfig.AFDataPipesInstances = GetIntegerFromAppSettings("AFDataPipesInstances", 1);
                 tomlConfig.PIDataPipesInstances = GetIntegerFromAppSettings("PIDataPipesInstances", 1);
-                tomlConfig.MaxBackfillRangeDays = GetIntegerFromAppSettings("MaxBackfillRangeDays");
+                tomlConfig.MaxBackfillRangeDays = GetIntegerFromAppSettings("MaxBackfillRangeDays", 1);
+                tomlConfig.TDDataBase = GetStringFromAppSettings("TDEnginePIDatabase");
+
+                TDEngineHost = GetStringFromAppSettings("TDEngineHost");
+                TDEnginePort = GetIntegerFromAppSettings("TDEnginePort");
+                TDEngineUsername = GetStringFromAppSettings("TDEngineUsername");
+                TDEnginePassword = GetStringFromAppSettings("TDEnginePassword");
+                TDEngineToken = GetStringFromAppSettings("TDEngineToken");
+
                 try
                 {
+                    tomlConfig.PointList = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "Points.csv").Distinct().ToList();
                     tomlConfig.TemplateForPIPoint = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates1.csv").Distinct().ToList();
                     tomlConfig.TemplateForAFElement = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "ElementTemplates2.csv").Distinct().ToList();
-                    tomlConfig.PointList = System.IO.File.ReadLines(AppDomain.CurrentDomain.BaseDirectory + "Points.csv").Distinct().ToList();
                 }
                 catch (Exception)
                 {
                     //throw;
                 }
             } 
-            else {
-                TDEngineHost = GetStringFromAppSettings("TDEngineHost");
-                TDEnginePort = GetIntegerFromAppSettings("TDEnginePort");
-                TDEngineUsername = GetStringFromAppSettings("TDEngineUsername");
-                TDEnginePassword = GetStringFromAppSettings("TDEnginePassword");
-                TDEngineToken = GetStringFromAppSettings("TDEngineToken");
-            }
+
             TDEnginePITablesPrefix = GetStringFromAppSettings("TDEnginePITablesPrefix");
             if (TDEnginePITablesPrefix == null)
             {
                 TDEnginePITablesPrefix = string.Empty;
             }
             WebBaseUrl = GetStringFromAppSettings("WebBaseUrl");
-            WebBasePort = GetIntegerFromAppSettings("WebBasePort");
-            WebMaxPIEvents = GetIntegerFromAppSettings("WebMaxPIEvents");
-            WebMaxTDEngineHttpResponses = GetIntegerFromAppSettings("WebMaxTDEngineHttpResponses");
+            WebBasePort = GetIntegerFromAppSettings("WebBasePort", 80);
+            WebMaxPIEvents = GetIntegerFromAppSettings("WebMaxPIEvents", 5);
+            WebMaxTDEngineHttpResponses = GetIntegerFromAppSettings("WebMaxTDEngineHttpResponses", 5);
             WebMonitoringEventsEnabled = GetBooleanFromAppSettings("WebMonitoringEventsEnabled", false);
 
 
