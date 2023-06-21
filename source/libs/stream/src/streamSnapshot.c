@@ -123,26 +123,26 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* handle, char* path) {
   SArray* list = taosArrayInit(64, sizeof(SBackendFileItem));
 
   SBackendFileItem item;
-
+  // current
   item.name = pFile->pCurrent;
   item.type = ROCKSDB_CURRENT_TYPE;
   taosArrayPush(list, &item);
-
+  // mainfest
   item.name = pFile->pMainfest;
   item.type = ROCKSDB_MAINFEST_TYPE;
   taosArrayPush(list, &item);
-
+  // options
   item.name = pFile->pOptions;
   item.type = ROCKSDB_OPTIONS_TYPE;
   taosArrayPush(list, &item);
-
+  // sst
   for (int i = 0; i < taosArrayGetSize(pFile->pSst); i++) {
     char* sst = taosArrayGetP(pFile->pSst, i);
     item.name = sst;
     item.type = ROCKSDB_SST_TYPE;
     taosArrayPush(list, &item);
   }
-
+  // meta
   item.name = pFile->pCheckpointMeta;
   item.type = ROCKSDB_CHECKPOINT_META_TYPE;
   taosArrayPush(list, &item);
@@ -164,6 +164,7 @@ _err:
   code = -1;
   return code;
 }
+
 void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
   SBanckendFile* pFile = handle->pBackendFile;
   taosMemoryFree(pFile->pCheckpointMeta);
@@ -176,9 +177,10 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
     taosMemoryFree(sst);
   }
   taosArrayDestroy(pFile->pSst);
+  taosMemoryFree(pFile);
 
   taosArrayDestroy(handle->pFileList);
-  taosMemoryFree(pFile);
+  taosCloseFile(&handle->fd);
   return;
 }
 
