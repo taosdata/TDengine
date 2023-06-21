@@ -17,76 +17,79 @@ description:  "为了能够方便地将各种数据源中的数据导入 TDengin
 
 1. 使用 TDengine 安装包，在安装了 TDengine 企业版之后，您的系统中就已经拥有了 taosX，请使用 Linux 系统命令 which 来确认它存在于系统中。TDengine 企业版中自带的 taosX 可以进行从 TDengine 到 TDengine 的数据复制和同步，可以进行备份数据到本地文件和从本地文件恢复。
 2. 使用独立的 taosX 安装包，其中除了 taosX 之外，还包含 Pi 连接器（限 Windows）， OPC 连接器， InfluxDB 连接器， MQTT 连接器，以及必要的 Agent 组件，taosX + Agent + 某个连接器可以用于将相应数据源的数据同步到 TDengine。
+3. taosX 安装包也包含 taos-explorer 这个可视化管理组件
 
 ### Linux 安装
 
-下载需要的 taosX 安装包，下文以安装包 `taosX-0.5.1-Linux-x64.tar.gz` 为例展示如何安装：
+下载需要的 taosX 安装包，下文以安装包 `taosx-1.0.0-linux-x64.tar.gz` 为例展示如何安装：
 
 ``` bash
 # 在任意目录下解压文件
-tar -zxf taosX-0.5.1-Linux-x64.tar.gz
-cd taosX-0.5.1-Linux-x64
+tar -zxf taosx-1.0.0-linux-x64.tar.gz
+cd taosx-1.0.0-linux-x64
 
 # 安装
 sudo ./install.sh
 
 # 验证
 taosx -V 
-# taosx 0.5.1-b9827b00-dirty (built linux-x86_64 2023-05-31 09:11:13 +08:00)
-
+# taosx 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:00 +08:00)
 taosx-agent -V 
-# taosx-agent 0.1.0-33c1e5e4 (built linux-x86_64 2023-05-26 14:24:13 +08:00)
+# taosx-agent 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:01 +08:00)
 
 # 卸载
-sudo rmtaox
-
+cd /usr/local/taosx
+sudo ./uninstall.sh
 ```
 
 **常见问题:**
 
 1. 安装后系统中增加了哪些文件？
-    * /usr/local/taosX/bin: taosx, taosx-agent
-    * /usr/local/taosX/plugins: taosx-influxdb, taosx-mqtt, taosx-opc, taosx-pi, taosx-pi-backfill
-    * /usr/local/taosX/scripts:taosx.service, taosx-agent.service
-    * /usr/local/taosX: install.sh, rmtaosX.sh 
-    * /usr/local/taosX/config: config/agent.example.toml
-    * /etc/taosX: config/agent.example.toml
+    * /usr/bin: taosx, taosx-agent, taos-explorer
+    * /usr/local/taosx/plugins: influxdb, mqtt, opc
+    * /etc/systemd/system:taosx.service, taosx-agent.service, taos-explorer.service
+    * /usr/local/taosx: uninstall.sh 
+    * /etc/taox: agent.toml, explorer.toml
 
-2. taosX -V 提示 "Command not found" 应该如何解决？
+2. taosx -V 提示 "Command not found" 应该如何解决？
     * 检验问题1，保证所有的文件都被复制到对应的目录
-    * 如下创建软链接，或者确保 /usr/local/taosX/bin 被添加到系统环境变量 PATH 中
     ``` bash
-    ln -s /usr/local/taosX/bin/taosx /usr/bin/taosx
-    ln -s /usr/local/taosX/bin/taosx-agent /usr/bin/taosx-agent
-    ln -s /usr/local/taosX/rmtaosX.sh /usr/bin/rmtaosx
+    ls /usr/bin | grep taosx
     ```
 
 ### Windows 安装
 
-- 下载需要的 taosX 安装包，例如 taosx-{version}-windows-installer.exe，执行安装
+- 下载需要的 taosX 安装包，例如 taosx-{version}-windows-{cpu_type}-installer.exe，执行安装
 - 可使用 uninstall_taosx.exe 进行卸载
 - 命令行执行 ```sc start/stop taosx``` 启动/停止 taosx 服务
-- 命令行执行 ```sc start/stop taosx-ageent``` 启动/停止 taosx-agent 服务
+- 命令行执行 ```sc start/stop taosx-agent``` 启动/停止 taosx-agent 服务
+- 命令行执行 ```sc start/stop taos-explorer``` 启动/停止 taosx-agent 服务
 - windows 默认安装在```C:\Program Files\taosX```,目录结构如下：
 ~~~
 ├── bin
 │   ├── taosx.exe
+│   ├── taosx-srv.exe
+│   ├── taosx-srv.xml
 │   ├── taosx-agent.exe
+│   ├── taosx-agent-srv.exe
+│   ├── taosx-agent-srv.xml
+│   ├── taos-explorer.exe
+│   ├── taos-explorer-srv.exe
+│   └── taos-explorer-srv.xml
 ├── plugins
 │   ├── influxdb
 │   │   └── taosx-inflxdb.jar
 │   ├── mqtt
 │   │   └── taosx-mqtt.exe
-│   └── opc
-│       └── taosx-opc.exe
-│   ├── influxdb
-│   │   └── taosx-inflxdb.exe
-│   └── pi
-│       └── taosx-pi.exe
-│       └── taosx-pi-backfill.exe
-│       └── ...
+│   ├── opc
+│   |    └── taosx-opc.exe
+│   ├── pi
+│   |   └── taosx-pi.exe
+│   |   └── taosx-pi-backfill.exe
+│   |   └── ...
 └── config
-│   ├── agent.example.toml
+│   ├── agent.toml
+│   ├── explorer.toml
 ├── uninstall_taosx.exe
 ├── uninstall_taosx.dat
 ~~~
