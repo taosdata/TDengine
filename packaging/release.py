@@ -281,7 +281,7 @@ def build_and_install_mqtt_on_windows(mode):
     print(mqtt_connector_path)
     os.environ["GOOS"] = "windows"
     os.environ["GOARCH"] = "amd64"
-    mqtt_app_name = "taos-mqtt.exe"
+    mqtt_app_name = "taosx-mqtt.exe"
     base_build = f"go build -o dist/{mqtt_app_name}"
     extend = f" -ldflags \"" \
              f"-X github.com/taosdata/taosx/plugins/mqtt/version.Commit={release_info.Commit} " \
