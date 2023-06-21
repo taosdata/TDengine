@@ -114,20 +114,20 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
 
   for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->dataIterMerger)) != NULL;) {
     if (row->uid != committer->ctx->tbid->uid) {
+      committer->ctx->tbid->suid = row->suid;
+      committer->ctx->tbid->uid = row->uid;
+
       if (metaGetInfo(committer->tsdb->pVnode->pMeta, row->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(committer->dataIterMerger, (TABLEID *)row);
+        code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
         TSDB_CHECK_CODE(code, lino, _exit);
         continue;
       }
-
-      committer->ctx->tbid->suid = row->suid;
-      committer->ctx->tbid->uid = row->uid;
     }
 
     int64_t ts = TSDBROW_TS(&row->row);
     if (ts > committer->ctx->maxKey) {
       committer->ctx->nextKey = TMIN(committer->ctx->nextKey, ts);
-      code = tsdbIterMergerSkipTableData(committer->dataIterMerger, (TABLEID *)row);
+      code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
       TSDB_CHECK_CODE(code, lino, _exit);
       continue;
     }

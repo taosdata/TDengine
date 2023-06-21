@@ -332,14 +332,14 @@ static int32_t tsdbMergeFileSet(SMerger *merger, STFileSet *fset) {
   merger->ctx->tbid->uid = 0;
   while ((row = tsdbIterMergerGetData(merger->dataIterMerger)) != NULL) {
     if (row->uid != merger->ctx->tbid->uid) {
+      merger->ctx->tbid->uid = row->uid;
+      merger->ctx->tbid->suid = row->suid;
+
       if (metaGetInfo(merger->tsdb->pVnode->pMeta, row->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(merger->dataIterMerger, (TABLEID *)row);
+        code = tsdbIterMergerSkipTableData(merger->dataIterMerger, merger->ctx->tbid);
         TSDB_CHECK_CODE(code, lino, _exit);
         continue;
       }
-
-      merger->ctx->tbid->uid = row->uid;
-      merger->ctx->tbid->suid = row->suid;
     }
 
     code = tsdbFSetWriteRow(merger->writer, row);
