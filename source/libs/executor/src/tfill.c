@@ -567,7 +567,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
   if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
     SColumnInfoData* pCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);    
     int64_t* tsList = (int64_t*)pCol->pData;
-    TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
+    TSKEY lastKey = FILL_IS_ASC_FILL(pFillInfo)? tsList[pFillInfo->numOfRows - 1] : ekey;
     numOfRes = taosTimeCountInterval(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);
     numOfRes += 1;
