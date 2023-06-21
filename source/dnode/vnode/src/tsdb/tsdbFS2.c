@@ -14,6 +14,7 @@
  */
 
 #include "tsdbFS2.h"
+#include "tsdbUpgrade.h"
 
 extern int vnodeScheduleTask(int (*execute)(void *), void *arg);
 extern int vnodeScheduleTaskEx(int tpid, int (*execute)(void *), void *arg);
@@ -27,12 +28,6 @@ enum {
   TSDB_FS_STATE_EDIT,
   TSDB_FS_STATE_CLOSE,
 };
-
-typedef enum {
-  TSDB_FCURRENT = 1,
-  TSDB_FCURRENT_C,  // for commit
-  TSDB_FCURRENT_M,  // for merge
-} EFCurrentT;
 
 static const char *gCurrentFname[] = {
     [TSDB_FCURRENT] = "current.json",
@@ -73,7 +68,7 @@ static int32_t destroy_fs(STFileSystem **fs) {
   return 0;
 }
 
-static int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
+int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   if (pTsdb->pVnode->pTfs) {
     snprintf(fname,                                   //
              TSDB_FILENAME_LEN,                       //
@@ -161,7 +156,7 @@ _exit:
   return code;
 }
 
-static int32_t save_fs(const TFileSetArray *arr, const char *fname) {
+int32_t save_fs(const TFileSetArray *arr, const char *fname) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -375,11 +370,6 @@ static int32_t tsdbFSScanAndFix(STFileSystem *fs) {
   return 0;
 }
 
-static int32_t update_fs_if_needed(STFileSystem *pFS) {
-  // TODO
-  return 0;
-}
-
 static int32_t tsdbFSDupState(STFileSystem *fs) {
   int32_t code;
 
@@ -404,9 +394,6 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   int32_t code = 0;
   int32_t lino = 0;
   STsdb  *pTsdb = fs->tsdb;
-
-  code = update_fs_if_needed(fs);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
   char fCurrent[TSDB_FILENAME_LEN];
   char cCurrent[TSDB_FILENAME_LEN];
@@ -529,6 +516,9 @@ _exit:
 int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback) {
   int32_t code;
   int32_t lino;
+
+  code = tsdbCheckAndUpgradeFileSystem(pTsdb, rollback);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = create_fs(pTsdb, fs);
   TSDB_CHECK_CODE(code, lino, _exit);

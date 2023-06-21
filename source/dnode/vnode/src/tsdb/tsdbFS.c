@@ -269,7 +269,7 @@ int32_t tDFileSetCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
+void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
   SVnode *pVnode = pTsdb->pVnode;
   if (pVnode->pTfs) {
     if (current) {
