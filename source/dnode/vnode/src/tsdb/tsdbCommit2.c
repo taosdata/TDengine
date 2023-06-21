@@ -122,6 +122,14 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
       committer->ctx->tbid->uid = row->uid;
     }
 
+    int64_t ts = TSDBROW_TS(&row->row);
+    if (ts > committer->ctx->maxKey) {
+      committer->ctx->nextKey = TMIN(committer->ctx->nextKey, ts);
+      code = tsdbIterMergerSkipTableData(committer->dataIterMerger, (TABLEID *)row);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      continue;
+    }
+
     code = tsdbFSetWriteRow(committer->writer, row);
     TSDB_CHECK_CODE(code, lino, _exit);
 

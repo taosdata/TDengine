@@ -58,6 +58,8 @@ typedef struct {
   int8_t    rsvd[7];
 } STombBlk;
 
+typedef TARRAY2(STombBlk) TTombBlkArray;
+
 #define TOMB_BLOCK_SIZE(db) TARRAY2_SIZE((db)->suid)
 
 int32_t tTombBlockInit(STombBlock *tombBlock);
