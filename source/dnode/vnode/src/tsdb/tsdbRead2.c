@@ -566,7 +566,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, TFileSetArray* pFileSetA
   if (pLReader->pInfo == NULL) {
     // here we ignore the first column, which is always be the primary timestamp column
     SBlockLoadSuppInfo* pInfo = &pReader->suppInfo;
-
+    // todo dynamic number of stt
     int32_t numOfStt = pReader->pTsdb->pVnode->config.sttTrigger;
     pLReader->pInfo = tCreateLastBlockLoadInfo(pReader->pSchema, &pInfo->colId[1], pInfo->numOfCols - 1, numOfStt);
     if (pLReader->pInfo == NULL) {

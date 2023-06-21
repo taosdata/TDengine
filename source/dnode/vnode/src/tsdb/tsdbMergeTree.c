@@ -75,6 +75,12 @@ void getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double 
   }
 }
 
+static void freeTombBlock(void* param) {
+  STombBlock** pTombBlock = (STombBlock**) param;
+  tTombBlockDestroy(*pTombBlock);
+  taosMemoryFree(*pTombBlock);
+}
+
 void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   if (pLoadInfo == NULL) {
     return NULL;
@@ -90,6 +96,8 @@ void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
 
     taosArrayDestroy(pLoadInfo[i].aSttBlk);
   }
+
+  taosArrayDestroyEx(pLoadInfo->pTombBlockArray, freeTombBlock);
 
   taosMemoryFree(pLoadInfo);
   return NULL;
