@@ -24,6 +24,7 @@ extern int32_t tsdbUpdateTableSchema(SMeta *pMeta, int64_t suid, int64_t uid, SS
 extern int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SMapData *mDataBlk, int8_t cmprAlg);
 extern int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SArray *aSttBlk, int8_t cmprAlg);
 
+#if 0
 typedef struct {
   STsdb  *pTsdb;
   int64_t commitID;
@@ -676,6 +677,7 @@ _exit:
   }
   return code;
 }
+#endif
 
 // new code ====================================================================================
 typedef struct {
@@ -687,6 +689,8 @@ typedef struct {
   int64_t cid;
   int64_t compactVersion;
 
+  int32_t        minFid;
+  int32_t        maxFid;
   TFileSetArray *fsetArr;
   TFileOpArray  *fopArr;
 
@@ -717,9 +721,17 @@ typedef struct {
   } ctx[1];
 } SCompactor2;
 
-static int32_t tsdbCompactBegin(STsdb *tsdb, SCompactInfo *info, SCompactor2 *compactor) {
+typedef struct {
+  STsdb      *tsdb;
+  bool        sync;
+  STimeWindow tw;
+} SCompactArg;
+
+static int32_t tsdbCompactBegin(SCompactArg *arg, SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  STsdb *tsdb = arg->tsdb;
 
   compactor->tsdb = tsdb;
   compactor->szPage = tsdb->pVnode->config.tsdbPageSize;
@@ -728,6 +740,8 @@ static int32_t tsdbCompactBegin(STsdb *tsdb, SCompactInfo *info, SCompactor2 *co
   compactor->cmprAlg = tsdb->pVnode->config.tsdbCfg.compression;
   compactor->cid = tsdbFSAllocEid(tsdb->pFS);
   compactor->compactVersion = INT64_MAX;
+  compactor->minFid = tsdbKeyFid(arg->tw.skey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
+  compactor->maxFid = tsdbKeyFid(arg->tw.ekey, tsdb->keepCfg.days, tsdb->keepCfg.precision);
 
   code = tsdbFSCreateCopySnapshot(tsdb->pFS, &compactor->fsetArr);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -1140,16 +1154,21 @@ _exit:
   return code;
 }
 
-int32_t tsdbCompact2(STsdb *tsdb, SCompactInfo *info) {
-  int32_t code = 0;
-  int32_t lino = 0;
+int32_t tsdbDoCompact(void *arg) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  SCompactArg *compactArg = (SCompactArg *)arg;
 
   SCompactor2 compactor[1] = {0};
 
-  code = tsdbCompactBegin(tsdb, info, compactor);
+  code = tsdbCompactBegin(arg, compactor);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   TARRAY2_FOREACH(compactor->fsetArr, compactor->ctx->fset) {
+    if (compactor->ctx->fset->fid < compactor->minFid || compactor->ctx->fset->fid > compactor->maxFid) {
+      continue;
+    }
+
     // check if the file set should be compacted
     code = tsdbCompactFSetBegin(compactor);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1166,7 +1185,35 @@ int32_t tsdbCompact2(STsdb *tsdb, SCompactInfo *info) {
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
+    TSDB_ERROR_LOG(TD_VID(compactArg->tsdb->pVnode), lino, code);
+  }
+  if (compactArg->sync) {
+    tsem_post(&compactArg->tsdb->pVnode->canCommit);
+  }
+  taosMemoryFree(compactArg);
+  return code;
+}
+
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool sync) {
+  int64_t taskid;
+
+  if (sync) {
+    tsem_wait(&tsdb->pVnode->canCommit);
+  }
+
+  SCompactArg *arg = (SCompactArg *)taosMemoryCalloc(1, sizeof(*arg));
+  if (arg == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  arg->tsdb = tsdb;
+  arg->sync = sync;
+  arg->tw = *tw;
+
+  int32_t code = tsdbFSScheduleBgTask(tsdb->pFS, TSDB_BG_TASK_COMPACT, tsdbDoCompact, arg, &taskid);
+  if (code) {
+    taosMemoryFree(arg);
+    if (sync) {
+      tsem_post(&tsdb->pVnode->canCommit);
+    }
   }
   return code;
 }
