@@ -2364,6 +2364,8 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
       pUpInfo->pMap = NULL;
       pInfo->stateStore.updateInfoDestroy(pUpInfo);
     }
+  } else {
+    pInfo->stateStore.updateInfoDestroy(pUpInfo);
   }
 }
 
