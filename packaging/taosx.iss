@@ -21,10 +21,10 @@ Source: "{#MyAppSourceDir}\bin\{#TaosXAgentName}.exe"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\{#TaosXName}.exe"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\taosx-agent-srv.*"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\{#TaosXName}-srv.*"; DestDir: "{app}\bin"
-Source: "{#MyAppSourceDir}\cfg\agent.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall
+Source: "{#MyAppSourceDir}\config\agent.toml"; DestDir: "{app}\config"; Flags: uninsneveruninstall
 Source: "{#MyAppSourceDir}\bin\taos-explorer.exe"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\bin\taos-explorer-srv.*"; DestDir: "{app}\bin"
-Source: "{#MyAppSourceDir}\cfg\explorer.toml"; DestDir: "{app}\cfg"; Flags: uninsneveruninstall
+Source: "{#MyAppSourceDir}\config\explorer.toml"; DestDir: "{app}\config"; Flags: uninsneveruninstall
 
 
 [run]
