@@ -348,25 +348,33 @@ FORCE_INLINE char* retrieveColDataFromRowBufs(SArray* pRowBufs, SBufRowInfo* pRo
 FORCE_INLINE int32_t copyJoinResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum, SBufRowInfo* pStart, SSDataBlock* pRes) {
   SHJoinTableInfo* pBuild = pJoin->pBuild;
   SHJoinTableInfo* pProbe = pJoin->pProbe;
-  int32_t buildIdx = 0;
+  int32_t buildIdx = 0, buildValIdx = 0;
   int32_t probeIdx = 0;
   SBufRowInfo* pRow = pStart;
   int32_t code = 0;
 
   for (int32_t r = 0; r < rowNum; ++r) {
     char* pData = retrieveColDataFromRowBufs(pJoin->pRowBufs, pRow);
+    char* pValData = pData + pBuild->valBitMapSize;
     for (int32_t i = 0; i < pJoin->pResColNum; ++i) {
       if (pJoin->pResColMap[i]) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pBuild->valCols[buildIdx].dstSlot);
         if (pBuild->valCols[buildIdx].keyCol) {
           
-        } else if (colDataIsNull_f(pData, r)) {
-  
         } else {
-          code = colDataSetVal(pDst, pRes->info.rows + r, , pRow->isNull);
-          if (code) {
-            return code;
+          if (colDataIsNull_f(pData, buildValIdx)) {
+            code = colDataSetVal(pDst, pRes->info.rows + r, NULL, true);
+            if (code) {
+              return code;
+            }
+          } else {
+            code = colDataSetVal(pDst, pRes->info.rows + r, pValData, false);
+            if (code) {
+              return code;
+            }
+            pValData += pBuild->valCols[buildIdx].vardata ? varDataTLen(pValData) : pBuild->valCols[buildIdx].bytes;
           }
+          buildValIdx++;
         }
         buildIdx++;
       } else {
@@ -382,8 +390,6 @@ FORCE_INLINE int32_t copyJoinResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t r
     }
     pRow = pRow->next;
   }
-  
-
 
   return TSDB_CODE_SUCCESS;
 }
