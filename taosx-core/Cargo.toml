@@ -48,6 +48,8 @@ chrono-tz = "0.8"
 tinytemplate = "1.2.1"
 serde_json_path = "0.6.0"
 
+file-rotate = "0.7.5"
+
 actix-cors = "0.6.4"
 actix-web = "4"
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -72,7 +74,6 @@ r2d2 = "0.8.10"
 serde_with = "2.3.1"
 tokio-cron-scheduler = "0.9.4"
 
-async-process = "1.6"
 bitvec = "1"
 socket2 = "0.5"
 tempfile = "3"
@@ -81,6 +82,8 @@ reqwest = "0.11.15"
 taosx-ipc = { path = "../taosx-ipc" }
 
 taos = { workspace = true }
+
+md5 = "0.7.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }

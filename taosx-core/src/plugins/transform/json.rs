@@ -4,7 +4,7 @@ use arrow::{
     array::{
         make_builder, Array, ArrayRef, BinaryArray, Float32Array, Float64Array, Int16Array,
         Int32Array, Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
+        UInt8Array, BooleanArray,
     },
     datatypes::{DataType, Schema},
     record_batch::RecordBatch,
@@ -389,6 +389,23 @@ impl TransformExt for Json {
                                                 .collect_vec();
                                             let array: ArrayRef =
                                                 Arc::new(BinaryArray::from_iter(values));
+                                            batch_container.push((f.name(), array));
+                                        }
+                                        DataType::Boolean => {
+                                            let values = json_values
+                                                .iter()
+                                                .map(|(n, v)| {
+                                                    if let Some(v) =
+                                                        v.as_ref().and_then(|v| v.get(name))
+                                                    {
+                                                        v.as_bool()
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                                .collect_vec();
+                                            let array: ArrayRef =
+                                                Arc::new(BooleanArray::from_iter(values));
                                             batch_container.push((f.name(), array));
                                         }
                                         _ => todo!(),

@@ -30,6 +30,29 @@ pub(crate) fn get_plugin_dir(plugin: &str) -> PathBuf {
     get_plugins_home_dir().join(plugin)
 }
 
+const ENV_TAOSX_LOGS_HOME: &'static str = "TAOSX_LOGS_HOME";
+const ENV_TAOSX_LOGS_HOME_DEFAULT: &'static str = {
+    cfg_if::cfg_if! {
+        if #[cfg(windows)] {
+            "C:\\Program Files\\taosX\\logs"
+        } else {
+            "/usr/local/taosx/logs"
+        }
+    }
+};
+
+#[inline]
+pub fn get_logs_home_dir() -> PathBuf {
+    let env = std::env::var(ENV_TAOSX_LOGS_HOME)
+        .unwrap_or_else(|_| ENV_TAOSX_LOGS_HOME_DEFAULT.to_string());
+    Path::new(&env).to_path_buf()
+}
+
+#[inline]
+pub fn get_log_dir(plugin: &str) -> PathBuf {
+    get_logs_home_dir().join(plugin)
+}
+
 pub fn get_plugins_info() -> Vec<(&'static str, PathBuf, String)> {
     let mut plugins = Vec::new();
     if let Ok(info) = opc::info() {

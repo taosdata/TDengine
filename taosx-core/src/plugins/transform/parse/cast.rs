@@ -94,7 +94,7 @@ impl Parse for Cast {
         let dt = self.r#as.arrow_data_type();
         let field = Field::new(name, dt, true).with_metadata(m);
 
-        let array = if self.r#as == IpcDataType::Timestamp {
+        let array = if let IpcDataType::Timestamp(time_unit) = &self.r#as {
             if let Some(with) = self.with.as_deref() {
                 let strings = arrow::compute::cast(array, &DataType::Utf8)?;
                 let strings = strings.as_any().downcast_ref::<StringArray>().unwrap();
@@ -118,44 +118,45 @@ impl Parse for Cast {
                 }));
                 Arc::new(array)
             } else {
-                use arrow::datatypes::TimeUnit::*;
-                use DataType::*;
-                if let Timestamp(unit, _) = array.data_type() {
-                    // let array =
-                    match unit {
-                        Second => Arc::new(Int64Array::from_iter(
-                            array
-                                .as_any()
-                                .downcast_ref::<TimestampSecondArray>()
-                                .unwrap()
-                                .iter()
-                                .map(|ts| ts.map(|ts| ts * 1000)),
-                        )),
-                        Millisecond => Arc::new(Int64Array::from_iter(
-                            array
-                                .as_any()
-                                .downcast_ref::<TimestampMillisecondArray>()
-                                .unwrap()
-                                .iter(),
-                        )),
-                        Microsecond => Arc::new(Int64Array::from_iter(
-                            array
-                                .as_any()
-                                .downcast_ref::<TimestampMicrosecondArray>()
-                                .unwrap()
-                                .iter(),
-                        )),
-                        Nanosecond => Arc::new(Int64Array::from_iter(
-                            array
-                                .as_any()
-                                .downcast_ref::<TimestampNanosecondArray>()
-                                .unwrap()
-                                .iter(),
-                        )),
-                    }
-                } else {
-                    arrow::compute::cast(array, field.data_type())?
-                }
+                arrow::compute::cast(array, field.data_type())?
+                // use arrow::datatypes::TimeUnit::*;
+                // use DataType::*;
+                // if let Timestamp(unit, _) = array.data_type() {
+                //     // let array =
+                //     match unit {
+                //         Second => Arc::new(Int64Array::from_iter(
+                //             array
+                //                 .as_any()
+                //                 .downcast_ref::<TimestampSecondArray>()
+                //                 .unwrap()
+                //                 .iter()
+                //                 .map(|ts| ts.map(|ts| ts * 1000)),
+                //         )),
+                //         Millisecond => Arc::new(Int64Array::from_iter(
+                //             array
+                //                 .as_any()
+                //                 .downcast_ref::<TimestampMillisecondArray>()
+                //                 .unwrap()
+                //                 .iter(),
+                //         )),
+                //         Microsecond => Arc::new(Int64Array::from_iter(
+                //             array
+                //                 .as_any()
+                //                 .downcast_ref::<TimestampMicrosecondArray>()
+                //                 .unwrap()
+                //                 .iter(),
+                //         )),
+                //         Nanosecond => Arc::new(Int64Array::from_iter(
+                //             array
+                //                 .as_any()
+                //                 .downcast_ref::<TimestampNanosecondArray>()
+                //                 .unwrap()
+                //                 .iter(),
+                //         )),
+                //     }
+                // } else {
+                //     arrow::compute::cast(array, field.data_type())?
+                // }
             }
         } else {
             arrow::compute::cast(array, field.data_type())?

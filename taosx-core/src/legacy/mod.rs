@@ -12,11 +12,11 @@ use std::{
 };
 
 use anyhow::{bail, Context};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use linked_hash_map::LinkedHashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::*;
+use taos::{taos_query::common::Timestamp, *};
 use tokio::sync::oneshot;
 
 use crate::{legacy::scheduler::Todo, Action};
@@ -198,7 +198,7 @@ impl Display for Limit {
 /// A (half-open) time range bounded inclusively below and exclusively above (`start..end`).
 ///
 /// The range `start..end` is equivalent to TDengine SQL condition `_c0 >= {start} AND _c0 < {end}`.
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq, PartialOrd)]
 pub struct TimeRange {
     start: Option<DateTime<Utc>>,
     end: Option<DateTime<Utc>>,
@@ -222,8 +222,47 @@ impl TimeRange {
         self
     }
 
+    pub const fn has_start(&self) -> bool {
+        self.start.is_some()
+    }
+
+    pub const fn has_end(&self) -> bool {
+        self.end.is_some()
+    }
+
     pub const fn is_none(&self) -> bool {
         self.start.is_none() && self.end.is_none()
+    }
+
+    pub fn to_chunks(&self, duration: Duration) -> Vec<Self> {
+        let duration = if duration.is_zero() {
+            chrono::Duration::days(1)
+        } else {
+            chrono::Duration::from_std(duration).unwrap()
+        };
+        match (self.start, self.end) {
+            (Some(mut start), Some(end)) => {
+                let mut chunks = vec![];
+                loop {
+                    let chunk_end = start + duration;
+                    if chunk_end >= end {
+                        chunks.push(Self {
+                            start: Some(start),
+                            end: Some(end),
+                        });
+                        break;
+                    }
+                    chunks.push(Self {
+                        start: Some(start),
+                        end: Some(chunk_end),
+                    });
+                    start = chunk_end;
+                }
+
+                chunks
+            }
+            _ => vec![*self],
+        }
     }
 
     pub fn till_now() -> Self {
@@ -266,11 +305,23 @@ fn test_time_range() {
     let ts_range = TimeRange::new();
     dbg!(ts_range.start);
     dbg!(ts_range);
+
+    let chunks = ts_range.to_chunks(Duration::from_secs(5));
+    assert!(chunks[0] == ts_range);
+
+    let range = TimeRange::new()
+        .start(Utc::now())
+        .end(Utc::now() + chrono::Duration::days(3));
+
+    let chunks = range.to_chunks(chrono::Duration::days(1).to_std().unwrap());
+
+    dbg!(&chunks);
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct QueryOpts {
     time_range: TimeRange,
+    unit: Duration,
     limit: Limit,
     select_from_stable: bool,
 }
@@ -284,6 +335,9 @@ impl Display for QueryOpts {
 impl QueryOpts {
     pub fn is_none(&self) -> bool {
         self.time_range.is_none() && self.limit.is_none()
+    }
+    pub fn time_range_chunks(&self) -> Vec<TimeRange> {
+        self.time_range.to_chunks(self.unit)
     }
 }
 
@@ -299,6 +353,73 @@ async fn sync_single_table(
     metrics: &LegacyMetrics,
 ) -> anyhow::Result<()> {
     log::debug!("Migrate data from table `{table}`");
+
+    let mut time_range = opts.time_range;
+    async fn query_ts_with(
+        taos: &Taos,
+        sql: impl AsRef<str>,
+    ) -> Result<chrono::DateTime<Utc>, taos::Error> {
+        let sql = sql.as_ref();
+        let mut set = taos.query(&sql).await?;
+        let mut records = set.to_records().await?;
+        if let Some(Value::Timestamp(ts)) = records.pop().and_then(|mut v| v.pop()) {
+            Ok(Utc.from_local_datetime(&ts.to_naive_datetime()).unwrap())
+        } else {
+            Err(taos::Error::Any(anyhow::format_err!(
+                "Invalid sql for timestamp: {sql}"
+            )))
+        }
+    }
+    match (time_range.has_start(), time_range.has_end()) {
+        (true, true) => (),
+        (true, false) => {
+            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+                time_range.end.replace(ts + chrono::Duration::seconds(1));
+            }
+        }
+        (false, true) => {
+            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+                time_range.start.replace(ts);
+            }
+        }
+        (false, false) => {
+            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+                time_range.start.replace(ts);
+            }
+            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+                time_range.end.replace(ts + chrono::Duration::seconds(1));
+            }
+        }
+    }
+    for ts in time_range.to_chunks(opts.unit) {
+        let mut opts = opts.clone();
+        opts.time_range = ts;
+        sync_single_table_partial(
+            from,
+            stable,
+            table,
+            to,
+            &opts,
+            target_opts,
+            target_is_v3,
+            metrics,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+#[async_backtrace::framed]
+async fn sync_single_table_partial(
+    from: &Taos,
+    stable: Option<&str>,
+    table: &str,
+    to: &Taos,
+    opts: &QueryOpts,
+    target_opts: &TargetOpts,
+    target_is_v3: bool,
+    metrics: &LegacyMetrics,
+) -> anyhow::Result<()> {
     let (table, sql) = if opts.select_from_stable {
         if let Some(stable) = stable {
             let stable_schema = from.describe(stable).await?;
@@ -340,45 +461,82 @@ async fn sync_single_table(
         while let Some(mut block) = blocks.try_next().await? {
             block.with_table_name(table);
 
-            let ok = to.write_raw_block(&block).await;
-
-            if let Err(err) = ok {
-                let err_str = err.to_string();
-                if err_str.contains("0x2603") {
-                    if let Some(stable) = stable {
-                        sync_super_table_schema_with_subs_without_pool(
-                            from,
-                            stable,
-                            &[table],
-                            to,
-                            1,
-                            &target_opts,
-                            true,
-                            0,
-                            &metrics,
-                        )
-                        .await?;
+            loop {
+                let ok = to.write_raw_block(&block).await;
+                if let Err(err) = ok {
+                    let err_str = err.to_string();
+                    if err_str.contains("0x2603") {
+                        if let Some(stable) = stable {
+                            sync_super_table_schema_with_subs_without_pool(
+                                from,
+                                stable,
+                                &[table],
+                                to,
+                                1,
+                                &target_opts,
+                                true,
+                                0,
+                                &metrics,
+                            )
+                            .await?;
+                        } else {
+                            sync_normal_table_schema(from, table, to).await?;
+                        }
+                        continue;
+                    } else if err_str.contains("0x0911") {
+                        // TSDB_CODE_SYN_PROPOSE_NOT_READY： Sync not ready to propose
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        continue;
+                    } else if err_str.contains("0x0118") {
+                        let desc = to.describe(table).await.map_err(|err| {
+                            anyhow::format_err!("Describe table {table} error: {err}")
+                        })?;
+                        let fields: HashMap<_, Ty> = block
+                            .field_names()
+                            .iter()
+                            .map(|name| {
+                                desc.iter()
+                                    .find(|f| f.field() == name)
+                                    .map(|f| (name, f.ty()))
+                                    .ok_or_else(|| {
+                                        anyhow::format_err!("Column {name} does not exist")
+                                    })
+                            })
+                            .try_collect()?;
+                        let views: Vec<ColumnView> = block
+                            .column_views()
+                            .iter()
+                            .zip(block.field_names())
+                            .map(|(view, name)| view.cast(fields[name]))
+                            .try_collect()?;
+                        let mut new = RawBlock::from_views(views.as_slice(), block.precision());
+                        new.with_table_name(table);
+                        new.with_field_names(block.field_names());
+                        // dbg!(&new);
+                        // new.pretty_format();
+                        to.write_raw_block(&new).await.map_err(|err| {
+                            anyhow::format_err!(
+                                "[{}:{}]write raw block of table {table} ({} rows): {}\nData:{}",
+                                std::file!(),
+                                std::line!(),
+                                new.nrows(),
+                                err,
+                                new.pretty_format()
+                            )
+                        })?;
                     } else {
-                        sync_normal_table_schema(from, table, to).await?;
-                    }
-                    if let Err(err) = to.write_raw_block(&block).await {
                         Err(err).with_context(|| {
                             format!(
-                                "write raw block of table {table} ({} rows): {}",
+                                "[{}:{}]write raw block of table {table} ({} rows): {}",
+                                std::file!(),
+                                std::line!(),
                                 block.nrows(),
                                 err_str
                             )
                         })?;
                     }
-                } else {
-                    Err(err).with_context(|| {
-                        format!(
-                            "write raw block of table {table} ({} rows): {}",
-                            block.nrows(),
-                            err_str
-                        )
-                    })?;
                 }
+                break;
             }
 
             metrics.blocks.fetch_add(1, Ordering::SeqCst);
@@ -539,6 +697,7 @@ async fn sync_single_table(
     }
     Ok(())
 }
+
 async fn sync_super_table_schema_with_subs_without_pool(
     from: &Taos,
     name: &str,
@@ -1136,6 +1295,14 @@ impl SourceOpts {
         if let Some(value) = dsn.remove("end") {
             let value = DateTime::<Utc>::from_str(&value)?;
             opts.query.time_range.end.replace(value);
+        }
+        if let Some(value) = dsn.remove("unit") {
+            let value = parse_duration::parse(&value).map_err(|err| {
+                anyhow::format_err!(
+                    "Can not parse duration for `unit` from value: {value} (Error: {err})"
+                )
+            })?;
+            opts.query.unit = value;
         }
 
         if let Some(value) = dsn.remove("mode") {

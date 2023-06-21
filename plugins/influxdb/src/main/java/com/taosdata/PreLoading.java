@@ -24,6 +24,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.info.GitProperties;
 import org.springframework.stereotype.Component;
 import org.tomlj.Toml;
 import org.tomlj.TomlParseResult;
@@ -66,8 +67,14 @@ public class PreLoading implements CommandLineRunner {
     @Resource
     private InfluxdbService influxdbService;
 
+    @Resource
+    private GitProperties gitProperties;
+
     @Override
     public void run(String... args) {
+        System.err.println("InfluxDB Connector version: 1.0.0");
+        System.err.println("InfluxDB Connector commit: " + gitProperties.getCommitId());
+        System.err.println("InfluxDB Connector build time: " + gitProperties.getInstant("build.time"));
         /** 监控信息及系统初始化 */
         try {
             // 设置启动时间
@@ -245,6 +252,12 @@ public class PreLoading implements CommandLineRunner {
                     logger.error("初始化influxdb及相关线程过程中发生异常", e);
                 }
             });
+            // 没有bucket则报错退出
+            if (BucketCache.bucketMap.size() == 0) {
+                // bucket错误
+                logger.error("The application will exit soon: bucket not found");
+                System.exit(104);
+            }
             // 估算任务量
             StatisticCache.totalReadTaskEstimated = estimateTaskAmount();
             // 启动ScheduleThread

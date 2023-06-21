@@ -13,6 +13,7 @@ from datetime import datetime
 cus_name = "TDengine"
 taosx_name = "taosx"
 taosx_agent_name = "taosx-agent"
+taos_explorer_name = "taos-explorer"
 
 script_path = os.path.abspath(sys.argv[0])
 script_dir = os.path.dirname(script_path)
@@ -52,6 +53,30 @@ class ReleaseInfo:
                     print(f"{attr:<20}: {value}")
 release_info = ReleaseInfo(platform.system())
 
+def GetCpuType():
+    type = ""
+    arch, _ = platform.architecture()
+    machine = platform.machine()
+
+    if arch == '32bit':
+        type =  '32'
+    elif arch == '64bit':
+        if machine.startswith('arm'):
+            type = 'arm64'
+        elif machine in ('x86_64', 'amd64',  'AMD64'):
+            type =  'x64'
+        elif machine == 'aarch64':
+            type =  'AArch64'
+        else:
+            type =  f'Unknown architecture: {machine}'
+            print(f'Get cpu type failed! {machine}')
+            sys.exit()
+    else:
+        type =  f'Unknown architecture: {arch}'
+        print(f'Get cpu type failed! {arch}')
+        sys.exit()
+    return type
+
 def get_taosx_version():
     version = ""
     cargo_toml_path = os.path.join(taosx_dir, "Cargo.toml")
@@ -68,9 +93,9 @@ def get_install_path():
 
 def get_package_name():
     if release_info.OS == 'Windows':  # Windows操作系统
-        return  f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-installer'
+        return  f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
     else:
-        return f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-installer'
+        return f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
 
 def get_taosx_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统
@@ -130,6 +155,7 @@ def init_build_info():
     release_info.InstallPath = get_install_path()
     release_info.ReleasePath = os.path.abspath(os.path.join(script_dir, "..", "release"))
     release_info.TaosXVersion = get_taosx_version()
+    release_info.CpuType = GetCpuType()
     if args.build_mode:
         release_info.DefaultBuildMode = args.build_mode
     if args.cpu_type:
@@ -138,6 +164,7 @@ def init_build_info():
         test_process = args.test_process
     sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
     sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
+    sub_module.append(SubmoduleBuildInfo(taos_explorer_name, release_info.DefaultBuildMode))
     if args.connector_list:
         for i, arg in enumerate(args.connector_list):
             sub_module.append(SubmoduleBuildInfo(arg, release_info.DefaultBuildMode))
@@ -150,9 +177,8 @@ def init_build_info():
     now = datetime.now()
     release_info.BuildTime = now.strftime("%Y-%m-%d %H:%M:%S")
     branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('ascii')
-    release_info.Branch = branch;
+    release_info.Branch = branch
     release_info.Commit = subprocess.check_output(['git', 'rev-list', '-1', branch]).strip().decode('ascii')
-
 
 def print_param():
     print('RELEASE INFO')
@@ -298,7 +324,7 @@ def copy_taos_agent_service_file(taosx_install_path):
 
 
 def copy_taos_agent_cfg(taos_cfg_path):
-    taosx_agent_cfg = os.path.join(taosx_dir, "taosx-agent", "examples", "agent.example.toml")
+    taosx_agent_cfg = os.path.join(taosx_dir, "taosx-agent", "examples", "agent.toml")
     try:
         shutil.copy2(taosx_agent_cfg, taos_cfg_path)
     except FileNotFoundError as e:
@@ -315,8 +341,12 @@ def build_and_install_taosx(mode):
     taox_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taox_install_path)
     taosx_path = os.path.join(taosx_dir, "target", mode.lower(), get_taosx_output_name())
+    taosx_server_path = os.path.join(taosx_dir, "bin", "taosx-srv.exe")
+    taosx_server_xml_path = os.path.join(taosx_dir, "bin", "taosx-srv.xml")
     try:
         shutil.copy2(taosx_path, taox_install_path)
+        shutil.copy2(taosx_server_path, taox_install_path)
+        shutil.copy2(taosx_server_xml_path, taox_install_path)
     except FileNotFoundError as e:
         print("Copy TaosX to {} failed: {}".format(taosx_path,  e.strerror))
         sys.exit()
@@ -340,6 +370,7 @@ def build_and_install_taosx_agent(mode):
 
     copy_taos_agent_service_file(taox_install_path)
     taos_cfg_path = os.path.join(release_info.InstallPath, "cfg")
+    check_directory(taos_cfg_path)
     copy_taos_agent_cfg(taos_cfg_path)
 
 def build_and_install_influxdb(mode):
@@ -358,6 +389,49 @@ def build_and_install_influxdb(mode):
         print("Build influxdb failed: ", e.strerror)
         sys.exit()
 
+def init_explorer_code(explorer_path):
+    print(explorer_path)
+    if os.path.exists(explorer_path):
+        os.chdir(explorer_path)
+        os.system('git checkout main')
+        os.system('git reset --hard')
+        os.system('git prune')
+        os.system('git pull')
+    else:
+        os.chdir(os.path.join(taosx_dir, ".."))
+        os.system('git clone git@github.com:taosdata/explorer.git')
+
+def build_taos_explorer(explorer_path, mode):
+    init_explorer_code(explorer_path)
+    os.chdir(explorer_path)
+    os.system('yarn install')
+    os.system('yarn build:bin')
+
+def copy_taos_explorer_on_windows(explorer_path):
+    explorer_exe_path = os.path.join(explorer_path, "target", "release", "taos-explorer.exe")
+    explorer_srv_path = os.path.join(explorer_path, "bin", "taos-explorer-srv.exe")
+    explorer_srv_xml_path = os.path.join(explorer_path, "bin", "taos-explorer-srv.xml")
+    explorer_toml_path = os.path.join(explorer_path, "server","examples", "explorer.toml")
+
+    taos_explorer_install_path = os.path.join(release_info.InstallPath, "bin")
+    taos_explorer_cfg_path = os.path.join(release_info.InstallPath, "cfg")
+    check_directory(taos_explorer_install_path)
+    try:
+        shutil.copy2(explorer_exe_path, taos_explorer_install_path)
+        shutil.copy2(explorer_srv_path, taos_explorer_install_path)
+        shutil.copy2(explorer_srv_xml_path, taos_explorer_install_path)
+        shutil.copy2(explorer_toml_path, taos_explorer_cfg_path)
+    except FileNotFoundError as e:
+        print("Copy taos-explorer to {} failed: {}".format(taos_explorer_install_path,  e.strerror))
+        sys.exit()
+
+def build_and_install_taos_explorer(mode):
+    print("build_and_install taos_explorer start...")
+    explorer_path = os.path.join(taosx_dir, "..", "explorer")
+    build_taos_explorer(explorer_path, mode)
+    if release_info.OS.lower() == 'windows':
+        copy_taos_explorer_on_windows(explorer_path)
+
 def package_on_windows():
     os.chdir(script_dir) 
     result = subprocess.run(f'iscc /F"{release_info.PackageName}" '
@@ -368,7 +442,7 @@ def package_on_windows():
                             f'/DTaosXName="{taosx_name}" '
                             f'{script_dir}/taosx.iss /O{taosx_dir}/release', shell=True)
     if result.returncode != 0:
-        print(f'package {release_info.PackageNam} failed')
+        print(f'package {release_info.PackageName} failed')
         sys.exit(1)
 
 
@@ -428,7 +502,7 @@ def init_release_directory():
     check_directory(release_info.ReleasePath)
 
 
-def test_handle(process):
+def test_handle_windows(process):
     if process == pi_connector:
         print("Calling PI function...")
         build_and_install_pi("Debug")
@@ -447,8 +521,23 @@ def test_handle(process):
     elif process == "agent":
         print("Calling taosx agent function...")
         build_and_install_taosx_agent("Debug")
+    elif process == "explorer":
+        print("Calling taos-explorer function...")
+        build_and_install_taos_explorer("Debug")
+    elif process == influxdb_connector:
+        print("Calling influxDB function...")
+        build_and_install_influxdb("Debug")
     else:
         print(f"Invalid -t param: {process}. Please enter valid input.")
+
+def test_handle(process):
+    if release_info.OS.lower() == "windows":
+        test_handle_windows(process)
+    else:
+        if "explorer" == process:
+            print("test taos_explorer on linux")
+            build_and_install_taos_explorer("Release")
+        linux_release.test_handle(release_info, process)
 
 
 if __name__ == '__main__':
@@ -459,6 +548,10 @@ if __name__ == '__main__':
         sys.exit()
         
     if release_info.OS.lower() == 'linux':
+        for task in sub_module:
+            if taos_explorer_name == task.Name:
+                print("build taos_explorer on linux")
+                build_and_install_taos_explorer(task.VersionMode)
         linux_release.release(release_info=release_info, build_info=sub_module)
     elif release_info.OS.lower() == 'windows':
         init_install_directory()
@@ -466,21 +559,24 @@ if __name__ == '__main__':
             if taosx_name == task.Name:
                 print("build taosx")
                 build_and_install_taosx(task.VersionMode)
-            if taosx_agent_name == task.Name:
+            elif taosx_agent_name == task.Name:
                 print("build taosx-agent")
                 build_and_install_taosx_agent(task.VersionMode)
-            if pi_connector == task.Name:
+            elif pi_connector == task.Name:
                 print("build pi")
                 build_and_install_pi(task.VersionMode)
-            if opc_connector == task.Name:
+            elif opc_connector == task.Name:
                 print("build taosx-opc")
                 build_and_install_opc(task.VersionMode)
-            if mqtt_connector == task.Name:
+            elif mqtt_connector == task.Name:
                 print("build taosx-mqtt")
                 build_and_install_mqtt(task.VersionMode)
-            if influxdb_connector == task.Name:
+            elif influxdb_connector == task.Name:
                 print("build influxdb_connector")
                 build_and_install_influxdb(task.VersionMode)
+            elif taos_explorer_name == task.Name:
+                print("build taos_explorer")
+                build_and_install_taos_explorer(task.VersionMode)
         init_release_directory()
         package()
     else:

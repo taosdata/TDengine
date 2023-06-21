@@ -1,12 +1,26 @@
 use std::{path::PathBuf, time::Duration};
 
+use chrono::Utc;
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use thiserror::Error;
-use tracing_subscriber::fmt::format::FmtSpan;
+
+use time::macros::format_description;
+use tracing_subscriber::{
+    fmt::{format::FmtSpan, time::LocalTime},
+    prelude::__tracing_subscriber_SubscriberExt,
+    util::SubscriberInitExt,
+    Layer as _,
+};
 use twelf::{config, Layer};
 
 use tracing::{log::LevelFilter, Level};
+
+use taosx_core::get_log_dir;
+
+use crate::runner::TaskStatus;
+
+const LOG_FILE: &str = "agent.log";
 
 shadow_rs::shadow!(build);
 
@@ -92,8 +106,9 @@ impl Args {
         .unwrap_or_else(|| {
             if cfg!(windows) {
                 std::path::Path::new("C:\\")
+                    .join("Program Files")
                     .join(build::CUS_NAME)
-                    .join("cfg")
+                    .join("config")
                     .join("agent.toml")
             } else {
                 std::path::Path::new("/etc")
@@ -144,11 +159,25 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     let ctrl_c = tokio::signal::ctrl_c();
     let mut client = agent::Client::new(&args.endpoint, &args.token).await?;
     let mut client2 = agent::Client::new(&args.endpoint, &args.token).await?;
-    let (runner, sender, status) = runner::spawn_runner(&args.endpoint, &args.token);
+    let mut client3 = agent::Client::new(&args.endpoint, &args.token).await?;
+    let (runner, tasks, sender, status) = runner::spawn_runner(&args.endpoint, &args.token);
 
     tokio::select! {
         _ = ctrl_c => {
             tracing::info!("SIGINT triggered");
+            for task in tasks.iter() {                
+                let status = TaskStatus::new(
+                    *task.key(),
+                    Utc::now(),
+                    "failed".to_string(),
+                    Some("taosx-agent is closed by SIGINT".to_string()),
+                    Default::default()
+                );
+                tracing::info!("status: {:?}", status);
+                if let Err(err) = client3.push_status(&status).await {
+                    tracing::error!("Push status error: {err}");
+                }
+            }
         }
         _ = runner => {
             tracing::info!("Runner stopped");
@@ -197,18 +226,51 @@ fn main() -> anyhow::Result<()> {
         args.endpoint, args.token
     );
 
-    let subscriber = tracing_subscriber::fmt()
-        .with_level(true)
-        .with_thread_ids(true)
-        .with_thread_names(true)
-        .with_span_events(FmtSpan::ACTIVE)
-        .with_max_level(args.log_level)
-        .compact();
+    let log_dir = get_log_dir("agent");
+
+    let file_appender = tracing_appender::rolling::daily(log_dir, LOG_FILE);
+
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    // let timer = LocalTime::new(format_description!(
+    //     "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
+    // ));
+    let level_filter =
+        tracing_subscriber::filter::LevelFilter::from_level(args.log_level.unwrap_or(Level::INFO));
+
+    let mut layers = Vec::new();
+
+    layers.push(
+        tracing_subscriber::fmt::layer()
+            .with_level(true)
+            .with_thread_ids(true)
+            .with_thread_names(true)
+            .with_span_events(FmtSpan::ACTIVE)
+            .with_ansi(false)
+            .with_writer(non_blocking)
+            .compact()
+            .with_filter(level_filter)
+            .boxed(),
+    );
     if atty::is(atty::Stream::Stdout) {
-        subscriber.pretty().init();
-    } else {
-        subscriber.with_ansi(false).init();
+        layers.push(
+            tracing_subscriber::fmt::layer()
+                .with_level(true)
+                .with_writer(std::io::stdout)
+                .pretty()
+                .with_filter(level_filter)
+                .boxed(),
+        );
     }
+    tracing_subscriber::registry().with(layers).init();
+
+    let version = build::PKG_VERSION;
+    let commit_id = build::COMMIT_HASH;
+    let build_time = build::BUILD_TIME;
+    log::info!("version: {version}");
+    log::info!("commit id: {commit_id}");
+    log::info!("build time: {build_time}");
+
     log::info!("Start");
 
     // todo: arrow flight rpc client.

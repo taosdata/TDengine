@@ -273,8 +273,9 @@ async fn sync(
                 break;
             }
             next = stream.try_next() => {
-                let (a, b, c, _) = version
-                .split('.')
+                let mut version_vec = version.splitn(4, ".").collect_vec();
+                version_vec.truncate(3);
+                let (a, b, c) = version_vec.into_iter()
                 .map(|x| x.parse::<i32>().unwrap())
                 .collect_tuple()
                 .unwrap();
@@ -287,7 +288,13 @@ async fn sync(
                 
                 log::debug!("assignment: {:?}", assignments);
                 for (topic, assignment) in assignments {
-                    offsets.insert(topic, assignment);
+                    if assignment.is_empty() {
+                        continue;
+                    }
+                    let vgroup_id = assignment[0].vgroup_id();
+                    let key = format!("{}@vgroup{}", topic, vgroup_id);
+                    log::debug!("key: {}, assignment: {:?}", key, assignment);
+                    offsets.insert(key, assignment);
                 }
 
                 if let Some((offset, message)) = next? {

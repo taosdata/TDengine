@@ -100,15 +100,15 @@ impl IncludeItem {
         self
     }
 
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.0.name
     }
 
-    fn alias(&self) -> Option<&str> {
+    pub fn alias(&self) -> Option<&str> {
         self.0.alias.as_deref()
     }
 
-    fn cast(&self) -> Option<&IpcDataType> {
+    pub fn cast(&self) -> Option<&IpcDataType> {
         self.0.cast.as_ref()
     }
 
@@ -255,6 +255,16 @@ impl Select {
                                 m.insert("name".to_string(), f.name().to_string());
                                 m.insert("index".to_string(), i.to_string());
                                 m.insert("cast_from".to_string(), f.data_type().to_string());
+                                match cast {
+                                    IpcDataType::VarChar(len) | IpcDataType::NChar(len) => { 
+                                        m.insert("length".to_string(), len.to_string()); 
+                                        m.insert("cast_to".to_string(), cast.ty().name().to_string());
+                                    },
+                                    IpcDataType::Json => {
+                                        m.insert("cast_to".to_string(), cast.ty().name().to_string());
+                                    },
+                                    _ => (),
+                                }
                                 Field::new(f.name(), cast.arrow_data_type(), f.is_nullable())
                                     .with_metadata(m)
                             }
@@ -264,6 +274,16 @@ impl Select {
                                 m.insert("name".to_string(), f.name().to_string());
                                 m.insert("index".to_string(), i.to_string());
                                 m.insert("cast_from".to_string(), f.data_type().to_string());
+                                match cast {
+                                    IpcDataType::VarChar(len) | IpcDataType::NChar(len) => { 
+                                        m.insert("length".to_string(), len.to_string()); 
+                                        m.insert("cast_to".to_string(), cast.ty().name().to_string());
+                                    },
+                                    IpcDataType::Json => {
+                                        m.insert("cast_to".to_string(), cast.ty().name().to_string());
+                                    }
+                                    _ => (),
+                                }
                                 Field::new(alias, cast.arrow_data_type(), f.is_nullable())
                                     .with_metadata(m)
                             }
@@ -364,7 +384,7 @@ mod tests {
         assert_eq!(
             select,
             Select::Include(Include(vec![
-                IncludeItem::new("a").with_cast(IpcDataType::Timestamp),
+                IncludeItem::new("a").with_cast(IpcDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond)),
                 IncludeItem::new("b")
             ]))
         );
@@ -376,7 +396,7 @@ mod tests {
             Select::Include(Include(vec![
                 IncludeItem::new("a")
                     .with_alias("c")
-                    .with_cast(IpcDataType::Timestamp),
+                    .with_cast(IpcDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond)),
                 IncludeItem::new("b")
             ]))
         );
@@ -398,7 +418,7 @@ mod tests {
             Select::Include(Include(vec![
                 IncludeItem::new("a")
                     .with_alias("c")
-                    .with_cast(IpcDataType::Timestamp),
+                    .with_cast(IpcDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond)),
                 IncludeItem::new("b")
             ]))
         );

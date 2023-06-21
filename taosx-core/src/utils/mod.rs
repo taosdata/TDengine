@@ -1,4 +1,4 @@
-use std::{path::Path, thread::JoinHandle};
+use std::{path::Path, thread::JoinHandle, io::BufRead};
 
 use futures::TryStreamExt;
 use taos::*;
@@ -51,6 +51,28 @@ pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
+    let (files, _str_contents): (Vec<String>, Vec<String>) = file_path.split(",")
+        .map(|s| s.trim()).filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .partition(|v| v.starts_with("@"));
+        let file = files.get(0);
+        if file.is_none() {
+            None
+        } else {
+            let file = file.unwrap();
+            let f = std::fs::File::open(&file[1..]);
+            if let Err(err) = f {
+                log::error!("file: {} read error, cause: {}", file, err.to_string());
+                None
+            } else {
+                let buf = std::io::BufReader::new(f.unwrap());
+                let file_data = buf.lines().collect_vec().iter().filter_map(|r| r.as_ref().ok()).join("");
+                Some(file_data)
+            }
+        }
 }
 
 pub async fn clear_local(local: &Dsn) -> anyhow::Result<()> {

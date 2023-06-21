@@ -1,0 +1,122 @@
+---
+id: opcda
+name: OPC-DA
+description: |
+  OPC是工业自动化领域和其他行业中安全可靠地交换数据的互操作标准之一。
+
+  OPC DA（数据访问）是一种经典的基于COM的规范，仅适用于Windows。尽管OPC DA不是最新和最高效的数据通信规范，但它被广泛使用。这主要是因为一些旧设备只支持OPC DA。
+
+  OPC UA是经典OPC规范的下一代标准，是一个平台无关的面向服务的架构规范，集成了现有OPC Classic规范的所有功能，提供了一条迁移到更安全和可扩展解决方案的路径。
+
+  如果想了解更多关于OPC UA/DA的信息，可以阅读OPC Foundation网站和一些有用的博客，例如：
+  1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
+  2. [What is OPC DA](https://plcynergy.com/opc-da/),
+  3. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).
+  4. [WHEN TO USE OPC-UA VS OPC-DA](https://www.vertech.com/blog/opc-ua-vs-opc-da).
+
+  taosX 使用 OPC 连接器从 OPC 服务器拉取或订阅数据。
+type: uri
+
+options:
+  endpoint:
+    display: 服务地址
+    required: true
+    description: |
+      OPC 服务器地址。如： `127.0.0.1<,localhost>/Matrikon.OPC.Simulation.1`。
+    placeholder: 127.0.0.1/Matrikon.OPC.Simulation.1
+
+strict: false
+
+datasets:
+  name: 数据点
+  description: OPC 采集数据点位列表。
+  categories:
+  - category: tags
+    display: DA Tags
+    description: OPC DA 点位列表。
+    target:
+      name: da.tags
+      display: DA Tags
+      description: OPC DA 数据采集点位列表。
+      required: true
+      multiple: true
+      editable: true
+      selectable: true
+
+groups:
+  - name: 连接
+    display_order: 2
+    description: 连接配置选项。
+    params:
+      - name: connect_timeout
+        display: 连接超时
+        description: |-
+          DA 连接超时间隔，单位为：秒 (s)。
+        placeholder: 10
+        hint:
+          type: integer
+          min: 1
+          max: 60
+
+      - name: request_timeout
+        display: 采集超时
+        hint:
+          type: integer
+          min: 1
+          max: 60
+        description: DA 数据采集超时间隔，单位为：秒 (s)。
+        placeholder: 10
+        
+  - name: 库表配置
+    display_order: 4
+    description: | 
+      超级表创建配置
+ 
+      - **received_time**: 采集时间戳。<br>
+      - **original_time**: 原始时间戳。<br>
+      - **value**: 采集点值。<br>
+      - **status**: 点位质量。<br>
+
+    params:
+      - name: opc_table_config
+        display: OPC Table Config
+        required: true
+        placeholder: 10
+        hint:
+          type: json
+
+  - name: 其他
+    display_order: 3
+    description: 其他配置项。
+    params:
+      - name: concurrent
+        display: 并行度
+        description: 采集并行度。
+        hint:
+          type: integer
+          min: 1
+          max: 100
+      - name: batch_size
+        display: 批次大小
+        hint:
+          type: integer
+          min: 1
+          max: 10000
+        description: 每次采集上报的最大数据量。
+        placeholder: 100
+      - name: batch_timeout
+        display: 上报超时
+        hint:
+          type: integer
+          min: 1
+          max: 60
+        description: 每批次采集数据上报的超时时间间隔，单位为：秒 (s)。
+        placeholder: 20
+        
+      - name: debug
+        display: 开启 Debug 日志
+        hint:
+          type: bool
+        description: 是否开启 opc 连接器的点位
+
+

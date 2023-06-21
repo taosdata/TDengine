@@ -18,39 +18,42 @@ async fn init_sqlx(dsn: &str) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
+const DEFAULT_CUS_NAME: &str = "TDengine";
+const DEFAULT_CUS_PROMPT: &str = "taos";
 fn labeling(mut file: &File) -> SdResult<()> {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let manifest_dir = Path::new(&manifest_dir);
     let readme = manifest_dir.join("src").join("CLI.md");
     let target_dir = manifest_dir.join("target");
 
-    let cus_name = std::env::var("CUS_NAME").unwrap_or("TDengine".to_string());
-    let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("taos".to_string());
+    let cus_name = std::env::var("CUS_NAME").unwrap_or(DEFAULT_CUS_NAME.to_string());
+    let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or(DEFAULT_CUS_PROMPT.to_string());
     let cus_name = if cus_name.trim().is_empty() {
-        "TDengine"
+        DEFAULT_CUS_NAME
     } else {
         cus_name.trim()
     };
     let cus_prompt = if cus_prompt.trim().is_empty() {
-        "taos"
+        DEFAULT_CUS_PROMPT
     } else {
         cus_prompt.trim()
     };
     let content = std::fs::read_to_string(&readme)
         .unwrap()
-        .replace("taos", &cus_prompt)
-        .replace("TDengine", &cus_name);
+        .replace(DEFAULT_CUS_PROMPT, &cus_prompt)
+        .replace(DEFAULT_CUS_NAME, &cus_name);
 
     let service_template = manifest_dir.join("src").join("systemd.service");
     let service = std::fs::read_to_string(&service_template)
         .expect(&format!("{}", service_template.display()))
-        .replace("taos", &cus_prompt)
-        .replace("TDengine", &cus_name);
+        .replace(DEFAULT_CUS_PROMPT, &cus_prompt)
+        .replace(DEFAULT_CUS_NAME, &cus_name);
     std::fs::write(&target_dir.join(format!("{cus_prompt}x.service")), service).unwrap();
 
     writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
     writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;
     writeln!(file, r#"pub const CUS_CLI_NAME: &str = "{}x";"#, cus_prompt)?;
+    writeln!(file, r#"pub const CUS_APP_NAME: &str = "{}X";"#, cus_prompt)?;
     writeln!(file, r#"pub const CUS_CLI_ABOUT: &str = "{}";"#, content)?;
 
     Ok(())
@@ -64,6 +67,8 @@ fn main() {
     println!("cargo:rerun-if-env-changed=CUS_PROMPT");
     println!("cargo:rerun-if-changed=src/CLI.md");
     println!("cargo:rerun-if-changed=src/systemd.service");
+
+    println!("cargo:rerun-if-env-changed=PKG_TIME");
 
     if let Ok(dsn) = std::env::var("DATABASE_URL") {
         let file = dsn.replacen("sqlite:", "", 1);

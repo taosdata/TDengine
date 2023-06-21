@@ -3,9 +3,9 @@ use std::{str::FromStr, sync::Arc};
 use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, Float32Array, Float64Array, Int16Array, Int32Array,
-        Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Int64Array, Int8Array, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array, TimestampMicrosecondArray, TimestampNanosecondArray, TimestampMillisecondArray, BooleanArray,
     },
-    datatypes::{DataType, Schema},
+    datatypes::{DataType, Schema, TimeUnit},
     record_batch::RecordBatch,
 };
 use itertools::Itertools;
@@ -17,11 +17,11 @@ use super::{super::Select, Parse};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Json {
-    json: Option<Select>,
+    pub(crate) json: Option<Select>,
     #[serde(default)]
-    flatten: bool,
+    pub(crate) flatten: bool,
     #[serde(default)]
-    keep: bool,
+    pub(crate) keep: bool,
 }
 
 #[derive(Debug, Error)]
@@ -109,26 +109,30 @@ impl Parse for Json {
         let string = array.as_any().downcast_ref::<StringArray>().unwrap();
         let num_rows = string.len();
 
-        let mut schema = arrow::json::reader::infer_json_schema_from_iterator(
-            (0..string.len())
-                .filter_map(|index| {
-                    if string.is_null(index) {
-                        None
-                    } else {
-                        let value = string.value(index);
-                        let value: serde_json::Value = serde_json::from_str(&value).unwrap();
+        let json_data: Vec<_> = (0..string.len())
+            .filter_map(|index| {
+                if string.is_null(index) {
+                    None
+                } else {
+                    let value = string.value(index);
+                    let value: serde_json::Value = serde_json::from_str(&value).ok()?;
 
-                        if value.is_array() && self.flatten {
-                            let values = value.as_array().unwrap();
-                            Some(values.clone())
-                        } else {
-                            Some(vec![value])
-                        }
+                    if value.is_array() && self.flatten {
+                        let values = value.as_array().unwrap();
+                        Some(values.clone())
+                    } else {
+                        Some(vec![value])
                     }
-                })
-                .flatten()
-                .map(Ok),
-        )?;
+                }
+            })
+            .flatten()
+            .map(Ok)
+            .collect();
+        if json_data.len() == 0 {
+            return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
+        }
+        let mut schema =
+            arrow::json::reader::infer_json_schema_from_iterator(json_data.into_iter())?;
         if let Some(select) = self.json.as_ref() {
             schema = select.schema(&schema);
         }
@@ -138,11 +142,11 @@ impl Parse for Json {
                 if string.is_null(i) {
                     vec![(n, None)]
                 } else {
-                    let value = string.value(i);
-                    let value: serde_json::Value = serde_json::from_str(&value).unwrap();
+                    let str = string.value(i);
+                    let value = serde_json::from_str::<serde_json::Value>(&str);
 
                     match value {
-                        JsonValue::Array(array) => {
+                        Ok(JsonValue::Array(array)) => {
                             if !self.flatten {
                                 return vec![(n, None)];
                             }
@@ -160,13 +164,20 @@ impl Parse for Json {
                                 })
                                 .collect()
                         }
-                        JsonValue::Null => {
+                        Ok(JsonValue::Null) => {
                             vec![(n, None)]
                         }
-                        JsonValue::Object(object) => {
+                        Ok(JsonValue::Object(object)) => {
                             vec![(n, Some(JsonValue::Object(object)))]
                         }
-                        _ => unreachable!(),
+                        Err(err) => {
+                            tracing::error!("Parsing json error: {err}, from string: `{str}`");
+                            vec![]
+                        }
+                        Ok(v) => {
+                            tracing::error!("Expect json object or array, found: {v:?}");
+                            vec![]
+                        }
                     }
                 }
             })
@@ -383,12 +394,48 @@ impl Parse for Json {
                     let array: ArrayRef = Arc::new(BinaryArray::from_iter(values));
                     arrays.push((f.name(), array));
                 }
+                DataType::Timestamp(time_unit, _) => {
+                    let values = json_values
+                        .iter()
+                        .map(|(_, v)| {
+                            if let Some(v) = v.as_ref().and_then(getter) {
+                                v.as_i64()
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec();
+                    let array: ArrayRef = match time_unit {
+                        TimeUnit::Second => todo!(),
+                        TimeUnit::Millisecond => Arc::new(TimestampMillisecondArray::from_iter(values)),
+                        TimeUnit::Microsecond => Arc::new(TimestampMicrosecondArray::from_iter(values)),
+                        TimeUnit::Nanosecond => Arc::new(TimestampNanosecondArray::from_iter(values)),
+                    };
+                    arrays.push((f.name(), array));
+                }
+                DataType::Boolean => {
+                    let values = json_values
+                        .iter()
+                        .map(|(n, v)| {
+                            if let Some(v) =
+                                v.as_ref().and_then(|v| v.get(name))
+                            {
+                                v.as_bool()
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec();
+                    let array: ArrayRef =
+                        Arc::new(BooleanArray::from_iter(values));
+                        arrays.push((f.name(), array));
+                }
                 _ => todo!(),
             }
         }
 
         let records = RecordBatch::try_from_iter(arrays).unwrap();
-
+        let records = records.with_schema(Arc::new(schema)).unwrap();
         let indices = if self.flatten {
             Some(json_values.iter().map(|(i, _)| *i).collect_vec())
         } else {
@@ -456,5 +503,34 @@ mod tests {
         assert_eq!(records.num_columns(), 2);
         assert_eq!(records.num_rows(), 3);
         assert_eq!(indices, Some(vec![0, 0, 1]));
+    }
+
+    #[test]
+    fn json_de_err() {
+        pretty_env_logger::init();
+        let extract: Json = serde_json::from_str(
+            r#"{
+                "json": ["a1=a::nchar(100)", "b1::f32"],
+                "flatten": true
+            }"#,
+        )
+        .unwrap();
+        dbg!(&extract);
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"[{"a1": "a1", "b1": 1}, {"a1": "a1", "b1": "none", }]"#,
+            r#"{"a1": "a2", "c1": 1}"#,
+        ]));
+
+        // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
+
+        let (records, indices) = extract.parse_array(&field, &array).unwrap();
+
+        dbg!(&records);
+        dbg!(&indices);
+        assert_eq!(records.num_columns(), 1);
+        assert_eq!(records.num_rows(), 1);
+        assert_eq!(indices, Some(vec![1]));
     }
 }
