@@ -25,7 +25,6 @@ extern "C" {
 
 typedef TARRAY2(SSttBlk) TSttBlkArray;
 typedef TARRAY2(SStatisBlk) TStatisBlkArray;
-typedef TARRAY2(STombBlk) TTombBlkArray;
 
 // SSttFileReader ==========================================
 typedef struct SSttFileReader       SSttFileReader;

@@ -370,12 +370,12 @@ struct STsdb {
   TdThreadRwlock       rwLock;
   SMemTable           *mem;
   SMemTable           *imem;
-  STsdbFS              fs;
+  STsdbFS              fs;  // old
   SLRUCache           *lruCache;
   TdThreadMutex        lruMutex;
   SLRUCache           *biCache;
   TdThreadMutex        biMutex;
-  struct STFileSystem *pFS;
+  struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
 };
 
