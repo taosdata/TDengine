@@ -51,6 +51,7 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
       }
       return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
     }
+    case QUERY_NODE_VALUE:
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION:
