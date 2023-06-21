@@ -34,6 +34,7 @@ if (TD_LINUX)
   ENDIF()
 endif()
   
+MESSAGE(STATUS "dep name" ${TD_DEPS_DIR})
 # contrib
 add_subdirectory(contrib)
 
