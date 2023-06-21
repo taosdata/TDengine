@@ -1,5 +1,12 @@
 use std::{
-    io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
+    fs, io::prelude::*, num::ParseIntError, path::PathBuf, process::Stdio, str::FromStr, sync::Arc,
+    time::Duration,
+};
+
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 
 use anyhow::Context;
@@ -7,6 +14,7 @@ use chrono::{Local, NaiveDateTime};
 use itertools::Itertools;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 
@@ -85,6 +93,8 @@ pub enum PiError {
     ParseKeyValueError(&'static str, String),
     #[error("Parse param error from {1} while parsing parameter {0}")]
     ParseError(&'static str, String),
+    #[error("plugin not found: {0}")]
+    ExeNotFound(String),
 }
 
 impl PiConfig {
@@ -237,6 +247,13 @@ fn pi_exe_path() -> PathBuf {
 fn pi_backfill_exe_path() -> PathBuf {
     super::get_plugin_dir("pi").join("taosx-pi-backfill.exe")
 }
+
+const LOG_FILE: &str = "pi.log";
+
+fn log_path() -> PathBuf {
+    super::get_log_dir("pi")
+}
+
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 pub async fn pi_to_taos(
     from: Dsn,
@@ -253,8 +270,15 @@ pub async fn pi_to_taos(
     {
         anyhow::bail!("PI connector support only windows platform");
     }
+
+    let exe_exists = std::path::Path::new(&pi_exe_path()).exists();
+    if !exe_exists {
+        log::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
+        Err(PiError::ExeNotFound(format!("{}", pi_exe_path().to_str().unwrap())))?;
+    }
+
     let td_database = to.subject.clone();
-    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
+    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
 
     // let taos = target_pool.get().await?;
 
@@ -281,17 +305,35 @@ pub async fn pi_to_taos(
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = sink::listen_tcp_socket(
-        target_pool_for_ipc,
-        config.ipc_stream,
-        sender,
-        None,
-        cancel.clone(),
-        with_agent,
-        None,
-        Some("pi"),
-        transferred,
-    )?;
+    let ipc = if with_agent.is_none() {
+        let builder = TaosBuilder::from_dsn(&to)?;
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        if !builder.is_enterprise_edition().await? {
+            anyhow::bail!(
+                "Only enterprise edition is supported. If it's not your case, please contact us."
+            )
+        }
+        let target_pool = builder.pool()?;
+        sink::listen_tcp_socket(
+            target_pool,
+            config.ipc_stream,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent,
+            None,
+            Some("pi"),
+            transferred,
+        )?
+    } else {
+        sink::listen_tcp_socket_with_agent(
+            config.ipc_stream,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent.unwrap(),
+        )?
+    };
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -308,25 +350,49 @@ pub async fn pi_to_taos(
         retries += 1;
     }
 
-    let child_command;
+    let mut log_path = log_path();
+
+    fs::create_dir_all(&log_path)?;
+
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
+
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    );
+
+    let mut child_command;
+
     match driver.as_str() {
         "pi" => {
-            let mut command = async_process::Command::new(pi_exe_path());
+            let mut command = tokio::process::Command::new(pi_exe_path());
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
-                .stdout(async_process::Stdio::inherit())
-                .stderr(async_process::Stdio::inherit())
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI collector error")?;
         }
         "pibackfill" => {
-            let mut command = async_process::Command::new(pi_backfill_exe_path());
+            let mut command = tokio::process::Command::new(pi_backfill_exe_path());
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
-                .stdout(async_process::Stdio::inherit())
-                .stderr(async_process::Stdio::inherit())
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI Backfill error")?;
         }
@@ -335,26 +401,39 @@ pub async fn pi_to_taos(
         }
     }
 
-    let pid = child_command.id();
+    let stderr = child_command
+        .stderr
+        .take()
+        .expect("Failed to capture stderr");
+    tokio::spawn(async move {
+        let mut reader = tokio::io::BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            // Read a line from stderr
+            let bytes_read = reader.read_line(&mut line).await.unwrap();
+            if bytes_read == 0 {
+                break; // End of stream, exit the loop
+            }
+            // Write the line to log_rotation
+            write!(log_rotation, "{}", line).unwrap();
+            line.clear();
+        }
+        Ok::<(), std::io::Error>(())
+    });
+
+    let pid = child_command.id().unwrap();
     log::info!("waiting for PI connector");
 
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
-            output = child_command.output() => {
-                let output = output.context("PI connector or PI backfill run error")?;
-                log::info!("PI connector or PI backfill exit with status {}", output.status);
-                if !output.status.success() {
-                    let len = output.stdout.len();
-                    let err = if len > 200 {
-                        String::from_utf8_lossy(&output.stdout[len - 200..])
-                    } else {
-                        String::from_utf8_lossy(&output.stdout[..])
-                    };
-
+            status = child_command.wait() => {
+                let status = status?;
+                log::info!("PI connector or PI backfill exit with {}", status);
+                if !status.success() {
                     let _ = ipc.send(());
                     stop_thread(server);
-                    anyhow::bail!("PI error: {}", err);
+                    anyhow::bail!("PI connector or PI backfill exist with {}", status);
                 }
             },
             _ = tokio::signal::ctrl_c() => {
@@ -419,22 +498,47 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let mut command = async_process::Command::new(pi_exe_path());
+    let mut command = tokio::process::Command::new(pi_exe_path());
     let point_filter = if let Some(pf) = data.pattern.clone() {
         pf
     } else {
         String::from("*")
     };
 
+    let mut log_path = log_path();
+
+    fs::create_dir_all(&log_path)?;
+
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
+
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    );
+
     let output = command
         .arg("-f")
         .arg(&config_path)
         .arg("-p")
         .arg(point_filter)
-        .stdout(async_process::Stdio::piped())
-        .stderr(async_process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
         .output()
         .await?;
+
+    writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
     // .context("Start PI collector error")?;
     log::info!("PI Connector exit with status {}", output.status);
 

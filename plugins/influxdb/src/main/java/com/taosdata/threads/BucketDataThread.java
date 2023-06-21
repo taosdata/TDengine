@@ -173,7 +173,7 @@ public class BucketDataThread implements Runnable {
      */
     private void exit() {
         // 线程结束
-        logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+        logger.debug(this.name + "#线程timeRange=[{}-{}]正常退出：#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15) + "", startTime, stopTime);
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }

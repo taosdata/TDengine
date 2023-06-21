@@ -45,10 +45,13 @@ namespace TDPIConnector.Service
                 logger.Info("PI Connector commit is: " + commit);
                 logger.Info("PI Connector build at: " + build_time);
             }
-            Console.WriteLine("PI Connector");
-            Console.WriteLine($"    Version : {version}");
-            Console.WriteLine($"    Commit : {commit}");
-            Console.WriteLine($"    Build Time : {build_time}");
+            else
+            {
+                Console.WriteLine("PI Connector");
+                Console.WriteLine($"    Version : {version}");
+                Console.WriteLine($"    Commit : {commit}");
+                Console.WriteLine($"    Build Time : {build_time}");
+            }
         }
         static void Main(string[] args)
         {

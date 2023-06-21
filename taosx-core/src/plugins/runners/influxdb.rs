@@ -1,8 +1,15 @@
-use std::{io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
+use std::{fs, io::prelude::*, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
+
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
+};
 
 use anyhow::Context;
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::{plugins::sink, utils::port_pool::PortPool, Action, Transferred};
@@ -68,6 +75,8 @@ pub enum InfluxdbError {
     TaskBeginTimeIsRequired(Dsn),
     #[error("The bucket is required: {0}")]
     TaskBucketIsRequired(Dsn),
+    #[error("plugin not found: {0}")]
+    ExeNotFound(String),
 }
 
 impl InfluxdbConfig {
@@ -143,6 +152,12 @@ fn influxdb_jar_path() -> PathBuf {
     get_plugin_dir("influxdb").join(EXE)
 }
 
+const LOG_FILE: &str = "influxdb.log";
+
+fn log_path() -> PathBuf {
+    super::get_log_dir("influxdb")
+}
+
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     let path = influxdb_jar_path();
     let output = std::process::Command::new("java")
@@ -169,9 +184,16 @@ pub async fn influxdb_to_taos(
     transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: InfluxDB");
+
+    let exe_exists = std::path::Path::new(&influxdb_jar_path()).exists();
+    if !exe_exists {
+        log::error!("plugin not found {}", influxdb_jar_path().to_str().unwrap());
+        Err(InfluxdbError::ExeNotFound(format!("{}", influxdb_jar_path().to_str().unwrap())))?;
+    }
+
     // tdengine
     let td_database = to.subject.clone();
-    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
+    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
     let target_pool_for_ipc = target_pool.clone();
     // a random port
     let ipc_port = port_pool
@@ -188,35 +210,93 @@ pub async fn influxdb_to_taos(
     // get the path of the temporary file
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-    log::info!("Using config file {} \n{}", config_path.display(), toml);
+    log::info!("Using config file {}", config_path.display());
     // create socket channel
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = sink::listen_tcp_socket(
-        target_pool_for_ipc,
-        config.ipc_stream,
-        sender,
-        None,
-        cancel.clone(),
-        with_agent,
-        None,
-        Some("influxdb"),
-        transferred,
-    )?;
+    let ipc = if with_agent.is_none() {
+        let builder = TaosBuilder::from_dsn(&to)?;
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        if !builder.is_enterprise_edition().await? {
+            anyhow::bail!(
+                "Only enterprise edition is supported. If it's not your case, please contact us."
+            )
+        }
+        sink::listen_tcp_socket(
+            target_pool_for_ipc,
+            config.ipc_stream,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent,
+            None,
+            Some("influxdb"),
+            transferred,
+        )?
+    } else {
+        sink::listen_tcp_socket_with_agent(
+            config.ipc_stream,
+            sender,
+            None,
+            cancel.clone(),
+            with_agent.unwrap(),
+        )?
+    };
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connector_path = influxdb_jar_path();
     // startup the connector
     let mut command = tokio::process::Command::new("java");
+
+    let mut log_path = log_path();
+
+    fs::create_dir_all(&log_path)?;
+
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
+
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    );
+
     let child = command
         .arg("-jar")
         .arg(&connector_path)
         .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit());
+        .stderr(std::process::Stdio::piped());
 
     let port_pool = port_pool.clone();
     {
         let mut child = child.spawn().context("Start InfluxDB collector error")?;
+
+        let stderr = child.stderr.take().expect("Failed to capture stderr");
+        tokio::spawn(async move {
+            let mut reader = tokio::io::BufReader::new(stderr);
+            let mut line = String::new();
+            loop {
+                // Read a line from stderr
+                let bytes_read = reader.read_line(&mut line).await.unwrap();
+                if bytes_read == 0 {
+                    break; // End of stream, exit the loop
+                }
+                // Write the line to log_rotation
+                write!(log_rotation, "{}", line).unwrap();
+                line.clear();
+            }
+            Ok::<(), std::io::Error>(())
+        });
         // waiting until the end
         log::info!("waiting for InfluxDB connector");
         tokio::spawn(async move {

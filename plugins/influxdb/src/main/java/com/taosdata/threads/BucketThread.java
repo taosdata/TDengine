@@ -61,6 +61,11 @@ public class BucketThread implements Runnable {
      */
     private int index = 0;
 
+    /**
+     * 上次结束时间，当上次窗口不完整时依此进行调整
+     */
+    private long lastEnd = 0L;
+
     @Override
     public void run() {
         while (LocalConfig.isRunBucketThread) {
@@ -177,7 +182,7 @@ public class BucketThread implements Runnable {
             throw new Exception("parameter beginTime configuration error.");
         }
         if (StringUtils.isEmpty(endTime)) {
-            endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_15);
+            endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_15, TimeZone.getTimeZone("GMT"));
         } else if (endTime.matches(DateUtils.PATTERN_YMD)) {
             endTime += " 23:59:59";
         } else if (!endTime.matches(DateUtils.PATTERN_YMDHMS)) {
@@ -214,6 +219,10 @@ public class BucketThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 24 * 60 * 60 * 1000;
         long end = begin + 24 * 60 * 60 * 1000;
+        // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
+        if (begin > this.lastEnd && this.lastEnd > 0) {
+            return resumeByLastEnd(begin, endTime.getTime());
+        }
         // 判断是否超过指定时间范围
         if (begin >= endTime.getTime()) {
             return null;
@@ -222,6 +231,9 @@ public class BucketThread implements Runnable {
         if (end > endTime.getTime()) {
             end = endTime.getTime();
         }
+        // 更新lastEnd
+        this.lastEnd = end;
+        // 返回时间范围
         return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 
@@ -237,6 +249,10 @@ public class BucketThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 60 * 60 * 1000;
         long end = begin + 60 * 60 * 1000;
+        // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
+        if (begin > this.lastEnd && this.lastEnd > 0) {
+            return resumeByLastEnd(begin, endTime.getTime());
+        }
         // 判断是否超过指定时间范围
         if (begin >= endTime.getTime()) {
             return null;
@@ -245,6 +261,9 @@ public class BucketThread implements Runnable {
         if (end > endTime.getTime()) {
             end = endTime.getTime();
         }
+        // 更新lastEnd
+        this.lastEnd = end;
+        // 返回时间范围
         return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 
@@ -260,6 +279,10 @@ public class BucketThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 60 * 1000;
         long end = begin + 60 * 1000;
+        // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
+        if (begin > this.lastEnd && this.lastEnd > 0) {
+            return resumeByLastEnd(begin, endTime.getTime());
+        }
         // 判断是否超过指定时间范围
         if (begin >= endTime.getTime()) {
             return null;
@@ -268,6 +291,34 @@ public class BucketThread implements Runnable {
         if (end > endTime.getTime()) {
             end = endTime.getTime();
         }
+        // 更新lastEnd
+        this.lastEnd = end;
+        // 返回时间范围
         return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+    }
+
+    /**
+     * 恢复上次未完成的窗口
+     *
+     * @param newBegin
+     * @param newEnd
+     * @return
+     */
+    private String resumeByLastEnd(long newBegin, long newEnd) {
+        // 以30秒为最小窗口，如果newEnd距上次结束已经超过30秒，则回退一个窗口并以lastEnd--min(newBegin, newEnd)为窗口，否则返回null
+        if (newEnd > this.lastEnd + 30 * 1000) {
+            // 回退窗口
+            this.index--;
+            // 以lastEnd为开始
+            long begin = this.lastEnd;
+            // 以min(newBegin, newEnd)为结束
+            long end = Math.min(newBegin, newEnd);
+            // 更新lastEnd
+            this.lastEnd = end;
+            // 返回时间范围
+            return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        } else {
+            return null;
+        }
     }
 }

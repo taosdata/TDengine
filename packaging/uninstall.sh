@@ -1,13 +1,14 @@
-#! /bin/bash
+#!/bin/bash
 set -e
 
 PREFIX="taos"
-INSTALL_DIR="/usr/local/${PREFIX}X"
-BIN_LINK_DIR="/usr/bin"
-CONFIG_DIR="/etc/${PREFIX}x"
-service_config_dir="/etc/systemd/system"
 xName="${PREFIX}x"
+INSTALL_DIR="/usr/bin"
+TAOSX_ROOT_DIR="/usr/local/${xName}"
+CONFIG_DIR="/etc/${PREFIX}"
+SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
+explorerName="${PREFIX}-explorer"
 csudo=""
 
 if command -v sudo >/dev/null; then
@@ -20,7 +21,7 @@ if ps aux | grep -v grep | grep systemd &>/dev/null; then
   service_mod=0
 elif $(which service &>/dev/null); then
   service_mod=1
-  service_config_dir="/etc/init.d"
+  SERVICE_CONFIG_DIR="/etc/init.d"
   if $(which chkconfig &>/dev/null); then
     initd_mod=1
   elif $(which insserv &>/dev/null); then
@@ -64,7 +65,7 @@ elif echo $osinfo | grep -qwi "Linx"; then
   os_type=1
   service_mod=0
   initd_mod=0
-  service_config_dir="/etc/systemd/system"
+  SERVICE_CONFIG_DIR="/etc/systemd/system"
 else
   echo " osinfo: ${osinfo}"
   echo " This is an officially unverified linux system,"
@@ -73,7 +74,7 @@ else
 fi
 
 stop_taosx_service(){
-    x_service_config="${service_config_dir}/${xName}.service"
+    x_service_config="${SERVICE_CONFIG_DIR}/${xName}.service"
     if [ -e "$x_service_config" ]; then
       if systemctl is-active --quiet ${xName}; then
         echo "${xName} is running, stopping it..."
@@ -86,7 +87,7 @@ stop_taosx_service(){
 }
 
 stop_taosx_agent_service(){
-    agent_service_config="${service_config_dir}/${agentname}.service"
+    agent_service_config="${SERVICE_CONFIG_DIR}/${agentname}.service"
     if [ -e "$agent_service_config" ]; then
       if systemctl is-active --quiet ${agentname}; then
         echo "${agentname} is running, stopping it..."
@@ -97,18 +98,32 @@ stop_taosx_agent_service(){
     fi
 }
 
+stop_explore_service(){
+    explore_service_config="${SERVICE_CONFIG_DIR}/${explorerName}.service"
+    if [ -e "$explore_service_config" ]; then
+      if systemctl is-active --quiet ${explorerName}; then
+        echo "${explorerName} is running, stopping it..."
+        ${csudo}systemctl stop ${explorerName} &>/dev/null || echo &>/dev/null
+      fi
+      ${csudo}systemctl disable ${explorerName} &>/dev/null || echo &>/dev/null
+      ${csudo}rm -f ${explore_service_config}
+    fi
+}
+
 # remove old taosx and taosx-agent
 remove_taosx() {
-    stop_taosx_service
     stop_taosx_agent_service
+    if [ "$(command -v taosd)" = "" ]; then
+      echo "remove taosx/taos-explorer"
+      stop_taosx_service
+      stop_explore_service
 
-    ${csudo}rm -rf ${INSTALL_DIR}/bin
-    ${csudo}rm -rf ${INSTALL_DIR}/plugins
-    ${csudo}rm -rf ${INSTALL_DIR}/scripts
-    ${csudo}rm -rf ${INSTALL_DIR}/rmtaosX.sh
-    ${csudo}rm -f ${BIN_LINK_DIR}/rm${PREFIX}x || :
-    ${csudo}rm -f ${BIN_LINK_DIR}/${PREFIX}x || :
-    ${csudo}rm -rf ${BIN_LINK_DIR}/${PREFIX}x-agent || :
+      ${csudo}rm -rf ${INSTALL_DIR}/${xName}
+      ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
+    fi
+    ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 }
 
 

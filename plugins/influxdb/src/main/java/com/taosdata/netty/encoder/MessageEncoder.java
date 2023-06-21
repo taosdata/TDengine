@@ -23,6 +23,6 @@ public class MessageEncoder extends MessageToByteEncoder<MessageDto> {
         // TODO 目前仅发送apache arrow字节流
         out.writeBytes(messageDto.getBody());
         // 将字节流输出到log文件
-        logger.info("push byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(messageDto.getBody()));
+        logger.debug("push byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(messageDto.getBody()));
     }
 }

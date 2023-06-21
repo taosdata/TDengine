@@ -49,16 +49,6 @@ groups:
     display_order: 1
     description: Configure the data migration task
     params:
-#      - name: mode
-#        display: Task Mode
-#        description: Whether to resume running from the last breakpoint
-#        placeholder: normal
-#        hint:
-#          type: str
-#          choices:
-#            - normal
-#            - resume
-#        required: true
       - name: beginTime
         display: Data Begin Time
         description: Set a data start time

@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
@@ -15,14 +15,13 @@ use chrono::{DateTime, Utc};
 use dashmap::{DashMap, DashSet};
 use flume::Sender;
 use itertools::Itertools;
-use serde::de::IntoDeserializer;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{DataSet, DataSetsReq, Response, TaskOpts};
-use tokio::sync::{Mutex, OnceCell};
+use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
@@ -102,7 +101,6 @@ mod option_datetime_format {
 
 use self::agent::{
     Agent, AgentActivity, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
-    AgentWorker,
 };
 use self::transferred::Transferred;
 
@@ -268,7 +266,31 @@ impl TaskControllerRef {
             .await?;
         // Ok(tasks)
         for task in &tasks {
-            self.start_task(task).await?;
+            if let Err(err) = self.start_task(task).await {
+                let id = task.id;
+                tracing::error!(task = ?task, "Start task {id} error: {err:?}");
+                let err = err.to_string();
+                let now = Utc::now();
+                let status = Status::Failed;
+                let _ = sqlx::query!(
+                    "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+                    now,
+                    status,
+                    err,
+                    id
+                )
+                .execute(&self.pool)
+                .await?;
+                sqlx::query!(
+                    "INSERT INTO task_activities values(?, ?, ?, ?)",
+                    id,
+                    now,
+                    "failed",
+                    err
+                )
+                .execute(&self.pool)
+                .await?;
+            }
         }
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
             "select * from task_with_labels where trigger is not null and status != ? and `deleted` != TRUE order by created_at desc")
@@ -401,6 +423,7 @@ impl TaskController {
         let now = Utc::now();
 
         let mut remove_finished_task = false;
+
         {
             // for read guard lifetime
             if let Some(h) = self.tasks.read().await.get(&id) {
@@ -445,38 +468,6 @@ impl TaskController {
         let offsets = Arc::new(DashMap::new());
         self.offsets.write().await.insert(id, offsets.clone());
 
-        let transferred = match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
-                let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
-                let cluster_id: i64 = taos
-                    .query_one("select id from information_schema.ins_cluster")
-                    .await
-                    .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
-                    .unwrap();
-                self.transferred
-                    .get(&(cluster_id, from.driver.clone()))
-                    .await
-            }
-            _ => None,
-        };
-        let opts = TaskOpts {
-            transform: vec![],
-            from,
-            to: task.to.parse()?,
-            parser: task
-                .parser
-                .as_ref()
-                .map(|v| serde_json::from_value(v.clone()).unwrap()),
-            jobs: task.jobs as _,
-            compression_level: task.compression_level.map(Into::into),
-            force: task.force,
-            cancel: CancellationToken::new(),
-            // port_pool: ONCE,
-            with_agent: None,
-            offsets,
-            transferred,
-        };
-        // dbg!(&opts);
         let agent_task_worker = if let Some(id) = task.via {
             if !self.agent_alive(id).await {
                 anyhow::bail!("Agent {id} is not alive");
@@ -495,7 +486,7 @@ impl TaskController {
         } else {
             None
         };
-        // dbg!(&agent_task_worker);
+
         sqlx::query!(
             "INSERT INTO task_activities values(?, ?, ?, ?)",
             id,
@@ -506,6 +497,71 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         let pool = self.pool.clone();
+
+        let transferred = match from.driver.as_str() {
+            "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
+                let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
+                let cluster_id: i64 = taos
+                    .query_one("select id from information_schema.ins_cluster")
+                    .await
+                    .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
+                    .unwrap();
+                // let license = taos.query_one(sql)
+                let connector = match from.driver.as_str() {
+                    "opcua" => "opc_ua",
+                    "opcda" => "opc_da",
+                    "influxdb" => "influxdb",
+                    "pi" => "pi",
+                    "kafka" => "kafka",
+                    "mqtt" => "mqtt",
+                    _ => unreachable!(),
+                };
+                let license: Option<ConnectorLicense> = taos
+                    .query_one::<_, String>(format!(
+                        "select `{connector}` from information_schema.ins_grants"
+                    ))
+                    .await
+                    .unwrap_or(None)
+                    .and_then(|s| serde_json::from_str(&s).ok());
+
+                if let Some(license) = license {
+                    if license.is_expired() {
+                        anyhow::bail!(
+                            "Connector {connector} expired, please contact the database administrator for license",
+                        )
+                    }
+                }
+
+                self.transferred
+                    .get(&(cluster_id, from.driver.clone()))
+                    .await
+            }
+            _ => None,
+        };
+        let opts = TaskOpts {
+            transform: vec![],
+            from: from.clone(),
+            to: to_dsn.clone(),
+            parser: task
+                .parser
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()).unwrap()),
+            jobs: task.jobs as _,
+            compression_level: task.compression_level.map(Into::into),
+            force: task.force,
+            cancel: CancellationToken::new(),
+            // port_pool: ONCE,
+            with_agent: None,
+            offsets,
+            transferred,
+        };
+        // dbg!(&opts);
+        // dbg!(&agent_task_worker);
+
+        // if let Some(atomic) = &runnings {
+        //     atomic.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        // }
+
         let task_handler = async move {
             let now = Utc::now();
             let _ = sqlx::query!(
@@ -516,11 +572,11 @@ impl TaskController {
             )
             .execute(&pool)
             .await?;
-            let sender2 = agent_task_worker.clone();
+            // let sender2 = agent_task_worker.clone();
             let cloned_token2 = cloned_token.clone();
             tokio::select! {
                 _ = cloned_token.cancelled() => {
-                    if let Some((id, sender, agent_id)) = agent_task_worker.as_ref() {
+                    if let Some((id, sender, _)) = agent_task_worker.as_ref() {
                         let _ = sender.send(AgentAction::Cancel(*id));
                     } else {
                         opts.cancel();
@@ -528,6 +584,7 @@ impl TaskController {
                     log::debug!("cancel task {id}");
                     let now = Utc::now();
                     let status = Status::Cancelled;
+
                     sqlx::query!(
                         "INSERT INTO task_activities values(?, ?, ?, ?)",
                         id,
@@ -699,7 +756,7 @@ impl TaskController {
                         let result = if let Some((id, sender, agent_id)) = &agent_task_worker {
 
                             let send = sender.send(AgentAction::Run(*id)).map_err(|_| anyhow::format_err!("Unable to start task {id} with agent {agent_id}")).map(|_| ());
-                            dbg!(send);
+                            let _ = dbg!(send);
                             cloned_token2.cancelled().await;
                             Ok(())
                         } else {
@@ -782,8 +839,82 @@ impl TaskController {
         Ok(tasks.len())
     }
 
+    pub async fn validate_connector_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
+        let taos = TaosBuilder::from_dsn(to)?.build().await?;
+
+        let endpoint = match (
+            from.addresses[0].host.as_deref(),
+            from.addresses[0].port.as_ref(),
+        ) {
+            (Some(host), Some(port)) => format!("{host}:{port}"),
+            (Some(host), None) => format!("{host}"),
+            (None, Some(port)) => format!(":{port}"),
+            (None, None) => format!(""),
+        };
+        let cluster_id: i64 = taos
+            .query_one("select id from information_schema.ins_cluster")
+            .await
+            .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
+            .unwrap();
+        let exists : u32 =
+                    sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
+                        .fetch_one(&self.pool)
+                        .await?;
+        if exists > 0 {
+            return Ok(());
+        }
+
+        let used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%';",cluster_id, from.driver))
+                        .fetch_all(&self.pool)
+                        .await?;
+        let used = used
+            .into_iter()
+            .map(|s| s.parse::<Dsn>().unwrap().addresses[0].to_string())
+            .collect::<std::collections::HashSet<_>>()
+            .len();
+        // let license = taos.query_one(sql)
+        let connector = match from.driver.as_str() {
+            "opcua" => "opc_ua",
+            "opcda" => "opc_da",
+            "influxdb" => "influxdb",
+            "pi" => "pi",
+            "kafka" => "kafka",
+            "mqtt" => "mqtt",
+            _ => unreachable!(),
+        };
+
+        let license: Option<ConnectorLicense> = taos
+            .query_one::<_, String>(format!(
+                "select `{connector}` from information_schema.ins_grants"
+            ))
+            .await
+            .unwrap_or(None)
+            .and_then(|s| serde_json::from_str(&s).ok());
+
+        if let Some(license) = license {
+            if license.is_expired() {
+                anyhow::bail!(
+                            "Connector {connector} expired, please contact the database administrator for license",
+                        )
+            } else {
+                match license.number {
+                    0 => anyhow::bail!("Connector {connector} is disabled by license"),
+                    n if n > 0 => {
+                        if used >= n as _ {
+                            anyhow::bail!("Connector {connector} reaches connection number limit({n}) by license");
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        } else {
+            anyhow::bail!("Only enterprise version is supported for connector {connector}")
+        }
+        Ok(())
+    }
+
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
-        let _: Dsn = task
+        let from: Dsn = task
             .from
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
@@ -793,14 +924,26 @@ impl TaskController {
             .parse()
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
+        match from.driver.as_str() {
+            "opcua" | "opcda" | "influxdb" | "pi" | "mqtt" | "kafka" => {
+                self.validate_connector_license(&from, &to).await?;
+            }
+            _ => (),
+        }
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
             }
         }
         let agent = if let Some(id) = task.via {
-            let agent = self.get_agent_by_id(id).await?;
-            Some(agent.ok_or_else(|| anyhow::format_err!("Agent ID not found: {}", id))?)
+            let agent = self
+                .get_agent_by_id(id)
+                .await?
+                .ok_or_else(|| anyhow::format_err!("Agent ID not found: {}", id))?;
+            if !self.agent_alive(id).await {
+                anyhow::bail!("Agent {id} is not alive");
+            }
+            Some(agent)
         } else {
             None
         };
@@ -864,7 +1007,32 @@ impl TaskController {
         task.backport_labels();
         task.agent = agent;
 
-        self.start_task(&task).await?;
+        if let Err(err) = self.start_task(&task).await {
+            tracing::error!(task = ?task, "Start task {id} error: {err:?}");
+            let err = err.to_string();
+            let now = Utc::now();
+            let status = Status::Failed;
+            let _ = sqlx::query!(
+                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+                now,
+                status,
+                err,
+                id
+            )
+            .execute(&self.pool)
+            .await?;
+            sqlx::query!(
+                "INSERT INTO task_activities values(?, ?, ?, ?)",
+                id,
+                now,
+                "failed",
+                err
+            )
+            .execute(&self.pool)
+            .await?;
+            task.reason.replace(err.to_string());
+            task.status = status;
+        }
         Ok(task.into())
     }
 
@@ -1191,18 +1359,44 @@ impl TaskController {
         Ok(offsets)
     }
 
+    pub async fn find_agent_by_name_and_cluster_id(
+        &self,
+        name: &str,
+        cluster_id: Option<&str>,
+        id: Option<usize>,
+    ) -> anyhow::Result<Vec<Agent>> {
+        let mut sql = if id.is_some() {
+            format!(
+                "select * from agents where name = '{}' and id != '{}'",
+                name,
+                id.unwrap()
+            )
+        } else {
+            format!("select * from agents where name = '{}'", name)
+        };
+        if cluster_id.is_some() {
+            sql.push_str(format!(" and cluster_id = '{}'", cluster_id.unwrap()).as_str());
+        }
+        let result: Vec<Agent> = sqlx::query_as(sql.as_str()).fetch_all(&self.pool).await?;
+        Ok(result)
+    }
+
     pub async fn create_agent(&self, agent: AgentProps) -> anyhow::Result<AgentWithToken> {
+        let result = self
+            .find_agent_by_name_and_cluster_id(&agent.name, Some(&agent.cluster_id), None)
+            .await?;
+        if result.len() > 0 {
+            anyhow::bail!("agent name has existed");
+        }
+
         let res = sqlx::query(
-            "INSERT INTO agents (`dsn`, `name`, `cluster_id`, `user_id`, \
-            `expire_date`, `connectors`, created_at) \
-            VALUES(?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO agents (`dsn`, `name`, `cluster_id`, `user_id`, created_at) \
+            VALUES(?, ?, ?, ?, ?)",
         )
         .bind(&agent.dsn)
         .bind(&agent.name)
         .bind(&agent.cluster_id)
         .bind(&agent.user_id)
-        .bind(&agent.expire_date)
-        .bind(&serde_json::to_string(&agent.connectors).unwrap())
         .bind(Utc::now())
         .execute(&self.pool)
         .await?;
@@ -1282,20 +1476,24 @@ impl TaskController {
         agent_id: i64,
         update: AgentUpdates,
     ) -> anyhow::Result<Option<AgentWithToken>> {
-        if let Some(sql) = update.update_agent_with(agent_id) {
-            sqlx::query(&sql).execute(&self.pool).await?;
-            let secret = self.jwt_secret().await?;
-            Ok(self
-                .get_agent_by_id(agent_id)
-                .await?
-                .map(|a| a.with_token(&secret)))
-        } else {
-            let secret = self.jwt_secret().await?;
-            Ok(self
-                .get_agent_by_id(agent_id)
-                .await?
-                .map(|a| a.with_token(&secret)))
+        let name = update.name.as_str();
+        let result = self
+            .find_agent_by_name_and_cluster_id(name, None, Some(agent_id as usize))
+            .await?;
+        if result.len() > 0 {
+            anyhow::bail!("Agent name {} exists", name);
         }
+        // let sql = update.update_agent_with(agent_id);
+        sqlx::query("UPDATE agents SET `name` = ? WHERE id = ?")
+            .bind(name)
+            .bind(agent_id)
+            .execute(&self.pool)
+            .await?;
+        let secret = self.jwt_secret().await?;
+        Ok(self
+            .get_agent_by_id(agent_id)
+            .await?
+            .map(|a| a.with_token(&secret)))
     }
 
     pub async fn delete_agent(&self, agent_id: i64) -> anyhow::Result<()> {
@@ -1619,30 +1817,56 @@ pub struct TaskActivity {
 lazy_static::lazy_static! {
     pub static ref DATA_SOURCE_DEFINITIONS_VEC: Vec<DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def
+    };
+    pub static ref DATA_SOURCE_DEFINITIONS_VEC_CN: Vec<DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
         def
     };
     /// This is an example for using doc comment attributes
     pub static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
         let mut def: Vec<DataSourceDefinition> = Vec::new();
-        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/pi-backfill.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opc.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcua.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/opcda.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/influxdb.yaml")).unwrap());
-        def.push(serde_yaml::from_str(include_str!("../data_sources/mqtt.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
+        def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
+    };
+    pub static ref DATA_SOURCE_DEFINITIONS_CN: BTreeMap<String, DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/pi-backfill.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcua.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/opcda.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/influxdb.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
 }
 
+#[test]
+fn test_ds() {
+    DATA_SOURCE_DEFINITIONS_VEC.as_slice();
+    DATA_SOURCE_DEFINITIONS_VEC_CN.as_slice();
+}
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct ExpandedDsn {
     pub id: String,
@@ -1749,23 +1973,54 @@ impl TaskDetail {
         }
     }
 
-    pub fn expand_detail(self) -> Self {
+    pub fn expand_detail(self, lang: Option<String>) -> Self {
         let value = self.task;
         let parser = value.parser.clone();
         let from_dsn: Dsn = value.from.as_str().parse().unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
-        TaskDetail {
-            from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-            from_detail: DATA_SOURCE_DEFINITIONS
-                .get(&from_dsn.driver)
-                .map(|d| d.clone().values_from(from_dsn)),
-            to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-            to_detail: DATA_SOURCE_DEFINITIONS
-                .get(&to_dsn.driver)
-                .map(|d| d.clone().values_from(to_dsn)),
-            task: value,
-            agent: None,
-            parser,
+        if lang.is_some() {
+            match lang.unwrap().as_str() {
+                "zh" => TaskDetail {
+                    from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+                    from_detail: DATA_SOURCE_DEFINITIONS_CN
+                        .get(&from_dsn.driver)
+                        .map(|d| d.clone().values_from(from_dsn)),
+                    to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+                    to_detail: DATA_SOURCE_DEFINITIONS_CN
+                        .get(&to_dsn.driver)
+                        .map(|d| d.clone().values_from(to_dsn)),
+                    task: value,
+                    agent: None,
+                    parser,
+                },
+                _ => TaskDetail {
+                    from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+                    from_detail: DATA_SOURCE_DEFINITIONS
+                        .get(&from_dsn.driver)
+                        .map(|d| d.clone().values_from(from_dsn)),
+                    to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+                    to_detail: DATA_SOURCE_DEFINITIONS
+                        .get(&to_dsn.driver)
+                        .map(|d| d.clone().values_from(to_dsn)),
+                    task: value,
+                    agent: None,
+                    parser,
+                },
+            }
+        } else {
+            TaskDetail {
+                from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+                from_detail: DATA_SOURCE_DEFINITIONS
+                    .get(&from_dsn.driver)
+                    .map(|d| d.clone().values_from(from_dsn)),
+                to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+                to_detail: DATA_SOURCE_DEFINITIONS
+                    .get(&to_dsn.driver)
+                    .map(|d| d.clone().values_from(to_dsn)),
+                task: value,
+                agent: None,
+                parser,
+            }
         }
     }
 
@@ -1793,7 +2048,7 @@ impl TaskDetail {
 
     pub fn decorate(self, decorator: &TaskDecorator) -> Self {
         if decorator.detail.is_some() {
-            self.expand_detail()
+            self.expand_detail(decorator.lang.clone())
         } else if decorator.expand.unwrap_or_default() {
             self.expand()
         } else {
@@ -2150,6 +2405,7 @@ pub(super) struct TaskFilter {
 pub struct TaskDecorator {
     expand: Option<bool>,
     detail: Option<bool>,
+    lang: Option<String>,
 }
 
 impl TaskFilter {
@@ -2337,11 +2593,45 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn test_create_task_when_agent_not_alive() -> anyhow::Result<()> {
+        let controller = TaskController::from_sqlite("sqlite::memory:").await?;
+        let agent = controller
+            .create_agent(AgentProps {
+                dsn: "".to_string(),
+                name: "a1".to_string(),
+                cluster_id: "".to_string(),
+                user_id: "".to_string(),
+            })
+            .await?;
+        dbg!(&agent);
+
+        let task_props: NewTask = serde_json::from_str(&format!(
+            r#"
+        {{
+            "from": "mqtt:///db2",
+            "to":"taos:///db2",
+            "via": 1
+        }}
+        "#,
+        ))
+        .unwrap();
+
+        let task = controller.create(task_props).await;
+        assert!(task.is_err());
+        dbg!(&task);
+        assert!(task
+            .unwrap_err()
+            .to_string()
+            .contains("Agent 1 is not alive"));
+
+        Ok(())
+    }
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_task_offset() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "taos=info");
         pretty_env_logger::init();
 
-        let mut dsn = "taos://localhost:6030".to_string();
+        let dsn = "taos://localhost:6030".to_string();
         log::info!("dsn: {}", dsn);
 
         let taos = taos::TaosBuilder::from_dsn(&dsn)?.build().await?;

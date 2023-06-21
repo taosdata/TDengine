@@ -1,0 +1,121 @@
+---
+id: pibackfill
+name: PIBACKFILL
+description: |
+  PI 系统是一套用于数据收集、查找、分析、传递和可视化的软件产品，可以作为管理实时数据和事件的企业级系统的基础架构。
+
+  PI 系统这个术语通常用来指代PI服务器，但这两者并不相同。PI系统指的是所有 OSIsoft 软件产品，而 PI 服务器是 PI 系统的核心产品。数据可以自动从许多来源（控制系统、实验室设备、计算、手动输入或定制软件）收集。
+
+  taosX 可以通过 PI BACKFILL 连接器插件从 PI 系统中提取历史数据。
+type: uri
+options:
+  host:
+    display: PI服务名
+    description: PI 服务器地址（通常使用主机名）。
+    placeholder: server
+    required: true
+  subject:
+    required: true
+    display: AFDatabaseName
+    description: AF 数据库名
+    placeholder: 'Example: Met1'
+strict: false
+groups:
+- name: PI System
+  display_order: 2
+  description: PI 系统相关配置项。
+  params:
+  - name: PISystemName
+    display: AF-SERVER-NAME
+    description: |-
+      AF-SERVER-NAME，留空以使用服务器地址。
+    hint:
+      type: str
+
+- name: Backfill
+  display_order: 3
+  description: TDBackfill 参数设置
+  params:
+  - name: FromTDengineLastTime
+    display: 从TDenine已有数据开始
+    description: |-
+      是否从TDengine已有的最后一条数据时间戳开始进行历史数据导入。
+    hint:
+      type: bool
+  - name: ToTDengineFirstTime
+    display: 以TDengine已有数据结束
+    hint:
+      type: bool
+    description: |
+      是否以TDengine已有的第一条数据时间戳作为历史数据导入的结束时间。
+  - name: BackfillStartTime
+    display: Backfill 开始时间
+    hint:
+      type: time
+    description: |
+      从该时间开始导入历史数据
+    placeholder: "YYYY-MM-DD HH:mm:ss"
+  - name: BackfillEndTime
+    display: Backfill 结束时间
+    hint:
+      type: time
+    description: |
+      导入历史数据以该时间结束
+    placeholder: "YYYY-MM-DD HH:mm:ss"
+
+- name: Data Queue
+  display_order: 4
+  description: 其他配置
+  params:
+  - name: MaxWaitLen
+    display: 消息队列缓存数
+    description: |-
+      超过该数字消息会立即发送
+    hint:
+      type: integer
+      min: 1
+      max: 10000
+  - name: MaxBackfillRangeDays
+    display: 重启补偿时间
+    hint:
+      type: integer
+    description: 每次重启服务时向前补偿该天数的数据，如果缺失的话。
+    placeholder: 1
+
+datasets:
+  name: Data Sets
+  description: PI 系统模板和点位。
+  categories:
+  - category: PointList
+    display: 监测点集合
+    description: |
+      point 模式监测点集合
+    target:
+      name: PointList
+      description: point 模式监测点集合
+      required: false
+      multiple: true
+      editable: true
+      selectable: true
+  - category: TemplateForPIPoint
+    display: Template For PI Point
+    description: |
+      point 模式监测的 AF 模板集合。
+    target:
+      name: TemplateForPIPoint
+      description: point 模式监测的 AF 模板集合。
+      required: false
+      multiple: true
+      editable: true
+      selectable: true
+  - category: TemplateForAFElement
+    display: Template For AF Element
+    description: |
+      AF 模式监测的 AF 模板集合。
+    target:
+      name: TemplateForAFElement
+      description: AF 模式监测的 AF 模板集合。
+      required: false
+      multiple: true
+      editable: true
+      selectable: true

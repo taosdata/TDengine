@@ -1,15 +1,24 @@
 use std::{
     collections::HashMap,
+    fs,
     io::{BufRead, Write},
     num::ParseIntError,
     path::PathBuf,
+    process::Stdio,
     str::ParseBoolError,
     sync::Arc,
     time::Duration,
 };
 
+use file_rotate::{
+    compression::Compression,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
+};
+
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -56,6 +65,8 @@ enum MqttConfigError {
     CAConfigReadError(String),
     #[error("Mqtt config parse error, cause: {0}")]
     MqttConfigParseError(String),
+    #[error("plugin not found: {0}")]
+    ExeNotFound(String),
 }
 
 impl MqttConfig {
@@ -149,6 +160,13 @@ const EXE: &'static str = {
 fn mqtt_exe_path() -> PathBuf {
     get_plugin_dir("mqtt").join(EXE)
 }
+
+const LOG_FILE: &str = "mqtt.log";
+
+fn log_path() -> PathBuf {
+    super::get_log_dir("mqtt")
+}
+
 pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     let path = mqtt_exe_path();
     let output = std::process::Command::new(&path)
@@ -171,6 +189,13 @@ pub async fn mqtt_to_taos(
     transferred: Option<Arc<Transferred>>,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: MQTT");
+
+    let exe_exists = std::path::Path::new(&mqtt_exe_path()).exists();
+    if !exe_exists {
+        log::error!("plugin not found {}", mqtt_exe_path().to_str().unwrap());
+        Err(MqttConfigError::ExeNotFound(format!("{}", mqtt_exe_path().to_str().unwrap())))?;
+    }
+
     if to.subject.is_none() {
         Err(MqttConfigError::DatabaseIsRequired(to.clone()))?;
     }
@@ -196,8 +221,15 @@ pub async fn mqtt_to_taos(
     );
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = if with_agent.is_none() {
+        let builder = TaosBuilder::from_dsn(&to)?;
+        #[cfg(not(feature = "disable-enterprise-only-validation"))]
+        if !builder.is_enterprise_edition().await? {
+            anyhow::bail!(
+                "Only enterprise edition is supported. If it's not your case, please contact us."
+            )
+        }
         sink::listen_tcp_socket(
-            TaosBuilder::from_dsn(&to)?.pool()?,
+            builder.pool()?,
             config.remote,
             sender,
             None,
@@ -218,13 +250,57 @@ pub async fn mqtt_to_taos(
     };
     let mqtt = mqtt_exe_path();
     let mut command = tokio::process::Command::new(mqtt);
-    let mut child = command
+
+    let mut log_path = log_path();
+
+    fs::create_dir_all(&log_path)?;
+
+    log::info!("log path created: {}", &log_path.display());
+
+    log_path.push(LOG_FILE);
+
+    log::info!("log file dir: {}", &log_path.display());
+
+    let mut log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::weeks(100)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    );
+
+    let child = command
         .arg("-c")
         .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::piped());
+
+    let mut child = child
         .spawn()
         .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
+
+    let stderr = child.stderr.take().expect("Failed to capture stderr");
+    tokio::spawn(async move {
+        let mut reader = tokio::io::BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            // Read a line from stderr
+            let bytes_read = reader.read_line(&mut line).await.unwrap();
+            if bytes_read == 0 {
+                break; // End of stream, exit the loop
+            }
+            // Write the line to log_rotation
+            write!(log_rotation, "{}", line).unwrap();
+            line.clear();
+        }
+        Ok::<(), std::io::Error>(())
+    });
+
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
@@ -353,7 +429,7 @@ mod tests {
             let mut interval = tokio::time::interval(Duration::from_millis(200));
             loop {
                 interval.tick().await;
-                dbg!(&metrics);
+                // dbg!(&metrics);
             }
         });
         let opts = TaskOpts {

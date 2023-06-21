@@ -1,0 +1,9 @@
+<service>
+    <id>taosx</id>
+    <name>taosX</name>
+    <description>taosX service powered by WinSW</description>
+    <logpath>C:\Program Files\taosX\logs\taosx</logpath>
+    <logmode>roll</logmode>
+    <executable>C:\Program Files\taosX\bin\taosx.exe</executable>
+	<arguments>serve -l 0.0.0.0:6050</arguments>
+</service>

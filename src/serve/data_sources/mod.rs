@@ -4,7 +4,7 @@ use actix_web::{
     get,
     http::header::ContentType,
     post,
-    web::{Data, Json},
+    web::{Data, Json, Query},
     HttpResponse, Responder,
 };
 use serde::{Deserialize, Serialize};
@@ -92,18 +92,45 @@ pub(super) struct DataIn {
 // }
 // "#;
 
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq, Eq, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum Lang {
+    En,
+    Zh,
+}
+#[derive(Deserialize, Debug, ToSchema, IntoParams)]
+pub struct LangQuery {
+    lang: Option<Lang>,
+}
+
+impl LangQuery {
+    pub fn is_cn(&self) -> bool {
+        self.lang
+            .as_ref()
+            .map(|lang| *lang == Lang::Zh)
+            .unwrap_or(false)
+    }
+}
+
 /// List available data source definitions.
 #[utoipa::path(
     tag = "data sources",
     responses(
         (status = 200, description = "Available data sources", body = Vec<DataSourceDefinition>),
     ),
+    params(
+        LangQuery,
+    ),
 )]
 #[get("/ds/in")]
-pub(super) async fn data_sources_in() -> impl Responder {
+pub(super) async fn data_sources_in(lang: Query<LangQuery>) -> impl Responder {
     HttpResponse::Ok()
         .content_type(ContentType::json())
-        .json(super::controller::DATA_SOURCE_DEFINITIONS_VEC.as_slice())
+        .json(if lang.is_cn() {
+            super::controller::DATA_SOURCE_DEFINITIONS_VEC_CN.as_slice()
+        } else {
+            super::controller::DATA_SOURCE_DEFINITIONS_VEC.as_slice()
+        })
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]

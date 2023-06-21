@@ -2,7 +2,7 @@ use std::{any::Any, collections::HashMap, fmt::Display, str::FromStr, sync::Arc}
 
 use arrow::{
     array::{Array, ArrayBuilder, ArrayRef, StructBuilder, UInt8Array},
-    datatypes::{DataType, Field, Fields, Schema},
+    datatypes::{DataType, Field, Fields, Schema, TimeUnit},
     error::ArrowError,
     record_batch::RecordBatch,
 };
@@ -36,7 +36,7 @@ pub enum IpcDataType {
     Int64,
     Float32,
     Float64,
-    Timestamp,
+    Timestamp(TimeUnit),
     VarChar(u32),
     NChar(u32),
     Json,
@@ -56,7 +56,7 @@ impl IpcDataType {
             IpcDataType::Int64 => "i64".to_string(),
             IpcDataType::Float32 => "f32".to_string(),
             IpcDataType::Float64 => "f32".to_string(),
-            IpcDataType::Timestamp => "timestamp".to_string(),
+            IpcDataType::Timestamp(_) => "timestamp".to_string(),
             IpcDataType::VarChar(len) => format!("varchar({len})"),
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
@@ -75,7 +75,7 @@ impl IpcDataType {
             IpcDataType::Int64 => "bigint".to_string(),
             IpcDataType::Float32 => "float".to_string(),
             IpcDataType::Float64 => "double".to_string(),
-            IpcDataType::Timestamp => "timestamp".to_string(),
+            IpcDataType::Timestamp(_) => "timestamp".to_string(),
             IpcDataType::VarChar(len) => format!("varchar({len})"),
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
@@ -95,7 +95,7 @@ impl IpcDataType {
             IpcDataType::Int64 => Ty::BigInt,
             IpcDataType::Float32 => Ty::Float,
             IpcDataType::Float64 => Ty::Double,
-            IpcDataType::Timestamp => Ty::Timestamp,
+            IpcDataType::Timestamp(_) => Ty::Timestamp,
             IpcDataType::VarChar(_len) => Ty::VarChar,
             IpcDataType::NChar(_len) => Ty::NChar,
             IpcDataType::Json => Ty::Json,
@@ -115,7 +115,7 @@ impl IpcDataType {
             IpcDataType::Int64 => DataType::Int64,
             IpcDataType::Float32 => DataType::Float32,
             IpcDataType::Float64 => DataType::Float64,
-            IpcDataType::Timestamp => DataType::Int64,
+            IpcDataType::Timestamp(time_unit) => DataType::Timestamp(time_unit.clone(), None),
             IpcDataType::VarChar(_) => DataType::Utf8,
             IpcDataType::NChar(_) => DataType::Utf8,
             IpcDataType::Json => DataType::Utf8,
@@ -127,7 +127,7 @@ impl FromStr for IpcDataType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+        match s.to_lowercase().as_str() {
             "b" | "bool" => Ok(Self::Bool),
             "i8" | "tinyint" => Ok(Self::Int8),
             "i16" | "smallint" => Ok(Self::Int16),
@@ -139,7 +139,10 @@ impl FromStr for IpcDataType {
             "u64" | "bigint unsigned" => Ok(Self::UInt64),
             "f32" | "float" => Ok(Self::Float32),
             "f64" | "double" => Ok(Self::Float64),
-            "timestamp" => Ok(Self::Timestamp),
+            "timestamp" => Ok(Self::Timestamp(TimeUnit::Millisecond)),
+            "timestamp(ms)" => Ok(Self::Timestamp(TimeUnit::Millisecond)),
+            "timestamp(us)" => Ok(Self::Timestamp(TimeUnit::Microsecond)),
+            "timestamp(ns)" => Ok(Self::Timestamp(TimeUnit::Nanosecond)),
             "json" => Ok(Self::Json),
             s => {
                 let items: Vec<_> = s.split_terminator(['(', ')']).collect();
@@ -209,7 +212,7 @@ impl From<&ArrowDataType> for IpcDataType {
             ArrowDataType::Float16 => IpcDataType::Float32,
             ArrowDataType::Float32 => IpcDataType::Float32,
             ArrowDataType::Float64 => IpcDataType::Float64,
-            ArrowDataType::Timestamp(_, _) => IpcDataType::Timestamp,
+            ArrowDataType::Timestamp(unit, _) => IpcDataType::Timestamp(unit.clone()),
             ArrowDataType::Binary => IpcDataType::VarChar(8),
             ArrowDataType::FixedSizeBinary(len) => IpcDataType::VarChar(*len as _),
             ArrowDataType::LargeBinary => IpcDataType::VarChar(4096),

@@ -1,6 +1,6 @@
 [package]
 name = "taosx-agent"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -36,7 +36,10 @@ tracing = { version = "0.1", features = ["log"] }
 
 taosx-core = { path = "../taosx-core" }
 
-tracing-subscriber = "0.3"
+time = { version = "0.3", features = ["formatting", "macros"] }
+tracing-subscriber = { version = "0.3", features = ["time", "local-time",] }
+tracing-appender = "0.2"
+
 [build-dependencies]
 dotenv = "0.15.0"
 shadow-rs = "0.21.0"

@@ -1,0 +1,66 @@
+---
+id: influxdb
+type: uri
+name: InfluxDB
+description: |
+  InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量时间序列数据进行了优化。
+
+  TaosX 可以通过 `taosx-influxdb` 插件高效地读取 influxdb 中的数据，并将其写入TDengine，以实现历史数据迁移或实时数据同步。
+
+strict: false
+
+options:
+  host:
+    display: 服务器地址
+    description: InfluxDB 服务器 IP 地址或域名
+    placeholder: 127.0.0.1
+    required: true
+  port:
+    display: 端口
+    description: InfluxDB 服务器端口，默认情况下，InfluxDB 监听 8086 端口的 HTTP 请求和 8088 端口的 HTTPS 请求。
+    placeholder: "8086"
+    required: true
+authentication:
+  display: 认证
+  description: InfluxDB 的身份认证
+  value: token
+  alternatives:
+    - name: token
+      display: Token
+      description: 使用 Token 认证。
+      params:
+        - name: orgId
+          display: 组织 ID
+          description: 所有的仪表板、任务、存储桶和用户都属于一个组织。
+          placeholder: 请输入 InfluxDB 组织 ID
+          hint: str
+          required: true
+        - name: token
+          display: 令牌 Token
+          description: 该令牌至少在该组织中拥有读取权限。
+          placeholder: 请输入 InfluxDB 令牌
+          hint: str
+          required: true
+groups:
+  - name: task
+    display: 同步设置
+    display_order: 1
+    description: 配置同步任务的起始时间和所同步的内容。
+    params:
+      - name: beginTime
+        display: 起始时间
+        description: 同步数据的起始时间戳。
+        placeholder: YYYY-MM-DD HH:MM:SS
+        hint: time
+        required: true
+      - name: endTime
+        display: 结束时间
+        description: 同步数据的结束时间戳，如果未指定，将持续进行数据同步。
+        placeholder: YYYY-MM-DD HH:MM:SS
+        hint: time
+      - name: bucket
+        display: 桶 Bucket
+        description: 指定需要同步的 Bucket 。
+        placeholder: bucket
+        hint: str
+        required: true

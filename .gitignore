@@ -18,3 +18,4 @@ taosx.code-workspace
 go.work*
 /.idea/centos7.target
 .idea
+logs/*

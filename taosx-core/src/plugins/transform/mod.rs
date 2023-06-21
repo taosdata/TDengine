@@ -8,7 +8,7 @@
 //! - Convert: fields data into other data types.
 //! - Filter: filter one or more rows in the stream.
 
-use std::{any::Any, collections::HashMap, sync::Arc, task::Poll};
+use std::{any::Any, collections::HashMap, sync::Arc, task::Poll, str::FromStr};
 
 use arrow::{
     array::{
@@ -151,7 +151,35 @@ impl MessageArrowRecords {
             .schema()
             .fields()
             .iter()
-            .map(|field| ColumnMeta::Column(Described::new(field.name(), field.ty(), None)))
+            .map(|field| {
+                match field.data_type() {
+                    DataType::Binary | DataType::Utf8 | DataType::LargeBinary | DataType::LargeUtf8 => {
+                        let cast_to = field.metadata().get("cast_to");
+                        if cast_to.is_some() {
+                            let cast_to = cast_to.unwrap();
+                            let length = field.metadata().get("length");
+                            if length.is_some() {
+                                // varchar or nchar
+                                let res = length.unwrap().parse::<usize>();
+                                match res {
+                                    Ok(length) => ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), Some(length))),
+                                    Err(err) => {
+                                        log::error!("varchar/nchar parse error: {}", err.to_string());
+                                        ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), None))
+                                    }
+                                }
+                            } else {
+                                // json
+                                ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), None))
+                            }
+                            
+                        } else {
+                            ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
+                        }
+                    },
+                    _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
+                }
+            })
             .collect()
     }
     pub fn tag_meta(&self) -> Option<Vec<ColumnMeta>> {
@@ -159,7 +187,35 @@ impl MessageArrowRecords {
             tags.schema()
                 .fields()
                 .iter()
-                .map(|field| ColumnMeta::Tag(Described::new(field.name(), field.ty(), None)))
+                .map(|field| {
+                    match field.data_type() {
+                        DataType::Binary | DataType::Utf8 | DataType::LargeBinary | DataType::LargeUtf8 => {
+                            let cast_to = field.metadata().get("cast_to");
+                            if cast_to.is_some() {
+                                let cast_to = cast_to.unwrap();
+                                let length = field.metadata().get("length");
+                                if length.is_some() {
+                                    // varchar or nchar
+                                    let res = length.unwrap().parse::<usize>();
+                                    match res {
+                                        Ok(length) => ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), Some(length))),
+                                        Err(err) => {
+                                            log::error!("varchar/nchar parse error: {}", err.to_string());
+                                            ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), None))
+                                        }
+                                    }
+                                } else {
+                                    // json
+                                    ColumnMeta::Column(Described::new(field.name(), Ty::from_str(cast_to.as_str()).unwrap(), None))
+                                }
+                                
+                            } else {
+                                ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
+                            }
+                        },
+                        _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
+                    }
+                })
                 .collect_vec()
         })
     }
