@@ -167,25 +167,25 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
     return false;
   }
-  if (NULL == pNode->pParent || (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) &&
-                                 QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) &&
-                                 QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode->pParent))) {
-    return false;
-  }
-  if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) &&
-       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType) ||
-      (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode->pParent) && pNode->pParent->pParent &&
-       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent->pParent) &&
+  return true;
+}
+
+static bool scanPathOptShouldGetFuncs(SLogicNode* pNode) {
+  if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode) &&
+       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode)->winType) ||
+      (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) && pNode->pParent &&
+       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) &&
        WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType)) {
     return true;
   }
-  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode->pParent)) {
-    return !scanPathOptHaveNormalCol(((SAggLogicNode*)pNode->pParent)->pGroupKeys);
+  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+    return !scanPathOptHaveNormalCol(((SAggLogicNode*)pNode)->pGroupKeys);
   }
   return false;
 }
 
 static SNodeList* scanPathOptGetAllFuncs(SLogicNode* pNode) {
+  if (!scanPathOptShouldGetFuncs(pNode)) return NULL;
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return ((SWindowLogicNode*)pNode)->pFuncs;
