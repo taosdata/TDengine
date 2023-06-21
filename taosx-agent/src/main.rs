@@ -107,7 +107,7 @@ impl Args {
             if cfg!(windows) {
                 std::path::Path::new("C:\\")
                     .join("Program Files")
-                    .join(build::CUS_NAME)
+                    .join("taosX")
                     .join("config")
                     .join("agent.toml")
             } else {
