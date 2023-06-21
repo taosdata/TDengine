@@ -177,6 +177,7 @@
                 {
                         "stream_name": "trackers_hourly_stream",
                         "stream_stb": "dev.trackers_hourly",
+                        "trigger_mode": "window_close",
 			"ignore_update": "0",
 			"ignore_expired": "0",
 			"fill_history": "1",
