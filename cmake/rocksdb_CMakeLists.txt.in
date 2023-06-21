@@ -1,7 +1,6 @@
 
 # rocksdb
-#set(librocksdb_src ${TD_CONTRIB_DIR}/rocksdb)
-#set(librocksdb_binary ${TD_CONTRIB_DIR}/rocksdb/build)
+IF (NOT ${TD_LINUX})
 
 ExternalProject_Add(rocksdb
 	URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
@@ -14,3 +13,4 @@ ExternalProject_Add(rocksdb
     INSTALL_COMMAND ""
     TEST_COMMAND ""
     )
+ENDIF(NOT ${TD_LINUX})

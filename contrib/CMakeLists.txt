@@ -78,10 +78,18 @@ if(${BUILD_WITH_LEVELDB})
 endif(${BUILD_WITH_LEVELDB})
 
 # rocksdb
+IF (NOT ${TD_LINUX})
 if(${BUILD_WITH_ROCKSDB})
     cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
+ELSE()
+if(${BUILD_WITH_ROCKSDB})
+    #cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    add_definitions(-DUSE_ROCKSDB)
+endif(${BUILD_WITH_ROCKSDB})
+
+ENDIF(NOT ${TD_LINUX})
 
 # canonical-raft
 if(${BUILD_WITH_CRAFT})
@@ -237,6 +245,7 @@ if (${BUILD_WITH_UV})
     endif(${TD_LINUX})
 endif (${BUILD_WITH_UV})
 
+IF (NOT ${TD_LINUX})
 if(${BUILD_WITH_ROCKSDB})
     if(${TD_LINUX})
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL} -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=unused-function -Wno-errno=unused-private-field -Wno-error=unused-result")
@@ -297,6 +306,7 @@ if(${BUILD_WITH_ROCKSDB})
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
     )
 endif(${BUILD_WITH_ROCKSDB})
+ENDIF (NOT ${TD_LINUX})
 
 # lucene
 # To support build on ubuntu: sudo apt-get install libboost-all-dev
