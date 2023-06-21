@@ -142,10 +142,10 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
 
   for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
     if (record->ekey < committer->ctx->minKey) {
-      continue;
+      goto _next;
     } else if (record->skey > committer->ctx->maxKey) {
       committer->ctx->maxKey = TMIN(record->skey, committer->ctx->maxKey);
-      continue;
+      goto _next;
     }
 
     if (record->ekey > committer->ctx->maxKey) {
@@ -158,6 +158,7 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
     code = tsdbFSetWriteTombRecord(committer->writer, record);
     TSDB_CHECK_CODE(code, lino, _exit);
 
+  _next:
     code = tsdbIterMergerNext(committer->tombIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
   }

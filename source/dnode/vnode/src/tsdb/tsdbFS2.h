@@ -38,6 +38,12 @@ typedef enum {
   TSDB_BG_TASK_COMPACT,
 } EFSBgTaskT;
 
+typedef enum {
+  TSDB_FCURRENT = 1,
+  TSDB_FCURRENT_C,  // for commit
+  TSDB_FCURRENT_M,  // for merge
+} EFCurrentT;
+
 /* Exposed APIs */
 // open/close
 int32_t tsdbOpenFS(STsdb *pTsdb, STFileSystem **fs, int8_t rollback);
