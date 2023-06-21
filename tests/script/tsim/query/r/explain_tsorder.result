@@ -2000,7 +2000,7 @@ QUERY_PLAN:    -> Data Exchange 1:1 (width=12)
 *************************** 6.row ***************************
 QUERY_PLAN:          Output: columns=2 width=12
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Sort input_order=unknown output_order=unknown  (columns=2 width=12)
+QUERY_PLAN:       -> Sort input_order=asc output_order=unknown  (columns=2 width=12)
 *************************** 8.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
 *************************** 9.row ***************************
@@ -2014,7 +2014,7 @@ QUERY_PLAN:    -> Data Exchange 1:1 (width=12)
 *************************** 13.row ***************************
 QUERY_PLAN:          Output: columns=2 width=12
 *************************** 14.row ***************************
-QUERY_PLAN:       -> Sort input_order=unknown output_order=unknown  (columns=2 width=12)
+QUERY_PLAN:       -> Sort input_order=asc output_order=unknown  (columns=2 width=12)
 *************************** 15.row ***************************
 QUERY_PLAN:             Output: columns=2 width=12
 *************************** 16.row ***************************
@@ -2074,7 +2074,7 @@ QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
 *************************** 12.row ***************************
 QUERY_PLAN:                Output: columns=2 width=12
 *************************** 13.row ***************************
-QUERY_PLAN:             -> Sort input_order=unknown output_order=unknown  (columns=2 width=12)
+QUERY_PLAN:             -> Sort input_order=asc output_order=unknown  (columns=2 width=12)
 *************************** 14.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 15.row ***************************
@@ -2088,7 +2088,7 @@ QUERY_PLAN:          -> Data Exchange 1:1 (width=12)
 *************************** 19.row ***************************
 QUERY_PLAN:                Output: columns=2 width=12
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Sort input_order=unknown output_order=unknown  (columns=2 width=12)
+QUERY_PLAN:             -> Sort input_order=asc output_order=unknown  (columns=2 width=12)
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: columns=2 width=12
 *************************** 22.row ***************************
