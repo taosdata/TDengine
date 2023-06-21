@@ -800,7 +800,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb* pTsdb, uint6
                         bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter* pLDataIter, void* pCurrentFileSet);
 
 
-  void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
+void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
@@ -809,6 +809,7 @@ SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList,
 void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void               getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el);
 void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+void               destroySttBlockReader(SLDataIter* pLDataIter, int32_t numOfIter);
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {
