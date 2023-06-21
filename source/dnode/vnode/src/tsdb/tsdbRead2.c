@@ -595,6 +595,8 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
 
   pIter->pLastBlockReader->uid = 0;
   tMergeTreeClose(&pIter->pLastBlockReader->mergeTree);
+  destroySttBlockReader(pReader->status.pLDataIter, pReader->pTsdb->pVnode->config.sttTrigger);
+
   resetLastBlockLoadInfo(pIter->pLastBlockReader->pInfo);
 
   // check file the time range of coverage
@@ -1019,9 +1021,8 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       }
 
       {
-        while (record.uid > uid) {
+        while (record.uid > uid && (k + 1) < numOfTables) {
           k += 1;
-
           uid = pReader->status.uidList.tableUidList[k];
           pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
 
@@ -1030,6 +1031,10 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
           } else {
             w.ekey = pScanInfo->lastKey + step;
           }
+        }
+
+        if (k >= numOfTables) {
+          break;
         }
 
         if (record.uid < uid) {
