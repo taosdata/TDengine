@@ -5,5 +5,5 @@
     <logpath>C:\Program Files\taosX\logs\taos-explorer</logpath>
     <logmode>roll</logmode>
     <executable>C:\Program Files\taosX\bin\taos-explorer.exe</executable>
-	<arguments>-C "C:\Program Files\taosX\cfg\explorer.toml"</arguments>
+	<arguments>-C "C:\Program Files\taosX\config\explorer.toml"</arguments>
 </service>
