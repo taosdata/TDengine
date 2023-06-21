@@ -19,6 +19,8 @@
 extern "C" {
 #endif
 
+#define HASH_JOIN_DEFAULT_PAGE_SIZE 10485760
+
 typedef struct SHJoinCtx {
   bool         rowRemains;
   SBufRowInfo* pBuildRow;
@@ -31,14 +33,17 @@ typedef struct SRowLocation {
   int32_t      pos;
 } SRowLocation;
 
-typedef struct SColBufInfo {
+typedef struct SHJoinColInfo {
   int32_t  srcSlot;
   int32_t  dstSlot;
+  bool     keyCol;
   bool     vardata;
   int32_t* offset;
   int32_t  bytes;
   char*    data;
-} SColBufInfo;
+  char*    bitMap;
+  char*    dataInBuf;
+} SHJoinColInfo;
 
 typedef struct SBufPageInfo {
   int32_t pageSize;
@@ -50,8 +55,7 @@ typedef struct SBufPageInfo {
 typedef struct SBufRowInfo {
   void*    next;
   uint16_t pageId;
-  int32_t  offset:31;
-  int32_t  isNull:1;
+  int32_t  offset;
 } SBufRowInfo;
 #pragma pack(pop)
 
@@ -59,33 +63,37 @@ typedef struct SGroupData {
   SBufRowInfo* rows;
 } SGroupData;
 
-typedef struct SJoinTableInfo {
+typedef struct SHJoinTableInfo {
   SOperatorInfo* downStream;
   int32_t        blkId;
   SQueryStat     inputStat;
   
   int32_t        keyNum;
-  SColBufInfo*   keyCols;
+  SHJoinColInfo* keyCols;
   char*          keyBuf;
+  char*          keyData;
   
   int32_t        valNum;
-  SColBufInfo*   valCols;
+  SHJoinColInfo* valCols;
+  char*          valData;
+  int32_t        valBitMapSize;
   int32_t        valBufSize;
-  bool           valVarData;
-} SJoinTableInfo;
+  SArray*        valVarCols;
+  bool           valColExist;
+} SHJoinTableInfo;
 
 typedef struct SHJoinOperatorInfo {
-  SSDataBlock*    pRes;
-  int32_t         joinType;
-  SJoinTableInfo  tbs[2];
-  SJoinTableInfo* pBuild;
-  SJoinTableInfo* pProbe;
-  int32_t         pResColNum;
-  int8_t*         pResColMap;
-  SArray*         pRowBufs;
-  SNode*          pCondAfterJoin;
-  SSHashObj*      pKeyHash;
-  SHJoinCtx       ctx;
+  int32_t          joinType;
+  SHJoinTableInfo  tbs[2];
+  SHJoinTableInfo* pBuild;
+  SHJoinTableInfo* pProbe;
+  SSDataBlock*     pRes;
+  int32_t          pResColNum;
+  int8_t*          pResColMap;
+  SArray*          pRowBufs;
+  SNode*           pCond;
+  SSHashObj*       pKeyHash;
+  SHJoinCtx        ctx;
 } SHJoinOperatorInfo;
 
 static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator);

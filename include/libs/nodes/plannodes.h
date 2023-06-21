@@ -415,7 +415,6 @@ typedef struct SHashJoinPhysiNode {
   EJoinType  joinType;
   SNodeList* pOnLeft;
   SNodeList* pOnRight;
-  SNode*     pOnConditions;
   SNode*     pFilterConditions;
   SNodeList* pTargets;
   SQueryStat inputStat[2];

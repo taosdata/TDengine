@@ -167,7 +167,11 @@ typedef struct STempTableNode {
   SNode*     pSubquery;
 } STempTableNode;
 
-typedef enum EJoinType { JOIN_TYPE_INNER = 1 } EJoinType;
+typedef enum EJoinType { 
+  JOIN_TYPE_INNER = 1,
+  JOIN_TYPE_LEFT,
+  JOIN_TYPE_RIGHT,
+} EJoinType;
 
 typedef struct SJoinTableNode {
   STableNode table;  // QUERY_NODE_JOIN_TABLE
