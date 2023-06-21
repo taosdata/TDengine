@@ -9,7 +9,7 @@ use std::{
 use flume::{Receiver, Sender};
 use futures::FutureExt;
 use itertools::Itertools;
-use taos::TaosPool;
+use taos::{AsyncQueryable, TaosPool};
 use tokio::{
     sync::oneshot,
     task::{JoinError, JoinHandle},
@@ -71,49 +71,69 @@ async fn worker(
     source_is_v3: bool,
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
-    let from = source.get().await?;
-    let to = target.get().await?;
+    let mut from = source.get().await?;
+    let mut to = target.get().await?;
+    from.exec("select 1")
+        .await
+        .map_err(|err| anyhow::format_err!("check source connection error: {err:?}"))?;
+    to.exec("select 1")
+        .await
+        .map_err(|err| anyhow::format_err!("check target connection error: {err:?}"))?;
     loop {
         let todo = receiver.recv_async().await?;
         match todo {
             Todo::Meta(stable, tables, sender) => {
                 match stable {
                     Some(stable) => {
-                        //todo
-                        match sync_super_table_schema_with_subs(
-                            &from,
-                            &stable,
-                            &tables,
-                            &to,
-                            tables.len(),
-                            &opts,
-                            source_is_v3,
-                            target_is_v3,
-                            0,
-                            &metrics,
-                        )
-                        .await
-                        {
-                            Ok(_) => {
-                                if let Some(sender) = sender {
-                                    let _ = sender.send(Ok(()));
+                        let mut retries = 1;
+                        loop {
+                            //todo
+                            match sync_super_table_schema_with_subs(
+                                &from,
+                                &stable,
+                                &tables,
+                                &to,
+                                tables.len(),
+                                &opts,
+                                source_is_v3,
+                                target_is_v3,
+                                0,
+                                &metrics,
+                            )
+                            .await
+                            {
+                                Ok(_) => {
+                                    if let Some(sender) = sender {
+                                        let _ = sender.send(Ok(()));
+                                    }
+                                    break;
                                 }
-                            }
-                            Err(err) => {
-                                log::error!(
-                            			"[worker:{worker}] Synchronize {stable} error: {err:?}, continue next"
-                        				);
-                                if let Some(path) = opts.fails_to.as_ref() {
-                                    path.lock().unwrap().write_fmt(format_args!(
-                                        "meta\t{}:{}\t{}\n",
-                                        stable.as_str(),
-                                        tables.join(","),
-                                        format!("{err:?}").replace("\n", " ")
-                                    ))?;
-                                }
+                                Err(err) => {
+                                    let table_count = tables.len();
+                                    log::error!(
+                                		"[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:?}, continue next"
+                            		);
+                                    let err_string = err.to_string();
+                                    if err_string.contains("0xE00") && retries > 0 {
+                                        from = source.get().await?;
+                                        to = target.get().await?;
+                                        retries -= 1;
+                                        continue;
+                                    }
 
-                                if let Some(sender) = sender {
-                                    let _ = sender.send(Err(err));
+                                    if let Some(path) = opts.fails_to.as_ref() {
+                                        path.lock().unwrap().write_fmt(format_args!(
+                                            "meta\t{}:{}\t{}\n",
+                                            stable.as_str(),
+                                            tables.join(","),
+                                            format!("{err:?}").replace("\n", " ")
+                                        ))?;
+                                    }
+
+                                    if let Some(sender) = sender {
+                                        let _ = sender.send(Err(err));
+                                    }
+                                    break;
                                 }
                             }
                         }
@@ -157,40 +177,53 @@ async fn worker(
                     limit: query.limit,
                     select_from_stable: query.select_from_stable,
                 };
-                match sync_single_table(
-                    &from,
-                    stable.as_ref().map(|s| s.as_str()),
-                    &table,
-                    &to,
-                    &query,
-                    &opts,
-                    target_is_v3,
-                    &metrics,
-                )
-                .await
-                {
-                    Ok(_) => {
-                        if let Some(sender) = sender {
-                            let _ = sender.send(Ok(()));
-                        }
-                    }
-                    Err(err) => {
-                        log::error!(
-                            "[worker:{worker}] Synchronize {table} error: {err:?}, continue next"
-                        );
-                        if let Some(path) = opts.fails_to.as_ref() {
-                            path.lock().unwrap().write_fmt(format_args!(
-                                "data\t{}\t{}\n",
-                                table.as_str(),
-                                format!("{err:?}").replace("\n", " ")
-                            ))?;
-                        }
+                let mut retries = 1;
 
-                        if let Some(sender) = sender {
-                            let _ = sender.send(Err(err));
+                loop {
+                    match sync_single_table(
+                        &from,
+                        stable.as_ref().map(|s| s.as_str()),
+                        &table,
+                        &to,
+                        &query,
+                        &opts,
+                        target_is_v3,
+                        &metrics,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            if let Some(sender) = sender {
+                                let _ = sender.send(Ok(()));
+                            }
+                            break;
                         }
-                    }
-                };
+                        Err(err) => {
+                            log::error!(
+                                "[worker:{worker}] sync table {table} error: {err:?}, continue next"
+                            );
+                            let err_string = err.to_string();
+                            if err_string.contains("0xE00") && retries > 0 {
+                                from = source.get().await?;
+                                to = target.get().await?;
+                                retries -= 1;
+                                continue;
+                            }
+                            if let Some(path) = opts.fails_to.as_ref() {
+                                path.lock().unwrap().write_fmt(format_args!(
+                                    "data\t{}\t{}\n",
+                                    table.as_str(),
+                                    format!("{err:?}").replace("\n", " ")
+                                ))?;
+                            }
+
+                            if let Some(sender) = sender {
+                                let _ = sender.send(Err(err));
+                            }
+                            break;
+                        }
+                    };
+                }
             }
         }
     }
