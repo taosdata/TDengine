@@ -44,6 +44,7 @@ typedef struct {
     TSKEY      maxKey;
     STFileSet *fset;
     TABLEID    tbid[1];
+    bool       hasTSData;
   } ctx[1];
 
   // reader
@@ -109,9 +110,10 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
   int32_t   lino = 0;
   SMetaInfo info;
 
+  committer->ctx->hasTSData = false;
+
   for (SRowInfo *row; (row = tsdbIterMergerGetData(committer->dataIterMerger)) != NULL;) {
     if (row->uid != committer->ctx->tbid->uid) {
-      // Ignore table of obsolescence
       if (metaGetInfo(committer->tsdb->pVnode->pMeta, row->uid, &info, NULL) != 0) {
         code = tsdbIterMergerSkipTableData(committer->dataIterMerger, (TABLEID *)row);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -130,6 +132,8 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
       continue;
     }
 
+    committer->ctx->hasTSData = true;
+
     code = tsdbFSetWriteRow(committer->writer, row);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -147,6 +151,10 @@ _exit:
 static int32_t tsdbCommitTombData(SCommitter2 *committer) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  if (committer->ctx->fset == NULL && !committer->ctx->hasTSData) {
+    return 0;
+  }
 
   for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(committer->tombIterMerger));) {
     if (record->ekey < committer->ctx->minKey) {
