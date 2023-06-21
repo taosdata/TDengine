@@ -706,6 +706,7 @@ typedef struct SSttBlockLoadInfo {
   void      *pBlockArray;
 
   SArray   *aSttBlk;
+  SArray   *pTombBlockArray;  // tomb block array list
   int32_t   blockIndex[2];  // to denote the loaded block in the corresponding position.
   int32_t   currentLoadBlockIndex;
   int32_t   loadBlocks;

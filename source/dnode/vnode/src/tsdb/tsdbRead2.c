@@ -2766,6 +2766,51 @@ static bool isValidFileBlockRow(SBlockData* pBlockData, SFileBlockDumpInfo* pDum
   return true;
 }
 
+static int32_t loadTomRecordInfoFromSttFiles(SSttBlockLoadInfo* pBlockLoadInfo, uint64_t suid,
+                                             STableBlockScanInfo* pBlockScanInfo, uint64_t maxVer) {
+  int32_t size = taosArrayGetSize(pBlockLoadInfo->pTombBlockArray);
+  if (size <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint64_t uid = pBlockScanInfo->uid;
+  if (pBlockScanInfo->pDelData == NULL) {
+    pBlockScanInfo->pDelData = taosArrayInit(4, sizeof(SDelData));
+  }
+
+  for(int32_t i = 0; i < size; ++i) {
+    STombBlock* pBlock = taosArrayGetP(pBlockLoadInfo->pTombBlockArray, i);
+
+    STombRecord record = {0};
+    for(int32_t j = 0; j < pBlock->suid->size; ++j) {
+      int32_t code = tTombBlockGet(pBlock, j, &record);
+      if (code != TSDB_CODE_SUCCESS) {
+        // todo handle error
+      }
+
+      if (record.suid < suid) {
+        continue;
+      }
+
+      // todo use binary search instead here
+      if (record.uid < uid) {
+        continue;
+      }
+
+      if (record.uid > uid) {
+        break;
+      }
+
+      if (record.version <= maxVer) {
+        SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
+        taosArrayPush(pBlockScanInfo->pDelData, &delData);
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScanInfo* pScanInfo, STsdbReader* pReader) {
   // the last block reader has been initialized for this table.
   if (pLBlockReader->uid == pScanInfo->uid) {
@@ -2776,7 +2821,6 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
     tMergeTreeClose(&pLBlockReader->mergeTree);
   }
 
-  initMemDataIterator(pScanInfo, pReader);
   pLBlockReader->uid = pScanInfo->uid;
 
   STimeWindow w = pLBlockReader->window;
@@ -2788,14 +2832,20 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
 
   tsdbDebug("init last block reader, window:%" PRId64 "-%" PRId64 ", uid:%" PRIu64 ", %s", w.skey, w.ekey,
             pScanInfo->uid, pReader->idStr);
-  int32_t code = tMergeTreeOpen2(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC),
-                                pReader->pTsdb, pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange,
-                                pLBlockReader->pInfo, false, pReader->idStr, false, pReader->status.pLDataIter,
-                                pReader->status.pCurrentFileset);
+  int32_t code =
+      tMergeTreeOpen2(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC), pReader->pTsdb,
+                      pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pLBlockReader->pInfo, false,
+                      pReader->idStr, false, pReader->status.pLDataIter, pReader->status.pCurrentFileset);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
 
+  code = loadTomRecordInfoFromSttFiles(pLBlockReader->pInfo, pReader->suid, pScanInfo, pReader->verRange.maxVer);
+  if (code != TSDB_CODE_SUCCESS) {
+    return false;
+  }
+
+  initMemDataIterator(pScanInfo, pReader);
   return nextRowFromLastBlocks(pLBlockReader, pScanInfo, &pReader->verRange);
 }
 
@@ -3212,8 +3262,8 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
   STFileObj* pTombFileObj = pReader->status.pCurrentFileset->farr[3];
   if (pTombFileObj!= NULL) {
       const TTombBlkArray* pBlkArray = NULL;
-
       int32_t code = tsdbDataFileReadTombBlk(pReader->pFileReader, &pBlkArray);
+
       int32_t i = 0, j = 0;
 
       // todo find the correct start position.

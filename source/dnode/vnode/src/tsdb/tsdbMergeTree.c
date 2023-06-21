@@ -269,6 +269,83 @@ int32_t tLDataIterOpen(struct SLDataIter *pIter, SDataFReader *pReader, int32_t 
   return 0;
 }
 
+static int32_t loadSttBlockInfo(SLDataIter *pIter, SSttBlockLoadInfo* pBlockLoadInfo, uint64_t suid) {
+  TSttBlkArray* pArray = pBlockLoadInfo->pBlockArray;
+  if (TARRAY2_SIZE(pArray) <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSttBlk *pStart = &pArray->data[0];
+  SSttBlk *pEnd = &pArray->data[TARRAY2_SIZE(pArray) - 1];
+
+  // all identical
+  if (pStart->suid == pEnd->suid) {
+    if (pStart->suid != suid) { // no qualified stt block existed
+      taosArrayClear(pBlockLoadInfo->aSttBlk);
+      pIter->iSttBlk = -1;
+      return TSDB_CODE_SUCCESS;
+    } else {  // all blocks are qualified
+      taosArrayClear(pBlockLoadInfo->aSttBlk);
+      taosArrayAddBatch(pBlockLoadInfo->aSttBlk, pArray->data, pArray->size);
+    }
+  } else {
+    SArray *pTmp = taosArrayInit(TARRAY2_SIZE(pArray), sizeof(SSttBlk));
+    for (int32_t i = 0; i < TARRAY2_SIZE(pArray); ++i) {
+      SSttBlk* p = &pArray->data[i];
+      if (p->suid < suid) {
+        continue;
+      }
+
+      if (p->suid == suid) {
+        taosArrayPush(pTmp, p);
+      } else if (p->suid > suid) {
+        break;
+      }
+    }
+
+    taosArrayDestroy(pBlockLoadInfo->aSttBlk);
+    pBlockLoadInfo->aSttBlk = pTmp;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t loadSttTombBlockData(SSttFileReader* pSttFileReader, uint64_t suid, SSttBlockLoadInfo* pLoadInfo) {
+  if (pLoadInfo->pTombBlockArray == NULL) {
+    pLoadInfo->pTombBlockArray = taosArrayInit(4, POINTER_BYTES);
+  }
+
+  const TTombBlkArray* pBlkArray = NULL;
+  int32_t code = tsdbSttFileReadTombBlk(pSttFileReader, &pBlkArray);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  for(int32_t j = 0; j < pBlkArray->size; ++j) {
+    STombBlk* pTombBlk = &pBlkArray->data[j];
+    if (pTombBlk->maxTbid.suid < suid) {
+      continue;  // todo use binary search instead
+    }
+
+    if (pTombBlk->minTbid.suid > suid) {
+      break;
+    }
+
+    STombBlock* pTombBlock = taosMemoryCalloc(1, sizeof(STombBlock));
+    code = tsdbSttFileReadTombBlock(pSttFileReader, pTombBlk, pTombBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo handle error
+    }
+
+    void* p = taosArrayPush(pLoadInfo->pTombBlockArray, &pTombBlock);
+    if (p == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pReader, int32_t iStt, int8_t backward, uint64_t suid,
                        uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange, SSttBlockLoadInfo *pBlockLoadInfo,
                        const char *idStr, bool strictTimeRange) {
@@ -290,51 +367,15 @@ int32_t tLDataIterOpen2(struct SLDataIter *pIter, SSttFileReader *pReader, int32
     pBlockLoadInfo->sttBlockLoaded = true;
 
     code = tsdbSttFileReadSttBlk(pIter->pReader, (const TSttBlkArray **)&pBlockLoadInfo->pBlockArray);
-    if (code) {
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    // only apply to the child tables, ordinary tables will not incur this filter procedure.
-    TSttBlkArray* pArray = pBlockLoadInfo->pBlockArray;
-    size_t size = pArray->size;
+    code = loadSttBlockInfo(pIter, pBlockLoadInfo, suid);
 
-    if (size >= 1) {
-      SSttBlk *pStart = &pArray->data[0];
-      SSttBlk *pEnd = &pArray->data[size - 1];
-
-      // all identical
-      if (pStart->suid == pEnd->suid) {
-        if (pStart->suid != suid) {
-          // no qualified stt block existed
-          taosArrayClear(pBlockLoadInfo->aSttBlk);
-
-          pIter->iSttBlk = -1;
-          double el = (taosGetTimestampUs() - st) / 1000.0;
-          tsdbDebug("load the last file info completed, elapsed time:%.2fms, %s", el, idStr);
-          return code;
-        } else {  // all blocks are qualified
-          taosArrayClear(pBlockLoadInfo->aSttBlk);
-          taosArrayAddBatch(pBlockLoadInfo->aSttBlk, pArray->data, pArray->size);
-        }
-      } else {
-        SArray *pTmp = taosArrayInit(size, sizeof(SSttBlk));
-        for (int32_t i = 0; i < size; ++i) {
-          SSttBlk* p = &pArray->data[i];
-          uint64_t s = p->suid;
-          if (s < suid) {
-            continue;
-          }
-
-          if (s == suid) {
-            taosArrayPush(pTmp, p);
-          } else if (s > suid) {
-            break;
-          }
-        }
-
-        taosArrayDestroy(pBlockLoadInfo->aSttBlk);
-        pBlockLoadInfo->aSttBlk = pTmp;
-      }
+    code = loadSttTombBlockData(pReader, suid, pBlockLoadInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
     double el = (taosGetTimestampUs() - st) / 1000.0;
