@@ -336,6 +336,7 @@ export default {
         });
         this.loading = false;
       } catch (error) {
+        Message.error(this.$t("login.servExceptionTip"));
         this.loading = false;
         deleteCookieItem();
       }

@@ -155,6 +155,7 @@ export default {
   revoke: "revoke",
   read: "read",
   write: "write",
+  subscribe: 'Subscribe',
   plan: {
     pricePlan: "Price Plan",
     planTitle: "TDengine  Price Plan",
@@ -319,7 +320,8 @@ export default {
     rememberMe: "Remember me",
     usernameTips: 'Please enter the Username',
     passwordTips: 'Please enter the Password',
-    errorTip: 'The user name or password is incorrect'
+    errorTip: 'The user name or password is incorrect',
+    servExceptionTip: 'Your taosd or taosadapter service is abnormal. Restart the taosd or taosadapter service and ensure that the service is available.'
   },
   dashboard: {
     warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,

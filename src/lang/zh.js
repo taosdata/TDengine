@@ -141,6 +141,7 @@ export default {
   revoke: "收回",
   read: "读",
   write: "写",
+  subscribe: "订阅",
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",
@@ -258,7 +259,8 @@ export default {
     rememberMe: "记住我",
     usernameTips: '请输入用户名',
     passwordTips: '请输入密码',
-    errorTip: '用户名或者密码错误'
+    errorTip: '用户名或者密码错误',
+    servExceptionTip: '您的 taosd 或 taosadapter 服务处于异常，请尝试重启 taosd 或 taosadapter 服务并保证服务可用',
   },
   dashboard: {
     warnigtip:`请点击左侧<a href="/dashboard">仪表盘</a>查看TDinsight的设置`,
