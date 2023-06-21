@@ -1194,9 +1194,6 @@ async fn sync_specified_tables_with_workers(
             Ok(_) => {}
             Err(err) => {
                 log::error!("Syncing error: {err:?}",);
-                if err.to_string().contains("0xE00") {
-                    Err(err)?;
-                }
                 fails += 1;
             }
         }
