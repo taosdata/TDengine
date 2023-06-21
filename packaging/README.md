@@ -64,8 +64,6 @@ version = "1.0.0"
 │   │   └── taosx-mqtt.exe
 │   └── opc
 │       └── taosx-opc.exe
-│   ├── influxdb
-│   │   └── taosx-inflxdb.exe
 │   └── pi
 │       └── taosx-pi.exe
 │       └── taosx-pi-backfill.exe
