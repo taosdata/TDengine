@@ -71,12 +71,12 @@ int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, 
   return 0;
 }
 
-void tMergeTreeDestroy(SMultiwayMergeTreeInfo* pTree) {
-  if (pTree == NULL) {
+void tMergeTreeDestroy(SMultiwayMergeTreeInfo** pTree) {
+  if (pTree == NULL || *pTree == NULL) {
     return;
   }
 
-  taosMemoryFreeClear(pTree);
+  taosMemoryFreeClear(*pTree);
 }
 
 void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {

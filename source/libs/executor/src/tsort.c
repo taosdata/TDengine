@@ -46,6 +46,7 @@ struct SSortHandle {
   SMsortComparParam cmpParam;
   int32_t           numOfCompletedSources;
   bool              opened;
+  int8_t            closed;
   const char*       idStr;
   bool              inMemSort;
   bool              needAdjust;
@@ -152,7 +153,7 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
 
   tsortClose(pSortHandle);
   if (pSortHandle->pMergeTree != NULL) {
-    tMergeTreeDestroy(pSortHandle->pMergeTree);
+    tMergeTreeDestroy(&pSortHandle->pMergeTree);
   }
 
   destroyDiskbasedBuf(pSortHandle->pBuf);
@@ -581,6 +582,11 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
       SArray* pPageIdList = taosArrayInit(4, sizeof(int32_t));
       while (1) {
+        if (tsortIsClosed(pHandle)) {
+          code = terrno = TSDB_CODE_TSC_QUERY_CANCELLED;
+          return code;
+        }
+        
         SSDataBlock* pDataBlock = getSortedBlockDataInner(pHandle, &pHandle->cmpParam, numOfRows);
         if (pDataBlock == NULL) {
           break;
@@ -609,7 +615,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       }
 
       sortComparCleanup(&pHandle->cmpParam);
-      tMergeTreeDestroy(pHandle->pMergeTree);
+      tMergeTreeDestroy(&pHandle->pMergeTree);
       pHandle->numOfCompletedSources = 0;
 
       SSDataBlock* pBlock = createOneDataBlock(pHandle->pDataBlock, false);
@@ -803,8 +809,17 @@ int32_t tsortOpen(SSortHandle* pHandle) {
 }
 
 int32_t tsortClose(SSortHandle* pHandle) {
-  // do nothing
+  atomic_val_compare_exchange_8(&pHandle->closed, 0, 1);
+  taosSsleep(1);
   return TSDB_CODE_SUCCESS;
+}
+
+bool tsortIsClosed(SSortHandle* pHandle) {
+  return atomic_val_compare_exchange_8(&pHandle->closed, 1, 2);
+}
+
+void tsortSetClosed(SSortHandle* pHandle) {
+  atomic_store_8(&pHandle->closed, 2);
 }
 
 int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
@@ -826,6 +841,9 @@ int32_t tsortSetCompareGroupId(SSortHandle* pHandle, bool compareGroupId) {
 }
 
 STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
+  if (tsortIsClosed(pHandle)) {
+    return NULL;
+  }
   if (pHandle->cmpParam.numOfSources == pHandle->numOfCompletedSources) {
     return NULL;
   }
