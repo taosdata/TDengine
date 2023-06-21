@@ -483,10 +483,13 @@ static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSe
 }
 
 static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
-  int32_t        code = 0;
-  int32_t        lino = 0;
-  TFileSetArray *fsetArray = fs->fSetArrTmp;
+  int32_t code = 0;
+  int32_t lino = 0;
 
+  code = tsdbFSDupState(fs);
+  if (code) return code;
+
+  TFileSetArray  *fsetArray = fs->fSetArrTmp;
   STFileSet      *fset = NULL;
   const STFileOp *op;
   TARRAY2_FOREACH_PTR(opArray, op) {
