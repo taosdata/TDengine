@@ -369,7 +369,7 @@ def build_and_install_taosx_agent(mode):
         sys.exit()
 
     copy_taos_agent_service_file(taox_install_path)
-    taos_cfg_path = os.path.join(release_info.InstallPath, "cfg")
+    taos_cfg_path = os.path.join(release_info.InstallPath, "config")
     check_directory(taos_cfg_path)
     copy_taos_agent_cfg(taos_cfg_path)
 
@@ -414,7 +414,7 @@ def copy_taos_explorer_on_windows(explorer_path):
     explorer_toml_path = os.path.join(explorer_path, "server","examples", "explorer.toml")
 
     taos_explorer_install_path = os.path.join(release_info.InstallPath, "bin")
-    taos_explorer_cfg_path = os.path.join(release_info.InstallPath, "cfg")
+    taos_explorer_cfg_path = os.path.join(release_info.InstallPath, "config")
     check_directory(taos_explorer_install_path)
     try:
         shutil.copy2(explorer_exe_path, taos_explorer_install_path)
@@ -482,7 +482,7 @@ def check_directory(path):
 def init_install_directory():
     print("initInstallDirectory {}...".format(release_info.InstallPath))
     check_directory(release_info.InstallPath)
-    check_directory(os.path.join(release_info.InstallPath, "cfg"))
+    check_directory(os.path.join(release_info.InstallPath, "config"))
 
     opc_install_path = os.path.join(release_info.InstallPath, "plugins", opc_connector)
     init_directory(opc_install_path)

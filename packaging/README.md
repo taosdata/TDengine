@@ -1,6 +1,7 @@
 ## 功能
 
-release.py 脚本为 taosx 及 taosx-agent 打包服务，支持 Windows 及 Linux 打包
+release.py 脚本为 taosx 及 taosx-agent 打包服务，支持 Windows 及 Linux 打包。
+安装包也会包含 taos-explorer 及各类连接器
 
 ## 环境要求
 
@@ -18,7 +19,7 @@ taosx 版本号从 Cargo.toml 文件可以取到：
 ~~~
 [package]
 name = "taosx"
-version = "0.5.1"
+version = "1.0.0"
 ~~~
 其他子模块版本号各自维护，一般在启动时候 -v 参数可查看，或者通过日志查看。
 
@@ -44,7 +45,7 @@ version = "0.5.1"
 - 输出路径：taosx\release
 - 文件名：
     - windows:   taosx-{version}-windows-installer.exe
-    - linux:     taosX-{version}-Linux-x64.tar.gz
+    - linux:     taosx-{version}-linux-x64.tar.gz
 - windows 使用安装程序进行安装，使用 uninstall_taosx.exe 进行卸载。taosx\taosx-agent\taos-explorer 均已安装为服务
 - 命令窗口执行 ```sc start/stop taosx``` 管理 taosx 服务
 - 命令窗口执行 ```sc start/stop taosx-agent``` 管理 taosx-agent 服务
@@ -78,17 +79,17 @@ version = "0.5.1"
 - linux 下需要安装程序先解压，后安装使用，示例如下：
 ``` bash
 # 解压文件
-tar -zxf taosX-0.5.1-Linux-x64.tar.gz
-cd taosX-0.5.1-Linux-x64
+tar -zxf taosx-1.0.0-linux-x64.tar.gz
+cd taosx-1.0.0-linux-x64
 # 安装
 sudo ./install.sh
 # 验证
 taosx -V 
-# taosx 0.5.1-b9827b00-dirty (built linux-x86_64 2023-05-31 09:11:13 +08:00)
+# taosx 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:00 +08:00)
 taosx-agent -V 
-# taosx-agent 0.1.0-33c1e5e4 (built linux-x86_64 2023-05-26 14:24:13 +08:00)
+# taosx-agent 1.0.0-494d280c (built linux-x86_64 2023-06-21 11:06:01 +08:00)
 
-# start taosX and taosx-agent system service
+# start taosx and taosx-agent system service
 sudo systemctl start taosx
 sudo systemctl start taosx-agent
 sudo systemctl start taos-explorer
@@ -104,7 +105,8 @@ sudo systemctl stop taosx-agent
 sudo systemctl stop taos-explorer
 
 # 卸载
-sudo rmtaox
+cd /usr/local/taosx
+sudo ./uninstall.sh
 ```
 - linux 下文件路径说明
   1. taosx, taosx-gent, taos-explorer: /usr/bin
