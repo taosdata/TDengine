@@ -664,6 +664,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       }
     } else {
       tfree(pRes->pRsp);
+      // dummy code
     }
 
     /*
