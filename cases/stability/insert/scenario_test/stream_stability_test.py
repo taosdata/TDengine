@@ -48,6 +48,10 @@ class StreamStabilityTest(TDCase):
         self.exec_cmd = ' '.join(sys.argv[::])
 
         self.taosBenchmark_json_path = "/tmp/"
+        self.split_str = "testnglog"
+        self.local_ip_list = self._remote.cmd("localhost", ["hostname -I"]).split(" ")
+        self.local_ip = list(map(lambda x:x if "192" in x else socket.gethostname(), self.local_ip_list))[0]
+        self.FILE_WEB_SERVER=f'http://{self.local_ip}:8081/'
 
     def help(self):
         print("case parameters:")
@@ -182,6 +186,7 @@ class StreamStabilityTest(TDCase):
             self._remote.get(host, json_info["result_file"], self.run_log_dir)
         res_msg = self.taosbenchmark.confirm_res(f'{self.run_log_dir}/taosBenchmark_{os.path.split(json_file)[1]}.log')
         report_file = f'{getpass.getuser()}@{socket.gethostname()}:{self.result_file_name}'
+        report_http_addr = self.FILE_WEB_SERVER + report_file.split(self.split_str)[1]
         text = f'''result: {res_msg}
 test scope: stream stability test
 owner: Jayden Jia
@@ -189,6 +194,7 @@ hostname: {self.host_list}
 start time: {start_time}
 end time: {end_time}
 report file: {report_file}
+report http addr: {report_http_addr}
 cmd: {self.exec_cmd}
 others: none'''
         self.msg.send_msg(self.msg.get_msg(text))
