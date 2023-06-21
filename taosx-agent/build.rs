@@ -2,7 +2,7 @@ use std::{fs::File, io::prelude::*, path::Path};
 
 use shadow_rs::SdResult;
 
-const DEFAULT_CUS_NAME: &str = "taosX";
+const DEFAULT_CUS_NAME: &str = "TDengine";
 const DEFAULT_CUS_PROMPT: &str = "taos";
 
 fn labeling(mut file: &File) -> SdResult<()> {
