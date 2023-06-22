@@ -582,9 +582,9 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, TFileSetArray* pFileSetA
 static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bool* hasNext) {
   bool    asc = ASCENDING_TRAVERSE(pIter->order);
   int32_t step = asc ? 1 : -1;
-  pIter->index += step;
   int32_t code = 0;
 
+  pIter->index += step;
   if ((asc && pIter->index >= pIter->numOfFiles) || ((!asc) && pIter->index < 0)) {
     *hasNext = false;
     return TSDB_CODE_SUCCESS;
@@ -874,7 +874,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   }
 
   const TBrinBlkArray* pBlkArray = NULL;
-  int32_t code = tsdbDataFileReadBrinBlk(pFileReader, &pBlkArray);
+  int32_t              code = tsdbDataFileReadBrinBlk(pFileReader, &pBlkArray);
 
   LRUHandle* handle = NULL;
 #if 0
@@ -895,14 +895,17 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   // todo binary search to the start position
   int64_t et1 = taosGetTimestampUs();
 
-  SBrinBlk* pBrinBlk = NULL;
+  SBrinBlk*      pBrinBlk = NULL;
   STableUidList* pList = &pReader->status.uidList;
 
+  bool newBlk = false;
   int32_t i = 0, j = 0;
+
   while (i < pBlkArray->size && j < numOfTables) {
     pBrinBlk = &pBlkArray->data[i];
     if (pBrinBlk->maxTbid.suid < pReader->suid) {
       i += 1;
+      newBlk = true;
       continue;
     }
 
@@ -917,30 +920,39 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
       continue;
     }
 
-      // this block belongs to a table that is not queried.
-      STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pList->tableUidList[j], pReader->idStr);
-      if (pScanInfo == NULL) {
-//        tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
-        return terrno;
-      }
-
-      if (pScanInfo->pBlockList == NULL) {
-        pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBrinRecord));
-      }
-
-      taosArrayPush(pIndexList, pBrinBlk);
-      j += 1;
+    // this block belongs to a table that is not queried.
+    STableBlockScanInfo* pScanInfo =
+        getTableBlockScanInfo(pReader->status.pTableMap, pList->tableUidList[j], pReader->idStr);
+    if (pScanInfo == NULL) {
+      //        tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
+      return terrno;
     }
+
+    if (pScanInfo->pBlockList == NULL) {
+      pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBrinRecord));
+    }
+
+    if (taosArrayGetSize(pIndexList) == 0) {
+      taosArrayPush(pIndexList, pBrinBlk);
+    } else {
+      if (newBlk) {
+        taosArrayPush(pIndexList, pBrinBlk);
+      }
+      newBlk = false;
+    }
+
+    j += 1;
+  }
 
   int64_t et2 = taosGetTimestampUs();
   tsdbDebug("load block index for %d/%d tables completed, elapsed time:%.2f ms, set BrinBlk:%.2f ms, size:%.2f Kb %s",
-            numOfTables, (int32_t)pBlkArray->size, (et1 - st) / 1000.0, (et2 - et1) / 1000.0, pBlkArray->size * sizeof(SBrinBlk) / 1024.0,
-            pReader->idStr);
+            numOfTables, (int32_t)pBlkArray->size, (et1 - st) / 1000.0, (et2 - et1) / 1000.0,
+            pBlkArray->size * sizeof(SBrinBlk) / 1024.0, pReader->idStr);
 
   pReader->cost.headFileLoadTime += (et1 - st) / 1000.0;
 
-  _end:
-//  tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
+_end:
+  //  tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
   return code;
 }
 
@@ -1047,10 +1059,19 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
 
     while (pRecord->uid > uid && k < numOfTables) {
       k += 1;
+      if (k >= numOfTables) {
+        break;
+      }
+
+      uid = pReader->status.uidList.tableUidList[k];
     }
 
     if (k >= numOfTables) {
       break;
+    }
+
+    if (pRecord->uid < uid) {
+      continue;
     }
 
     ASSERT(pRecord->suid == pReader->suid && uid == pRecord->uid);
@@ -1743,6 +1764,8 @@ static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIte
     int32_t index = sup.indexPerTable[pos]++;
 
     SFileDataBlockInfo blockInfo = {.uid = sup.pDataBlockInfo[pos][index].uid, .tbBlockIdx = index};
+    blockInfo.record = *(SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
+
     taosArrayPush(pBlockIter->blockList, &blockInfo);
 
     // set data block index overflow, in order to disable the offset comparator
