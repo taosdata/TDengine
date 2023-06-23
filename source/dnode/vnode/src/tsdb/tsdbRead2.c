@@ -104,7 +104,8 @@ typedef struct SIOCostSummary {
 } SIOCostSummary;
 
 typedef struct SBlockLoadSuppInfo {
-  SArray*        pColAgg;
+  SArray*        pColAgg;   // todo remove it
+  TColumnDataAggArray colAggArray;
   SColumnDataAgg tsColAgg;
   int16_t*       colId;
   int16_t*       slotId;
@@ -4826,6 +4827,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
   }
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
+  TARRAY2_DESTROY(&pSupInfo->colAggArray, NULL);
 
   taosArrayDestroy(pSupInfo->pColAgg);
   for (int32_t i = 0; i < pSupInfo->numOfCols; ++i) {
@@ -5312,22 +5314,23 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   }
 
   int64_t st = taosGetTimestampUs();
-  ASSERT(0);
 
-//  SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
-  if (/*tDataBlkHasSma(pBlock)*/1) {
-//    code = tsdbReadBlockSma(pReader->pFileReader, pBlock, pSup->pColAgg);
+  TARRAY2_CLEAR(&pSup->colAggArray, 0);
+
+//  if (pFBlock->record.smaSize > 0) {
+    code = tsdbDataFileReadBlockSma(pReader->pFileReader, &pFBlock->record, &pSup->colAggArray);
     if (code != TSDB_CODE_SUCCESS) {
       tsdbDebug("vgId:%d, failed to load block SMA for uid %" PRIu64 ", code:%s, %s", 0, pFBlock->uid, tstrerror(code),
                 pReader->idStr);
       return code;
     }
+
+  if (pSup->colAggArray.size > 0) {
+    *allHave = true;
   } else {
     *pBlockSMA = NULL;
     return TSDB_CODE_SUCCESS;
   }
-
-  *allHave = true;
 
   // always load the first primary timestamp column data
   SColumnDataAgg* pTsAgg = &pSup->tsColAgg;
@@ -5357,11 +5360,13 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     *hasNullSMA = true;
     return TSDB_CODE_SUCCESS;
   }
-  size_t size = taosArrayGetSize(pSup->pColAgg);
+
+  size_t size = pSup->colAggArray.size;
 
   int32_t i = 0, j = 0;
   while (j < numOfCols && i < size) {
-    SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
+//    SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
+    SColumnDataAgg* pAgg = &pSup->colAggArray.data[i];
     if (pAgg->colId == pSup->colId[j]) {
       pResBlock->pBlockAgg[pSup->slotId[j]] = pAgg;
       i += 1;
