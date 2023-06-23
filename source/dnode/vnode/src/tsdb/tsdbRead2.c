@@ -4791,6 +4791,7 @@ static void clearSharedPtr(STsdbReader* p) {
   p->pReadSnap = NULL;
   p->pSchema = NULL;
   p->pSchemaMap = NULL;
+  p->pfSetArray = NULL;
 }
 
 static void setSharedPtr(STsdbReader* pDst, const STsdbReader* pSrc) {
@@ -4800,6 +4801,7 @@ static void setSharedPtr(STsdbReader* pDst, const STsdbReader* pSrc) {
   pDst->pSchema = pSrc->pSchema;
   pDst->pSchemaMap = pSrc->pSchemaMap;
   pDst->pReadSnap = pSrc->pReadSnap;
+  pDst->pfSetArray = pSrc->pfSetArray;
 
   if (pDst->pSchema) {
     tsdbRowMergerInit(&pDst->status.merger, pDst->pSchema);

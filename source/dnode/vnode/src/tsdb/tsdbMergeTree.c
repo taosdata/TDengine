@@ -104,6 +104,10 @@ void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
 }
 
 void destroySttBlockReader(SLDataIter* pLDataIter, int32_t numOfIter) {
+  if (pLDataIter == NULL) {
+    return;
+  }
+
   for(int32_t i = 0; i < numOfIter; ++i) {
     tLDataIterClose2(&pLDataIter[i]);
   }
