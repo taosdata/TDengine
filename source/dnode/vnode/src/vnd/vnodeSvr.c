@@ -602,9 +602,7 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
   }
 }
 
-// TODO: remove the function
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
-  // TODO
   // blockDebugShowDataBlocks(data, __func__);
   tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
 }
