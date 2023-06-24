@@ -713,6 +713,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pTableScanInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     pOperator->cost.totalCost = pTableScanInfo->base.readRecorder.elapsedTime;
+    pBlock->info.scanFlag = pTableScanInfo->base.scanFlag;
     return pBlock;
   }
   return NULL;
@@ -1764,7 +1765,7 @@ void streamScanOperatorDecode(void* pBuff, int32_t len, SStreamScanInfo* pInfo) 
     return;
   }
 
-  void* pUpInfo = pInfo->stateStore.updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0);
+  void* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   int32_t      code = pInfo->stateStore.updateInfoDeserialize(pBuff, len, pUpInfo);
   if (code == TSDB_CODE_SUCCESS) {
     pInfo->pUpdateInfo = pUpInfo;
@@ -2341,7 +2342,7 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
   void*   pBuff = NULL;
   int32_t len = 0;
   pInfo->stateStore.streamStateGetInfo(pInfo->pState, STREAM_SCAN_OP_STATE_NAME, strlen(STREAM_SCAN_OP_STATE_NAME), &pBuff, &len);
-  SUpdateInfo* pUpInfo = pInfo->stateStore.updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0);
+  SUpdateInfo* pUpInfo = taosMemoryCalloc(1, sizeof(SUpdateInfo));
   int32_t      code = pInfo->stateStore.updateInfoDeserialize(pBuff, len, pUpInfo);
   taosMemoryFree(pBuff);
   if (code == TSDB_CODE_SUCCESS && pInfo->pUpdateInfo) {
@@ -2364,6 +2365,8 @@ void streamScanReloadState(SOperatorInfo* pOperator) {
       pUpInfo->pMap = NULL;
       pInfo->stateStore.updateInfoDestroy(pUpInfo);
     }
+  } else {
+    pInfo->stateStore.updateInfoDestroy(pUpInfo);
   }
 }
 

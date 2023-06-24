@@ -3075,13 +3075,13 @@ static bool needFill(SNode* pNode) {
 
 static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList* pValues, int32_t index) {
   SListCell* pCell = nodesListGetCell(pValues, index);
-  if (dataTypeEqual(&dt, &((SExprNode*)pCell->pNode)->resType)) {
+  if (dataTypeEqual(&dt, &((SExprNode*)pCell->pNode)->resType) && (QUERY_NODE_VALUE == nodeType(pCell->pNode))) {
     return TSDB_CODE_SUCCESS;
   }
-  SNode*  pCaseFunc = NULL;
-  int32_t code = createCastFunc(pCxt, pCell->pNode, dt, &pCaseFunc);
+  SNode*  pCastFunc = NULL;
+  int32_t code = createCastFunc(pCxt, pCell->pNode, dt, &pCastFunc);
   if (TSDB_CODE_SUCCESS == code) {
-    code = scalarCalculateConstants(pCaseFunc, &pCell->pNode);
+    code = scalarCalculateConstants(pCastFunc, &pCell->pNode);
   }
   if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE != nodeType(pCell->pNode)) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Fill value can only accept constant");

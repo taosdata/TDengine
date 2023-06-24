@@ -366,6 +366,8 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
 
   TSWAP(pPhysiNode->pLimit, pLogicNode->pLimit);
   TSWAP(pPhysiNode->pSlimit, pLogicNode->pSlimit);
+  pPhysiNode->inputTsOrder = pLogicNode->inputTsOrder;
+  pPhysiNode->outputTsOrder = pLogicNode->outputTsOrder;
 
   int32_t code = createDataBlockDesc(pCxt, pLogicNode->pTargets, &pPhysiNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS != code) {
@@ -676,7 +678,7 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   int32_t             code = TSDB_CODE_SUCCESS;
 
   pJoin->joinType = pJoinLogicNode->joinType;
-  pJoin->inputTsOrder = pJoinLogicNode->inputTsOrder;
+  pJoin->node.inputTsOrder = pJoinLogicNode->node.inputTsOrder;
   setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pMergeCondition,
                 &pJoin->pMergeCondition);
   if (TSDB_CODE_SUCCESS == code) {
@@ -939,6 +941,11 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   SNodeList* pFuncs = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pFuncLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
 
+  if (pIdfRowsFunc->node.inputTsOrder == 0) {
+    // default to asc
+    pIdfRowsFunc->node.inputTsOrder = TSDB_ORDER_ASC;
+  }
+
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
@@ -1156,9 +1163,12 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   pWindow->watermark = pWindowLogicNode->watermark;
   pWindow->deleteMark = pWindowLogicNode->deleteMark;
   pWindow->igExpired = pWindowLogicNode->igExpired;
-  pWindow->inputTsOrder = pWindowLogicNode->inputTsOrder;
-  pWindow->outputTsOrder = pWindowLogicNode->outputTsOrder;
   pWindow->mergeDataBlock = (GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
+  pWindow->node.inputTsOrder = pWindowLogicNode->node.inputTsOrder;
+  pWindow->node.outputTsOrder = pWindowLogicNode->node.outputTsOrder;
+  if (nodeType(pWindow) == QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL) {
+    pWindow->node.inputTsOrder = pWindowLogicNode->node.outputTsOrder;
+  }
 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;
@@ -1492,7 +1502,7 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
 
   pFill->mode = pFillNode->mode;
   pFill->timeRange = pFillNode->timeRange;
-  pFill->inputTsOrder = pFillNode->inputTsOrder;
+  pFill->node.inputTsOrder = pFillNode->node.inputTsOrder;
 
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
   int32_t code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pFillExprs, &pFill->pFillExprs);

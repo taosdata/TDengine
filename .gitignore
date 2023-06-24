@@ -16,7 +16,6 @@ debug/
 release/
 target/
 debs/
-deps/
 rpms/
 mac/
 *.pyc
