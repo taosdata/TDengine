@@ -1710,7 +1710,6 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
         dataLen += (seqEnd - seqStart);
         seqStart = offset;
         seqEnd = seqStart + valueLen;
-        
       } else {
         seqEnd += valueLen;
       }
