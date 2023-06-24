@@ -1701,7 +1701,7 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
       dataLen += varDataTLen(data);
     }
     beigin++;
-    }
+  }
 
   if (dataOffset > 0) {
     memmove(pColInfoData->pData, pColInfoData->pData + dataOffset, dataLen);
