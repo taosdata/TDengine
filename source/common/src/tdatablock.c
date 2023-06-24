@@ -1733,8 +1733,7 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
 
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
-    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[n], (total - n) * sizeof(int32_t));
+    pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
 
     // clear the offset value of the unused entries.
     memset(&pColInfoData->varmeta.offset[total - n], 0, n);
