@@ -1680,36 +1680,42 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
 }
 
 static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, size_t end) {
-  int32_t dataOffset = -1;
   int32_t dataLen = 0;
-  int32_t beigin = start;
-  while (beigin < end) {
-    int32_t offset = pColInfoData->varmeta.offset[beigin];
+  int32_t valueLen = 0;
+  int32_t iter = start;
+  while (iter < end) {
+    int32_t offset = pColInfoData->varmeta.offset[iter];
     if (offset == -1) {
-      beigin++;
+      ++iter;
       continue;
     }
-    if (start != 0) {
-      pColInfoData->varmeta.offset[beigin] = dataLen;
-    }
+
+    pColInfoData->varmeta.offset[iter] = dataLen;
+
     char* data = pColInfoData->pData + offset;
-    if (dataOffset == -1) dataOffset = offset;  // mark the begin of data
-    int32_t type = pColInfoData->info.type;
-    if (type == TSDB_DATA_TYPE_JSON) {
-      dataLen += getJsonValueLen(data);
+
+    if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+      valueLen = getJsonValueLen(data);
     } else {
-      dataLen += varDataTLen(data);
+      valueLen = varDataTLen(data);
     }
-    beigin++;
+
+    if (offset != dataLen) {
+      memmove(pColInfoData->pData + dataLen, data, valueLen);
+    }
+
+    dataLen += valueLen;
+
+    ++iter;
   }
 
-  if (dataOffset > 0) {
-    memmove(pColInfoData->pData, pColInfoData->pData + dataOffset, dataLen);
+  if (start > 0) {
+    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
   }
 
-  memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
   return dataLen;
 }
+
 
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
