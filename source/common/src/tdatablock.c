@@ -1185,8 +1185,7 @@ void blockDataFreeRes(SSDataBlock* pBlock) {
     colDataDestroy(pColInfoData);
   }
 
-  taosArrayDestroy(pBlock->pDataBlock);
-  pBlock->pDataBlock = NULL;
+  pBlock->pDataBlock = taosArrayDestroy(pBlock->pDataBlock);
   taosMemoryFreeClear(pBlock->pBlockAgg);
   memset(&pBlock->info, 0, sizeof(SDataBlockInfo));
 }
