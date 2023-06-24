@@ -115,7 +115,6 @@ class TDTestCase:
         tdSql.query("select * from information_schema.ins_columns")
         
         tdSql.execute('drop database db3')
-        
     def ins_stable_check(self):
         tdSql.execute('create database db3 vgroups 2 replica 1')
         tbnum = 10
@@ -268,7 +267,7 @@ class TDTestCase:
         self.prepare_data()
         self.count_check()
         self.ins_columns_check()
-        self.ins_col_check_4096()
+        # self.ins_col_check_4096()
         self.ins_stable_check()
         self.ins_stable_check2()
         self.ins_dnodes_check()

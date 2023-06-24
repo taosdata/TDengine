@@ -1716,7 +1716,6 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
   return dataLen;
 }
 
-
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
     pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
