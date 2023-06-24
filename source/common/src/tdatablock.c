@@ -1683,7 +1683,7 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
   int32_t dataLen = 0;
   int32_t valueLen = 0;
   int32_t iter = start;
-  int32_t seqStart = -1, seqEnd = -1;
+  int32_t seqStart = -1, seqEnd = -1, seqDataLen = 0;
   while (iter < end) {
     int32_t offset = pColInfoData->varmeta.offset[iter];
     if (offset == -1) {
@@ -1706,19 +1706,21 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
       seqEnd = seqStart + valueLen;
     } else {
       if (offset != seqEnd) {
-        memmove(pColInfoData->pData + dataLen, pColInfoData->pData + seqStart, seqEnd - seqStart);
+        memmove(pColInfoData->pData + seqDataLen, pColInfoData->pData + seqStart, seqEnd - seqStart);
+        seqDataLen += (seqEnd - seqStart);
         seqStart = offset;
         seqEnd = seqStart + valueLen;
       } else {
         seqEnd += valueLen;
       }
     }
+
     dataLen += valueLen;
     ++iter;
   }
 
   if(seqStart > 0) {
-    memmove(pColInfoData->pData + dataLen, pColInfoData->pData + seqStart, seqEnd - seqStart);
+    memmove(pColInfoData->pData + seqDataLen, pColInfoData->pData + seqStart, seqEnd - seqStart);
   }
 
   if (start > 0) {
