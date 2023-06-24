@@ -1683,6 +1683,7 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
   int32_t dataLen = 0;
   int32_t valueLen = 0;
   int32_t iter = start;
+  int32_t seqStart = -1, seqEnd = -1;
   while (iter < end) {
     int32_t offset = pColInfoData->varmeta.offset[iter];
     if (offset == -1) {
@@ -1700,14 +1701,29 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
       valueLen = varDataTLen(data);
     }
 
-    if (offset != dataLen) {
-      memmove(pColInfoData->pData + dataLen, data, valueLen);
+    if (seqStart == -1) {
+      seqStart = offset;
+      seqEnd = seqStart + valueLen;
+    } else {
+      if (offset != seqEnd) {
+        memmove(pColInfoData->pData + dataLen, pColInfoData->pData + seqStart, seqEnd - seqStart);
+        dataLen += (seqEnd - seqStart);
+        seqStart = offset;
+        seqEnd = seqStart + valueLen;
+        
+      } else {
+        seqEnd += valueLen;
+      }
     }
-
-    dataLen += valueLen;
 
     ++iter;
   }
+
+  if(seqStart > 0) {
+    memmove(pColInfoData->pData + dataLen, pColInfoData->pData + seqStart, seqEnd - seqStart);
+  }
+
+  dataLen += (seqEnd - seqStart);
 
   if (start > 0) {
     memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[start], (end - start) * sizeof(int32_t));
@@ -1718,7 +1734,8 @@ static int32_t colDataMoveVarData(SColumnInfoData* pColInfoData, size_t start, s
 
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
+    // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, n, total);
+    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[n], (total - n) * sizeof(int32_t));
 
     // clear the offset value of the unused entries.
     memset(&pColInfoData->varmeta.offset[total - n], 0, n);
