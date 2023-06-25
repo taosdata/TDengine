@@ -522,8 +522,8 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileDoWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
-                                 TTombBlkArray *tombBlkArray, uint8_t **bufArr) {
+int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
+                               TTombBlkArray *tombBlkArray, uint8_t **bufArr) {
   int32_t code;
 
   if (TOMB_BLOCK_SIZE(tombBlock) == 0) return 0;
@@ -584,8 +584,8 @@ static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFileDoWriteTombBlock(writer->fd, writer->tombBlock, writer->config->cmprAlg, &writer->file->size,
-                                  writer->tombBlkArray, writer->config->bufArr);
+  code = tsdbFileWriteTombBlock(writer->fd, writer->tombBlock, writer->config->cmprAlg, &writer->file->size,
+                                writer->tombBlkArray, writer->config->bufArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -644,7 +644,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileDoWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize) {
+int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize) {
   ptr->size = TARRAY2_DATA_LEN(tombBlkArray);
   if (ptr->size > 0) {
     ptr->offset = *fileSize;
@@ -663,7 +663,7 @@ static int32_t tsdbSttFileDoWriteTombBlk(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFileDoWriteTombBlk(writer->fd, writer->tombBlkArray, writer->footer->tombBlkPtr, &writer->file->size);
+  code = tsdbFileWriteTombBlk(writer->fd, writer->tombBlkArray, writer->footer->tombBlkPtr, &writer->file->size);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

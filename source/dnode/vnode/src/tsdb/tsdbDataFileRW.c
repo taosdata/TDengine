@@ -15,10 +15,9 @@
 
 #include "tsdbDataFileRW.h"
 
-extern int32_t tsdbFileDoWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
-                                        TTombBlkArray *tombBlkArray, uint8_t **bufArr);
-extern int32_t tsdbFileDoWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr,
-                                      int64_t *fileSize);
+extern int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
+                                      TTombBlkArray *tombBlkArray, uint8_t **bufArr);
+extern int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize);
 
 // SDataFileReader =============================================
 struct SDataFileReader {
@@ -1161,8 +1160,8 @@ static int32_t tsdbDataFileDoWriteTombBlock(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFileDoWriteTombBlock(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlock, writer->config->cmprAlg,
-                                  &writer->files[TSDB_FTYPE_TOMB].size, writer->tombBlkArray, writer->config->bufArr);
+  code = tsdbFileWriteTombBlock(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlock, writer->config->cmprAlg,
+                                &writer->files[TSDB_FTYPE_TOMB].size, writer->tombBlkArray, writer->config->bufArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -1178,8 +1177,8 @@ static int32_t tsdbDataFileDoWriteTombBlk(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFileDoWriteTombBlk(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlkArray, writer->tombFooter->tombBlkPtr,
-                                &writer->files[TSDB_FTYPE_TOMB].size);
+  code = tsdbFileWriteTombBlk(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlkArray, writer->tombFooter->tombBlkPtr,
+                              &writer->files[TSDB_FTYPE_TOMB].size);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -1189,14 +1188,19 @@ _exit:
   return code;
 }
 
+int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize) {
+  int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer));
+  if (code) return code;
+  *fileSize += sizeof(*footer);
+  return 0;
+}
+
 static int32_t tsdbDataFileWriteTombFooter(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbWriteFile(writer->fd[TSDB_FTYPE_TOMB], writer->files[TSDB_FTYPE_TOMB].size,
-                       (const uint8_t *)writer->tombFooter, sizeof(STombFooter));
+  code = tsdbFileWriteTombFooter(writer->fd[TSDB_FTYPE_TOMB], writer->tombFooter, &writer->files[TSDB_FTYPE_TOMB].size);
   TSDB_CHECK_CODE(code, lino, _exit);
-  writer->files[TSDB_FTYPE_TOMB].size += sizeof(STombFooter);
 
 _exit:
   if (code) {
