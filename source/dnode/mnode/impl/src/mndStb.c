@@ -888,7 +888,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
   SSdb             *pSdb = pMnode->pSdb;
   SVgObj           *pVgroup = NULL;
   void             *pIter = NULL;
-  SVDropTtlTableReq ttlReq = {.timestamp = taosGetTimestampSec()};
+  SVDropTtlTableReq ttlReq = {.timestampSec = taosGetTimestampSec()};
   int32_t           reqLen = tSerializeSVDropTtlTableReq(NULL, 0, &ttlReq);
   int32_t           contLen = reqLen + sizeof(SMsgHead);
 
@@ -914,7 +914,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
     if (code != 0) {
       mError("vgId:%d, failed to send drop ttl table request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
-      mInfo("vgId:%d, send drop ttl table request to vnode, time:%d", pVgroup->vgId, ttlReq.timestamp);
+      mInfo("vgId:%d, send drop ttl table request to vnode, time:%" PRId32, pVgroup->vgId, ttlReq.timestampSec);
     }
     sdbRelease(pSdb, pVgroup);
   }
@@ -1188,7 +1188,7 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;
   }
- 
+
   if(pNew->nextColId < 0 || pNew->nextColId >= 0x7fff - ntags){
     terrno = TSDB_CODE_MND_FIELD_VALUE_OVERFLOW;
     return -1;

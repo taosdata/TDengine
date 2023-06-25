@@ -1217,6 +1217,7 @@ static int32_t mndAddAlterVnodeHashRangeAction(SMnode *pMnode, STrans *pTrans, i
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_VND_ALTER_HASHRANGE;
+  action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);

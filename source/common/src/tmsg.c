@@ -30,6 +30,9 @@
 
 #include "tlog.h"
 
+static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq);
+static int32_t tDecodeSBatchDeleteReqCommon(SDecoder *pDecoder, SBatchDeleteReq *pReq);
+
 int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   if (pMsg == NULL) {
     terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
@@ -1725,7 +1728,7 @@ int32_t tDeserializeSDropDnodeReq(void *buf, int32_t bufLen, SDropDnodeReq *pReq
   } else {
     pReq->unsafe = false;
   }
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -3161,7 +3164,7 @@ int32_t tSerializeSVDropTtlTableReq(void *buf, int32_t bufLen, SVDropTtlTableReq
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->timestamp) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->timestampSec) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3174,7 +3177,7 @@ int32_t tDeserializeSVDropTtlTableReq(void *buf, int32_t bufLen, SVDropTtlTableR
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->timestamp) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->timestampSec) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4671,7 +4674,7 @@ int32_t tDeserializeSAlterVnodeReplicaReq(void *buf, int32_t bufLen, SAlterVnode
       if (tDecodeSReplica(&decoder, pReplica) < 0) return -1;
     }
   }
-  
+
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -6409,7 +6412,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   if (tEncodeI32v(pCoder, pReq->flags) < 0) return -1;
   if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->uid) < 0) return -1;
-  if (tEncodeI64(pCoder, pReq->ctime) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->btime) < 0) return -1;
   if (tEncodeI32(pCoder, pReq->ttl) < 0) return -1;
   if (tEncodeI8(pCoder, pReq->type) < 0) return -1;
   if (tEncodeI32(pCoder, pReq->commentLen) < 0) return -1;
@@ -6444,7 +6447,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   if (tDecodeI32v(pCoder, &pReq->flags) < 0) return -1;
   if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->uid) < 0) return -1;
-  if (tDecodeI64(pCoder, &pReq->ctime) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->btime) < 0) return -1;
   if (tDecodeI32(pCoder, &pReq->ttl) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->type) < 0) return -1;
   if (tDecodeI32(pCoder, &pReq->commentLen) < 0) return -1;
@@ -6909,14 +6912,13 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
     default:
       break;
   }
+  if (tEncodeI64(pEncoder, pReq->ctimeMs) < 0) return -1;
 
   tEndEncode(pEncoder);
   return 0;
 }
 
-int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-
+static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   if (tDecodeCStr(pDecoder, &pReq->tbName) < 0) return -1;
   if (tDecodeI8(pDecoder, &pReq->action) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->colId) < 0) return -1;
@@ -6960,6 +6962,28 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
     default:
       break;
   }
+  return 0;
+}
+
+int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeSVAlterTbReqCommon(pDecoder, pReq) < 0) return -1;
+
+  pReq->ctimeMs = 0;
+  if (!tDecodeIsEnd(pDecoder)) {
+    if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  }
+
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeSVAlterTbReqCommon(pDecoder, pReq) < 0) return -1;
+
+  *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
+  if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
 
   tEndDecode(pDecoder);
   return 0;
@@ -7238,6 +7262,7 @@ int32_t tEncodeDeleteRes(SEncoder *pCoder, const SDeleteRes *pRes) {
 
   if (tEncodeCStr(pCoder, pRes->tableFName) < 0) return -1;
   if (tEncodeCStr(pCoder, pRes->tsColName) < 0) return -1;
+  if (tEncodeI64(pCoder, pRes->ctimeMs) < 0) return -1;
   return 0;
 }
 
@@ -7257,6 +7282,11 @@ int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
 
   if (tDecodeCStrTo(pCoder, pRes->tableFName) < 0) return -1;
   if (tDecodeCStrTo(pCoder, pRes->tsColName) < 0) return -1;
+
+  pRes->ctimeMs = 0;
+  if (!tDecodeIsEnd(pCoder)) {
+    if (tDecodeI64(pCoder, &pRes->ctimeMs) < 0) return -1;
+  }
   return 0;
 }
 
@@ -7480,10 +7510,11 @@ int32_t tEncodeSBatchDeleteReq(SEncoder *pEncoder, const SBatchDeleteReq *pReq) 
     SSingleDeleteReq *pOneReq = taosArrayGet(pReq->deleteReqs, i);
     if (tEncodeSSingleDeleteReq(pEncoder, pOneReq) < 0) return -1;
   }
+  if (tEncodeI64(pEncoder, pReq->ctimeMs) < 0) return -1;
   return 0;
 }
 
-int32_t tDecodeSBatchDeleteReq(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
+static int32_t tDecodeSBatchDeleteReqCommon(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
   if (tDecodeI64(pDecoder, &pReq->suid) < 0) return -1;
   int32_t sz;
   if (tDecodeI32(pDecoder, &sz) < 0) return -1;
@@ -7494,6 +7525,24 @@ int32_t tDecodeSBatchDeleteReq(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
     if (tDecodeSSingleDeleteReq(pDecoder, &deleteReq) < 0) return -1;
     taosArrayPush(pReq->deleteReqs, &deleteReq);
   }
+  return 0;
+}
+
+int32_t tDecodeSBatchDeleteReq(SDecoder *pDecoder, SBatchDeleteReq *pReq) {
+  if (tDecodeSBatchDeleteReqCommon(pDecoder, pReq)) return -1;
+
+  pReq->ctimeMs = 0;
+  if (!tDecodeIsEnd(pDecoder)) {
+    if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
+  }
+  return 0;
+}
+
+int32_t tDecodeSBatchDeleteReqSetCtime(SDecoder *pDecoder, SBatchDeleteReq *pReq, int64_t ctimeMs) {
+  if (tDecodeSBatchDeleteReqCommon(pDecoder, pReq)) return -1;
+
+  *(int64_t *)(pDecoder->data + pDecoder->pos) = ctimeMs;
+  if (tDecodeI64(pDecoder, &pReq->ctimeMs) < 0) return -1;
   return 0;
 }
 
@@ -7531,6 +7580,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
       pCoder->pos += rows[iRow]->len;
     }
   }
+  if (tEncodeI64(pCoder, pSubmitTbData->ctimeMs) < 0) return -1;
 
   tEndEncode(pCoder);
   return 0;
@@ -7608,6 +7658,14 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
 
       *ppRow = (SRow *)(pCoder->data + pCoder->pos);
       pCoder->pos += (*ppRow)->len;
+    }
+  }
+
+  pSubmitTbData->ctimeMs = 0;
+  if (!tDecodeIsEnd(pCoder)) {
+    if (tDecodeI64(pCoder, &pSubmitTbData->ctimeMs) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
     }
   }
 
