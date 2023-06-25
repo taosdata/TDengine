@@ -25,6 +25,11 @@ typedef struct {
   SFDataPtr rsrvd[2];
 } STombFooter;
 
+extern int32_t tsdbFileDoWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
+                                        TTombBlkArray *tombBlkArray, uint8_t **bufArr);
+extern int32_t tsdbFileDoWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr,
+                                      int64_t *fileSize);
+
 // SDataFileReader =============================================
 struct SDataFileReader {
   SDataFileReaderConfig config[1];
@@ -644,81 +649,89 @@ _exit:
   return code;
 }
 
-static int32_t tsdbDataFileWriteBrinBlock(SDataFileWriter *writer) {
-  if (BRIN_BLOCK_SIZE(writer->brinBlock) == 0) return 0;
+int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t cmprAlg, int64_t *fileSize,
+                               TBrinBlkArray *brinBlkArray, uint8_t **bufArr) {
+  if (BRIN_BLOCK_SIZE(brinBlock) == 0) return 0;
 
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t code;
 
   // get SBrinBlk
   SBrinBlk brinBlk[1] = {
       {
           .dp[0] =
               {
-                  .offset = writer->files[TSDB_FTYPE_HEAD].size,
+                  .offset = *fileSize,
                   .size = 0,
               },
           .minTbid =
               {
-                  .suid = TARRAY2_FIRST(writer->brinBlock->suid),
-                  .uid = TARRAY2_FIRST(writer->brinBlock->uid),
+                  .suid = TARRAY2_FIRST(brinBlock->suid),
+                  .uid = TARRAY2_FIRST(brinBlock->uid),
               },
           .maxTbid =
               {
-                  .suid = TARRAY2_LAST(writer->brinBlock->suid),
-                  .uid = TARRAY2_LAST(writer->brinBlock->uid),
+                  .suid = TARRAY2_LAST(brinBlock->suid),
+                  .uid = TARRAY2_LAST(brinBlock->uid),
               },
-          .minVer = TARRAY2_FIRST(writer->brinBlock->minVer),
-          .maxVer = TARRAY2_FIRST(writer->brinBlock->minVer),
-          .numRec = BRIN_BLOCK_SIZE(writer->brinBlock),
-          .cmprAlg = writer->config->cmprAlg,
+          .minVer = TARRAY2_FIRST(brinBlock->minVer),
+          .maxVer = TARRAY2_FIRST(brinBlock->minVer),
+          .numRec = BRIN_BLOCK_SIZE(brinBlock),
+          .cmprAlg = cmprAlg,
       },
   };
 
-  for (int32_t i = 1; i < BRIN_BLOCK_SIZE(writer->brinBlock); i++) {
-    if (brinBlk->minVer > TARRAY2_GET(writer->brinBlock->minVer, i)) {
-      brinBlk->minVer = TARRAY2_GET(writer->brinBlock->minVer, i);
+  for (int32_t i = 1; i < BRIN_BLOCK_SIZE(brinBlock); i++) {
+    if (brinBlk->minVer > TARRAY2_GET(brinBlock->minVer, i)) {
+      brinBlk->minVer = TARRAY2_GET(brinBlock->minVer, i);
     }
-    if (brinBlk->maxVer < TARRAY2_GET(writer->brinBlock->maxVer, i)) {
-      brinBlk->maxVer = TARRAY2_GET(writer->brinBlock->maxVer, i);
+    if (brinBlk->maxVer < TARRAY2_GET(brinBlock->maxVer, i)) {
+      brinBlk->maxVer = TARRAY2_GET(brinBlock->maxVer, i);
     }
   }
 
   // write to file
-  for (int32_t i = 0; i < ARRAY_SIZE(writer->brinBlock->dataArr1); i++) {
-    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(writer->brinBlock->dataArr1 + i),
-                        TARRAY2_DATA_LEN(writer->brinBlock->dataArr1 + i), TSDB_DATA_TYPE_BIGINT, brinBlk->cmprAlg,
-                        &writer->config->bufArr[0], 0, &brinBlk->size[i], &writer->config->bufArr[1]);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  for (int32_t i = 0; i < ARRAY_SIZE(brinBlock->dataArr1); i++) {
+    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(brinBlock->dataArr1 + i), TARRAY2_DATA_LEN(brinBlock->dataArr1 + i),
+                        TSDB_DATA_TYPE_BIGINT, brinBlk->cmprAlg, &bufArr[0], 0, &brinBlk->size[i], &bufArr[1]);
+    if (code) return code;
 
-    code = tsdbWriteFile(writer->fd[TSDB_FTYPE_HEAD], writer->files[TSDB_FTYPE_HEAD].size, writer->config->bufArr[0],
-                         brinBlk->size[i]);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    code = tsdbWriteFile(fd, *fileSize, bufArr[0], brinBlk->size[i]);
+    if (code) return code;
 
     brinBlk->dp->size += brinBlk->size[i];
-    writer->files[TSDB_FTYPE_HEAD].size += brinBlk->size[i];
+    *fileSize += brinBlk->size[i];
   }
 
-  for (int32_t i = 0, j = ARRAY_SIZE(writer->brinBlock->dataArr1); i < ARRAY_SIZE(writer->brinBlock->dataArr2);
-       i++, j++) {
-    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(writer->brinBlock->dataArr2 + i),
-                        TARRAY2_DATA_LEN(writer->brinBlock->dataArr2 + i), TSDB_DATA_TYPE_INT, brinBlk->cmprAlg,
-                        &writer->config->bufArr[0], 0, &brinBlk->size[j], &writer->config->bufArr[1]);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  for (int32_t i = 0, j = ARRAY_SIZE(brinBlock->dataArr1); i < ARRAY_SIZE(brinBlock->dataArr2); i++, j++) {
+    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(brinBlock->dataArr2 + i), TARRAY2_DATA_LEN(brinBlock->dataArr2 + i),
+                        TSDB_DATA_TYPE_INT, brinBlk->cmprAlg, &bufArr[0], 0, &brinBlk->size[j], &bufArr[1]);
+    if (code) return code;
 
-    code = tsdbWriteFile(writer->fd[TSDB_FTYPE_HEAD], writer->files[TSDB_FTYPE_HEAD].size, writer->config->bufArr[0],
-                         brinBlk->size[j]);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    code = tsdbWriteFile(fd, *fileSize, bufArr[0], brinBlk->size[j]);
+    if (code) return code;
 
     brinBlk->dp->size += brinBlk->size[j];
-    writer->files[TSDB_FTYPE_HEAD].size += brinBlk->size[j];
+    *fileSize += brinBlk->size[j];
   }
 
   // append to brinBlkArray
-  code = TARRAY2_APPEND_PTR(writer->brinBlkArray, brinBlk);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  code = TARRAY2_APPEND_PTR(brinBlkArray, brinBlk);
+  if (code) return code;
 
-  tBrinBlockClear(writer->brinBlock);
+  tBrinBlockClear(brinBlock);
+
+  return 0;
+}
+
+static int32_t tsdbDataFileWriteBrinBlock(SDataFileWriter *writer) {
+  if (BRIN_BLOCK_SIZE(writer->brinBlock) == 0) return 0;
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tsdbFileWriteBrinBlock(writer->fd[TSDB_FTYPE_HEAD], writer->brinBlock, writer->config->cmprAlg,
+                                &writer->files[TSDB_FTYPE_HEAD].size, writer->brinBlkArray, writer->config->bufArr);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -1154,52 +1167,9 @@ static int32_t tsdbDataFileDoWriteTombBlock(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  STombBlk tombBlk[1] = {{
-      .numRec = TOMB_BLOCK_SIZE(writer->tombBlock),
-      .minTbid =
-          {
-              .suid = TARRAY2_FIRST(writer->tombBlock->suid),
-              .uid = TARRAY2_FIRST(writer->tombBlock->uid),
-          },
-      .maxTbid =
-          {
-              .suid = TARRAY2_LAST(writer->tombBlock->suid),
-              .uid = TARRAY2_LAST(writer->tombBlock->uid),
-          },
-      .minVer = TARRAY2_FIRST(writer->tombBlock->version),
-      .maxVer = TARRAY2_FIRST(writer->tombBlock->version),
-      .dp[0] =
-          {
-              .offset = writer->files[TSDB_FTYPE_TOMB].size,
-              .size = 0,
-          },
-  }};
-
-  for (int32_t i = 1; i < TOMB_BLOCK_SIZE(writer->tombBlock); i++) {
-    tombBlk->minVer = TMIN(tombBlk->minVer, TARRAY2_GET(writer->tombBlock->version, i));
-    tombBlk->maxVer = TMAX(tombBlk->maxVer, TARRAY2_GET(writer->tombBlock->version, i));
-  }
-
-  for (int32_t i = 0; i < ARRAY_SIZE(writer->tombBlock->dataArr); i++) {
-    int32_t size;
-    code = tsdbCmprData((uint8_t *)TARRAY2_DATA(&writer->tombBlock->dataArr[i]),
-                        TARRAY2_DATA_LEN(&writer->tombBlock->dataArr[i]), TSDB_DATA_TYPE_BIGINT, TWO_STAGE_COMP,
-                        &writer->config->bufArr[0], 0, &size, &writer->config->bufArr[1]);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = tsdbWriteFile(writer->fd[TSDB_FTYPE_TOMB], writer->files[TSDB_FTYPE_TOMB].size, writer->config->bufArr[0],
-                         size);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    tombBlk->size[i] = size;
-    tombBlk->dp[0].size += size;
-    writer->files[TSDB_FTYPE_TOMB].size += size;
-  }
-
-  code = TARRAY2_APPEND_PTR(writer->tombBlkArray, tombBlk);
+  code = tsdbFileDoWriteTombBlock(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlock, writer->config->cmprAlg,
+                                  &writer->files[TSDB_FTYPE_TOMB].size, writer->tombBlkArray, writer->config->bufArr);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  tTombBlockClear(writer->tombBlock);
 
 _exit:
   if (code) {
@@ -1214,14 +1184,9 @@ static int32_t tsdbDataFileDoWriteTombBlk(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t ftype = TSDB_FTYPE_TOMB;
-  writer->tombFooter->tombBlkPtr->offset = writer->files[ftype].size;
-  writer->tombFooter->tombBlkPtr->size = TARRAY2_DATA_LEN(writer->tombBlkArray);
-
-  code = tsdbWriteFile(writer->fd[ftype], writer->tombFooter->tombBlkPtr->offset,
-                       (const uint8_t *)TARRAY2_DATA(writer->tombBlkArray), writer->tombFooter->tombBlkPtr->size);
+  code = tsdbFileDoWriteTombBlk(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlkArray, writer->tombFooter->tombBlkPtr,
+                                &writer->files[TSDB_FTYPE_TOMB].size);
   TSDB_CHECK_CODE(code, lino, _exit);
-  writer->files[ftype].size += writer->tombFooter->tombBlkPtr->size;
 
 _exit:
   if (code) {
@@ -1306,20 +1271,25 @@ _exit:
   return code;
 }
 
-static int32_t tsdbDataFileWriteBrinBlk(SDataFileWriter *writer) {
-  ASSERT(TARRAY2_SIZE(writer->brinBlkArray) > 0);
+int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize) {
+  ASSERT(TARRAY2_SIZE(brinBlkArray) > 0);
+  ptr->offset = *fileSize;
+  ptr->size = TARRAY2_DATA_LEN(brinBlkArray);
 
+  int32_t code = tsdbWriteFile(fd, ptr->offset, (uint8_t *)TARRAY2_DATA(brinBlkArray), ptr->size);
+  if (code) return code;
+
+  *fileSize += ptr->size;
+  return 0;
+}
+
+static int32_t tsdbDataFileWriteBrinBlk(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t ftype = TSDB_FTYPE_HEAD;
-  writer->headFooter->brinBlkPtr->offset = writer->files[ftype].size;
-  writer->headFooter->brinBlkPtr->size = TARRAY2_DATA_LEN(writer->brinBlkArray);
-
-  code = tsdbWriteFile(writer->fd[ftype], writer->headFooter->brinBlkPtr->offset,
-                       (uint8_t *)TARRAY2_DATA(writer->brinBlkArray), writer->headFooter->brinBlkPtr->size);
+  code = tsdbFileWriteBrinBlk(writer->fd[TSDB_FTYPE_HEAD], writer->brinBlkArray, writer->headFooter->brinBlkPtr,
+                              &writer->files[TSDB_FTYPE_HEAD].size);
   TSDB_CHECK_CODE(code, lino, _exit);
-  writer->files[ftype].size += writer->headFooter->brinBlkPtr->size;
 
 _exit:
   if (code) {

@@ -202,11 +202,15 @@ static int32_t tsdbDumpTombDataToFSet(STsdb *tsdb, SDelFReader *reader, SArray *
   }
 
   if (fd) {
+    // write footer
+
+    // sync and close
     code = tsdbFsyncFile(fd);
     TSDB_CHECK_CODE(code, lino, _exit);
-
     tsdbCloseFile(&fd);
   }
+
+  // clear
   TARRAY2_DESTROY(tombBlkArray, NULL);
   tTombBlockDestroy(tombBlock);
   taosArrayDestroy(aDelData);
@@ -260,10 +264,11 @@ static int32_t tsdbDoUpgradeFileSystem(STsdb *tsdb, int8_t rollback) {
 
   TFileSetArray fileSetArray[1] = {0};
 
-  // load old file system and convert
+  // open old file system
   code = tsdbFSOpen(tsdb, rollback);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // upgrade each file set
   for (int32_t i = 0; i < taosArrayGetSize(tsdb->fs.aDFileSet); i++) {
     SDFileSet *pDFileSet = taosArrayGet(tsdb->fs.aDFileSet, i);
 
@@ -271,21 +276,23 @@ static int32_t tsdbDoUpgradeFileSystem(STsdb *tsdb, int8_t rollback) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  // upgrade tomb file
   if (tsdb->fs.pDelFile != NULL) {
     code = tsdbUpgradeTombFile(tsdb, tsdb->fs.pDelFile, fileSetArray);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  // close file system
   code = tsdbFSClose(tsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // save new file system
   char fname[TSDB_FILENAME_LEN];
   current_fname(tsdb, fname, TSDB_FCURRENT);
-
   code = save_fs(fileSetArray, fname);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // clear
   TARRAY2_DESTROY(fileSetArray, tsdbTFileSetClear);
 
 _exit:
