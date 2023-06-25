@@ -1699,6 +1699,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
       len += lenTmp;
       pStart += lenTmp;
 
+      int32_t estimateColLen = 0;
       for (int32_t j = 0; j < numOfRows; ++j) {
         if (offset[j] == -1) {
           continue;
@@ -1708,20 +1709,21 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
         int32_t jsonInnerType = *data;
         char*   jsonInnerData = data + CHAR_BYTES;
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
-          len += (VARSTR_HEADER_SIZE + strlen(TSDB_DATA_NULL_STR_L));
+          estimateColLen += (VARSTR_HEADER_SIZE + strlen(TSDB_DATA_NULL_STR_L));
         } else if (tTagIsJson(data)) {
-          len += (VARSTR_HEADER_SIZE + ((const STag*)(data))->len);
+          estimateColLen += (VARSTR_HEADER_SIZE + ((const STag*)(data))->len);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
-          len += varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
+          estimateColLen += varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
-          len += (VARSTR_HEADER_SIZE + 32);
+          estimateColLen += (VARSTR_HEADER_SIZE + 32);
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
-          len += (VARSTR_HEADER_SIZE + 5);
+          estimateColLen += (VARSTR_HEADER_SIZE + 5);
         } else {
           tscError("estimateJsonLen error: invalid type:%d", jsonInnerType);
           return -1;
         }
       }
+      len += TMAX(colLen, estimateColLen);
     } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       int32_t lenTmp = numOfRows * sizeof(int32_t);
       len += (lenTmp + colLen);
