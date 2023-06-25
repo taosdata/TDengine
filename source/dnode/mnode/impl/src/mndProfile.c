@@ -25,7 +25,6 @@
 #include "mndUser.h"
 #include "tglobal.h"
 #include "tversion.h"
-#include "tudf.h"
 
 typedef struct {
   uint32_t id;
@@ -245,10 +244,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  int32_t udfdPid = -1;
-  udfGetUdfdPid(&udfdPid);
   // if connection is from udfd, no user/password/db check
-  if (udfdPid == connReq.pid) {
+  if (strcmp(connReq.app, "udfd") == 0) {
     goto _CONNECT;
   }
   
