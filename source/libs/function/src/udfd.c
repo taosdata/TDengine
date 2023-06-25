@@ -970,6 +970,7 @@ int32_t udfdConnectToMnode() {
   connReq.connType = CONN_TYPE__UDFD;
   tstrncpy(connReq.app, "udfd", sizeof(connReq.app));
   tstrncpy(connReq.user, TSDB_DEFAULT_USER, sizeof(connReq.user));
+  // just use default password. this password is not checked by mnode since connection is from udfd
   char pass[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t *)(TSDB_DEFAULT_PASS), strlen(TSDB_DEFAULT_PASS), pass);
   tstrncpy(connReq.passwd, pass, sizeof(connReq.passwd));
