@@ -255,6 +255,18 @@ int32_t udfStopUdfd() {
   return 0;
 }
 
+int32_t udfGetUdfdPid(int32_t* pUdfdPid) {
+  SUdfdData *pData = &udfdGlobal;
+  if (pData->spawnErr) {
+    return pData->spawnErr;
+  }
+  uv_pid_t pid = uv_process_get_pid(&pData->process);
+  if (pUdfdPid) {
+    *pUdfdPid = (int32_t)pid;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 //==============================================================================================
 /* Copyright (c) 2013, Ben Noordhuis <info@bnoordhuis.nl>
  * The QUEUE is copied from queue.h under libuv

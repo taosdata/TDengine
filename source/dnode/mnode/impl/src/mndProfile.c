@@ -25,6 +25,7 @@
 #include "mndUser.h"
 #include "tglobal.h"
 #include "tversion.h"
+#include "tudf.h"
 
 typedef struct {
   uint32_t id;
@@ -232,7 +233,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   code = -1;
-
   taosIp2String(pReq->info.conn.clientIp, ip);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
     mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
@@ -245,6 +245,13 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  int32_t udfdPid = -1;
+  udfGetUdfdPid(&udfdPid);
+  // if connection is from udfd, no user/password/db check
+  if (udfdPid == connReq.pid) {
+    goto _CONNECT;
+  }
+  
   if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
     mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;
@@ -270,6 +277,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     }
   }
 
+_CONNECT:
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,
                         pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
