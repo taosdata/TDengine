@@ -1001,8 +1001,6 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
-  /*SDbObj     *pDb = NULL;*/
-  /*SUserObj   *pUser = NULL;*/
 
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
