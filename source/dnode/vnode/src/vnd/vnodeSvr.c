@@ -677,7 +677,6 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
 }
 
-extern int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now);
 extern int32_t vnodeSyncRetention(SVnode *pVnode, int64_t now);
 
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -717,7 +716,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
-  vnodeAsyncRetention(pVnode, ttlReq.timestampSec);
+  vnodeSyncRetention(pVnode, ttlReq.timestampSec);
 
 end:
   taosArrayDestroy(tbUids);

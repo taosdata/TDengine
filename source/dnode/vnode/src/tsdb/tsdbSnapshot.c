@@ -195,7 +195,7 @@ static int32_t tsdbSnapReadFileSetOpenIter(STsdbSnapReader* reader) {
   code = tsdbIterMergerOpen(reader->dataIterArr, &reader->dataIterMerger, false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbIterMergerOpen(reader->tombIterArr, &reader->dataIterMerger, true);
+  code = tsdbIterMergerOpen(reader->tombIterArr, &reader->tombIterMerger, true);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
