@@ -267,11 +267,11 @@ typedef struct SCheckpointInfo {
 
 typedef struct SStreamStatus {
   int8_t        taskStatus;
-  int8_t        checkDownstream;
+  int8_t        checkDownstream; // downstream tasks are all ready now, if this flag is set
   int8_t        schedStatus;
   int8_t        keepTaskStatus;
   bool          transferState;
-  TdThreadMutex lock;
+  int8_t        timerActive;     // timer is active
 } SStreamStatus;
 
 typedef struct SHistDataRange {

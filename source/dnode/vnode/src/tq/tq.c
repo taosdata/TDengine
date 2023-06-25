@@ -168,16 +168,53 @@ void tqNotifyClose(STQ* pTq) {
       }
 
       SStreamTask* pTask = *(SStreamTask**)pIter;
-      tqDebug("vgId:%d s-task:%s set dropping flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
+      tqDebug("vgId:%d s-task:%s set closing flag", pTq->pStreamMeta->vgId, pTask->id.idStr);
       pTask->status.taskStatus = TASK_STATUS__STOP;
 
       int64_t st = taosGetTimestampMs();
       qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+
       int64_t el = taosGetTimestampMs() - st;
       tqDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pTq->pStreamMeta->vgId, pTask->id.idStr, el);
     }
 
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
+
+    tqDebug("vgId:%d start to check all tasks", pTq->pStreamMeta->vgId);
+
+    int64_t st = taosGetTimestampMs();
+    while(1) {
+      taosMsleep(1000);
+
+      bool inTimer = false;
+
+      taosWLockLatch(&pTq->pStreamMeta->lock);
+      pIter = NULL;
+
+      while(1) {
+        pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
+        if (pIter == NULL) {
+          break;
+        }
+
+        SStreamTask* pTask = *(SStreamTask**)pIter;
+        if (pTask->status.timerActive == 1) {
+          inTimer = true;
+        }
+      }
+
+      taosWUnLockLatch(&pTq->pStreamMeta->lock);
+
+      if (inTimer) {
+        tqDebug("vgId:%d some tasks in timer, wait for 1sec and recheck", pTq->pStreamMeta->vgId);
+      } else {
+        break;
+      }
+    }
+
+    int64_t el = taosGetTimestampMs() - st;
+    tqDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%"PRId64" ms", pTq->pStreamMeta->vgId, el);
+
   }
 }
 

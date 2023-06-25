@@ -446,20 +446,54 @@ static void doCheckDownstreamStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   streamTaskCheckDownstreamTasks(pHTask);
 }
 
+typedef struct SStreamTaskRetryInfo {
+  SStreamMeta* pMeta;
+  int32_t taskId;
+} SStreamTaskRetryInfo;
+
 static void tryLaunchHistoryTask(void* param, void* tmrId) {
-  SStreamTask* pTask = param;
+  SStreamTaskRetryInfo* pInfo = param;
+  SStreamMeta*          pMeta = pInfo->pMeta;
 
-  SStreamMeta* pMeta = pTask->pMeta;
-  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, &pTask->historyTaskId.taskId, sizeof(pTask->historyTaskId.taskId));
-  if (pHTask == NULL) {
-    qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it is not built yet", pTask->id.idStr,
-          pMeta->vgId, pTask->historyTaskId.taskId);
+  qDebug("s-task:0x%x in timer to launch history task", pInfo->taskId);
 
-    taosTmrReset(tryLaunchHistoryTask, 100, pTask, streamEnv.timer, &pTask->timer);
-    return;
+  taosWLockLatch(&pMeta->lock);
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &pInfo->taskId, sizeof(int32_t));
+  if (ppTask) {
+    ASSERT((*ppTask)->status.timerActive == 1);
+    if (streamTaskShouldStop(&(*ppTask)->status)) {
+      qDebug("s-task:%s status:%s quit timer task", (*ppTask)->id.idStr,
+             streamGetTaskStatusStr((*ppTask)->status.taskStatus));
+      (*ppTask)->status.timerActive = 0;
+      taosWUnLockLatch(&pMeta->lock);
+      return;
+    }
   }
+  taosWUnLockLatch(&pMeta->lock);
 
-  doCheckDownstreamStatus(pTask, *pHTask);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->taskId);
+  if (pTask != NULL) {
+    ASSERT(pTask->status.timerActive == 1);
+
+    // abort the timer if intend to stop task
+    SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
+    if (pHTask == NULL && pTask->status.taskStatus == TASK_STATUS__NORMAL) {
+      qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it may not be built or have been destroyed",
+            pTask->id.idStr, pMeta->vgId, pTask->historyTaskId.taskId);
+
+      taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->timer);
+      return;
+    }
+
+    doCheckDownstreamStatus(pTask, pHTask);
+
+    // not in timer anymore
+    pTask->status.timerActive = 0;
+    streamMetaReleaseTask(pMeta, pHTask);
+    streamMetaReleaseTask(pMeta, pTask);
+  } else {
+    qError("s-task:0x%x failed to load task", pInfo->taskId);
+  }
 }
 
 // todo fix the bug: 2. race condition
@@ -474,9 +508,16 @@ int32_t streamCheckHistoryTaskDownstrem(SStreamTask* pTask) {
           pMeta->vgId, pTask->historyTaskId.taskId);
 
     if (pTask->timer == NULL) {
-      pTask->timer = taosTmrStart(tryLaunchHistoryTask,  100, pTask, streamEnv.timer);
+      SStreamTaskRetryInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamTaskRetryInfo));
+      pInfo->taskId = pTask->id.taskId;
+      pInfo->pMeta = pTask->pMeta;
+
+      pTask->timer = taosTmrStart(tryLaunchHistoryTask,  100, pInfo, streamEnv.timer);
       if (pTask->timer == NULL) {
         // todo failed to create timer
+      } else {
+        pTask->status.timerActive = 1;  // timer is active
+        qDebug("s-task:%s set time active flag", pTask->id.idStr);
       }
     }
 
@@ -602,6 +643,7 @@ int32_t tDecodeStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishRe
   return 0;
 }
 
+// todo handle race condition, this task may be destroyed
 void streamPrepareNdoCheckDownstream(SStreamTask* pTask) {
   if (pTask->info.fillHistory) {
     qDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
