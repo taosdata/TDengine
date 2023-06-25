@@ -242,11 +242,8 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
       return 0;
     }
     item = taosArrayGet(pHandle->pFileList, pHandle->currFileIdx);
-
-    pHandle->offset = 0;
     pHandle->fd = taosOpenFile(item->name, TD_FILE_READ);
-    // handle err later
-    nread = taosReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize);
+    nread = taosPReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pHandle->offset);
     pHandle->offset += nread;
   }
 
