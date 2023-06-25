@@ -11,6 +11,7 @@ sql connect
 
 print ======== step1 udf
 system sh/compile_udf.sh
+sql alter user root pass 'taosdata2'
 sql create database udf vgroups 3;
 sql use udf;
 sql select * from information_schema.ins_databases;
