@@ -285,6 +285,7 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
     taosArrayPush(handle->pFileList, &item);
 
     handle->fd = taosOpenFile(taosArrayGet(handle->pFileList, taosArrayGetSize(handle->pFileList) - 1), TD_FILE_WRITE);
+    taosWriteFile(handle->fd, pHdr->data, pHdr->size);
     handle->currFileIdx += 1;
   }
 
