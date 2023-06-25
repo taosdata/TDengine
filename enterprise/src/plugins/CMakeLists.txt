@@ -51,17 +51,23 @@ IF(TD_BUILD_TAOSA_INTERNAL)
         COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
         )
     EXECUTE_PROCESS(
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
-        COMMAND git rev-parse --short HEAD
-        RESULT_VARIABLE commit_sha1
-        OUTPUT_VARIABLE taosadapter_commit_sha1
-        )
-    IF ("${taosadapter_commit_sha1}" STREQUAL "")
-        SET(taosadapter_commit_sha1 "unknown")
-    ELSE ()
-        STRING(SUBSTRING "${taosadapter_commit_sha1}" 0 7 taosadapter_commit_sha1)
-        STRING(STRIP "${taosadapter_commit_sha1}" taosadapter_commit_sha1)
-    ENDIF ()
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
+            COMMAND  go mod tidy
+    )
+
+    EXECUTE_PROCESS(
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
+            COMMAND  go list -m -f "{{.Version}}" github.com/taosdata/taosadapter/v3
+            OUTPUT_VARIABLE taosadapter_commit_sha1
+    )
+    if (${taosadapter_commit_sha1} MATCHES "-")
+        string(FIND ${taosadapter_commit_sha1} "-" last_dash REVERSE)
+        math(EXPR last_dash "${last_dash} + 1")
+        string(SUBSTRING ${taosadapter_commit_sha1} ${last_dash} -1 taosadapter_commit_sha1)
+    endif()
+    string(REGEX REPLACE "\n$" "" taosadapter_commit_sha1 "${taosadapter_commit_sha1}")
+    string(REGEX REPLACE "\r$" "" taosadapter_commit_sha1 "${taosadapter_commit_sha1}")
+
     MESSAGE("${Green} taosAdapter will use ${taos_version} and commit ${taosadapter_commit_sha1} as version ${ColourReset}")
     EXECUTE_PROCESS(
         COMMAND cd ..
