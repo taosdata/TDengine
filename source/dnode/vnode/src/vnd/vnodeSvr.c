@@ -717,7 +717,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
-  vnodeAsyncRentention(pVnode, ttlReq.timestampSec);
+  vnodeAsyncRetention(pVnode, ttlReq.timestampSec);
 
 end:
   taosArrayDestroy(tbUids);
