@@ -1037,6 +1037,7 @@ int32_t tsortOpen(SSortHandle* pHandle) {
   }
 
   pHandle->opened = true;
+
   if (tsortIsPQSortApplicable(pHandle))
     return tsortOpenForPQSort(pHandle);
   else
