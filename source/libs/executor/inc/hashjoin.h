@@ -21,6 +21,14 @@ extern "C" {
 
 #define HASH_JOIN_DEFAULT_PAGE_SIZE 10485760
 
+#pragma pack(push, 1) 
+typedef struct SBufRowInfo {
+  void*    next;
+  uint16_t pageId;
+  int32_t  offset;
+} SBufRowInfo;
+#pragma pack(pop)
+
 typedef struct SHJoinCtx {
   bool         rowRemains;
   SBufRowInfo* pBuildRow;
@@ -42,7 +50,6 @@ typedef struct SHJoinColInfo {
   int32_t  bytes;
   char*    data;
   char*    bitMap;
-  char*    dataInBuf;
 } SHJoinColInfo;
 
 typedef struct SBufPageInfo {
@@ -51,13 +58,6 @@ typedef struct SBufPageInfo {
   char*   data;
 } SBufPageInfo;
 
-#pragma pack(push, 1) 
-typedef struct SBufRowInfo {
-  void*    next;
-  uint16_t pageId;
-  int32_t  offset;
-} SBufRowInfo;
-#pragma pack(pop)
 
 typedef struct SGroupData {
   SBufRowInfo* rows;
@@ -95,9 +95,6 @@ typedef struct SHJoinOperatorInfo {
   SSHashObj*       pKeyHash;
   SHJoinCtx        ctx;
 } SHJoinOperatorInfo;
-
-static SSDataBlock* doHashJoin(struct SOperatorInfo* pOperator);
-static void         destroyHashJoinOperator(void* param);
 
 #ifdef __cplusplus
 }

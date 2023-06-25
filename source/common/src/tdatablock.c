@@ -271,7 +271,7 @@ int32_t colDataCopyAndReassign(SColumnInfoData* pColumnInfoData, uint32_t curren
   
   if (numOfRows > 1) {
     int32_t* pOffset = pColumnInfoData->varmeta.offset;
-    memset(&pOffset[currentRow + 1], &pOffset[currentRow], sizeof(pOffset[0]) * (numOfRows - 1));
+    memset(&pOffset[currentRow + 1], pOffset[currentRow], sizeof(pOffset[0]) * (numOfRows - 1));
     pColumnInfoData->reassigned = true;  
   }
 
