@@ -299,7 +299,7 @@ SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
 ```
 
-对表 `d10` 按 10 每秒进行平均值、最大值和最小值聚合统计：
+对表 `d10` 按每 10 秒进行平均值、最大值和最小值聚合统计：
 
 ```sql
 SELECT FIRST(ts), AVG(current), MAX(voltage), MIN(phase) FROM test.d10 INTERVAL(10s);

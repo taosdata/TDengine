@@ -51,27 +51,27 @@ public class JdbcDemo {
 
     private void createDatabase() {
         String sql = "create database if not exists " + dbName;
-        exuete(sql);
+        execute(sql);
     }
 
     private void useDatabase() {
         String sql = "use " + dbName;
-        exuete(sql);
+        execute(sql);
     }
 
     private void dropTable() {
         final String sql = "drop table if exists " + dbName + "." + tbName + "";
-        exuete(sql);
+        execute(sql);
     }
 
     private void createTable() {
         final String sql = "create table if not exists " + dbName + "." + tbName + " (ts timestamp, temperature float, humidity int)";
-        exuete(sql);
+        execute(sql);
     }
 
     private void insert() {
         final String sql = "insert into " + dbName + "." + tbName + " (ts, temperature, humidity) values(now, 20.5, 34)";
-        exuete(sql);
+        execute(sql);
     }
 
     private void select() {
@@ -120,7 +120,7 @@ public class JdbcDemo {
         System.out.println("[ " + (succeed ? "OK" : "ERROR!") + " ] time cost: " + cost + " ms, execute statement ====> " + sql);
     }
 
-    private void exuete(String sql) {
+    private void execute(String sql) {
         long start = System.currentTimeMillis();
         try (Statement statement = connection.createStatement()) {
             boolean execute = statement.execute(sql);

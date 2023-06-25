@@ -101,7 +101,11 @@ static int32_t sortComparCleanup(SMsortComparParam* cmpParam) {
   for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
     SSortSource* pSource = cmpParam->pSources[i];
     blockDataDestroy(pSource->src.pBlock);
+    if (pSource->pageIdList) {
+      taosArrayDestroy(pSource->pageIdList);
+    }
     taosMemoryFreeClear(pSource);
+    cmpParam->pSources[i] = NULL;
   }
 
   cmpParam->numOfSources = 0;
@@ -123,9 +127,11 @@ void tsortClearOrderdSource(SArray* pOrderedSource, int64_t *fetchUs, int64_t *f
     // release pageIdList
     if ((*pSource)->pageIdList) {
       taosArrayDestroy((*pSource)->pageIdList);
+      (*pSource)->pageIdList = NULL;
     }
     if ((*pSource)->param && !(*pSource)->onlyRef) {
       taosMemoryFree((*pSource)->param);
+      (*pSource)->param = NULL;
     }
 
     if (!(*pSource)->onlyRef && (*pSource)->src.pBlock) {
@@ -881,6 +887,7 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
 }
 
 uint64_t tsortGetGroupId(STupleHandle* pVHandle) { return pVHandle->pBlock->info.id.groupId; }
+void*    tsortGetBlockInfo(STupleHandle* pVHandle) { return &pVHandle->pBlock->info; }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   SSortExecInfo info = {0};

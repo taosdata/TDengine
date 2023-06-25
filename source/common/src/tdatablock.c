@@ -841,8 +841,8 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  * @return
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
-  // length |
+  // | version | total length | total rows | total columns | flag seg| block group id | column schema
+  // | each column length |
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint64_t) +
          numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
@@ -1640,18 +1640,35 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int
   int32_t nRows = payloadSize / rowSize;
   ASSERT(nRows >= 1);
 
-  // the true value must be less than the value of nRows
-  int32_t additional = 0;
+  int32_t numVarCols = 0;
+  int32_t numFixCols = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      additional += nRows * sizeof(int32_t);
+      ++numVarCols;
     } else {
-      additional += BitmapLen(nRows);
+      ++numFixCols;
     }
   }
 
-  int32_t newRows = (payloadSize - additional) / rowSize;
+  // find the data payload whose size is greater than payloadSize
+  int result = -1;
+  int start = 1;
+  int end = nRows;
+  while (start <= end) {
+    int mid = start + (end - start) / 2;
+    //data size + var data type columns offset + fixed data type columns bitmap len 
+    int midSize = rowSize * mid + numVarCols * sizeof(int32_t) * mid + numFixCols * BitmapLen(mid); 
+    if (midSize > payloadSize) {
+      result = mid;
+      end = mid - 1;
+    } else {
+      start = mid + 1;
+    }
+  }
+
+  int32_t newRows = (result != -1) ? result - 1 : nRows;
+  // the true value must be less than the value of nRows
   ASSERT(newRows <= nRows && newRows >= 1);
 
   return newRows;

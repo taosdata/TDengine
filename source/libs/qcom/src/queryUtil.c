@@ -141,7 +141,7 @@ void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   if (NULL == pMsgBody) {
     return;
   }
-  
+
   taosMemoryFreeClear(pMsgBody->target.dbFName);
   taosMemoryFreeClear(pMsgBody->msgInfo.pData);
   if (pMsgBody->paramFreeFp) {
@@ -173,7 +173,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .contLen = pInfo->msgInfo.len,
     .info.ahandle = (void*)pInfo,
     .info.handle = pInfo->msgInfo.handle,
-    .info.persistHandle = persistHandle, 
+    .info.persistHandle = persistHandle,
     .code = 0
   };
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
@@ -252,7 +252,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
       taosMemoryFreeClear(pRes->res);
       break;
     }
-    case TDMT_SCH_QUERY: 
+    case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
       taosArrayDestroy((SArray*)pRes->res);
       break;
@@ -532,7 +532,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     (*pDst)->name = taosStrdup(pSrc->name);
   }
   (*pDst)->uid = pSrc->uid;
-  (*pDst)->ctime = pSrc->ctime;
+  (*pDst)->btime = pSrc->btime;
   (*pDst)->ttl = pSrc->ttl;
   (*pDst)->commentLen = pSrc->commentLen;
   if (pSrc->comment) {

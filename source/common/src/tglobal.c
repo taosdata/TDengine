@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "tgrant.h"
@@ -73,6 +74,7 @@ int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
 int64_t tsMndLogRetention = 2000;
+int8_t  tsGrant = 1;
 bool    tsMndSkipGrant = false;
 
 // monitor
@@ -108,6 +110,7 @@ int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = false;
 bool    tsEnableScience = false;  // on taos-cli show float and doulbe with scientific notation if true
+bool    tsTtlChangeOnWrite = false; // ttl delete time changes on last write if true
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -511,6 +514,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 100000, 1) != 0) return -1;
+  if (cfgAddBool(pCfg, "ttlChangeOnWrite", tsTtlChangeOnWrite, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, 0) != 0) return -1;
 
@@ -871,6 +875,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
+  tsTtlChangeOnWrite = cfgGetItem(pCfg, "ttlChangeOnWrite")->bval;
   tsTelemInterval = cfgGetItem(pCfg, "telemetryInterval")->i32;
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
@@ -976,6 +981,8 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
         taosSetCoreDump(enableCore);
       } else if (strcasecmp("enableQueryHb", name) == 0) {
         tsEnableQueryHb = cfgGetItem(pCfg, "enableQueryHb")->bval;
+      }  else if (strcasecmp("ttlChangeOnWrite", name) == 0) {
+        tsTtlChangeOnWrite = cfgGetItem(pCfg, "ttlChangeOnWrite")->bval;
       }
       break;
     }
@@ -1525,3 +1532,5 @@ void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, rewrite);
   uInfo("all debug flag are set to %d", flag);
 }
+
+int8_t taosGranted() { return atomic_load_8(&tsGrant); }

@@ -93,6 +93,8 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
+  pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
+  pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
     pInfo->mergeDataBlocks = false;
@@ -238,8 +240,9 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   }
 
   int64_t st = 0;
-  int32_t order = 0;
+  int32_t order = pInfo->inputTsOrder;
   int32_t scanFlag = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   if (pOperator->cost.openCost == 0) {
     st = taosGetTimestampUs();
@@ -284,10 +287,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         break;
       }
 
-      // the pDataBlock are always the same one, no need to call this again
-      int32_t code = getTableScanInfo(downstream, &order, &scanFlag, false);
-      if (code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, code);
+      if (pProjectInfo->mergeDataBlocks) {
+        pFinalRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
+      } else {
+        pRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
       }
 
       setInputDataBlock(pSup, pBlock, order, scanFlag, false);
@@ -406,6 +409,8 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   }
 
   pInfo->binfo.pRes = pResBlock;
+  pInfo->binfo.inputTsOrder = pNode->inputTsOrder;
+  pInfo->binfo.outputTsOrder = pNode->outputTsOrder;
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 
   setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo,
@@ -429,18 +434,13 @@ _error:
 
 static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOperatorInfo* downstream,
                               SExecTaskInfo* pTaskInfo) {
-  int32_t order = 0;
-  int32_t scanFlag = 0;
-
   SIndefOperatorInfo* pIndefInfo = pOperator->info;
   SOptrBasicInfo*     pInfo = &pIndefInfo->binfo;
   SExprSupp*          pSup = &pOperator->exprSupp;
 
-  // the pDataBlock are always the same one, no need to call this again
-  int32_t code = getTableScanInfo(downstream, &order, &scanFlag, false);
-  if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
+  int32_t order = pInfo->inputTsOrder;
+  int32_t scanFlag = pBlock->info.scanFlag;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   // there is an scalar expression that needs to be calculated before apply the group aggregation.
   SExprSupp* pScalarSup = &pIndefInfo->scalarSup;
@@ -506,6 +506,7 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
           setOperatorCompleted(pOperator);
           break;
         }
+        pInfo->pRes->info.scanFlag = pBlock->info.scanFlag;
 
         if (pIndefInfo->groupId == 0 && pBlock->info.id.groupId != 0) {
           pIndefInfo->groupId = pBlock->info.id.groupId;  // this is the initial group result

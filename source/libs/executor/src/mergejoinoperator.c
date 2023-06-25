@@ -253,9 +253,9 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   }
 
   pInfo->inputOrder = TSDB_ORDER_ASC;
-  if (pJoinNode->inputTsOrder == ORDER_ASC) {
+  if (pJoinNode->node.inputTsOrder == ORDER_ASC) {
     pInfo->inputOrder = TSDB_ORDER_ASC;
-  } else if (pJoinNode->inputTsOrder == ORDER_DESC) {
+  } else if (pJoinNode->node.inputTsOrder == ORDER_DESC) {
     pInfo->inputOrder = TSDB_ORDER_DESC;
   }
 
@@ -684,6 +684,7 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
     // the pDataBlock are always the same one, no need to call this again
     pRes->info.rows = nrows;
     pRes->info.dataLoad = 1;
+    pRes->info.scanFlag = MAIN_SCAN;
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;
     }
