@@ -29,6 +29,6 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
 // SMetaSnapWriter ========================================
 int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, SStreamSnapWriter** ppWriter);
 int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
-int32_t streamSnapWriterClose(SStreamSnapWriter** ppWriter, int8_t rollback);
+int32_t streamSnapWriterClose(SStreamSnapWriter* ppWriter, int8_t rollback);
 
 #endif
