@@ -31,7 +31,10 @@ Source: "{#MyAppSourceDir}\config\explorer.toml"; DestDir: "{app}\config"; Flags
 Filename: "C:\\Program Files\\taosX\\bin\\taosx-srv.exe"; Parameters: "install" ; Flags: runhidden
 Filename: "C:\\Program Files\\taosX\\bin\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden
 Filename: "C:\\Program Files\\taosX\\bin\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden
-
+Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#TaosXName}_is1"" /V ""UninstallString""  \
+  /T ""REG_SZ"" /D ""\""{app}\uninstall_{#TaosXName}.exe\"""" /F"; StatusMsg: Installing {#TaosXName}...; Flags: RunHidden WaitUntilTerminated
+Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#TaosXName}_is1"" /V ""QuietUninstallString"" \
+  /T ""REG_SZ"" /D ""\""{app}\uninstall_{#TaosXName}.exe\"" /SILENT"" /F"; StatusMsg: Installing {#TaosXName}...; Flags: RunHidden WaitUntilTerminated
 [UninstallRun]
 RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
 RunOnceId: "stoptaosx-agent"; Filename: {sys}\sc.exe; Parameters: "stop taosx-agent" ; Flags: runhidden
