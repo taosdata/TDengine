@@ -15,16 +15,6 @@
 
 #include "tsdbDataFileRW.h"
 
-typedef struct {
-  SFDataPtr brinBlkPtr[1];
-  SFDataPtr rsrvd[2];
-} SHeadFooter;
-
-typedef struct {
-  SFDataPtr tombBlkPtr[1];
-  SFDataPtr rsrvd[2];
-} STombFooter;
-
 extern int32_t tsdbFileDoWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
                                         TTombBlkArray *tombBlkArray, uint8_t **bufArr);
 extern int32_t tsdbFileDoWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr,
@@ -1144,15 +1134,19 @@ _exit:
   return code;
 }
 
+int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer) {
+  int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer));
+  if (code) return code;
+  *fileSize += sizeof(*footer);
+  return 0;
+}
+
 static int32_t tsdbDataFileWriteHeadFooter(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t ftype = TSDB_FTYPE_HEAD;
-  code = tsdbWriteFile(writer->fd[ftype], writer->files[ftype].size, (const uint8_t *)writer->headFooter,
-                       sizeof(SHeadFooter));
+  code = tsdbFileWriteHeadFooter(writer->fd[TSDB_FTYPE_HEAD], &writer->files[TSDB_FTYPE_HEAD].size, writer->headFooter);
   TSDB_CHECK_CODE(code, lino, _exit);
-  writer->files[ftype].size += sizeof(SHeadFooter);
 
 _exit:
   if (code) {
