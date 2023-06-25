@@ -131,59 +131,71 @@
                     </div>
                   </div>
                 </template>
-                <div
-                  v-else
-                  v-for="(p, index) in at.params"
-                  :key="index"
-                  :style="textareas.includes(p.name) ? styleareaobj : styleobj"
-                >
-                  <span
-                    :class="['label', p.required ? 'required' : '']"
-                    :style="
-                      textareas.includes(p.name)
-                        ? { 'padding-top': '10px!important' }
-                        : {}
-                    "
-                    >{{ p.display }}</span
+                <template v-else>
+                  <div
+                    v-for="(p, index) in at.params"
+                    :key="index"
+                    :style="textareas.includes(p.name) ? styleareaobj : styleobj"
                   >
-
-                  <div style="flex: 1">
-                    <template v-if="p.hint && p.hint.choices">
-                      <el-select
-                        v-model="p.value"
-                        placeholder=""
-                        style="
-                          margin-left: 0px;
-                          width: 100%;
-                          margin-bottom: 8px;
-                        "
-                      >
-                        <el-option
-                          v-for="c in p.hint.choices"
-                          :key="c"
-                          :label="c"
-                          :value="c"
-                        ></el-option>
-                      </el-select>
-                    </template>
-                    <el-input
-                      v-else
-                      v-model="p.value"
-                      :type="
-                        p.name == 'password' || p.name == 'token'
-                          ? 'password'
-                          : textareas.includes(p.name)
-                          ? 'textarea'
-                          : 'text'
+                    <span
+                      :class="['label', p.required ? 'required' : '']"
+                      :style="
+                        textareas.includes(p.name)
+                          ? { 'padding-top': '10px!important' }
+                          : {}
                       "
-                      style="margin-bottom: 8px"
-                    ></el-input>
-                    <div
-                      class="description"
-                      v-html="transforHtml(p.description)"
-                    ></div>
+                      >
+                      {{ p.display }} 
+                      <el-tooltip class="item" effect="light" placement="top"
+                        v-if="['security_mode', 'security_policy'].includes(p.name)"
+                      >
+                        <div v-html="transforHtml(p.description)" slot="content"></div>
+                        <i class="el-icon-info"></i>
+                      </el-tooltip>
+                      </span
+                    >
+  
+                    <div style="flex: 1">
+                      <template v-if="p.hint && p.hint.choices">
+                        <el-select
+                          v-model="p.value"
+                          placeholder=""
+                          style="
+                            margin-left: 0px;
+                            width: 100%;
+                            margin-bottom: 8px;
+                          "
+                          :disabled="p.name ==='security_policy' && policyDisabled"
+                          @change="handleAuthentication(p)"
+                        >
+                          <el-option
+                            v-for="c in p.hint.choices"
+                            :key="c"
+                            :label="c"
+                            :value="c"
+                          ></el-option>
+                        </el-select>
+                      </template>
+                      <el-input
+                        v-else
+                        v-model="p.value"
+                        :type="
+                          p.name == 'password' || p.name == 'token'
+                            ? 'password'
+                            : textareas.includes(p.name)
+                            ? 'textarea'
+                            : 'text'
+                        "
+                        style="margin-bottom: 8px"
+                      ></el-input>
+                      <div
+                        class="description"
+                        v-if="!['security_mode', 'security_policy'].includes(p.name)"
+                        v-html="transforHtml(p.description)"
+                      ></div>
+                    </div>
                   </div>
-                </div>
+                </template>
               </el-tab-pane>
             </template>
           </el-tabs>
@@ -669,6 +681,7 @@ export default {
         label: "",
         disabled: false,
       },
+      policyDisabled: true,
       // dbsource: [],
     };
   },
@@ -679,6 +692,21 @@ export default {
       if (this.tagName == "mqtt") {
         this.payloadVal = "json";
       }
+      this.dbsource[0].authentication.alternatives = 
+      this.dbsource[0].authentication.alternatives.map(item => {
+        if(item.name === 'certificates') {
+          item.params.map(par => {
+            if(['certificate','private_key'].includes(par.name)) {
+              par.required = par.value === 'None' ? false : true
+            } 
+            if(par.name === 'security_mode') {
+              this.policyDisabled = par.value === 'None'
+            }
+            return par
+          })
+        }
+        return item
+      })
     }
   },
   mounted() {
@@ -733,6 +761,27 @@ export default {
         this.dblist = await getDBListReq();
       } catch (error) {
         console.log(error);
+      }
+    },
+
+    handleAuthentication(p) {
+      if(p.name === 'security_mode') {
+        this.dbsource[0].authentication.alternatives = 
+        this.dbsource[0].authentication.alternatives.map(item => {
+          if(item.name === 'certificates') {
+            item.params.map(par => {
+              if(['certificate','private_key'].includes(par.name)) {
+                par.required = p.value === 'None' ? false : true
+              } 
+              if(par.name === 'security_policy') {
+                this.policyDisabled = p.value === 'None'
+                par.value = p.value === 'None' ? 'None' : ''
+              }
+              return par
+            })
+          }
+          return item
+        })
       }
     },
 
@@ -910,9 +959,27 @@ export default {
         }
         console.log(querystr, "querystr");
         if (data.authentication.value == "certificates") {
-          data.authentication.alternatives[2].params.forEach((val) => {
-            querystr += val.value ? `${val.name}=${val.value}&` : "";
-          });
+          // data.authentication.alternatives[2].params.forEach((val) => {
+          //   querystr += val.value ? `${val.name}=${val.value}&` : "";
+          // })
+          for (let i = 0; i < data.authentication.alternatives[2].params.length; i++) {
+            let authValue = data.authentication.alternatives[2].params[i].value
+            let authName = data.authentication.alternatives[2].params[i].name
+            let authDisplay = data.authentication.alternatives[2].params[i].display
+            let authRequired = data.authentication.alternatives[2].params[i].required
+            if(authRequired && !authValue) {
+              Message({
+                type: "warning",
+                message:
+                  this.$t("datasource.msg") +
+                  ":" +
+                  `${authDisplay} `,
+              });
+              return;
+            } else {
+              querystr += authValue ? `${authName}=${authValue}&` : "";
+            }
+          }
         }
         if (data.datasets) {
           for (
