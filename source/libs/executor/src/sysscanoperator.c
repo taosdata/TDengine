@@ -1593,6 +1593,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
 
+  blockDataCleanup(pInfo->pRes);
+
   const char* name = tNameGetTableName(&pInfo->name);
   if (pInfo->showRewrite) {
     getDBNameFromCondition(pInfo->pCondition, dbName);
