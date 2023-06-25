@@ -54,7 +54,7 @@ typedef struct SMetaEntry {
       SRSmaParam     rsmaParam;
     } stbEntry;
     struct {
-      int64_t  ctime;
+      int64_t  btime;
       int32_t  ttlDays;
       int32_t  commentLen;
       char*    comment;
@@ -62,7 +62,7 @@ typedef struct SMetaEntry {
       uint8_t* pTags;
     } ctbEntry;
     struct {
-      int64_t        ctime;
+      int64_t        btime;
       int32_t        ttlDays;
       int32_t        commentLen;
       char*          comment;
