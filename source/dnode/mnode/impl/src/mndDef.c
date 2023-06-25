@@ -175,7 +175,7 @@ void tFreeStreamObj(SStreamObj *pStream) {
   taosMemoryFree(pStream->ast);
   taosMemoryFree(pStream->physicalPlan);
 
-  if (pStream->outputSchema.nCols) {
+  if (pStream->outputSchema.nCols || pStream->outputSchema.pSchema) {
     taosMemoryFree(pStream->outputSchema.pSchema);
   }
 

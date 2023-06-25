@@ -83,6 +83,7 @@ int32_t tqStreamTasksStatusCheck(STQ* pTq) {
     streamTaskCheckDownstreamTasks(pTask);
     streamMetaReleaseTask(pMeta, pTask);
   }
+  taosArrayDestroy(pTaskList);
 
   return 0;
 }
