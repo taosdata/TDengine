@@ -78,6 +78,7 @@ pub struct OPCConfig {
     /// use receviced time as ts cloumn value when config true
     // use_received_time: bool,
     connect: ConnectConfig,
+    points: PointsConfig,
     collect: CollectConfig,
     report: ReportConfig,
 
@@ -136,6 +137,13 @@ struct UaConnectConfig {
 struct DaConnectConfig {
     server: String,
     nodes: Vec<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct PointsConfig {
+    pipe: String,
+    limit: i32,
+    regex: String,
 }
 
 #[derive(Debug, serde::Serialize)]
