@@ -3506,6 +3506,9 @@ void doBuildSessionResult(SOperatorInfo* pOperator, void* pState, SGroupResInfo*
   // clear the existed group id
   pBlock->info.id.groupId = 0;
   buildSessionResultDataBlock(pOperator, pState, pBlock, &pOperator->exprSupp, pGroupResInfo);
+  if (pBlock->info.rows == 0) {
+    cleanupGroupResInfo(pGroupResInfo);
+  }
 }
 void getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins) {
   int32_t size = taosArrayGetSize(pAllWins);
@@ -3605,7 +3608,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
       // if chIndex + 1 - size > 0, add new child
       for (int32_t i = 0; i < chIndex + 1 - size; i++) {
         SOperatorInfo* pChildOp =
-            createStreamFinalSessionAggOperatorInfo(NULL, pInfo->pPhyNode, pOperator->pTaskInfo, 0);
+            createStreamFinalSessionAggOperatorInfo(NULL, pInfo->pPhyNode, pOperator->pTaskInfo, 0, NULL);
         if (!pChildOp) {
           T_LONG_JMP(pOperator->pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
         }
@@ -3693,7 +3696,7 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
 }
 
 SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                  SExecTaskInfo* pTaskInfo) {
+                                                  SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
   SSessionWinodwPhysiNode*       pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
   int32_t                        numOfCols = 0;
   int32_t                        code = TSDB_CODE_OUT_OF_MEMORY;
@@ -3760,7 +3763,9 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   if (!pInfo->historyWins) {
     goto _error;
   }
-  pInfo->isHistoryOp = false;
+  if (pHandle) {
+    pInfo->isHistoryOp = pHandle->fillHistory;
+  }
 
   setOperatorInfo(pOperator, "StreamSessionWindowAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, true,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
@@ -3904,9 +3909,9 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
 }
 
 SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                       SExecTaskInfo* pTaskInfo, int32_t numOfChild) {
+                                                       SExecTaskInfo* pTaskInfo, int32_t numOfChild, SReadHandle* pHandle) {
   int32_t        code = TSDB_CODE_OUT_OF_MEMORY;
-  SOperatorInfo* pOperator = createStreamSessionAggOperatorInfo(downstream, pPhyNode, pTaskInfo);
+  SOperatorInfo* pOperator = createStreamSessionAggOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle);
   if (pOperator == NULL) {
     goto _error;
   }
@@ -3930,7 +3935,7 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
   if (numOfChild > 0) {
     pInfo->pChildren = taosArrayInit(numOfChild, sizeof(void*));
     for (int32_t i = 0; i < numOfChild; i++) {
-      SOperatorInfo* pChildOp = createStreamFinalSessionAggOperatorInfo(NULL, pPhyNode, pTaskInfo, 0);
+      SOperatorInfo* pChildOp = createStreamFinalSessionAggOperatorInfo(NULL, pPhyNode, pTaskInfo, 0, NULL);
       if (pChildOp == NULL) {
         goto _error;
       }
@@ -4305,7 +4310,7 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
 }
 
 SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                                SExecTaskInfo* pTaskInfo) {
+                                                SExecTaskInfo* pTaskInfo, SReadHandle* pHandle) {
   SStreamStateWinodwPhysiNode* pStateNode = (SStreamStateWinodwPhysiNode*)pPhyNode;
   int32_t                      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
   SColumnNode*                 pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey)->pExpr;
@@ -4369,7 +4374,9 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   if (!pInfo->historyWins) {
     goto _error;
   }
-  pInfo->isHistoryOp = false;
+  if (pHandle) {
+    pInfo->isHistoryOp = pHandle->fillHistory;
+  }
 
   setOperatorInfo(pOperator, "StreamStateAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);

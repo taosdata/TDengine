@@ -977,9 +977,11 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
     int32_t      size = 0;
     void*        pVal = NULL;
     int32_t      code = pAPI->stateStore.streamStateSessionGet(pState, pKey, &pVal, &size);
-    ASSERT(code == 0);
+    // ASSERT(code == 0);
     if (code == -1) {
-      // coverity scan
+      // for history
+      qWarn("===stream===not found session result key:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, pKey->win.skey,
+            pKey->win.ekey, pKey->groupId);
       pGroupResInfo->index += 1;
       continue;
     }

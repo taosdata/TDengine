@@ -762,6 +762,7 @@ int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVa
 
 int32_t streamStateSessionDel(SStreamState* pState, const SSessionKey* key) {
 #ifdef USE_ROCKSDB
+  qDebug("===stream===delete skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey,key->win.ekey, key->groupId);
   return streamStateSessionDel_rocksdb(pState, key);
 #else
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
