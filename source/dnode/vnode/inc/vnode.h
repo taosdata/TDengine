@@ -115,6 +115,7 @@ int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
 int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
 int      metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid);
 int      metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
+int      metaGetTableTtlByUid(void *meta, uint64_t uid, int64_t *ttlDays);
 bool     metaIsTableExist(void* pVnode, tb_uid_t uid);
 int32_t  metaGetCachedTableUidList(void *pVnode, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
                                    bool *acquired);
