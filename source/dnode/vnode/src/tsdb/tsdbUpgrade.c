@@ -26,6 +26,9 @@ extern int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, int8_t
                                       TBrinBlkArray *brinBlkArray, uint8_t **bufArr);
 extern int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize);
 extern int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer);
+extern int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
+extern int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize);
+extern int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize);
 
 static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *reader, STFileSet *fset) {
   int32_t code = 0;
@@ -170,7 +173,20 @@ static int32_t tsdbUpgradeData(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
+  if (fset->farr[TSDB_FTYPE_HEAD] == NULL) {
+    return 0;
+  }
+
+  STFile file = {
+      .type = TSDB_FTYPE_DATA,
+      .did = pDFileSet->diskId,
+      .fid = fset->fid,
+      .cid = pDFileSet->pDataF->commitID,
+      .size = pDFileSet->pDataF->size,
+  };
+
+  code = tsdbTFileObjInit(tsdb, &file, &fset->farr[TSDB_FTYPE_DATA]);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -183,7 +199,20 @@ static int32_t tsdbUpgradeSma(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *r
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
+  if (fset->farr[TSDB_FTYPE_HEAD] == NULL) {
+    return 0;
+  }
+
+  STFile file = {
+      .type = TSDB_FTYPE_SMA,
+      .did = pDFileSet->diskId,
+      .fid = fset->fid,
+      .cid = pDFileSet->pSmaF->commitID,
+      .size = pDFileSet->pSmaF->size,
+  };
+
+  code = tsdbTFileObjInit(tsdb, &file, &fset->farr[TSDB_FTYPE_SMA]);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -192,11 +221,96 @@ _exit:
   return code;
 }
 
+static int32_t tsdbUpgradeSttFile(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *reader, STFileSet *fset,
+                                  int32_t iStt, SSttLvl *lvl) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SArray *aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
+  if (aSttBlk == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  code = tsdbReadSttBlk(reader, iStt, aSttBlk);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (taosArrayGetSize(aSttBlk) > 0) {
+    SSttFile  *pSttF = pDFileSet->aSttF[iStt];
+    STFileObj *fobj;
+    struct {
+      int32_t szPage;
+      // writer
+      STsdbFD     *fd;
+      TSttBlkArray sttBlkArray[1];
+      SSttFooter   footer[1];
+    } ctx[1] = {{
+        .szPage = tsdb->pVnode->config.tsdbPageSize,
+    }};
+
+    STFile file = {
+        .type = TSDB_FTYPE_STT,
+        .did = pDFileSet->diskId,
+        .fid = fset->fid,
+        .cid = pSttF->commitID,
+        .size = pSttF->size,
+    };
+    code = tsdbTFileObjInit(tsdb, &file, &fobj);
+    TSDB_CHECK_CODE(code, lino, _exit1);
+
+    code = tsdbOpenFile(fobj->fname, ctx->szPage, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd);
+    TSDB_CHECK_CODE(code, lino, _exit1);
+
+    for (int32_t iSttBlk = 0; iSttBlk < taosArrayGetSize(aSttBlk); iSttBlk++) {
+      code = TARRAY2_APPEND_PTR(ctx->sttBlkArray, (SSttBlk *)taosArrayGet(aSttBlk, iSttBlk));
+      TSDB_CHECK_CODE(code, lino, _exit1);
+    }
+
+    code = tsdbFileWriteSttBlk(ctx->fd, ctx->sttBlkArray, ctx->footer->sttBlkPtr, &fobj->f->size);
+    TSDB_CHECK_CODE(code, lino, _exit1);
+
+    code = tsdbFileWriteSttFooter(ctx->fd, ctx->footer, &fobj->f->size);
+    TSDB_CHECK_CODE(code, lino, _exit1);
+
+    code = tsdbFsyncFile(ctx->fd);
+    TSDB_CHECK_CODE(code, lino, _exit1);
+
+    tsdbCloseFile(&ctx->fd);
+
+    code = TARRAY2_APPEND(lvl->fobjArr, fobj);
+    TSDB_CHECK_CODE(code, lino, _exit1);
+
+  _exit1:
+    TARRAY2_DESTROY(ctx->sttBlkArray, NULL);
+  }
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
+  }
+  taosArrayDestroy(aSttBlk);
+  return code;
+}
+
 static int32_t tsdbUpgradeStt(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *reader, STFileSet *fset) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
+  if (pDFileSet->nSttF == 0) {
+    return 0;
+  }
+
+  SSttLvl *lvl;
+  code = tsdbSttLvlInit(0, &lvl);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  for (int32_t iStt = 0; iStt < pDFileSet->nSttF; ++iStt) {
+    code = tsdbUpgradeSttFile(tsdb, pDFileSet, reader, fset, iStt, lvl);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  code = TARRAY2_APPEND(fset->lvlArr, lvl);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {

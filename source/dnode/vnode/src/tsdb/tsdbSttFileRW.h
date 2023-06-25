@@ -26,6 +26,13 @@ extern "C" {
 typedef TARRAY2(SSttBlk) TSttBlkArray;
 typedef TARRAY2(SStatisBlk) TStatisBlkArray;
 
+typedef struct {
+  SFDataPtr sttBlkPtr[1];
+  SFDataPtr statisBlkPtr[1];
+  SFDataPtr tombBlkPtr[1];
+  SFDataPtr rsrvd[2];
+} SSttFooter;
+
 // SSttFileReader ==========================================
 typedef struct SSttFileReader       SSttFileReader;
 typedef struct SSttFileReaderConfig SSttFileReaderConfig;

@@ -15,13 +15,6 @@
 
 #include "tsdbSttFileRW.h"
 
-typedef struct {
-  SFDataPtr sttBlkPtr[1];
-  SFDataPtr statisBlkPtr[1];
-  SFDataPtr tombBlkPtr[1];
-  SFDataPtr rsrvd[2];
-} SSttFooter;
-
 // SSttFReader ============================================================
 struct SSttFileReader {
   SSttFileReaderConfig config[1];
@@ -602,7 +595,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileDoWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize) {
+int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize) {
   ptr->size = TARRAY2_DATA_LEN(sttBlkArray);
   if (ptr->size > 0) {
     ptr->offset = *fileSize;
@@ -621,7 +614,7 @@ static int32_t tsdbSttFileDoWriteSttBlk(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino;
 
-  code = tsdbFileDoWriteSttBlk(writer->fd, writer->sttBlkArray, writer->footer->sttBlkPtr, &writer->file->size);
+  code = tsdbFileWriteSttBlk(writer->fd, writer->sttBlkArray, writer->footer->sttBlkPtr, &writer->file->size);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -680,7 +673,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFileDoWriteFooterImpl(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize) {
+int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize) {
   int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer));
   if (code) return code;
   *fileSize += sizeof(*footer);
@@ -688,7 +681,7 @@ int32_t tsdbSttFileDoWriteFooterImpl(STsdbFD *fd, const SSttFooter *footer, int6
 }
 
 static int32_t tsdbSttFileDoWriteFooter(SSttFileWriter *writer) {
-  return tsdbSttFileDoWriteFooterImpl(writer->fd, writer->footer, &writer->file->size);
+  return tsdbFileWriteSttFooter(writer->fd, writer->footer, &writer->file->size);
 }
 
 static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
