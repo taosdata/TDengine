@@ -215,7 +215,7 @@ int metaReadNext(SMetaReader *pReader) {
 int metaGetTableTtlByUid(void *meta, uint64_t uid, int64_t *ttlDays) {
   int         code = -1;
   SMetaReader mr = {0};
-  metaReaderInit(&mr, (SMeta *)meta, 0);
+  metaReaderDoInit(&mr, (SMeta *)meta, 0);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     goto _exit;
