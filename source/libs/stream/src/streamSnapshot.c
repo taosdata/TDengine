@@ -55,8 +55,8 @@ struct SStreamSnapBlockHdr {
   int8_t  flag;
   int64_t index;
   char    name[128];
-  int64_t size;
   int64_t totalSize;
+  int64_t size;
   uint8_t data[];
 };
 struct SStreamSnapReader {
