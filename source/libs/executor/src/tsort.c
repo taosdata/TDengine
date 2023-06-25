@@ -810,7 +810,7 @@ int32_t tsortOpen(SSortHandle* pHandle) {
 
 int32_t tsortClose(SSortHandle* pHandle) {
   atomic_val_compare_exchange_8(&pHandle->closed, 0, 1);
-  taosSsleep(1);
+  taosMsleep(10);
   return TSDB_CODE_SUCCESS;
 }
 
