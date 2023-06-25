@@ -2,7 +2,7 @@
 
 # 100 seconds (at most)
 taostest --setup=common_cluster_30.yaml --case=taosc_insert/alter_table.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=manager/splitVGroup.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=manager/splitVGroup.py --keep --containers --log-level=info
 taostest --use=common_cluster_30.yaml --case=taosc_insert/alter_insert.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/auto_create_table.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=taosc_insert/batch_insert.py --keep --containers
