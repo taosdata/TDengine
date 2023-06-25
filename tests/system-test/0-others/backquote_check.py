@@ -76,8 +76,8 @@ class TDTestCase:
         tdSql.execute(f'drop database {self.dbname}')
         
     def run(self):
-        # self.topic_name_check()
-        # self.db_name_check()
+        self.topic_name_check()
+        self.db_name_check()
         self.stream_name_check()
     def stop(self):
         tdSql.close()
