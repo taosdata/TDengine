@@ -62,10 +62,11 @@ struct SStreamSnapReader {
   int64_t           ever;
   SStreamSnapHandle handle;
 };
-struct StreamSnapWriter {
-  void*   pMeta;
-  int64_t sver;
-  int64_t ever;
+struct SStreamSnapWriter {
+  void*             pMeta;
+  int64_t           sver;
+  int64_t           ever;
+  SStreamSnapHandle handle;
 };
 const char*    ROCKSDB_OPTIONS = "OPTIONS";
 const char*    ROCKSDB_MAINFEST = "MANIFEST";
@@ -241,12 +242,53 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
   return 0;
 }
 // SMetaSnapWriter ========================================
-int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, StreamSnapWriter** ppWriter) {
+int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, SStreamSnapWriter** ppWriter) {
+  // impl later
+  SStreamSnapWriter* pWriter = taosMemoryCalloc(1, sizeof(SStreamSnapWriter));
+  if (pWriter == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  const char* path = NULL;
+  // if (streamSnapHandleInit(&pWriter->handle, (char*)path) < 0) {
+  //   return -1;
+  // }
+  SBanckendFile* pFile = taosMemoryCalloc(1, sizeof(SBanckendFile));
+  pFile->path = taosStrdup(path);
+  pFile->pSst = taosArrayInit(16, sizeof(void*));
+
+  SArray* list = taosArrayInit(64, sizeof(SBackendFileItem));
+
+  // SBackendFileItem item;
+
+  // // current
+  // item.name = (char*)ROCKSDB_CURRENT;
+  // item.type = ROCKSDB_CURRENT_TYPE;
+  // taosArrayPush(list, &item);
+  // // mainfest
+  // item.name = pFile->pMainfest;
+  // item.type = ROCKSDB_MAINFEST_TYPE;
+  // taosArrayPush(list, &item);
+  // // options
+  // item.name = pFile->pOptions;
+  // item.type = ROCKSDB_OPTIONS_TYPE;
+  // taosArrayPush(list, &item);
+  // // sst
+  // for (int i = 0; i < taosArrayGetSize(pFile->pSst); i++) {
+  //   char* sst = taosArrayGetP(pFile->pSst, i);
+  //   item.name = sst;
+  //   item.type = ROCKSDB_SST_TYPE;
+  //   taosArrayPush(list, &item);
+  // }
+  // // meta
+  // item.name = pFile->pCheckpointMeta;
+  // item.type = ROCKSDB_CHECKPOINT_META_TYPE;
+  // taosArrayPush(list, &item);
+
+  *ppWriter = pWriter;
+  return 0;
+}
+int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   // impl later
   return 0;
 }
-int32_t streamSnapWrite(StreamSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  // impl later
-  return 0;
-}
-int32_t streamSnapWriterClose(StreamSnapWriter** ppWriter, int8_t rollback) { return 0; }
+int32_t streamSnapWriterClose(SStreamSnapWriter** ppWriter, int8_t rollback) { return 0; }

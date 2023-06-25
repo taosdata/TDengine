@@ -17,7 +17,7 @@
 #include "tcommon.h"
 
 typedef struct SStreamSnapReader SStreamSnapReader;
-typedef struct StreamSnapWriter  StreamSnapWriter;
+typedef struct SStreamSnapWriter SStreamSnapWriter;
 
 typedef struct SStreamSnapHandle   SStreamSnapHandle;
 typedef struct SStreamSnapBlockHdr SStreamSnapBlockHdr;
@@ -27,8 +27,8 @@ int32_t streamSnapReaderClose(SStreamSnapReader* pReader);
 int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* size);
 
 // SMetaSnapWriter ========================================
-int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, StreamSnapWriter** ppWriter);
-int32_t streamSnapWrite(StreamSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
-int32_t streamSnapWriterClose(StreamSnapWriter** ppWriter, int8_t rollback);
+int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, SStreamSnapWriter** ppWriter);
+int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t streamSnapWriterClose(SStreamSnapWriter** ppWriter, int8_t rollback);
 
 #endif
