@@ -1190,8 +1190,9 @@ export default {
       <br /> 
       2. In other cases, such as when the data source is isolated from the TDengine cluster network, proxies are used to provide cross-network access to the data source.
     `,
-
-
+    select: 'Select',
+    add: 'Add',
+    regexPlaceholder: 'Regex Pattern Input'
   },
   explorer: {
     databases: 'Databases',

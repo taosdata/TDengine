@@ -982,6 +982,9 @@ export default {
     password: '密码',
     anonymous: '匿名',
     plain: '普通用户',
+    select: '选择',
+    add: '添加',
+    regexPlaceholder: '输入正则表达式'
   },
   explorer: {
     databases: '数据库',
