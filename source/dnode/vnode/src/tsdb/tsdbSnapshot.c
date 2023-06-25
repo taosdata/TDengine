@@ -436,7 +436,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
   tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
   tDestroyTSchema(reader[0]->skmTb->pTSchema);
 
-  for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->aBuf);) {
+  for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->aBuf); ++i) {
     tFree(reader[0]->aBuf[i]);
   }
 
@@ -705,7 +705,7 @@ static int32_t tsdbSnapWriteFileSetOpenIter(STsdbSnapWriter* writer) {
   code = tsdbIterMergerOpen(writer->ctx->dataIterArr, &writer->ctx->dataIterMerger, false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbIterMergerOpen(writer->ctx->tombIterArr, &writer->ctx->dataIterMerger, true);
+  code = tsdbIterMergerOpen(writer->ctx->tombIterArr, &writer->ctx->tombIterMerger, true);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
