@@ -212,6 +212,29 @@ int metaReadNext(SMetaReader *pReader) {
   return 0;
 }
 
+int metaGetTableTtlByUid(void *meta, uint64_t uid, int64_t *ttlDays) {
+  int         code = -1;
+  SMetaReader mr = {0};
+  metaReaderDoInit(&mr, (SMeta *)meta, 0);
+  code = metaReaderGetTableEntryByUid(&mr, uid);
+  if (code < 0) {
+    goto _exit;
+  }
+  if (mr.me.type == TSDB_CHILD_TABLE) {
+    *ttlDays = mr.me.ctbEntry.ttlDays;
+  } else if (mr.me.type == TSDB_NORMAL_TABLE) {
+    *ttlDays = mr.me.ntbEntry.ttlDays;
+  } else {
+    goto _exit;
+  }
+
+  code = 0;
+
+_exit:
+  metaReaderClear(&mr);
+  return code;
+}
+
 #if 1  // ===================================================
 SMTbCursor *metaOpenTbCursor(void *pVnode) {
   SMTbCursor *pTbCur = NULL;
@@ -383,37 +406,6 @@ _err:
   }
   tdbFree(pData);
   return NULL;
-}
-
-int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList) {
-  TBC *pCur;
-  int  ret = tdbTbcOpen(pMeta->pTtlIdx, &pCur, NULL);
-  if (ret < 0) {
-    return ret;
-  }
-
-  STtlIdxKey ttlKey = {0};
-  ttlKey.dtime = ttl;
-  ttlKey.uid = INT64_MAX;
-  int c = 0;
-  tdbTbcMoveTo(pCur, &ttlKey, sizeof(ttlKey), &c);
-  if (c < 0) {
-    tdbTbcMoveToPrev(pCur);
-  }
-
-  void *pKey = NULL;
-  int   kLen = 0;
-  while (1) {
-    ret = tdbTbcPrev(pCur, &pKey, &kLen, NULL, NULL);
-    if (ret < 0) {
-      break;
-    }
-    ttlKey = *(STtlIdxKey *)pKey;
-    taosArrayPush(uidList, &ttlKey.uid);
-  }
-  tdbFree(pKey);
-  tdbTbcClose(pCur);
-  return 0;
 }
 
 struct SMCtbCursor {
@@ -1016,17 +1008,17 @@ int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   pCursor->type = param->type;
 
   metaRLock(pMeta);
-  ret = tdbTbcOpen(pMeta->pCtimeIdx, &pCursor->pCur, NULL);
+  ret = tdbTbcOpen(pMeta->pBtimeIdx, &pCursor->pCur, NULL);
   if (ret != 0) {
     goto END;
   }
   int64_t uidLimit = param->reverse ? INT64_MAX : 0;
 
-  SCtimeIdxKey  ctimeKey = {.ctime = *(int64_t *)(param->val), .uid = uidLimit};
-  SCtimeIdxKey *pCtimeKey = &ctimeKey;
+  SBtimeIdxKey  btimeKey = {.btime = *(int64_t *)(param->val), .uid = uidLimit};
+  SBtimeIdxKey *pBtimeKey = &btimeKey;
 
   int cmp = 0;
-  if (tdbTbcMoveTo(pCursor->pCur, &ctimeKey, sizeof(ctimeKey), &cmp) < 0) {
+  if (tdbTbcMoveTo(pCursor->pCur, &btimeKey, sizeof(btimeKey), &cmp) < 0) {
     goto END;
   }
 
@@ -1040,10 +1032,10 @@ int32_t metaFilterCreateTime(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, NULL, NULL);
     if (valid < 0) break;
 
-    SCtimeIdxKey *p = entryKey;
+    SBtimeIdxKey *p = entryKey;
     if (count > TRY_ERROR_LIMIT) break;
 
-    int32_t cmp = (*param->filterFunc)((void *)&p->ctime, (void *)&pCtimeKey->ctime, param->type);
+    int32_t cmp = (*param->filterFunc)((void *)&p->btime, (void *)&pBtimeKey->btime, param->type);
     if (cmp == 0)
       taosArrayPush(pUids, &p->uid);
     else {
@@ -1147,7 +1139,7 @@ int32_t metaFilterTtl(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   pCursor->type = param->type;
 
   metaRLock(pMeta);
-  ret = tdbTbcOpen(pMeta->pTtlIdx, &pCursor->pCur, NULL);
+  //ret = tdbTbcOpen(pMeta->pTtlIdx, &pCursor->pCur, NULL);
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
