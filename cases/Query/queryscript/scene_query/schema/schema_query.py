@@ -637,3 +637,4 @@ class TDTestQuery(TDCase):
         
         self.logger.info("total time %ds" % (endTime - startTime))
   
+
