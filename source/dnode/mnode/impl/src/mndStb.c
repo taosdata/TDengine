@@ -888,7 +888,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
   SSdb             *pSdb = pMnode->pSdb;
   SVgObj           *pVgroup = NULL;
   void             *pIter = NULL;
-  SVDropTtlTableReq ttlReq = {.timestamp = taosGetTimestampSec()};
+  SVDropTtlTableReq ttlReq = {.timestampSec = taosGetTimestampSec()};
   int32_t           reqLen = tSerializeSVDropTtlTableReq(NULL, 0, &ttlReq);
   int32_t           contLen = reqLen + sizeof(SMsgHead);
 
@@ -914,7 +914,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
     if (code != 0) {
       mError("vgId:%d, failed to send drop ttl table request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
-      mInfo("vgId:%d, send drop ttl table request to vnode, time:%d", pVgroup->vgId, ttlReq.timestamp);
+      mInfo("vgId:%d, send drop ttl table request to vnode, time:%" PRId32, pVgroup->vgId, ttlReq.timestampSec);
     }
     sdbRelease(pSdb, pVgroup);
   }
@@ -3160,7 +3160,6 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SMnode  *pMnode = pReq->info.node;
   SSdb    *pSdb = pMnode->pSdb;
   SStbObj *pStb = NULL;
-
 
   int32_t numOfRows = 0;
   if (!pShow->sysDbRsp) {

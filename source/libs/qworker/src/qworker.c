@@ -427,6 +427,7 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
 
   pRes->suid = pDelRes->suid;
   pRes->uidList = pDelRes->uidList;
+  pRes->ctimeMs = taosGetTimestampMs();
   pRes->skey = pDelRes->skey;
   pRes->ekey = pDelRes->ekey;
   pRes->affectedRows = pDelRes->affectedRows;

@@ -481,10 +481,18 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   int32_t srcVgId = req.srcVgId;
   int32_t dstVgId = req.dstVgId;
+
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, dstVgId);
+  if (pVnode != NULL) {
+    dError("vgId:%d, vnode already exist", dstVgId);
+    vmReleaseVnode(pMgmt, pVnode);
+    terrno = TSDB_CODE_VND_ALREADY_EXIST;
+    return -1;
+  }
+
   dInfo("vgId:%d, start to alter vnode hashrange:[%u, %u], dstVgId:%d", req.srcVgId, req.hashBegin, req.hashEnd,
         req.dstVgId);
-
-  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, srcVgId);
+  pVnode = vmAcquireVnode(pMgmt, srcVgId);
   if (pVnode == NULL) {
     dError("vgId:%d, failed to alter hashrange since %s", srcVgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
@@ -497,6 +505,13 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       .vgVersion = pVnode->vgVersion,
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
+
+  // prepare alter
+  pVnode->toVgId = dstVgId;
+  if (vmWriteVnodeListToFile(pMgmt) != 0) {
+    dError("vgId:%d, failed to write vnode list since %s", dstVgId, terrstr());
+    return -1;
+  }
 
   dInfo("vgId:%d, close vnode", srcVgId);
   vmCloseVnode(pMgmt, pVnode, true);
@@ -529,6 +544,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
+  // complete alter
   if (vmWriteVnodeListToFile(pMgmt) != 0) {
     dError("vgId:%d, failed to write vnode list since %s", dstVgId, terrstr());
     return -1;

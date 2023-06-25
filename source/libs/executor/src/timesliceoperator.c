@@ -893,6 +893,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         break;
       }
 
+      pResBlock->info.scanFlag = pBlock->info.scanFlag;
       if (pSliceInfo->groupId == 0 && pBlock->info.id.groupId != 0) {
         pSliceInfo->groupId = pBlock->info.id.groupId;
       } else {

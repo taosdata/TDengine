@@ -765,7 +765,7 @@ TEST_F(ParserInitialCTest, createStable) {
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, "
       "a8 BINARY(20), a9 SMALLINT, a10 SMALLINT UNSIGNED, a11 TINYINT, "
       "a12 TINYINT UNSIGNED, a13 BOOL, a14 NCHAR(30), a15 VARCHAR(50)) "
-      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) MAX_DELAY 100s,10m WATERMARK 10a,1m "
+      "COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) MAX_DELAY 100s,10m WATERMARK 10a,1m "
       "DELETE_MARK 1000s,200m");
   clearCreateStbReq();
 }
@@ -1005,7 +1005,7 @@ TEST_F(ParserInitialCTest, createTable) {
         ASSERT_EQ(pReq->flags, pExpect->flags);
         ASSERT_EQ(std::string(pReq->name), std::string(pExpect->name));
         ASSERT_EQ(pReq->uid, pExpect->uid);
-        ASSERT_EQ(pReq->ctime, pExpect->ctime);
+        ASSERT_EQ(pReq->btime, pExpect->btime);
         ASSERT_EQ(pReq->ttl, pExpect->ttl);
         ASSERT_EQ(pReq->commentLen, pExpect->commentLen);
         ASSERT_EQ(std::string(pReq->comment), std::string(pExpect->comment));
@@ -1038,7 +1038,7 @@ TEST_F(ParserInitialCTest, createTable) {
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, a8 BINARY(20), "
       "a9 SMALLINT, a10 SMALLINT UNSIGNED, a11 TINYINT, a12 TINYINT UNSIGNED, a13 BOOL, "
       "a14 NCHAR(30), a15 VARCHAR(50)) "
-      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN)");
+      "COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN)");
 
   run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW)");
 
