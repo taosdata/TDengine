@@ -311,6 +311,9 @@ static int32_t calcConstDelete(SCalcConstContext* pCxt, SDeleteStmt* pDelete) {
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstStmtCondition(pCxt, &pDelete->pWhere, &pDelete->deleteZeroRows);
   }
+  if (code == TSDB_CODE_SUCCESS && pDelete->timeRange.skey > pDelete->timeRange.ekey) {
+    pDelete->deleteZeroRows = true;
+  }
   return code;
 }
 
@@ -465,6 +468,9 @@ static bool isEmptyResultQuery(SNode* pStmt) {
       }
       break;
     }
+    case QUERY_NODE_DELETE_STMT:
+      isEmptyResult = ((SDeleteStmt*)pStmt)->deleteZeroRows;
+      break;
     default:
       break;
   }

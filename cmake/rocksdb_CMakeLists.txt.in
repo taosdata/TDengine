@@ -1,5 +1,6 @@
 
 # rocksdb
+IF (NOT ${TD_LINUX})
 ExternalProject_Add(rocksdb
         GIT_REPOSITORY https://github.com/facebook/rocksdb.git
         GIT_TAG v8.1.1
@@ -9,3 +10,5 @@ ExternalProject_Add(rocksdb
         INSTALL_COMMAND ""
         TEST_COMMAND ""
         )
+ENDIF(NOT ${TD_LINUX})
+

@@ -922,8 +922,13 @@ void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
 
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz) {
   *defaultPgsz = 4096;
+  uint32_t last = *defaultPgsz;
   while (*defaultPgsz < rowSize * 4) {
     *defaultPgsz <<= 1u;
+    if (*defaultPgsz < last) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    last = *defaultPgsz;
   }
 
   // The default buffer for each operator in query is 10MB.
@@ -932,6 +937,9 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
   *defaultBufsz = 4096 * 2560;
   if ((*defaultBufsz) <= (*defaultPgsz)) {
     (*defaultBufsz) = (*defaultPgsz) * 4;
+    if (*defaultBufsz < ((int64_t)(*defaultPgsz)) * 4) {
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   return 0;

@@ -226,6 +226,7 @@ class TDTestCase:
         tdSql.checkData(3, 0, 12)
 
         ## test fill value with scalar expression
+        # data types
         tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + 2)")
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 3)
@@ -233,6 +234,49 @@ class TDTestCase:
         tdSql.checkData(2, 0, 3)
         tdSql.checkData(3, 0, 3)
 
+        tdSql.query(f"select interp(c1) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + 2)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
+        tdSql.query(f"select interp(c2) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + 2)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
+        tdSql.query(f"select interp(c3) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + 2)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(3, 0, 3)
+
+        tdSql.query(f"select interp(c4) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + 2)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3.0)
+        tdSql.checkData(1, 0, 3.0)
+        tdSql.checkData(2, 0, 3.0)
+        tdSql.checkData(3, 0, 3.0)
+
+        tdSql.query(f"select interp(c5) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + 2)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 3.0)
+        tdSql.checkData(1, 0, 3.0)
+        tdSql.checkData(2, 0, 3.0)
+        tdSql.checkData(3, 0, 3.0)
+
+        tdSql.query(f"select interp(c6) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1 + 2)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, True)
+        tdSql.checkData(1, 0, True)
+        tdSql.checkData(2, 0, True)
+        tdSql.checkData(3, 0, True)
+
+        # expr types
         tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(value, 1.0 + 2.0)")
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 3)
@@ -274,6 +318,7 @@ class TDTestCase:
         tdSql.checkData(1, 0, 3)
         tdSql.checkData(2, 0, 3)
         tdSql.checkData(3, 0, 3)
+
 
         tdLog.printNoPrefix("==========step5:fill prev")
 

@@ -146,7 +146,7 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
  * @return
  */
 uint64_t tsortGetGroupId(STupleHandle* pVHandle);
-
+void*    tsortGetBlockInfo(STupleHandle* pVHandle);
 /**
  *
  * @param pSortHandle

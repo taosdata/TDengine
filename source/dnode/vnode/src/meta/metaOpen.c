@@ -19,12 +19,11 @@ static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
 static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
-static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
-static int ctimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int btimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
@@ -128,8 +127,8 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
     goto _err;
   }
 
-  // open pTtlIdx
-  ret = tdbTbOpen("ttl.idx", sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, pMeta->pEnv, &pMeta->pTtlIdx, 0);
+  // open pTtlMgr ("ttlv1.idx")
+  ret = ttlMgrOpen(&pMeta->pTtlMgr, pMeta->pEnv, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -143,7 +142,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   }
 
   // idx table create time
-  ret = tdbTbOpen("ctime.idx", sizeof(SCtimeIdxKey), 0, ctimeIdxCmpr, pMeta->pEnv, &pMeta->pCtimeIdx, 0);
+  ret = tdbTbOpen("ctime.idx", sizeof(SBtimeIdxKey), 0, btimeIdxCmpr, pMeta->pEnv, &pMeta->pBtimeIdx, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta ctime index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -184,9 +183,9 @@ _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
   if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
   if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
-  if (pMeta->pCtimeIdx) tdbTbClose(pMeta->pCtimeIdx);
+  if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);
   if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
-  if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
+  if (pMeta->pTtlMgr) ttlMgrClose(pMeta->pTtlMgr);
   if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
   if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
   if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
@@ -209,9 +208,9 @@ int metaClose(SMeta **ppMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
-    if (pMeta->pCtimeIdx) tdbTbClose(pMeta->pCtimeIdx);
+    if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
-    if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
+    if (pMeta->pTtlMgr) ttlMgrClose(pMeta->pTtlMgr);
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
     if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
     if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
@@ -399,37 +398,18 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   return 0;
 }
 
-static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
-  STtlIdxKey *pTtlIdxKey1 = (STtlIdxKey *)pKey1;
-  STtlIdxKey *pTtlIdxKey2 = (STtlIdxKey *)pKey2;
-
-  if (pTtlIdxKey1->dtime > pTtlIdxKey2->dtime) {
+static int btimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  SBtimeIdxKey *pBtimeIdxKey1 = (SBtimeIdxKey *)pKey1;
+  SBtimeIdxKey *pBtimeIdxKey2 = (SBtimeIdxKey *)pKey2;
+  if (pBtimeIdxKey1->btime > pBtimeIdxKey2->btime) {
     return 1;
-  } else if (pTtlIdxKey1->dtime < pTtlIdxKey2->dtime) {
+  } else if (pBtimeIdxKey1->btime < pBtimeIdxKey2->btime) {
     return -1;
   }
 
-  if (pTtlIdxKey1->uid > pTtlIdxKey2->uid) {
+  if (pBtimeIdxKey1->uid > pBtimeIdxKey2->uid) {
     return 1;
-  } else if (pTtlIdxKey1->uid < pTtlIdxKey2->uid) {
-    return -1;
-  }
-
-  return 0;
-}
-
-static int ctimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
-  SCtimeIdxKey *pCtimeIdxKey1 = (SCtimeIdxKey *)pKey1;
-  SCtimeIdxKey *pCtimeIdxKey2 = (SCtimeIdxKey *)pKey2;
-  if (pCtimeIdxKey1->ctime > pCtimeIdxKey2->ctime) {
-    return 1;
-  } else if (pCtimeIdxKey1->ctime < pCtimeIdxKey2->ctime) {
-    return -1;
-  }
-
-  if (pCtimeIdxKey1->uid > pCtimeIdxKey2->uid) {
-    return 1;
-  } else if (pCtimeIdxKey1->uid < pCtimeIdxKey2->uid) {
+  } else if (pBtimeIdxKey1->uid < pBtimeIdxKey2->uid) {
     return -1;
   }
 
