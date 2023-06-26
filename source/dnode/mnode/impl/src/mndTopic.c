@@ -476,7 +476,9 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   }
 
   mndTransSetDbName(pTrans, pDb->name, NULL);
-
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
+      goto _OUT;
+  }
   mInfo("trans:%d to create topic:%s", pTrans->id, pCreate->name);
 
   SSdbRaw *pCommitRaw = mndTopicActionEncode(&topicObj);
