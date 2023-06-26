@@ -3745,8 +3745,8 @@ int32_t tSerializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
     if (tEncodeI32(&encoder, pIndexRsp->indexSize) < 0) return -1;
     int32_t num = taosArrayGetSize(pIndexRsp->pIndex);
     if (tEncodeI32(&encoder, num) < 0) return -1;
-    for (int32_t i = 0; i < num; ++i) {
-      STableIndexInfo *pInfo = (STableIndexInfo *)taosArrayGet(pIndexRsp->pIndex, i);
+    for (int32_t j = 0; j < num; ++j) {
+      STableIndexInfo *pInfo = (STableIndexInfo *)taosArrayGet(pIndexRsp->pIndex, j);
       if (tSerializeSTableIndexInfo(&encoder, pInfo) < 0) return -1;
     }
   }
@@ -3812,7 +3812,7 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
       tableIndexRsp.pIndex = taosArrayInit(num, sizeof(STableIndexInfo));
       if (NULL == tableIndexRsp.pIndex) return -1;
       STableIndexInfo info;
-      for (int32_t i = 0; i < num; ++i) {
+      for (int32_t j = 0; j < num; ++j) {
         if (tDeserializeSTableIndexInfo(&decoder, &info) < 0) return -1;
         if (NULL == taosArrayPush(tableIndexRsp.pIndex, &info)) {
           taosMemoryFree(info.expr);
