@@ -781,6 +781,10 @@ static int32_t tsdbFSRunBgTask(void *arg) {
 
 static int32_t tsdbFSScheduleBgTaskImpl(STFileSystem *fs, EFSBgTaskT type, int32_t (*run)(void *), void *arg,
                                         int64_t *taskid) {
+  if (fs->stop) {
+    return 0;  // TODO: use a better error code
+  }
+
   // check if same task is on
   if (fs->bgTaskRunning && fs->bgTaskRunning->type == type) {
     return 0;
