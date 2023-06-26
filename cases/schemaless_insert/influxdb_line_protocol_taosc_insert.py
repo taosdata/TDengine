@@ -1213,7 +1213,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                      'escape_test,tag1="ta g1_value",tag2="tag2_value" col0="col0_value",col1="col1_value" 1680918783010000000',
                      'escape_test,tag1="tag1_value",tag2="tag2_value" co,l0="col0_value",col1="col1_value" 1680918783010000000',
                      'escape_test,tag1="tag1_value",tag2="tag2_value" co=l0="col0_value",col1="col1_value" 1680918783010000000',
-                     #  'escape_test,tag1="tag1_value",tag2="tag2_value" co l0="col0_value",col1="col1_value" 1680918783010000000',
+                     'escape_test,tag1="tag1_value",tag2="tag2_value" col0="co\"l"0_value",col1="col1_value" 1680918783010000000'
+                     'escape_test,tag1="tag1_value",tag2="tag2_value" co l0="col0_value",col1="col1_value" 1680918783010000000',
                      'esca"pe_test,ta"g1="ta"g1_value",ta\"g2="ta\"g2_value" co"l0="co\"l\\"0_value",co\"l1="col1_value" 1680918783010000000',
                      'esca"pe_test,ta"g1="ta"g1_value",ta\"g2="ta\"g2_value" co"l0="co"l\\"0_value",co\"l1="col1_value" 1680918783010000000',
                      'esca"pe_test,ta"g1="ta"g1_value",ta\"g2="ta\"g2_value" co"l0="col\"0_value",co\"l1="col1_value" 1680918783010000000',
@@ -1224,23 +1225,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 self.tdSql.checkNotEqual(err.errno, 0)
-
-        # lines = 'escape_test,t\1="tag1_value",t2="tag2_value" c0="col0_value",c1="col1_value" 1680918783010000000'
-        # # # * [('_ts', 'TIMESTAMP', 8, ''), ('c0', 'VARCHAR', 16, ''), ('c1', 'VARCHAR', 8, ''), ('t\x01', 'NCHAR', 16, 'TAG'), ('t2', 'NCHAR', 16, 'TAG')]
-        # # lines = 'escape_test,t1="tag1_value",t2="tag2_value" c\0="col0_value",c1="col1_value" 1680918783010000000'
-        # # # ! taos.error.SchemalessError: [0x021f]: invalid key or key is too long than 64:c(affected rows: 0)
-        # # lines = 'escape_test,t1="tag1_value",t2="tag2_value" c0="col0_value",c\1="col1_value" 1680918783010000000'
-        # # # * [('_ts', 'TIMESTAMP', 8, ''), ('c0', 'VARCHAR', 16, ''), ('c\x01', 'VARCHAR', 8, ''), ('t1', 'NCHAR', 16, 'TAG'), ('t2', 'NCHAR', 16, 'TAG')]
-
-        # lines = 'escape_test,tag1="tag1_value",tag2="tag2_value" col0="co\\"l\\"0_value",col1="col1_value" 1680918783010000000'
-        # print(lines)
-        # # lines = 'escape_test,t\"1="ta\"g1_value",t\"2="ta\"g2_value" c\"0="co\"l0_value",c\"1="col1_value" 1680918783010000000'
-        # self.tdSql._conn.schemaless_insert([lines], TDSmlProtocolType.LINE.value, None)
-        # self.tdSql.query(f'desc `escape_test`')
-        # print(self.tdSql.query_data)
-        # self.tdSql.query(f'select * from `escape_test`')
-        # print(self.tdSql.query_data)
-        # self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2023, 4, 8, 9, 53, 3, 10000), 'co"l"0_value', 'col1_value', '"tag1_value"', '"tag2_value"')])
 
     def test(self):
         self.escape_test()
