@@ -41,6 +41,7 @@ class ReleaseInfo:
         self.TaosXVersion = ""
         self.ReleasePath = ""
         self.InstallPath = ""
+        self.Target = "taosx"
         self.PackageName = ""
         self.Branch = ""
         self.Commit = ""
@@ -85,6 +86,14 @@ def get_taosx_version():
         version = cargo_toml['package']['version']
     return version
 
+def get_taosx_agent_version():
+    version = ""
+    cargo_toml_path = os.path.join(taosx_dir, "taosx-agent", "Cargo.toml")
+    with open(cargo_toml_path, 'r') as f:
+        cargo_toml = toml.load(f)
+        version = cargo_toml['package']['version']
+    return version
+
 def get_install_path():
     if release_info.OS == 'Windows':  # Windows操作系统
         return f'C:\\Program Files\\taosX'
@@ -92,10 +101,13 @@ def get_install_path():
         return taosx_agent_name
 
 def get_package_name():
+    target = "taosx"
+    if release_info.Target == "agent":
+        target = taosx_agent_name
     if release_info.OS == 'Windows':  # Windows操作系统
-        return  f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
+        return  f'{target}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
     else:
-        return f'{taosx_name}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
+        return f'{target}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
 
 def get_taosx_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统
@@ -144,6 +156,7 @@ def init_build_info():
     parser.add_argument('-s', '--sub_version_mode', nargs='+', metavar=('pi', 'Debug'), \
         help='Set the compilation mode of a submodule separately')
     parser.add_argument('-c', '--cpu_type', help='cpu [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] ')
+    parser.add_argument('-o', '--objective', choices=['taosx', 'agent'], help='target package type(taosx, agent)')
     parser.add_argument('-t', '--test_process', help='test single process(pi,opc,mqtt,taosx, package)')
 
     args, unknown_args = parser.parse_known_args()
@@ -154,17 +167,23 @@ def init_build_info():
 
     release_info.InstallPath = get_install_path()
     release_info.ReleasePath = os.path.abspath(os.path.join(script_dir, "..", "release"))
-    release_info.TaosXVersion = get_taosx_version()
     release_info.CpuType = GetCpuType()
+    if args.objective:
+        release_info.Target = args.objective
     if args.build_mode:
         release_info.DefaultBuildMode = args.build_mode
     if args.cpu_type:
         release_info.CpuType = args.cpu_type
     if args.test_process:
         test_process = args.test_process
-    sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
+    if release_info.Target == "taosx":
+        sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
+        sub_module.append(SubmoduleBuildInfo(taos_explorer_name, release_info.DefaultBuildMode))
+        release_info.TaosXVersion = get_taosx_version()
+    else:
+        release_info.TaosXVersion = get_taosx_agent_version()
+
     sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
-    sub_module.append(SubmoduleBuildInfo(taos_explorer_name, release_info.DefaultBuildMode))
     if args.connector_list:
         for i, arg in enumerate(args.connector_list):
             sub_module.append(SubmoduleBuildInfo(arg, release_info.DefaultBuildMode))
@@ -435,13 +454,21 @@ def build_and_install_taos_explorer(mode):
 
 def package_on_windows():
     os.chdir(script_dir) 
-    result = subprocess.run(f'iscc /F"{release_info.PackageName}" '
-                            f'/DMyAppVersion="{release_info.TaosXVersion}" '
-                            f'/DMyAppSourceDir="{release_info.InstallPath}" '
-                            f'/DCusName="{cus_name}" '
-                            f'/DTaosXAgentName="{taosx_agent_name}" '
-                            f'/DTaosXName="{taosx_name}" '
-                            f'{script_dir}/taosx.iss /O{taosx_dir}/release', shell=True)
+    target = taosx_name
+    sub_directory = "taosX"
+    app_before_install_txt = "info_before_install.txt"
+    if release_info.Target == "agent":
+        target = taosx_agent_name
+    cmd = f'iscc /F"{release_info.PackageName}" '\
+        f'/DMyAppVersion="{release_info.TaosXVersion}" '\
+        f'/DMyAppSourceDir="{release_info.InstallPath}" '\
+        f'/DCusName="{cus_name}" '\
+        f'/DSubDirectory="{sub_directory}" '\
+        f'/DMyAppBeforeInstallTxt="{app_before_install_txt}" '\
+        f'/DAppName="{target}" '\
+        f'{script_dir}/taosx.iss /O{taosx_dir}/release'
+    print(cmd);
+    result = subprocess.run(cmd, shell=True)
     if result.returncode != 0:
         print(f'package {release_info.PackageName} failed')
         sys.exit(1)

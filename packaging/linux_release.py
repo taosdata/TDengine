@@ -12,6 +12,7 @@ mqtt_dir = os.path.abspath(os.path.join(top_dir, "plugins","mqtt"))
 influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","influxdb"))
 explore_dir = os.path.abspath(os.path.join(top_dir, "..","explorer"))
 systemd_path = ""
+target = "taosx"
 
 logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(levelname)s %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -40,8 +41,10 @@ def release(release_info,build_info):
 
 def init_release_dir(release_info):
     logging.info("init_release_dir")
-    global release_dir, systemd_path
-    release_dir = os.path.join(top_dir,"release","taosx-{0}-linux-{1}".format(release_info.TaosXVersion, release_info.CpuType))
+    global release_dir, systemd_path, target
+    if release_info.Target == "agent":
+        target = "taosx-agent"
+    release_dir = os.path.join(top_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TaosXVersion, release_info.CpuType))
     check_directory(release_dir)
     systemd_path = os.path.join(release_dir,"etc", "systemd", "system")
     check_directory(systemd_path)    

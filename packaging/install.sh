@@ -136,14 +136,14 @@ remove_taosx() {
 
 # install new taosx and taosx-agent
 install_taosx() {
-    echo "install start..."
-    echo "install binary fil to ${INSTALL_DIR}..."
+    echo "install starting..."
+    echo "install binary files to ${INSTALL_DIR}..."
     ${csudo}cp -fr bin/* ${INSTALL_DIR}
     check_and_create_directory "${TAOSX_ROOT_DIR}/plugins"
     echo "install plugins to ${TAOSX_ROOT_DIR}/plugins..."
     ${csudo}cp -fr plugins/* ${TAOSX_ROOT_DIR}/plugins
     ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
-    echo "install service to ${SERVICE_CONFIG_DIR}..."
+    echo "install services to ${SERVICE_CONFIG_DIR}..."
     ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
 
     check_and_create_directory "${CONFIG_DIR}"
@@ -151,16 +151,47 @@ install_taosx() {
     if [ -f ${CONFIG_DIR}/agent.toml ]; then
         ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
     else
-       ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/
+        ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/
     fi
     echo "install toml file to ${CONFIG_DIR}..."
-    if [ -f ${CONFIG_DIR}/explorer.toml ]; then
-        ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/explorer.toml.new
-    else
-       ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/
+    if [ -f ./etc/taos/explorer.toml ]; then
+        if [ -f ${CONFIG_DIR}/explorer.toml ]; then
+            ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/explorer.toml.new
+        else
+            ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/
+        fi
     fi
     echo "install success."
 }
+
+check_java_env() {
+    if ! command -v java &> /dev/null
+    then
+        echo -e "\033[31mWarning: Java command not found. Version 1.8+ is requiered.\033[0m"
+        return
+    fi
+
+  java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  java_version_ok=false
+  if [[ $(echo "$java_version" | cut -d"." -f1) -gt 1 ]]; then
+    java_version_ok=true
+  elif [[ $(echo "$java_version" | cut -d"." -f1) -eq 1 && $(echo "$java_version" | cut -d"." -f2) -ge 8 ]]; then
+    java_version_ok=true
+  fi
+
+  if $java_version_ok; then
+    echo -e "\033[32mJava ${java_version} has been found.\033[0m"
+  else
+    echo -e "\033[31mWarning: Java Version 1.8+ is required, but version ${java_version} has been found.\033[0m"
+  fi
+}
+
+check_install_env(){
+    echo "check java env for influxdb"
+    check_java_env
+}
+
+check_install_env
 
 # main entry point
 if [ -x ${INSTALL_DIR}/${xName} ]; then
