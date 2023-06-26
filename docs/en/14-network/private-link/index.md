@@ -44,7 +44,7 @@ To use the AWS Management Console to create a VPC interface endpoint, perform th
 8. Click Create endpoint. Then you have the **VPC endpoint ID**.
 
 ### Step 3: Create endpoint connection using TDengine Cloud
-1. In TDengine Cloud left navigation pane, select **Network**, then choose the **PrivateLink** tab, click **Create Connection** in the upper-right corner. The **Create Connection** page is displayed.
+1. In TDengine Cloud left navigation pane, select **Network**, then choose the **PrivateLink** tab, click **Add New Private Link** in the upper-right corner. The **Add New Private Link** page will be displayed.
 2. Firstly, set your preferred connection name, select the correct endpoint service to use to create the connection, and then enter the **VPC endpoint ID** you created in step 2.
 3. Click the **Validate** button to verify if the request existed and could be accepted. 
 4. Click the **Confirm** button to create the private endpoint connection.
