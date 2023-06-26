@@ -651,7 +651,7 @@ static void asyncCommitOffset(tmq_t* tmq, const TAOS_RES* pRes, int32_t type, tm
   int32_t j = 0;
   int32_t numOfVgroups = taosArrayGetSize(pTopic->vgs);
   for (j = 0; j < numOfVgroups; j++) {
-    SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
+    SMqClientVg* pVg = (SMqClientVg*)taosArrayGet(pTopic->vgs, j);
     if (pVg->vgId == vgId) {
       break;
     }
@@ -665,7 +665,7 @@ static void asyncCommitOffset(tmq_t* tmq, const TAOS_RES* pRes, int32_t type, tm
     return;
   }
 
-  SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
+  SMqClientVg* pVg = (SMqClientVg*)taosArrayGet(pTopic->vgs, j);
   if (pVg->offsetInfo.currentOffset.type > 0 && !tOffsetEqual(&pVg->offsetInfo.currentOffset, &pVg->offsetInfo.committedOffset)) {
     code = doSendCommitMsg(tmq, pVg, pTopic->topicName, pParamSet, j, numOfVgroups, type);
 
@@ -741,13 +741,15 @@ static void asyncCommitAllOffsets(tmq_t* tmq, tmq_commit_cb* pCommitFp, void* us
 
 static void generateTimedTask(int64_t refId, int32_t type) {
   tmq_t* tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
-  if (tmq != NULL) {
-    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0);
-    *pTaskType = type;
-    taosWriteQitem(tmq->delayedTask, pTaskType);
-    tsem_post(&tmq->rspSem);
-    taosReleaseRef(tmqMgmt.rsetId, refId);
-  }
+  if(tmq == NULL) return;
+
+  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0);
+  if(pTaskType == NULL) return;
+
+  *pTaskType = type;
+  taosWriteQitem(tmq->delayedTask, pTaskType);
+  tsem_post(&tmq->rspSem);
+  taosReleaseRef(tmqMgmt.rsetId, refId);
 }
 
 void tmqAssignAskEpTask(void* param, void* tmrId) {
@@ -762,19 +764,19 @@ void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
   taosMemoryFree(param);
 }
 
-void tmqAssignDelayedReportTask(void* param, void* tmrId) {
-  int64_t refId = *(int64_t*)param;
-  tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
-  if (tmq != NULL) {
-    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0);
-    *pTaskType = TMQ_DELAYED_TASK__REPORT;
-    taosWriteQitem(tmq->delayedTask, pTaskType);
-    tsem_post(&tmq->rspSem);
-  }
-
-  taosReleaseRef(tmqMgmt.rsetId, refId);
-  taosMemoryFree(param);
-}
+//void tmqAssignDelayedReportTask(void* param, void* tmrId) {
+//  int64_t refId = *(int64_t*)param;
+//  tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
+//  if (tmq != NULL) {
+//    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0);
+//    *pTaskType = TMQ_DELAYED_TASK__REPORT;
+//    taosWriteQitem(tmq->delayedTask, pTaskType);
+//    tsem_post(&tmq->rspSem);
+//  }
+//
+//  taosReleaseRef(tmqMgmt.rsetId, refId);
+//  taosMemoryFree(param);
+//}
 
 int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
