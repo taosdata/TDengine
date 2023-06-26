@@ -260,7 +260,7 @@ func (r *reader) browse(tree *opc.Tree) (points []common.Point) {
 
 		t := l.Remove(front).(*opc.Tree)
 		for _, leave := range t.Leaves {
-			if r.pointRegex != nil && !r.pointRegex.MatchString(leave.Name) {
+			if r.pointRegex != nil && !(r.pointRegex.MatchString(leave.Name) || r.pointRegex.MatchString(leave.Tag)) {
 				continue
 			}
 

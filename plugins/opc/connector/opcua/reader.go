@@ -570,7 +570,7 @@ BK:
 		for _, n := range leaves {
 			name, _ := r.getNodeName(ctx, n) // node name
 
-			if r.pointRegex != nil && !r.pointRegex.MatchString(name) {
+			if r.pointRegex != nil && !(r.pointRegex.MatchString(name) || r.pointRegex.MatchString(n.String())) {
 				continue
 			}
 
