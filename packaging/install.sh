@@ -120,29 +120,30 @@ stop_explore_service(){
 remove_taosx() {
     if [ -f ./bin/${xName} ]; then
         stop_taosx_service
-        ${csudo}rm -rf ${INSTALL_DIR}/bin/${xName}
+        ${csudo}rm -rf ${INSTALL_DIR}/${xName}
     fi
     if [ -f ./bin/${explorerName} ]; then
         stop_explore_service
-        ${csudo}rm -rf ${INSTALL_DIR}/bin/${explorerName}
+        ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
     fi
     if [ -f ./bin/${agentname} ]; then
         stop_taosx_agent_service
-        ${csudo}rm -rf ${INSTALL_DIR}/bin/${agentname}
+        ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
     fi
-    ${csudo}rm -rf ${INSTALL_DIR}/plugins
-    ${csudo}rm -rf ${INSTALL_DIR}/uninstall.sh
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 }
 
 # install new taosx and taosx-agent
 install_taosx() {
-    echo "install taosx..."
+    echo "install starting..."
+    echo "install binary files to ${INSTALL_DIR}..."
     ${csudo}cp -fr bin/* ${INSTALL_DIR}
     check_and_create_directory "${TAOSX_ROOT_DIR}/plugins"
     echo "install plugins to ${TAOSX_ROOT_DIR}/plugins..."
     ${csudo}cp -fr plugins/* ${TAOSX_ROOT_DIR}/plugins
     ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
-    echo "install service file to ${SERVICE_CONFIG_DIR}..."
+    echo "install services to ${SERVICE_CONFIG_DIR}..."
     ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
 
     check_and_create_directory "${CONFIG_DIR}"
@@ -150,45 +151,60 @@ install_taosx() {
     if [ -f ${CONFIG_DIR}/agent.toml ]; then
         ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
     else
-       ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/
+        ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/
     fi
     echo "install toml file to ${CONFIG_DIR}..."
-    if [ -f ${CONFIG_DIR}/explorer.toml ]; then
-        ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/explorer.toml.new
-    else
-       ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/
+    if [ -f ./etc/taos/explorer.toml ]; then
+        if [ -f ${CONFIG_DIR}/explorer.toml ]; then
+            ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/explorer.toml.new
+        else
+            ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/
+        fi
     fi
+    echo "install success."
 }
 
-# install taosx service
-install_taosx_service(){
-  if ((${service_mod} == 0)); then
-    echo "install service to ${SERVICE_CONFIG_DIR}..."
-    [ -f ./etc/systemd/system/${xName}.service ] &&
-      ${csudo}cp ./etc/systemd/system/${xName}.service  ${SERVICE_CONFIG_DIR}/ || :
-    [ -f ./etc/systemd/system/${agentname}.service ] &&
-      ${csudo}cp ./etc/systemd/system/${agentname}.service ${SERVICE_CONFIG_DIR}/ || :
-    [ -f ./etc/systemd/system/${explorerName}.service ] &&
-      ${csudo}cp ./etc/systemd/system/${explorerName}.service ${SERVICE_CONFIG_DIR}/ || :
-    ${csudo}systemctl daemon-reload
+check_java_env() {
+    if ! command -v java &> /dev/null
+    then
+        echo -e "\033[31mWarning: Java command not found. Version 1.8+ is requiered.\033[0m"
+        return
+    fi
+
+  java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  java_version_ok=false
+  if [[ $(echo "$java_version" | cut -d"." -f1) -gt 1 ]]; then
+    java_version_ok=true
+  elif [[ $(echo "$java_version" | cut -d"." -f1) -eq 1 && $(echo "$java_version" | cut -d"." -f2) -ge 8 ]]; then
+    java_version_ok=true
+  fi
+
+  if $java_version_ok; then
+    echo -e "\033[32mJava ${java_version} has been found.\033[0m"
+  else
+    echo -e "\033[31mWarning: Java Version 1.8+ is required, but version ${java_version} has been found.\033[0m"
   fi
 }
 
+check_install_env(){
+    echo "check java env for influxdb"
+    check_java_env
+}
+
+check_install_env
 
 # main entry point
-if [ -x ${INSTALL_DIR}/bin/${xName} ]; then
+if [ -x ${INSTALL_DIR}/${xName} ]; then
     echo "${xName} is already installed, do you want to reinstall it? [y/n]"
     read answer
     if [ $answer == "y" ]; then
         remove_taosx
         install_taosx
-        install_taosx_service
     else
         echo "${xName} installation is cancelled"
         exit 1
     fi
 else
-    ${csudo}mkdir -p ${INSTALL_DIR}
+    check_and_create_directory "${INSTALL_DIR}"
     install_taosx
-    install_taosx_service
 fi
