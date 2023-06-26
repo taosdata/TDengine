@@ -323,13 +323,19 @@ export default {
         if (columns.includes(oldVal)) {
           columns.splice(columns.indexOf(oldVal), 1);
         }
-        this.$store.commit("app/SET_MQTT_PARSER", oldparser);
-        // this.radio = '1'
-        if (
-          this.colData.name !== this.currentPrimary &&
-          this.colData.name === oldVal
-        ) {
-          this.radio = "";
+        if (val == this.colData.name) {
+          this.columnChecked = true;
+        }
+      },
+    },
+    
+    "$store.state.app.mqttParser": {
+      deep: true,
+      handler(val) {
+        if (val.model.columns.includes(this.colData.name)) {
+          this.columnChecked = true;
+        }else{
+          this.columnChecked = false;
         }
         if (this.colData.name === this.currentPrimary) {
             const timer = setTimeout(() => {

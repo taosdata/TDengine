@@ -1117,6 +1117,7 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
+    influxdbtip:'Choose or create a TDengine database with precision of ns',
     taskid:'Task ID',
     opcconfig:'Table Config',
     tmqprotocol:'Native',
