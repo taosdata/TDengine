@@ -483,7 +483,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   /*topicObj.withTbName = 1;*/
   /*topicObj.withSchema = 1;*/
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-topic");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-topic");
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
     taosMemoryFreeClear(topicObj.ast);
@@ -491,6 +491,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     taosMemoryFreeClear(topicObj.physicalPlan);
     return -1;
   }
+
+  mndTransSetDbName(pTrans, pDb->name, NULL);
 
   mInfo("trans:%d to create topic:%s", pTrans->id, pCreate->name);
 
