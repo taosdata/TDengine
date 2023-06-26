@@ -62,7 +62,7 @@ To use the AWS Management Console to create a VPC interface endpoint, perform th
 Now you can access TDengine Cloud service in your VPC using the private DNS name. You can find the **Private URL** in the [Instances page](https://console.cloud.tdengine.com/instances) in TDengine Cloud.
 
 ## How to remove the endpoint connection
-1. Disconnect the connection in **endpoint connection list** page in TDengine Cloud. Wait the connection status to be DISCONNECTED.
+1. Click the Action button in **endpoint connection list** page in TDengine Cloud. After a while, the connection status will be changed into DISCONNECTED.
 2. Delete the connection in  **endpoint connection list** page in TDengine Cloud. 
 3. Remove the private endpoint in the AWS Console. Otherwise, AWS will continue to charge.
    1. Select the endpoint in **Endpoints** page in AWS.  
