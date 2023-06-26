@@ -77,19 +77,25 @@ if(${BUILD_WITH_LEVELDB})
     cat("${TD_SUPPORT_DIR}/leveldb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_LEVELDB})
 
-# rocksdb
-IF (NOT ${TD_LINUX})
-if(${BUILD_WITH_ROCKSDB})
-    cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    add_definitions(-DUSE_ROCKSDB)
-endif(${BUILD_WITH_ROCKSDB})
-ELSE()
-if(${BUILD_WITH_ROCKSDB})
-    #cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    add_definitions(-DUSE_ROCKSDB)
-endif(${BUILD_WITH_ROCKSDB})
 
-ENDIF(NOT ${TD_LINUX})
+if (${BUILD_CONTRIB})
+    if(${BUILD_WITH_ROCKSDB})
+        cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+        add_definitions(-DUSE_ROCKSDB)
+    endif()
+else() 
+    if (NOT ${TD_LINUX})
+        if(${BUILD_WITH_ROCKSDB})
+            cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+            add_definitions(-DUSE_ROCKSDB)
+        endif(${BUILD_WITH_ROCKSDB})
+    else()
+        if(${BUILD_WITH_ROCKSDB})
+            add_definitions(-DUSE_ROCKSDB)
+        endif(${BUILD_WITH_ROCKSDB})
+    endif()
+endif()
+
 
 # canonical-raft
 if(${BUILD_WITH_CRAFT})
@@ -245,68 +251,103 @@ if (${BUILD_WITH_UV})
     endif(${TD_LINUX})
 endif (${BUILD_WITH_UV})
 
-IF (NOT ${TD_LINUX})
-if(${BUILD_WITH_ROCKSDB})
-    if(${TD_LINUX})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL} -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=unused-function -Wno-errno=unused-private-field -Wno-error=unused-result")
-        IF ("${CMAKE_BUILD_TYPE}" STREQUAL "")
-            SET(CMAKE_BUILD_TYPE Release)
-        endif()
-    endif(${TD_LINUX})
-    MESSAGE(STATUS "CXXXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
+if (${BUILD_WITH_ROCKSDB})
+    if (${BUILD_CONTRIB})
+        if(${TD_LINUX})
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL} -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=unused-function -Wno-errno=unused-private-field -Wno-error=unused-result")
+            if ("${CMAKE_BUILD_TYPE}" STREQUAL "")
+                SET(CMAKE_BUILD_TYPE Release)
+            endif()
+        endif(${TD_LINUX})
+        MESSAGE(STATUS "CXXXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
 
-    if(${TD_DARWIN})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
-    endif(${TD_DARWIN})
+        if(${TD_DARWIN})
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+        endif(${TD_DARWIN})
 
-    if (${TD_DARWIN_ARM64})
-        set(HAS_ARMV8_CRC true)
-    endif(${TD_DARWIN_ARM64})
+        if (${TD_DARWIN_ARM64})
+            set(HAS_ARMV8_CRC true)
+        endif(${TD_DARWIN_ARM64})
 
-    if (${TD_WINDOWS})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819")
-    endif(${TD_WINDOWS})
-
-
-    if(${TD_DARWIN})
-        option(HAVE_THREAD_LOCAL "" OFF)
-        option(WITH_IOSTATS_CONTEXT "" OFF)
-        option(WITH_PERF_CONTEXT "" OFF)
-    endif(${TD_DARWIN})
-
-    if(${TD_WINDOWS})
-        option(WITH_JNI "" OFF)
-    endif(${TD_WINDOWS})
-
-    if(${TD_WINDOWS})
-        option(WITH_MD_LIBRARY "build with MD" OFF)
-        set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
-    endif(${TD_WINDOWS})
+        if (${TD_WINDOWS})
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819")
+            option(WITH_JNI "" OFF)
+            option(WITH_MD_LIBRARY "build with MD" OFF)
+            set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
+        endif(${TD_WINDOWS})
 
 
-    option(WITH_FALLOCATE "" OFF)
-    option(WITH_JEMALLOC "" OFF)
-    option(WITH_GFLAGS "" OFF)
-    option(PORTABLE "" ON)
-    option(WITH_LIBURING "" OFF)
-    option(FAIL_ON_WARNINGS OFF)
+        if(${TD_DARWIN})
+            option(HAVE_THREAD_LOCAL "" OFF)
+            option(WITH_IOSTATS_CONTEXT "" OFF)
+            option(WITH_PERF_CONTEXT "" OFF)
+        endif(${TD_DARWIN})
 
-    option(WITH_TESTS "" OFF)
-    option(WITH_BENCHMARK_TOOLS "" OFF)
-    option(WITH_TOOLS "" OFF)
-    option(WITH_LIBURING "" OFF)
-    IF (TD_LINUX)
-    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
-    ELSE()
-    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
-    ENDIF()
-    add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
-    target_include_directories(
-        rocksdb
-        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
-    )
-endif(${BUILD_WITH_ROCKSDB})
-ENDIF (NOT ${TD_LINUX})
+        option(WITH_FALLOCATE "" OFF)
+        option(WITH_JEMALLOC "" OFF)
+        option(WITH_GFLAGS "" OFF)
+        option(PORTABLE "" ON)
+        option(WITH_LIBURING "" OFF)
+        option(FAIL_ON_WARNINGS OFF)
+
+        option(WITH_TESTS "" OFF)
+        option(WITH_BENCHMARK_TOOLS "" OFF)
+        option(WITH_TOOLS "" OFF)
+        option(WITH_LIBURING "" OFF)
+
+        option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
+        add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
+        target_include_directories(
+            rocksdb
+            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
+        )
+    else() 
+        if (NOT ${TD_LINUX})
+            MESSAGE(STATUS "CXXXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
+            if(${TD_DARWIN})
+                SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+            endif(${TD_DARWIN})
+
+            if (${TD_DARWIN_ARM64})
+                set(HAS_ARMV8_CRC true)
+            endif(${TD_DARWIN_ARM64})
+
+            if (${TD_WINDOWS})
+                SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819")
+                option(WITH_JNI "" OFF)
+                option(WITH_MD_LIBRARY "build with MD" OFF)
+                set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
+            endif(${TD_WINDOWS})
+
+
+            if(${TD_DARWIN})
+                option(HAVE_THREAD_LOCAL "" OFF)
+                option(WITH_IOSTATS_CONTEXT "" OFF)
+                option(WITH_PERF_CONTEXT "" OFF)
+            endif(${TD_DARWIN})
+
+            option(WITH_FALLOCATE "" OFF)
+            option(WITH_JEMALLOC "" OFF)
+            option(WITH_GFLAGS "" OFF)
+            option(PORTABLE "" ON)
+            option(WITH_LIBURING "" OFF)
+            option(FAIL_ON_WARNINGS OFF)
+
+            option(WITH_TESTS "" OFF)
+            option(WITH_BENCHMARK_TOOLS "" OFF)
+            option(WITH_TOOLS "" OFF)
+            option(WITH_LIBURING "" OFF)
+
+            option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
+            add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
+            target_include_directories(
+                rocksdb
+                PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
+            )
+        endif() 
+      
+    endif()
+endif()
 
 # lucene
 # To support build on ubuntu: sudo apt-get install libboost-all-dev
