@@ -4,7 +4,19 @@
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
-
+      <!-- <div class="source-name">
+        <div class="block-title">
+          <span>数据源名称</span>
+        </div>
+        <div class="name">
+          <span class="label">名称</span>
+          <el-input
+            v-model="sourceName"
+            placeholder="请输入数据源名称"
+            style="width: 200px"
+          ></el-input>
+        </div>
+      </div> -->
       <section class="basics">
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
@@ -580,6 +592,10 @@ export default {
     opcConnector,
   },
   props: {
+    sourceName: {
+      type: String,
+      default: "",
+    },
     echoData: {
       type: Array,
       default: () => {
@@ -817,7 +833,6 @@ export default {
                 data.groups[index].params[g]["value"] == "")
             ) {
               if (this.tagName == "mqtt") {
-
                 if (data.groups[index].collapsed) {
                   Message({
                     type: "warning",
@@ -1230,6 +1245,19 @@ export default {
       max-width: 500px;
       overflow: auto;
     }
+    .source-name {
+      border: 1px solid #e3e4e6;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      .name {
+        display: flex;
+        align-items: center;
+        ::v-deep .el-input {
+          flex: 1;
+        }
+      }
+    }
     section:not(:first-child) {
       border: 1px solid #e3e4e6;
       margin-bottom: 20px;
@@ -1255,7 +1283,8 @@ export default {
       align-items: center;
       width: 8px;
     }
-    .label.required, .no-label.required {
+    .label.required,
+    .no-label.required {
       position: relative;
       &::before {
         content: "*";
@@ -1266,7 +1295,7 @@ export default {
         left: -10px;
       }
     }
-  
+
     .header {
       margin-bottom: 20px;
       h1 {
