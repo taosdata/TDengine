@@ -136,14 +136,14 @@ remove_taosx() {
 
 # install new taosx and taosx-agent
 install_taosx() {
-    echo "install start..."
-    echo "install binary fil to ${INSTALL_DIR}..."
+    echo "install starting..."
+    echo "install binary files to ${INSTALL_DIR}..."
     ${csudo}cp -fr bin/* ${INSTALL_DIR}
     check_and_create_directory "${TAOSX_ROOT_DIR}/plugins"
     echo "install plugins to ${TAOSX_ROOT_DIR}/plugins..."
     ${csudo}cp -fr plugins/* ${TAOSX_ROOT_DIR}/plugins
     ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
-    echo "install service to ${SERVICE_CONFIG_DIR}..."
+    echo "install services to ${SERVICE_CONFIG_DIR}..."
     ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
 
     check_and_create_directory "${CONFIG_DIR}"
