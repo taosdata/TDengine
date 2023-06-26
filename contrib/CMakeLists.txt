@@ -347,7 +347,6 @@ if (${BUILD_WITH_ROCKSDB})
     endif()
 endif()
 
-ENDIF(NOT ${TD_LINUX})
 # lucene
 # To support build on ubuntu: sudo apt-get install libboost-all-dev
 if(${BUILD_WITH_LUCENE})
