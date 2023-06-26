@@ -321,15 +321,9 @@ export default {
         if (val == this.colData.name) {
           this.columnChecked = true;
         }
-        console.log(val, oldVal, "主键---00");
       },
     },
-    colData: {
-      deep: true,
-      handler(val, oldVal) {
-        console.log(val, oldVal, "coldata");
-      },
-    },
+    
     "$store.state.app.mqttParser": {
       deep: true,
       handler(val) {

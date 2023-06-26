@@ -250,6 +250,8 @@ export default {
       });
     },
     edit(data) {
+      this.$parent.sourceName=data.name
+      console.log(data,'要编辑的数据');
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
         if (data.from_expand && data.from_expand.id == "mqtt") {

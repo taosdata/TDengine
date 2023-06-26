@@ -14,6 +14,7 @@
       :opcConfig="opcConfig"
       :isEditable="isEditable"
       :echoData="echoData"
+      :sourceName='sourceName'
       ref="table"
     ></component>
   </div>
@@ -42,6 +43,7 @@ export default {
   },
   data() {
     return {
+      sourceName:'',
       opcConfig: constOpc,
       parserobj: constparser,
       protocol: "ua", //只针对opc的ua/da
