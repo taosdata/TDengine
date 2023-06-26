@@ -20,7 +20,7 @@ For more details of the PrivateLink concept, please see the following AWS docume
 
 ## How to use PrivateLink
 ### Step 1: choose a endpoint service name in TDengine Cloud
-1. Open [Network](https://console.cloud.tdengine.com/instances) page in TDengine Cloud, Click **Service List** button.
+1. Open [Network](https://console.cloud.tdengine.com/network) page in TDengine Cloud, Click **Service List** button.
 2. Record the **Service Name** from the list of services in the correct cloud and region for later use.
 
 ### Step 2: Set up a private endpoint with AWS
