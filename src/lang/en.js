@@ -57,6 +57,7 @@ export default {
   error: "Error",
   copy: "Copy",
   copyagent: "Copy the token to Agent's configuration file",
+  copyagentWaring:"Make sure to copy your agent token now.  you won't be able see it again",
   share: "Share",
   shareSucc: "Share success",
   shareFail: "Failed to share",
@@ -154,6 +155,7 @@ export default {
   revoke: "revoke",
   read: "read",
   write: "write",
+  subscribe: 'Subscribe',
   plan: {
     pricePlan: "Price Plan",
     planTitle: "TDengine  Price Plan",
@@ -318,7 +320,8 @@ export default {
     rememberMe: "Remember me",
     usernameTips: 'Please enter the Username',
     passwordTips: 'Please enter the Password',
-    errorTip: 'The user name or password is incorrect'
+    errorTip: 'The user name or password is incorrect',
+    servExceptionTip: 'Your taosd or taosadapter service is abnormal. Restart the taosd or taosadapter service and ensure that the service is available.'
   },
   dashboard: {
     warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
@@ -1187,8 +1190,9 @@ export default {
       <br /> 
       2. In other cases, such as when the data source is isolated from the TDengine cluster network, proxies are used to provide cross-network access to the data source.
     `,
-
-
+    select: 'Select',
+    add: 'Add',
+    regexPlaceholder: 'Regex Pattern Input'
   },
   explorer: {
     databases: 'Databases',

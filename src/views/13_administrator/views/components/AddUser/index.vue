@@ -41,8 +41,8 @@
               class="db-pri"
               @change="changePri($event)"
             >
-              <el-checkbox label="Read"></el-checkbox>
-              <el-checkbox label="Write"></el-checkbox>
+              <el-checkbox label="Read">{{ $t('read') }}</el-checkbox>
+              <el-checkbox label="Write">{{ $t('write') }}</el-checkbox>
               <!-- <el-checkbox label="All"></el-checkbox> -->
             </el-checkbox-group>
           </li>
@@ -60,7 +60,7 @@
               v-model="selectedTopicPrivileges[item]"
               class="topic-pri"
             >
-              <el-checkbox label="Subscribe"></el-checkbox>
+              <el-checkbox label="Subscribe">{{ $t('subscribe') }}</el-checkbox>
             </el-checkbox-group>
           </li>
         </ul>

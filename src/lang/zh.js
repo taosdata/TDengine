@@ -29,6 +29,7 @@ export default {
   copySucc: "复制成功",
   nickname: "昵称",
   copyagent:'拷贝token到Agent配置文件',
+  copyagentWaring:'确保现在复制您的代理 token。不能进行再次查看',
   back: "返回",
   date: "日期",
   time: "时间",
@@ -140,6 +141,7 @@ export default {
   revoke: "收回",
   read: "读",
   write: "写",
+  subscribe: "订阅",
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",
@@ -257,7 +259,8 @@ export default {
     rememberMe: "记住我",
     usernameTips: '请输入用户名',
     passwordTips: '请输入密码',
-    errorTip: '用户名或者密码错误'
+    errorTip: '用户名或者密码错误',
+    servExceptionTip: '您的 taosd 或 taosadapter 服务处于异常，请尝试重启 taosd 或 taosadapter 服务并保证服务可用',
   },
   dashboard: {
     warnigtip:`请点击左侧<a href="/dashboard">仪表盘</a>查看TDinsight的设置`,
@@ -979,6 +982,9 @@ export default {
     password: '密码',
     anonymous: '匿名',
     plain: '普通用户',
+    select: '选择',
+    add: '添加',
+    regexPlaceholder: '输入正则表达式'
   },
   explorer: {
     databases: '数据库',

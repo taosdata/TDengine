@@ -375,12 +375,12 @@
                     size="medium"
                     @click="handleSelBtn"
                     style="height: 42px"
-                    >Select</el-button
+                    >{{ $t('datasource.select') }}</el-button
                   >
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
-                    placeholder="Regex Pattern Input"
+                    :placeholder="$t('datasource.regexPlaceholder')"
                     v-model="p.value"
                     @keydown.enter.native="searchDatas"
                   ></el-input>
@@ -425,7 +425,7 @@
                             type="primary"
                             plain
                             @click="addOption"
-                            >Add</el-button
+                            >{{ $t('datasource.add') }}</el-button
                           >
                         </div>
                       </div>
@@ -566,7 +566,7 @@
       </section>
       <section class="bottom">
         <el-button type="primary" @click="submit" :disabled="disable"
-          >Submit</el-button
+          >{{ $t('submit') }}</el-button
         >
       </section>
     </div>

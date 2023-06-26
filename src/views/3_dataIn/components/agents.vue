@@ -173,6 +173,12 @@
       :destroy-on-close="true"
       :close-on-click-modal="false"
     >
+      <el-alert
+        :title="$t('copyagentWaring')"
+        type="warning"
+        :closable="false"
+        show-icon>
+      </el-alert>
       <div style="display: flex" class="agentcopy">
         <span class="agent-token">{{ agenttoken }}</span>
         <span class="copy-icon" @click="copyToken(agenttoken)">
@@ -437,6 +443,7 @@ export default {
   text-overflow: ellipsis;
   overflow: hidden;
   display: inline-block;
+  padding-left: 16px;
 }
 .copy-icon {
   visibility: hidden;
@@ -447,6 +454,7 @@ export default {
   color: #4259ce;
 }
 .agentcopy {
+  margin: 16px 0;
   display: flex;
   &:hover {
     .copy-icon {
