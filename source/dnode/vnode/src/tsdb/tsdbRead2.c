@@ -3283,10 +3283,14 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
 
   taosArrayDestroy(pIndexList);
 
-  STFileObj* pTombFileObj = pReader->status.pCurrentFileset->farr[3];
-  if (pTombFileObj!= NULL) {
+  if (pReader->status.pCurrentFileset != NULL) {
+    STFileObj* pTombFileObj = pReader->status.pCurrentFileset->farr[3];
+    if (pTombFileObj != NULL) {
       const TTombBlkArray* pBlkArray = NULL;
-      int32_t code = tsdbDataFileReadTombBlk(pReader->pFileReader, &pBlkArray);
+      int32_t              code = tsdbDataFileReadTombBlk(pReader->pFileReader, &pBlkArray);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
 
       int32_t i = 0, j = 0;
 
@@ -3299,15 +3303,15 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
           return code;
         }
 
-        uint64_t uid = pReader->status.uidList.tableUidList[j];
+        uint64_t             uid = pReader->status.uidList.tableUidList[j];
         STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
 
         STombRecord record = {0};
-        for(int32_t k = 0; k < block.suid->size; ++k) {
+        for (int32_t k = 0; k < block.suid->size; ++k) {
           code = tTombBlockGet(&block, k, &record);
 
           {
-            while(record.uid > uid) {
+            while (record.uid > uid) {
               j += 1;
               uid = pReader->status.uidList.tableUidList[j];
               pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
@@ -3327,7 +3331,7 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum, SAr
         }
 
         i += 1;
-
+      }
     }
   }
 
@@ -5547,6 +5551,7 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
   pTableBlockInfo->numOfVgroups = 1;
 
   const int32_t numOfBuckets = 20.0;
+  const int32_t defaultRows = 4096;
 
   // find the start data block in file
   tsdbAcquireReader(pReader);
@@ -5568,7 +5573,6 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
   pTableBlockInfo->numOfFiles += 1;
 
   int32_t numOfTables = (int32_t)tSimpleHashGetSize(pStatus->pTableMap);
-  int     defaultRows = 4096;
 
   SDataBlockIter* pBlockIter = &pStatus->blockIter;
   pTableBlockInfo->numOfFiles += pStatus->fileIter.numOfFiles;
@@ -5580,13 +5584,11 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
   pTableBlockInfo->numOfTables = numOfTables;
   bool hasNext = (pBlockIter->numOfBlocks > 0);
 
-  ASSERT(0);
-
   while (true) {
     if (hasNext) {
-//      SDataBlk* pBlock = getCurrentBlock(pBlockIter);
+      SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(pBlockIter);
+      int32_t numOfRows = pBlockInfo->record.numRow;
 
-      int32_t numOfRows = 0;//pFB->nRow;
       pTableBlockInfo->totalRows += numOfRows;
 
       if (numOfRows > pTableBlockInfo->maxRows) {
@@ -5601,7 +5603,7 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
         pTableBlockInfo->numOfSmallBlocks += 1;
       }
 
-      pTableBlockInfo->totalSize += 0;//pBlock->aSubBlock[0].szBlock;
+      pTableBlockInfo->totalSize += pBlockInfo->record.blockSize;
 
       int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
@@ -5706,7 +5708,7 @@ int32_t tsdbGetTableSchema2(void* pVnode, int64_t uid, STSchema** pSchema, int64
 }
 
 int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STsdbReadSnap** ppSnap) {
-  int32_t code = 0;
+  int32_t        code = 0;
   STsdb*         pTsdb = pReader->pTsdb;
   SVersionRange* pRange = &pReader->verRange;
 
@@ -5714,7 +5716,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   taosThreadRwlockRdlock(&pTsdb->rwLock);
 
   // alloc
-  STsdbReadSnap* pSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(*pSnap));
+  STsdbReadSnap* pSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(STsdbReadSnap));
   if (pSnap == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
