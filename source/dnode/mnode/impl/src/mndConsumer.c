@@ -63,7 +63,7 @@ int32_t mndInitConsumer(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_HB, mndProcessMqHbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_ASK_EP, mndProcessAskEpReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_TIMER, mndProcessMqTimerMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CONSUMER_LOST, mndProcessConsumerLostMsg);
+//  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CONSUMER_LOST, mndProcessConsumerLostMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CONSUMER_RECOVER, mndProcessConsumerRecoverMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, mndProcessConsumerClearMsg);
 
@@ -74,6 +74,22 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 }
 
 void mndCleanupConsumer(SMnode *pMnode) {}
+
+void mndDropConsumerFromSdb(SMnode *pMnode, int64_t consumerId){
+  SMqConsumerClearMsg *pClearMsg = rpcMallocCont(sizeof(SMqConsumerClearMsg));
+  if (pClearMsg == NULL) {
+    mError("consumer:0x%"PRIx64" failed to clear consumer due to out of memory. alloc size:%d", consumerId, (int32_t)sizeof(SMqConsumerClearMsg));
+    return;
+  }
+
+  pClearMsg->consumerId = consumerId;
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, .pCont = pClearMsg, .contLen = sizeof(SMqConsumerClearMsg)};
+
+  mInfo("consumer:0x%" PRIx64 " drop from sdb", consumerId);
+  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  return;
+}
 
 bool mndRebTryStart() {
   int32_t old = atomic_val_compare_exchange_32(&mqRebInExecCnt, 0, 1);
@@ -105,50 +121,48 @@ void mndRebCntDec() {
   }
 }
 
-static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
-  SMnode             *pMnode = pMsg->info.node;
-  SMqConsumerLostMsg *pLostMsg = pMsg->pCont;
-  SMqConsumerObj     *pConsumer = mndAcquireConsumer(pMnode, pLostMsg->consumerId);
-  if (pConsumer == NULL) {
-    return 0;
-  }
-
-  mInfo("process consumer lost msg, consumer:0x%" PRIx64 " status:%d(%s)", pLostMsg->consumerId, pConsumer->status,
-        mndConsumerStatusName(pConsumer->status));
-
-  if (pConsumer->status != MQ_CONSUMER_STATUS__READY) {
-    mndReleaseConsumer(pMnode, pConsumer);
-    return -1;
-  }
-
-  SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
-  pConsumerNew->updateType = CONSUMER_UPDATE__LOST;
-
-  mndReleaseConsumer(pMnode, pConsumer);
-
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "lost-csm");
-  if (pTrans == NULL) {
-    goto FAIL;
-  }
-
-  if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
-    goto FAIL;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    goto FAIL;
-  }
-
-  tDeleteSMqConsumerObj(pConsumerNew);
-  taosMemoryFree(pConsumerNew);
-  mndTransDrop(pTrans);
-  return 0;
-FAIL:
-  tDeleteSMqConsumerObj(pConsumerNew);
-  taosMemoryFree(pConsumerNew);
-  mndTransDrop(pTrans);
-  return -1;
-}
+//static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
+//  SMnode             *pMnode = pMsg->info.node;
+//  SMqConsumerLostMsg *pLostMsg = pMsg->pCont;
+//  SMqConsumerObj     *pConsumer = mndAcquireConsumer(pMnode, pLostMsg->consumerId);
+//  if (pConsumer == NULL) {
+//    return 0;
+//  }
+//
+//  mInfo("process consumer lost msg, consumer:0x%" PRIx64 " status:%d(%s)", pLostMsg->consumerId, pConsumer->status,
+//        mndConsumerStatusName(pConsumer->status));
+//
+//  if (pConsumer->status != MQ_CONSUMER_STATUS_READY) {
+//    mndReleaseConsumer(pMnode, pConsumer);
+//    return -1;
+//  }
+//
+//  SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
+//  pConsumerNew->updateType = CONSUMER_UPDATE_TIMER_LOST;
+//
+//  mndReleaseConsumer(pMnode, pConsumer);
+//
+//  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "lost-csm");
+//  if (pTrans == NULL) {
+//    goto FAIL;
+//  }
+//
+//  if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
+//    goto FAIL;
+//  }
+//
+//  if (mndTransPrepare(pMnode, pTrans) != 0) {
+//    goto FAIL;
+//  }
+//
+//  tDeleteSMqConsumerObj(pConsumerNew, true);
+//  mndTransDrop(pTrans);
+//  return 0;
+//FAIL:
+//  tDeleteSMqConsumerObj(pConsumerNew, true);
+//  mndTransDrop(pTrans);
+//  return -1;
+//}
 
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   SMnode                *pMnode = pMsg->info.node;
@@ -162,14 +176,14 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   mInfo("receive consumer recover msg, consumer:0x%" PRIx64 " status:%d(%s)", pRecoverMsg->consumerId,
         pConsumer->status, mndConsumerStatusName(pConsumer->status));
 
-  if (pConsumer->status != MQ_CONSUMER_STATUS__LOST_REBD) {
+  if (pConsumer->status != MQ_CONSUMER_STATUS_LOST) {
     mndReleaseConsumer(pMnode, pConsumer);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
     return -1;
   }
 
   SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
-  pConsumerNew->updateType = CONSUMER_UPDATE__RECOVER;
+  pConsumerNew->updateType = CONSUMER_UPDATE_RECOVER;
 
   mndReleaseConsumer(pMnode, pConsumer);
 
@@ -181,13 +195,13 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
 
-  tDeleteSMqConsumerObj(pConsumerNew);
-  taosMemoryFree(pConsumerNew);
+  tDeleteSMqConsumerObj(pConsumerNew, true);
+
   mndTransDrop(pTrans);
   return 0;
 FAIL:
-  tDeleteSMqConsumerObj(pConsumerNew);
-  taosMemoryFree(pConsumerNew);
+  tDeleteSMqConsumerObj(pConsumerNew, true);
+
   mndTransDrop(pTrans);
   return -1;
 }
@@ -206,13 +220,13 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   mInfo("consumer:0x%" PRIx64 " needs to be cleared, status %s", pClearMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
 
-  if (pConsumer->status != MQ_CONSUMER_STATUS__LOST_REBD) {
+  if (pConsumer->status != MQ_CONSUMER_STATUS_LOST) {
     mndReleaseConsumer(pMnode, pConsumer);
     return -1;
   }
 
   SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
-  pConsumerNew->updateType = CONSUMER_UPDATE__LOST;
+//  pConsumerNew->updateType = CONSUMER_UPDATE_TIMER_LOST;
 
   mndReleaseConsumer(pMnode, pConsumer);
 
@@ -223,14 +237,14 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   if (mndSetConsumerDropLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
 
-  tDeleteSMqConsumerObj(pConsumerNew);
-  taosMemoryFree(pConsumerNew);
+  tDeleteSMqConsumerObj(pConsumerNew, true);
+
   mndTransDrop(pTrans);
   return 0;
 
 FAIL:
-  tDeleteSMqConsumerObj(pConsumerNew);
-  taosMemoryFree(pConsumerNew);
+  tDeleteSMqConsumerObj(pConsumerNew, true);
+
   mndTransDrop(pTrans);
   return -1;
 }
@@ -297,56 +311,43 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
     int32_t hbStatus = atomic_add_fetch_32(&pConsumer->hbStatus, 1);
     int32_t status = atomic_load_32(&pConsumer->status);
 
-    mDebug("check for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", uptime:%" PRId64 ", hbstatus:%d",
-           pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime, pConsumer->upTime,
+    mDebug("check for consumer:0x%" PRIx64 " status:%d(%s), sub-time:%" PRId64 ", createTime:%" PRId64 ", hbstatus:%d",
+           pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime, pConsumer->createTime,
            hbStatus);
 
-    if (status == MQ_CONSUMER_STATUS__READY) {
+    if (status == MQ_CONSUMER_STATUS_READY) {
       if (hbStatus > MND_CONSUMER_LOST_HB_CNT) {
-        SMqConsumerLostMsg *pLostMsg = rpcMallocCont(sizeof(SMqConsumerLostMsg));
-        if (pLostMsg == NULL) {
-          mError("consumer:0x%"PRIx64" failed to transfer consumer status to lost due to out of memory. alloc size:%d",
-              pConsumer->consumerId, (int32_t)sizeof(SMqConsumerLostMsg));
-          continue;
+//        SMqConsumerLostMsg *pLostMsg = rpcMallocCont(sizeof(SMqConsumerLostMsg));
+//        if (pLostMsg == NULL) {
+//          mError("consumer:0x%"PRIx64" failed to transfer consumer status to lost due to out of memory. alloc size:%d",
+//              pConsumer->consumerId, (int32_t)sizeof(SMqConsumerLostMsg));
+//          continue;
+//        }
+//
+//        pLostMsg->consumerId = pConsumer->consumerId;
+//        SRpcMsg rpcMsg = {
+//            .msgType = TDMT_MND_TMQ_CONSUMER_LOST, .pCont = pLostMsg, .contLen = sizeof(SMqConsumerLostMsg)};
+//
+//        mDebug("consumer:0x%"PRIx64" hb not received beyond threshold %d, set to lost", pConsumer->consumerId,
+//            MND_CONSUMER_LOST_HB_CNT);
+//        tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+
+        taosRLockLatch(&pConsumer->lock);
+        int32_t topicNum = taosArrayGetSize(pConsumer->currentTopics);
+        for (int32_t i = 0; i < topicNum; i++) {
+          char  key[TSDB_SUBSCRIBE_KEY_LEN];
+          char *removedTopic = taosArrayGetP(pConsumer->currentTopics, i);
+          mndMakeSubscribeKey(key, pConsumer->cgroup, removedTopic);
+          SMqRebInfo *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
+          taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
         }
-
-        pLostMsg->consumerId = pConsumer->consumerId;
-        SRpcMsg rpcMsg = {
-            .msgType = TDMT_MND_TMQ_CONSUMER_LOST, .pCont = pLostMsg, .contLen = sizeof(SMqConsumerLostMsg)};
-
-        mDebug("consumer:0x%"PRIx64" hb not received beyond threshold %d, set to lost", pConsumer->consumerId,
-            MND_CONSUMER_LOST_HB_CNT);
-        tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+        taosRUnLockLatch(&pConsumer->lock);
       }
-    } else if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
+    } else if (status == MQ_CONSUMER_STATUS_LOST) {
       // if the client is lost longer than one day, clear it. Otherwise, do nothing about the lost consumers.
-      if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD) {
-        SMqConsumerClearMsg *pClearMsg = rpcMallocCont(sizeof(SMqConsumerClearMsg));
-        if (pClearMsg == NULL) {
-          mError("consumer:0x%"PRIx64" failed to clear consumer due to out of memory. alloc size:%d",
-                 pConsumer->consumerId, (int32_t)sizeof(SMqConsumerClearMsg));
-          continue;
-        }
-
-        pClearMsg->consumerId = pConsumer->consumerId;
-        SRpcMsg rpcMsg = {
-            .msgType = TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, .pCont = pClearMsg, .contLen = sizeof(SMqConsumerClearMsg)};
-
-        mDebug("consumer:0x%" PRIx64 " lost beyond threshold %d, clear it", pConsumer->consumerId,
-               MND_CONSUMER_LOST_CLEAR_THRESHOLD);
-        tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+      if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD || taosArrayGetSize(pConsumer->assignedTopics) == 0) {   // clear consumer if lost a day or unsubscribe/close
+        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
       }
-    } else if (status == MQ_CONSUMER_STATUS__LOST) {
-      taosRLockLatch(&pConsumer->lock);
-      int32_t topicNum = taosArrayGetSize(pConsumer->currentTopics);
-      for (int32_t i = 0; i < topicNum; i++) {
-        char  key[TSDB_SUBSCRIBE_KEY_LEN];
-        char *removedTopic = taosArrayGetP(pConsumer->currentTopics, i);
-        mndMakeSubscribeKey(key, pConsumer->cgroup, removedTopic);
-        SMqRebInfo *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
-        taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
-      }
-      taosRUnLockLatch(&pConsumer->lock);
     } else {  // MQ_CONSUMER_STATUS_REBALANCE
       taosRLockLatch(&pConsumer->lock);
 
@@ -411,7 +412,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
   int32_t status = atomic_load_32(&pConsumer->status);
 
-  if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
+  if (status == MQ_CONSUMER_STATUS_LOST) {
     mInfo("try to recover consumer:0x%" PRIx64 "", consumerId);
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
@@ -462,7 +463,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   // 1. check consumer status
   int32_t status = atomic_load_32(&pConsumer->status);
 
-  if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
+  if (status == MQ_CONSUMER_STATUS_LOST) {
     mInfo("try to recover consumer:0x%" PRIx64, consumerId);
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
@@ -476,7 +477,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &pRpcMsg);
   }
 
-  if (status != MQ_CONSUMER_STATUS__READY) {
+  if (status != MQ_CONSUMER_STATUS_READY) {
     mInfo("consumer:0x%" PRIx64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));
     terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
     return -1;
@@ -675,8 +676,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
     tstrncpy(pConsumerNew->clientId, subscribe.clientId, tListLen(pConsumerNew->clientId));
 
-    // set the update type
-    pConsumerNew->updateType = CONSUMER_UPDATE__REBALANCE;
+//  pConsumerNew->updateType = CONSUMER_UPDATE_SUB_MODIFY;   // use insert logic
     taosArrayDestroy(pConsumerNew->assignedTopics);
     pConsumerNew->assignedTopics = taosArrayDup(pTopicList, topicNameDup);
 
@@ -695,7 +695,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
           " cgroup:%s, current status:%d(%s), subscribe topic num: %d",
           consumerId, subscribe.cgroup, status, mndConsumerStatusName(status), newTopicNum);
 
-    if (status != MQ_CONSUMER_STATUS__READY) {
+    if (status != MQ_CONSUMER_STATUS_READY) {
       terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
       goto _over;
     }
@@ -706,11 +706,11 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     }
 
     // set the update type
-    pConsumerNew->updateType = CONSUMER_UPDATE__REBALANCE;
+    pConsumerNew->updateType = CONSUMER_UPDATE_SUB_MODIFY;
     taosArrayDestroy(pConsumerNew->assignedTopics);
     pConsumerNew->assignedTopics = taosArrayDup(pTopicList, topicNameDup);
 
-    int32_t oldTopicNum = (pExistedConsumer->currentTopics) ? taosArrayGetSize(pExistedConsumer->currentTopics) : 0;
+    int32_t oldTopicNum = taosArrayGetSize(pExistedConsumer->currentTopics);
 
     int32_t i = 0, j = 0;
     while (i < oldTopicNum || j < newTopicNum) {
@@ -765,10 +765,7 @@ _over:
     mndReleaseConsumer(pMnode, pExistedConsumer);
   }
 
-  if (pConsumerNew) {
-    tDeleteSMqConsumerObj(pConsumerNew);
-    taosMemoryFree(pConsumerNew);
-  }
+  tDeleteSMqConsumerObj(pConsumerNew, true);
 
   // TODO: replace with destroy subscribe msg
   taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
@@ -868,17 +865,17 @@ CM_DECODE_OVER:
 }
 
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer) {
-  mDebug("consumer:0x%" PRIx64 " cgroup:%s status:%d(%s) epoch:%d load from sdb, perform insert action",
+  mInfo("consumer:0x%" PRIx64 " sub insert, cgroup:%s status:%d(%s) epoch:%d",
          pConsumer->consumerId, pConsumer->cgroup, pConsumer->status, mndConsumerStatusName(pConsumer->status),
          pConsumer->epoch);
-  pConsumer->subscribeTime = pConsumer->upTime;
+  pConsumer->subscribeTime = taosGetTimestampMs();
   return 0;
 }
 
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer) {
-  mDebug("consumer:0x%" PRIx64 " perform delete action, status:(%d)%s", pConsumer->consumerId, pConsumer->status,
+  mInfo("consumer:0x%" PRIx64 " perform delete action, status:(%d)%s", pConsumer->consumerId, pConsumer->status,
          mndConsumerStatusName(pConsumer->status));
-  tDeleteSMqConsumerObj(pConsumer);
+  tDeleteSMqConsumerObj(pConsumer, false);
   return 0;
 }
 
@@ -887,10 +884,9 @@ static void updateConsumerStatus(SMqConsumerObj *pConsumer) {
 
   if (taosArrayGetSize(pConsumer->rebNewTopics) == 0 && taosArrayGetSize(pConsumer->rebRemovedTopics) == 0) {
     if (status == MQ_CONSUMER_STATUS_REBALANCE) {
-      pConsumer->status = MQ_CONSUMER_STATUS__READY;
-    } else if (status == MQ_CONSUMER_STATUS__LOST) {
-      ASSERT(taosArrayGetSize(pConsumer->currentTopics) == 0);
-      pConsumer->status = MQ_CONSUMER_STATUS__LOST_REBD;
+      pConsumer->status = MQ_CONSUMER_STATUS_READY;
+    } else if (status == MQ_CONSUMER_STATUS_READY) {
+      pConsumer->status = MQ_CONSUMER_STATUS_LOST;
     }
   }
 }
@@ -904,7 +900,7 @@ static void removeFromNewTopicList(SMqConsumerObj *pConsumer, const char *pTopic
       taosArrayRemove(pConsumer->rebNewTopics, i);
       taosMemoryFree(p);
 
-      mDebug("consumer:0x%" PRIx64 " remove new topic:%s in the topic list, remain newTopics:%d", pConsumer->consumerId,
+      mInfo("consumer:0x%" PRIx64 " remove new topic:%s in the topic list, remain newTopics:%d", pConsumer->consumerId,
              pTopic, (int)taosArrayGetSize(pConsumer->rebNewTopics));
       break;
     }
@@ -920,7 +916,7 @@ static void removeFromRemoveTopicList(SMqConsumerObj *pConsumer, const char *pTo
       taosArrayRemove(pConsumer->rebRemovedTopics, i);
       taosMemoryFree(p);
 
-      mDebug("consumer:0x%" PRIx64 " remove topic:%s in the removed topic list, remain removedTopics:%d",
+      mInfo("consumer:0x%" PRIx64 " remove topic:%s in the removed topic list, remain removedTopics:%d",
              pConsumer->consumerId, pTopic, (int)taosArrayGetSize(pConsumer->rebRemovedTopics));
       break;
     }
@@ -935,7 +931,7 @@ static void removeFromCurrentTopicList(SMqConsumerObj *pConsumer, const char *pT
       taosArrayRemove(pConsumer->currentTopics, i);
       taosMemoryFree(topic);
 
-      mDebug("consumer:0x%" PRIx64 " remove topic:%s in the current topic list, remain currentTopics:%d",
+      mInfo("consumer:0x%" PRIx64 " remove topic:%s in the current topic list, remain currentTopics:%d",
              pConsumer->consumerId, pTopic, (int)taosArrayGetSize(pConsumer->currentTopics));
       break;
     }
@@ -958,47 +954,46 @@ static bool existInCurrentTopicList(const SMqConsumerObj* pConsumer, const char*
 }
 
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer, SMqConsumerObj *pNewConsumer) {
-  mDebug("consumer:0x%" PRIx64 " perform update action, update type:%d, subscribe-time:%" PRId64 ", uptime:%" PRId64,
-         pOldConsumer->consumerId, pNewConsumer->updateType, pOldConsumer->subscribeTime, pOldConsumer->upTime);
+  mInfo("consumer:0x%" PRIx64 " perform update action, update type:%d, subscribe-time:%" PRId64 ", createTime:%" PRId64,
+         pOldConsumer->consumerId, pNewConsumer->updateType, pOldConsumer->subscribeTime, pOldConsumer->createTime);
 
   taosWLockLatch(&pOldConsumer->lock);
 
-  if (pNewConsumer->updateType == CONSUMER_UPDATE__REBALANCE) {
+  if (pNewConsumer->updateType == CONSUMER_UPDATE_SUB_MODIFY) {
     TSWAP(pOldConsumer->rebNewTopics, pNewConsumer->rebNewTopics);
     TSWAP(pOldConsumer->rebRemovedTopics, pNewConsumer->rebRemovedTopics);
     TSWAP(pOldConsumer->assignedTopics, pNewConsumer->assignedTopics);
 
-    pOldConsumer->subscribeTime = pNewConsumer->upTime;
+    pOldConsumer->subscribeTime = taosGetTimestampMs();
     pOldConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
-  } else if (pNewConsumer->updateType == CONSUMER_UPDATE__LOST) {
-    int32_t sz = taosArrayGetSize(pOldConsumer->currentTopics);
-    for (int32_t i = 0; i < sz; i++) {
-      char *topic = taosStrdup(taosArrayGetP(pOldConsumer->currentTopics, i));
-      taosArrayPush(pOldConsumer->rebRemovedTopics, &topic);
-    }
-
-    pOldConsumer->rebalanceTime = pNewConsumer->upTime;
-
-    int32_t prevStatus = pOldConsumer->status;
-    pOldConsumer->status = MQ_CONSUMER_STATUS__LOST;
-    mDebug("consumer:0x%" PRIx64 " state %s -> %s, reb-time:%" PRId64 ", reb-removed-topics:%d",
-           pOldConsumer->consumerId, mndConsumerStatusName(prevStatus), mndConsumerStatusName(pOldConsumer->status),
-           pOldConsumer->rebalanceTime, (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
-  } else if (pNewConsumer->updateType == CONSUMER_UPDATE__RECOVER) {
+    mInfo("consumer:0x%" PRIx64 " sub update, modify existed consumer",pOldConsumer->consumerId);
+//  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_TIMER_LOST) {
+//    int32_t sz = taosArrayGetSize(pOldConsumer->currentTopics);
+//    for (int32_t i = 0; i < sz; i++) {
+//      char *topic = taosStrdup(taosArrayGetP(pOldConsumer->currentTopics, i));
+//      taosArrayPush(pOldConsumer->rebRemovedTopics, &topic);
+//    }
+//
+//    int32_t prevStatus = pOldConsumer->status;
+//    pOldConsumer->status = MQ_CONSUMER_STATUS_LOST;
+//    mInfo("consumer:0x%" PRIx64 " timer update, timer lost. state %s -> %s, reb-time:%" PRId64 ", reb-removed-topics:%d",
+//           pOldConsumer->consumerId, mndConsumerStatusName(prevStatus), mndConsumerStatusName(pOldConsumer->status),
+//           pOldConsumer->rebalanceTime, (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
+  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_RECOVER) {
     int32_t sz = taosArrayGetSize(pOldConsumer->assignedTopics);
     for (int32_t i = 0; i < sz; i++) {
       char *topic = taosStrdup(taosArrayGetP(pOldConsumer->assignedTopics, i));
       taosArrayPush(pOldConsumer->rebNewTopics, &topic);
     }
 
-    pOldConsumer->rebalanceTime = pNewConsumer->upTime;
     pOldConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
-  } else if (pNewConsumer->updateType == CONSUMER_UPDATE__TOUCH) {
+    mInfo("consumer:0x%" PRIx64 " timer update, timer recover",pOldConsumer->consumerId);
+  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB_MODIFY_NOTOPIC) {
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
 
-    pOldConsumer->rebalanceTime = pNewConsumer->upTime;
-
-  } else if (pNewConsumer->updateType == CONSUMER_UPDATE__ADD) {
+    pOldConsumer->rebalanceTime = taosGetTimestampMs();
+    mInfo("consumer:0x%" PRIx64 " reb update, only rebalance time", pOldConsumer->consumerId);
+  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB_MODIFY_TOPIC) {
     char *pNewTopic = taosStrdup(taosArrayGetP(pNewConsumer->rebNewTopics, 0));
 
     // check if exist in current topic
@@ -1007,6 +1002,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     // add to current topic
     bool existing = existInCurrentTopicList(pOldConsumer, pNewTopic);
     if (existing) {
+      mError("consumer:0x%" PRIx64 "new topic:%s should not in currentTopics", pOldConsumer->consumerId, pNewTopic);
       taosMemoryFree(pNewTopic);
     } else {  // added into current topic list
       taosArrayPush(pOldConsumer->currentTopics, &pNewTopic);
@@ -1018,17 +1014,17 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     updateConsumerStatus(pOldConsumer);
 
     // the re-balance is triggered when the new consumer is launched.
-    pOldConsumer->rebalanceTime = pNewConsumer->upTime;
+    pOldConsumer->rebalanceTime = taosGetTimestampMs();
 
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
-    mDebug("consumer:0x%" PRIx64 " state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
+    mInfo("consumer:0x%" PRIx64 " reb update add, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
            ", current topics:%d, newTopics:%d, removeTopics:%d",
            pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
            mndConsumerStatusName(pOldConsumer->status), pOldConsumer->epoch, pOldConsumer->rebalanceTime,
            (int)taosArrayGetSize(pOldConsumer->currentTopics), (int)taosArrayGetSize(pOldConsumer->rebNewTopics),
            (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
 
-  } else if (pNewConsumer->updateType == CONSUMER_UPDATE__REMOVE) {
+  } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB_MODIFY_REMOVE) {
     char *removedTopic = taosArrayGetP(pNewConsumer->rebRemovedTopics, 0);
 
     // remove from removed topic
@@ -1041,10 +1037,10 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     int32_t status = pOldConsumer->status;
     updateConsumerStatus(pOldConsumer);
 
-    pOldConsumer->rebalanceTime = pNewConsumer->upTime;
+    pOldConsumer->rebalanceTime = taosGetTimestampMs();
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
 
-    mDebug("consumer:0x%" PRIx64 " state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
+    mInfo("consumer:0x%" PRIx64 " reb update remove, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
            ", current topics:%d, newTopics:%d, removeTopics:%d",
            pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
            mndConsumerStatusName(pOldConsumer->status), pOldConsumer->epoch, pOldConsumer->rebalanceTime,
@@ -1107,8 +1103,12 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       int32_t          cols = 0;
 
       // consumer id
+      char        consumerIdHex[32] = {0};
+      sprintf(varDataVal(consumerIdHex), "0x%"PRIx64, pConsumer->consumerId);
+      varDataSetLen(consumerIdHex, strlen(varDataVal(consumerIdHex)));
+
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->consumerId, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)consumerIdHex, false);
 
       // consumer group
       char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1149,7 +1149,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
       // up time
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->upTime, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->createTime, false);
 
       // subscribe time
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1179,10 +1179,9 @@ static void mndCancelGetNextConsumer(SMnode *pMnode, void *pIter) {
 
 static const char *mndConsumerStatusName(int status) {
   switch (status) {
-    case MQ_CONSUMER_STATUS__READY:
+    case MQ_CONSUMER_STATUS_READY:
       return "ready";
-    case MQ_CONSUMER_STATUS__LOST:
-    case MQ_CONSUMER_STATUS__LOST_REBD:
+    case MQ_CONSUMER_STATUS_LOST:
       return "lost";
     case MQ_CONSUMER_STATUS_REBALANCE:
       return "rebalancing";
