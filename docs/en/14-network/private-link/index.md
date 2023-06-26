@@ -53,7 +53,7 @@ To use the AWS Management Console to create a VPC interface endpoint, perform th
 7. The connection have three status: CONNECTED, DISCONNECTED and PENDING. When the operation is in progress, the connection status is PENDING. You need to wait a few minutes for the operation to complete.
 
 ### Step 4: Enable private DNS names in AWS
-1. Click the endpoint id link in **Endpoints** page you created in AWS the Step 2.
+1. Click the endpoint id link in **Endpoints** page you created Step 2 on AWS.
 2. Click **Actions**  in the upper-right corner and then select **Modify private DNS name**.
 3. Check the box **Enable for this endpoint** and then click **Save changes**.
 4. Then you can find the **Private DNS names** shown in **Endpoint Details** page.
