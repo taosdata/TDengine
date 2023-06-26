@@ -629,6 +629,12 @@ static int32_t tsdbIterSkipTableData(STsdbIter *iter, const TABLEID *tbid) {
       return tsdbDataIterNext(iter, tbid);
     case TSDB_ITER_TYPE_MEMT:
       return tsdbMemTableIterNext(iter, tbid);
+    case TSDB_ITER_TYPE_STT_TOMB:
+      return tsdbSttTombIterNext(iter, tbid);
+    case TSDB_ITER_TYPE_DATA_TOMB:
+      return tsdbDataTombIterNext(iter, tbid);
+    case TSDB_ITER_TYPE_MEMT_TOMB:
+      return tsdbMemTombIterNext(iter, tbid);
     default:
       ASSERT(false);
   }
