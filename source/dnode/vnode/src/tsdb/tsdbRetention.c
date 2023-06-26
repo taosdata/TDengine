@@ -171,7 +171,6 @@ static int32_t tsdbDoRetentionEnd(SRTNer *rtner) {
   taosThreadRwlockUnlock(&rtner->tsdb->rwLock);
 
   TARRAY2_DESTROY(rtner->fopArr, NULL);
-  tsdbFSDestroyCopySnapshot(&rtner->fsetArr);
 
 _exit:
   if (code) {
@@ -179,6 +178,7 @@ _exit:
   } else {
     tsdbInfo("vid:%d, cid:%" PRId64 ", %s done", TD_VID(rtner->tsdb->pVnode), rtner->cid, __func__);
   }
+  tsdbFSDestroyCopySnapshot(&rtner->fsetArr);
   return code;
 }
 
