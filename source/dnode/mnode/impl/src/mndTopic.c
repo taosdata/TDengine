@@ -699,6 +699,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
     if (pConsumer->status == MQ_CONSUMER_STATUS_LOST){
       mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
+      mndReleaseConsumer(pMnode, pConsumer);
       continue;
     }
 

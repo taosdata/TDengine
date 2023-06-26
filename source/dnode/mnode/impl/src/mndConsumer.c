@@ -455,7 +455,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     mError("consumer:0x%" PRIx64 " group:%s not consistent with data in sdb, saved cgroup:%s", consumerId, req.cgroup,
            pConsumer->cgroup);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
-    return -1;
+    goto FAIL;
   }
 
   atomic_store_32(&pConsumer->hbStatus, 0);
@@ -480,7 +480,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   if (status != MQ_CONSUMER_STATUS_READY) {
     mInfo("consumer:0x%" PRIx64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));
     terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
-    return -1;
+    goto FAIL;
   }
 
   int32_t serverEpoch = atomic_load_32(&pConsumer->epoch);
@@ -562,7 +562,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    goto FAIL;
   }
 
   SMqRspHead* pHead = buf;
