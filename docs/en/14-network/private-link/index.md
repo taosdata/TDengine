@@ -14,7 +14,7 @@ The architecture of the PrivateLink is as follows:
 ![TDengine Cloud Architecture of PrivateLink](./privatelink-arch.webp)
 <center><figcaption>Figure 1. Architecture of PrivateLink</figcaption></center>
 
-For more detailed of the PrivateLink concept, please see the following AWS documents:  
+For more details of the PrivateLink concept, please see the following AWS documents:  
 [What is AWS PrivateLink?](https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html)  
 [AWS PrivateLink concepts](https://docs.aws.amazon.com/vpc/latest/privatelink/concepts.html)  
 
