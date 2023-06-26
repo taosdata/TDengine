@@ -23,7 +23,7 @@ typedef struct {
   int64_t cid;
 
   TFileSetArray *fsetArr;
-  TFileOpArray  *fopArr;
+  TFileOpArray   fopArr[1];
 
   struct {
     int32_t    fsetArrIdx;
