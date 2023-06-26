@@ -467,8 +467,8 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   // set on conditions
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pOnCond) {
-    pJoin->pOnConditions = nodesCloneNode(pJoinTable->pOnCond);
-    if (NULL == pJoin->pOnConditions) {
+    pJoin->pOtherOnCond = nodesCloneNode(pJoinTable->pOnCond);
+    if (NULL == pJoin->pOtherOnCond) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }

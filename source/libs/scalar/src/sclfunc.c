@@ -1706,6 +1706,31 @@ int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qTbUidFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  char* p = colDataGetNumData(pInput->columnData, 0);
+
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
+  if (code) {
+    return code;
+  }
+  
+  pOutput->numOfRows += pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qVgIdFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  char* p = colDataGetNumData(pInput->columnData, 0);
+
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
+  if (code) {
+    return code;
+  }
+  
+  pOutput->numOfRows += pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+
 /** Aggregation functions **/
 int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;

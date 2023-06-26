@@ -2503,9 +2503,13 @@ static void doTagScanOneTable(SOperatorInfo* pOperator, const SSDataBlock* pRes,
     SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
 
     // refactor later
-    if (fmIsScanPseudoColumnFunc(pExprInfo[j].pExpr->_function.functionId)) {
+    if (FUNCTION_TYPE_TBNAME == pExprInfo[j].pExpr->_function.functionType) {
       STR_TO_VARSTR(str, (*mr).me.name);
       colDataSetVal(pDst, (count), str, false);
+    } else if (FUNCTION_TYPE_TBUID == pExprInfo[j].pExpr->_function.functionType) {
+      colDataSetVal(pDst, (count), (char*)&(*mr).me.uid, false);    
+    } else if (FUNCTION_TYPE_VGID == pExprInfo[j].pExpr->_function.functionType) {
+      colDataSetVal(pDst, (count), (char*)&pTaskInfo->id.vgId, false);    
     } else {  // it is a tag value
       STagVal val = {0};
       val.cid = pExprInfo[j].base.pParam[0].pCol->colId;

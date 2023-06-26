@@ -679,7 +679,7 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
 
   pJoin->joinType = pJoinLogicNode->joinType;
   pJoin->node.inputTsOrder = pJoinLogicNode->node.inputTsOrder;
-  setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pMergeCondition,
+  setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pPrimKeyEqCond,
                 &pJoin->pMergeCondition);
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->node.pTargets,
@@ -689,12 +689,12 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     code = addDataBlockSlots(pCxt, pJoin->pTargets, pJoin->node.pOutputDataBlockDesc);
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pOnConditions) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pOtherOnCond) {
     SNodeList* pCondCols = nodesMakeList();
     if (NULL == pCondCols) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
-      code = nodesCollectColumnsFromNode(pJoinLogicNode->pOnConditions, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+      code = nodesCollectColumnsFromNode(pJoinLogicNode->pOtherOnCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = addDataBlockSlots(pCxt, pCondCols, pJoin->node.pOutputDataBlockDesc);
@@ -702,13 +702,13 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     nodesDestroyList(pCondCols);
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pOnConditions) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pOtherOnCond) {
     code = setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1,
-                         pJoinLogicNode->pOnConditions, &pJoin->pOnConditions);
+                         pJoinLogicNode->pOtherOnCond, &pJoin->pOnConditions);
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColEqualOnConditions) {
-    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pColEqualOnConditions, &pJoin->pColEqualOnConditions);
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColEqCond) {
+    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pColEqCond, &pJoin->pColEqualOnConditions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pJoinLogicNode, (SPhysiNode*)pJoin);

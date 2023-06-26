@@ -95,6 +95,8 @@ int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t qTbUidFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t qVgIdFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 /* Aggregation functions */
 int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

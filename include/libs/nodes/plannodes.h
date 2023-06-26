@@ -110,10 +110,11 @@ typedef struct SScanLogicNode {
 typedef struct SJoinLogicNode {
   SLogicNode node;
   EJoinType  joinType;
-  SNode*     pMergeCondition;
-  SNode*     pOnConditions;
+  SNode*     pPrimKeyEqCond;
+  SNode*     pColEqCond;
+  SNode*     pTagEqCond;
+  SNode*     pOtherOnCond;
   bool       isSingleTableJoin;
-  SNode*     pColEqualOnConditions;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {

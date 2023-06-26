@@ -1090,9 +1090,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
       SJoinLogicNode* pLogicNode = (SJoinLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
-      nodesDestroyNode(pLogicNode->pMergeCondition);
-      nodesDestroyNode(pLogicNode->pOnConditions);
-      nodesDestroyNode(pLogicNode->pColEqualOnConditions);
+      nodesDestroyNode(pLogicNode->pPrimKeyEqCond);
+      nodesDestroyNode(pLogicNode->pOtherOnCond);
+      nodesDestroyNode(pLogicNode->pColEqCond);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
