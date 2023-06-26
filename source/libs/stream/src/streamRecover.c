@@ -479,22 +479,28 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 
     // abort the timer if intend to stop task
     SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.taskId);
-    if (pHTask == NULL && pTask->status.taskStatus == TASK_STATUS__NORMAL) {
-      qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it may not be built or have been destroyed",
-            pTask->id.idStr, pMeta->vgId, pTask->historyTaskId.taskId);
+    if (pHTask == NULL && (!streamTaskShouldStop(&pTask->status))) {
+      const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
+      qWarn(
+          "s-task:%s vgId:%d status:%s failed to launch history task:0x%x, since it may not be built, or have been "
+          "destroyed, or should stop exec",
+          pTask->id.idStr, pMeta->vgId, pStatus, pTask->historyTaskId.taskId);
 
       taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->timer);
+      streamMetaReleaseTask(pMeta, pTask);
       return;
     }
 
-    doCheckDownstreamStatus(pTask, pHTask);
+    if (pHTask != NULL) {
+      doCheckDownstreamStatus(pTask, pHTask);
+      streamMetaReleaseTask(pMeta, pHTask);
+    }
 
     // not in timer anymore
     pTask->status.timerActive = 0;
-    streamMetaReleaseTask(pMeta, pHTask);
     streamMetaReleaseTask(pMeta, pTask);
   } else {
-    qError("s-task:0x%x failed to load task", pInfo->taskId);
+    qError("s-task:0x%x failed to load task, it may have been destoryed", pInfo->taskId);
   }
 
   taosMemoryFree(pInfo);
@@ -664,7 +670,7 @@ void streamPrepareNdoCheckDownstream(SStreamTask* pTask) {
 
       // launch current task
       SHistDataRange* pRange = &pTask->dataRange;
-      int64_t ekey = pRange->window.ekey;
+      int64_t ekey = pRange->window.ekey + 1;
       int64_t ver = pRange->range.minVer;
 
       pRange->window.skey = ekey;

@@ -343,7 +343,7 @@ static void waitForTaskTobeIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   if (el > 0) {
-    qDebug("s-task:%s wait for stream task:%s for %.2fs to execute all data in inputQ", pTask->id.idStr,
+    qDebug("s-task:%s wait for stream task:%s for %.2fs to handle all data in inputQ", pTask->id.idStr,
            pStreamTask->id.idStr, el);
   }
 }

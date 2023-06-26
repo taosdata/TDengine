@@ -554,11 +554,13 @@ static int32_t addSourceTasksForMultiLevelStream(SMnode* pMnode, SQueryPlan* pPl
         sdbRelease(pSdb, pVgroup);
         return code;
       }
-
-      setHTasksId(pSourceTaskList, pHSourceTaskList);
     }
 
     sdbRelease(pSdb, pVgroup);
+  }
+
+  if (pStream->conf.fillHistory) {
+    setHTasksId(pSourceTaskList, pHSourceTaskList);
   }
 
   return TSDB_CODE_SUCCESS;
