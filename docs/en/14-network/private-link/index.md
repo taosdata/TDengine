@@ -7,7 +7,7 @@ description: This document describes how to connect your VPC to TDengine service
 ## Introduction
 PrivateLink is a highly available, scalable technology that you can use to privately connect your VPC to TDengine service as if they were in one VPC. PrivateLink allows the resources in your VPC to connect to TDengine service using your private IP addresses, and does not expose your data to the public internet.
 
-Currently, TDengine Cloud only supports private endpoint connections in AWS. Other clouds similar to GCP or Azure will soon be supported.
+Currently, TDengine Cloud only supports private endpoint connections in AWS. Other clouds such as GCP or Azure will soon be supported.
 
 The architecture of the PrivateLink is as follows:
 
