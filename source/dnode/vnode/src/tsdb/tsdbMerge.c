@@ -52,7 +52,7 @@ typedef struct {
 } SMerger;
 
 static int32_t tsdbMergerOpen(SMerger *merger) {
-  merger->ctx->now = taosGetTimestampMs();
+  merger->ctx->now = taosGetTimestampSec();
   merger->maxRow = merger->tsdb->pVnode->config.tsdbCfg.maxRows;
   merger->minRow = merger->tsdb->pVnode->config.tsdbCfg.minRows;
   merger->szPage = merger->tsdb->pVnode->config.tsdbPageSize;

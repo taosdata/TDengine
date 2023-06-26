@@ -29,6 +29,16 @@ typedef TARRAY2(SBlockIdx) TBlockIdxArray;
 typedef TARRAY2(SDataBlk) TDataBlkArray;
 typedef TARRAY2(SColumnDataAgg) TColumnDataAggArray;
 
+typedef struct {
+  SFDataPtr brinBlkPtr[1];
+  SFDataPtr rsrvd[2];
+} SHeadFooter;
+
+typedef struct {
+  SFDataPtr tombBlkPtr[1];
+  SFDataPtr rsrvd[2];
+} STombFooter;
+
 // SDataFileReader =============================================
 typedef struct SDataFileReader SDataFileReader;
 typedef struct SDataFileReaderConfig {

@@ -766,7 +766,7 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
   writer->ctx->fid = fid;
   writer->ctx->fset = TARRAY2_SEARCH_EX(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
 
-  int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, writer->now);
+  int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
   if (tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did)) {
     code = TSDB_CODE_NO_AVAIL_DISK;
     TSDB_CHECK_CODE(code, lino, _exit);

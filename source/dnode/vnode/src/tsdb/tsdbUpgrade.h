@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "tsdbDataFileRW.h"
 #include "tsdbDef.h"
 #include "tsdbFS2.h"
 #include "tsdbUtil2.h"

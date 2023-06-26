@@ -15,7 +15,7 @@
 
 #include "tsdbFSet2.h"
 
-static int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
+int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl) {
   if (!(lvl[0] = taosMemoryMalloc(sizeof(SSttLvl)))) return TSDB_CODE_OUT_OF_MEMORY;
   lvl[0]->level = level;
   TARRAY2_INIT(lvl[0]->fobjArr);

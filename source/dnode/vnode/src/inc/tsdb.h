@@ -202,7 +202,7 @@ int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItem
 // other
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
-int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now);
+int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
 int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
@@ -707,7 +707,7 @@ typedef struct SSttBlockLoadInfo {
 
   SArray   *aSttBlk;
   SArray   *pTombBlockArray;  // tomb block array list
-  int32_t   blockIndex[2];  // to denote the loaded block in the corresponding position.
+  int32_t   blockIndex[2];    // to denote the loaded block in the corresponding position.
   int32_t   currentLoadBlockIndex;
   int32_t   loadBlocks;
   double    elapsedTime;
