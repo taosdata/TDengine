@@ -46,7 +46,7 @@
       </li>
       <li>
         <el-input
-          v-model="item.column_alias"
+          v-model.trim="item.column_alias"
           size="mini"
           :disabled="isEditable"
         ></el-input>
