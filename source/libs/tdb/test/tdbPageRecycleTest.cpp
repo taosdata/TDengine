@@ -464,31 +464,25 @@ TEST(TdbPageRecycleTest, DISABLED_simple_insert1) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
-static const int nDataConst = 256 * 19;
+static void clearDb(char const *db) { taosRemoveDir(db); }
 
-// TEST(TdbPageRecycleTest, DISABLED_seq_insert) {
-TEST(TdbPageRecycleTest, seq_insert) {
+static void insertDb(int nData) {
   int           ret = 0;
   TDB          *pEnv = NULL;
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc;
-  int           nData = nDataConst;
   TXN          *txn = NULL;
   int const     pageSize = 4 * 1024;
-
-  taosRemoveDir("tdb");
 
   // Open Env
   ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
-  printf("tdb opened\n");
   // Create a database
   compFunc = tKeyCmpr;
   ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
-  printf("tb opened\n");
   // 1, insert nData kv
   {
     char      key[64];
@@ -540,13 +534,11 @@ TEST(TdbPageRecycleTest, seq_insert) {
   system("ls -l ./tdb");
 }
 
-// TEST(TdbPageRecycleTest, DISABLED_seq_delete) {
-TEST(TdbPageRecycleTest, seq_delete) {
+static void deleteDb(int nData) {
   int           ret = 0;
   TDB          *pEnv = NULL;
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc;
-  int           nData = nDataConst;
   TXN          *txn = NULL;
   int const     pageSize = 4 * 1024;
 
@@ -612,68 +604,16 @@ TEST(TdbPageRecycleTest, seq_delete) {
   system("ls -l ./tdb");
 }
 
-// TEST(TdbPageRecycleTest, DISABLED_recycly_insert) {
-TEST(TdbPageRecycleTest, recycly_insert) {
-  int           ret = 0;
-  TDB          *pEnv = NULL;
-  TTB          *pDb = NULL;
-  tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  int           nData = nDataConst;
-  TXN          *txn = NULL;
-  int const     pageSize = 4 * 1024;
+static const int nDataConst = 256 * 19;
 
-  // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0);
-  GTEST_ASSERT_EQ(ret, 0);
-
-  // Create a database
-  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
-  GTEST_ASSERT_EQ(ret, 0);
-
-  // 3, insert 32k records
-  {
-    char      key[64];
-    char      val[(4083 - 4 - 3 - 2) + 1];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
-    int64_t   poolLimit = 4096;
-    SPoolMem *pPool;
-
-    // open the pool
-    pPool = openPool();
-
-    // start a transaction
-    tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-
-    // for (int iData = nData; iData < nData + nData; iData++) {
-    for (int iData = 0; iData < nData; iData++) {
-      sprintf(key, "key%03d", iData);
-      sprintf(val, "value%03d", iData);
-
-      ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), txn);
-      GTEST_ASSERT_EQ(ret, 0);
-
-      if (pPool->size >= poolLimit) {
-        tdbCommit(pEnv, txn);
-        tdbPostCommit(pEnv, txn);
-
-        // start a new transaction
-        clearPool(pPool);
-
-        tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-      }
-    }
-
-    tdbCommit(pEnv, txn);
-    tdbPostCommit(pEnv, txn);
-
-    closePool(pPool);
-  }
-
-  // Close a database
-  tdbTbClose(pDb);
-
-  // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
-
-  system("ls -l ./tdb");
+// TEST(TdbPageRecycleTest, DISABLED_seq_insert) {
+TEST(TdbPageRecycleTest, seq_insert) {
+  clearDb("tdb");
+  insertDb(nDataConst);
 }
+
+// TEST(TdbPageRecycleTest, DISABLED_seq_delete) {
+TEST(TdbPageRecycleTest, seq_delete) { deleteDb(nDataConst); }
+
+// TEST(TdbPageRecycleTest, DISABLED_recycly_insert) {
+TEST(TdbPageRecycleTest, recycly_insert) { insertDb(nDataConst); }
