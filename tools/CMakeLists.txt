@@ -136,7 +136,33 @@ ELSE ()
             COMMAND cmake -E echo "Copy taosadapter-debug.exe"
             COMMAND cmake -E copy taosadapter-debug.exe ${CMAKE_BINARY_DIR}/build/bin
             )
-    ELSE (TD_WINDOWS)
+    ELSEIF (TD_DARWIN)
+        MESSAGE("Building taosAdapter on MACOS")
+        INCLUDE(ExternalProject)
+        ExternalProject_Add(taosadapter
+                PREFIX        "taosadapter"
+                SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
+                BUILD_ALWAYS         off
+                DEPENDS             taos
+                BUILD_IN_SOURCE     1
+                CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
+                PATCH_COMMAND
+                COMMAND     git clean -f -d
+                BUILD_COMMAND
+                # COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
+                COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-s -w -X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
+                COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
+                INSTALL_COMMAND
+                COMMAND cmake -E echo "Copy taosadapter"
+                COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
+                COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
+                COMMAND cmake -E echo "Copy taosadapter.toml"
+                COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
+                COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
+                COMMAND cmake -E echo "Copy taosadapter-debug"
+                COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
+                )
+    ELSE ()
         MESSAGE("Building taosAdapter on non-Windows")
         INCLUDE(ExternalProject)
         ExternalProject_Add(taosadapter
@@ -164,5 +190,5 @@ ELSE ()
             COMMAND cmake -E echo "Copy taosadapter-debug"
             COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
             )
-    ENDIF (TD_WINDOWS)
+    ENDIF ()
 ENDIF ()

@@ -405,7 +405,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
     STqHandle handle = {0};
     code = restoreHandle(pTq, pVal, vLen, &handle);
-    if (code < 0){
+    if (code < 0) {
       tqDestroyTqHandle(&handle);
       break;
     }

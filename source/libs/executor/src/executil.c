@@ -26,8 +26,8 @@
 #include "executil.h"
 #include "executorInt.h"
 #include "querytask.h"
-#include "tcompression.h"
 #include "storageapi.h"
+#include "tcompression.h"
 
 typedef struct tagFilterAssist {
   SHashObj* colHash;
@@ -42,13 +42,13 @@ typedef enum {
 } FilterCondType;
 
 static FilterCondType checkTagCond(SNode* cond);
-static int32_t        optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond, SStorageAPI* pAPI);
-static int32_t        optimizeTbnameInCondImpl(void* metaHandle, SArray* list, SNode* pTagCond, SStorageAPI* pStoreAPI);
+static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond, SStorageAPI* pAPI);
+static int32_t optimizeTbnameInCondImpl(void* metaHandle, SArray* list, SNode* pTagCond, SStorageAPI* pStoreAPI);
 
-static int32_t      getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond,
-                                 SNode* pTagIndexCond, STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI);
-static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList,
-                                               void* pVnode, SStorageAPI* pStorageAPI);
+static int32_t      getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
+                                 STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI);
+static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
+                                               SStorageAPI* pStorageAPI);
 
 static int64_t getLimit(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
 static int64_t getOffset(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
@@ -302,7 +302,7 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI *pAPI) {
+int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI* pAPI) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SMetaReader mr = {0};
 
@@ -495,7 +495,8 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     genTbGroupDigest((SNode*)listNode, digest, &context);
     nodesFree(listNode);
 
-    pAPI->metaFn.metaGetCachedTbGroup(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), &tableList);
+    pAPI->metaFn.metaGetCachedTbGroup(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest),
+                                      &tableList);
     if (tableList) {
       taosArrayDestroy(pTableListInfo->pTableList);
       pTableListInfo->pTableList = tableList;
@@ -632,7 +633,8 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
 
   if (tsTagFilterCache) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
-    pAPI->metaFn.metaPutTbGroupToCache(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest), tableList, taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
+    pAPI->metaFn.metaPutTbGroupToCache(pVnode, pTableListInfo->idInfo.suid, context.digest, tListLen(context.digest),
+                                       tableList, taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
   }
 
   //  int64_t st2 = taosGetTimestampUs();
@@ -776,7 +778,8 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
 }
 
 // only return uid that does not contained in pExistedUidList
-static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, SNode* pTagCond, SStorageAPI* pStoreAPI) {
+static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, SNode* pTagCond,
+                                        SStorageAPI* pStoreAPI) {
   if (nodeType(pTagCond) != QUERY_NODE_OPERATOR) {
     return -1;
   }
@@ -839,8 +842,8 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
   return -1;
 }
 
-static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList,
-                                               void* pVnode, SStorageAPI* pStorageAPI) {
+static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
+                                               SStorageAPI* pStorageAPI) {
   SSDataBlock* pResBlock = createDataBlock();
   if (pResBlock == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1080,8 +1083,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       genTagFilterDigest(pTagCond, &context);
 
       bool acquired = false;
-      pStorageAPI->metaFn.getCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest), pUidList,
-                                &acquired);
+      pStorageAPI->metaFn.getCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest),
+                                             pUidList, &acquired);
       if (acquired) {
         digest[0] = 1;
         memcpy(digest + 1, context.digest, tListLen(context.digest));
@@ -1097,13 +1100,15 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       if (pTagIndexCond) {
         void* pIndex = pStorageAPI->metaFn.getInvertIndex(pVnode);
 
-        SIndexMetaArg metaArg = {
-            .metaEx = pVnode, .idx = pStorageAPI->metaFn.storeGetIndexInfo(pVnode), .ivtIdx = pIndex, .suid = pScanNode->uid};
+        SIndexMetaArg metaArg = {.metaEx = pVnode,
+                                 .idx = pStorageAPI->metaFn.storeGetIndexInfo(pVnode),
+                                 .ivtIdx = pIndex,
+                                 .suid = pScanNode->uid};
 
         status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status, &pStorageAPI->metaFilter);
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
-          qWarn("failed to get tableIds from index, suid:%" PRIu64, pScanNode->uid);
+          qDebug("failed to get tableIds from index, suid:%" PRIu64, pScanNode->uid);
           code = TSDB_CODE_SUCCESS;
         } else {
           qInfo("succ to get filter result, table num: %d", (int)taosArrayGetSize(pUidList));
@@ -1128,7 +1133,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         memcpy(pPayload + sizeof(int32_t), taosArrayGet(pUidList, 0), numOfTables * sizeof(uint64_t));
       }
 
-//      metaUidFilterCachePut(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), pPayload, size, 1);
+      pStorageAPI->metaFn.putCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest), pPayload, size, 1);
       digest[0] = 1;
       memcpy(digest + 1, context.digest, tListLen(context.digest));
     }
@@ -1152,15 +1157,17 @@ _end:
   return code;
 }
 
-int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList, void* pTaskInfo){
-  SSubplan *pSubplan = (SSubplan *)node;
+int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList, void* pTaskInfo) {
+  SSubplan*      pSubplan = (SSubplan*)node;
   SScanPhysiNode pNode = {0};
   pNode.suid = suid;
   pNode.uid = suid;
   pNode.tableType = TSDB_SUPER_TABLE;
   STableListInfo* pTableListInfo = tableListCreate();
-  uint8_t digest[17] = {0};
-  int code = getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL, pTableListInfo, digest, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI);
+  uint8_t         digest[17] = {0};
+  int             code =
+      getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL,
+                   pTableListInfo, digest, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI);
   *tableList = pTableListInfo->pTableList;
   pTableListInfo->pTableList = NULL;
   tableListDestroy(pTableListInfo);
@@ -1181,7 +1188,7 @@ size_t getTableTagsBufLen(const SNodeList* pGroups) {
 }
 
 int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId,
-    SStorageAPI* pAPI) {
+                              SStorageAPI* pAPI) {
   SMetaReader mr = {0};
 
   pAPI->metaReaderFn.initReader(&mr, pVnode, 0, &pAPI->metaFn);
@@ -1560,7 +1567,8 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   return TSDB_CODE_SUCCESS;
 }
 
-SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset, SFunctionStateStore* pStore) {
+SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset,
+                                     SFunctionStateStore* pStore) {
   SqlFunctionCtx* pFuncCtx = (SqlFunctionCtx*)taosMemoryCalloc(numOfOutput, sizeof(SqlFunctionCtx));
   if (pFuncCtx == NULL) {
     return NULL;
@@ -1849,7 +1857,7 @@ void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t orde
   }
 
   struct tm tm;
-  time_t    t = (time_t) key;
+  time_t    t = (time_t)key;
   taosLocalTime(&t, &tm, NULL);
 
   int mon = (int)(tm.tm_year * 12 + tm.tm_mon + duration * factor);
@@ -2079,8 +2087,8 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode, SNodeList* group,
-                                    bool groupSort, uint8_t *digest, SStorageAPI* pAPI) {
+int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
+                                    SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   bool   groupByTbname = groupbyTbname(group);
@@ -2132,7 +2140,8 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   }
 
   uint8_t digest[17] = {0};
-  int32_t code = getTableList(pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo, digest, idStr, &pTaskInfo->storageAPI);
+  int32_t code = getTableList(pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo, digest, idStr,
+                              &pTaskInfo->storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to getTableList, code: %s", tstrerror(code));
     return code;
@@ -2150,7 +2159,8 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return TSDB_CODE_SUCCESS;
   }
 
-  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest, &pTaskInfo->storageAPI);
+  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest,
+                                     &pTaskInfo->storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

@@ -189,3 +189,9 @@ option(
    "If build release version"
    OFF
 )
+
+option(
+   BUILD_CONTRIB
+   "If build thirdpart from source"
+   OFF
+)
