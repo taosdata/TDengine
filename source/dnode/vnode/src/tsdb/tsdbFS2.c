@@ -536,10 +536,39 @@ _exit:
   return 0;
 }
 
-int32_t tsdbCloseFS(STFileSystem **ppFS) {
-  if (ppFS[0] == NULL) return 0;
-  close_file_system(ppFS[0]);
-  destroy_fs(ppFS);
+static void tsdbDoWaitBgTask(STFileSystem *fs, STFSBgTask *task) {
+  task->numWait++;
+  taosThreadCondWait(task->done, fs->mutex);
+  task->numWait--;
+
+  if (task->numWait == 0) {
+    taosThreadCondDestroy(task->done);
+    taosMemoryFree(task);
+  }
+}
+
+static void tsdbDoDoneBgTask(STFileSystem *fs, STFSBgTask *task) {
+  if (task->numWait > 0) {
+    taosThreadCondBroadcast(task->done);
+  } else {
+    taosThreadCondDestroy(task->done);
+    taosMemoryFree(task);
+  }
+}
+
+int32_t tsdbCloseFS(STFileSystem **fs) {
+  if (fs[0] == NULL) return 0;
+
+  taosThreadMutexLock(fs[0]->mutex);
+  fs[0]->stop = true;
+
+  if (fs[0]->bgTaskRunning) {
+    tsdbDoWaitBgTask(fs[0], fs[0]->bgTaskRunning);
+  }
+  taosThreadMutexUnlock(fs[0]->mutex);
+
+  close_file_system(fs[0]);
+  destroy_fs(fs);
   return 0;
 }
 
@@ -723,23 +752,27 @@ static int32_t tsdbFSRunBgTask(void *arg) {
   taosThreadMutexLock(fs->mutex);
 
   // free last
-  if (fs->bgTaskRunning->numWait > 0) {
-    taosThreadCondBroadcast(fs->bgTaskRunning->done);
-  } else {
-    taosThreadCondDestroy(fs->bgTaskRunning->done);
-    taosMemoryFree(fs->bgTaskRunning);
-  }
+  tsdbDoDoneBgTask(fs, fs->bgTaskRunning);
   fs->bgTaskRunning = NULL;
 
   // schedule next
   if (fs->bgTaskNum > 0) {
-    // pop task from head
-    fs->bgTaskRunning = fs->bgTaskQueue->next;
-    fs->bgTaskRunning->prev->next = fs->bgTaskRunning->next;
-    fs->bgTaskRunning->next->prev = fs->bgTaskRunning->prev;
-    fs->bgTaskNum--;
-
-    vnodeScheduleTaskEx(1, tsdbFSRunBgTask, arg);
+    if (fs->stop) {
+      while (fs->bgTaskNum > 0) {
+        STFSBgTask *task = fs->bgTaskQueue->next;
+        task->prev->next = task->next;
+        task->next->prev = task->prev;
+        fs->bgTaskNum--;
+        tsdbDoDoneBgTask(fs, task);
+      }
+    } else {
+      // pop task from head
+      fs->bgTaskRunning = fs->bgTaskQueue->next;
+      fs->bgTaskRunning->prev->next = fs->bgTaskRunning->next;
+      fs->bgTaskRunning->next->prev = fs->bgTaskRunning->prev;
+      fs->bgTaskNum--;
+      vnodeScheduleTaskEx(1, tsdbFSRunBgTask, arg);
+    }
   }
 
   taosThreadMutexUnlock(fs->mutex);
@@ -811,14 +844,7 @@ int32_t tsdbFSWaitBgTask(STFileSystem *fs, int64_t taskid) {
   }
 
   if (task) {
-    task->numWait++;
-    taosThreadCondWait(task->done, fs->mutex);
-    task->numWait--;
-
-    if (task->numWait == 0) {
-      taosThreadCondDestroy(task->done);
-      taosMemoryFree(task);
-    }
+    tsdbDoWaitBgTask(fs, task);
   }
 
   taosThreadMutexUnlock(fs->mutex);

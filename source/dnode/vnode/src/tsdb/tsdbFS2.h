@@ -94,6 +94,7 @@ struct STFileSystem {
 
   // background task queue
   TdThreadMutex mutex[1];
+  bool          stop;
   int64_t       taskid;
   int32_t       bgTaskNum;
   STFSBgTask    bgTaskQueue[1];
