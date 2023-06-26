@@ -86,6 +86,14 @@ def get_taosx_version():
         version = cargo_toml['package']['version']
     return version
 
+def get_taosx_agent_version():
+    version = ""
+    cargo_toml_path = os.path.join(taosx_dir, "taosx-agent", "Cargo.toml")
+    with open(cargo_toml_path, 'r') as f:
+        cargo_toml = toml.load(f)
+        version = cargo_toml['package']['version']
+    return version
+
 def get_install_path():
     if release_info.OS == 'Windows':  # Windows操作系统
         return f'C:\\Program Files\\taosX'
@@ -95,7 +103,7 @@ def get_install_path():
 def get_package_name():
     target = "taosx"
     if release_info.Target == "agent":
-        target = "taos-agent"
+        target = taosx_agent_name
     if release_info.OS == 'Windows':  # Windows操作系统
         return  f'{target}-{release_info.TaosXVersion}-{release_info.OS}-{release_info.CpuType}-installer'
     else:
@@ -159,7 +167,6 @@ def init_build_info():
 
     release_info.InstallPath = get_install_path()
     release_info.ReleasePath = os.path.abspath(os.path.join(script_dir, "..", "release"))
-    release_info.TaosXVersion = get_taosx_version()
     release_info.CpuType = GetCpuType()
     if args.objective:
         release_info.Target = args.objective
@@ -172,6 +179,9 @@ def init_build_info():
     if release_info.Target == "taosx":
         sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
         sub_module.append(SubmoduleBuildInfo(taos_explorer_name, release_info.DefaultBuildMode))
+        release_info.TaosXVersion = get_taosx_version()
+    else:
+        release_info.TaosXVersion = get_taosx_agent_version()
 
     sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
     if args.connector_list:
@@ -444,12 +454,18 @@ def build_and_install_taos_explorer(mode):
 
 def package_on_windows():
     os.chdir(script_dir) 
+    target = taosx_name
+    sub_directory = "taosX"
+    app_before_install_txt = "info_before_install.txt"
+    if release_info.Target == "agent":
+        target = taosx_agent_name
     cmd = f'iscc /F"{release_info.PackageName}" '\
         f'/DMyAppVersion="{release_info.TaosXVersion}" '\
         f'/DMyAppSourceDir="{release_info.InstallPath}" '\
         f'/DCusName="{cus_name}" '\
-        f'/DTaosXAgentName="{taosx_agent_name}" '\
-        f'/DTaosXName="{taosx_name}" '\
+        f'/DSubDirectory="{sub_directory}" '\
+        f'/DMyAppBeforeInstallTxt="{app_before_install_txt}" '\
+        f'/DAppName="{target}" '\
         f'{script_dir}/taosx.iss /O{taosx_dir}/release'
     print(cmd);
     result = subprocess.run(cmd, shell=True)
