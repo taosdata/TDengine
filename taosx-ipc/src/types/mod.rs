@@ -12,6 +12,8 @@ pub struct DataSetsReq {
     pub categories: Vec<String>,
     pub offset: usize,
     pub limit: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lang: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -32,6 +34,7 @@ pub struct DataSet {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OptionSet {
     pub name: String,
+    pub display: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub required: bool,

@@ -955,20 +955,19 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         "opc datasets : {}",
         serde_json::to_string(&res).unwrap_or("".to_string())
     );
+    let (option_set_code_display, option_set_code_desc) = if let Some(lang) = req.lang.clone() {
+        match lang.as_str() {
+            "zh" => ("编码".to_string(), "点位编码".to_string()),
+            _ => ("Code".to_string(), "Point Code".to_string())
+        }
+    } else {
+        ("Code".to_string(),"Point Code".to_string())
+    };
     let options = vec![
-        // OptionSet {
-        //     name: "table".to_string(),
-        //     description: Some("Table name".to_string()),
-        //     required: true,
-        // },
-        // OptionSet {
-        //     name: "field".to_string(),
-        //     description: Some("Field name".to_string()),
-        //     required: true,
-        // },
         OptionSet {
             name: "code".to_string(),
-            description: Some("Code".to_string()),
+            display: option_set_code_display,
+            description: Some(option_set_code_desc),
             required: true,
         },
     ];
