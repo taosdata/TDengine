@@ -40,10 +40,12 @@ datasets:
   categories:
   - category: tags
     display: DA Tags
-    description: A OPC DA tags list.
+    description: |
+      OPC DA point configuration list. Use the format configuration of <point name>::<point code>, multiples are separated by commas, the code can be any string, and the generated sub-table table name will be prefixed with the super table_value type_code string .
     target:
       name: da.tags
-      description: A OPC DA tags list.
+      description: | 
+        OPC DA point configuration list. Use the format configuration of <point name>::<point code>, multiples are separated by commas, the code can be any string, and the generated sub-table table name will be prefixed with the super table_value type_code string .
       required: true
       multiple: true
       editable: true
