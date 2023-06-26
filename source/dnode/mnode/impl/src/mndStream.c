@@ -784,7 +784,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   // schedule stream task for stream obj
-  if (mndScheduleStream(pMnode, &streamObj) < 0) {
+  if (mndScheduleStream(pMnode, &streamObj, createStreamReq.lastTs) < 0) {
     mError("stream:%s, failed to schedule since %s", createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;

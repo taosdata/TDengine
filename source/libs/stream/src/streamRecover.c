@@ -461,9 +461,11 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &pInfo->taskId, sizeof(int32_t));
   if (ppTask) {
     ASSERT((*ppTask)->status.timerActive == 1);
+
     if (streamTaskShouldStop(&(*ppTask)->status)) {
-      qDebug("s-task:%s status:%s quit timer task", (*ppTask)->id.idStr,
-             streamGetTaskStatusStr((*ppTask)->status.taskStatus));
+      const char* pStatus = streamGetTaskStatusStr((*ppTask)->status.taskStatus);
+      qDebug("s-task:%s status:%s quit timer task", (*ppTask)->id.idStr, pStatus);
+
       (*ppTask)->status.timerActive = 0;
       taosWUnLockLatch(&pMeta->lock);
       return;
@@ -494,24 +496,27 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   } else {
     qError("s-task:0x%x failed to load task", pInfo->taskId);
   }
+
+  taosMemoryFree(pInfo);
 }
 
 // todo fix the bug: 2. race condition
 // an fill history task needs to be started.
 int32_t streamCheckHistoryTaskDownstrem(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
+  int32_t      hTaskId = pTask->historyTaskId.taskId;
 
   // Set the execute conditions, including the query time window and the version range
-  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, &pTask->historyTaskId.taskId, sizeof(pTask->historyTaskId.taskId));
+  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, &hTaskId, sizeof(hTaskId));
   if (pHTask == NULL) {
     qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it is not built yet", pTask->id.idStr,
-          pMeta->vgId, pTask->historyTaskId.taskId);
+          pMeta->vgId, hTaskId);
+
+    SStreamTaskRetryInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamTaskRetryInfo));
+    pInfo->taskId = pTask->id.taskId;
+    pInfo->pMeta = pTask->pMeta;
 
     if (pTask->timer == NULL) {
-      SStreamTaskRetryInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamTaskRetryInfo));
-      pInfo->taskId = pTask->id.taskId;
-      pInfo->pMeta = pTask->pMeta;
-
       pTask->timer = taosTmrStart(tryLaunchHistoryTask,  100, pInfo, streamEnv.timer);
       if (pTask->timer == NULL) {
         // todo failed to create timer
@@ -519,6 +524,10 @@ int32_t streamCheckHistoryTaskDownstrem(SStreamTask* pTask) {
         pTask->status.timerActive = 1;  // timer is active
         qDebug("s-task:%s set time active flag", pTask->id.idStr);
       }
+    } else {  // timer exists
+      pTask->status.timerActive = 1;
+      qDebug("s-task:%s set time active flag", pTask->id.idStr);
+      taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->timer);
     }
 
     // try again in 500ms

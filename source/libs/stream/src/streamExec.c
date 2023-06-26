@@ -582,13 +582,21 @@ int32_t streamTryExec(SStreamTask* pTask) {
 }
 
 int32_t streamTaskReleaseState(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  int32_t code = qStreamOperatorReleaseState(exec);
-  return code;
+  void* pExecutor = pTask->exec.pExecutor;
+  if (pExecutor != NULL) {
+    int32_t code = qStreamOperatorReleaseState(pExecutor);
+    return code;
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 int32_t streamTaskReloadState(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
-  int32_t code = qStreamOperatorReloadState(exec);
-  return code;
+  void* pExecutor = pTask->exec.pExecutor;
+  if (pExecutor != NULL) {
+    int32_t code = qStreamOperatorReloadState(pExecutor);
+    return code;
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
 }
