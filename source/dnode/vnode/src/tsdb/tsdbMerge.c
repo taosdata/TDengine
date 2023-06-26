@@ -82,10 +82,13 @@ static int32_t tsdbMergerClose(SMerger *merger) {
 
   ASSERT(merger->writer == NULL);
   ASSERT(merger->dataIterMerger == NULL);
+  ASSERT(merger->tombIterMerger == NULL);
   ASSERT(TARRAY2_SIZE(merger->dataIterArr) == 0);
+  ASSERT(TARRAY2_SIZE(merger->tombIterArr) == 0);
   ASSERT(TARRAY2_SIZE(merger->sttReaderArr) == 0);
 
   // clear the merge
+  TARRAY2_DESTROY(merger->tombIterArr, NULL);
   TARRAY2_DESTROY(merger->dataIterArr, NULL);
   TARRAY2_DESTROY(merger->sttReaderArr, NULL);
   TARRAY2_DESTROY(merger->fopArr, NULL);
