@@ -218,10 +218,11 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
   // tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn)
 
   if (tdbTbUpsert(pTq->pStreamMeta->pTaskDb, &pTask->id.taskId, sizeof(int32_t), (uint8_t*)pData + sizeof(SSnapDataHdr),
-                  nData - sizeof(SSnapDataHdr), NULL) < 0) {
+                  nData - sizeof(SSnapDataHdr), ) < 0) {
     taosMemoryFree(pTask);
     return -1;
   }
+  taosMemoryFree(pTask);
 
   return code;
 
