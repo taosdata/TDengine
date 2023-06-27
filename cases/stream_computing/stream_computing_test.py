@@ -1260,8 +1260,8 @@ class StreamComputingTest(TDCase):
 
         self.tdCom.write_latency(self.case_name)
         # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str} from {self.ctb_name} partition by {partition} {partition_elm_alias} session(ts, {self.dataDict["session"]}s)', trigger_mode="at_once", ignore_expired=ignore_expired, ignore_update=ignore_update, subtable_value=ctb_subtable_value, fill_history_value=fill_history_value)
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str} from {self.tb_name} partition by {partition} {partition_elm_alias} session(ts, {self.dataDict["session"]}s)', trigger_mode="at_once", ignore_expired=ignore_expired, ignore_update=ignore_update, subtable_value=tb_subtable_value, fill_history_value=fill_history_value)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str} from {self.ctb_name} partition by {partition} {partition_elm_alias} session(ts, {self.dataDict["session"]}s)', trigger_mode="at_once", ignore_expired=ignore_expired, ignore_update=ignore_update, subtable_value=ctb_subtable_value, fill_history_value=fill_history_value)
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str} from {self.tb_name} partition by {partition} {partition_elm_alias} session(ts, {self.dataDict["session"]}s)', trigger_mode="at_once", ignore_expired=ignore_expired, ignore_update=ignore_update, subtable_value=tb_subtable_value, fill_history_value=fill_history_value)
         for i in range(self.range_count):
             ctb_name = self.tdCom.get_long_name()
             self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
@@ -1303,14 +1303,14 @@ class StreamComputingTest(TDCase):
             if partition != "tbname":
                 for colname in self.partition_by_downsampling_function_list:
                     if "first" not in colname and "last" not in colname:
-                        self.tdCom.check_query_data(f'select wstart, {self.tb_output_select_str} from {self.ctb_stream_des_table} order by wstart, `min(c1)`,`max(c2)`,`sum(c3)`;', f'select _wstart AS wstart, {self.tb_source_select_str} from {self.ctb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by wstart, `min(c1)`,`max(c2)`,`sum(c3)`;', sorted=True)
-                        self.tdCom.check_query_data(f'select wstart, {self.tb_output_select_str} from {self.tb_stream_des_table} order by wstart, `min(c1)`,`max(c2)`,`sum(c3)`;', f'select _wstart AS wstart, {self.tb_source_select_str} from {self.tb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by wstart, `min(c1)`,`max(c2)`,`sum(c3)`;')
+                        self.tdCom.check_query_data(f'select wstart, wend-{self.dataDict["session"]}s, {self.tb_output_select_str} from {self.ctb_stream_des_table} order by wstart, `min(c1)`,`max(c2)`,`sum(c3)`;', f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str} from {self.ctb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by wstart, `min(c1)`,`max(c2)`,`sum(c3)`;', sorted=True)
+                        self.tdCom.check_query_data(f'select wstart, wend-{self.dataDict["session"]}s, {self.tb_output_select_str} from {self.tb_stream_des_table} order by wstart, `min(c1)`,`max(c2)`,`sum(c3)`;', f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str} from {self.tb_name} partition by {partition} session(ts, {self.dataDict["session"]}s) order by wstart, `min(c1)`,`max(c2)`,`sum(c3)`;')
             else:
                 for tbname in [self.tb_name]:
                     if tbname != self.tb_name:
-                        self.tdCom.check_query_data(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} partition by {partition} session(ts, {self.dataDict["session"]}s)', sorted=True)
+                        self.tdCom.check_query_data(f'select wstart, wend-{self.dataDict["session"]}s, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {tbname} partition by {partition} session(ts, {self.dataDict["session"]}s)', sorted=True)
                     else:
-                        self.tdCom.check_query_data(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} partition by {partition} session(ts, {self.dataDict["session"]}s)', sorted=True)
+                        self.tdCom.check_query_data(f'select wstart, wend-{self.dataDict["session"]}s, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str}  from {tbname} partition by {partition} session(ts, {self.dataDict["session"]}s)', sorted=True)
 
         if self.disorder:
             if ignore_expired:
@@ -2060,8 +2060,8 @@ class StreamComputingTest(TDCase):
             watermark_value = None
         # create stb/ctb/tb stream
         # self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="window_close", watermark=watermark_value)
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.ctb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="window_close", watermark=watermark_value, fill_history_value=fill_history_value)
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="window_close", watermark=watermark_value, fill_history_value=fill_history_value)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {self.ctb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="window_close", watermark=watermark_value, fill_history_value=fill_history_value)
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str}  from {self.tb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="window_close", watermark=watermark_value, fill_history_value=fill_history_value)
         for i in range(self.range_count):
             if i == 0:
                 window_close_ts = self.cal_watermark_window_close_session_endts(self.date_time, self.dataDict['watermark'], self.dataDict['session'])
@@ -2099,15 +2099,15 @@ class StreamComputingTest(TDCase):
             if not fill_history_value:
                 for tbname in [self.ctb_name, self.tb_name]:
                     if tbname != self.tb_name:
-                        self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {expected_value}', expected_value)
+                        self.tdCom.check_stream(f'select wstart, wend-{self.dataDict["session"]}s, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {expected_value}', expected_value)
                     else:
-                        self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {expected_value}', expected_value)
+                        self.tdCom.check_stream(f'select wstart, wend-{self.dataDict["session"]}s, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {expected_value}', expected_value)
             else:
                 for tbname in [self.ctb_name, self.tb_name]:
                     if tbname != self.tb_name:
-                        self.tdCom.check_query_data(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {expected_value+1}')
+                        self.tdCom.check_query_data(f'select wstart, wend-{self.dataDict["session"]}s, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {expected_value+1}')
                     else:
-                        self.tdCom.check_query_data(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {expected_value+1}')
+                        self.tdCom.check_query_data(f'select wstart, wend-{self.dataDict["session"]}s, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {expected_value+1}')
 
     def watermark_window_close_session_ext(self, session, watermark, fill_history_value=None, partition=None, subtable=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False):
         if stb_field_name_value == self.partitial_stb_filter_des_select_elm or stb_field_name_value == self.exchange_stb_filter_des_select_elm:
@@ -2173,8 +2173,8 @@ class StreamComputingTest(TDCase):
         max_delay_value = f'{self.tdCom.trans_time_to_s(max_delay)}s'
         # create stb/ctb/tb stream
         # self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.stb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value)
-        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.stb_source_select_str}  from {self.ctb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_history_value=fill_history_value)
-        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tb_source_select_str}  from {self.tb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_history_value=fill_history_value)
+        self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.stream_suffix}', des_table=self.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {self.ctb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_history_value=fill_history_value)
+        self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.stream_suffix}', des_table=self.tb_stream_des_table, source_sql=f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str}  from {self.tb_name} session(ts, {self.dataDict["session"]}s)', trigger_mode="max_delay", watermark=watermark_value, max_delay=max_delay_value, fill_history_value=fill_history_value)
         init_num = 0
         for i in range(self.range_count):
             if i == 0:
@@ -2218,16 +2218,16 @@ class StreamComputingTest(TDCase):
             if not fill_history_value:
                 for tbname in [self.ctb_name, self.tb_name]:
                     if tbname != self.tb_name:
-                        self.tdCom.check_stream(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)', expected_value, max_delay)
+                        self.tdCom.check_stream(f'select wstart, wend-{self.dataDict["session"]}s, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)', expected_value, max_delay)
                     else:
-                        self.tdCom.check_stream(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)', expected_value, max_delay)
+                        self.tdCom.check_stream(f'select wstart, wend-{self.dataDict["session"]}s, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)', expected_value, max_delay)
             else:
                 self.update_delete_history_data()
                 for tbname in [self.ctb_name, self.tb_name]:
                     if tbname != self.tb_name:
-                        self.tdCom.check_query_data(f'select wstart, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
+                        self.tdCom.check_query_data(f'select wstart, wend-{self.dataDict["session"]}s, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
                     else:
-                        self.tdCom.check_query_data(f'select wstart, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
+                        self.tdCom.check_query_data(f'select wstart, wend-{self.dataDict["session"]}s, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS wstart, _wend AS wend, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
 
     def json_function(self, partition="tbname", delete=False, fill_history_value=None):
         self.delete = delete
@@ -2967,6 +2967,7 @@ class StreamComputingTest(TDCase):
 
 
     def run(self):
+        # return
         # self.at_once_interval(interval=random.randint(10, 12), partition="c1", fill_value="NULL")
         # self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL", delete=True)
         # self.vgroups = 1
