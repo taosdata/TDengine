@@ -33,6 +33,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb3.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb0.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ins_topics_test.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqClientConsLog.py
 
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
@@ -399,6 +400,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/systable_func.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py
@@ -441,7 +443,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
 #,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py -N 5 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py -N 5 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_createDb_replica1.py -N 4 -M 1
@@ -517,7 +519,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -Q 2
-#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 2
@@ -612,7 +614,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -Q 3
-#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 3
@@ -708,7 +710,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 4
-#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 4
 #,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 4
 #,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 4

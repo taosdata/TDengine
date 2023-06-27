@@ -3386,7 +3386,6 @@ typedef struct {
   int8_t reserved;
 } SMqHbRsp;
 
-
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t       suid;

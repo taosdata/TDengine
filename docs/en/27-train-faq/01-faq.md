@@ -56,7 +56,7 @@ This error indicates that the client could not connect to the server. Perform th
 
 7. If you are using the Python, Java, Go, Rust, C#, or Node.js connector on Linux to connect to the server, verify that `libtaos.so` is in the `/usr/local/taos/driver` directory and `/usr/local/taos/driver` is in the `LD_LIBRARY_PATH` environment variable.
 
-8. If you are using macOS, verify that `libtaos.dylib` is in the `/usr/local/lib` directory and `/usr/local/lib` is in the `LD_LIBRARY_PATH` environment variable..
+8. If you are using macOS, verify that `libtaos.dylib` is in the `/usr/local/lib` directory and `/usr/local/lib` is in the `DYLD_LIBRARY_PATH` environment variable..
 
 9. If you are using Windows, verify that `C:\TDengine\driver\taos.dll` is in the `PATH` environment variable. If possible, move `taos.dll` to the `C:\Windows\System32` directory.
 

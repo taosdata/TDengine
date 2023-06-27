@@ -636,6 +636,8 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
       }
     }
     buf = taosDecodeString(buf, &pSub->qmsg);
+  }else{
+    pSub->qmsg = taosStrdup("");
   }
   return (void *)buf;
 }
