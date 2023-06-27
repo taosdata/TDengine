@@ -26,6 +26,7 @@
 #define MND_CONSUMER_VER_NUMBER   1
 #define MND_CONSUMER_RESERVE_SIZE 64
 
+#define MND_MAX_GROUP_PER_TOPIC           100
 #define MND_CONSUMER_LOST_HB_CNT          6
 #define MND_CONSUMER_LOST_CLEAR_THRESHOLD 43200
 
@@ -635,6 +636,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   char           *cgroup = subscribe.cgroup;
   SMqConsumerObj *pExistedConsumer = NULL;
   SMqConsumerObj *pConsumerNew = NULL;
+  STrans         *pTrans       = NULL;
 
   int32_t code = -1;
   SArray *pTopicList = subscribe.topicNames;
@@ -642,9 +644,17 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   taosArrayRemoveDuplicate(pTopicList, taosArrayCompareString, freeItem);
 
   int32_t newTopicNum = taosArrayGetSize(pTopicList);
+  for(int i = 0; i < newTopicNum; i++){
+    SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, (const char*)cgroup, (const char*)taosArrayGetP(pTopicList, i));
+    if(pSub != NULL && taosHashGetSize(pSub->consumerHash) > MND_MAX_GROUP_PER_TOPIC){
+      terrno = TSDB_CODE_TMQ_GROUP_OUT_OF_RANGE;
+      code = terrno;
+      goto _over;
+    }
+  }
 
   // check topic existence
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
   if (pTrans == NULL) {
     goto _over;
   }

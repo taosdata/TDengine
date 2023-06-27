@@ -585,6 +585,11 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   SMqTopicObj      *pTopic = NULL;
   SDbObj           *pDb = NULL;
   SCMCreateTopicReq createTopicReq = {0};
+  if (sdbGetSize(pMnode->pSdb, SDB_TOPIC) >= tmqMaxTopicNum){
+    terrno = TSDB_CODE_TMQ_TOPIC_OUT_OF_RANGE;
+    mError("topic num out of range");
+    return code;
+  }
 
   if (tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;

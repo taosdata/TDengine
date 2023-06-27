@@ -162,6 +162,8 @@ extern char tsSmlTagName[];
 // extern bool    tsSmlDataFormat;
 // extern int32_t tsSmlBatchSize;
 
+extern int32_t tmqMaxTopicNum;
+
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
 

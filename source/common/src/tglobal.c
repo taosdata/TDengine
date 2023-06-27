@@ -103,6 +103,8 @@ char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
 
+// tmq
+int32_t tmqMaxTopicNum = 20;
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
@@ -777,6 +779,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
   //  tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
+  tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
   //  tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
   tsMaxInsertBatchRows = cfgGetItem(pCfg, "maxInsertBatchRows")->i32;
 
@@ -1196,6 +1199,8 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
         cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
       } else if (strcasecmp("smlChildTableName", name) == 0) {
         tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
+      } else if (strcasecmp("tmqMaxTopicNum", name) == 0) {
+        tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
       } else if (strcasecmp("smlTagName", name) == 0) {
         tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
         //      } else if (strcasecmp("smlDataFormat", name) == 0) {
