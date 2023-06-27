@@ -321,6 +321,8 @@ let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
 
 ### 通过参数绑定写入数据
 
+TDengine 的 Rust 连接器实现了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
+
 <RustBind />
 
 ### 无模式写入
