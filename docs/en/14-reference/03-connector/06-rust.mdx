@@ -298,6 +298,8 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+> The query is consistent with operating a relational database. When using subscripts to get the contents of the returned fields, you have to start from 1. However, we recommend using the field names to get the values of the fields in the result set.
+
 ### Insert data
 
 <RustInsert />
@@ -316,9 +318,15 @@ let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
 
 ### Writing data via parameter binding
 
+TDengine has significantly improved the bind APIs to support data writing (INSERT) scenarios. Writing data in this way avoids the resource consumption of SQL syntax parsing, resulting in significant write performance improvements in many cases.
+
+Parameter binding details see [API Reference](#stmt-api)
+
 <RustBind />
 
 ### Schemaless Writing
+
+TDengine supports schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. For more information, see [Schemaless Writing](../../schemaless).
 
 <RustSml />
 
@@ -567,9 +575,13 @@ Note that Rust asynchronous functions and an asynchronous runtime are required.
 - `.create_database(database: &str)`: Executes the `CREATE DATABASE` statement.
 - `.use_database(database: &str)`: Executes the `USE` statement.
 
-In addition, this structure is also the entry point for [Parameter Binding](#Parameter Binding Interface) and [Line Protocol Interface](#Line Protocol Interface). Please refer to the specific API descriptions for usage.
+In addition, this structure is also the entry point for Parameter Binding and Line Protocol Interface. Please refer to the specific API descriptions for usage.
 
+<p>
+<a id="stmt-api" style={{color:'#141414'}}>
 Bind Interface
+</a>
+</p>
 
 Similar to the C interface, Rust provides the bind interface's wrapping. First, the [Taos][struct.taos] object creates a parameter binding object [Stmt] for an SQL statement.
 

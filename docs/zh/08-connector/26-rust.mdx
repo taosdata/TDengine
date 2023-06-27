@@ -303,6 +303,8 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+> **注意**：如果不使用 `use db` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 db.tb。
+
 ### 插入数据
 
 <RustInsert />
@@ -321,9 +323,15 @@ let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
 
 ### 通过参数绑定写入数据
 
+TDengine 的 Rust 连接器实现了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。
+
+参数绑定接口详见[API参考](#stmt-api)
+
 <RustBind />
 
 ### 无模式写入
+
+TDengine 支持无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](../../reference/schemaless/)。
 
 <RustSml />
 
@@ -570,9 +578,13 @@ let taos = pool.get()?;
 - `.create_database(database: &str)`: 执行 `CREATE DATABASE` 语句。
 - `.use_database(database: &str)`: 执行 `USE` 语句。
 
-除此之外，该结构也是 [参数绑定](#参数绑定接口) 和 [行协议接口](#行协议接口) 的入口，使用方法请参考具体的 API 说明。
+除此之外，该结构也是参数绑定和行协议接口的入口，使用方法请参考具体的 API 说明。
 
+<p>
+<a id="stmt-api" style={{color:'#141414'}}>
 参数绑定接口
+</a>
+</p>
 
 与 C 接口类似，Rust 提供参数绑定接口。首先，通过 [Taos][struct.Taos] 对象创建一个 SQL 语句的参数绑定对象 [Stmt]：
 
