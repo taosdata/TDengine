@@ -331,7 +331,8 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   TSDB_CHECK_CODE(code, lino, _exit);
   STFileSet fset = {.fid = committer->ctx->fid};
   committer->ctx->fset = &fset;
-  committer->ctx->fset = TARRAY2_SEARCH_EX(committer->fsetArr, &committer->ctx->fset, tsdbTFileSetCmprFn, TD_EQ);
+  STFileSet **fsetPtr = TARRAY2_SEARCH(committer->fsetArr, &committer->ctx->fset, tsdbTFileSetCmprFn, TD_EQ);
+  committer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
 

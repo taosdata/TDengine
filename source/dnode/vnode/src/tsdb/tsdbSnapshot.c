@@ -764,7 +764,8 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
   STFileSet* fset = &(STFileSet){.fid = fid};
 
   writer->ctx->fid = fid;
-  writer->ctx->fset = TARRAY2_SEARCH_EX(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
+  STFileSet** fsetPtr = TARRAY2_SEARCH(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
+  writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
 
   int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
   if (tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did)) {

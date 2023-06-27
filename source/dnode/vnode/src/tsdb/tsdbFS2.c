@@ -483,7 +483,8 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray) {
     if (!fset || fset->fid != op->fid) {
       STFileSet tfset = {.fid = op->fid};
       fset = &tfset;
-      fset = TARRAY2_SEARCH_EX(fsetArray, &fset, tsdbTFileSetCmprFn, TD_EQ);
+      STFileSet **fsetPtr = TARRAY2_SEARCH(fsetArray, &fset, tsdbTFileSetCmprFn, TD_EQ);
+      fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
 
       if (!fset) {
         code = tsdbTFileSetInit(op->fid, &fset);
@@ -657,9 +658,10 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
 }
 
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset) {
-  STFileSet  tfset = {.fid = fid};
-  STFileSet *pset = &tfset;
-  fset[0] = TARRAY2_SEARCH_EX(fs->fSetArr, &pset, tsdbTFileSetCmprFn, TD_EQ);
+  STFileSet   tfset = {.fid = fid};
+  STFileSet  *pset = &tfset;
+  STFileSet **fsetPtr = TARRAY2_SEARCH(fs->fSetArr, &pset, tsdbTFileSetCmprFn, TD_EQ);
+  fset[0] = (fsetPtr == NULL) ? NULL : fsetPtr[0];
   return 0;
 }
 

@@ -321,8 +321,9 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
       SSttLvl *lvl = tsdbTFileSetGetSttLvl(fset, op->of.stt->level);
       ASSERT(lvl);
 
-      STFileObj tfobj = {.f[0] = {.cid = op->of.cid}}, *tfobjp = &tfobj;
-      tfobjp = TARRAY2_SEARCH_EX(lvl->fobjArr, &tfobjp, tsdbTFileObjCmpr, TD_EQ);
+      STFileObj   tfobj = {.f[0] = {.cid = op->of.cid}}, *tfobjp = &tfobj;
+      STFileObj **fobjPtr = TARRAY2_SEARCH(lvl->fobjArr, &tfobjp, tsdbTFileObjCmpr, TD_EQ);
+      tfobjp = (fobjPtr ? *fobjPtr : NULL);
 
       ASSERT(tfobjp);
 
@@ -504,9 +505,10 @@ int32_t tsdbTFileSetRemove(STFileSet **fset) {
 }
 
 SSttLvl *tsdbTFileSetGetSttLvl(STFileSet *fset, int32_t level) {
-  SSttLvl  sttLvl = {.level = level};
-  SSttLvl *lvl = &sttLvl;
-  return TARRAY2_SEARCH_EX(fset->lvlArr, &lvl, tsdbSttLvlCmprFn, TD_EQ);
+  SSttLvl   sttLvl = {.level = level};
+  SSttLvl  *lvl = &sttLvl;
+  SSttLvl **lvlPtr = TARRAY2_SEARCH(fset->lvlArr, &lvl, tsdbSttLvlCmprFn, TD_EQ);
+  return lvlPtr ? lvlPtr[0] : NULL;
 }
 
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2) {
