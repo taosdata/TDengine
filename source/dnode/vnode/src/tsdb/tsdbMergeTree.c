@@ -77,6 +77,7 @@ SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colLi
   }
 
   pLoadInfo->aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
+  pLoadInfo->pTombBlockArray = taosArrayInit(4, POINTER_BYTES);
   pLoadInfo->pSchema = pSchema;
   pLoadInfo->colIds = colList;
   pLoadInfo->numOfCols = numOfCols;
@@ -200,7 +201,6 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
   }
 
   code = tsdbSttFileReadBlockData(pIter->pReader, pIter->pSttBlk, pBlock);
-//  code = tsdbReadSttBlock(pIter->pReader, pIter->iStt, pIter->pSttBlk, pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
