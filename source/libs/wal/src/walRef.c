@@ -80,12 +80,3 @@ void walRefLastVer(SWal *pWal, SWalRef *pRef) {
   taosThreadMutexUnlock(&pWal->mutex);
   wDebug("vgId:%d, wal ref version %" PRId64 " for last", pWal->cfg.vgId, ver);
 }
-
-//void walRefCommitVer(SWal *pWal, SWalRef *pRef) {
-//  taosThreadMutexLock(&pWal->mutex);
-//  int64_t ver = walGetCommittedVer(pWal);
-//  pRef->refVer = ver;
-//
-//  taosThreadMutexUnlock(&pWal->mutex);
-//  wDebug("vgId:%d, wal ref version %" PRId64 " for committed", pWal->cfg.vgId, ver);
-//}

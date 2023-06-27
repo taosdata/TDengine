@@ -76,14 +76,14 @@ sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-d
 ```bash
 sudo yum install epel-release
 sudo yum update
-sudo yum install -y gcc gcc-c++ make cmake3 git openssl-devel
+sudo yum install -y gcc gcc-c++ make cmake3 gflags git openssl-devel
 sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
 ### CentOS 8/Fedora/Rocky Linux
 
 ```bash
-sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
+sudo dnf install -y gcc gcc-c++ make cmake epel-release gflags git openssl-devel
 ```
 
 #### Install build dependencies for taosTools on CentOS
@@ -124,7 +124,7 @@ scl enable devtoolset-9 -- bash
 ### macOS
 
 ```
-brew install argp-standalone pkgconfig
+brew install argp-standalone gflags pkgconfig
 ```
 
 ### Setup golang environment
