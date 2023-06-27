@@ -72,7 +72,7 @@ typedef struct {
 
 typedef struct {
   int64_t suid;
-  char*   qmsg;   // SubPlanToString
+  char*   qmsg;  // SubPlanToString
   SNode*  node;
 } STqExecTb;
 
@@ -98,18 +98,21 @@ typedef enum tq_handle_status {
 } tq_handle_status;
 
 typedef struct {
-  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t       consumerId;
-  int32_t       epoch;
-  int8_t        fetchMeta;
-  int64_t       snapshotVer;
-  SWalReader*   pWalReader;
-  SWalRef*      pRef;
-//  STqPushHandle pushHandle;    // push
-  STqExecHandle execHandle;    // exec
-  SRpcMsg*      msg;
-  tq_handle_status        status;
+  char        subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t     consumerId;
+  int32_t     epoch;
+  int8_t      fetchMeta;
+  int64_t     snapshotVer;
+  SWalReader* pWalReader;
+  SWalRef*    pRef;
+  //  STqPushHandle pushHandle;    // push
+  STqExecHandle    execHandle;  // exec
+  SRpcMsg*         msg;
+  tq_handle_status status;
 } STqHandle;
+typedef struct {
+  int64_t snapshotVer;
+} SStreamHandle;
 
 struct STQ {
   SVnode*         pVnode;

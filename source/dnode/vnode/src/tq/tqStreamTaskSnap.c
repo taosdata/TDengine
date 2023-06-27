@@ -88,17 +88,20 @@ int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData) {
     if (tdbTbcGet(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
       goto _exit;
     }
-
-    // tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    // tDecodeSTqHandle(&decoder, &handle);
-    // tDecoderClear(&decoder);
-
-    if (handle.snapshotVer <= pReader->sver && handle.snapshotVer >= pReader->ever) {
-      tdbTbcMoveToNext(pReader->pCur);
-      break;
-    } else {
-      tdbTbcMoveToNext(pReader->pCur);
+    SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
+    if (pTask == NULL) {
+      return -1;
     }
+
+    SDecoder decoder;
+    tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
+    code = tDecodeStreamTask(&decoder, pTask);
+    if (code < 0) {
+      tDecoderClear(&decoder);
+      taosMemoryFree(pTask);
+      goto _err;
+    }
+    tDecoderClear(&decoder);
   }
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
@@ -115,13 +118,12 @@ int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData) {
   tqInfo("vgId:%d, vnode snapshot tq read data, version:%" PRId64 " subKey: %s vLen:%d", TD_VID(pReader->pTq->pVnode),
          handle.snapshotVer, handle.subKey, vLen);
 
+  return code;
 _exit:
   return code;
-
 _err:
   tqError("vgId:%d, vnode snapshot tq read data failed since %s", TD_VID(pReader->pTq->pVnode), tstrerror(code));
   return code;
-  return 0;
 }
 
 // STqSnapWriter ========================================
