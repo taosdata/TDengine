@@ -68,6 +68,76 @@ class TDTestQuery(TDCase):
         column_tag_list = str(column_tag_list).replace("[","").replace("]","").replace("'","`")
         
         return column_tag_list
+    
+    def random_column_tag_where(self,db_tb):
+        fake = Faker('zh_CN')
+        random_int = random.randint(-100,10000000)
+        random_float = fake.pyfloat()
+        print(random_float)
+        
+        describe_sql = "describe %s;" %db_tb
+        self.tdSql.query(describe_sql)  
+        rows = self.tdSql.query_row
+        column_tag_list_where=[]
+        
+        column_ts,column_bool,column_int,column_float,column_char = '','','','',''
+        
+        i = random.randint(1,rows)
+        column_type = self.tdSql.getData(i - 1,1)        
+        column_field = self.tdSql.getData(i - 1,0)
+        
+        i1 = random.randint(1,rows)
+        column_type_1 = self.tdSql.getData(i1 - 1,1) 
+        column_field_1 = self.tdSql.getData(i1 - 1,0)
+        column_null = '(`%s`' %column_field + ' is null or ' +  '`%s`' %column_field_1 + ' is not null ) and '
+        
+        if column_type == 'TIMESTAMP'  :
+            column_ts = '`%s`' %column_field + ' < now and '
+        elif column_type_1 == 'TIMESTAMP'  :
+            column_ts = '`%s`' %column_field_1 + ' between 0 and now and '
+        
+        if column_type  == 'INT' :
+            column_int = '`%s`' %column_field + ' <= %d and ' %random_int
+        elif column_type  == 'SMALLINT':
+            column_int = '`%s`' %column_field + ' > %d and ' %random_int
+        elif column_type  == 'BIGINT' :
+            column_int = '`%s`' %column_field + ' between %d and  %d and ' %(random_float,random_int)
+        elif column_type  == 'TINYINT':
+            column_int = '`%s`' %column_field + ' != %d and ' %random_int
+            
+        if column_type  == 'FLOAT':
+            column_float = '`%s`' %column_field + ' >= %d and ' %random_float
+        elif column_type  == 'DOUBLE' :
+            column_float = '`%s`' %column_field + ' between %d and  %d and ' %(random_float,random_int)
+        elif column_type_1  == 'FLOAT':
+            column_float = '`%s`' %column_field_1 + ' < %d and ' %random_float
+        elif column_type_1  == 'DOUBLE' :
+            column_float = '`%s`' %column_field_1 + ' != %d and ' %(random_float)
+        
+        if column_type  == 'BOOL':
+            column_bool = '`%s`' %column_field + ' = true and ' 
+        elif column_type_1  == 'BOOL':
+            column_bool = '`%s`' %column_field_1 + ' = false and '
+        
+        if column_type == 'VARCHAR' :
+            column_char = '`%s`' %column_field + ' match\'{a-zA-Z}\' and '
+        elif column_type == 'NCHAR' :
+            column_char = '`%s`' %column_field + ' nmatch\'{a-z}\' and '
+        elif column_type_1 == 'VARCHAR' :
+            column_char = '`%s`' %column_field_1 + ' like \'《%》\' and '
+        elif column_type_1 == 'NCHAR' :
+            column_char = '`%s`' %column_field_1 + ' not like \'《%》\' and '
+        
+        
+        column_tag_list_where.append(column_null)
+        column_tag_list_where.append(column_bool)
+        column_tag_list_where.append(column_ts)
+        column_tag_list_where.append(column_int)
+        column_tag_list_where.append(column_float)
+        column_tag_list_where.append(column_char)
+        
+        
+        return column_tag_list_where
 
     def describe_table(self,db_tb):
         random_num1 = random.randint(0,1000)
@@ -160,6 +230,9 @@ class TDTestQuery(TDCase):
             
     def basic_query_sql(self,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
         column_tag_list = self.random_column_tag(db_tb)
+        column_tag_list_where = str(self.random_column_tag_where(db_tb)).replace("[","").replace("]","").replace("'","").replace("\"","").replace(",","").replace("{","'[").replace("}","]'").replace("《","'").replace("》","'")
+        print(column_tag_list)
+        print(column_tag_list_where)
         
         # sql_num = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
         # self.basic_query_util(sql_num,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
@@ -167,13 +240,13 @@ class TDTestQuery(TDCase):
         # sql_str = "SELECT DISTINCT FUNCTION('%s',NUM) FROM %s " %(data_col,db_tb)
         # self.basic_query_util(sql_str,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_base = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s " %(data_col,db_tb)
+        # sql_base = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s " %(data_col,db_tb)       #单列
         # self.basic_query_util(sql_base,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        sql_base = "SELECT DISTINCT FUNCTION %s,NUM FROM %s " %(column_tag_list,db_tb)
-        self.basic_query_util(sql_base,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
+        # sql_base = "SELECT DISTINCT FUNCTION %s,NUM FROM %s " %(column_tag_list,db_tb)     #多列
+        # self.basic_query_util(sql_base,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_base_where = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s WHERE 1=1" %(data_col,db_tb)
+        # sql_base_where = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s WHERE 1=1" %(data_col,db_tb) #单列
         # self.basic_query_util(sql_base_where,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         # #sql_base_where = self.basic_query_util(sql_base_where,data_col,db_tb,base_fun,replace_fun,base_num,replace_num,1)
         # sql_base_where_null = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s WHERE `%s` is null and 1=1" %(data_col,db_tb,data_col)
@@ -183,23 +256,36 @@ class TDTestQuery(TDCase):
         # #sql_base_where_union_all = self.basic_query_util(sql_base_where_union_all,data_col,db_tb,base_fun,replace_fun,base_num,replace_num,1)
         # #self.tdCreateData.dataequal('%s' %sql_base_where ,1,1,'%s' %sql_base_where_union_all ,1,1)  #没有合适的校验手段
         
+        # sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE 1=1" %(column_tag_list,db_tb)  #多列
+        # self.basic_query_util(sql_base_where,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
+        # sql_base_where_null = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is null and 1=1" %(column_tag_list,db_tb,data_col)
+        # sql_base_where_notnull = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is not null and 1=1" %(column_tag_list,db_tb,data_col)
+        # sql_base_where_union_all = "(" + sql_base_where_null + ") UNION ALL (" +sql_base_where_notnull + ")";
+        # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col) 
+        sql_base_where = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE %s 1=1" %(column_tag_list,db_tb,column_tag_list_where)  #多列
+        self.basic_query_util(sql_base_where,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
+        # sql_base_where_null = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is null and 1=1" %(column_tag_list,db_tb,data_col)
+        # sql_base_where_notnull = "SELECT DISTINCT FUNCTION %s,NUM FROM %s WHERE `%s` is not null and 1=1" %(column_tag_list,db_tb,data_col)
+        # sql_base_where_union_all = "(" + sql_base_where_null + ") UNION ALL (" +sql_base_where_notnull + ")";
+        # self.basic_query_util(sql_base_where_union_all,column_tag_list,db_tb,base_fun,replace_fun,base_num,replace_num)
+        
+        # sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY _ROWTS,`%s`" %(data_col,db_tb,data_col) #单列
         # self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY %s" %(data_col,db_tb,column_tag_list) #重复了,考虑多列
-        self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
+        # sql_orderby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s ORDER BY %s" %(data_col,db_tb,column_tag_list) #多列
+        # self.basic_query_util(sql_orderby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
         
-        # sql_groupby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY TBNAME,`%s`" %(data_col,db_tb,data_col)  
+        # sql_groupby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
         # self.basic_query_util(sql_groupby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
-        # sql_groupby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY `%s`" %(data_col,db_tb,data_col)   #重复了
+        # sql_groupby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s GROUP BY %s" %(data_col,db_tb,column_tag_list)   #多列
         # self.basic_query_util(sql_groupby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
-        # sql_partitionby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY TBNAME,`%s`" %(data_col,db_tb,data_col)  
+        # sql_partitionby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY TBNAME,`%s`" %(data_col,db_tb,data_col)   #单列
         # self.basic_query_util(sql_partitionby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
-        # sql_partitionby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY `%s`" %(data_col,db_tb,data_col)   #重复了
+        # sql_partitionby = "SELECT DISTINCT FUNCTION(`%s`,NUM) FROM %s PARTITION BY %s" %(data_col,db_tb,column_tag_list)   #多列
         # self.basic_query_util(sql_partitionby,data_col,db_tb,base_fun,replace_fun,base_num,replace_num) 
         
             
@@ -328,7 +414,7 @@ class TDTestQuery(TDCase):
 
     def time_cost(self,sql):
         startTime = time.time()*1000  
-        #self.tdSql.query(sql,queryTimes=3)
+        #self.tdSql.query(sql,queryTimes=1)
         self.data_check(sql)
         #self.tdCreateData.explain_sql(sql)
         endTime = time.time()*1000        
@@ -343,7 +429,7 @@ class TDTestQuery(TDCase):
         t_to_s =  time.strftime('%Y-%m-%d', time.localtime(t)) 
         
         try:
-            self.tdSql.query(sql,queryTimes=2)
+            self.tdSql.query(sql,queryTimes=1)
             rows = self.tdSql.query_row
             succ_flag = 1
         except:
@@ -599,9 +685,10 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
          
-        self.describe_table(self.db_tb) 
+        #self.describe_table(self.db_tb) 
         
-        self.describe_table("`information_schema`.`ins_dnodes`") 
+        self.describe_table("`table_sample_1`.`stable_1`") 
+        #self.describe_table("`information_schema`.`ins_dnodes`") 
         # self.describe_table("`information_schema`.`ins_mnodes`")
         # #self.describe_table("`information_schema`.`ins_modules`")  #TD-24684
         # self.describe_table("`information_schema`.`ins_qnodes`")
