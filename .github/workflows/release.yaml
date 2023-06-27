@@ -12,6 +12,11 @@ jobs:
     container: docker.io/centos:7
 
     steps:
+      - name: Obtain Latest Git ONLY within container for checkout
+        run: |
+          yum install -y https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm
+          yum install -y git
+
       - uses: actions/checkout@v3
       - run: git config --system --add safe.directory '*'
 
