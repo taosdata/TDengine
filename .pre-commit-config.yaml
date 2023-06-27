@@ -22,12 +22,7 @@ repos:
 
 repos:
   - repo: https://github.com/crate-ci/typos
-    rev: v1.13.6
+    rev: v1.15.7
     hooks:
-      - id: typos-src
+      - id: typos
 
-repos:
-  - repo: https://github.com/TomWright/dasel
-    rev: v2.3.4
-    hooks:
-      - id: dasel-validate
