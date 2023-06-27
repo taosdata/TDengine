@@ -103,6 +103,8 @@ char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
 
+// tmq
+int32_t tmqMaxTopicNum = 20;
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
@@ -507,6 +509,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "telemetryServer", tsTelemServer, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "telemetryPort", tsTelemPort, 1, 65056, 0) != 0) return -1;
 
+  if (cfgAddInt32(pCfg, "tmqMaxTopicNum", tmqMaxTopicNum, 1, 10000, 1) != 0) return -1;
+
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, 1) != 0) return -1;
@@ -874,6 +878,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTelemInterval = cfgGetItem(pCfg, "telemetryInterval")->i32;
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
+
+  tmqMaxTopicNum= cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;

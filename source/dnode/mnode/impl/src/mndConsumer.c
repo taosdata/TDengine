@@ -26,6 +26,7 @@
 #define MND_CONSUMER_VER_NUMBER   1
 #define MND_CONSUMER_RESERVE_SIZE 64
 
+#define MND_MAX_GROUP_PER_TOPIC           100
 #define MND_CONSUMER_LOST_HB_CNT          6
 #define MND_CONSUMER_LOST_CLEAR_THRESHOLD 43200
 
@@ -220,10 +221,10 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   mInfo("consumer:0x%" PRIx64 " needs to be cleared, status %s", pClearMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
 
-  if (pConsumer->status != MQ_CONSUMER_STATUS_LOST) {
-    mndReleaseConsumer(pMnode, pConsumer);
-    return -1;
-  }
+//  if (pConsumer->status != MQ_CONSUMER_STATUS_LOST) {
+//    mndReleaseConsumer(pMnode, pConsumer);
+//    return -1;
+//  }
 
   SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
 //  pConsumerNew->updateType = CONSUMER_UPDATE_TIMER_LOST;
@@ -316,22 +317,9 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
            hbStatus);
 
     if (status == MQ_CONSUMER_STATUS_READY) {
-      if (hbStatus > MND_CONSUMER_LOST_HB_CNT) {
-//        SMqConsumerLostMsg *pLostMsg = rpcMallocCont(sizeof(SMqConsumerLostMsg));
-//        if (pLostMsg == NULL) {
-//          mError("consumer:0x%"PRIx64" failed to transfer consumer status to lost due to out of memory. alloc size:%d",
-//              pConsumer->consumerId, (int32_t)sizeof(SMqConsumerLostMsg));
-//          continue;
-//        }
-//
-//        pLostMsg->consumerId = pConsumer->consumerId;
-//        SRpcMsg rpcMsg = {
-//            .msgType = TDMT_MND_TMQ_CONSUMER_LOST, .pCont = pLostMsg, .contLen = sizeof(SMqConsumerLostMsg)};
-//
-//        mDebug("consumer:0x%"PRIx64" hb not received beyond threshold %d, set to lost", pConsumer->consumerId,
-//            MND_CONSUMER_LOST_HB_CNT);
-//        tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-
+      if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {   // unsubscribe or close
+        mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
+      } else if (hbStatus > MND_CONSUMER_LOST_HB_CNT) {
         taosRLockLatch(&pConsumer->lock);
         int32_t topicNum = taosArrayGetSize(pConsumer->currentTopics);
         for (int32_t i = 0; i < topicNum; i++) {
@@ -344,8 +332,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
         taosRUnLockLatch(&pConsumer->lock);
       }
     } else if (status == MQ_CONSUMER_STATUS_LOST) {
-      // if the client is lost longer than one day, clear it. Otherwise, do nothing about the lost consumers.
-      if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD || taosArrayGetSize(pConsumer->assignedTopics) == 0) {   // clear consumer if lost a day or unsubscribe/close
+      if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD) {   // clear consumer if lost a day
         mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
       }
     } else {  // MQ_CONSUMER_STATUS_REBALANCE
@@ -455,7 +442,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     mError("consumer:0x%" PRIx64 " group:%s not consistent with data in sdb, saved cgroup:%s", consumerId, req.cgroup,
            pConsumer->cgroup);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
-    return -1;
+    goto FAIL;
   }
 
   atomic_store_32(&pConsumer->hbStatus, 0);
@@ -480,7 +467,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   if (status != MQ_CONSUMER_STATUS_READY) {
     mInfo("consumer:0x%" PRIx64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));
     terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
-    return -1;
+    goto FAIL;
   }
 
   int32_t serverEpoch = atomic_load_32(&pConsumer->epoch);
@@ -562,7 +549,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    goto FAIL;
   }
 
   SMqRspHead* pHead = buf;
@@ -649,6 +636,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   char           *cgroup = subscribe.cgroup;
   SMqConsumerObj *pExistedConsumer = NULL;
   SMqConsumerObj *pConsumerNew = NULL;
+  STrans         *pTrans       = NULL;
 
   int32_t code = -1;
   SArray *pTopicList = subscribe.topicNames;
@@ -656,9 +644,17 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   taosArrayRemoveDuplicate(pTopicList, taosArrayCompareString, freeItem);
 
   int32_t newTopicNum = taosArrayGetSize(pTopicList);
+  for(int i = 0; i < newTopicNum; i++){
+    SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, (const char*)cgroup, (const char*)taosArrayGetP(pTopicList, i));
+    if(pSub != NULL && taosHashGetSize(pSub->consumerHash) > MND_MAX_GROUP_PER_TOPIC){
+      terrno = TSDB_CODE_TMQ_GROUP_OUT_OF_RANGE;
+      code = terrno;
+      goto _over;
+    }
+  }
 
   // check topic existence
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
   if (pTrans == NULL) {
     goto _over;
   }

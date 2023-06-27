@@ -175,7 +175,7 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubsc
   SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
   if (pVgObj == NULL) {
     taosMemoryFree(buf);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_MND_VGROUP_NOT_EXIST;
     return -1;
   }
 
