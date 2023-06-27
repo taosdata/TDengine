@@ -108,13 +108,15 @@ typedef struct SScanLogicNode {
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
-  SLogicNode node;
-  EJoinType  joinType;
-  SNode*     pPrimKeyEqCond;
-  SNode*     pColEqCond;
-  SNode*     pTagEqCond;
-  SNode*     pOtherOnCond;
-  bool       isSingleTableJoin;
+  SLogicNode     node;
+  EJoinType      joinType;
+  EJoinAlgorithm joinAlgo;
+  SNode*         pPrimKeyEqCond;
+  SNode*         pColEqCond;
+  SNode*         pTagEqCond;
+  SNode*         pOtherOnCond;
+  bool           isSingleTableJoin;
+  bool           hasSubQuery;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -152,6 +154,12 @@ typedef struct SInterpFuncLogicNode {
   SNode*      pFillValues;  // SNodeListNode
   SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncLogicNode;
+
+typedef struct SGroupCacheLogicNode {
+  SLogicNode  node;
+  SNode*      pGroupCol;
+} SGroupCacheLogicNode;
+
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
 
@@ -404,10 +412,10 @@ typedef struct SInterpFuncPhysiNode {
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode node;
   EJoinType  joinType;
-  SNode*     pMergeCondition;
-  SNode*     pOnConditions;
+  SNode*     pPrimKeyCond;
+  SNode*     pColEqCond;
+  SNode*     pOtherOnCond;
   SNodeList* pTargets;
-  SNode*     pColEqualOnConditions;
 } SSortMergeJoinPhysiNode;
 
 typedef struct SHashJoinPhysiNode {

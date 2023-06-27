@@ -2763,6 +2763,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
         pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
         code = translateExpr(pCxt, &pJoinTable->pOnCond);
+        pJoinTable->hasSubQuery = (nodeType(pJoinTable->pLeft) != QUERY_NODE_REAL_TABLE) || (nodeType(pJoinTable->pRight) != QUERY_NODE_REAL_TABLE);
       }
       break;
     }

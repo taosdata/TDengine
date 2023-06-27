@@ -490,6 +490,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SIndefRowsFuncLogicNode));
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return makeNode(type, sizeof(SInterpFuncLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
+      return makeNode(type, sizeof(SGroupCacheLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -1222,10 +1224,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
       SSortMergeJoinPhysiNode* pPhyNode = (SSortMergeJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
-      nodesDestroyNode(pPhyNode->pMergeCondition);
-      nodesDestroyNode(pPhyNode->pOnConditions);
+      nodesDestroyNode(pPhyNode->pPrimKeyCond);
+      nodesDestroyNode(pPhyNode->pOtherOnCond);
       nodesDestroyList(pPhyNode->pTargets);
-      nodesDestroyNode(pPhyNode->pColEqualOnConditions);
+      nodesDestroyNode(pPhyNode->pColEqCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {

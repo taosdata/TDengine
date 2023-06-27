@@ -2330,7 +2330,7 @@ static int32_t msgToPhysiProjectNode(STlvDecoder* pDecoder, void* pObj) {
 enum {
   PHY_SORT_MERGE_JOIN_CODE_BASE_NODE = 1,
   PHY_SORT_MERGE_JOIN_CODE_JOIN_TYPE,
-  PHY_SORT_MERGE_JOIN_CODE_MERGE_CONDITION,
+  PHY_SORT_MERGE_JOIN_CODE_PRIM_KEY_CONDITION,
   PHY_SORT_MERGE_JOIN_CODE_ON_CONDITIONS,
   PHY_SORT_MERGE_JOIN_CODE_TARGETS,
   PHY_SORT_MERGE_JOIN_CODE_INPUT_TS_ORDER,
@@ -2345,16 +2345,16 @@ static int32_t physiJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeEnum(pEncoder, PHY_SORT_MERGE_JOIN_CODE_JOIN_TYPE, pNode->joinType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_MERGE_CONDITION, nodeToMsg, pNode->pMergeCondition);
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_PRIM_KEY_CONDITION, nodeToMsg, pNode->pPrimKeyCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_ON_CONDITIONS, nodeToMsg, pNode->pOnConditions);
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_ON_CONDITIONS, nodeToMsg, pNode->pOtherOnCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_TARGETS, nodeListToMsg, pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS, nodeToMsg, pNode->pColEqualOnConditions);
+    code = tlvEncodeObj(pEncoder, PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS, nodeToMsg, pNode->pColEqCond);
   }
   return code;
 }
@@ -2372,17 +2372,17 @@ static int32_t msgToPhysiJoinNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_SORT_MERGE_JOIN_CODE_JOIN_TYPE:
         code = tlvDecodeEnum(pTlv, &pNode->joinType, sizeof(pNode->joinType));
         break;
-      case PHY_SORT_MERGE_JOIN_CODE_MERGE_CONDITION:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pMergeCondition);
+      case PHY_SORT_MERGE_JOIN_CODE_PRIM_KEY_CONDITION:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pPrimKeyCond);
         break;
       case PHY_SORT_MERGE_JOIN_CODE_ON_CONDITIONS:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pOnConditions);
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pOtherOnCond);
         break;
       case PHY_SORT_MERGE_JOIN_CODE_TARGETS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);
         break;
       case PHY_SORT_MERGE_JOIN_CODE_TAG_EQUAL_CONDITIONS:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pColEqualOnConditions);
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pColEqCond);
         break;
       default:
         break;

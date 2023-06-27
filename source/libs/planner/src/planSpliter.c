@@ -1621,9 +1621,9 @@ static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
   char* pStr = NULL;
   nodesNodeToString((SNode*)pSubplan, false, &pStr, NULL);
   if (NULL == pRuleName) {
-    qDebugL("before split: %s", pStr);
+    qDebugL("before split, JsonPlan: %s", pStr);
   } else {
-    qDebugL("apply split %s rule: %s", pRuleName, pStr);
+    qDebugL("apply split %s rule, JsonPlan: %s", pRuleName, pStr);
   }
   taosMemoryFree(pStr);
 }

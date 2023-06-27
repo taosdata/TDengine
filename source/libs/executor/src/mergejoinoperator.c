@@ -74,13 +74,13 @@ static void         extractTimeCondition(SMJoinOperatorInfo* pInfo, SOperatorInf
 
 static void extractTimeCondition(SMJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream,  int32_t num,
                                  SSortMergeJoinPhysiNode* pJoinNode, const char* idStr) {
-  SNode* pMergeCondition = pJoinNode->pMergeCondition;
-  if (nodeType(pMergeCondition) != QUERY_NODE_OPERATOR) {
+  SNode* pPrimKeyCond = pJoinNode->pPrimKeyCond;
+  if (nodeType(pPrimKeyCond) != QUERY_NODE_OPERATOR) {
     qError("not support this in join operator, %s", idStr);
     return;  // do not handle this
   }
 
-  SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
+  SOperatorNode* pNode = (SOperatorNode*)pPrimKeyCond;
   SColumnNode*   col1 = (SColumnNode*)pNode->pLeft;
   SColumnNode*   col2 = (SColumnNode*)pNode->pRight;
   SColumnNode*   leftTsCol = NULL;
@@ -222,7 +222,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 
   extractTimeCondition(pInfo, pDownstream, numOfDownstream, pJoinNode, GET_TASKID(pTaskInfo));
 
-  if (pJoinNode->pOnConditions != NULL && pJoinNode->node.pConditions != NULL) {
+  if (pJoinNode->pOtherOnCond != NULL && pJoinNode->node.pConditions != NULL) {
     pInfo->pCondAfterMerge = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
     if (pInfo->pCondAfterMerge == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -236,11 +236,13 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
       goto _error;
     }
 
-    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->pOnConditions));
+    nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->pOtherOnCond));
     nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->node.pConditions));
     pLogicCond->condType = LOGIC_COND_TYPE_AND;
-  } else if (pJoinNode->pOnConditions != NULL) {
-    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->pOnConditions);
+  } else if (pJoinNode->pOtherOnCond != NULL) {
+    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->pOtherOnCond);
+  } else if (pJoinNode->pColEqCond != NULL) {
+    pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->pColEqCond);
   } else if (pJoinNode->node.pConditions != NULL) {
     pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->node.pConditions);
   } else {
@@ -259,7 +261,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     pInfo->inputOrder = TSDB_ORDER_DESC;
   }
 
-  pInfo->pColEqualOnConditions = pJoinNode->pColEqualOnConditions;
+  pInfo->pColEqualOnConditions = pJoinNode->pColEqCond;
   if (pInfo->pColEqualOnConditions != NULL) {
     pInfo->leftEqOnCondCols = taosArrayInit(4, sizeof(SColumn));
     pInfo->rightEqOnCondCols = taosArrayInit(4, sizeof(SColumn));

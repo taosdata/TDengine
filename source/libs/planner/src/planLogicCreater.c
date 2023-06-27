@@ -436,6 +436,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   pJoin->joinType = pJoinTable->joinType;
   pJoin->isSingleTableJoin = pJoinTable->table.singleTable;
+  pJoin->hasSubQuery = pJoinTable->hasSubQuery;
   pJoin->node.inputTsOrder = ORDER_ASC;
   pJoin->node.groupAction = GROUP_ACTION_CLEAR;
   pJoin->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
@@ -475,12 +476,12 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    pJoin->node.pTargets = nodesCloneList(pLeft->pTargets);
-    if (NULL == pJoin->node.pTargets) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+    SNodeList* pColList = NULL;
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesCollectColumns(pSelect, SQL_CLAUSE_WHERE, NULL, COLLECT_COL_TYPE_ALL, &pColList);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListStrictAppendList(pJoin->node.pTargets, nodesCloneList(pRight->pTargets));
+      code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
   }
 

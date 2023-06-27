@@ -174,9 +174,16 @@ typedef enum EJoinType {
   JOIN_TYPE_RIGHT,
 } EJoinType;
 
+typedef enum EJoinAlgorithm { 
+  JOIN_ALGO_UNKNOWN = 0,
+  JOIN_ALGO_MERGE,
+  JOIN_ALGO_HASH,
+} EJoinAlgorithm;
+
 typedef struct SJoinTableNode {
   STableNode table;  // QUERY_NODE_JOIN_TABLE
   EJoinType  joinType;
+  bool       hasSubQuery;
   SNode*     pLeft;
   SNode*     pRight;
   SNode*     pOnCond;
