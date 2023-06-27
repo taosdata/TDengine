@@ -7,14 +7,19 @@ import com.taosdata.caches.StatusCache;
 import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
+import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.model.enums.StatusEnums;
+import com.taosdata.service.InfluxdbService;
+import com.taosdata.service.impl.InfluxdbServiceImpl;
 import com.taosdata.utils.DateUtils;
+import com.taosdata.utils.exception.ArtificialException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.List;
 import java.util.TimeZone;
 
 /**
@@ -57,6 +62,11 @@ public class BucketThread implements Runnable {
     private PerformanceConfig performanceConfig = ApplicationContextProvider.getBean(PerformanceConfig.class);
 
     /**
+     * influxdb数据库操作
+     */
+    private InfluxdbService influxdbService = ApplicationContextProvider.getBean(InfluxdbServiceImpl.class);
+
+    /**
      * 当前已经处理完第几个，结合beginTime与readWindow确定读取时间
      */
     private int index = 0;
@@ -77,6 +87,8 @@ public class BucketThread implements Runnable {
                     sleep(this.performanceConfig.getThread().getCreateBucketFullInterval(), start, StatusEnums.NORMAL);
                     continue;
                 }
+                // 处理新增的measurement
+                additionalMeasurement();
                 // 下一个时间段，英文逗号分割
                 String timeRange = getTimeRange(this.index);
                 // 字符串格式不正确则睡眠后继续（应该是没有任务了）
@@ -154,6 +166,51 @@ public class BucketThread implements Runnable {
         logger.info(this.name + "#线程正常退出#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除线程信息
         StatusCache.forgetThread(this.name);
+    }
+
+    /**
+     * 处理新增的measurement
+     *
+     * @return
+     */
+    private void additionalMeasurement() throws ArtificialException {
+        // 查询bucket中所有measurement信息
+        List<InfluxdbMeasurementEntity> influxdbMeasurementEntityList = influxdbService.selectAllMeasurements(this.bucket);
+        // 判断结果空
+        if (influxdbMeasurementEntityList == null || influxdbMeasurementEntityList.size() == 0) {
+            return;
+        }
+        // 遍历判断是否有新增
+        influxdbMeasurementEntityList.forEach(influxdbMeasurementEntity -> {
+            if (influxdbMeasurementEntity == null || StringUtils.isEmpty(influxdbMeasurementEntity.getMeasurement())) {
+                return;
+            }
+            String measurement = influxdbMeasurementEntity.getMeasurement();
+            // 如果不在缓存中
+            if (!BucketCache.measurementMap.containsKey(this.bucket + ":" + measurement)) {
+                // 添加从0到index-1的所有时间段
+                for (int i = 0; i < this.index; i++) {
+                    try {
+                        // 获取时间段
+                        String timeRange = getTimeRange(i);
+                        // 字符串格式不正确则继续
+                        if (StringUtils.isEmpty(timeRange) || timeRange.indexOf(",") <= 0) {
+                            continue;
+                        }
+                        // 拆分时间段
+                        String[] timeRangeArr = timeRange.split(",");
+                        // 生成bucket子线程并放入队列中
+                        BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, measurement, timeRangeArr[0], timeRangeArr[1]));
+                        // 读取数据任务计数
+                        StatisticCache.noteCreatedTask(this.bucket, measurement, timeRangeArr[0], timeRangeArr[1]);
+                    } catch (Exception e) {
+                        logger.error(this.name + "#线程运行异常#" + e.getMessage(), e);
+                    }
+                }
+                // 添加到缓存中
+                BucketCache.measurementMap.put(this.bucket + ":" + measurement, influxdbMeasurementEntity);
+            }
+        });
     }
 
     /**
