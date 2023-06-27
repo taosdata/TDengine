@@ -147,7 +147,9 @@
                   <div
                     v-for="(p, index) in at.params"
                     :key="index"
-                    :style="textareas.includes(p.name) ? styleareaobj : styleobj"
+                    :style="
+                      textareas.includes(p.name) ? styleareaobj : styleobj
+                    "
                   >
                     <span
                       :class="['label', p.required ? 'required' : '']"
@@ -156,17 +158,24 @@
                           ? { 'padding-top': '10px!important' }
                           : {}
                       "
+                    >
+                      {{ p.display }}
+                      <el-tooltip
+                        class="item"
+                        effect="light"
+                        placement="top"
+                        v-if="
+                          ['security_mode', 'security_policy'].includes(p.name)
+                        "
                       >
-                      {{ p.display }} 
-                      <el-tooltip class="item" effect="light" placement="top"
-                        v-if="['security_mode', 'security_policy'].includes(p.name)"
-                      >
-                        <div v-html="transforHtml(p.description)" slot="content"></div>
+                        <div
+                          v-html="transforHtml(p.description)"
+                          slot="content"
+                        ></div>
                         <i class="el-icon-info"></i>
                       </el-tooltip>
-                      </span
-                    >
-  
+                    </span>
+
                     <div style="flex: 1">
                       <template v-if="p.hint && p.hint.choices">
                         <el-select
@@ -177,7 +186,9 @@
                             width: 100%;
                             margin-bottom: 8px;
                           "
-                          :disabled="p.name ==='security_policy' && policyDisabled"
+                          :disabled="
+                            p.name === 'security_policy' && policyDisabled
+                          "
                           @change="handleAuthentication(p)"
                         >
                           <el-option
@@ -202,7 +213,9 @@
                       ></el-input>
                       <div
                         class="description"
-                        v-if="!['security_mode', 'security_policy'].includes(p.name)"
+                        v-if="
+                          !['security_mode', 'security_policy'].includes(p.name)
+                        "
                         v-html="transforHtml(p.description)"
                       ></div>
                     </div>
@@ -270,7 +283,7 @@
                     size="medium"
                     @click="handleSelBtn"
                     style="height: 42px"
-                    >{{ $t('datasource.select') }}</el-button
+                    >{{ $t("datasource.select") }}</el-button
                   >
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
@@ -321,7 +334,7 @@
                             type="primary"
                             plain
                             @click="addOption"
-                            >{{ $t('datasource.add') }}</el-button
+                            >{{ $t("datasource.add") }}</el-button
                           >
                         </div>
                       </div>
@@ -572,9 +585,9 @@
         </el-select>
       </section>
       <section class="bottom">
-        <el-button type="primary" @click="submit" :disabled="disable"
-          >{{ $t('submit') }}</el-button
-        >
+        <el-button type="primary" @click="submit" :disabled="disable">{{
+          $t("submit")
+        }}</el-button>
       </section>
     </div>
     <div class="right-ui">
@@ -594,7 +607,7 @@ import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt, debounce, deepClone } from "@/utils/index";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
-import MqttConnector from "../components/mqttConnector.vue";
+import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 export default {
   name: "DbSourceUI",
@@ -708,21 +721,21 @@ export default {
       if (this.tagName == "mqtt") {
         this.payloadVal = "json";
       }
-      this.dbsource[0].authentication.alternatives = 
-      this.dbsource[0].authentication.alternatives.map(item => {
-        if(item.name === 'certificates') {
-          item.params.map(par => {
-            if(['certificate','private_key'].includes(par.name)) {
-              par.required = par.value === 'None' ? false : true
-            } 
-            if(par.name === 'security_mode') {
-              this.policyDisabled = par.value === 'None'
-            }
-            return par
-          })
-        }
-        return item
-      })
+      this.dbsource[0].authentication.alternatives =
+        this.dbsource[0].authentication.alternatives.map((item) => {
+          if (item.name === "certificates") {
+            item.params.map((par) => {
+              if (["certificate", "private_key"].includes(par.name)) {
+                par.required = par.value === "None" ? false : true;
+              }
+              if (par.name === "security_mode") {
+                this.policyDisabled = par.value === "None";
+              }
+              return par;
+            });
+          }
+          return item;
+        });
     }
   },
   mounted() {
@@ -781,23 +794,23 @@ export default {
     },
 
     handleAuthentication(p) {
-      if(p.name === 'security_mode') {
-        this.dbsource[0].authentication.alternatives = 
-        this.dbsource[0].authentication.alternatives.map(item => {
-          if(item.name === 'certificates') {
-            item.params.map(par => {
-              if(['certificate','private_key'].includes(par.name)) {
-                par.required = p.value === 'None' ? false : true
-              } 
-              if(par.name === 'security_policy') {
-                this.policyDisabled = p.value === 'None'
-                par.value = p.value === 'None' ? 'None' : ''
-              }
-              return par
-            })
-          }
-          return item
-        })
+      if (p.name === "security_mode") {
+        this.dbsource[0].authentication.alternatives =
+          this.dbsource[0].authentication.alternatives.map((item) => {
+            if (item.name === "certificates") {
+              item.params.map((par) => {
+                if (["certificate", "private_key"].includes(par.name)) {
+                  par.required = p.value === "None" ? false : true;
+                }
+                if (par.name === "security_policy") {
+                  this.policyDisabled = p.value === "None";
+                  par.value = p.value === "None" ? "None" : "";
+                }
+                return par;
+              });
+            }
+            return item;
+          });
       }
     },
 
@@ -972,23 +985,25 @@ export default {
             }
           }
         }
-        console.log(querystr, "querystr");
         if (data.authentication.value == "certificates") {
           // data.authentication.alternatives[2].params.forEach((val) => {
           //   querystr += val.value ? `${val.name}=${val.value}&` : "";
           // })
-          for (let i = 0; i < data.authentication.alternatives[2].params.length; i++) {
-            let authValue = data.authentication.alternatives[2].params[i].value
-            let authName = data.authentication.alternatives[2].params[i].name
-            let authDisplay = data.authentication.alternatives[2].params[i].display
-            let authRequired = data.authentication.alternatives[2].params[i].required
-            if(authRequired && !authValue) {
+          for (
+            let i = 0;
+            i < data.authentication.alternatives[2].params.length;
+            i++
+          ) {
+            let authValue = data.authentication.alternatives[2].params[i].value;
+            let authName = data.authentication.alternatives[2].params[i].name;
+            let authDisplay =
+              data.authentication.alternatives[2].params[i].display;
+            let authRequired =
+              data.authentication.alternatives[2].params[i].required;
+            if (authRequired && !authValue) {
               Message({
                 type: "warning",
-                message:
-                  this.$t("datasource.msg") +
-                  ":" +
-                  `${authDisplay} `,
+                message: this.$t("datasource.msg") + ":" + `${authDisplay} `,
               });
               return;
             } else {
@@ -1043,9 +1058,8 @@ export default {
           return;
         }
         if (this.tagName == "mqtt") {
-          this.$refs.mqtt.submit();
-          console.log(this.$refs.mqtt, "mqtt");
           if (this.$refs.mqtt) {
+            this.$refs.mqtt.submit();
             if (this.$refs.mqtt.showSuperTip) {
               Message({
                 type: "warning",
@@ -1199,7 +1213,6 @@ export default {
       }
     },
     searchDatas: debounce(function (e) {
-      console.log('搜索');
       try {
         let data = this.dbsource[0];
         let endpoint = data.options.endpoint.value;
