@@ -2,7 +2,7 @@
   <el-dialog
     align="center"
     :title="$t('datasource.addsource')"
-    width="400px"
+    width="500px"
     :visible.sync="visible"
     :destroy-on-close="true"
     @closed="closeDialog"
@@ -66,6 +66,7 @@
             :key="item.id"
           ></el-option>
         </el-select>
+        <span style="color:red;font-size:12px;display:flex;margin-top:4px;" v-if="ruleForm.type=='influxdb'">{{$t('datasource.influxdbtip')}}</span>
       </el-form-item>
       <el-form-item :label="$t('datasource.sourcename')" prop="name">
         <el-input

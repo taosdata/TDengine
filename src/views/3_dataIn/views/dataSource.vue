@@ -143,7 +143,6 @@
           :typeList="typeList"
           @closeDialog="closeDialog"
           @addAgent="addAgent"
-          @showMqttDialog="showMqttDialog"
         ></AddDialog>
       </div>
       <el-pagination
@@ -159,9 +158,6 @@
     <div class="agent" style="margin-top: 20px">
       <Agents ref="agents" />
     </div>
-    <div v-if="mqttdialog">
-      <MqttParserDialog @closeMqttDialog="closeMqttDialog"></MqttParserDialog>
-    </div>
   </div>
 </template>
 <script>
@@ -169,12 +165,11 @@ import { Message } from "element-ui";
 import { getDatain } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
-import MqttParserDialog from "../components/mqttConnector.vue";
 import Agents from "../components/agents.vue";
 import { deepClone } from "@/utils";
 export default {
   name: "DataSource",
-  components: { AddDialog, Agents, MqttParserDialog },
+  components: { AddDialog, Agents},
   props: {
     sourceList: {
       type: Array,
@@ -203,12 +198,6 @@ export default {
     };
   },
   methods: {
-    closeMqttDialog() {
-      this.mqttdialog = false;
-    },
-    showMqttDialog() {
-      this.mqttdialog = true;
-    },
     handlePageChange() {},
     //非root用户不能修改root下创建的数据源
     getEditStatus(data) {

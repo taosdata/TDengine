@@ -575,10 +575,9 @@
             :key="db['node-key']"
             :label="db.name"
             :value="db.name"
-            :disabled="(tagName=='influxdb'&&db.precision&&db.precision!=='ns')?true:false"
           ></el-option>
         </el-select>
-        <span class="desc">{{$t('datasource.influxdbtip')}}</span>
+        <!-- <span class="desc">{{$t('datasource.influxdbtip')}}</span> -->
         </div>
         
       </section>
@@ -772,22 +771,7 @@ export default {
     },
     async getDatabases() {
       try { 
-        console.log(this.tagName,'this.tagName');
-        if (this.tagName == "influxdb") {
-          let result = await sendSQLReq(
-            `SELECT * FROM information_schema.ins_databases;`
-          );
-          this.dblist=result.data.map((data) => {
-            return Object.fromEntries(
-              result.column_meta.map((item, index) => {
-                return [item[0], data[index]];
-              })
-            );
-          });
-          console.log(result,this.dblist, "influxdb");
-        } else {
-          this.dblist = await getDBListReq();
-        }
+        this.dblist = await getDBListReq();
       } catch (error) {
         console.log(error);
       }
