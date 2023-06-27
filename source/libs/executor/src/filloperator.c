@@ -185,6 +185,8 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   // the scan order may be different from the output result order for agg interval operator.
   if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL) {
     order = ((SIntervalAggOperatorInfo*) pDownstream->info)->resultTsOrder;
+  } else {
+    order = pInfo->pFillInfo->order;
   }
 #endif
 

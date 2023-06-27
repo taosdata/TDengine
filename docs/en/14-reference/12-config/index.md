@@ -19,14 +19,18 @@ taosd -C
 
 ## Configuration File on Client Side
 
-TDengine CLI `taos` is the tool for users to interact with TDengine. It can share same configuration file as `taosd` or use a separate configuration file. When launching `taos`, parameter `-c` can be used to specify the location where its configuration file is. For example `taos -c /home/cfg` means `/home/cfg/taos.cfg` will be used. If `-c` is not used, the default location of the configuration file is `/etc/taos`. For more details please use `taos --help` to get.
+TDengine CLI `taos` is the tool for users to interact with TDengine. It can share same configuration file as `taosd` or use a separate configuration file. When launching `taos`, parameter `-c` can be used to specify the location where its configuration file is. For example:
+
+```
+taos -c /home/cfg
+```
+
+means `/home/cfg/taos.cfg` will be used. If `-c` is not used, the default location of the configuration file is `/etc/taos`. For more details please use `taos --help` to get.
+
+Parameter `-C` can be used on the CLI of `taos` to show its configuration, like below:
 
 ```bash
 taos -C
-```
-
-```bash
-taos --dump-config
 ```
 
 ## Configuration Parameters
@@ -77,8 +81,9 @@ The parameters described in this document by the effect that they have on the sy
 | Default Value | 6030                                                  |
 
 :::note
-- Ensure that your firewall rules do not block TCP port 6042  on any host in the cluster. Below table describes the ports used by TDengine in details.
+Ensure that your firewall rules do not block TCP port 6042  on any host in the cluster. Below table describes the ports used by TDengine in details.
 :::
+
 | Protocol | Default Port | Description                                                                                               | How to configure                                                                               |
 | :------- | :----------- | :-------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
 | TCP      | 6030         | Communication between client and server. In a multi-node cluster, communication between nodes. serverPort |
@@ -119,6 +124,8 @@ The parameters described in this document by the effect that they have on the sy
 
 :::note
 Please note the `taoskeeper` needs to be installed and running to create the `log` database and receiving metrics sent by `taosd` as the full monitoring solution.
+
+:::
 
 ### monitor
 

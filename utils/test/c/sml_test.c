@@ -1536,9 +1536,9 @@ int main(int argc, char *argv[]) {
   ASSERT(!ret);
   ret = sml_ts3116_Test();
   ASSERT(!ret);
-//  ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file
-//  ASSERT(!ret);
-  ret = sml_ts3303_Test();    // this test case need config sml table name using ./sml_test config_file
+  ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file
+  ASSERT(!ret);
+  ret = sml_ts3303_Test();
   ASSERT(!ret);
 
   //  for(int i = 0; i < sizeof(str)/sizeof(str[0]); i++){

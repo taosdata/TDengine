@@ -233,6 +233,11 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
   // multi-group case not handle here
   SSDataBlock* pBlock = NULL;
   while (1) {
+    if (tsortIsClosed(pInfo->pSortHandle)) {
+      terrno = TSDB_CODE_TSC_QUERY_CANCELLED;
+      T_LONG_JMP(pOperator->pTaskInfo->env, terrno);
+    }
+
     pBlock = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                 pInfo->matchInfo.pList, pInfo);
     if (pBlock == NULL) {
@@ -445,6 +450,11 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
 
   SSDataBlock* pBlock = NULL;
   while (pInfo->pCurrSortHandle != NULL) {
+    if (tsortIsClosed(pInfo->pCurrSortHandle)) {
+      terrno = TSDB_CODE_TSC_QUERY_CANCELLED;
+      T_LONG_JMP(pOperator->pTaskInfo->env, terrno);
+    }
+
     // beginSortGroup would fetch all child blocks of pInfo->currGroupId;
     ASSERT(pInfo->childOpStatus != CHILD_OP_SAME_GROUP);
     pBlock = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,

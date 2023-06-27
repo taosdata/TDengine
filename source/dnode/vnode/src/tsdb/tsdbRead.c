@@ -2846,18 +2846,18 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
       setBlockAllDumped(pDumpInfo, pBlock->maxKey.ts, pReader->order);
       return code;
     }
-    
+
     pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
     if (pBlockScanInfo == NULL) {
       goto _end;
     }
 
-    TSDBKEY   keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
+    TSDBKEY keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
 
     // it is a clean block, load it directly
     if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pBlockScanInfo, keyInBuf, pLastBlockReader) &&
         pBlock->nRow <= pReader->resBlockInfo.capacity) {
-      if (asc || (!hasDataInLastBlock(pLastBlockReader))) {
+      if (asc || (!hasDataInLastBlock(pLastBlockReader) && (pBlock->maxKey.ts > keyInBuf.ts))) {
         code = copyBlockDataToSDataBlock(pReader);
         if (code) {
           goto _end;
