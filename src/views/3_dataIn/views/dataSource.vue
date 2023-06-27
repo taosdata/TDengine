@@ -143,7 +143,6 @@
           :typeList="typeList"
           @closeDialog="closeDialog"
           @addAgent="addAgent"
-          @showMqttDialog="showMqttDialog"
         ></AddDialog>
       </div>
       <el-pagination
@@ -159,9 +158,6 @@
     <div class="agent" style="margin-top: 20px">
       <Agents ref="agents" />
     </div>
-    <div v-if="mqttdialog">
-      <MqttParserDialog @closeMqttDialog="closeMqttDialog"></MqttParserDialog>
-    </div>
   </div>
 </template>
 <script>
@@ -169,12 +165,11 @@ import { Message } from "element-ui";
 import { getDatain } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
-import MqttParserDialog from "../components/mqttConnector.vue";
 import Agents from "../components/agents.vue";
 import { deepClone } from "@/utils";
 export default {
   name: "DataSource",
-  components: { AddDialog, Agents, MqttParserDialog },
+  components: { AddDialog, Agents},
   props: {
     sourceList: {
       type: Array,
@@ -203,12 +198,6 @@ export default {
     };
   },
   methods: {
-    closeMqttDialog() {
-      this.mqttdialog = false;
-    },
-    showMqttDialog() {
-      this.mqttdialog = true;
-    },
     handlePageChange() {},
     //非root用户不能修改root下创建的数据源
     getEditStatus(data) {
@@ -250,6 +239,8 @@ export default {
       });
     },
     edit(data) {
+      this.$parent.sourceName=data.name
+      console.log(data,'要编辑的数据');
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
         if (data.from_expand && data.from_expand.id == "mqtt") {

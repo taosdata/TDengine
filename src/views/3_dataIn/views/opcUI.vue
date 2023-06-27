@@ -4,7 +4,19 @@
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
-
+      <!-- <div class="source-name">
+        <div class="block-title">
+          <span>数据源名称</span>
+        </div>
+        <div class="name">
+          <span class="label">名称</span>
+          <el-input
+            v-model="sourceName"
+            placeholder="请输入数据源名称"
+            style="width: 200px"
+          ></el-input>
+        </div>
+      </div> -->
       <section class="basics">
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
@@ -135,7 +147,9 @@
                   <div
                     v-for="(p, index) in at.params"
                     :key="index"
-                    :style="textareas.includes(p.name) ? styleareaobj : styleobj"
+                    :style="
+                      textareas.includes(p.name) ? styleareaobj : styleobj
+                    "
                   >
                     <span
                       :class="['label', p.required ? 'required' : '']"
@@ -144,17 +158,24 @@
                           ? { 'padding-top': '10px!important' }
                           : {}
                       "
+                    >
+                      {{ p.display }}
+                      <el-tooltip
+                        class="item"
+                        effect="light"
+                        placement="top"
+                        v-if="
+                          ['security_mode', 'security_policy'].includes(p.name)
+                        "
                       >
-                      {{ p.display }} 
-                      <el-tooltip class="item" effect="light" placement="top"
-                        v-if="['security_mode', 'security_policy'].includes(p.name)"
-                      >
-                        <div v-html="transforHtml(p.description)" slot="content"></div>
+                        <div
+                          v-html="transforHtml(p.description)"
+                          slot="content"
+                        ></div>
                         <i class="el-icon-info"></i>
                       </el-tooltip>
-                      </span
-                    >
-  
+                    </span>
+
                     <div style="flex: 1">
                       <template v-if="p.hint && p.hint.choices">
                         <el-select
@@ -165,7 +186,9 @@
                             width: 100%;
                             margin-bottom: 8px;
                           "
-                          :disabled="p.name ==='security_policy' && policyDisabled"
+                          :disabled="
+                            p.name === 'security_policy' && policyDisabled
+                          "
                           @change="handleAuthentication(p)"
                         >
                           <el-option
@@ -190,7 +213,9 @@
                       ></el-input>
                       <div
                         class="description"
-                        v-if="!['security_mode', 'security_policy'].includes(p.name)"
+                        v-if="
+                          !['security_mode', 'security_policy'].includes(p.name)
+                        "
                         v-html="transforHtml(p.description)"
                       ></div>
                     </div>
@@ -258,7 +283,7 @@
                     size="medium"
                     @click="handleSelBtn"
                     style="height: 42px"
-                    >{{ $t('datasource.select') }}</el-button
+                    >{{ $t("datasource.select") }}</el-button
                   >
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
@@ -312,7 +337,7 @@
                             type="primary"
                             plain
                             @click="addOption"
-                            >{{ $t('datasource.add') }}</el-button
+                            >{{ $t("datasource.add") }}</el-button
                           >
                         </div>
                       </div>
@@ -563,9 +588,9 @@
         </el-select>
       </section>
       <section class="bottom">
-        <el-button type="primary" @click="submit" :disabled="disable"
-          >{{ $t('submit') }}</el-button
-        >
+        <el-button type="primary" @click="submit" :disabled="disable">{{
+          $t("submit")
+        }}</el-button>
       </section>
     </div>
     <div class="right-ui">
@@ -585,7 +610,7 @@ import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt, debounce, deepClone } from "@/utils/index";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
-import MqttConnector from "../components/mqttConnector.vue";
+import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 export default {
   name: "DbSourceUI",
@@ -595,6 +620,10 @@ export default {
     opcConnector,
   },
   props: {
+    sourceName: {
+      type: String,
+      default: "",
+    },
     echoData: {
       type: Array,
       default: () => {
@@ -872,7 +901,6 @@ export default {
                 data.groups[index].params[g]["value"] == "")
             ) {
               if (this.tagName == "mqtt") {
-
                 if (data.groups[index].collapsed) {
                   Message({
                     type: "warning",
@@ -963,23 +991,25 @@ export default {
             }
           }
         }
-        console.log(querystr, "querystr");
         if (data.authentication.value == "certificates") {
           // data.authentication.alternatives[2].params.forEach((val) => {
           //   querystr += val.value ? `${val.name}=${val.value}&` : "";
           // })
-          for (let i = 0; i < data.authentication.alternatives[2].params.length; i++) {
-            let authValue = data.authentication.alternatives[2].params[i].value
-            let authName = data.authentication.alternatives[2].params[i].name
-            let authDisplay = data.authentication.alternatives[2].params[i].display
-            let authRequired = data.authentication.alternatives[2].params[i].required
-            if(authRequired && !authValue) {
+          for (
+            let i = 0;
+            i < data.authentication.alternatives[2].params.length;
+            i++
+          ) {
+            let authValue = data.authentication.alternatives[2].params[i].value;
+            let authName = data.authentication.alternatives[2].params[i].name;
+            let authDisplay =
+              data.authentication.alternatives[2].params[i].display;
+            let authRequired =
+              data.authentication.alternatives[2].params[i].required;
+            if (authRequired && !authValue) {
               Message({
                 type: "warning",
-                message:
-                  this.$t("datasource.msg") +
-                  ":" +
-                  `${authDisplay} `,
+                message: this.$t("datasource.msg") + ":" + `${authDisplay} `,
               });
               return;
             } else {
@@ -1034,9 +1064,8 @@ export default {
           return;
         }
         if (this.tagName == "mqtt") {
-          this.$refs.mqtt.submit();
-          console.log(this.$refs.mqtt, "mqtt");
           if (this.$refs.mqtt) {
+            this.$refs.mqtt.submit();
             if (this.$refs.mqtt.showSuperTip) {
               Message({
                 type: "warning",
@@ -1195,7 +1224,6 @@ export default {
       }
     },
     searchDatas: debounce(function (e) {
-      console.log('搜索');
       try {
         let data = this.dbsource[0];
         let endpoint = data.options.endpoint.value;
@@ -1308,6 +1336,19 @@ export default {
       max-width: 500px;
       overflow: auto;
     }
+    .source-name {
+      border: 1px solid #e3e4e6;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      .name {
+        display: flex;
+        align-items: center;
+        ::v-deep .el-input {
+          flex: 1;
+        }
+      }
+    }
     section:not(:first-child) {
       border: 1px solid #e3e4e6;
       margin-bottom: 20px;
@@ -1333,7 +1374,8 @@ export default {
       align-items: center;
       width: 8px;
     }
-    .label.required, .no-label.required {
+    .label.required,
+    .no-label.required {
       position: relative;
       &::before {
         content: "*";
@@ -1344,7 +1386,7 @@ export default {
         left: -10px;
       }
     }
-  
+
     .header {
       margin-bottom: 20px;
       h1 {

@@ -4,6 +4,19 @@
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
+      <!-- <div class="source-name">
+        <div class="block-title">
+          <span>数据源名称</span>
+        </div>
+        <div class="name">
+          <span class="label">名称</span>
+          <el-input
+            v-model="sourceName"
+            placeholder="请输入数据源名称"
+            style="width: 200px"
+          ></el-input>
+        </div>
+      </div> -->
       <section class="basics">
         <div class="block-title">
           <span>{{ dbsource[0].options.display }}</span>
@@ -555,7 +568,8 @@
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
         <span class="label required">{{ this.$t("datasource.targetdb") }}</span>
-        <el-select v-model="dbname" placeholder="">
+        <div class="target-db-name">
+          <el-select v-model="dbname" placeholder="">
           <el-option
             v-for="db in dblist"
             :key="db['node-key']"
@@ -563,6 +577,9 @@
             :value="db.name"
           ></el-option>
         </el-select>
+        <!-- <span class="desc">{{$t('datasource.influxdbtip')}}</span> -->
+        </div>
+        
       </section>
       <section class="bottom">
         <el-button type="primary" @click="submit" :disabled="disable"
@@ -581,15 +598,19 @@
   </div>
 </template>
 <script>
+import { sendSQLReq } from "@/api/gateway/console";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
-import moment from "moment";
 import { debounce } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   props: {
+    sourceName: {
+      type: String,
+      default: "",
+    },
     tagName: {
       type: String,
       default: "datasource",
@@ -749,7 +770,7 @@ export default {
       return targetObj;
     },
     async getDatabases() {
-      try {
+      try { 
         this.dblist = await getDBListReq();
       } catch (error) {
         console.log(error);
@@ -1022,7 +1043,7 @@ export default {
             }
             this.$parent.toggleComponent("pitable");
           } else {
-            let result =await AddSource(piParams);
+            let result = await AddSource(piParams);
             if (result.message) {
               Message.error(result.message);
               return;
@@ -1034,7 +1055,10 @@ export default {
           }
         }
       } catch (err) {
-        err.response&&err.response.data&&err.response.data.message && Message.error(err.response.data.message);
+        err.response &&
+          err.response.data &&
+          err.response.data.message &&
+          Message.error(err.response.data.message);
       }
     },
 
@@ -1177,6 +1201,29 @@ export default {
       max-width: 500px;
       overflow: auto;
     }
+    .target-db-name{
+      display: flex;
+      flex-direction: column;
+      flex:1;
+      .desc{
+        color:red;
+        display: block;
+        margin-top: 8px;
+      }
+    }
+    .source-name {
+      border: 1px solid #e3e4e6;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      .name {
+        display: flex;
+        align-items: center;
+        ::v-deep .el-input {
+          flex: 1;
+        }
+      }
+    }
     section:not(:first-child) {
       border: 1px solid #ececef;
       margin-bottom: 20px;
@@ -1202,7 +1249,8 @@ export default {
       align-items: center;
       width: 8px;
     }
-    .label.required, .no-label.required {
+    .label.required,
+    .no-label.required {
       position: relative;
       &::before {
         content: "*";

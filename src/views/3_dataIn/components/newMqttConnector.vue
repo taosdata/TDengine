@@ -46,10 +46,8 @@
       <div class="col-content">
         <Mqttcolumn
           v-for="item in fields.filter((item) => item.name != 'payload')"
-          :key="item.name + Math.random() * 1000"
+          :key="item.name"
           :colData="item"
-          @deleteRow="deleteRow"
-          :currentPrimary="defaultSelect"
           @changePrimary="changePrimary"
           @changeAddStatus="changeAddStatus"
           :isEditable="isEditable"
@@ -58,16 +56,18 @@
         </Mqttcolumn>
         <Mqttcolumn
           v-for="(item, index) in connectorData.parse.payload.json"
-          :key="index + Math.random() * 1000"
+          :key="index"
           :index="index"
           :colData="item"
           @deleteRow="deleteRow"
-          :currentPrimary="defaultSelect"
           @changePrimary="changePrimary"
           :isEditable="isEditable"
           @changeAddStatus="changeAddStatus"
           ref="mqtt"
         >
+        <!-- <template #localindex> 
+          <span style="color:orange;font-size:20px;">{{index}}</span>
+        </template> -->
         </Mqttcolumn>
       </div>
       <div class="footer">
@@ -123,10 +123,15 @@
 </template>
 <script>
 import { deepClone } from "@/utils";
-import Mqttcolumn from "./mqttColumn.vue";
+import Mqttcolumn from "./newMqttColumn.vue";
 export default {
-  name: "MqttConnector",
+  name: "NewMqttConnector",
   components: { Mqttcolumn },
+  provide() {
+    return {
+      currentKey: this.currentKey,
+    };
+  },
   props: {
     connectorData: {
       type: Object,
@@ -147,7 +152,9 @@ export default {
   },
   data() {
     return {
-      defaultSelect: "",
+      currentKey: {
+        primary: "ts",
+      },
       showSuperTip: false,
       visiblecols: ["using", "name"],
       visible: true,
@@ -173,14 +180,15 @@ export default {
   },
   methods: {
     changePrimary(data) {
-      this.defaultSelect = data;
+      this.currentKey.primary = data;
     },
     getTagOrColumn(event, val) {
       this.connectorData.model[val] = event.split(",");
     },
     changeAddStatus() {
       this.$nextTick(() => {
-        this.disable = Array.from(this.$refs.mqtt).some(
+        let arr=this.$refs.mqtt?Array.from(this.$refs.mqtt):[]
+        this.disable = arr.some(
           (item) => item.addStatus
         );
       });
@@ -203,11 +211,11 @@ export default {
           if (tags.includes(name)) {
             tags.splice(tags.indexOf(name), 1);
           }
-          if (this.defaultSelect == name) {
+          if (this.currentKey.primary == name) {
             //删的是主键，只有在新增时候才可以删除主键
             if (!columns.includes("ts")) {
               columns.unshift("ts");
-              this.defaultSelect = "ts";
+              this.currentKey.primary = "ts";
               this.$refs.staticmqtt[0].changePrimary("ts");
             }
           }
@@ -249,10 +257,13 @@ export default {
   },
   mounted() {
     this.changeAddStatus();
-    this.defaultSelect =
-      this.connectorData.model.columns.length > 0
-        ? this.connectorData.model.columns[0]
-        : "ts";
+    if(this.connectorData.model.columns.length > 0){
+      this.currentKey.primary = this.connectorData.model.columns[0]
+    }
+    // this.currentKey.primary =
+    //   this.connectorData.model.columns.length > 0
+    //     ? this.connectorData.model.columns[0]
+    //     : "ts";
   },
 };
 </script>
