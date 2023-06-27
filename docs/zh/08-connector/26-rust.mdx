@@ -325,6 +325,8 @@ let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
 
 ### 无模式写入
 
+TDengine 支持无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](../../reference/schemaless/)。
+
 <RustSml />
 
 ### 执行带有 req_id 的无模式写入
