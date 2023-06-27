@@ -18,19 +18,19 @@
 #include "tq.h"
 
 // STqSnapReader ========================================
-struct STqSnapReader {
+struct SStreamTaskReader {
   STQ*    pTq;
   int64_t sver;
   int64_t ever;
   TBC*    pCur;
 };
 
-int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapReader** ppReader) {
-  int32_t        code = 0;
-  STqSnapReader* pReader = NULL;
+int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskReader** ppReader) {
+  int32_t            code = 0;
+  SStreamTaskReader* pReader = NULL;
 
   // alloc
-  pReader = (STqSnapReader*)taosMemoryCalloc(1, sizeof(STqSnapReader));
+  pReader = (SStreamTaskReader*)taosMemoryCalloc(1, sizeof(SStreamTaskReader));
   if (pReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -63,7 +63,7 @@ _err:
   return code;
 }
 
-int32_t tqSnapReaderClose(STqSnapReader** ppReader) {
+int32_t streamTaskSnapReaderClose(SStreamTaskReader** ppReader) {
   int32_t code = 0;
 
   tdbTbcClose((*ppReader)->pCur);
@@ -73,7 +73,7 @@ int32_t tqSnapReaderClose(STqSnapReader** ppReader) {
   return code;
 }
 
-int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
+int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData) {
   int32_t     code = 0;
   const void* pKey = NULL;
   const void* pVal = NULL;
@@ -123,19 +123,19 @@ _err:
 }
 
 // STqSnapWriter ========================================
-struct STqSnapWriter {
+struct SStreamTaskWriter {
   STQ*    pTq;
   int64_t sver;
   int64_t ever;
   TXN*    txn;
 };
 
-int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter) {
-  int32_t        code = 0;
-  STqSnapWriter* pWriter;
+int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter) {
+  int32_t            code = 0;
+  SStreamTaskWriter* pWriter;
 
   // alloc
-  pWriter = (STqSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
+  pWriter = (SStreamTaskWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -159,10 +159,10 @@ _err:
   return code;
 }
 
-int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
-  int32_t        code = 0;
-  STqSnapWriter* pWriter = *ppWriter;
-  STQ*           pTq = pWriter->pTq;
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter** ppWriter, int8_t rollback) {
+  int32_t            code = 0;
+  SStreamTaskWriter* pWriter = *ppWriter;
+  STQ*               pTq = pWriter->pTq;
 
   if (rollback) {
     tdbAbort(pWriter->pTq->pMetaDB, pWriter->txn);
@@ -188,7 +188,7 @@ _err:
   return code;
 }
 
-int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t   code = 0;
   STQ*      pTq = pWriter->pTq;
   SDecoder  decoder = {0};

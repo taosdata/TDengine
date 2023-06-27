@@ -70,6 +70,9 @@ target_sources(
     "src/tq/tqRestore.c"
     "src/tq/tqSnapshot.c"
     "src/tq/tqOffsetSnapshot.c"
+    "src/tq/tqStreamStateSnap.c"
+    "src/tq/tqStreamTaskSnap.c"
+    
 )
 
 IF (TD_VNODE_PLUGINS)
