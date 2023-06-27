@@ -291,6 +291,7 @@ url 中的配置参数如下：
 - httpSocketTimeout: socket 超时时间，单位 ms，默认值为 5000。仅在 batchfetch 设置为 false 时生效。
 - messageWaitTimeout: 消息超时时间, 单位 ms， 默认值为 3000。 仅在 batchfetch 设置为 true 时生效。
 - useSSL: 连接中是否使用 SSL。
+- httpPoolSize: REST 并发请求大小，默认 20。
 
 **注意**：部分配置项（比如：locale、timezone）在 REST 连接中不生效。
 
@@ -358,6 +359,7 @@ properties 中的配置参数如下：
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 5000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 3000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
+- TSDBDriver.HTTP_POOL_SIZE: REST 并发请求大小，默认 20。
   此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
 
 ### 配置参数的优先级
@@ -421,6 +423,19 @@ while(resultSet.next()){
 ```
 
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
+
+### 执行带有 reqId 的 SQL
+
+此 reqId 可用于请求链路追踪。
+
+```java
+AbstractStatement aStmt = (AbstractStatement) connection.createStatement();
+aStmt.execute("create database if not exists db", 1L);
+aStmt.executeUpdate("use db", 2L);
+try (ResultSet rs = aStmt.executeQuery("select * from tb", 3L)) {
+    Timestamp ts = rs.getTimestamp(1);
+}
+```
 
 ### 通过参数绑定写入数据
 
@@ -939,6 +954,14 @@ public class SchemalessWsTest {
 </TabItem>
 </Tabs>
 
+### 执行带有 reqId 的无模式写入
+
+此 reqId 可用于请求链路追踪。
+
+```java
+writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS, 1L);
+```
+
 ### 数据订阅
 
 TDengine Java 连接器支持订阅功能，应用 API 如下：
@@ -996,13 +1019,36 @@ while(true) {
 
 #### 指定订阅 Offset
 
-```
+```java
 long position(TopicPartition partition) throws SQLException;
 Map<TopicPartition, Long> position(String topic) throws SQLException;
 Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
 Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
 
 void seek(TopicPartition partition, long offset) throws SQLException;
+```
+
+示例代码：
+
+```java
+String topic = "offset_seek_test";
+Map<TopicPartition, Long> offset = null;
+try (TaosConsumer<ResultBean> consumer = new TaosConsumer<>(properties)) {
+    consumer.subscribe(Collections.singletonList(topic));
+    for (int i = 0; i < 10; i++) {
+        if (i == 3) {
+            // Saving consumption position
+            offset = consumer.position(topic);
+        }
+        if (i == 5) {
+            // reset consumption to the previously saved position
+            for (Map.Entry<TopicPartition, Long> entry : offset.entrySet()) {
+                consumer.seek(entry.getKey(), entry.getValue());
+            }
+        }
+        ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(500));
+    }
+}
 ```
 
 #### 关闭订阅

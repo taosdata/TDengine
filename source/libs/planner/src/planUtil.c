@@ -51,6 +51,7 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
       }
       return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
     }
+    case QUERY_NODE_VALUE:
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION:
@@ -247,8 +248,7 @@ static int32_t adjustPartitionDataRequirement(SPartitionLogicNode* pPart, EDataO
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   pPart->node.resultDataOrder = requirement;
-  pPart->node.requireDataOrder =
-      (requirement >= DATA_ORDER_LEVEL_IN_BLOCK ? DATA_ORDER_LEVEL_GLOBAL : DATA_ORDER_LEVEL_NONE);
+  pPart->node.requireDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
 }
 
