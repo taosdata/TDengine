@@ -320,6 +320,8 @@ let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
 
 ### Schemaless Writing
 
+TDengine supports schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. For more information, see [Schemaless Writing](../../schemaless).
+
 <RustSml />
 
 ### Schemaless with req_id
