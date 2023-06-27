@@ -18,7 +18,6 @@ jobs:
           yum install -y git
 
       - uses: actions/checkout@v3
-      - run: git config --system --add safe.directory '*'
 
       - name: Set up Rust
         id: setup-rust
@@ -50,6 +49,7 @@ jobs:
 
       - name: Build taosX
         run: |
+          git config --system --add safe.directory '*'
           git branch
           cargo build --release --no-default-features --features optin --features native-tls
           target/release/taosx -V
