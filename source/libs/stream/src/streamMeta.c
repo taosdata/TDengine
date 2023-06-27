@@ -438,7 +438,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       return -1;
     }
 
-    ASSERT(pTask->status.checkDownstream == 0);
+    ASSERT(pTask->status.downstreamReady == 0);
   }
 
   tdbFree(pKey);

@@ -817,10 +817,10 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     SStreamTask task = {0};
     if (pTask->info.fillHistory) {
       task.id = pTask->streamTaskId;
-      SStreamMeta meta = {0};
       task.pMeta = pTask->pMeta;
       pSateTask = &task;
     }
+
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pSateTask, false, -1, -1);
     if (pTask->pState == NULL) {
       return -1;
@@ -840,7 +840,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     SStreamTask task = {0};
     if (pTask->info.fillHistory) {
       task.id = pTask->streamTaskId;
-      SStreamMeta meta = {0};
       task.pMeta = pTask->pMeta;
       pSateTask = &task;
     }
@@ -1100,6 +1099,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   if (pTask->info.fillHistory) {
     SVersionRange* pRange = NULL;
     SStreamTask* pStreamTask = NULL;
+
     if (!pReq->igUntreated && !streamTaskRecoverScanStep1Finished(pTask)) {
       // 1. stop the related stream task, get the current scan wal version of stream task, ver.
       pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.taskId);
@@ -1110,7 +1110,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
       // wait for the stream task get ready for scan history data
-      while (((pStreamTask->status.checkDownstream == 0) && (pStreamTask->status.taskStatus != TASK_STATUS__STOP)) ||
+      while (((pStreamTask->status.downstreamReady == 0) && (pStreamTask->status.taskStatus != TASK_STATUS__STOP)) ||
             pStreamTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
         tqDebug("s-task:%s level:%d not ready for halt, wait for 100ms and recheck", pStreamTask->id.idStr,
                 pStreamTask->info.taskLevel);
@@ -1136,8 +1136,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       pRange->maxVer = ver;
       if (pRange->minVer == pRange->maxVer) {
         streamTaskRecoverSetAllStepFinished(pTask);
-        tqDebug("s-task:%s no need to perform secondary scan-history-data(step 2), since no new data ingest",
-                pId);
+        tqDebug("s-task:%s no need to perform secondary scan-history-data(step 2), since no new data ingest", pId);
       }
     }
     
@@ -1147,31 +1146,34 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
               pId, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pStreamTask->id.idStr);
 
       ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
-      st = taosGetTimestampMs();
 
+      st = taosGetTimestampMs();
       streamSetParamForStreamScannerStep2(pTask, pRange, &pTask->dataRange.window);
     }
 
     if(!streamTaskRecoverScanStep2Finished(pTask)) {
+
       streamSourceScanHistoryData(pTask);
       if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING || streamTaskShouldPause(&pTask->status)) {
         tqDebug("s-task:%s is dropped or paused, abort recover in step1", pId);
         streamMetaReleaseTask(pMeta, pTask);
         return 0;
       }
+
       streamTaskRecoverSetAllStepFinished(pTask);
     }
 
     el = (taosGetTimestampMs() - st) / 1000.0;
     tqDebug("s-task:%s history data scan stage(step 2) ended, elapsed time:%.2fs", pId, el);
 
+    // 3. notify the downstream tasks to transfer executor state after handle all history blocks.
     if (!pTask->status.transferState) {
-      // 3. notify the downstream tasks to transfer executor state after handle all history blocks.
-      pTask->status.transferState = true;
       code = streamDispatchTransferStateMsg(pTask);
       if (code != TSDB_CODE_SUCCESS) {
         // todo handle error
       }
+
+      pTask->status.transferState = true;
     }
 
     // 4. 1) transfer the ownership of executor state, 2) update the scan data range for source task.
@@ -1179,12 +1181,12 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     streamTryExec(pTask);
 
     pTask->status.taskStatus = TASK_STATUS__DROPPING;
-
     tqDebug("s-task:%s set status to be dropping", pId);
 
     // transfer the ownership of executor state
     streamTaskReleaseState(pTask);
     streamTaskReloadState(pStreamTask);
+
     streamMetaSaveTask(pMeta, pTask);
     streamMetaSaveTask(pMeta, pStreamTask);
 
@@ -1405,6 +1407,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask != NULL) {
+    // even in halt status, the data in inputQ must be processed
     int8_t status = pTask->status.taskStatus;
     if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__HALT) {
       tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,

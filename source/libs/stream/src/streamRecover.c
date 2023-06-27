@@ -97,15 +97,15 @@ int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
 
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-    qDebug("s-task:%s check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64 " window:%" PRId64
-           "-%" PRId64,
-           pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId, pRange->range.minVer, pRange->range.maxVer,
-           pWindow->skey, pWindow->ekey);
-
     req.reqId = tGenIdPI64();
     req.downstreamNodeId = pTask->fixedEpDispatcher.nodeId;
     req.downstreamTaskId = pTask->fixedEpDispatcher.taskId;
     pTask->checkReqId = req.reqId;
+
+    qDebug("s-task:%s check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64 " window:%" PRId64
+           "-%" PRId64 ", req:0x%" PRIx64,
+           pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId, pRange->range.minVer, pRange->range.maxVer,
+           pWindow->skey, pWindow->ekey, req.reqId);
 
     streamDispatchCheckMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -129,7 +129,7 @@ int32_t streamTaskCheckDownstreamTasks(SStreamTask* pTask) {
       streamDispatchCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
   } else {
-    pTask->status.checkDownstream = 1;
+    pTask->status.downstreamReady = 1;
     qDebug("s-task:%s (vgId:%d) no downstream tasks, set downstream checked, try to launch scan-history-data, status:%s",
            pTask->id.idStr, pTask->info.nodeId, streamGetTaskStatusStr(pTask->status.taskStatus));
 
@@ -222,8 +222,8 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
       }
 
       // set the downstream tasks have been checked flag
-      ASSERT(pTask->status.checkDownstream == 0);
-      pTask->status.checkDownstream = 1;
+      ASSERT(pTask->status.downstreamReady == 0);
+      pTask->status.downstreamReady = 1;
 
       ASSERT(pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY || pTask->status.taskStatus == TASK_STATUS__NORMAL);
       if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
@@ -284,23 +284,6 @@ int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamScanHistoryReq* 
 
 int32_t streamSourceScanHistoryData(SStreamTask* pTask) {
   return streamScanExec(pTask, 100);
-}
-
-int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
-  void* exec = pTask->exec.pExecutor;
-  const char* id = pTask->id.idStr;
-
-  int64_t st = taosGetTimestampMs();
-  qDebug("s-task:%s recover step2(blocking stage) started", id);
-  if (qStreamSourceRecoverStep2(exec, ver) < 0) {
-  }
-
-  int32_t code = streamScanExec(pTask, 100);
-
-  double el = (taosGetTimestampMs() - st) / 1000.0;
-  qDebug("s-task:%s recover step2(blocking stage) ended, elapsed time:%.2fs", id,  el);
-
-  return code;
 }
 
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
@@ -373,8 +356,8 @@ int32_t streamDispatchTransferStateMsg(SStreamTask* pTask) {
 
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-    qDebug("s-task:%s send transfer state msg to downstream (fix-dispatch) to taskId:0x%x, status:%d", pTask->id.idStr,
-           pTask->fixedEpDispatcher.taskId, pTask->status.taskStatus);
+    qDebug("s-task:%s send transfer state msg to downstream (fix-dispatch) to taskId:0x%x, status:%s", pTask->id.idStr,
+           pTask->fixedEpDispatcher.taskId, streamGetTaskStatusStr(pTask->status.taskStatus));
 
     req.taskId = pTask->fixedEpDispatcher.taskId;
     doDispatchTransferMsg(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
@@ -693,7 +676,7 @@ void streamPrepareNdoCheckDownstream(SStreamTask* pTask) {
              pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
     }
 
-    ASSERT(pTask->status.checkDownstream == 0);
+    ASSERT(pTask->status.downstreamReady == 0);
 
     // check downstream tasks for itself
     streamTaskCheckDownstreamTasks(pTask);

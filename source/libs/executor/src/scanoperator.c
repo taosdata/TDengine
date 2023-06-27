@@ -1800,8 +1800,8 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
              pTSInfo->base.cond.endVersion, pTSInfo->base.cond.twindows.skey, pTSInfo->base.cond.twindows.ekey, id);
       pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN1;
     } else {
-      pTSInfo->base.cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer.minVer + 1;
-      pTSInfo->base.cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer2;
+      pTSInfo->base.cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer.minVer;
+      pTSInfo->base.cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer.maxVer;
       qDebug("stream recover step2, verRange:%" PRId64 " - %" PRId64", %s", pTSInfo->base.cond.startVersion,
              pTSInfo->base.cond.endVersion, id);
       pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN2;
@@ -1873,7 +1873,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
           TSKEY maxTs = pAPI->stateStore.updateInfoFillBlockData(pInfo->pUpdateInfo, pInfo->pRecoverRes, pInfo->primaryTsIndex);
           pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
         } else {
-          pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pTaskInfo->streamInfo.fillHistoryVer2);
+          pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pTaskInfo->streamInfo.fillHistoryVer.maxVer);
           doCheckUpdate(pInfo, pInfo->pRecoverRes->info.window.ekey, pInfo->pRecoverRes);
         }
       }
@@ -2100,6 +2100,8 @@ FETCH_NEXT_BLOCK:
           STimeWindow* pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
 
           if (pWindow->skey != INT64_MIN) {
+            qDebug("%s filter for additional history window, skey:%"PRId64, id, pWindow->skey);
+
             bool* p = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
             bool hasUnqualified = false;
 
@@ -2124,8 +2126,8 @@ FETCH_NEXT_BLOCK:
         pBlock->info.dataLoad = 1;
         blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
 
-        qDebug("%" PRId64 " rows in datablock, update res:%" PRId64 " %s", pBlockInfo->rows,
-               pInfo->pUpdateDataRes->info.rows, id);
+        qDebug("%s %" PRId64 " rows in datablock, update res:%" PRId64, id, pBlockInfo->rows,
+               pInfo->pUpdateDataRes->info.rows);
         if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
           break;
         }

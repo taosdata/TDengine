@@ -68,9 +68,6 @@ typedef struct {
   SQueryTableDataCond  tableCond;
   SVersionRange        fillHistoryVer;
   STimeWindow          fillHistoryWindow;
-//  int64_t              fillHistoryVer1;
-//  int64_t              fillHisotryeKey1;
-  int64_t              fillHistoryVer2;
   SStreamState*        pState;
   int64_t              dataVersion;
   int64_t              checkPointId;

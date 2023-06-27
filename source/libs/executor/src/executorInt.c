@@ -1051,44 +1051,6 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
   return TSDB_CODE_SUCCESS;
 }
 
-void qStreamCloseTsdbReader(void* task) {
-  if (task == NULL) {
-    return;
-  }
-
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
-  SOperatorInfo* pOp = pTaskInfo->pRoot;
-
-  qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.currentOffset.uid,
-         pTaskInfo->streamInfo.currentOffset.ts);
-
-  // todo refactor, other thread may already use this read to extract data.
-  pTaskInfo->streamInfo.currentOffset = (STqOffsetVal){0};
-  while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
-    SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
-    if (pDownstreamOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-      SStreamScanInfo* pInfo = pDownstreamOp->info;
-      if (pInfo->pTableScanOp) {
-        STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
-
-        setOperatorCompleted(pInfo->pTableScanOp);
-        while (pTaskInfo->owner != 0) {
-          taosMsleep(100);
-          qDebug("wait for the reader stopping");
-        }
-
-        pTaskInfo->storageAPI.tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
-        pTSInfo->base.dataReader = NULL;
-
-        // restore the status, todo refactor.
-        pInfo->pTableScanOp->status = OP_OPENED;
-        pTaskInfo->status = TASK_NOT_COMPLETED;
-        return;
-      }
-    }
-  }
-}
-
 void streamOpReleaseState(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.releaseStreamStateFn) {

@@ -195,14 +195,6 @@ int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t le
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
 void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key);
-/**
- * return the scan info, in the form of tuple of two items, including table uid and current timestamp
- * @param tinfo
- * @param uid
- * @param ts
- * @return
- */
-int32_t qGetStreamScanStatus(qTaskInfo_t tinfo, uint64_t* uid, int64_t* ts);
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo);
 
@@ -225,15 +217,15 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
 int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
-int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver);
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo);
 bool    qStreamRecoverScanFinished(qTaskInfo_t tinfo);
 bool    qStreamRecoverScanStep1Finished(qTaskInfo_t tinfo);
 bool    qStreamRecoverScanStep2Finished(qTaskInfo_t tinfo);
 int32_t qStreamRecoverSetAllStepFinished(qTaskInfo_t tinfo);
-void    qStreamCloseTsdbReader(void* task);
 void    resetTaskInfo(qTaskInfo_t tinfo);
+
+void qResetStreamInfoTimeWindow(qTaskInfo_t tinfo);
 
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);

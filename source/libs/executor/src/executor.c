@@ -116,6 +116,16 @@ void resetTaskInfo(qTaskInfo_t tinfo) {
   clearStreamBlock(pTaskInfo->pRoot);
 }
 
+void qResetStreamInfoTimeWindow(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+  if (pTaskInfo == NULL) {
+    return;
+  }
+
+  qDebug("%s set fill history start key:%"PRId64, GET_TASKID(pTaskInfo), INT64_MIN);
+  pTaskInfo->streamInfo.fillHistoryWindow.skey = INT64_MIN;
+}
+
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, const char* id) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
@@ -265,6 +275,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
+
     pTaskInfo->pRoot = createRawScanOperatorInfo(pReaderHandle, pTaskInfo);
     if (NULL == pTaskInfo->pRoot) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -314,8 +325,8 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
     return NULL;
   }
 
-  struct SSubplan* pPlan = NULL;
-  int32_t          code = qStringToSubplan(msg, &pPlan);
+  SSubplan* pPlan = NULL;
+  int32_t   code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
@@ -907,14 +918,6 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
   return 0;
 }
 
-int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
-  pTaskInfo->streamInfo.fillHistoryVer2 = ver;
-  pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__PREPARE2;
-  return 0;
-}
-
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
@@ -1056,6 +1059,9 @@ int32_t qStreamRecoverSetAllStepFinished(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   pTaskInfo->streamInfo.recoverStep1Finished = true;
   pTaskInfo->streamInfo.recoverStep2Finished = true;
+
+  // reset the time window
+  pTaskInfo->streamInfo.fillHistoryWindow.skey = INT64_MIN;
   return 0;
 }
 

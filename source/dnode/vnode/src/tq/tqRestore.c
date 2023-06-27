@@ -271,9 +271,8 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    noDataInWal = false;
-
     if (pItem != NULL) {
+      noDataInWal = false;
       code = tAppendDataToInputQueue(pTask, pItem);
       if (code == TSDB_CODE_SUCCESS) {
         pTask->chkInfo.currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);

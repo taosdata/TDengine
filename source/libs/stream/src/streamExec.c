@@ -332,7 +332,7 @@ int32_t updateCheckPointInfo(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void waitForTaskTobeIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
+static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
   // wait for the stream task to be idle
   int64_t st = taosGetTimestampMs();
 
@@ -367,12 +367,12 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   }
 
   // wait for the stream task to be idle
-  waitForTaskTobeIdle(pTask, pStreamTask);
+  waitForTaskIdle(pTask, pStreamTask);
 
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     // update the scan data range for source task.
-    qDebug("s-task:%s level:%d stream task window %" PRId64 " - %" PRId64 " transfer to %" PRId64 " - %" PRId64
-               ", status:%s, sched-status:%d",
+    qDebug("s-task:%s level:%d stream task window %" PRId64 " - %" PRId64 " update to %" PRId64 " - %" PRId64
+           ", status:%s, sched-status:%d",
            pStreamTask->id.idStr, TASK_LEVEL__SOURCE, pTimeWindow->skey, pTimeWindow->ekey, INT64_MIN,
            pTimeWindow->ekey, streamGetTaskStatusStr(TASK_STATUS__NORMAL), pStreamTask->status.schedStatus);
 
@@ -388,6 +388,7 @@ static int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   // expand the query time window for stream scanner
   pTimeWindow->skey = INT64_MIN;
+  qResetStreamInfoTimeWindow(pStreamTask->exec.pExecutor);
 
   streamSetStatusNormal(pStreamTask);
   streamSchedExec(pStreamTask);
