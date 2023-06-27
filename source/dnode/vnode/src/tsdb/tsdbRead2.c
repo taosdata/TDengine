@@ -507,7 +507,7 @@ static void clearBlockScanInfo(STableBlockScanInfo* p) {
 
   p->delSkyline = taosArrayDestroy(p->delSkyline);
   p->pBlockList = taosArrayDestroy(p->pBlockList);
-  tMapDataClear(&p->mapData);
+  p->pDelData = taosArrayDestroy(p->pDelData);
 }
 
 static void destroyAllBlockScanInfo(SSHashObj* pTableMap) {
