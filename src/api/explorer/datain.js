@@ -43,6 +43,7 @@ export function EditSource(data,id){
 }
 //获取ua的nodes或者da的tags
 export function getUaAndDaData(data){
+    let language=window.navigator.language.includes('en')?'en':'zh'
     return request({
         baseURL:process.env.VUE_APP_X_API,
         url:`/ds/in/sets`,
@@ -50,6 +51,9 @@ export function getUaAndDaData(data){
         headers:{
             "Content-Type":"application/json"
         },
-        data
+        data: {
+            ...data,
+            lang: language
+        }
     })
 }
