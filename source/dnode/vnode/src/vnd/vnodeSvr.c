@@ -107,6 +107,10 @@ static int32_t vnodePreProcessCreateTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 _exit:
   tDecoderClear(&dc);
+  if (code) {
+    vError("vgId:%d, %s:%d failed to preprocess submit request since %s, msg type:%s", TD_VID(pVnode), __func__, lino,
+           tstrerror(code), TMSG_INFO(pMsg->msgType));
+  }
   return code;
 }
 extern int64_t tsMaxKeyByPrecision[];
@@ -238,11 +242,11 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   tEndDecode(pCoder);
 
 _exit:
-  if (code) {
-    vError("vgId:%d, failed to preprocess submit request since %s, msg type:%d", TD_VID(pVnode), tstrerror(code),
-           pMsg->msgType);
-  }
   tDecoderClear(pCoder);
+  if (code) {
+    vError("vgId:%d, %s:%d failed to preprocess submit request since %s, msg type:%s", TD_VID(pVnode), __func__, lino,
+           tstrerror(code), TMSG_INFO(pMsg->msgType));
+  }
   return code;
 }
 
@@ -301,8 +305,8 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 _exit:
   if (code) {
-    vError("vgId:%d, failed to preprocess write request since %s, msg type:%d", TD_VID(pVnode), tstrerror(code),
-           pMsg->msgType);
+    vError("vgId:%d, failed to preprocess write request since %s, msg type:%s", TD_VID(pVnode), tstrerror(code),
+           TMSG_INFO(pMsg->msgType));
   }
   return code;
 }

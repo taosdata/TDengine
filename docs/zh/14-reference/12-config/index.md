@@ -19,15 +19,19 @@ taosd -C
 
 ## 为客户端指定配置文件
 
-TDengine 系统的前台交互客户端应用程序为 taos，以及应用驱动，它可以与 taosd 共享同一个配置文件 taos.cfg，也可以使用单独指定配置文件。运行 taos 时，使用参数-c 指定配置文件目录，如 taos -c /home/cfg，表示使用/home/cfg/目录下的 taos.cfg 配置文件中的参数，缺省目录是/etc/taos。更多 taos 的使用方法请见帮助信息 `taos --help`。
+TDengine 系统的前台交互客户端应用程序为 taos，以及应用驱动，它可以与 taosd 共享同一个配置文件 taos.cfg，也可以使用单独指定配置文件。运行 taos 时，使用参数-c 指定配置文件目录，如：
+
+```
+taos -c /home/cfg
+```
+
+表示使用/home/cfg/目录下的 taos.cfg 配置文件中的参数，缺省目录是/etc/taos。 另外可以使用 `-C` 显示当前服务器配置参数：
 
 ```bash
 taos -C
 ```
 
-```bash
-taos --dump-config
-```
+更多 taos 的使用方法请见帮助信息 `taos --help`。
 
 ## 配置参数详细列表
 
@@ -138,6 +142,8 @@ taos --dump-config
 
 :::note
 请注意，完整的监控功能需要安装并运行 `taoskeeper` 服务。taoskeeper 负责接收监控指标数据并创建 `log` 库。
+
+:::
 
 ### monitor
 

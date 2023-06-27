@@ -21,7 +21,7 @@ part_list can be any scalar expression, such as a column, constant, scalar funct
 A PARTITION BY clause is processed as follows:
 
 - The PARTITION BY clause must occur after the WHERE clause
-- The PARTITION BY caluse partitions the data according to the specified dimensions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
+- The PARTITION BY clause partitions the data according to the specified dimensions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
 - The PARTITION BY clause can be used together with a window clause or GROUP BY clause. In this case, the window or GROUP BY clause takes effect on every partition. For example, the following statement partitions the table by the location tag, performs downsampling over a 10 minute window, and returns the maximum value:
 
 ```sql

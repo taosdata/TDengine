@@ -467,6 +467,7 @@ typedef struct {
   int8_t         replica;
   int16_t        numOfColumns;
   int32_t        numOfRows;
+  int32_t        curIterPackedRows;
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;

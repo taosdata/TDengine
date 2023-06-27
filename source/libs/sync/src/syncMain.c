@@ -37,7 +37,6 @@
 #include "syncVoteMgr.h"
 #include "tglobal.h"
 #include "tref.h"
-#include "syncUtil.h"
 
 static void    syncNodeEqPingTimer(void* param, void* tmrId);
 static void    syncNodeEqElectTimer(void* param, void* tmrId);
@@ -141,10 +140,10 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) return -1;
 
-  if(pSyncNode->raftCfg.lastConfigIndex >= pNewCfg->lastIndex){
+  if (pSyncNode->raftCfg.lastConfigIndex >= pNewCfg->lastIndex) {
     syncNodeRelease(pSyncNode);
     sInfo("vgId:%d, no need Reconfig, current index:%" PRId64 ", new index:%" PRId64, pSyncNode->vgId,
-                                        pSyncNode->raftCfg.lastConfigIndex, pNewCfg->lastIndex);
+          pSyncNode->raftCfg.lastConfigIndex, pNewCfg->lastIndex);
     return 0;
   }
 
@@ -323,8 +322,8 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   }
 
   if (pSyncNode->totalReplicaNum > 1) {
-    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER && pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER 
-        && pSyncNode->state != TAOS_SYNC_STATE_LEARNER) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER && pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER &&
+        pSyncNode->state != TAOS_SYNC_STATE_LEARNER) {
       sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 " candidate or unknown state, do not delete wal",
               lastApplyIndex);
       syncNodeRelease(pSyncNode);
@@ -544,7 +543,7 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   if (pSyncNode == NULL) return;
 
   for (int32_t i = 0; i < pSyncNode->raftCfg.cfg.totalReplicaNum; ++i) {
-    if(pSyncNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_LEARNER) continue;
+    if (pSyncNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_LEARNER) continue;
     SEp* pEp = &pEpSet->eps[i];
     tstrncpy(pEp->fqdn, pSyncNode->raftCfg.cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
     pEp->port = (pSyncNode->raftCfg.cfg.nodeInfo)[i].nodePort;
@@ -579,21 +578,19 @@ int32_t syncIsCatchUp(int64_t rid) {
   }
 
   int32_t isCatchUp = 0;
-  if(pSyncNode->pLogBuf->totalIndex < 0 || pSyncNode->pLogBuf->commitIndex < 0 ||
+  if (pSyncNode->pLogBuf->totalIndex < 0 || pSyncNode->pLogBuf->commitIndex < 0 ||
       pSyncNode->pLogBuf->totalIndex < pSyncNode->pLogBuf->commitIndex ||
-      pSyncNode->pLogBuf->totalIndex - pSyncNode->pLogBuf->commitIndex > SYNC_LEARNER_CATCHUP){
-    sInfo("vgId:%d, Not catch up, wait one second, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
-                                  pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex, 
-                                  pSyncNode->pLogBuf->matchIndex);
+      pSyncNode->pLogBuf->totalIndex - pSyncNode->pLogBuf->commitIndex > SYNC_LEARNER_CATCHUP) {
+    sInfo("vgId:%d, Not catch up, wait one second, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64,
+          pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex,
+          pSyncNode->pLogBuf->matchIndex);
     isCatchUp = 0;
-  }
-  else{
-    sInfo("vgId:%d, Catch up, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, 
-                                  pSyncNode->vgId, pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex,
-                                  pSyncNode->pLogBuf->matchIndex);
+  } else {
+    sInfo("vgId:%d, Catch up, totalIndex:%" PRId64 " commitIndex:%" PRId64 " matchIndex:%" PRId64, pSyncNode->vgId,
+          pSyncNode->pLogBuf->totalIndex, pSyncNode->pLogBuf->commitIndex, pSyncNode->pLogBuf->matchIndex);
     isCatchUp = 1;
   }
-  
+
   syncNodeRelease(pSyncNode);
   return isCatchUp;
 }
@@ -606,7 +603,7 @@ ESyncRole syncGetRole(int64_t rid) {
   }
 
   ESyncRole role = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole;
-  
+
   syncNodeRelease(pSyncNode);
   return role;
 }
@@ -802,8 +799,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->vgId = pSyncInfo->vgId;
   SSyncCfg* pCfg = &pSyncNode->raftCfg.cfg;
   bool      updated = false;
-  sInfo("vgId:%d, start to open sync node, totalReplicaNum:%d replicaNum:%d selfIndex:%d", 
-                          pSyncNode->vgId, pCfg->totalReplicaNum, pCfg->replicaNum, pCfg->myIndex);
+  sInfo("vgId:%d, start to open sync node, totalReplicaNum:%d replicaNum:%d selfIndex:%d", pSyncNode->vgId,
+        pCfg->totalReplicaNum, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->totalReplicaNum; ++i) {
     SNodeInfo* pNode = &pCfg->nodeInfo[i];
     if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort)) {
@@ -1110,10 +1107,9 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
 
 int32_t syncNodeStart(SSyncNode* pSyncNode) {
   // start raft
-  if(pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole == TAOS_SYNC_ROLE_LEARNER){
+  if (pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole == TAOS_SYNC_ROLE_LEARNER) {
     syncNodeBecomeLearner(pSyncNode, "first start");
-  }
-  else{
+  } else {
     if (pSyncNode->replicaNum == 1) {
       raftStoreNextTerm(pSyncNode);
       syncNodeBecomeLeader(pSyncNode, "one replica start");
@@ -1122,7 +1118,7 @@ int32_t syncNodeStart(SSyncNode* pSyncNode) {
       syncNodeAppendNoop(pSyncNode);
     } else {
       syncNodeBecomeFollower(pSyncNode, "first start");
-    }    
+    }
   }
 
   int32_t ret = 0;
@@ -1438,7 +1434,7 @@ static bool syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg
     const SNodeInfo* pNewInfo = &pNewCfg->nodeInfo[i];
     if (strcmp(pOldInfo->nodeFqdn, pNewInfo->nodeFqdn) != 0) return true;
     if (pOldInfo->nodePort != pNewInfo->nodePort) return true;
-    if(pOldInfo->nodeRole != pNewInfo->nodeRole) return true;
+    if (pOldInfo->nodeRole != pNewInfo->nodeRole) return true;
   }
 
   return false;
@@ -1475,10 +1471,9 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   }
 
   // log begin config change
-  sNInfo(pSyncNode, "begin do config change, from %d to %d, from %" PRId64 " to %" PRId64 ", replicas:%d", 
-                                          pSyncNode->vgId, 
-                                          oldConfig.totalReplicaNum, pNewConfig->totalReplicaNum, 
-                                          oldConfig.lastIndex, pNewConfig->lastIndex);
+  sNInfo(pSyncNode, "begin do config change, from %d to %d, from %" PRId64 " to %" PRId64 ", replicas:%d",
+         pSyncNode->vgId, oldConfig.totalReplicaNum, pNewConfig->totalReplicaNum, oldConfig.lastIndex,
+         pNewConfig->lastIndex);
 
   if (IamInNew) {
     pSyncNode->raftCfg.isStandBy = 0;  // change isStandBy to normal
@@ -1595,6 +1590,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     // persist cfg
     syncWriteCfgFile(pSyncNode);
 
+#if 0
     // change isStandBy to normal (election timeout)
     if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
       syncNodeBecomeLeader(pSyncNode, "");
@@ -1606,6 +1602,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     } else {
       syncNodeBecomeFollower(pSyncNode, "");
     }
+#endif
   } else {
     // persist cfg
     syncWriteCfgFile(pSyncNode);
@@ -2234,7 +2231,10 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
   syncNodeRelease(pSyncNode);
 }
 
-static void deleteCacheEntry(const void* key, size_t keyLen, void* value) { taosMemoryFree(value); }
+static void deleteCacheEntry(const void* key, size_t keyLen, void* value, void* ud) {
+  (void)ud;
+  taosMemoryFree(value);
+}
 
 int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h) {
   SSyncLogStoreData* pData = pLogStore->data;
@@ -2243,7 +2243,7 @@ int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHand
   int32_t   code = 0;
   int32_t   entryLen = sizeof(*pEntry) + pEntry->dataLen;
   LRUStatus status = taosLRUCacheInsert(pLogStore->pCache, &pEntry->index, sizeof(pEntry->index), pEntry, entryLen,
-                                        deleteCacheEntry, h, TAOS_LRU_PRIORITY_LOW);
+                                        deleteCacheEntry, h, TAOS_LRU_PRIORITY_LOW, NULL);
   if (status != TAOS_LRU_STATUS_OK) {
     code = -1;
   }
@@ -2409,11 +2409,10 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pMsgReply->startTime = ths->startTime;
   pMsgReply->timeStamp = tsMs;
 
-  sTrace(
-        "vgId:%d, heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64,
-        ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
+  sTrace("vgId:%d, heartbeat msg from dnode:%d, cluster:%d, Msgterm:%" PRId64 " currentTerm:%" PRId64, ths->vgId,
+         DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), pMsg->term, currentTerm);
 
-  if(pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER){
+  if (pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER) {
     raftStoreSetTerm(ths, pMsg->term);
     currentTerm = pMsg->term;
   }

@@ -884,6 +884,10 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
     if (isInternalPrimaryKey(pCol)) {
+      if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
+      }
+
       setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema, -1, pCol);
       *pFound = true;
       return TSDB_CODE_SUCCESS;
@@ -1660,6 +1664,20 @@ static int32_t translateForbidStreamFunc(STranslateContext* pCxt, SFunctionNode*
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateForbidSysTableFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsForbidSysTableFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSelectStmt*   pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  SNode*          pTable = pSelect->pFromTable;
+  if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable) &&
+      TSDB_SYSTEM_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC, pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsRepeatScanFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -1890,6 +1908,9 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SFunctionNode* p
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateForbidStreamFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateForbidSysTableFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateRepeatScanFunc(pCxt, pFunc);
@@ -2238,7 +2259,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     }
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
-    if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
+    if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc || (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     } else {
       return rewriteColToSelectValFunc(pCxt, pNode);
@@ -2648,7 +2669,7 @@ static int32_t replaceTbName(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SNode** pNode = NULL;
   SRewriteTbNameContext pRewriteCxt = {0};
   pRewriteCxt.pTbName = pTable->table.tableName;
-  
+
   nodesRewriteExprPostOrder(&pSelect->pWhere, doTranslateTbName, &pRewriteCxt);
 
   return pRewriteCxt.errCode;
