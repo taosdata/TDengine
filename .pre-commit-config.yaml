@@ -1,0 +1,33 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+      - id: check-yaml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+repos:
+  - repo: https://github.com/psf/black
+    rev: stable
+    hooks:
+      - id: black
+
+repos:
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: master
+    hooks:
+      - id: cppcheck
+        args: ["--error-exitcode=0"]
+
+repos:
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.13.6
+    hooks:
+      - id: typos-src
+
+repos:
+  - repo: https://github.com/TomWright/dasel
+    rev: v2.3.4
+    hooks:
+      - id: dasel-validate
