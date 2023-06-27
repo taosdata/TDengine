@@ -172,7 +172,8 @@ typedef struct SReaderStatus {
   SBlockData            fileBlockData;
   SFilesetIter          fileIter;
   SDataBlockIter        blockIter;
-  SLDataIter*           pLDataIter;
+  SArray*               pLDataIterArray;
+//  SLDataIter*           pLDataIter;
   SRowMerger            merger;
   SColumnInfoData*      pPrimaryTsCol;      // primary time stamp output col info data
 } SReaderStatus;
@@ -596,7 +597,9 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
 
   pIter->pLastBlockReader->uid = 0;
   tMergeTreeClose(&pIter->pLastBlockReader->mergeTree);
-  destroySttBlockReader(pReader->status.pLDataIter, pReader->pTsdb->pVnode->config.sttTrigger);
+
+  pReader->status.pLDataIterArray = destroySttBlockReader(pReader->status.pLDataIterArray);
+  pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
 
   resetLastBlockLoadInfo(pIter->pLastBlockReader->pInfo);
 
@@ -959,15 +962,10 @@ _end:
 
 static void doCleanupTableScanInfo(STableBlockScanInfo* pScanInfo) {
   // reset the index in last block when handing a new file
-  tMapDataClear(&pScanInfo->mapData);
   taosArrayClear(pScanInfo->pBlockList);
 }
 
 static void cleanupTableScanInfo(SReaderStatus* pStatus) {
-//  if (pStatus->mapDataCleaned) {
-//    return;
-//  }
-
   SSHashObj* pTableMap = pStatus->pTableMap;
   STableBlockScanInfo** px = NULL;
   int32_t iter = 0;
@@ -2856,10 +2854,10 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
 
   tsdbDebug("init last block reader, window:%" PRId64 "-%" PRId64 ", uid:%" PRIu64 ", %s", w.skey, w.ekey,
             pScanInfo->uid, pReader->idStr);
-  int32_t code =
-      tMergeTreeOpen2(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC), pReader->pTsdb,
-                      pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pLBlockReader->pInfo, false,
-                      pReader->idStr, false, pReader->status.pLDataIter, pReader->status.pCurrentFileset);
+  int32_t code = tMergeTreeOpen2(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC), pReader->pTsdb,
+                                 pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pReader->idStr, false,
+                                 pReader->status.pLDataIterArray, pReader->status.pCurrentFileset, pReader->pSchema,
+                                 pReader->suppInfo.colId, pReader->suppInfo.numOfCols);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
@@ -3381,8 +3379,6 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
     if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pScanInfo->uid, sizeof(pScanInfo->uid))) {
       // reset the index in last block when handing a new file
       doCleanupTableScanInfo(pScanInfo);
-//      pStatus->mapDataCleaned = true;
-
       bool hasNexTable = moveToNextTable(pUidList, pStatus);
       if (!hasNexTable) {
         return TSDB_CODE_SUCCESS;
@@ -4760,8 +4756,8 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     goto _err;
   }
 
-  pReader->status.pLDataIter = taosMemoryCalloc(pConf->sttTrigger, sizeof(SLDataIter));
-  if (pReader->status.pLDataIter == NULL) {
+  pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
+  if (pReader->status.pLDataIterArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
@@ -4789,7 +4785,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
 }
 
 static void clearSharedPtr(STsdbReader* p) {
-  p->status.pLDataIter = NULL;
+  p->status.pLDataIterArray = NULL;
   p->status.pTableMap = NULL;
   p->status.uidList.tableUidList = NULL;
   p->pReadSnap = NULL;
@@ -4800,7 +4796,7 @@ static void clearSharedPtr(STsdbReader* p) {
 
 static void setSharedPtr(STsdbReader* pDst, const STsdbReader* pSrc) {
   pDst->status.pTableMap = pSrc->status.pTableMap;
-  pDst->status.pLDataIter = pSrc->status.pLDataIter;
+  pDst->status.pLDataIterArray = pSrc->status.pLDataIterArray;
   pDst->status.uidList = pSrc->status.uidList;
   pDst->pSchema = pSrc->pSchema;
   pDst->pSchemaMap = pSrc->pSchemaMap;
@@ -4884,15 +4880,11 @@ void tsdbReaderClose2(STsdbReader* pReader) {
     tMergeTreeClose(&pLReader->mergeTree);
 
     getLastBlockLoadInfo(pLReader->pInfo, &pCost->lastBlockLoad, &pCost->lastBlockLoadTime);
-
     pLReader->pInfo = destroyLastBlockLoadInfo(pLReader->pInfo);
-
-    // todo dynamic allocate the number of stt data iter
-    destroySttBlockReader(pReader->status.pLDataIter, pReader->pTsdb->pVnode->config.sttTrigger);
     taosMemoryFree(pLReader);
   }
 
-  taosMemoryFreeClear(pReader->status.pLDataIter);
+  destroySttBlockReader(pReader->status.pLDataIterArray);
   taosMemoryFreeClear(pReader->status.uidList.tableUidList);
 
   tsdbDebug(

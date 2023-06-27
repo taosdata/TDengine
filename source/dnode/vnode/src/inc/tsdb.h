@@ -704,20 +704,19 @@ typedef struct {
 typedef struct SSttBlockLoadInfo {
   SBlockData blockData[2];
   void      *pBlockArray;
-
-  SArray   *aSttBlk;
-  SArray   *pTombBlockArray;  // tomb block array list
-  int32_t   blockIndex[2];    // to denote the loaded block in the corresponding position.
-  int32_t   currentLoadBlockIndex;
-  int32_t   loadBlocks;
-  double    elapsedTime;
-  STSchema *pSchema;
-  int16_t  *colIds;
-  int32_t   numOfCols;
-  bool      checkRemainingRow;
-  bool      isLast;
-  bool      sttBlockLoaded;
-  int32_t   numOfStt;
+  SArray    *aSttBlk;
+  SArray    *pTombBlockArray;  // tomb block array list
+  int32_t    blockIndex[2];    // to denote the loaded block in the corresponding position.
+  int32_t    currentLoadBlockIndex;
+  int32_t    loadBlocks;
+  double     elapsedTime;
+  STSchema  *pSchema;
+  int16_t   *colIds;
+  int32_t    numOfCols;
+  bool       checkRemainingRow;
+  bool       isLast;
+  bool       sttBlockLoaded;
+  int32_t    numOfStt;
 
   // keep the last access position, this position may be used to reduce the binary times for
   // starting last block data for a new table
@@ -778,7 +777,7 @@ struct SDiskDataBuilder {
 typedef struct SLDataIter {
   SRBTreeNode            node;
   SSttBlk               *pSttBlk;
-  int32_t                iStt;
+  int32_t                iStt;       // for debug purpose
   int8_t                 backward;
   int32_t                iSttBlk;
   int32_t                iRow;
@@ -797,9 +796,9 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
                        bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter);
 
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, int8_t backward, STsdb *pTsdb, uint64_t suid, uint64_t uid,
-                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
-                        bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter,
-                        void *pCurrentFileSet);
+                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, const char *idStr,
+                        bool strictTimeRange, SArray *pSttFileBlockIterArray, void *pCurrentFileSet, STSchema* pSchema,
+                        int16_t* pCols, int32_t numOfCols);
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool tMergeTreeNext(SMergeTree *pMTree);
@@ -807,10 +806,11 @@ bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void tMergeTreeClose(SMergeTree *pMTree);
 
 SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, int32_t numOfStt);
+SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
 void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void               getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el);
 void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
-void               destroySttBlockReader(SLDataIter *pLDataIter, int32_t numOfIter);
+void*              destroySttBlockReader(SArray* pLDataIterArray);
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {
