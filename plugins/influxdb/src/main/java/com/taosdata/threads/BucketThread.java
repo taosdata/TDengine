@@ -101,6 +101,10 @@ public class BucketThread implements Runnable {
                 String[] timeRangeArr = timeRange.split(",");
                 // 生成bucket子线程并放入队列中
                 BucketCache.measurementMap.forEach((k, v) -> {
+                    // 如果任务中指定了measurement则过滤
+                    if (taskConfig.getMeasurements().size() > 0 && !taskConfig.getMeasurements().contains(v.getMeasurement())) {
+                        return;
+                    }
                     if (this.bucket.equals(v.getBucket()) && StringUtils.isNotEmpty(v.getMeasurement())) {
                         BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
                         // 读取数据任务计数

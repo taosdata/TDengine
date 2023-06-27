@@ -1,6 +1,9 @@
 package com.taosdata.service.impl;
 
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.influxdb.client.InfluxDBClient;
+import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.domain.Bucket;
 import com.influxdb.client.domain.InfluxQLQuery;
 import com.influxdb.query.FluxRecord;
@@ -15,6 +18,9 @@ import com.taosdata.service.InfluxdbService;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.exception.ArtificialException;
 import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -29,8 +35,76 @@ import java.util.*;
 @Service
 public class InfluxdbServiceImpl implements InfluxdbService {
 
+    protected Logger logger = LoggerFactory.getLogger(getClass());
+
     @Resource
     InfluxdbPoolAutoConfig influxdbPool;
+
+    /**
+     * 单次连接，查询指定influxdb中schema信息
+     *
+     * @param url
+     * @param token
+     * @return
+     * @throws ArtificialException
+     */
+    @Override
+    public JSONObject fetchSchemaInfo(String url, String token) throws ArtificialException {
+        // influxdb客户端
+        InfluxDBClient influxDBClient = null;
+        try {
+            // 使用url与token建立连接
+            influxDBClient = InfluxDBClientFactory.create(url, token.toCharArray());
+            // 返回结果
+            JSONObject bucketJson = new JSONObject();
+            // 获取所有bucket列表
+            List<Bucket> bucketList = influxDBClient.getBucketsApi().findBuckets();
+            // 判断队列是否空
+            if (bucketList != null && bucketList.size() > 0) {
+                // 遍历查询measurement并封装
+                for (Bucket bucket : bucketList) {
+                    InfluxQLQuery showMeasurementSql = new InfluxQLQuery("show measurements", bucket.getName());
+                    InfluxQLQueryResult showMeasurementResult = influxDBClient.getInfluxQLQueryApi().query(showMeasurementSql);
+                    // 结果空则跳过
+                    if (showMeasurementResult == null) {
+                        continue;
+                    }
+                    // 所有measurement
+                    JSONArray measurementArray = new JSONArray();
+                    // 遍历封装
+                    for (InfluxQLQueryResult.Result result : showMeasurementResult.getResults()) {
+                        // 空则跳过并继续
+                        if (result == null) {
+                            continue;
+                        }
+                        for (InfluxQLQueryResult.Series series : result.getSeries()) {
+                            // 空则跳过并继续
+                            if (series == null) {
+                                continue;
+                            }
+                            for (InfluxQLQueryResult.Series.Record record : series.getValues()) {
+                                // 空则跳过并继续
+                                if (record == null) {
+                                    continue;
+                                }
+                                measurementArray.add(record.getValues()[0]);
+                            }
+                        }
+                    }
+                    // 放入结果集
+                    bucketJson.put(bucket.getName(), measurementArray);
+                }
+            }
+            return bucketJson;
+        } catch (Exception e) {
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
+        } finally {
+            if (influxDBClient != null) {
+                influxDBClient.close();
+            }
+        }
+    }
 
     /**
      * 获取influxdb中所有bucket
@@ -67,7 +141,8 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             }
             return influxdbBucketEntityList;
         } catch (Exception e) {
-            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), new Exception());
+            handlerException(e);
+            throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
             if (influxDBClient != null) {
                 influxdbPool.getPool().returnObject(influxDBClient);
@@ -95,9 +170,25 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             try {
                 InfluxQLQuery showMeasurementSql = new InfluxQLQuery("show measurements", bucket);
                 InfluxQLQueryResult showMeasurementResult = influxDBClient.getInfluxQLQueryApi().query(showMeasurementSql);
+                // 结果空则返回空列表
+                if (showMeasurementResult == null) {
+                    return influxdbMeasurementEntityList;
+                }
                 for (InfluxQLQueryResult.Result result : showMeasurementResult.getResults()) {
+                    // 空则跳过并继续
+                    if (result == null) {
+                        continue;
+                    }
                     for (InfluxQLQueryResult.Series series : result.getSeries()) {
+                        // 空则跳过并继续
+                        if (series == null) {
+                            continue;
+                        }
                         for (InfluxQLQueryResult.Series.Record record : series.getValues()) {
+                            // 空则跳过并继续
+                            if (record == null) {
+                                continue;
+                            }
                             InfluxdbMeasurementEntity influxdbMeasurementEntity = new InfluxdbMeasurementEntity();
                             influxdbMeasurementEntity.setBucket(bucket);
                             influxdbMeasurementEntity.setMeasurement(record.getValues()[0].toString());
@@ -108,7 +199,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     }
                 }
             } catch (Exception e) {
-                // 忽略
+                handlerException(e);
             }
             // 遍历measurement列表
             for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
@@ -116,33 +207,66 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                 try {
                     InfluxQLQuery showFieldSql = new InfluxQLQuery("show field keys from " + influxdbMeasurementEntity.getMeasurement(), bucket);
                     InfluxQLQueryResult showFieldResult = influxDBClient.getInfluxQLQueryApi().query(showFieldSql);
+                    // 结果空则跳过
+                    if (showFieldResult == null) {
+                        continue;
+                    }
                     for (InfluxQLQueryResult.Result result : showFieldResult.getResults()) {
+                        // 空则跳过并继续
+                        if (result == null) {
+                            continue;
+                        }
                         for (InfluxQLQueryResult.Series series : result.getSeries()) {
+                            // 空则跳过并继续
+                            if (series == null) {
+                                continue;
+                            }
                             for (InfluxQLQueryResult.Series.Record record : series.getValues()) {
+                                // 空则跳过并继续
+                                if (record == null) {
+                                    continue;
+                                }
                                 influxdbMeasurementEntity.getFieldMap().put(record.getValues()[0].toString(), record.getValues()[1].toString());
                             }
                         }
                     }
                 } catch (Exception e) {
-                    // 忽略
+                    handlerException(e);
                 }
                 // 查询所有tag
                 try {
                     InfluxQLQuery showTagSql = new InfluxQLQuery("show tag keys from " + influxdbMeasurementEntity.getMeasurement(), bucket);
                     InfluxQLQueryResult showTagResult = influxDBClient.getInfluxQLQueryApi().query(showTagSql);
+                    // 结果空则跳过
+                    if (showTagResult == null) {
+                        continue;
+                    }
                     for (InfluxQLQueryResult.Result result : showTagResult.getResults()) {
+                        // 空则跳过并继续
+                        if (result == null) {
+                            continue;
+                        }
                         for (InfluxQLQueryResult.Series series : result.getSeries()) {
+                            // 空则跳过并继续
+                            if (series == null) {
+                                continue;
+                            }
                             for (InfluxQLQueryResult.Series.Record record : series.getValues()) {
+                                // 空则跳过并继续
+                                if (record == null) {
+                                    continue;
+                                }
                                 influxdbMeasurementEntity.getTagSet().add(record.getValues()[0].toString());
                             }
                         }
                     }
                 } catch (Exception e) {
-                    // 忽略
+                    handlerException(e);
                 }
             }
             return influxdbMeasurementEntityList;
         } catch (Exception e) {
+            handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
             if (influxDBClient != null) {
@@ -213,11 +337,34 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             }
             return influxdbBucketDataEntityList;
         } catch (Exception e) {
+            handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
         } finally {
             if (influxDBClient != null) {
                 influxdbPool.getPool().returnObject(influxDBClient);
             }
+        }
+    }
+
+    /**
+     * 异常处理
+     *
+     * @param e
+     */
+    private void handlerException(Exception e) {
+        String errMsg = e.getMessage();
+        if (StringUtils.isNotEmpty(errMsg) && (errMsg.contains("Failed to connect") || errMsg.contains("Unable to validate object"))) {
+            // url错误
+            logger.error("The application will exit soon: {}", e.getMessage());
+            System.exit(101);
+        } else if (StringUtils.isNotEmpty(errMsg) && errMsg.contains("unauthorized access")) {
+            // token错误
+            logger.error("The application will exit soon: {}", e.getMessage());
+            System.exit(102);
+        } else if (StringUtils.isNotEmpty(errMsg) && errMsg.contains("organization not found")) {
+            // organization错误
+            logger.error("The application will exit soon: {}", e.getMessage());
+            System.exit(103);
         }
     }
 }

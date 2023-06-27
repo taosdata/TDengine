@@ -26,12 +26,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 import org.tomlj.Toml;
+import org.tomlj.TomlArray;
 import org.tomlj.TomlParseResult;
 
 import javax.annotation.Resource;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 /**
  * 预加载
@@ -80,6 +79,13 @@ public class PreLoading implements CommandLineRunner {
                 logger.info("启动参数错误，启动失败");
                 System.exit(1);
             } else if ("-v".equals(args[0].trim().toLowerCase()) || "-version".equals(args[0].trim().toLowerCase())) {
+                System.exit(0);
+            } else if ("-fetch".equals(args[0].trim().toLowerCase()) && args.length >= 3) {
+                // 获取连接参数
+                String url = args[1];
+                String token = args[2];
+                // 查询并输出查询结果
+                System.out.println(influxdbService.fetchSchemaInfo(url, token));
                 System.exit(0);
             } else {
                 // 加载toml配置文件，覆盖默认配置，第一个参数是外部配置文件路径，配置不正确则默认退出
@@ -150,6 +156,12 @@ public class PreLoading implements CommandLineRunner {
             this.nettyClientConfig.setPort(((Long) tomlParseResult.get("taosx.port")).intValue());
             this.taskConfig.setMode((String) tomlParseResult.get("task.mode"));
             this.taskConfig.setBuckets(Arrays.asList((String) tomlParseResult.get("task.bucket")));
+            Set<String> measurements = new HashSet<>();
+            TomlArray tomlArray = (TomlArray) tomlParseResult.get("task.measurements");
+            for (int i = 0; i < tomlArray.size(); i++) {
+                measurements.add((String) tomlArray.get(i));
+            }
+            this.taskConfig.setMeasurements(measurements);
             this.taskConfig.setBeginTime((String) tomlParseResult.get("task.beginTime"));
             this.taskConfig.setEndTime((String) tomlParseResult.get("task.endTime"));
         } catch (Exception e) {
