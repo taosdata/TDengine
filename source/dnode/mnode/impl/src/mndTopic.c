@@ -697,7 +697,10 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       break;
     }
 
-    if (pConsumer->status == MQ_CONSUMER_STATUS__LOST_REBD) continue;
+    if (pConsumer->status == MQ_CONSUMER_STATUS_LOST){
+      mndDropConsumerFromSdb(pMnode, pConsumer->consumerId);
+      continue;
+    }
 
     int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
     for (int32_t i = 0; i < sz; i++) {
