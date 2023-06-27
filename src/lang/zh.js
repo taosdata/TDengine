@@ -260,7 +260,8 @@ export default {
     usernameTips: '请输入用户名',
     passwordTips: '请输入密码',
     errorTip: '用户名或者密码错误',
-    servExceptionTip: '您的 taosd 或 taosadapter 服务处于异常，请尝试重启 taosd 或 taosadapter 服务并保证服务可用',
+    servExceptionTip: '您的 taosadapter 服务处于异常，请尝试重启 taosadapter 服务并保证服务可用',
+    servTaosdTip: '您的 taosd 服务处于异常，请尝试重启 taosd 服务并保证服务可用',
   },
   dashboard: {
     warnigtip:`请点击左侧<a href="/dashboard">仪表盘</a>查看TDinsight的设置`,
