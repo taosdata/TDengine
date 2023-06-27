@@ -363,20 +363,26 @@ typedef struct {
   STSchema                            *pTSchema;
 } SRocksCache;
 
+typedef struct {
+  STsdb *pTsdb;
+  int    flush_count;
+} SCacheFlushState;
+
 struct STsdb {
-  char                *path;
-  SVnode              *pVnode;
-  STsdbKeepCfg         keepCfg;
-  TdThreadRwlock       rwLock;
-  SMemTable           *mem;
-  SMemTable           *imem;
-  STsdbFS              fs;  // old
-  SLRUCache           *lruCache;
-  TdThreadMutex        lruMutex;
-  SLRUCache           *biCache;
-  TdThreadMutex        biMutex;
+  char            *path;
+  SVnode          *pVnode;
+  STsdbKeepCfg     keepCfg;
+  TdThreadRwlock   rwLock;
+  SMemTable       *mem;
+  SMemTable       *imem;
+  STsdbFS          fs;    // old
+  SLRUCache       *lruCache;
+  SCacheFlushState flushState;
+  TdThreadMutex    lruMutex;
+  SLRUCache       *biCache;
+  TdThreadMutex    biMutex;
   struct STFileSystem *pFS;  // new
-  SRocksCache          rCache;
+  SRocksCache      rCache;
 };
 
 struct TSDBKEY {

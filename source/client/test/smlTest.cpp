@@ -224,6 +224,8 @@ TEST(testCase, smlParseCols_Error_Test) {
                         "st,tt=aa c 1=2 1626006833639000000,",
                         //field value    double quote,slash
                         "st,tt=aa c=\"a\"a\" 1626006833639000000,",
+                        "escape_test,tag1=\"tag1_value\",tag2=\"tag2_value\" co l0=\"col0_value\",col1=\"col1_value\" 1680918783010000000",
+                        "escape_test,tag1=\"tag1_value\",tag2=\"tag2_value\" col0=\"co\"l\"0_value\",col1=\"col1_value\" 1680918783010000000"
   };
 
   SSmlHandle *info = smlBuildSmlInfo(NULL);
