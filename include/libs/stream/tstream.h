@@ -602,7 +602,7 @@ int32_t streamDispatchTransferStateMsg(SStreamTask* pTask);
 
 // agg level
 int32_t streamAggRecoverPrepare(SStreamTask* pTask);
-int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId);
+int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t taskId, int32_t childId);
 
 void         streamMetaInit();
 void         streamMetaCleanup();

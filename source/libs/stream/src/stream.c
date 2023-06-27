@@ -170,21 +170,18 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 
   // enqueue
   if (pData != NULL) {
-    qDebug("s-task:%s (child %d) recv retrieve req from task:0x%x, reqId %" PRId64, pTask->id.idStr, pTask->info.selfChildId,
+    qDebug("s-task:%s (child %d) recv retrieve req from task:0x%x, reqId:0x%" PRIx64, pTask->id.idStr, pTask->info.selfChildId,
            pReq->srcTaskId, pReq->reqId);
 
     pData->type = STREAM_INPUT__DATA_RETRIEVE;
     pData->srcVgId = 0;
-    // decode
-    /*pData->blocks = pReq->data;*/
-    /*pBlock->sourceVer = pReq->sourceVer;*/
     streamRetrieveReqToData(pReq, pData);
     if (tAppendDataToInputQueue(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {
       status = TASK_INPUT_STATUS__FAILED;
     }
-  } else {
+  } else {  // todo handle oom
     /*streamTaskInputFail(pTask);*/
     /*status = TASK_INPUT_STATUS__FAILED;*/
   }
@@ -199,6 +196,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
   pRsp->pCont = buf;
   pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamRetrieveRsp);
   tmsgSendRsp(pRsp);
+
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
 

@@ -292,7 +292,7 @@ int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
     return -1;
   }
   // do process request
-  if (streamProcessRecoverFinishReq(pTask, req.childId) < 0) {
+  if (streamProcessRecoverFinishReq(pTask, req.taskId, req.childId) < 0) {
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     return -1;
   }
