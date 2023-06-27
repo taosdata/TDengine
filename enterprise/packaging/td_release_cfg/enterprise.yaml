@@ -50,7 +50,7 @@ parameters:
     OSTYPE: Linux
     CPUTYPE: x64
     WEBSOCKET: true
-    BUILD_TAOSX: false
+    BUILD_TAOSX: true
     SOMODE: dynamic
     DBNAME: taos
     VERTYPE: stable
@@ -61,7 +61,7 @@ parameters:
     VERCOMPATIBLE: 3.0.0.0
     BUILD_HTTP: internal 
     BUILD_TOOLS: true
-    BUILD_EXPLORER: false
+    BUILD_EXPLORER: true
     JEMALLOC_ENABLED: true
     CUS_NAME: TDengine
     CUS_PROMPT: taos
