@@ -113,6 +113,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
     if (pRunReq == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      qError("failed to create msg to aunch s-task:%s, reason out of memory", pTask->id.idStr);
       return -1;
     }
 
@@ -170,8 +171,8 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 
   // enqueue
   if (pData != NULL) {
-    qDebug("s-task:%s (child %d) recv retrieve req from task:0x%x, reqId:0x%" PRIx64, pTask->id.idStr, pTask->info.selfChildId,
-           pReq->srcTaskId, pReq->reqId);
+    qDebug("s-task:%s (child %d) recv retrieve req from task:0x%x(vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr, pTask->info.selfChildId,
+           pReq->srcTaskId, pReq->srcNodeId, pReq->reqId);
 
     pData->type = STREAM_INPUT__DATA_RETRIEVE;
     pData->srcVgId = 0;
@@ -308,9 +309,7 @@ int32_t streamProcessRunReq(SStreamTask* pTask) {
 }
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
-  qDebug("s-task:%s receive retrieve req from taskId:0x%x (vgId:%d)", pTask->id.idStr, pReq->srcTaskId, pReq->srcNodeId);
   streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
-
   ASSERT(pTask->info.taskLevel != TASK_LEVEL__SINK);
   streamSchedExec(pTask);
   return 0;

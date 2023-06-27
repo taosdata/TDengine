@@ -1203,8 +1203,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     if (pTask->historyTaskId.taskId == 0) {
       *pWindow = (STimeWindow){INT64_MIN, INT64_MAX};
-      tqDebug("s-task:%s without associated stream task, reset the time window:%" PRId64 " - %" PRId64, pId,
-              pWindow->skey, pWindow->ekey);
+      tqDebug("s-task:%s no associated task, reset the time window:%" PRId64 " - %" PRId64, pId, pWindow->skey,
+              pWindow->ekey);
     } else {
       tqDebug("s-task:%s history data scan completed, now start to scan data from wal, start ver:%" PRId64
               ", window:%" PRId64 " - %" PRId64, pId, pTask->chkInfo.currentVer, pWindow->skey, pWindow->ekey);

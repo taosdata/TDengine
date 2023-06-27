@@ -207,7 +207,7 @@ int32_t doSetOffsetForWalReader(SStreamTask *pTask, int32_t vgId) {
 
 int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
   *pScanIdle = true;
-  bool    noNewDataInWal = true;
+  bool    noDataInWal = true;
   int32_t vgId = pStreamMeta->vgId;
 
   int32_t numOfTasks = taosArrayGetSize(pStreamMeta->pTaskList);
@@ -235,7 +235,6 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     int32_t status = pTask->status.taskStatus;
     if (pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
-//      tqTrace("s-task:%s level:%d not source task, no need to start", pTask->id.idStr, pTask->info.taskLevel);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
@@ -261,36 +260,44 @@ int32_t createStreamTaskRunReq(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
+    int32_t numOfItemsInQ = taosQueueItemSize(pTask->inputQueue->queue);
+
     // append the data for the stream
     SStreamQueueItem* pItem = NULL;
     code = extractMsgFromWal(pTask->exec.pWalReader, (void**) &pItem, pTask->id.idStr);
-    if (code != TSDB_CODE_SUCCESS) {  // failed, continue
+
+    if ((code != TSDB_CODE_SUCCESS || pItem == NULL) && (numOfItemsInQ == 0)) {  // failed, continue
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
 
-    // delete ignore
-    if (pItem == NULL) {
-      streamMetaReleaseTask(pStreamMeta, pTask);
-      continue;
+    noDataInWal = false;
+
+    if (pItem != NULL) {
+      code = tAppendDataToInputQueue(pTask, pItem);
+      if (code == TSDB_CODE_SUCCESS) {
+        pTask->chkInfo.currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
+        tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr,
+                pTask->chkInfo.currentVer);
+      } else {
+        tqError("s-task:%s append input queue failed, too many in inputQ, ver:%" PRId64, pTask->id.idStr,
+                pTask->chkInfo.currentVer);
+      }
     }
 
-    noNewDataInWal = false;
-
-    code = tqAddInputBlockNLaunchTask(pTask, pItem);
-    if (code == TSDB_CODE_SUCCESS) {
-      pTask->chkInfo.currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
-      tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr,
-              pTask->chkInfo.currentVer);
-    } else {
-      tqError("s-task:%s append input queue failed, ver:%" PRId64, pTask->id.idStr, pTask->chkInfo.currentVer);
+    if ((code == TSDB_CODE_SUCCESS) || (numOfItemsInQ > 0)) {
+      code = streamSchedExec(pTask);
+      if (code != TSDB_CODE_SUCCESS) {
+        streamMetaReleaseTask(pStreamMeta, pTask);
+        return -1;
+      }
     }
 
     streamMetaReleaseTask(pStreamMeta, pTask);
   }
 
   // all wal are checked, and no new data available in wal.
-  if (noNewDataInWal) {
+  if (noDataInWal) {
     *pScanIdle = true;
   }
 

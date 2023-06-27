@@ -1221,12 +1221,16 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);
-    if (pShow->pIter == NULL) break;
+    if (pShow->pIter == NULL) {
+      break;
+    }
 
     // lock
     taosRLockLatch(&pStream->lock);
+
     // count task num
     int32_t sz = taosArrayGetSize(pStream->tasks);
+
     int32_t count = 0;
     for (int32_t i = 0; i < sz; i++) {
       SArray *pLevel = taosArrayGetP(pStream->tasks, i);
@@ -1236,10 +1240,12 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     if (numOfRows + count > rowsCapacity) {
       blockDataEnsureCapacity(pBlock, numOfRows + count);
     }
+
     // add row for each task
     for (int32_t i = 0; i < sz; i++) {
       SArray *pLevel = taosArrayGetP(pStream->tasks, i);
       int32_t levelCnt = taosArrayGetSize(pLevel);
+
       for (int32_t j = 0; j < levelCnt; j++) {
         SStreamTask *pTask = taosArrayGetP(pLevel, j);
 
@@ -1249,12 +1255,19 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         // stream name
         char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
         STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
+
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetVal(pColInfo, numOfRows, (const char *)streamName, false);
 
         // task id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)&pTask->id.taskId, false);
+
+        char idstr[128] = {0};
+        int32_t len = tintToHex(pTask->id.taskId, &idstr[4]);
+        idstr[2] = '0';
+        idstr[3] = 'x';
+        varDataSetLen(idstr, len + 2);
+        colDataSetVal(pColInfo, numOfRows, idstr, false);
 
         // node type
         char nodeType[20 + VARSTR_HEADER_SIZE] = {0};
@@ -1283,8 +1296,8 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
           memcpy(varDataVal(level), "sink", 4);
           varDataSetLen(level, 4);
-        } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
         }
+
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetVal(pColInfo, numOfRows, (const char *)&level, false);
 
