@@ -840,7 +840,22 @@ impl TaskController {
     }
 
     pub async fn validate_connector_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
-        let taos = TaosBuilder::from_dsn(to)?.build().await?;
+        let builder = TaosBuilder::from_dsn(to)?;
+        let taos = builder.build().await?;
+
+        // is cloud?
+        if to
+            .protocol
+            .as_ref()
+            .map(|p| match p.as_str() {
+                "http" | "https" | "ws" | "wss" => true,
+                _ => false,
+            })
+            .unwrap_or(false)
+            && builder.is_enterprise_edition().await?
+        {
+            return Ok(());
+        }
 
         let endpoint = match (
             from.addresses[0].host.as_deref(),
@@ -872,6 +887,7 @@ impl TaskController {
             .map(|s| s.parse::<Dsn>().unwrap().addresses[0].to_string())
             .collect::<std::collections::HashSet<_>>()
             .len();
+
         // let license = taos.query_one(sql)
         let connector = match from.driver.as_str() {
             "opcua" => "opc_ua",
@@ -1794,7 +1810,7 @@ pub struct Task {
     #[serde(default)]
     #[sqlx(try_from = "String", default)]
     // #[serde(deserialize_with = "labels_serde::deserialize")]
-    labels: Labels,
+    pub labels: Labels,
 }
 /// Task Activity
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::FromRow)]
@@ -1915,7 +1931,7 @@ impl From<Dsn> for ExpandedDsn {
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct TaskDetail {
     #[serde(flatten)]
-    task: Task,
+    pub task: Task,
 
     /// Expanded DSN for source.
     from_expand: Option<ExpandedDsn>,
@@ -2085,6 +2101,18 @@ impl Labels {
     /// Check if labels is empty.
     fn is_empty(&self) -> bool {
         self.0.as_ref().map(|v| v.is_empty()).unwrap_or(true)
+    }
+
+    /// Find the label value by key
+    pub fn find(&self, key: &str) -> Option<&str> {
+        self.0
+            .as_deref()
+            .and_then(|v| {
+                v.iter()
+                    .flat_map(|v| v.split_once("::"))
+                    .find(|v| v.0 == key)
+            })
+            .map(|s| s.1)
     }
 }
 
