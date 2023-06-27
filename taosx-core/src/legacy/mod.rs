@@ -539,13 +539,13 @@ async fn sync_single_table_partial(
                 break;
             }
 
-            metrics.blocks.fetch_add(1, Ordering::SeqCst);
+            metrics.blocks.fetch_add(1, Ordering::AcqRel);
             metrics
                 .records
-                .fetch_add(block.nrows() as _, Ordering::SeqCst);
+                .fetch_add(block.nrows() as _, Ordering::AcqRel);
             metrics
                 .points
-                .fetch_add((block.nrows() * block.ncols()) as _, Ordering::SeqCst);
+                .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
 
             // metrics.fetch_add()
 
