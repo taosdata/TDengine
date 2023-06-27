@@ -316,6 +316,8 @@ let rs = taos.query_with_req_id("select * from stable where tag1 is null", 1)?;
 
 ### Writing data via parameter binding
 
+TDengine has significantly improved the bind APIs to support data writing (INSERT) scenarios. Writing data in this way avoids the resource consumption of SQL syntax parsing, resulting in significant write performance improvements in many cases.
+
 <RustBind />
 
 ### Schemaless Writing
