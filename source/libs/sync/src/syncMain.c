@@ -1590,6 +1590,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     // persist cfg
     syncWriteCfgFile(pSyncNode);
 
+#if 0
     // change isStandBy to normal (election timeout)
     if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
       syncNodeBecomeLeader(pSyncNode, "");
@@ -1601,6 +1602,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     } else {
       syncNodeBecomeFollower(pSyncNode, "");
     }
+#endif
   } else {
     // persist cfg
     syncWriteCfgFile(pSyncNode);
