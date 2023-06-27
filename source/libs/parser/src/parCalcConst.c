@@ -372,18 +372,33 @@ static bool notRefByOrderBy(SColumnNode* pCol, SNodeList* pOrderByList) {
   return !cxt.hasThisCol;
 }
 
+static bool isDistinctSubQuery(SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT:
+      return ((SSelectStmt*)pNode)->isDistinct;
+    case QUERY_NODE_SET_OPERATOR:
+      return isDistinctSubQuery((((SSetOperator*)pNode)->pLeft)) || isDistinctSubQuery((((SSetOperator*)pNode)->pLeft));
+    default:
+      break;
+  }
+  return false;
+}
+
 static bool isSetUselessCol(SSetOperator* pSetOp, int32_t index, SExprNode* pProj) {
   if (!isUselessCol(pProj)) {
     return false;
   }
 
   SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
-  if (!isUselessCol((SExprNode*)nodesListGetNode(pLeftProjs, index))) {
+  if (!isUselessCol((SExprNode*)nodesListGetNode(pLeftProjs, index)) || isDistinctSubQuery(pSetOp->pLeft)) {
     return false;
   }
 
   SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
-  if (!isUselessCol((SExprNode*)nodesListGetNode(pRightProjs, index))) {
+  if (!isUselessCol((SExprNode*)nodesListGetNode(pRightProjs, index)) || isDistinctSubQuery(pSetOp->pLeft)) {
     return false;
   }
 
