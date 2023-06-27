@@ -3,7 +3,7 @@ name: Build Latest
 on:
   push:
     branches:
-      - main
+      - fix/TD-24879-fix-commit-id-lost
 
 jobs:
   centos:
@@ -13,6 +13,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - run: git config --system --add safe.directory '*'
 
       - name: Set up Rust
         id: setup-rust
