@@ -50,7 +50,9 @@ jobs:
 
       - name: Build taosX
         run: |
+          git branch
           cargo build --release --no-default-features --features optin --features native-tls
+          target/release/taosx -V
           strip target/release/taosx
           mv target/release/taosx target/release/taosx-amd64
 
