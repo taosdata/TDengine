@@ -99,6 +99,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   switch (pParam->buffer_type) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pVal->datum.p) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -203,7 +204,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
   int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pCatalogReq) {
     code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -218,6 +219,19 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
 int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, const struct SMetaData* pMetaData,
                           SQuery* pQuery) {
   return parseInsertSql(pCxt, &pQuery, pCatalogReq, pMetaData);
+}
+
+int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, void** pResRow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_CREATE_STREAM_STMT:
+      code = translatePostCreateStream(pCxt, pQuery, pResRow);
+      break;
+    default:
+      break;
+  }
+
+  return code;
 }
 
 void qDestroyParseContext(SParseContext* pCxt) {

@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
+#include "operator.h"
+#include "querytask.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -90,7 +92,7 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   if (pEventWindowNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
     SExprInfo* pScalarExprInfo = createExprInfo(pEventWindowNode->window.pExprs, NULL, &numOfScalarExpr);
-    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr);
+    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -108,7 +110,7 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState);
+                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -118,6 +120,8 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
 
   initBasicInfo(&pInfo->binfo, pResBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
+  pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
+  pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
 
   pInfo->twAggSup = (STimeWindowAggSupp){.waterMark = pEventWindowNode->window.watermark,
                                          .calTrigger = pEventWindowNode->window.triggerType};
@@ -172,6 +176,7 @@ void destroyEWindowOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
 
   cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarSup);
   taosMemoryFreeClear(param);
 }
 
@@ -180,7 +185,7 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
 
   SExprSupp* pSup = &pOperator->exprSupp;
-  int32_t    order = TSDB_ORDER_ASC;
+  int32_t    order = pInfo->binfo.inputTsOrder;
 
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
@@ -193,6 +198,7 @@ static SSDataBlock* eventWindowAggregate(SOperatorInfo* pOperator) {
       break;
     }
 
+    pRes->info.scanFlag = pBlock->info.scanFlag;
     setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
     blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
 

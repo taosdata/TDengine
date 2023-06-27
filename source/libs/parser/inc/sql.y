@@ -126,8 +126,10 @@ with_opt(A) ::= WITH search_condition(B).                                       
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
 cmd ::= CREATE DNODE dnode_endpoint(A) PORT NK_INTEGER(B).                        { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, &B); }
-cmd ::= DROP DNODE NK_INTEGER(A) force_opt(B).                                    { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B); }
-cmd ::= DROP DNODE dnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B); }
+cmd ::= DROP DNODE NK_INTEGER(A) force_opt(B).                                    { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B, false); }
+cmd ::= DROP DNODE dnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, B, false); }
+cmd ::= DROP DNODE NK_INTEGER(A) unsafe_opt(B).                                   { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, false, B); }
+cmd ::= DROP DNODE dnode_endpoint(A) unsafe_opt(B).                               { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, false, B); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B).                                   { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, NULL); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B) NK_STRING(C).                      { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, &C); }
 cmd ::= ALTER ALL DNODES NK_STRING(A).                                            { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, NULL); }
@@ -144,6 +146,10 @@ dnode_endpoint(A) ::= NK_IPTOKEN(B).                                            
 %destructor force_opt                                                             { }
 force_opt(A) ::= .                                                                { A = false; }
 force_opt(A) ::= FORCE.                                                           { A = true; }
+
+%type unsafe_opt                                                                  { bool }
+%destructor unsafe_opt                                                            { }
+unsafe_opt(A) ::= UNSAFE.                                                         { A = true; }
 
 /************************************************ alter local *********************************************************/
 cmd ::= ALTER LOCAL NK_STRING(A).                                                 { pCxt->pRootNode = createAlterLocalStmt(pCxt, &A, NULL); }
@@ -227,8 +233,8 @@ db_options(A) ::= db_options(B) WAL_RETENTION_SIZE NK_MINUS(D) NK_INTEGER(C).   
 db_options(A) ::= db_options(B) WAL_ROLL_PERIOD NK_INTEGER(C).                    { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_ROLL_PERIOD, &C); }
 db_options(A) ::= db_options(B) WAL_SEGMENT_SIZE NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_SEGMENT_SIZE, &C); }
 db_options(A) ::= db_options(B) STT_TRIGGER NK_INTEGER(C).                        { A = setDatabaseOption(pCxt, B, DB_OPTION_STT_TRIGGER, &C); }
-db_options(A) ::= db_options(B) TABLE_PREFIX NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_PREFIX, &C); }
-db_options(A) ::= db_options(B) TABLE_SUFFIX NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_SUFFIX, &C); }
+db_options(A) ::= db_options(B) TABLE_PREFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_PREFIX, C); }
+db_options(A) ::= db_options(B) TABLE_SUFFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_SUFFIX, C); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -376,6 +382,7 @@ type_name(A) ::= VARCHAR NK_LP NK_INTEGER(B) NK_RP.                             
 type_name(A) ::= MEDIUMBLOB.                                                      { A = createDataType(TSDB_DATA_TYPE_MEDIUMBLOB); }
 type_name(A) ::= BLOB.                                                            { A = createDataType(TSDB_DATA_TYPE_BLOB); }
 type_name(A) ::= VARBINARY NK_LP NK_INTEGER(B) NK_RP.                             { A = createVarLenDataType(TSDB_DATA_TYPE_VARBINARY, &B); }
+type_name(A) ::= GEOMETRY NK_LP NK_INTEGER(B) NK_RP.                              { A = createVarLenDataType(TSDB_DATA_TYPE_GEOMETRY, &B); }
 type_name(A) ::= DECIMAL.                                                         { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
 type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_RP.                                  { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
 type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_COMMA NK_INTEGER NK_RP.              { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
@@ -536,9 +543,9 @@ cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS DATABASE db_name(C).    
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
   WITH META AS DATABASE db_name(C).                                               { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, true); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
-  AS STABLE full_table_name(C).                                                   { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, false); }
+  AS STABLE full_table_name(C) where_clause_opt(D).                               { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, false, D); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
-  WITH META AS STABLE full_table_name(C).                                         { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, true); }
+  WITH META AS STABLE full_table_name(C) where_clause_opt(D).                     { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, true, D); }
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
 cmd ::= DROP CONSUMER GROUP exists_opt(A) cgroup_name(B) ON topic_name(C).        { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C); }
 
@@ -593,6 +600,8 @@ cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
   full_table_name(C) col_list_opt(H) tag_def_or_ref_opt(F) subtable_opt(G)
   AS query_or_subquery(D).                                                        { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, F, G, D, H); }
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
+cmd ::= PAUSE STREAM exists_opt(A) stream_name(B).                                { pCxt->pRootNode = createPauseStreamStmt(pCxt, A, &B); }
+cmd ::= RESUME STREAM exists_opt(A) ignore_opt(C) stream_name(B).                 { pCxt->pRootNode = createResumeStreamStmt(pCxt, A, C, &B); }
 
 %type col_list_opt                                                                { SNodeList* }
 %destructor col_list_opt                                                          { nodesDestroyList($$); }
@@ -617,6 +626,11 @@ stream_options(A) ::= stream_options(B) IGNORE UPDATE NK_INTEGER(C).            
 
 subtable_opt(A) ::= .                                                             { A = NULL; }
 subtable_opt(A) ::= SUBTABLE NK_LP expression(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }
+
+%type ignore_opt                                                                  { bool }
+%destructor ignore_opt                                                            { }
+ignore_opt(A) ::= .                                                               { A = false; }
+ignore_opt(A) ::= IGNORE UNTREATED.                                               { A = true; }
 
 /************************************************ kill connection/query ***********************************************/
 cmd ::= KILL CONNECTION NK_INTEGER(A).                                            { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_CONNECTION_STMT, &A); }
@@ -1081,6 +1095,8 @@ having_clause_opt(A) ::= HAVING search_condition(B).                            
 range_opt(A) ::= .                                                                { A = NULL; }
 range_opt(A) ::=
   RANGE NK_LP expr_or_subquery(B) NK_COMMA expr_or_subquery(C) NK_RP.             { A = createInterpTimeRange(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+range_opt(A) ::=
+  RANGE NK_LP expr_or_subquery(B) NK_RP.                                          { A = createInterpTimePoint(pCxt, releaseRawExprNode(pCxt, B)); }
 
 every_opt(A) ::= .                                                                { A = NULL; }
 every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }

@@ -15,8 +15,9 @@
 
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "planner.h"
+#include "storageapi.h"
 #include "tcompression.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -126,7 +127,7 @@ static int32_t submitReqToMsg(int32_t vgId, SSubmitReq2* pReq, void** pData, int
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t len = 0;
   void*   pBuf = NULL;
-  tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
+  tEncodeSize(tEncodeSubmitReq, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
@@ -138,7 +139,7 @@ static int32_t submitReqToMsg(int32_t vgId, SSubmitReq2* pReq, void** pData, int
     ((SSubmitReq2Msg*)pBuf)->header.contLen = htonl(len);
     ((SSubmitReq2Msg*)pBuf)->version = htobe64(1);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    code = tEncodeSSubmitReq2(&encoder, pReq);
+    code = tEncodeSubmitReq(&encoder, pReq);
     tEncoderClear(&encoder);
   }
 
@@ -281,7 +282,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
     SRow* pRow = NULL;
     if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
-      tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+      tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
     taosArrayPush(tbData.aRowP, &pRow);
@@ -301,7 +302,7 @@ _end:
   if (terrno != 0) {
     *ppReq = NULL;
     if (pReq) {
-      tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+      tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
       taosMemoryFree(pReq);
     }
     return terrno;
@@ -326,7 +327,7 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
     code = buildSubmitReqFromBlock(pInserter, &pReq, pDataBlock, pTSchema, uid, vgId, suid);
     if (code) {
       if (pReq) {
-        tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+        tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
         taosMemoryFree(pReq);
       }
 
@@ -335,7 +336,7 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
   }
 
   code = submitReqToMsg(vgId, pReq, pMsg, msgLen);
-  tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+  tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pReq);
 
   return code;
@@ -428,8 +429,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   inserter->explain = pInserterNode->explain;
 
   int64_t suid = 0;
-  int32_t code =
-      tsdbGetTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
+  int32_t code = pManager->pAPI->metaFn.getTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
   if (code) {
     destroyDataSinker((SDataSinkHandle*)inserter);
     taosMemoryFree(inserter);

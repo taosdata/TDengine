@@ -169,13 +169,13 @@ function install_jemalloc() {
       ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
       ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
       ${csudo}/usr/bin/install -c -d /usr/local/lib
-      if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
-        ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
-      fi
-      if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
-        ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
-      fi
-      if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+      # if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
+      #   ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
+      # fi
+      # if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+      #   ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
+      # fi
+      if [ -f ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc ]; then
         ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
         ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
       fi
@@ -436,7 +436,7 @@ function local_fqdn_check() {
 
 function install_taosadapter_config() {
     if [ ! -f "${cfg_install_dir}/taosadapter.toml" ]; then
-        [ ! -d %{cfg_install_dir} ] &&
+        [ ! -d ${cfg_install_dir} ] &&
             ${csudo}${csudo}mkdir -p ${cfg_install_dir}
         [ -f ${cfg_dir}/taosadapter.toml ] && ${csudo}cp ${cfg_dir}/taosadapter.toml ${cfg_install_dir}
         [ -f ${cfg_install_dir}/taosadapter.toml ] &&
@@ -451,19 +451,26 @@ function install_taosadapter_config() {
 }
 
 function install_taoskeeper_config() {
-    if [ ! -f "${cfg_install_dir}/keeper.toml" ]; then
-        [ ! -d %{cfg_install_dir} ] &&
-            ${csudo}${csudo}mkdir -p ${cfg_install_dir}
-        [ -f ${cfg_dir}/keeper.toml ] && ${csudo}cp ${cfg_dir}/keeper.toml ${cfg_install_dir}
-        [ -f ${cfg_install_dir}/keeper.toml ] &&
-            ${csudo}chmod 644 ${cfg_install_dir}/keeper.toml
+    # if new environment without taoskeeper
+    if [[ ! -f "${cfg_install_dir}/keeper.toml" ]] && [[ ! -f "${cfg_install_dir}/taoskeeper.toml" ]]; then
+        [ ! -d ${cfg_install_dir} ] && ${csudo}${csudo}mkdir -p ${cfg_install_dir}
+        [ -f ${cfg_dir}/taoskeeper.toml ] && ${csudo}cp ${cfg_dir}/taoskeeper.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/taoskeeper.toml ] &&
+            ${csudo}chmod 644 ${cfg_install_dir}/taoskeeper.toml
+    fi
+    # if old machine with taoskeeper.toml file
+    if [ -f ${cfg_install_dir}/taoskeeper.toml ]; then
+        ${csudo}mv ${cfg_dir}/taoskeeper.toml ${cfg_dir}/taoskeeper.toml.new
     fi
 
-    [ -f ${cfg_dir}/keeper.toml ] &&
-        ${csudo}mv ${cfg_dir}/keeper.toml ${cfg_dir}/keeper.toml.new
+    if [ -f ${cfg_install_dir}/keeper.toml ]; then
+        echo "The file keeper.toml will be renamed to taoskeeper.toml"
+        ${csudo}mv ${cfg_install_dir}/keeper.toml ${cfg_install_dir}/taoskeeper.toml
+        ${csudo}mv ${cfg_dir}/taoskeeper.toml ${cfg_dir}/taoskeeper.toml.new
+    fi
 
-    [ -f ${cfg_install_dir}/keeper.toml ] &&
-        ${csudo}ln -s ${cfg_install_dir}/keeper.toml ${cfg_dir}
+    [ -f ${cfg_install_dir}/taoskeeper.toml ] &&
+        ${csudo}ln -s ${cfg_install_dir}/taoskeeper.toml ${cfg_dir}
 }
 
 function install_config() {
@@ -655,6 +662,15 @@ function install_taosadapter_service() {
     fi
 }
 
+function install_taoskeeper_service() {
+    if ((${service_mod}==0)); then
+        [ -f ${script_dir}/../cfg/taoskeeper.service ] &&\
+            ${csudo}cp ${script_dir}/../cfg/taoskeeper.service \
+            ${service_config_dir}/ || :
+        ${csudo}systemctl daemon-reload
+    fi
+}
+
 function install_service() {
   log_print "start install service"
   if [ "$osType" != "Darwin" ]; then
@@ -732,6 +748,7 @@ function install_TDengine() {
     install_taosadapter_config
     install_taoskeeper_config
     install_taosadapter_service
+    install_taoskeeper_service
     install_service
     install_app
 

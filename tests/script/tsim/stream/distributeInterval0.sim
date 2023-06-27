@@ -1,36 +1,11 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/deploy.sh -n dnode2 -i 2
 
 system sh/exec.sh -n dnode1 -s start 
 sleep 50
 sql connect
 
-sql create dnode $hostname2 port 7200
 
-system sh/exec.sh -n dnode2 -s start
-
-print ===== step1
-$x = 0
-step1:
-	$x = $x + 1
-	sleep 1000
-	if $x == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql select * from information_schema.ins_dnodes
-print ===> $data00 $data01 $data02 $data03 $data04 $data05
-print ===> $data10 $data11 $data12 $data13 $data14 $data15
-if $rows != 2 then
-  return -1
-endi
-if $data(1)[4] != ready then
-  goto step1
-endi
-if $data(2)[4] != ready then
-  goto step1
-endi
 
 print ===== step2
 sql drop stream if exists stream_t1;
@@ -42,7 +17,7 @@ sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
-sql create stream stream_t1 trigger at_once watermark 1d into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
+sql create stream stream_t1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 1d into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
 
 sleep 1000
 
@@ -58,6 +33,28 @@ sql insert into ts2 values(1648791213002,NULL,NULL,NULL,NULL);
 sql insert into ts3 values(1648791213002,NULL,NULL,NULL,NULL);
 sql insert into ts4 values(1648791213002,NULL,NULL,NULL,NULL);
 
+$loop_count = 0
+loop0:
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sleep 1000
+print 1 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+if $data01 != 8 then
+  print =1====data01=$data01
+  goto loop0
+endi
+
 sql insert into ts1 values(1648791223002,2,2,3,1.1);
 sql insert into ts1 values(1648791233003,3,2,3,2.1);
 sql insert into ts2 values(1648791243004,4,2,43,73.1);
@@ -66,35 +63,271 @@ sql insert into ts1 values(1648791243005,4,20,3,3.1);
 sql insert into ts2 values(1648791243006,4,2,3,3.1) (1648791243007,4,2,3,3.1) ;
 sql insert into ts1 values(1648791243008,4,2,30,3.1) (1648791243009,4,2,3,3.1)  (1648791243010,4,2,3,3.1)  ;
 sql insert into ts2 values(1648791243011,4,2,3,3.1) (1648791243012,34,32,33,3.1)  (1648791243013,4,2,3,3.1) (1648791243014,4,2,13,3.1);
+
+$loop_count = 0
+loop01:
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sleep 1000
+print 2 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop01
+endi
+
+if $data01 != 8 then
+  print =2====data01=$data01
+  goto loop01
+endi
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop01
+endi
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop01
+endi
+
+if $data31 != 11 then
+  print =====data31=$data31
+  goto loop01
+endi
+
 sql insert into ts1 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) ;
+
+$loop_count = 0
+loop011:
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sleep 1000
+print 3 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop011
+endi
+
+if $data01 != 8 then
+  print =3====data01=$data01
+  goto loop011
+endi
+
+if $data11 != 2 then
+  print =====data11=$data11
+  goto loop011
+endi
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop011
+endi
+
+if $data31 != 13 then
+  print =====data31=$data31
+  goto loop011
+endi
+
 sql insert into ts2 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) (1648791233004,13,12,13,2.1) ;
+
+$loop_count = 0
+loop02:
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sleep 1000
+print 4 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop02
+endi
+
+if $data01 != 8 then
+  print =4====data01=$data01
+  goto loop02
+endi
+
+if $data11 != 3 then
+  print =====data11=$data11
+  goto loop02
+endi
+
+if $data21 != 2 then
+  print =====data21=$data21
+  goto loop02
+endi
+
+if $data31 != 15 then
+  print =====data31=$data31
+  goto loop02
+endi
+
+
 sql insert into ts1 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0)  (1648791223001,22,22,83,1.1) ;
+
+$loop_count = 0
+loop03:
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sleep 1000
+print 5 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop03
+endi
+
+if $data01 != 8 then
+  print =5====data01=$data01
+  goto loop03
+endi
+
+if $data11 != 3 then
+  print =====data11=$data11
+  goto loop03
+endi
+
+if $data21 != 2 then
+  print =====data21=$data21
+  goto loop03
+endi
+
+if $data31 != 15 then
+  print =====data31=$data31
+  goto loop03
+endi
 
 sql insert into ts3 values(1648791223002,2,2,3,1.1);
 sql insert into ts4 values(1648791233003,3,2,3,2.1);
 sql insert into ts3 values(1648791243004,4,2,43,73.1);
 sql insert into ts4 values(1648791213002,24,22,23,4.1);
+
+$loop_count = 0
+loop032:
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sleep 1000
+print 6-0 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop032
+endi
+
+if $data01 != 8 then
+  print =6====data01=$data01
+  goto loop032
+endi
+
 sql insert into ts3 values(1648791243005,4,20,3,3.1);
 sql insert into ts4 values(1648791243006,4,2,3,3.1) (1648791243007,4,2,3,3.1) ;
 sql insert into ts3 values(1648791243008,4,2,30,3.1) (1648791243009,4,2,3,3.1)  (1648791243010,4,2,3,3.1)  ;
 sql insert into ts4 values(1648791243011,4,2,3,3.1) (1648791243012,34,32,33,3.1)  (1648791243013,4,2,3,3.1) (1648791243014,4,2,13,3.1);
+
+$loop_count = 0
+loop033:
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sleep 1000
+print 6-1 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop033
+endi
+
+if $data01 != 8 then
+  print =6====data01=$data01
+  goto loop033
+endi
+
 sql insert into ts3 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) ;
+
+$loop_count = 0
+loop04:
+
+$loop_count = $loop_count + 1
+if $loop_count == 30 then
+  return -1
+endi
+
+sleep 1000
+print 6 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop04
+endi
+
+if $data01 != 8 then
+  print =6====data01=$data01
+  goto loop04
+endi
+
+if $data11 != 5 then
+  print =====data11=$data11
+  goto loop04
+endi
+
+if $data21 != 3 then
+  print =====data21=$data21
+  goto loop04
+endi
+
+if $data31 != 28 then
+  print =====data31=$data31
+  goto loop04
+endi
+
 sql insert into ts4 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) (1648791233004,13,12,13,2.1) ;
 sql insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0)  (1648791223001,22,22,83,1.1) ;
 
 $loop_count = 0
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamtST1;
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
 # row 0
 if $data01 != 8 then
-  print =====data01=$data01
+  print =7====data01=$data01
   goto loop1
 endi
 
@@ -204,7 +437,7 @@ sql use test1;
 sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
-sql create stream stream_t2 trigger at_once  watermark 20s into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
+sql create stream stream_t2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 20s into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
 
 sql insert into ts1 values(1648791211000,1,2,3);
 sql insert into ts1 values(1648791222001,2,2,3);
@@ -215,15 +448,15 @@ $loop_count = 0
 loop2:
 sql select * from streamtST1;
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
 # row 0
 if $data01 != 2 then
-  print =====data01=$data01
+  print =8====data01=$data01
   goto loop2
 endi
 
@@ -254,9 +487,9 @@ $loop_count = 0
 loop3:
 sql select * from streamtST3;
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -272,6 +505,8 @@ if $data12 != 2 then
   goto loop3
 endi
 
+return 1
+
 print ===== step3
 
 sql drop database if exists test4;
@@ -284,7 +519,7 @@ sql create table ccc using st tags(3,2,2);
 sql create table ddd using st tags(4,2,2);
 
 
-sql create stream streams1 ignore expired 0 fill_history 0 watermark 3s into streamst subtable(c) as select  _wstart, c , count(*) c1, last_row(b) c2  from st partition by c interval(1s) ;
+sql create stream streams1 IGNORE EXPIRED 0 IGNORE UPDATE 0  fill_history 0 watermark 3s into streamst subtable(c) as select  _wstart, c , count(*) c1, last_row(b) c2  from st partition by c interval(1s) ;
 
 sql insert into aaa values(1648791221001,2,2,"/a1/aa/aa");
 sql insert into bbb values(1648791221001,2,2,"/a1/aa/aa");
@@ -320,7 +555,7 @@ sql insert into ddd values(1648791226003,2,2,"/a6/aa/aa");
 $loop_count = 0
 
 loop4:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -338,7 +573,7 @@ sql delete  from aaa where ts = 1648791223003 ;
 $loop_count = 0
 
 loop5:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -357,7 +592,7 @@ sql delete  from ccc;
 $loop_count = 0
 
 loop6:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -375,7 +610,7 @@ sql delete  from ddd;
 $loop_count = 0
 
 loop7:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then

@@ -272,6 +272,41 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   return code;
 }
 
+static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSubmitTbData* pTmp = taosMemoryCalloc(1, sizeof(SSubmitTbData));
+  if (NULL == pTmp) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    pTmp->flags = pSrc->flags;
+    pTmp->suid = pSrc->suid;
+    pTmp->uid = pSrc->uid;
+    pTmp->sver = pSrc->sver;
+    pTmp->pCreateTbReq = NULL;
+    if (pTmp->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      pTmp->aCol = taosArrayInit(128, sizeof(SColData));
+      if (NULL == pTmp->aCol) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        taosMemoryFree(pTmp);
+      }
+    } else {
+      pTmp->aRowP = taosArrayInit(128, POINTER_BYTES);
+      if (NULL == pTmp->aRowP) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        taosMemoryFree(pTmp);
+      }
+    }
+  }
+
+  taosMemoryFree(pSrc);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pDst = pTmp;
+  }
+  
+  return code;
+}
+
+
 static void resetColValues(SArray* pValues) {
   int32_t num = taosArrayGetSize(pValues);
   for (int32_t i = 0; i < num; ++i) {
@@ -313,7 +348,7 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   insDestroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
   if (pTableCxt->pData) {
-    tDestroySSubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
+    tDestroySubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pTableCxt->pData);
   }
   taosMemoryFree(pTableCxt);
@@ -324,7 +359,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
     return;
   }
 
-  tDestroySSubmitReq2(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
+  tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pVgCxt->pData);
   taosMemoryFree(pVgCxt);
 }
@@ -381,7 +416,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     }
   }
   taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData);
-  taosMemoryFreeClear(pTableCxt->pData);
+  rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
 
   qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
@@ -499,7 +534,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
   int32_t  code = TSDB_CODE_SUCCESS;
   uint32_t len = 0;
   void*    pBuf = NULL;
-  tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
+  tEncodeSize(tEncodeSubmitReq, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
     len += sizeof(SSubmitReq2Msg);
@@ -511,7 +546,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
     ((SSubmitReq2Msg*)pBuf)->header.contLen = htonl(len);
     ((SSubmitReq2Msg*)pBuf)->version = htobe64(1);
     tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
-    code = tEncodeSSubmitReq2(&encoder, pReq);
+    code = tEncodeSubmitReq(&encoder, pReq);
     tEncoderClear(&encoder);
   }
 

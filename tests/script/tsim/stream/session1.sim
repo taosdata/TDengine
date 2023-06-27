@@ -1,5 +1,5 @@
 system sh/stop_dnodes.sh
-system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode1 -i 1 -v debugFlag 135
 system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
@@ -17,82 +17,100 @@ sql use test;
 
 
 sql create table t1(ts timestamp, a int, b int , c int, d double,id int);
-sql create stream streams2 trigger at_once IGNORE EXPIRED 0  into streamt as select  _wstart, count(*) c1,  sum(a), min(b), max(id) s from t1 session(ts,10s);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt as select  _wstart, count(*) c1,  sum(a), min(b), max(id) s from t1 session(ts,10s);
 sql insert into t1 values(1648791210000,1,1,1,1.1,1);
 sql insert into t1 values(1648791220000,2,2,2,2.1,2);
 sql insert into t1 values(1648791230000,3,3,3,3.1,3);
 sql insert into t1 values(1648791240000,4,4,4,4.1,4);
-sleep 300
+
+$loop_count = 0
+
+loop0:
+sleep 1000
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt order by s desc;
 
 # row 0
 if $data01 != 4 then
   print ======$data01
-  return -1
+  goto loop0
 endi
 
 if $data02 != 10 then
   print ======$data02
-  return -1
+  goto loop0
 endi
 
 if $data03 != 1 then
   print ======$data03
-  return -1
+  goto loop0
 endi
 
 if $data04 != 4 then
   print ======$data04
-  return -1
+  goto loop0
 endi
 
 sql insert into t1 values(1648791250005,5,5,5,5.1,5);
 sql insert into t1 values(1648791260006,6,6,6,6.1,6);
 sql insert into t1 values(1648791270007,7,7,7,7.1,7);
 sql insert into t1 values(1648791240005,5,5,5,5.1,8) (1648791250006,6,6,6,6.1,9);
-sleep 300
+
+$loop_count = 0
+
+loop1:
+sleep 1000
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt order by s desc;
 
 # row 0
 if $data01 != 8 then
   print ======$data01
-  return -1
+  goto loop1
 endi
 
 if $data02 != 32 then
   print ======$data02
-  return -1
+  goto loop1
 endi
 
 if $data03 != 1 then
   print ======$data03
-  return -1
+  goto loop1
 endi
 
 if $data04 != 9 then
   print ======$data04
-  return -1
+  goto loop1
 endi
 
 # row 1
 if $data11 != 1 then
   print ======$data11
-  return -1
+  goto loop1
 endi
 
 if $data12 != 7 then
   print ======$data12
-  return -1
+  goto loop1
 endi
 
 if $data13 != 7 then
   print ======$data13
-  return -1
+  goto loop1
 endi
 
 if $data14 != 7 then
   print ======$data14
-  return -1
+  goto loop1
 endi
 
 sql insert into t1 values(1648791280008,7,7,7,7.1,10) (1648791300009,8,8,8,8.1,11);
@@ -100,112 +118,130 @@ sql insert into t1 values(1648791260007,7,7,7,7.1,12) (1648791290008,7,7,7,7.1,1
 sql insert into t1 values(1648791500000,7,7,7,7.1,15) (1648791520000,8,8,8,8.1,16) (1648791540000,8,8,8,8.1,17);
 sql insert into t1 values(1648791530000,8,8,8,8.1,18);
 sql insert into t1 values(1648791220000,10,10,10,10.1,19) (1648791290008,2,2,2,2.1,20) (1648791540000,17,17,17,17.1,21) (1648791500001,22,22,22,22.1,22);
-sleep 300
+
+$loop_count = 0
+
+loop2:
+sleep 1000
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt order by s desc;
 
 # row 0
 if $data01 != 2 then
   print ======$data01
-  return -1
+  goto loop2
 endi
 
 if $data02 != 29 then
   print ======$data02
-  return -1
+  goto loop2
 endi
 
 if $data03 != 7 then
   print ======$data03
-  return -1
+  goto loop2
 endi
 
 if $data04 != 22 then
   print ======$data04
-  return -1
+  goto loop2
 endi
 
 # row 1
 if $data11 != 3 then
   print ======$data11
-  return -1
+  goto loop2
 endi
 
 if $data12 != 33 then
   print ======$data12
-  return -1
+  goto loop2
 endi
 
 if $data13 != 8 then
   print ======$data13
-  return -1
+  goto loop2
 endi
 
 if $data14 != 21 then
   print ======$data14
-  return -1
+  goto loop2
 endi
 
 # row 2
 if $data21 != 4 then
   print ======$data21
-  return -1
+  goto loop2
 endi
 
 if $data22 != 25 then
   print ======$data22
-  return -1
+  goto loop2
 endi
 
 if $data23 != 2 then
   print ======$data23
-  return -1
+  goto loop2
 endi
 
 if $data24 != 20 then
   print ======$data24
-  return -1
+  goto loop2
 endi
 
 # row 3
 if $data31 != 10 then
   print ======$data31
-  return -1
+  goto loop2
 endi
 
 if $data32 != 54 then
   print ======$data32
-  return -1
+  goto loop2
 endi
 
 if $data33 != 1 then
   print ======$data33
-  return -1
+  goto loop2
 endi
 
 if $data34 != 19 then
   print ======$data34
-  return -1
+  goto loop2
 endi
 
 sql insert into t1 values(1648791000000,1,1,1,1.1,23);
-sleep 300
+
+$loop_count = 0
+
+loop3:
+sleep 1000
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt order by s desc;
 
 # row 0
 if $data01 != 1 then
   print ======$data01
-  return -1
+  goto loop3
 endi
 
 sql create database test1  vgroups 1;
 sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams3 trigger at_once IGNORE EXPIRED 0  into streamt3 as select  _wstart, count(*) c1 from t1 where a > 5 session(ts, 5s);
+sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt3 as select  _wstart, count(*) c1 from t1 where a > 5 session(ts, 5s);
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 
 $loop_count = 0
 loop13:
-sleep 200
+sleep 1000
 
 sql select * from streamt3;
 
@@ -224,7 +260,7 @@ sql insert into t1 values(1648791213000,6,2,3,1.0);
 
 $loop_count = 0
 loop14:
-sleep 200
+sleep 1000
 sql select * from streamt3;
 
 $loop_count = $loop_count + 1
@@ -241,7 +277,7 @@ sql insert into t1 values(1648791213000,2,2,3,1.0);
 
 $loop_count = 0
 loop15:
-sleep 200
+sleep 1000
 sql select * from streamt3;
 
 $loop_count = $loop_count + 1
@@ -261,7 +297,7 @@ sql insert into t1 values(1648791233000,10,2,3,1.0);
 
 $loop_count = 0
 loop16:
-sleep 200
+sleep 1000
 sql select * from streamt3;
 
 $loop_count = $loop_count + 1
@@ -278,7 +314,7 @@ sql insert into t1 values(1648791233000,2,2,3,1.0);
 
 $loop_count = 0
 loop17:
-sleep 200
+sleep 1000
 sql select * from streamt3;
 
 $loop_count = $loop_count + 1

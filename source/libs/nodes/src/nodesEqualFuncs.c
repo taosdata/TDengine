@@ -82,9 +82,7 @@ static bool columnNodeEqual(const SColumnNode* a, const SColumnNode* b) {
   COMPARE_STRING_FIELD(dbName);
   COMPARE_STRING_FIELD(tableName);
   COMPARE_STRING_FIELD(colName);
-  if (0 == a->tableId) {
-    COMPARE_STRING_FIELD(tableAlias);
-  }
+  COMPARE_STRING_FIELD(tableAlias);
   return true;
 }
 
@@ -109,6 +107,7 @@ static bool valueNodeEqual(const SValueNode* a, const SValueNode* b) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       COMPARE_VARDATA_FIELD(datum.p);
       break;
     case TSDB_DATA_TYPE_JSON:

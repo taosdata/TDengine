@@ -232,7 +232,7 @@ void saveConfigToLogFile() {
       taosFprintfFile(g_fp, "%s:%s, ", g_stConfInfo.stThreads[i].key[k], g_stConfInfo.stThreads[i].value[k]);
     }
     taosFprintfFile(g_fp, "\n");
-    taosFprintfFile(g_fp, "  expect rows: %" PRIx64 "\n", g_stConfInfo.stThreads[i].expectMsgCnt);
+    taosFprintfFile(g_fp, "  expect rows: %" PRId64 "\n", g_stConfInfo.stThreads[i].expectMsgCnt);
   }
 
   char tmpString[128];
@@ -542,7 +542,8 @@ static void shellDumpFieldToFile(TdFilePtr pFile, const char* val, TAOS_FIELD* f
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_JSON: {
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       int32_t bufIndex = 0;
       for (int32_t i = 0; i < length; i++) {
         buf[bufIndex] = val[i];

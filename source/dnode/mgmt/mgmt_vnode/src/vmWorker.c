@@ -78,7 +78,7 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   int32_t code = vnodeProcessQueryMsg(pVnode->pImpl, pMsg);
   if (code != 0) {
     if (terrno != 0) code = terrno;
-    dGError("vgId:%d, msg:%p failed to query since %s", pVnode->vgId, pMsg, terrstr(code));
+    dGError("vgId:%d, msg:%p failed to query since %s", pVnode->vgId, pMsg, tstrerror(code));
     vmSendRsp(pMsg, code);
   }
 
@@ -116,8 +116,16 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
     int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
     if (code != 0) {
-      if (terrno != 0) code = terrno;
-      dGError("vnodeProcessFetchMsg vgId:%d, msg:%p failed to fetch since %s", pVnode->vgId, pMsg, terrstr());
+      if (terrno != 0) {
+        code = terrno;
+      }
+
+      if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+        dGDebug("vnodeProcessFetchMsg vgId:%d, msg:%p failed to fetch since %s", pVnode->vgId, pMsg, terrstr());
+      } else {
+        dGError("vnodeProcessFetchMsg vgId:%d, msg:%p failed to fetch since %s", pVnode->vgId, pMsg, terrstr());
+      }
+
       vmSendRsp(pMsg, code);
     }
 
@@ -210,6 +218,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       if (pMsg->msgType != TDMT_VND_ALTER_CONFIRM && pVnode->disable) {
         dDebug("vgId:%d, msg:%p put into vnode-write queue failed since its disable", pVnode->vgId, pMsg);
         terrno = TSDB_CODE_VND_STOPPED;
+        code = terrno;
         break;
       }
       dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);

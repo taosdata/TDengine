@@ -132,8 +132,61 @@ class TDTestCase:
             else:
                 tdSql.checkEqual(result[i][0],f'stb_{i-1}')
                 tdSql.checkEqual(result[i][1],ctbnum)
+                
+    def ins_stable_check2(self):
+        tdSql.execute('drop database if exists restful_test')
+        tdSql.execute('drop database if exists log')
+        tdSql.execute('drop database if exists d0')
+        tdSql.execute('drop database if exists d1')
+        tdSql.execute('create database restful_test vgroups 4 replica 1')
+        tdSql.execute('create database log vgroups 2 replica 1')
+        tdSql.execute('create database d0 vgroups 4 replica 1')
+        tdSql.execute('create database d1 vgroups 4 replica 1')
+        log_stb_num = 5
+        rest_stb_num = 51
+        for i in range(rest_stb_num):
+            tdSql.execute(f'create stable restful_test._stb_{i} (ts timestamp,c0 int) tags(t0 int);')
+            tdSql.execute(f'create stable d0._stb_{i} (ts timestamp,c0 int, c1 int) tags(t0 int,t1 int);')
+            tdSql.execute(f'create stable d1._stb_{i} (ts timestamp,c0 int, c1 int, c2 int) tags(t0 int,t1 int, t2 int);')
         
+        tdSql.execute(f'CREATE STABLE log.`taosadapter_restful_http_request_summary_milliseconds` (`_ts` TIMESTAMP, `sum` DOUBLE) TAGS (`request_uri` NCHAR(128));')
+        tdSql.execute(f'CREATE STABLE log.`taosadapter_system_cpu_percent` (`_ts` TIMESTAMP, `gauge` DOUBLE) TAGS (`endpoint` NCHAR(45));')
+        tdSql.execute(f'CREATE STABLE log.`taosadapter_restful_http_request_total` (`_ts` TIMESTAMP, `gauge` DOUBLE) TAGS (`client_ip` NCHAR(40));')
+        tdSql.execute(f'CREATE STABLE log.`taosadapter_system_mem_percent` (`_ts` TIMESTAMP, `gauge` DOUBLE) TAGS (`endpoint` NCHAR(45));')
+        tdSql.execute(f'CREATE STABLE log.`taosadapter_restful_http_request_fail` (`_ts` TIMESTAMP, `gauge` DOUBLE) TAGS (`request_uri` NCHAR(128), `status_code` NCHAR(4));')
+        
+        tdSql.query(f'select * from information_schema.ins_stables where db_name="restful_test" limit 0,25;') # condition 1
+        result = tdSql.queryResult
+        tdSql.checkEqual(len(result),25)
+        for i in range(len(result)):
+            tdSql.checkEqual(result[i][0][0:5],f'_stb_') # stable_name
+            tdSql.checkEqual(result[i][1],f'restful_test') # db_name
+            tdSql.checkEqual(result[i][5]>=result[i][2],True) # last_update >= create_time
+            tdSql.checkEqual(result[i][3]>1,True) # columns
+            tdSql.checkEqual(result[i][4]>0,True) # tags
+            tdSql.checkEqual(result[i][6],None) # table_comment
+            tdSql.checkEqual(result[i][7],f'5000a,5000a') # watermark
+            tdSql.checkEqual(result[i][8],f'-1a,-1a') # max_delay
+            tdSql.checkEqual(result[i][9],f'') # rollup
 
+        tdSql.query(f'select create_time from information_schema.ins_stables where db_name="restful_test" order by create_time asc limit 10,1')
+        result = tdSql.queryResult
+        tdSql.checkEqual(len(result),1)
+        _create_time=result[0][0]
+        tdSql.query("select * from information_schema.ins_stables where db_name='restful_test' and create_time > '%s' limit 10,30" % (_create_time)) # condition 2
+        result = tdSql.queryResult
+        tdSql.checkEqual(len(result),30)
+        for i in range(len(result)):
+            tdSql.checkEqual(result[i][0][0:5],f'_stb_') # stable_name
+            tdSql.checkEqual(result[i][1],f'restful_test') # db_name
+            tdSql.checkEqual(result[i][5]>=result[i][2],True) # last_update >= create_time
+            tdSql.checkEqual(result[i][2]>_create_time,True) # create_time
+            tdSql.checkEqual(result[i][3]>1,True) # columns
+            tdSql.checkEqual(result[i][4]>0,True) # tags
+            tdSql.checkEqual(result[i][6],None) # table_comment
+            tdSql.checkEqual(result[i][7],f'5000a,5000a') # watermark
+            tdSql.checkEqual(result[i][8],f'-1a,-1a') # max_delay
+            tdSql.checkEqual(result[i][9],f'') # rollup
 
     def ins_columns_check(self):
         tdSql.execute('drop database if exists db2')
@@ -162,7 +215,53 @@ class TDTestCase:
         for t in range (2):
             tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
             tdSql.checkEqual(20470,len(tdSql.queryResult))
-
+            
+    def ins_dnodes_check(self):
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
+        tdSql.query(f'select * from information_schema.ins_dnodes')
+        result = tdSql.queryResult
+        tdSql.checkEqual(result[0][0],1)
+        tdSql.checkEqual(result[0][8],"")
+        tdSql.checkEqual(result[0][9],"")
+        self.str107 = 'Hc7VCc+'
+        for t in range (10):
+            self.str107 += 'tP+2soIXpP'
+        self.str108 = self.str107 + '='
+        self.str109 = self.str108 + '+'
+        self.str254 = self.str108 + self.str108 + '01234567890123456789012345678901234567'
+        self.str255 = self.str254 + '='
+        self.str256 = self.str254 + '=('
+        self.str257 = self.str254 + '=()'
+        self.str510 = self.str255 + self.str255
+        tdSql.error('alter dnode 1 "activeCode" "a"')
+        tdSql.error('alter dnode 1 "activeCode" "' + self.str107 + '"')
+        tdSql.execute('alter all dnodes "activeCode" "' + self.str108 + '"')
+        tdSql.error('alter dnode 1 "activeCode" "' + self.str109 + '"')
+        tdSql.error('alter all dnodes "activeCode" "' + self.str510 + '"')
+        tdSql.query(f'select * from information_schema.ins_dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][8],self.str108)
+        tdSql.execute('alter dnode 1 "activeCode" ""')
+        tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][0],"")
+        tdSql.checkEqual(tdSql.queryResult[0][1],'')
+        tdSql.error('alter dnode 1 "cActiveCode" "a"')
+        tdSql.error('alter dnode 1 "cActiveCode" "' + self.str107 + '"')
+        tdSql.error('alter dnode 1 "cActiveCode" "' + self.str256 + '"')
+        tdSql.error('alter all dnodes "cActiveCode" "' + self.str255 + '"')
+        tdSql.error('alter all dnodes "cActiveCode" "' + self.str256 + '"')
+        tdSql.error('alter all dnodes "cActiveCode" "' + self.str257 + '"')
+        tdSql.execute('alter all dnodes "cActiveCode" "' + self.str254 + '"')
+        tdSql.error('alter dnode 1 "cActiveCode" "' + self.str510 + '"')
+        tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][0],"")
+        tdSql.checkEqual(tdSql.queryResult[0][1],self.str254)
+        tdSql.execute('alter dnode 1 "cActiveCode" "' + self.str109 + '"')
+        tdSql.query(f'show dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][9],self.str109)
+        tdSql.execute('alter all dnodes "cActiveCode" ""')
+        tdSql.query(f'select c_active_code from information_schema.ins_dnodes')
+        tdSql.checkEqual(tdSql.queryResult[0][0],'')
 
     def run(self):
         self.prepare_data()
@@ -170,6 +269,8 @@ class TDTestCase:
         self.ins_columns_check()
         # self.ins_col_check_4096()
         self.ins_stable_check()
+        self.ins_stable_check2()
+        self.ins_dnodes_check()
 
 
     def stop(self):

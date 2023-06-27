@@ -18,6 +18,7 @@
 #include "cJSON.h"
 #include "querynodes.h"
 #include "scalar.h"
+#include "geomFunc.h"
 #include "taoserror.h"
 #include "ttime.h"
 
@@ -1568,15 +1569,30 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   uint8_t dbPrec = pFunc->node.resType.precision;
 
-  // if (1 != numOfParams && 3 != numOfParams && 4 != numOfParams) {
-  if (1 != numOfParams) {
+  if (2 < numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 0));
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if ((!IS_NUMERIC_TYPE(paraType) && !IS_BOOLEAN_TYPE(paraType))|| QUERY_NODE_VALUE == nodeType) {
+  if ((!IS_NUMERIC_TYPE(paraType) && !IS_BOOLEAN_TYPE(paraType)) || QUERY_NODE_VALUE == nodeType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (2 == numOfParams) {
+    nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 1));
+    paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    if (!IS_INTEGER_TYPE(paraType) || QUERY_NODE_VALUE != nodeType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    if (pValue->datum.i != 0 && pValue->datum.i != 1) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "INTERP function second parameter should be 0/1");
+    }
+
+    pValue->notReserved = true;
   }
 
 #if 0
@@ -1622,6 +1638,15 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
+}
+
+static EFuncReturnRows interpEstReturnRows(SFunctionNode* pFunc) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (1 < numOfParams && 1 == ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i) {
+    return FUNC_RETURN_ROWS_INDEFINITE;
+  } else {
+    return FUNC_RETURN_ROWS_N;
+  }
 }
 
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -2083,6 +2108,70 @@ static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateInStrOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_STR_DATA_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateInGeomOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (para1Type != TSDB_DATA_TYPE_GEOMETRY && !IS_NULL_TYPE(para1Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_VARCHAR].bytes, .type = TSDB_DATA_TYPE_VARCHAR};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateIn2NumOutGeom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if ((!IS_NUMERIC_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) ||
+      (!IS_NUMERIC_TYPE(para2Type) && !IS_NULL_TYPE(para2Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_GEOMETRY].bytes, .type = TSDB_DATA_TYPE_GEOMETRY};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateIn2GeomOutBool(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if ((para1Type != TSDB_DATA_TYPE_GEOMETRY && !IS_NULL_TYPE(para1Type)) ||
+      (para2Type != TSDB_DATA_TYPE_GEOMETRY && !IS_NULL_TYPE(para2Type))) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, .type = TSDB_DATA_TYPE_BOOL};
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
@@ -2259,7 +2348,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "leastsquares",
     .type = FUNCTION_TYPE_LEASTSQUARES,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateLeastSQR,
     .getEnvFunc   = getLeastSQRFuncEnv,
     .initFunc     = leastSQRFunctionSetup,
@@ -2367,7 +2456,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -2382,7 +2472,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -2439,7 +2530,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "elapsed",
     .type = FUNCTION_TYPE_ELAPSED,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .dataRequiredFunc = statisDataRequired,
     .translateFunc = translateElapsed,
     .getEnvFunc   = getElapsedFuncEnv,
@@ -2479,18 +2571,19 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "interp",
     .type = FUNCTION_TYPE_INTERP,
     .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC|FUNC_MGT_KEEP_ORDER_FUNC,
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateInterp,
     .getEnvFunc    = getSelectivityFuncEnv,
     .initFunc      = functionSetup,
     .processFunc   = NULL,
-    .finalizeFunc  = NULL
+    .finalizeFunc  = NULL,
+    .estimateReturnRowsFunc = interpEstReturnRows
   },
   {
     .name = "derivative",
     .type = FUNCTION_TYPE_DERIVATIVE,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateDerivative,
     .getEnvFunc   = getDerivativeFuncEnv,
     .initFunc     = derivativeFuncSetup,
@@ -2502,7 +2595,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "irate",
     .type = FUNCTION_TYPE_IRATE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateIrate,
     .getEnvFunc   = getIrateFuncEnv,
     .initFunc     = irateFuncSetup,
@@ -2513,7 +2607,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2528,7 +2623,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_cache_last_row",
     .type = FUNCTION_TYPE_CACHE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2538,7 +2634,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_cache_last",
     .type = FUNCTION_TYPE_CACHE_LAST,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2548,7 +2644,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_last_row_partial",
     .type = FUNCTION_TYPE_LAST_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLastPartial,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2559,7 +2656,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_last_row_merge",
     .type = FUNCTION_TYPE_LAST_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLastMerge,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2569,7 +2667,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "first",
     .type = FUNCTION_TYPE_FIRST,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = firstDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2584,7 +2683,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_first_partial",
     .type = FUNCTION_TYPE_FIRST_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLastPartial,
     .dynDataRequiredFunc = firstDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2596,7 +2696,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_first_merge",
     .type = FUNCTION_TYPE_FIRST_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLastMerge,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2607,7 +2708,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last",
     .type = FUNCTION_TYPE_LAST,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2622,7 +2724,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_last_partial",
     .type = FUNCTION_TYPE_LAST_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLastPartial,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2634,7 +2737,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_last_merge",
     .type = FUNCTION_TYPE_LAST_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateFirstLastMerge,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
@@ -2645,7 +2749,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "twa",
     .type = FUNCTION_TYPE_TWA,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateInNumOutDou,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc    = getTwaFuncEnv,
@@ -2736,7 +2841,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateDiff,
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
@@ -2749,7 +2854,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC,
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateStateCount,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2761,7 +2866,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "stateduration",
     .type = FUNCTION_TYPE_STATE_DURATION,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC,
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateStateDuration,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
@@ -2773,7 +2878,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "csum",
     .type = FUNCTION_TYPE_CSUM,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateCsum,
     .getEnvFunc   = getCsumFuncEnv,
     .initFunc     = functionSetup,
@@ -2786,7 +2891,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "mavg",
     .type = FUNCTION_TYPE_MAVG,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC,
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .translateFunc = translateMavg,
     .getEnvFunc   = getMavgFuncEnv,
     .initFunc     = mavgFunctionSetup,
@@ -2797,7 +2902,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sample",
     .type = FUNCTION_TYPE_SAMPLE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC |
+                      FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateSample,
     .getEnvFunc   = getSampleFuncEnv,
     .initFunc     = sampleFunctionSetup,
@@ -3335,6 +3441,96 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_geomfromtext",
+    .type = FUNCTION_TYPE_GEOM_FROM_TEXT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateInStrOutGeom,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = geomFromTextFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_astext",
+    .type = FUNCTION_TYPE_AS_TEXT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateInGeomOutStr,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = asTextFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_makepoint",
+    .type = FUNCTION_TYPE_MAKE_POINT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2NumOutGeom,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = makePointFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_intersects",
+    .type = FUNCTION_TYPE_INTERSECTS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = intersectsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_equals",
+    .type = FUNCTION_TYPE_EQUALS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = equalsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_touches",
+    .type = FUNCTION_TYPE_TOUCHES,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = touchesFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_covers",
+    .type = FUNCTION_TYPE_COVERS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = coversFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_contains",
+    .type = FUNCTION_TYPE_CONTAINS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = containsFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "st_containsproperly",
+    .type = FUNCTION_TYPE_CONTAINS_PROPERLY,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = containsProperlyFunction,
     .finalizeFunc = NULL
   },
 };

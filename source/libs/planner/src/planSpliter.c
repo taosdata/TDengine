@@ -534,7 +534,9 @@ static int32_t stbSplGetNumOfVgroups(SLogicNode* pNode) {
 
 static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+  pMerge->node.inputTsOrder = pNode->outputTsOrder;
+  pMerge->node.outputTsOrder = pNode->outputTsOrder;
+
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_PROJECT: {
       SProjectLogicNode *pLogicNode = (SProjectLogicNode*)pNode;
@@ -631,7 +633,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
     ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = INTERVAL_ALGO_MERGE;
     SNodeList* pMergeKeys = NULL;
     code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pInfo->pSplitNode)->pTspk,
-                                             ((SWindowLogicNode*)pInfo->pSplitNode)->outputTsOrder, &pMergeKeys);
+                                             ((SWindowLogicNode*)pInfo->pSplitNode)->node.outputTsOrder, &pMergeKeys);
     if (TSDB_CODE_SUCCESS == code) {
       code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, pMergeKeys, pPartWindow, true);
     }
@@ -721,7 +723,7 @@ static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSpl
 
   SNodeList* pMergeKeys = NULL;
   int32_t    code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pWindow)->pTspk,
-                                                      ((SWindowLogicNode*)pWindow)->inputTsOrder, &pMergeKeys);
+                                                      ((SWindowLogicNode*)pWindow)->node.inputTsOrder, &pMergeKeys);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pChild, pMergeKeys, (SLogicNode*)pChild, true);

@@ -19,6 +19,14 @@
 #include "scalar.h"
 #include "tglobal.h"
 
+static void debugPrintNode(SNode* pNode) {
+  char* pStr = NULL;
+  nodesNodeToString(pNode, false, &pStr, NULL);
+  printf("%s\n", pStr);
+  taosMemoryFree(pStr);
+  return;
+}
+
 static void dumpQueryPlan(SQueryPlan* pPlan) {
   if (!tsQueryPlannerTrace) {
     return;
@@ -88,6 +96,12 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
   }
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qContinuePlanPostQuery(void *pPostPlan) {
+  //TODO
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstreamSourceNode* pSource) {
   planDebug("QID:0x%" PRIx64 " set subplan execution node, groupId:%d", subplan->id.queryId, groupId);

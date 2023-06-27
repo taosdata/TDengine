@@ -869,10 +869,15 @@ FIRST(expr)
 ### INTERP
 
 ```sql
-INTERP(expr)
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
 ```
 
-**功能说明**：返回指定时间截面指定列的记录值或插值。
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值, 缺省值为0。
 
 **返回数据类型**：同字段类型。
 
@@ -885,10 +890,11 @@ INTERP(expr)
 - INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
 - INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
 - INTERP 需要同时与 RANGE，EVERY 和 FILL 关键字一起使用。
-- INTERP 的输出时间范围根据 RANGE(timestamp1,timestamp2)字段来指定，需满足 timestamp1 <= timestamp2。其中 timestamp1（必选值）为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
+- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2)字段来指定，需满足 timestamp1 <= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)，1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值.
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
-- INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 partition by tbname 一起使用。
+- INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如：SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
+- INTERP 作用于超级表时, 会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
 - INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.2.0版本以后支持)。
 - INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(3.0.3.0版本以后支持)。
 
@@ -996,7 +1002,6 @@ SAMPLE(expr, k)
 **使用说明**：
 
 - 不能参与表达式计算；该函数可以应用在普通表和超级表上；
-- 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
 
 
 ### TAIL
@@ -1075,7 +1080,6 @@ CSUM(expr)
 
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
 - 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。
-- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### DERIVATIVE
@@ -1099,7 +1103,6 @@ ignore_negative: {
 
 **使用说明**:
 
-- DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 - 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
@@ -1162,7 +1165,6 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
-- 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### STATECOUNT
@@ -1188,7 +1190,6 @@ STATECOUNT(expr, oper, val)
 
 **使用说明**：
 
-- 该函数可以应用在普通表上，在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 
@@ -1216,7 +1217,6 @@ STATEDURATION(expr, oper, val, unit)
 
 **使用说明**：
 
-- 该函数可以应用在普通表上，在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）
 - 不能和窗口操作一起使用，例如 interval/state_window/session_window。
 
 
@@ -1233,8 +1233,6 @@ TWA(expr)
 **适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
-
-**使用说明**： TWA 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 
 
 ## 系统信息函数

@@ -48,6 +48,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
 static int32_t getSchemaBytes(const SSchema* pSchema) {
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       return (pSchema->bytes - VARSTR_HEADER_SIZE);
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
@@ -278,7 +279,12 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
 
   char* retentions = buildRetension(pCfg->pRetensions);
   int32_t dbFNameLen = strlen(dbFName);
-  int32_t hashPrefix = (pCfg->hashPrefix > (dbFNameLen + 1)) ? (pCfg->hashPrefix - dbFNameLen - 1) : 0;
+  int32_t hashPrefix = 0;
+  if (pCfg->hashPrefix > 0) {
+    hashPrefix = pCfg->hashPrefix - dbFNameLen - 1;
+  } else if (pCfg->hashPrefix < 0) {
+    hashPrefix = pCfg->hashPrefix + dbFNameLen + 1;
+  }
 
   len += sprintf(
       buf2 + VARSTR_HEADER_SIZE,
@@ -443,7 +449,7 @@ void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     SSchema* pSchema = pCfg->pSchemas + i;
     char     type[32];
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
-    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type) {
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
@@ -458,7 +464,7 @@ void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     char     type[32];
     sprintf(type, "%s", tDataTypes[pSchema->type].name);
-    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type) {
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
@@ -534,7 +540,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     /*
-    if (type == TSDB_DATA_TYPE_BINARY) {
+    if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pTagVal->nData > 0) {
         if (num) {
           *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
@@ -743,7 +749,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     return terrno;
   }
 
-  if (taosSetCfg(tsCfg, pStmt->config)) {
+  if (taosApplyLocalCfg(tsCfg, pStmt->config)) {
     return terrno;
   }
 

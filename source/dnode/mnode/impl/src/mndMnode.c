@@ -578,7 +578,7 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   SMnodeObj mnodeObj = {0};
   mnodeObj.id = pDnode->id;
@@ -695,7 +695,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   if (totalMnodes == 2) {
     if (force) {
       mError("cant't force drop dnode, since a mnode on it and replica is 2");
-      terrno = TSDB_CODE_DNODE_OFFLINE;
+      terrno = TSDB_CODE_MNODE_ONLY_TWO_MNODE;
       return -1;
     }
     mInfo("vgId:1, has %d mnodes, exec redo log first", totalMnodes);
@@ -732,7 +732,7 @@ static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndTransCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;

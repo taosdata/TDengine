@@ -37,6 +37,13 @@ extern "C" {
 )
 // clang-format on
 
+typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
+
+typedef struct STableKeyInfo {
+  uint64_t uid;
+  uint64_t groupId;
+} STableKeyInfo;
+
 typedef struct SWinKey {
   uint64_t groupId;
   TSKEY    ts;
@@ -82,7 +89,7 @@ typedef struct STuplePos {
       int32_t pageId;
       int32_t offset;
     };
-    STupleKey streamTupleKey;
+    SWinKey streamTupleKey;
   };
 } STuplePos;
 
@@ -191,6 +198,7 @@ typedef struct SDataBlockInfo {
   SBlockID    id;
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not
+  uint8_t     scanFlag;
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -208,19 +216,6 @@ typedef struct SSDataBlock {
   SDataBlockInfo   info;
 } SSDataBlock;
 
-enum {
-  FETCH_TYPE__DATA = 0,
-  FETCH_TYPE__NONE,
-};
-
-typedef struct {
-  int8_t       fetchType;
-  union {
-    SSDataBlock data;
-    void*       meta;
-  };
-} SFetchRet;
-
 typedef struct SVarColAttr {
   int32_t* offset;    // start position for each entry in the list
   uint32_t length;    // used buffer size that contain the valid data
@@ -237,6 +232,7 @@ typedef struct SColumnInfoData {
   };
   SColumnInfo info;     // column info
   bool        hasNull;  // if current column data has null value.
+  bool        reassigned; // if current column data is reassigned.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
@@ -342,6 +338,8 @@ typedef struct {
     float       f;
   };
   size_t length;
+  bool keyEscaped;
+  bool valueEscaped;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
@@ -379,6 +377,8 @@ typedef struct STUidTagInfo {
 #define UD_TABLE_NAME_COLUMN_INDEX 0
 #define UD_GROUPID_COLUMN_INDEX    1
 #define UD_TAG_COLUMN_INDEX        2
+
+int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
 
 #ifdef __cplusplus
 }

@@ -13,9 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executorimpl.h"
+#include "executorInt.h"
 #include "filter.h"
 #include "functionMgt.h"
+#include "operator.h"
+#include "querytask.h"
+#include "tdatablock.h"
 
 typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
@@ -90,6 +93,8 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
+  pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
+  pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
     pInfo->mergeDataBlocks = false;
@@ -112,7 +117,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState);
+                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -210,6 +215,8 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   } else {
     if (limitReached && (pLimitInfo->slimit.limit >= 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       setOperatorCompleted(pOperator);
+    } else if (limitReached && groupId == 0) {
+      setOperatorCompleted(pOperator);
     }
   }
 
@@ -233,8 +240,9 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   }
 
   int64_t st = 0;
-  int32_t order = 0;
+  int32_t order = pInfo->inputTsOrder;
   int32_t scanFlag = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   if (pOperator->cost.openCost == 0) {
     st = taosGetTimestampUs();
@@ -279,10 +287,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         break;
       }
 
-      // the pDataBlock are always the same one, no need to call this again
-      int32_t code = getTableScanInfo(downstream, &order, &scanFlag, false);
-      if (code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, code);
+      if (pProjectInfo->mergeDataBlocks) {
+        pFinalRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
+      } else {
+        pRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
       }
 
       setInputDataBlock(pSup, pBlock, order, scanFlag, false);
@@ -367,7 +375,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   if (pPhyNode->pExprs != NULL) {
     int32_t    num = 0;
     SExprInfo* pSExpr = createExprInfo(pPhyNode->pExprs, NULL, &num);
-    int32_t    code = initExprSupp(&pInfo->scalarSup, pSExpr, num);
+    int32_t    code = initExprSupp(&pInfo->scalarSup, pSExpr, num, &pTaskInfo->storageAPI.functionStore);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -389,7 +397,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   blockDataEnsureCapacity(pResBlock, numOfRows);
 
   int32_t code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str,
-                            pTaskInfo->streamInfo.pState);
+                            pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -401,6 +409,8 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   }
 
   pInfo->binfo.pRes = pResBlock;
+  pInfo->binfo.inputTsOrder = pNode->inputTsOrder;
+  pInfo->binfo.outputTsOrder = pNode->outputTsOrder;
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 
   setOperatorInfo(pOperator, "IndefinitOperator", QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC, false, OP_NOT_OPENED, pInfo,
@@ -424,18 +434,13 @@ _error:
 
 static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOperatorInfo* downstream,
                               SExecTaskInfo* pTaskInfo) {
-  int32_t order = 0;
-  int32_t scanFlag = 0;
-
   SIndefOperatorInfo* pIndefInfo = pOperator->info;
   SOptrBasicInfo*     pInfo = &pIndefInfo->binfo;
   SExprSupp*          pSup = &pOperator->exprSupp;
 
-  // the pDataBlock are always the same one, no need to call this again
-  int32_t code = getTableScanInfo(downstream, &order, &scanFlag, false);
-  if (code != TSDB_CODE_SUCCESS) {
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
+  int32_t order = pInfo->inputTsOrder;
+  int32_t scanFlag = pBlock->info.scanFlag;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   // there is an scalar expression that needs to be calculated before apply the group aggregation.
   SExprSupp* pScalarSup = &pIndefInfo->scalarSup;
@@ -501,6 +506,7 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
           setOperatorCompleted(pOperator);
           break;
         }
+        pInfo->pRes->info.scanFlag = pBlock->info.scanFlag;
 
         if (pIndefInfo->groupId == 0 && pBlock->info.id.groupId != 0) {
           pIndefInfo->groupId = pBlock->info.id.groupId;  // this is the initial group result

@@ -434,7 +434,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   simLogSql(buf, true);
   int32_t code = system(buf);
   int32_t repeatTimes = 0;
-  while (code < 0) {
+  while (code != 0) {
     simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d", script->fileName, buf, code,
              errno, strerror(errno), repeatTimes);
     taosMsleep(1000);
@@ -752,6 +752,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_GEOMETRY:
               if (length[i] < 0 || length[i] > 1 << 20) {
                 fprintf(stderr, "Invalid length(%d) of BINARY or NCHAR\n", length[i]);
                 exit(-1);

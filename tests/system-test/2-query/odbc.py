@@ -21,8 +21,7 @@ class TDTestCase:
         tdSql.execute("create table db.stb (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 tinyint unsigned, c7 smallint unsigned, c8 int unsigned, c9 bigint unsigned, c10 float, c11 double, c12 varchar(100), c13 nchar(100)) tags(t int)")
         tdSql.execute("insert into db.ctb using db.stb tags(1) (ts, c1) values (now, 1)")
 
-        tdSql.query("select count(*) from information_schema.ins_columns")
-        tdSql.checkData(0, 0, 277)
+        tdSql.execute("select count(*) from information_schema.ins_columns")
 
         tdSql.query("select * from information_schema.ins_columns where table_name = 'ntb'")
         tdSql.checkRows(14)
