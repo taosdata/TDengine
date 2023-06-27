@@ -184,6 +184,7 @@ extern int64_t tsStreamBufferSize;
 extern int64_t tsCheckpointInterval;
 extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
+extern int32_t tsPQSortMemThreshold;
 
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

@@ -71,3 +71,30 @@ select a.ts, a.c2, b.c2 from meters as a join meters as b on a.ts = b.ts order b
 explain verbose true select a.ts, a.c2, b.c2 from meters as a join (select ts, c2 from meters order by ts desc) b on a.ts = b.ts order by a.ts desc\G;
 explain verbose true select a.ts, a.c2, b.c2 from meters as a join (select ts, c2 from meters order by ts desc) b on a.ts = b.ts order by a.ts asc\G;
 select a.ts, a.c2, b.c2 from meters as a join (select * from meters order by ts desc) b on a.ts = b.ts order by a.ts asc;
+
+select ts, c2 from meters order by c2;
+select ts, c2 from meters order by c2 limit 4;
+select ts, c2 from meters order by c2 limit 2,2;
+
+select ts, c2 from meters order by ts asc, c2 desc limit 10;
+select ts, c2 from meters order by ts asc, c2 desc limit 5,5;
+
+select ts, c2 from d1 order by c2;
+select ts, c2 from d1 order by c2 limit 4;
+select ts, c2 from d1 order by c2 limit 2,2;
+
+select ts, c2 from d1 order by ts asc, c2 desc limit 10;
+select ts, c2 from d1 order by ts asc, c2 desc limit 5,5;
+
+select _wstart, first(a) as d, avg(c) from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a desc) where a > '2022-05-15 00:01:00.000' and a < '2022-05-21 00:01:08.000' interval(5h) fill(linear) order by avg(c) desc;
+select _wstart, first(a) as d, avg(c) from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a desc) where a > '2022-05-15 00:01:00.000' and a < '2022-05-21 00:01:08.000' interval(5h) fill(linear) order by avg(c) desc limit 2;
+select _wstart, first(a) as d, avg(c) from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a desc) where a > '2022-05-15 00:01:00.000' and a < '2022-05-21 00:01:08.000' interval(5h) fill(linear) order by avg(c) desc limit 2,6;
+
+select last(ts), c2 as d from d1 group by c2 order by c2 desc limit 10;
+select last(ts), c2 as d from d1 group by c2 order by c2 desc limit 2,8;
+select last(ts), c2 as d from d1 group by c2 order by c2 desc limit 9,1;
+select last(ts), c2 as d from d1 group by c2 order by c2 asc limit 2,8;
+select last(ts), c2 as d from d1 group by c2 order by c2 asc limit 9,1;
+select last(ts) as ts, c2 as d from d1 group by c2 order by ts desc, c2 asc limit 10;
+select last(ts) as ts, c2 as d from d1 group by c2 order by ts desc, c2 asc limit 2,8;
+select last(ts) as ts, c2 as d from d1 group by c2 order by ts desc, c2 asc limit 9,1;
