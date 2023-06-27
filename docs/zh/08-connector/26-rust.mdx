@@ -303,6 +303,8 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+> **注意**：如果不使用 `use db` 指定数据库，则后续对表的操作都需要增加数据库名称作为前缀，如 db.tb。
+
 ### 插入数据
 
 <RustInsert />
