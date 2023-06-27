@@ -37,16 +37,16 @@ if [ ! -d $communityDir ]; then
   cd debug
 
   if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
-    cmake .. -DBUILD_TAOSX=true
+    cmake .. -DBUILD_TAOSX=false
   else
     if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
+      cmake .. -DBUILD_TAOSX=false -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
     elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue}
+      cmake .. -DBUILD_TAOSX=false -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue}
     elif [ ! -z "${cusName}" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DGRANT_VALUE=${grantValue} 
+      cmake .. -DBUILD_TAOSX=false -DCUS_NAME=${cusName} -DGRANT_VALUE=${grantValue} 
     else
-      cmake .. -DBUILD_TAOSX=true -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue} 
+      cmake .. -DBUILD_TAOSX=false -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue} 
     fi
   fi
 fi
