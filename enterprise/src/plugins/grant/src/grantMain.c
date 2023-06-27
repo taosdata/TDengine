@@ -552,7 +552,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
 void grantParseParameter() {
 #ifdef _TD_MIPS
-  fprintf(stderr, "the MIPS platform not support machine code currently!\n");
+  fprintf(stderr, "the MIPS platform does not support machine code currently!\n");
 #else
   char *key = grantGetMachineSerials();
   if (key != NULL) {
